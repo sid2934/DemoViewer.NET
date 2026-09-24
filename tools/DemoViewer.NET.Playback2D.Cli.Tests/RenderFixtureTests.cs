@@ -245,6 +245,71 @@ public class RenderFixtureTests
         await Assert.That(payload["map_version"]!.GetValue<string>()).IsEqualTo(expected);
     }
 
+    /// <summary>
+    ///     <c>--layers zones</c> feeds the outline layer from the map bundle's <c>zones.json</c> under
+    ///     <c>--assets</c>, and <c>--zones-overlay</c> applies a user overlay on top. Three renders,
+    ///     three different pictures and two different stamps: the layer is mounted, it draws, and the
+    ///     overlay changes what it draws.
+    /// </summary>
+    [Test]
+    public async Task Zones_RegistersTheLayer_AndTheOverlayChangesThePicture()
+    {
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "nuke-multilevel.scene.json");
+        string overlayPath = Path.Combine(Dv2d.CorpusDirectory, "zones", "zones-nuke-overlay.zones.json");
+        using TempDirectory temp = new();
+
+        CliRun bare = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "bare.png"), "--cpu", "--assets", Dv2d.AssetsDirectory,
+            "--layers", "radar", "--json");
+        CliRun zones = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "zones.png"), "--cpu", "--assets", Dv2d.AssetsDirectory,
+            "--layers", "radar,zones", "--json");
+        CliRun overlay = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "overlay.png"), "--cpu", "--assets", Dv2d.AssetsDirectory,
+            "--layers", "radar,zones", "--zones-overlay", overlayPath, "--json");
+
+        Console.WriteLine($"[zones] bare={bare.ExitCode} zones={zones.ExitCode} overlay={overlay.ExitCode}\n{overlay.StdErr}");
+        await Assert.That(bare.ExitCode).IsEqualTo(0);
+        await Assert.That(zones.ExitCode).IsEqualTo(0);
+        await Assert.That(overlay.ExitCode).IsEqualTo(0);
+
+        string[] drawn = [.. ((JsonArray)zones.Json()["layers"]!).Select(n => n!.GetValue<string>())];
+        await Assert.That(drawn).Contains(SceneLayerIds.Zones);
+        await Assert.That(bare.Json()["zones_version"]).IsNull();
+        await Assert.That(zones.Json()["zones_version"]!.GetValue<string>()).IsNotEmpty();
+        await Assert.That(overlay.Json()["zones_version"]!.GetValue<string>())
+            .IsNotEqualTo(zones.Json()["zones_version"]!.GetValue<string>());
+
+        string bareSha = bare.Json()["png_sha256"]!.GetValue<string>();
+        string zonesSha = zones.Json()["png_sha256"]!.GetValue<string>();
+        string overlaySha = overlay.Json()["png_sha256"]!.GetValue<string>();
+        await Assert.That(zonesSha).IsNotEqualTo(bareSha);
+        await Assert.That(overlaySha).IsNotEqualTo(zonesSha);
+
+        // The overlay fixture is well-formed: nothing was skipped.
+        await Assert.That(overlay.StdErr).DoesNotContain("zones overlay:");
+    }
+
+    /// <summary>
+    ///     Asking for the outline layer with nothing to feed it is refused, like the ink and the HUD,
+    ///     rather than answered with a PNG that quietly lacks it. <c>--no-radar</c> disables the asset
+    ///     root, so the bundle, and with it the zones file, is out of reach.
+    /// </summary>
+    [Test]
+    public async Task Zones_WithoutAMapBundle_IsRefusedWithTheReason()
+    {
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "nuke-multilevel.scene.json");
+        using TempDirectory temp = new();
+
+        CliRun run = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "starved.png"), "--cpu", "--no-radar", "--layers", "zones");
+
+        Console.WriteLine($"[zones] --no-radar --layers zones -> exit {run.ExitCode}: {run.StdErr.Trim()}");
+        await Assert.That(run.ExitCode).IsEqualTo(1);
+        await Assert.That(run.StdErr).Contains(ZoneAssetPipeline.FileName);
+        await Assert.That(File.Exists(Path.Combine(temp.Path, "starved.png"))).IsFalse();
+    }
+
     // "Not blank" has to mean "more than one colour", not "not black": a fixture whose camera is wrong
     // renders a uniform background, which a byte-length or a header check would happily accept.
     private static bool IsUniform(SKBitmap bitmap)

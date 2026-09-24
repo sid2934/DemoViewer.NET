@@ -36,8 +36,14 @@ internal static class RenderCommand
                 "by a newer schema).")
             : null;
 
+        string? zonesOverlay = args.String("zones-overlay");
+        if (zonesOverlay is { Length: > 0 } && !File.Exists(zonesOverlay))
+        {
+            throw new CliUsageException($"--zones-overlay {zonesOverlay} does not exist.");
+        }
+
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName,
-            annotations: ink);
+            annotations: ink, zonesOverlay: zonesOverlay);
 
         string outPath = args.String("out") ?? "dv2d-render.png";
         string? cameraSpec = args.String("camera");
@@ -81,6 +87,7 @@ internal static class RenderCommand
                 },
                 ["map"] = source.MapName,
                 ["map_version"] = plan.MapAssets?.Bundle.MapVersion ?? source.MapVersion,
+                ["zones_version"] = plan.Zones.Resolver?.Zones.EffectiveVersion,
                 ["tick"] = time.Tick,
                 ["frame_index"] = time.FrameIndex,
                 ["layers"] = ToArray(plan.LayerIds),

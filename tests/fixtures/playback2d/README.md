@@ -12,6 +12,7 @@ scenes/<name>.scene.json          the fixture
 goldens/cpu/<name>@<w>x<h>.png    the CPU-provider golden for it
 goldens/gpu/<name>@<w>x<h>.png    the GPU parity image (C2)
 annotations/<name>.dvann.json     the annotation sidecar (B2)
+zones/<name>.zones.json           the zones overlay, applied over the map's baked zones.json
 manifest.json                     the corpus index (C1 owns this file)
 ```
 

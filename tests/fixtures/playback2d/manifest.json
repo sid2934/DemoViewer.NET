@@ -231,6 +231,52 @@
       },
       "pending": false,
       "notes": "The worst-case 1080p scene design section 6's 8 ms render budget is actually stated against: 10 markers, 4 sixty-four-point trails crossing both Z bands, 12 area effects, a defusing bomb, over 2 derived levels with floor captions. Authored in code (SyntheticScenes) and committed as JSON, which BudgetFixtureCorpusTests keeps in step. Was PENDING for B1 with the scene already on disk; map/map_version claimed de_mirage while the fixture's own mapName is synthetic_budget, so a verify would have injected Mirage radar art into a synthetic scene - both are null now, which is what the fixture says."
+    },
+    {
+      "name": "zones-nuke",
+      "scene": "scenes/nuke-multilevel.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.floorlabel",
+        "playback2d.zones"
+      ],
+      "notes": "The nuke-multilevel scene as a RENDERING FIXTURE ONLY for playback2d.zones: the baked de_nuke zones.json's place outlines and labels over the radar, one floor per pane, hairline in the label colour. No markers, so the picture is the outline layer plus the art under it. The scene comes from the tour sample and is evidence of nothing; ZoneResolverAgreementTests measures the resolver against real demos. A zones re-bake changes zonesVersion without touching map_version, so this golden moves without a stale-assets refusal; that is expected and is reviewed like any other visual change."
+    },
+    {
+      "name": "zones-nuke-overlay",
+      "scene": "scenes/nuke-multilevel.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.floorlabel",
+        "playback2d.zones"
+      ],
+      "notes": "zones-nuke plus the user overlay zones/zones-nuke-overlay.zones.json, resolved by convention like an annotations sidecar: a custom polygon (Sandwich) drawn in the distinct dashed T-side style, a merge (BombsiteA and Hut into Site A) and a hidden place (HutRoof, re-flooded from its neighbours). The baked outline must be unchanged outside the custom polygon and the touched places. THE ONLY GOLDEN THAT COVERS AN OVERLAY."
     }
   ]
 }

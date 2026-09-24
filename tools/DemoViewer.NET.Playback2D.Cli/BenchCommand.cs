@@ -47,7 +47,8 @@ internal static class BenchCommand
         // ink included, or the §6 numbers describe a scene the real stack never draws.
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry?.Size ?? source.DefaultSize,
             source.MapName, entry?.Layers,
-            annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name));
+            annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name),
+            zonesOverlay: entry is null ? null : FixtureZones.ForCorpusEntry(entry.CorpusDirectory, entry.Name));
 
         int frames = args.Int("frames", 2000);
         int warmup = args.Int("warmup", 128);
