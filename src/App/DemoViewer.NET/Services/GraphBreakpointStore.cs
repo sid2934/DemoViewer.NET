@@ -1,9 +1,9 @@
 #region
 
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.ViewModels;
 
 #endregion
@@ -199,9 +199,8 @@ public sealed class GraphBreakpointStore
         }
     }
 
-    /// <summary>The lowercase hex SHA-256 of a demo's bytes, its stable content key.</summary>
-    public static string ComputeDemoKey(ReadOnlySpan<byte> demoBytes) =>
-        Convert.ToHexStringLower(SHA256.HashData(demoBytes));
+    /// <summary>The lowercase hex SHA-256 of a demo's bytes, its stable content key (<see cref="DemoContentHash" />).</summary>
+    public static string ComputeDemoKey(ReadOnlySpan<byte> demoBytes) => DemoContentHash.Compute(demoBytes);
 
     /// <summary>The breakpoints persisted for <paramref name="demoKey" />, or empty if none / unavailable.</summary>
     public IReadOnlyList<PersistedGraphBreakpoint> Load(string demoKey) =>

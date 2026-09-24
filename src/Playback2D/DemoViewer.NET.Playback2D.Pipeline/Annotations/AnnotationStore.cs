@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 
@@ -96,26 +95,15 @@ public sealed class AnnotationStore
         return new DemoIdentity(ComputeDemoKey(demoPath), Path.GetFileName(demoPath), size);
     }
 
-    /// <summary>Lowercase-hex SHA-256 of a file's bytes, streamed. The existing repo-wide demo key.</summary>
+    /// <summary>
+    ///     Lowercase-hex SHA-256 of a file's bytes, streamed: <see cref="DemoContentHash" /> with this
+    ///     store's "no key" spelling, an empty string, which its callers already treat as unknown.
+    /// </summary>
     /// <param name="path">The file to hash.</param>
     public static string ComputeDemoKey(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-
-        try
-        {
-            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                1 << 16, FileOptions.SequentialScan);
-            return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-        }
-        catch (IOException)
-        {
-            return "";
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return "";
-        }
+        return DemoContentHash.TryCompute(path) ?? "";
     }
 
     /// <summary>Where this demo's sidecar would be written.</summary>
