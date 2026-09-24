@@ -5,7 +5,9 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Teams;
 
 #endregion
 
@@ -83,6 +85,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="results">The Result Cards; built over the same cache, sidecar store and sources when null.</param>
     /// <param name="playback">The seek seam a card opens playback through; null on a host with no 2D tab.</param>
     /// <param name="sidecars">The sidecar store the cards read positions from; needed when <paramref name="results" /> is null.</param>
+    /// <param name="teams">Team Identity, for the rail's opponent and our-side fields; null offers neither. Used when <paramref name="canvas" /> is null.</param>
+    /// <param name="provenance">Demo Provenance Labels, for the rail's source field; null offers none. Used when <paramref name="canvas" /> is null.</param>
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
@@ -93,7 +97,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         QueryCanvasViewModel? canvas = null,
         ResultCardsViewModel? results = null,
         Func<ISituationPlayback?>? playback = null,
-        RoundIndexStore? sidecars = null)
+        RoundIndexStore? sidecars = null,
+        TeamIdentityService? teams = null,
+        IDemoProvenanceSource? provenance = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -107,8 +113,10 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
 
         // The canvas resolves a drop through the same zone source the builder mints tokens through, so
-        // the place a click names and the place a row stores come from one vocabulary.
-        Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), demoCache);
+        // the place a click names and the place a row stores come from one vocabulary. Its filter rail
+        // reads the two services the opponent, side and source fields join through.
+        Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), demoCache,
+            filters: new SearchFiltersViewModel(demoCache, teams, provenance));
 
         // The cards read the positions files the same store wrote, under the fingerprint in force for
         // the map; a set built without a sidecar store has nothing to draw and says so on every tile.
@@ -129,6 +137,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
     /// <summary>The Query Canvas below the strip.</summary>
     public QueryCanvasViewModel Canvas { get; }
+
+    /// <summary>The filter rail, owned by the canvas: the same draft the count and the search read.</summary>
+    public SearchFiltersViewModel Filters => Canvas.Filters;
 
     /// <summary>The Result Cards below the canvas: the last search's hits, and the walk over them.</summary>
     public ResultCardsViewModel Results { get; }

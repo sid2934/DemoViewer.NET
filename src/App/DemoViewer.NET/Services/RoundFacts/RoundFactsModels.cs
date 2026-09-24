@@ -329,9 +329,51 @@ public sealed class RoundFactsClock
 public sealed record FactLabel(string Group, string Key, string Value);
 
 /// <summary>
-///     A cross-demo round query. Every field is optional and they AND together; the tick-anchored
-///     facts (phase, man count, clock band) are per-round reads a consumer makes through
-///     <see cref="RoundPhases" /> once it has a tick, so they are not fields here.
+///     The clock bands a tick-anchored filter names, in seconds since the freeze end: the opening
+///     thirty seconds, the middle of the round, and everything from 1:15 on. Three, not the
+///     scoreboard's minute marks, because a set-up is over by thirty seconds and a late round is a
+///     different round from 1:15 regardless of the map.
+/// </summary>
+public enum ClockBand
+{
+    /// <summary>[0, 30) seconds after the freeze end.</summary>
+    Early,
+
+    /// <summary>[30, 75) seconds.</summary>
+    Middle,
+
+    /// <summary>75 seconds and later.</summary>
+    Late
+}
+
+/// <summary>The relative man count at a tick, absolute per side like every other fact.</summary>
+public enum ManCountState
+{
+    Even,
+    CtUp,
+    TUp
+}
+
+/// <summary>
+///     The score situation before the round, absolute per side. <see cref="MatchPoint" /> is a side
+///     one round from the regulation win (<c>RegulationRounds / 2</c> of the row's thresholds); overtime
+///     has no fixed match point in the row, so it is a regulation-only answer.
+/// </summary>
+public enum ScoreSituation
+{
+    Tied,
+    CtLeading,
+    TLeading,
+    MatchPoint
+}
+
+/// <summary>
+///     A cross-demo round query. Every field is optional and they AND together. The round-level
+///     fields read the record; the tick-anchored ones (<see cref="Phase" />, <see cref="ClockBand" />,
+///     <see cref="ManCount" />, <see cref="CtAlive" />, <see cref="TAlive" />) read
+///     <see cref="RoundPhases" /> at a tick: the round index applies them at each sampled step it
+///     matched, and <c>IRoundFactsSource.Query</c>, which has no tick, asks whether any tick of the
+///     live window passes (<see cref="RoundFactsSource.MatchesAnywhere" />).
 /// </summary>
 public sealed class RoundFactsFilter
 {
@@ -350,9 +392,42 @@ public sealed class RoundFactsFilter
 
     public RoundHalf? Half { get; init; }
 
+    /// <summary>The score situation before the round.</summary>
+    public ScoreSituation? Score { get; init; }
+
+    /// <summary>
+    ///     The phase at the tick. <see cref="RoundPhase.Retake" /> is the post-plant interval seen from
+    ///     the CT side, so it matches the same ticks as <see cref="RoundPhase.PostPlant" />.
+    /// </summary>
+    public RoundPhase? Phase { get; init; }
+
+    /// <summary>Seconds since the freeze end at the tick, in bands.</summary>
+    public ClockBand? ClockBand { get; init; }
+
+    /// <summary>The relative alive count at the tick.</summary>
+    public ManCountState? ManCount { get; init; }
+
+    /// <summary>Exactly this many CTs alive at the tick.</summary>
+    public int? CtAlive { get; init; }
+
+    /// <summary>Exactly this many Ts alive at the tick.</summary>
+    public int? TAlive { get; init; }
+
     /// <summary>Equality on user-added columns, compared as text.</summary>
     public IReadOnlyDictionary<string, string>? Extra { get; init; }
 
     /// <summary>Drop rounds with <see cref="RoundFacts.IsLive" /> false. On by default.</summary>
     public bool LiveOnly { get; init; } = true;
+
+    /// <summary>
+    ///     A per-round predicate over (demo path, round) from a consumer that knows more than the rows
+    ///     do: Team Identity narrows to the rounds a team played a side through <c>SideAtRound</c>,
+    ///     which nothing in this namespace can name. Null applies none. It runs after every other
+    ///     field, so it sees only rounds that already passed them.
+    /// </summary>
+    public Func<string, RoundFacts, bool>? Where { get; init; }
+
+    /// <summary>True when any field reads a tick: the consumer must pick one, or ask for any.</summary>
+    public bool HasTickAnchored =>
+        Phase is not null || ClockBand is not null || ManCount is not null || CtAlive is not null || TAlive is not null;
 }
