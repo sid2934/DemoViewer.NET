@@ -77,6 +77,17 @@ public sealed class TagPaletteButtonViewModel
 ///         The second click on the same tag turns that point into a movement from it to the new one, and
 ///         the click after that starts a new point, so a tag can carry several of either.
 ///     </para>
+///     <para>
+///         <b>Label Mode</b> (plan §3). The second pass: the palette shows its labels panels instead of its
+///         codes, and a label press adds to a tag that already exists, never making one. The target is the
+///         tag picked on the Tag Track (<see cref="SelectForLabels" />) while it exists, else the tag under
+///         the playhead that started last, so with overlapping tags the most recent one is labelled.
+///         The panels start where the target's code leads (its button's <c>then</c>), else at the first
+///         labels panel, follow each panel's <c>then</c> and come back to the start when the chain ends;
+///         <see cref="Playback2DAction.TagLabelGroupNext" /> walks every labels panel for a group no chain
+///         reaches. Each label is its own undoable edit, like a note or a click on a written tag. Sticky
+///         labels are neither applied nor set: a second pass says exactly what it presses.
+///     </para>
 ///     <para>UI-thread affine like the session it edits.</para>
 /// </summary>
 public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
@@ -97,6 +108,11 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     private bool _isFocused;
 
     private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
+
+    // Label Mode's target as last shown, so a playhead move that keeps the same tag leaves the panel alone,
+    // and its line as last raised, so the per-frame refresh raises nothing while the line stands still.
+    private Guid? _labelTargetId;
+    private string _labelTargetText = "";
     private Guid? _lastId;
 
     // The point the next click pairs with to make a movement: the tag it went on and the point itself.
@@ -106,6 +122,9 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     private string _noteDraft = "";
 
     private TagInstance? _pending;
+
+    // The tag picked on the Tag Track for Label Mode; it wins over the playhead while it exists.
+    private Guid? _selectedId;
 
     /// <summary>Creates the palette over a session.</summary>
     /// <param name="session">The tab's tag session; every write goes through it.</param>
@@ -157,9 +176,22 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     public ObservableCollection<TagPaletteButtonViewModel> Buttons { get; } = [];
 
     /// <summary>What the open panel asks: "codes", or the label group the flow wants next.</summary>
-    public string PanelTitle => CurrentPanel is { IsLabels: true } panel
-        ? string.IsNullOrEmpty(panel.Group) ? "label" : panel.Group
-        : "codes";
+    public string PanelTitle => CurrentPanel switch
+    {
+        { IsLabels: true } panel => string.IsNullOrEmpty(panel.Group) ? "label" : panel.Group,
+        null when IsLabelMode => "no label groups in this palette",
+        _ => "codes"
+    };
+
+    /// <summary>Whether the palette adds labels to existing tags instead of making new ones.</summary>
+    public bool IsLabelMode { get; private set; }
+
+    /// <summary>In Label Mode, the tag a label press goes on, as one line, or why there is none; else "".</summary>
+    public string LabelTargetText => !IsLabelMode
+        ? ""
+        : LabelTarget() is { } target
+            ? Describe(target)
+            : "no tag under the playhead";
 
     /// <summary>Whether a code press is waiting for its labels.</summary>
     public bool HasPending => _pending is not null;
@@ -184,10 +216,15 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     public bool HasDiagnostics => _store.Diagnostics.Count > 0;
 
     /// <summary>The palette's keys from the resolved keymap, so a rebind shows the user's gesture.</summary>
-    public string HintText =>
-        $"{Gesture(Playback2DAction.FocusTagPalette)} focus · {Gesture(Playback2DAction.TagPaletteBack)} back · "
-        + $"{Gesture(Playback2DAction.TagNote)} note · {Gesture(Playback2DAction.TagClearSticky)} clear sticky · "
-        + $"{Gesture(Playback2DAction.Undo)} undo · click map: point, again: movement";
+    public string HintText => IsLabelMode
+        ? $"{Gesture(Playback2DAction.TagLabelMode)} back to tagging · "
+          + $"{Gesture(Playback2DAction.TagLabelGroupNext)} next group · "
+          + $"{Gesture(Playback2DAction.TagPaletteBack)} drop the pick, then leave · "
+          + $"{Gesture(Playback2DAction.Undo)} undo · click a tag's band: label it, again: the next one there"
+        : $"{Gesture(Playback2DAction.FocusTagPalette)} focus · {Gesture(Playback2DAction.TagPaletteBack)} back · "
+          + $"{Gesture(Playback2DAction.TagNote)} note · {Gesture(Playback2DAction.TagClearSticky)} clear sticky · "
+          + $"{Gesture(Playback2DAction.TagLabelMode)} label mode · "
+          + $"{Gesture(Playback2DAction.Undo)} undo · click map: point, again: movement";
 
     /// <summary>Raised when the user picks a palette, with its id, so the tab can persist the choice.</summary>
     public event Action<string>? PaletteChosen;
@@ -205,7 +242,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     {
         Finish();
         Palette = _store.Resolve(id);
-        ShowPanel(Palette.Root);
+        ShowPanel(IsLabelMode ? LabelStartPanel(LabelTarget()) : Palette.Root);
         OnPropertyChanged(nameof(Palette));
         OnPropertyChanged(nameof(SelectedPalette));
     }
@@ -276,6 +313,8 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         Playback2DAction.TagPaletteBack => Back(),
         Playback2DAction.TagNote => BeginNote(),
         Playback2DAction.TagClearSticky => ClearSticky(),
+        Playback2DAction.TagLabelMode => ToggleLabelMode(),
+        Playback2DAction.TagLabelGroupNext => NextLabelGroup(),
         _ => false
     };
 
@@ -310,6 +349,11 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
             return false;
         }
 
+        if (IsLabelMode)
+        {
+            return panel.IsLabels && LabelExisting(panel, button);
+        }
+
         if (panel.IsLabels)
         {
             if (_pending is null)
@@ -342,6 +386,20 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool Back()
     {
+        // Label Mode: the first Esc drops the Tag Track pick (back to the playhead's tag), the next one
+        // goes back to tagging.
+        if (IsLabelMode)
+        {
+            if (_selectedId is not null)
+            {
+                _selectedId = null;
+                RefreshLabelTarget();
+                return true;
+            }
+
+            return SetLabelMode(false);
+        }
+
         if (_pending is not null || !ReferenceEquals(CurrentPanel, Palette.Root))
         {
             Finish();
@@ -485,6 +543,120 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    /// <summary>Switches Label Mode on or off. Turning it on writes a pending tag first.</summary>
+    public bool ToggleLabelMode() => SetLabelMode(!IsLabelMode);
+
+    /// <summary>
+    ///     Turns Label Mode on or off. On, the palette shows the labels panels for the target; off, it
+    ///     forgets the Tag Track pick and returns to the codes. False on the way in without an attached demo.
+    /// </summary>
+    /// <param name="on">Whether Label Mode should be on.</param>
+    public bool SetLabelMode(bool on)
+    {
+        if (on == IsLabelMode)
+        {
+            return true;
+        }
+
+        if (on && _session.Document is null)
+        {
+            return false;
+        }
+
+        Finish();
+        IsLabelMode = on;
+        _selectedId = null;
+        TagInstance? target = on ? LabelTarget() : null;
+        _labelTargetId = target?.Id;
+        ShowPanel(on ? LabelStartPanel(target) : Palette.Root);
+        OnPropertyChanged(nameof(IsLabelMode));
+        OnPropertyChanged(nameof(HintText));
+        RaiseLabelTargetText();
+        return true;
+    }
+
+    /// <summary>
+    ///     Picks Label Mode's target from a Tag Track band: the run's first tag, or the one after the
+    ///     current pick when it is already in this run, so clicking the same merged band again walks its
+    ///     tags. False outside Label Mode or for an empty run.
+    /// </summary>
+    /// <param name="run">The ids of the tags in the clicked band, in the track's order.</param>
+    public bool SelectForLabels(IReadOnlyList<Guid> run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (!IsLabelMode || run.Count == 0)
+        {
+            return false;
+        }
+
+        int at = _selectedId is { } current ? IndexOf(run, current) : -1;
+        _selectedId = run[(at + 1) % run.Count];
+        RefreshLabelTarget();
+        return true;
+    }
+
+    /// <summary>
+    ///     Re-resolves Label Mode's target after the playhead or the document moved, and when it is a
+    ///     different tag restarts the panels at that tag's own. The tab calls it on every playhead update.
+    /// </summary>
+    public void RefreshLabelTarget()
+    {
+        if (!IsLabelMode)
+        {
+            return;
+        }
+
+        TagInstance? target = LabelTarget();
+        if (target?.Id != _labelTargetId)
+        {
+            _labelTargetId = target?.Id;
+            ShowPanel(LabelStartPanel(target));
+        }
+
+        RaiseLabelTargetText();
+    }
+
+    /// <summary>In Label Mode, shows the next labels panel in the palette's order, wrapping. False otherwise.</summary>
+    public bool NextLabelGroup()
+    {
+        if (!IsLabelMode)
+        {
+            return false;
+        }
+
+        List<TagPalettePanel> panels = Palette.Panels.Where(p => p.IsLabels).ToList();
+        if (panels.Count == 0)
+        {
+            return false;
+        }
+
+        int at = CurrentPanel is null ? -1 : panels.IndexOf(CurrentPanel);
+        ShowPanel(panels[(at + 1) % panels.Count]);
+        return true;
+    }
+
+    /// <summary>
+    ///     The tag Label Mode labels when nothing is picked: of the tags whose span holds
+    ///     <paramref name="tick" />, the one that started last, the first in the document on a tie. Null
+    ///     when none does.
+    /// </summary>
+    /// <param name="document">The tag document.</param>
+    /// <param name="tick">Frame-clock tick.</param>
+    public static TagInstance? InstanceAt(TagDocument document, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        TagInstanceRef? best = null;
+        foreach (TagInstanceRef found in TagQuery.At(document, tick))
+        {
+            if (best is null || found.FromTick > best.FromTick)
+            {
+                best = found;
+            }
+        }
+
+        return best is null ? null : document.Instances.FirstOrDefault(i => i.Id == best.Id);
+    }
+
     /// <summary>
     ///     The span a code press makes: <paramref name="leadSeconds" /> before the playhead to
     ///     <paramref name="lagSeconds" /> after, in the document's ticks, clamped to the round the playhead is
@@ -543,6 +715,84 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         // A playhead outside the parse's own range can leave nothing between the clamps; the store refuses
         // an inverted span, so the tag shrinks to one tick rather than being lost.
         return (from, Math.Max(from, to));
+    }
+
+    [RelayCommand]
+    private void ToggleLabelModeButton() => ToggleLabelMode();
+
+    [RelayCommand]
+    private void NextLabelGroupButton() => NextLabelGroup();
+
+    // A label press in Label Mode: one Replace of the target with the label added, so a Ctrl+Z takes back
+    // one label and the instance count never moves. A label the tag already has writes nothing, and the
+    // panels move on either way.
+    private bool LabelExisting(TagPalettePanel panel, TagPaletteButton button)
+    {
+        if (LabelTarget() is not { } target)
+        {
+            return false;
+        }
+
+        TagInstance edited = target.Clone();
+        AddLabel(edited, panel.Group ?? "", button.Value ?? "");
+        if (edited.Labels.Count != target.Labels.Count)
+        {
+            _session.Apply(new TagDelta.Replace(target.Id, edited));
+        }
+
+        ShowPanel(Palette.PanelById(panel.Then) is { IsLabels: true } next ? next : LabelStartPanel(target));
+        RaiseLabelTargetText();
+        return true;
+    }
+
+    private TagInstance? LabelTarget()
+    {
+        if (_session.Document is not { } document)
+        {
+            return null;
+        }
+
+        if (_selectedId is { } id && document.Instances.FirstOrDefault(i => i.Id == id) is { } picked)
+        {
+            return picked;
+        }
+
+        return InstanceAt(document, _playhead());
+    }
+
+    // Where the target's own code leads, so a second pass asks what a first pass with this code would
+    // have; else the palette's first labels panel. Null for a palette with no labels panels.
+    private TagPalettePanel? LabelStartPanel(TagInstance? target)
+    {
+        if (target is not null)
+        {
+            foreach (TagPalettePanel panel in Palette.Panels.Where(p => !p.IsLabels))
+            {
+                foreach (TagPaletteButton button in panel.Buttons)
+                {
+                    if (string.Equals(button.Code, target.Code, StringComparison.Ordinal)
+                        && Palette.PanelById(button.Then) is { IsLabels: true } then)
+                    {
+                        return then;
+                    }
+                }
+            }
+        }
+
+        return Palette.Panels.FirstOrDefault(p => p.IsLabels);
+    }
+
+    private static int IndexOf(IReadOnlyList<Guid> ids, Guid id)
+    {
+        for (int i = 0; i < ids.Count; i++)
+        {
+            if (ids[i] == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     [RelayCommand]
@@ -695,6 +945,16 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         position.Place ?? string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{position.X:0},{position.Y:0}");
 
+    private void RaiseLabelTargetText()
+    {
+        string text = LabelTargetText;
+        if (!string.Equals(text, _labelTargetText, StringComparison.Ordinal))
+        {
+            _labelTargetText = text;
+            OnPropertyChanged(nameof(LabelTargetText));
+        }
+    }
+
     private void RaiseInstanceText()
     {
         OnPropertyChanged(nameof(HasPending));
@@ -707,6 +967,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(LastText));
+        RefreshLabelTarget(); // an undo can take back the target's label, or the target itself
     });
 
     private void OnStoreReloaded() => _post(() =>

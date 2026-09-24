@@ -219,10 +219,18 @@ file:
   cleared. The stored label is an ordinary label.
 * A hotkey is one key, optionally with `Ctrl+`, `Shift+` or both. A bare digit is the top-row digit, and
   the number pad works too. Keys are live only while the palette has focus.
+* **Label Mode** (Ctrl+L while the palette has focus, or the palette's Label button) is the second
+  pass: the palette shows its labels panels instead of its codes, and a press adds that label to a tag
+  that already exists instead of making one. The tag is the one picked by clicking its band on the tag
+  lane (clicking a merged band again picks the next tag in it), else the tag under the playhead that
+  started last. The panels start where that tag's code leads, follow each `then`, and start again when
+  the chain ends; Ctrl+G shows the next labels panel for a group no chain reaches. Each label is its own
+  undo step, a label the tag already has writes nothing, and sticky labels are left alone. Esc drops
+  the picked tag, and a second Esc goes back to tagging.
 
 A file is refused, with a line in the diagnostics log and on the palette panel, when it cannot be
 parsed; when a hotkey is an app-wide shortcut, a key the browser keeps for itself, or one of the
-palette's own keys (Esc and the note and sticky-reset chords); when two buttons of one panel share a
+palette's own keys (Esc, and the note, sticky-reset, Label Mode and next-group chords); when two buttons of one panel share a
 hotkey; when a group is one of the fact names or the reserved strat groups above; or when a `then` names
 no labels panel or loops. A hotkey that shadows a 2D Playback key while the palette has focus (`F`
 follow, `Q`/`E` rounds, `Ctrl+Z`) loads with a warning naming the key. A user palette may not reuse a

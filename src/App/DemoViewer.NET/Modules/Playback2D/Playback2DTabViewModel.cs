@@ -382,6 +382,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
+        Timeline.BandPressed += OnTimelineBandPressed;
 
         LoadLevelSettings();
         LevelStrip.SettingsChanged += SaveLevelSettings;
@@ -1828,6 +1829,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             case Playback2DAction.TagPaletteBack:
             case Playback2DAction.TagNote:
             case Playback2DAction.TagClearSticky:
+            case Playback2DAction.TagLabelMode:
+            case Playback2DAction.TagLabelGroupNext:
                 return IsTagPaletteFocused && TagPalette.Execute(action);
 
             default:
@@ -2245,6 +2248,19 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     private void OnTimelineSeekRequested(int frameIndex) => _context?.RequestSeekToFrame(frameIndex);
 
+    // A tag band clicked in Label Mode picks its tag for the palette; the seek to the band's start still
+    // happens, so the pick is also on screen. Outside Label Mode a tag band only seeks, as before.
+    private void OnTimelineBandPressed(TimelineBandViewModel band)
+    {
+        if (band.TrackId != TagTrack.TrackId || !IsTagPaletteEnabled || !TagPalette.IsLabelMode
+            || _timelineData is null)
+        {
+            return;
+        }
+
+        TagPalette.SelectForLabels(_tagTrack.InstancesInRun(_timelineData, band.StartFrameIndex));
+    }
+
     // The floating overlay's status readout moved into the timeline footer; mirror it so the one Status
     // string still drives it.
     partial void OnStatusChanged(string value) => Timeline.StatusText = value;
@@ -2541,6 +2557,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The playhead follows the shared clock's push, never a private timer, so it tracks play, step,
         // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
         Timeline.UpdatePlayhead(snapshot.FrameIndex, snapshot.Tick);
+        TagPalette.RefreshLabelTarget(); // Label Mode's tag is the one under the playhead unless one is picked
 
         // Mark the viewport dirty; the View coalesces this to one InvalidateVisual on the render frame.
         FrameUpdated?.Invoke();
