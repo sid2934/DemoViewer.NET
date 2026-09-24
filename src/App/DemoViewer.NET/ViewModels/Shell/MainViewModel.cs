@@ -30,6 +30,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -2574,6 +2575,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             byte[] rawBytes = await File.ReadAllBytesAsync(path);
             _demoBytes = rawBytes;
             _loadedDemoPath = path; // Diagnostics Session card
+            // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it:
+            // it keys the graph breakpoints and is published to modules, and computing it here costs no
+            // wall time on the load. See LoadDemoFromBytesAsync for the same shape.
+            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
             // The interactive load takes the machine-wide
             // heavy-parse gate: background indexing/scanning yields at its next demo boundary.
             // During a reel render the acquisition throws ReelInProgressException, which the
@@ -2584,6 +2589,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 parsed = await Task.Run(() => DemoParser.Parse(rawBytes.AsMemory()));
             }
 
+            string demoKey = await demoKeyTask;
             MatchOverviewTab.SetSummary(path, parsed);
             MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
             FrameRows.Clear();
@@ -2616,6 +2622,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }));
             _moduleContext?.SetGameEvents(parsed.AllGameEvents); // pre-decoded timeline for event-driven modules
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
+            _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
             _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
             // navigation-review Phase A: precompute round / event / tick boundary indices once,
@@ -2637,8 +2644,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // Match Overview stage parity with the interactive funnel (see LoadDemoFromBytesAsync).
             MatchOverviewTab.BeginAnalysis(path);
-            // SHA-256 the demo bytes (off-thread) to key its persisted graph breakpoints.
-            string demoKey = await Task.Run(() => GraphBreakpointStore.ComputeDemoKey(rawBytes));
             await Analysis.RunAsync(parsed, demoKey);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
@@ -3261,6 +3266,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _moduleContext?.SetGameEvents([]);
         _moduleContext?.SetGameClock(0);
         _moduleContext?.SetMapName(null);
+        _moduleContext?.SetDemoSha256(null);
         _moduleContext?.SetDemo(null);
         // ClearAndTrim, not Clear: these grow to one slot per frame (~131k on a long demo) and
         // Clear() does not shrink the backing array, so a closed demo left 1 MB of nulls in each.
@@ -3642,6 +3648,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // ReelInProgressException, surfaced by this site's existing failure handling. The queue
             // parses the in-hand rawBytes (no re-read). Legacy fallbacks: the direct gate, then ungated.
             MatchOverviewTab.SetStage(subjectKey, "Parsing demo…", 0.15);
+            // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it. It
+            // keys the persisted graph breakpoints and is published on the module context, where the
+            // annotation, breakpoint and tag stores join on it; hashing here costs no wall time on the load,
+            // and hashing once here is what lets every module read the value instead of hashing again.
+            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
             ParsedDemo parsed;
             if (_processingQueue is not null)
             {
@@ -3658,6 +3669,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Fill the Match Overview quick facts + rosters from the parsed result and advance its stage strip
             // to "Enriching". The page does NOT leave its loading state here: the score and scoreboard are
             // still placeholders until the analysis run below lands.
+            string demoKey = await demoKeyTask;
             MatchOverviewTab.SetSummary(subjectKey, parsed);
             MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
 
@@ -3702,6 +3714,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }));
             _moduleContext?.SetGameEvents(parsed.AllGameEvents); // pre-decoded timeline for event-driven modules
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
+            _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
             _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
             // navigation-review Phase A: precompute round / event / tick boundary indices once,
@@ -3730,8 +3743,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Everything above this line is the Match Overview's "Enriching" stage (roster, navigation index,
             // game clock, module fan-out); the run below is its "Analysing" stage.
             MatchOverviewTab.BeginAnalysis(subjectKey);
-            // SHA-256 the demo bytes (off-thread) to key its persisted graph breakpoints.
-            string demoKey = await Task.Run(() => GraphBreakpointStore.ComputeDemoKey(rawBytes));
             await Analysis.RunAsync(parsed, demoKey);
             // StatsTab is fed by AnalysisViewModel.EvaluationCompleted, which is raised SYNCHRONOUSLY inside
             // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await

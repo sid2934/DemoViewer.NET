@@ -23,6 +23,15 @@ public interface IModuleContext
     /// </summary>
     string? MapName => null;
 
+    /// <summary>
+    ///     Lowercase-hex SHA-256 of the loaded demo's bytes: the content key every persisted per-demo
+    ///     store joins on (annotations, breakpoints, tags), computed ONCE by the host from the bytes it
+    ///     already holds and published here so a module never hashes a second time. Null until a demo is
+    ///     loaded, and for hosts/doubles that do not expose it (default). Set before
+    ///     <see cref="DemoReset" /> fires, so a module may read it from that handler.
+    /// </summary>
+    string? DemoSha256 => null;
+
     /// <summary>Server tick rate (ticks/second).</summary>
     int TickRate { get; }
 

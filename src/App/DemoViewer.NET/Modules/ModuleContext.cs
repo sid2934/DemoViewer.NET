@@ -109,6 +109,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public bool HasDemo => _controller.HasDemo;
     public string? DemoPath => _demoPath();
     public string? MapName { get; private set; }
+    public string? DemoSha256 { get; private set; }
 
     public ILiveSyncHudState? LiveSyncHud { get; private set; }
 
@@ -243,6 +244,12 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     ///     from <c>ParsedDemo.MapName</c>. Pass null on unload. Lets a module select map assets by identity.
     /// </summary>
     public void SetMapName(string? mapName) => MapName = mapName;
+
+    /// <summary>
+    ///     Sets the loaded demo's content hash on load (mirrors <see cref="SetMapName" />): the shell hashes
+    ///     the raw bytes once, for its own breakpoint key, and hands the same value here. Pass null on unload.
+    /// </summary>
+    public void SetDemoSha256(string? sha256) => DemoSha256 = sha256;
 
     /// <summary>Sets the loaded demo on load / clears it on unload (mirrors <see cref="SetRoster" />).</summary>
     public void SetDemo(ParsedDemo? demo) => CurrentDemo = demo;
