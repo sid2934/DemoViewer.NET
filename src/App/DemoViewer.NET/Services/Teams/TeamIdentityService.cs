@@ -776,6 +776,76 @@ public sealed class TeamIdentityService : IDisposable
         }
     }
 
+    // ── The provenance override store ────────────────────────────────────────────────────────────
+    // Demo Provenance Labels owns the vocabulary and the heuristic; this service owns the file the
+    // overrides live in (overview correction 24), so the writes come through here and share one
+    // atomic write, one refusal rule and one Changed with the rest of teams.json.
+
+    /// <summary>A snapshot of every provenance override in the file.</summary>
+    public IReadOnlyList<ProvenanceOverride> ProvenanceOverrides
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _teams.Provenance.Overrides];
+            }
+        }
+    }
+
+    /// <summary>The provenance override on a demo, or null when the heuristic decides.</summary>
+    /// <param name="demoPath">The demo.</param>
+    public ProvenanceOverride? ProvenanceOverrideFor(string demoPath)
+    {
+        string key = DemoCacheStore.StableKey(demoPath);
+        string? sha = _demoCache.TryGetIndex(demoPath)?.Sha256;
+        lock (_gate)
+        {
+            sha ??= _index.Demos.GetValueOrDefault(key)?.Sha256;
+            return _teams.Provenance.Overrides.FirstOrDefault(o => Matches(o, key, sha));
+        }
+    }
+
+    /// <summary>
+    ///     Pins a demo's provenance label, or with null removes the pin so the heuristic decides again.
+    ///     Keyed by hash when the demo has one. Touches nothing derived.
+    /// </summary>
+    /// <param name="demoPath">The demo.</param>
+    /// <param name="label">One of <see cref="Provenance.DemoProvenanceLabel.All" />, or null.</param>
+    public void SetProvenanceOverride(string demoPath, string? label)
+    {
+        if (label is not null && !Provenance.DemoProvenanceLabel.IsKnown(label))
+        {
+            throw new ArgumentException($"'{label}' is not a provenance label", nameof(label));
+        }
+
+        string key = DemoCacheStore.StableKey(demoPath);
+        string? sha = _demoCache.TryGetIndex(demoPath)?.Sha256;
+        lock (_gate)
+        {
+            sha ??= _index.Demos.GetValueOrDefault(key)?.Sha256;
+            int removed = _teams.Provenance.Overrides.RemoveAll(o => Matches(o, key, sha));
+            if (label is null && removed == 0)
+            {
+                return;
+            }
+
+            if (label is not null)
+            {
+                _teams.Provenance.Overrides.Add(new ProvenanceOverride
+                {
+                    DemoSha256 = sha,
+                    DemoStableKey = sha is null ? key : null,
+                    Label = label
+                });
+            }
+
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
     /// <summary>Hides or shows a team in lists. Touches nothing derived.</summary>
     public void SetHidden(Guid teamId, bool hidden)
     {
@@ -832,15 +902,22 @@ public sealed class TeamIdentityService : IDisposable
         return map;
     }
 
-    private static bool Matches(TeamOverride o, string stableKey, string? sha256) =>
+    /// <summary>
+    ///     Whether a <c>teams.json</c> entry names a demo: by hash when the entry carries one, else by the
+    ///     cache's stable key. Public so Demo Provenance Labels applies the same rule to its overrides.
+    /// </summary>
+    /// <param name="o">The entry.</param>
+    /// <param name="stableKey"><see cref="DemoCacheStore.StableKey" /> of the demo.</param>
+    /// <param name="sha256">The demo's content hash, or null before it is hashed.</param>
+    public static bool Matches(IDemoKeyedOverride o, string stableKey, string? sha256) =>
         (o.DemoSha256 is not null && string.Equals(o.DemoSha256, sha256, StringComparison.Ordinal))
         || (o.DemoSha256 is null && string.Equals(o.DemoStableKey, stableKey, StringComparison.Ordinal));
 
     // An override written before the demo was hashed moves onto the hash the moment it appears, so a
-    // moved file keeps it.
+    // moved file keeps it. Both override lists, one rule.
     private void UpgradeOverrides()
     {
-        foreach (TeamOverride o in _teams.Overrides)
+        foreach (IDemoKeyedOverride o in _teams.Overrides.Cast<IDemoKeyedOverride>().Concat(_teams.Provenance.Overrides))
         {
             if (o.DemoSha256 is null && o.DemoStableKey is not null
                 && _index.Demos.TryGetValue(o.DemoStableKey, out TeamIndexDemo? row) && row.Sha256 is not null)

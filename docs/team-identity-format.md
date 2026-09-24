@@ -48,7 +48,12 @@ Both files are written whole and atomically (temp file plus replace).
   "overrides": [
     { "demoSha256": "ab12…", "demoStableKey": null, "side": 3, "teamId": "3f2a…" },
     { "demoSha256": null, "demoStableKey": "3f9c…", "side": 2, "teamId": null }   // null = not a team
-  ]
+  ],
+  "provenance": {                    // Demo Provenance Labels' user pins; absent = every demo automatic
+    "overrides": [
+      { "demoSha256": "ab12…", "demoStableKey": null, "label": "our scrim" }
+    ]
+  }
 }
 ```
 
@@ -60,6 +65,27 @@ Both files are written whole and atomically (temp file plus replace).
   date on match it rather than the earlier rosters.
 * **`overrides`**: keyed by content hash when the demo has one, else by the cache's stable path key,
   and upgraded to the hash the moment it appears.
+* **`provenance.overrides`**: the same key rule, one entry per demo the user labelled on the Library
+  card. `label` is one of `official`, `scrim`, `our scrim`, `matchmaking`; removing the entry hands
+  the demo back to the heuristic. The section is additive: a file written before it reads empty.
+
+### The provenance label
+
+The label a demo carries is `IDemoProvenanceSource.LabelFor(sha256)` (path-keyed: `Resolve`). A pin
+in `provenance.overrides` wins; otherwise the default is decided, in this order, from the cache row's
+clan tags and `sourceKind` and from `team-index.json`'s `ourSideSource` and `opponentTeamId`:
+
+| Condition | Default |
+|---|---|
+| clan tags on both sides | `official` |
+| `ourSideSource` is `Team` or `Override` and `opponentTeamId` is set | `our scrim` |
+| our side resolved (any source) and `sourceKind` is `GotvMatchmaking` | `matchmaking` |
+| our side resolved (any source), tagless, not matchmaking | `scrim` |
+| otherwise | unlabeled (`null`) |
+
+`sourceKind` is the engine classifier's verdict on the file header, stored by name on the cache row
+at tier 2. A row written before the field existed is classified from its cached server name alone,
+which is the classifier's own fallback, so an old library needs no re-index to be labelled.
 
 ## `team-index.json`
 
