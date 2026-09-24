@@ -33,6 +33,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -117,6 +118,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
     // through the same IsAvailable the timeline band asks: one answer, not two that can disagree.
     private readonly RoundTrack _roundTrack = new();
+
+    // Cached round facts, the winner tint's source on a Valve demo (which carries no round_end). Resolved
+    // ambiently like the settings: a headless test builds this with no container and gets null, and the
+    // track then behaves exactly as it did before the facts existed.
+    private IRoundFactsSource? _roundFacts;
     private readonly Dictionary<int, ulong> _steamIdBySlot = new();
 
     // What the profile was last composed from. SettingsViewModel spells this guard `_writing` around its
@@ -324,6 +330,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // ONCE and reading _timelineData live, rather than re-assigned on every resync: the session
         // outlives every demo the tab shows, so a re-assignment would only be a second chance to forget.
         _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
+
+        _roundFacts = TryResolveRoundFacts();
 
         Timeline.RegisterTrack(_roundTrack);
         Timeline.RegisterTrack(new KillTrack());
@@ -588,6 +596,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // trails after the user opens a new demo (via the Open-file button or the library browser).
         context.DemoReset += OnDemoReset;
 
+        // The evaluator finishes AFTER the open demo's parse has been handed around, so the first tint
+        // on a freshly indexed demo arrives through this rather than through the resync below.
+        if (_roundFacts is not null)
+        {
+            _roundFacts.Updated += OnRoundFactsUpdated;
+        }
+
         // Live Sync (CS2) in-context indicator: capture the shell's read-only projection (null on
         // Browser / no engine → the indicator stays absent) and track it while active. Captured so
         // deactivation unsubscribes the exact same instance (the seam is stable but we never re-read it late).
@@ -637,6 +652,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             _context.Advanced -= OnAdvanced;
             _context.DemoReset -= OnDemoReset;
             _context = null;
+        }
+
+        if (_roundFacts is not null)
+        {
+            _roundFacts.Updated -= OnRoundFactsUpdated;
         }
 
         // The adapter holds no subscriptions, but it holds the context; drop it so an inactive tab
@@ -1107,6 +1127,60 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         {
             return null;
         }
+    }
+
+    private static IRoundFactsSource? TryResolveRoundFacts()
+    {
+        try
+        {
+            return App.Services?.GetService<IRoundFactsSource>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     The round facts the winner tint reads. Resolved from the container in the constructor; a test
+    ///     without one assigns a fake here before activation, or leaves it null for the pre-facts tint.
+    /// </summary>
+    internal IRoundFactsSource? RoundFactsSource
+    {
+        get => _roundFacts;
+        set => _roundFacts = value;
+    }
+
+    // One sidecar read, served by the store's capacity-1 record cache on the common path (Match Overview
+    // has usually just read the same record). Null without a source, without a path, or without rows.
+    private List<RoundFacts>? LoadRoundFacts(string? demoPath)
+    {
+        if (_roundFacts is null || string.IsNullOrEmpty(demoPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return _roundFacts.TryGet(demoPath)?.Rounds;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    // Posted on the UI thread by the evaluator. Only the open demo's rows matter to this tab.
+    private void OnRoundFactsUpdated(string demoPath)
+    {
+        if (_context is not { } ctx
+            || !string.Equals(ctx.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _roundTrack.Facts = LoadRoundFacts(demoPath);
+        _roundTrack.RefreshTints();
     }
 
     /// <summary>
@@ -1914,6 +1988,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // Activation and DemoReset are exactly the two moments the demo's event set can change, so the
         // timeline is rebuilt here and nowhere else. The fresh adapter that drops the previous demo's
         // per-name cache is constructed at the top of this method; see why there.
+        _roundTrack.Facts = LoadRoundFacts(_context.DemoPath);
         Timeline.Rebuild(_timelineData);
         Timeline.UpdatePlayhead(_context.CurrentFrameIndex, _context.CurrentTick);
         RefreshGates();
