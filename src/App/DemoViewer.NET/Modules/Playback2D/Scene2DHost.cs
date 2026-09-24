@@ -19,6 +19,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using SkiaSharp;
@@ -88,6 +89,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     private TextBlobCache _text;
     private VisionLayer _visionLayer;
     private Playback2DTabViewModel? _vm;
+    private ZoneOutlineLayer? _zoneLayer;
 
     /// <summary>Creates the host and registers the seven scene layers.</summary>
     public Scene2DHost()
@@ -118,6 +120,9 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
     internal AnnotationLayer? AnnotationLayerForTest { get; private set; }
+
+    /// <summary>The zone outline layer, once the toggle is on and the map has zones. Test hook.</summary>
+    internal ZoneOutlineLayer? ZoneLayerForTest => _zoneLayer;
 
     /// <summary>The layer stack. B2 and B4 register their layers on it.</summary>
     public SceneCompositor Compositor => _compositor;
@@ -364,6 +369,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _boundAsset = null;
         AnnotationLayerForTest = null;
         _boundSession = null;
+        _zoneLayer = null;
         _released = false;
     }
 
@@ -975,6 +981,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         BindAnnotations(vm.AnnotationSession);
         _compositor.SetEnabled(SceneLayerIds.Annotations, vm.IsAnnotationsEnabled);
 
+        // Only asked for when shown: vm.Zones is the lazy read that parses the file, and a map whose
+        // outlines nobody turned on must not pay for them on every sync.
+        BindZones(vm.ShowZones ? vm.Zones : null);
+        _compositor.SetEnabled(SceneLayerIds.Zones, vm.ShowZones && _zoneLayer is not null);
+
         LoadedMapAsset? asset = vm.MapAsset;
         if (!ReferenceEquals(asset, _boundAsset))
         {
@@ -1022,6 +1033,47 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         _toolServices.Session = session;
         Router.SetActive(session.ActiveTool);
+    }
+
+    // Mounts, re-points or drops the zone outline layer. Under the render gate for the same reason
+    // BindAnnotations is: RenderPane walks the layer list by index on the render thread. A reload
+    // hands the same layer a new resolver, which drops its cached pictures and bumps its version.
+    private void BindZones(PlaceResolver? resolver)
+    {
+        if (resolver is null)
+        {
+            if (_zoneLayer is null)
+            {
+                return;
+            }
+
+            using (_gate.Enter())
+            {
+                _compositor.Remove(SceneLayerIds.Zones);
+                _zoneLayer = null;
+            }
+
+            return;
+        }
+
+        if (_zoneLayer is null)
+        {
+            using (_gate.Enter())
+            {
+                _zoneLayer = new ZoneOutlineLayer(resolver, _text);
+                _compositor.Add(_zoneLayer);
+            }
+
+            return;
+        }
+
+        if (!ReferenceEquals(_zoneLayer.Resolver, resolver))
+        {
+            using (_gate.Enter())
+            {
+                _zoneLayer.Resolver = resolver;
+            }
+        }
     }
 
     private void ArmFrameLoopIfNeeded()

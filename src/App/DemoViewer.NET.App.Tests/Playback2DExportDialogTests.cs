@@ -600,10 +600,17 @@ public class Playback2DExportDialogTests
             .IsEquivalentTo(BareSceneSet().Order());
     }
 
-    /// <summary>Every scene-stack id except vision: `dv2d export --hud --annotations`.</summary>
+    /// <summary>
+    ///     Every scene-stack id except vision and the zone outlines: `dv2d export --hud --annotations`.
+    ///     Zones are left out on both sides for the same reason vision is: neither export front end
+    ///     feeds the layer (the runner builds its stack with no place resolver), so naming it would
+    ///     request a layer the compositor silently starves. Burning outlines into a video is its own
+    ///     item, and when it lands this filter shrinks to vision alone.
+    /// </summary>
     internal static IEnumerable<string> FullOverlaySet() =>
         SceneLayerCatalog.SceneStackIds
-            .Where(id => !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal));
+            .Where(id => !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal) &&
+                         !string.Equals(id, SceneLayerIds.Zones, StringComparison.Ordinal));
 
     /// <summary>Every non-opt-in scene-stack id except vision: bare `dv2d export`.</summary>
     internal static IEnumerable<string> BareSceneSet() =>

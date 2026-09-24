@@ -38,6 +38,9 @@ internal sealed class Playback2DFakeContext : IModuleContext
     // arrived".
     public string? DemoPath { get; set; }
 
+    // The map the tab selects baked assets (and zones) by. Null, the interface default, means no bundle.
+    public string? MapName { get; set; }
+
     // The annotation session's tick rate is sourced from this, through the ClockIdentity the tab builds,
     // so a fake that could only ever be 64-tick could not reproduce a tick-rate-dependent bug.
     public int TickRate { get; set; } = 64;
