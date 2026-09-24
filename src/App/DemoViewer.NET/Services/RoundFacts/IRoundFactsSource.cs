@@ -184,8 +184,18 @@ public sealed class RoundFactsSource : IRoundFactsSource
         return labels;
     }
 
-    private static bool Matches(RoundFacts round, RoundFactsFilter filter)
+    /// <summary>
+    ///     Whether one round passes a filter's round-level fields. Public so the round index can apply
+    ///     the same filter to its hits through the same rule; <see cref="RoundFactsFilter.Demos" /> is
+    ///     a demo-level field and is the caller's to apply.
+    /// </summary>
+    /// <param name="round">The round.</param>
+    /// <param name="filter">The filter.</param>
+    public static bool Matches(RoundFacts round, RoundFactsFilter filter)
     {
+        ArgumentNullException.ThrowIfNull(round);
+        ArgumentNullException.ThrowIfNull(filter);
+
         if (filter.LiveOnly && !round.IsLive)
         {
             return false;

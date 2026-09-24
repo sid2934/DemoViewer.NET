@@ -96,6 +96,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["builtin.entity"] = "tab.entity",
         ["builtin.stats"] = "tab.stats",
         ["highlights.browser"] = "tab.highlights",
+        ["situations.search"] = "tab.situations",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
         ["playback2d.viewport"] = "tab.playback2d",

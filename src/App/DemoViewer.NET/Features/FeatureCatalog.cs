@@ -64,6 +64,14 @@ public static class FeatureCatalog
             "Build and customise highlight reels — stage clips from any match and render them to video. "
             + "Explore a match's own highlights on Match Overview.",
             null, null, false, Defaults(true, true, true)),
+        // The Situations tab: Situation Search over the round index. Default-visible to every category
+        // like Reels, for the same reason: the flagship's payoff must not hide from the audience that
+        // wants it. Only the id is a persisted key; the label is display text.
+        new(
+            "tab.situations", FeatureScope.Tab, "Situations",
+            "Find rounds by where the players stood — search the library's round index for a setup, "
+            + "an execute or a retake and walk the hits.",
+            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",
