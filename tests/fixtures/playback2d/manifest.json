@@ -253,6 +253,28 @@
       },
       "pending": false,
       "notes": "The Query Canvas golden: de_nuke's two nav floors and radar with no markers, and six placed query tokens from queries/query-nuke-execute.dvquery.json drawn by playback2d.query. Two CT tokens on A, one CT and one T on Ramp (one per storey, which is the level-key assignment the layer has to get right), one T Outside, and one T token on the upper floor with no place, drawn hollow. The layer draws no text and the entry names no floor caption, so with zero marker labels the glyph allowance is zero and the gate is the unrelaxed one on every platform."
+    },
+    {
+      "name": "result-card-nuke",
+      "scene": "scenes/result-card-nuke.scene.json",
+      "size": {
+        "width": 320,
+        "height": 180
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "layers": [
+        "playback2d.radar",
+        "playback2d.markers"
+      ],
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "A Result Card thumbnail (Strat Room, Result Cards And Walking): the scene SituationThumbnailRenderer.BuildFrame makes from one sampled step of a .dvrp.json.gz positions file, over de_nuke's two nav floors and radar at the card's 320x180. Eight alive markers with no label, no yaw and the team ring (a tuple carries none of those): five CT (two on A, two Outside, one on the upper Ramp) and three T (one on the lower Ramp, one in Lobby, one at Silo). Written by ResultCardThumbnailTests with RI_GOLDEN_UPDATE=1 from the same document that test renders in process, so the App's card path and dv2d's pixel gate draw one frame. Zero labels: the glyph allowance is zero and the gate is the unrelaxed one."
     }
   ]
 }

@@ -20,8 +20,9 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///     index simply follows Round Facts by one pass and never races it.
 ///     <para>
 ///         Per demo the work is one position walk (1 to 3 s on top of the parse the queue already
-///         paid), one sidecar write and one record stamp, the stamp last so a crash between them leaves
-///         "not indexed" and never a stamp without a file. A throw stamps <see cref="RoundIndexState.Failed" />,
+///         paid), the positions file and the sidecar written in that order, and one record stamp, the
+///         stamp last so a crash between them leaves "not indexed" and never a stamp without both
+///         files. A throw stamps <see cref="RoundIndexState.Failed" />,
 ///         which the derived backlog excludes until the user retries; the parse itself failing is not
 ///         this evaluator's to mark.
 ///     </para>
@@ -274,15 +275,26 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
                 return; // a queued request the Library's fan-out already satisfied
             }
 
-            RoundIndexDocument document = RoundIndexBuilder.Build(parsed, facts, _sources.Options, source, _walk?.Invoke(parsed));
+            RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source,
+                _walk?.Invoke(parsed));
+            RoundIndexDocument document = build.Index;
+            string stableKey = DemoCacheStore.StableKey(path);
             document.Demo = new RoundIndexDemo
             {
                 Sha256 = record.Sha256,
-                StableKey = DemoCacheStore.StableKey(path),
+                StableKey = stableKey,
                 FileName = fileName,
                 SizeBytes = record.Size
             };
+            build.Positions.Demo = new RoundPositionsDemo
+            {
+                Sha256 = record.Sha256,
+                StableKey = stableKey
+            };
 
+            // Positions first, sidecar second, stamp last: a crash between any two leaves "not indexed"
+            // or a positions file nothing reads, never an index whose cards have nothing to draw.
+            _store.WritePositions(path, build.Positions);
             _store.Write(path, document);
 
             long computedAt = 0;

@@ -89,7 +89,7 @@ public class RoundIndexEvaluatorTests
             await Assert.That(document.Demo.StableKey).IsEqualTo(DemoCacheStore.StableKey(Demo));
             await Assert.That(document.Demo.FileName).IsEqualTo("match.dem");
             await Assert.That(document.Rounds.Count).IsEqualTo(2);
-            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn");
+            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=1");
             await Assert.That(record.RoundIndex.IsPresent).IsTrue();
             await Assert.That(record.RoundIndexState).IsEqualTo(RoundIndexState.Indexed);
             await Assert.That(record.RoundIndexFingerprint).IsEqualTo(document.Fingerprint);
@@ -209,8 +209,8 @@ public class RoundIndexEvaluatorTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(pawnNuke).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn");
-            await Assert.That(zonesNuke).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=zones;zv=zv-nuke");
+            await Assert.That(pawnNuke).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=1");
+            await Assert.That(zonesNuke).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=zones;zv=zv-nuke;pos=1");
             await Assert.That(zonesDust).IsEqualTo(pawnNuke).Because("a map without zones falls back to the pawn");
             await Assert.That(sources.IsZoneFallback("de_dust2")).IsTrue();
             await Assert.That(sources.IsZoneFallback("de_nuke")).IsFalse();

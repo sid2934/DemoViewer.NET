@@ -80,6 +80,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="tokenSource">The live <c>SituationsSettings.TokenSource</c>.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="canvas">The Query Canvas; built over the same index and zone source when null, retiring bundles through the dispatcher.</param>
+    /// <param name="results">The Result Cards; built over the same cache, sidecar store and sources when null.</param>
+    /// <param name="playback">The seek seam a card opens playback through; null on a host with no 2D tab.</param>
+    /// <param name="sidecars">The sidecar store the cards read positions from; needed when <paramref name="results" /> is null.</param>
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
@@ -87,7 +90,10 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         RoundIndexPlaceSources sources,
         Func<RoundIndexTokenSource> tokenSource,
         bool? isBrowser = null,
-        QueryCanvasViewModel? canvas = null)
+        QueryCanvasViewModel? canvas = null,
+        ResultCardsViewModel? results = null,
+        Func<ISituationPlayback?>? playback = null,
+        RoundIndexStore? sidecars = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -104,6 +110,13 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         // the place a click names and the place a row stores come from one vocabulary.
         Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), demoCache);
 
+        // The cards read the positions files the same store wrote, under the fingerprint in force for
+        // the map; a set built without a sidecar store has nothing to draw and says so on every tile.
+        Results = results ?? new ResultCardsViewModel(demoCache, sidecars ?? new RoundIndexStore(null, demoCache),
+            sources, playback ?? (() => null));
+        Canvas.Searched += Results.Load;
+        Canvas.PropertyChanged += OnCanvasPropertyChanged;
+
         // Both sources matter: the cache raises on every stamp, the index on load and merge. Subscribed
         // for the VM's life rather than per activation so the strip is right the moment the tab opens.
         _demoCache.Changed += OnCacheChanged;
@@ -116,6 +129,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
     /// <summary>The Query Canvas below the strip.</summary>
     public QueryCanvasViewModel Canvas { get; }
+
+    /// <summary>The Result Cards below the canvas: the last search's hits, and the walk over them.</summary>
+    public ResultCardsViewModel Results { get; }
 
     /// <summary>The line the strip shows instead of counts on the browser host: the annotation panel's words.</summary>
     public const string BrowserNote = "session only: no library index in the browser";
@@ -152,15 +168,33 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         _disposed = true;
         _demoCache.Changed -= OnCacheChanged;
         _index.Changed -= Refresh;
+        Canvas.Searched -= Results.Load;
+        Canvas.PropertyChanged -= OnCanvasPropertyChanged;
         Canvas.Dispose();
     }
 
     /// <summary>
     ///     Marks every index stale and re-queues the library. The old rows keep answering until each
-    ///     demo is rebuilt, which is why the strip shows a stale count rather than going blank.
+    ///     demo is rebuilt, which is why the strip shows a stale count rather than going blank. The
+    ///     thumbnails go, though: every one is a picture of rows about to be replaced, and their keys
+    ///     carry the fingerprint the rebuild leaves behind.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanRebuild))]
-    private void RebuildIndex() => _evaluator?.RebuildAll();
+    private void RebuildIndex()
+    {
+        Results.Cache.Clear();
+        _evaluator?.RebuildAll();
+    }
+
+    // The canvas nulls its count the moment the query or the map changes; the cards describe the
+    // old query and go with it, so a stale set never sits under a new one.
+    private void OnCanvasPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(QueryCanvasViewModel.ResultCount) && Canvas.ResultCount is null && Results.HasCards)
+        {
+            Results.Clear();
+        }
+    }
 
     /// <summary>Re-queues the failed rows only, at user priority. A user with three broken demos has not asked for a library rebuild.</summary>
     [RelayCommand(CanExecute = nameof(HasFailed))]

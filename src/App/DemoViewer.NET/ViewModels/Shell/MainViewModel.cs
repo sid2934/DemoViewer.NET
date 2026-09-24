@@ -3224,6 +3224,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public async Task OpenDemoInWorkspaceAsync(string path) => await LoadDemoFromPathAsync(path);
 
     /// <summary>
+    ///     The path of the loaded demo as the library knows it, or null with none. The Situations
+    ///     tab's seek seam reads it to skip the re-open when a Result Card names the demo already on
+    ///     the clock; the Diagnostics card and the idle resume read the same field.
+    /// </summary>
+    internal string? LoadedDemoPath => _loadedDemoPath;
+
+    /// <summary>
     ///     Drops every shell-held reference to the currently-loaded demo. Shared by the two load entry
     ///     points (<see cref="LoadDemoFromBytesAsync" /> / <see cref="AutoLoadDemoAsync" />, which used to
     ///     carry near-identical hand-maintained copies of this block) and by the standalone

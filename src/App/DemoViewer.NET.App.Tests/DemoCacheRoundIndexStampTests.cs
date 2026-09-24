@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class DemoCacheRoundIndexStampTests
 {
-    private const string Current = "ri1;cadence=1;token=1;rf=1;src=pawn";
+    private const string Current = "ri1;cadence=1;token=1;rf=1;src=pawn;pos=1";
 
     [Test]
     public async Task NeedsRoundIndex_OnMissing_Stale_Current_AndFailed()
@@ -26,7 +26,7 @@ public class DemoCacheRoundIndexStampTests
 
         DemoCacheStore.StampRoundIndex(record);
         record.RoundIndexState = RoundIndexState.Indexed;
-        record.RoundIndexFingerprint = "ri1;cadence=2;token=1;rf=1;src=pawn";
+        record.RoundIndexFingerprint = "ri1;cadence=2;token=1;rf=1;src=pawn;pos=1";
         await Assert.That(record.NeedsRoundIndex(Current)).IsTrue().Because("another cadence means another row");
 
         record.RoundIndexFingerprint = Current;

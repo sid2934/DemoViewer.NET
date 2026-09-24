@@ -38,7 +38,11 @@ public enum Playback2DAction
     HoldPan,
 
     // Bound by Find Rounds Like This (Strat Room, plan D7):
-    FindRoundsLikeThis
+    FindRoundsLikeThis,
+
+    // Bound by Result Cards And Walking (Strat Room): J / K over the Situations result set.
+    NextSituationResult,
+    PrevSituationResult
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -362,6 +366,14 @@ public static class Playback2DKeymap
         //    browser-reserved list either.
         new(Playback2DAction.FindRoundsLikeThis, Key.F, KeyModifiers.Control, Playback2DBindingScope.Always,
             "Find rounds like this: snapshot the alive players onto the Situations query", false),
+
+        // ── Result walking (Always). J / K step the Situations result set from inside playback, so a
+        //    search is reviewed without a tab switch per hit. Unhandled with no result set, and the
+        //    ends of the set do not wrap.
+        new(Playback2DAction.NextSituationResult, Key.J, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Next situation result: seek to the next card of the Situations search", false),
+        new(Playback2DAction.PrevSituationResult, Key.K, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Previous situation result: seek to the previous card of the Situations search", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,

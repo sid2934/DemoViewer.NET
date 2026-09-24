@@ -113,7 +113,7 @@ public class RoundIndexBudgetTests
             rounds.Add((r, freezeEnd, freezeEnd + RowsPerRound * 64, [.. runs]));
         }
 
-        RoundIndexDocument document = Document("de_nuke", "ri1;cadence=1;token=1;rf=1;src=pawn", [.. rounds]);
+        RoundIndexDocument document = Document("de_nuke", "ri1;cadence=1;token=1;rf=1;src=pawn;pos=1", [.. rounds]);
         for (int i = 0; i < _places.Length - 1; i++)
         {
             document.Transitions.Add(new PlaceTransition(_places[i], _places[i + 1], random.Next(1, 40)));

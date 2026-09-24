@@ -758,6 +758,23 @@ public class App : Application
             sp.GetRequiredService<RoundIndexEvaluator>(),
             action => Dispatcher.UIThread.Post(action)));
         services.AddSingleton<ISituationIndex>(sp => sp.GetRequiredService<SituationIndex>());
+        // Result Cards seek playback through the shell's own funnels: the shared load core when the
+        // card's demo is not the loaded one, the controller's SeekToTick, and the tab switch by id.
+        // Every delegate reaches the shell at call time, never at construction.
+        services.AddSingleton<ISituationPlayback>(_ => new SituationPlaybackSeek(
+            () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
+            async path =>
+            {
+                if (Services?.GetService<MainViewModel>() is not { } shell)
+                {
+                    return false;
+                }
+
+                await shell.LoadDemoFromPathAsync(path);
+                return shell.HasFile;
+            },
+            tick => Services?.GetService<MainViewModel>()?.Playback.SeekToTick(tick),
+            tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
@@ -766,8 +783,15 @@ public class App : Application
                 sp.GetRequiredService<RoundIndexEvaluator>(),
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
-                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn);
+                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
+                playback: () => sp.GetService<ISituationPlayback>(),
+                sidecars: sp.GetRequiredService<RoundIndexStore>());
         });
+
+        // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
+        // Like This, so the set the keys walk is the set the tab shows.
+        services.AddSingleton<ISituationResultWalk>(sp => new SituationResultWalk(
+            sp.GetRequiredService<SituationsTabViewModel>));
 
         // Find Rounds Like This: the 2D tab's Ctrl+F hands its current tick through this seam. The tab
         // VM resolves lazily (the same container singleton the module activates, so the canvas the key
