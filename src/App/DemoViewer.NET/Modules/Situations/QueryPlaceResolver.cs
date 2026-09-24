@@ -30,8 +30,8 @@ public interface IQueryPlaceResolver
 ///     produce a raw place name, so the token the canvas builds is the same either way.
 ///     <para>
 ///         The zone path sits behind <see cref="IZonePlaceResolverSource" />, the seam the index
-///         builder already mints tokens through; until Zone Baking's resolver lands every map answers
-///         "no zones" there and only the snap runs.
+///         builder already mints tokens through; a map without a zones file, and every map on the
+///         browser host, answers "no zones" there and only the snap runs.
 ///     </para>
 /// </summary>
 public sealed class QueryPlaceResolver : IQueryPlaceResolver
@@ -40,7 +40,7 @@ public sealed class QueryPlaceResolver : IQueryPlaceResolver
     private readonly IZonePlaceResolverSource _zones;
 
     /// <param name="index">The place centroids, for the snap.</param>
-    /// <param name="zones">Where a map's zone resolver comes from; none until Zone Baking's resolver lands.</param>
+    /// <param name="zones">Where a map's zone resolver comes from; none when omitted.</param>
     public QueryPlaceResolver(ISituationIndex index, IZonePlaceResolverSource? zones = null)
     {
         ArgumentNullException.ThrowIfNull(index);
