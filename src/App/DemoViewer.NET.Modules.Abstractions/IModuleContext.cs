@@ -23,6 +23,15 @@ public interface IModuleContext
     /// </summary>
     string? MapName => null;
 
+    /// <summary>
+    ///     Lowercase-hex SHA-256 of the loaded demo's bytes: the content key every persisted per-demo
+    ///     store joins on (annotations, breakpoints, tags), computed ONCE by the host from the bytes it
+    ///     already holds and published here so a module never hashes a second time. Null until a demo is
+    ///     loaded, and for hosts/doubles that do not expose it (default). Set before
+    ///     <see cref="DemoReset" /> fires, so a module may read it from that handler.
+    /// </summary>
+    string? DemoSha256 => null;
+
     /// <summary>Server tick rate (ticks/second).</summary>
     int TickRate { get; }
 
@@ -80,6 +89,17 @@ public interface IModuleContext
 
     /// <summary>Total frames in the loaded demo, 0 when none. The timeline's x-axis domain.</summary>
     int TotalFrames => 0;
+
+    /// <summary>
+    ///     The first frame's server tick (the frame clock; 1 on Valve demos), 0 when no demo. With
+    ///     <see cref="LastTick" /> it is the parse extent a persisted per-demo store writes into its clock
+    ///     header, so a later load against a different parse can be told apart from the one the anchors
+    ///     were authored on. Default 0 for hosts / doubles that do not expose it.
+    /// </summary>
+    int FirstTick => 0;
+
+    /// <summary>The last frame's server tick, 0 when no demo. See <see cref="FirstTick" />.</summary>
+    int LastTick => 0;
 
     /// <summary>
     ///     True while playback speed is pinned by the host (a Live Sync session without the plugin's

@@ -443,6 +443,24 @@ public sealed class DemoCacheIndexEntry
         Size == size && ModifiedTicks == modifiedTicks;
 }
 
+/// <summary>
+///     How one store hands a demo to another. Derived stores key by <see cref="StableKey" /> (the cache
+///     sidecar rule) and user-truth stores key by <see cref="Sha256" /> (a moved file keeps its tags), so a
+///     consumer crossing that line needs both in hand rather than converting keys on its own: the bridges
+///     are <see cref="DemoCacheStore.TryGetIndex" /> and <see cref="DemoCacheStore.TryGetIndexBySha256" />.
+///     Defined here, beside the index row it is projected from, so every store agrees on the shape.
+/// </summary>
+/// <param name="Path">The demo's path as the library knows it.</param>
+/// <param name="StableKey"><see cref="DemoCacheStore.StableKey" /> of <paramref name="Path" />.</param>
+/// <param name="Sha256">Lowercase-hex content hash, or null when the demo has not reached tier 2.</param>
+public sealed record DemoRef(string Path, string StableKey, string? Sha256)
+{
+    /// <summary>The reference for an index row.</summary>
+    /// <param name="entry">The row to reference.</param>
+    public static DemoRef From(DemoCacheIndexEntry entry) =>
+        new(entry.Path, DemoCacheStore.StableKey(entry.Path), entry.Sha256);
+}
+
 /// <summary>The on-disk shape of <c>index.json</c>: a versioned wrapper so migrations have a hook.</summary>
 public sealed class DemoCacheIndexFile
 {

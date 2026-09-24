@@ -60,7 +60,6 @@ public sealed class AnnotationSessionController : IDisposable
     private readonly Lock _styleGate = new();
 
     private bool _attached;
-    private ClockIdentity _clock = ClockIdentity.Unknown;
     private CancellationTokenSource? _debounce;
     private DemoIdentity? _demo;
     private string? _demoPath;
@@ -137,6 +136,13 @@ public sealed class AnnotationSessionController : IDisposable
     ///     unaffected; time anchors may be off, and the panel says so rather than the app pretending.
     /// </summary>
     public bool ClockMismatch { get; private set; }
+
+    /// <summary>
+    ///     The clock the current demo was attached with: what every save writes into the sidecar header and
+    ///     what a load's <see cref="ClockMismatch" /> compares against. <see cref="ClockIdentity.Unknown" />
+    ///     until the first attach.
+    /// </summary>
+    public ClockIdentity Clock { get; private set; } = ClockIdentity.Unknown;
 
     /// <summary>True when a load found a sidecar belonging to a different demo, and ignored it.</summary>
     public bool DemoMismatch { get; private set; }
@@ -247,7 +253,7 @@ public sealed class AnnotationSessionController : IDisposable
         await FlushAsync().ConfigureAwait(false);
 
         _demoPath = normalized;
-        _clock = clock;
+        Clock = clock;
         _demo = null;
         _attached = true;
         ClockMismatch = false;
@@ -654,7 +660,7 @@ public sealed class AnnotationSessionController : IDisposable
         AnnotationElement[] elements = [.. Session.Document.Elements];
         int version = Session.Document.Version;
         string demoPath = _demoPath;
-        ClockIdentity clock = _clock;
+        ClockIdentity clock = Clock;
 
         try
         {

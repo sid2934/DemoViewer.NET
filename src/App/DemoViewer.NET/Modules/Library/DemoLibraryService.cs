@@ -2,7 +2,6 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Clips;
@@ -10,6 +9,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -907,8 +907,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Returns the cached SHA-256 (lowercase hex) for a file when the (path,size,mtime) key still matches,
-    // else streams the bytes to hash it and writes the result back onto the metadata row. Null on an I/O
-    // failure. The caller then treats the file as its own singleton (never wrongly deduped).
+    // else streams the bytes through the shared helper and writes the result back onto the metadata row.
+    // Null on an I/O failure. A reconcile caller then treats the file as its own singleton (never wrongly
+    // deduped); the tier-2 caller leaves the cache record's hash as it was.
     private string? GetOrComputeSha(string path, long size, DateTime modified)
     {
         lock (_cacheLock)
@@ -920,27 +921,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        string? sha = HashFileStreaming(path);
+        string? sha = DemoContentHash.TryCompute(path);
         if (sha is not null)
         {
             UpsertCache(path, c => c.Sha256 = sha);
         }
 
         return sha;
-    }
-
-    // Streaming SHA-256 (constant memory, never loads the whole demo). Best-effort: null on any I/O error.
-    private static string? HashFileStreaming(string path)
-    {
-        try
-        {
-            using FileStream stream = File.OpenRead(path);
-            return Convert.ToHexStringLower(SHA256.HashData(stream));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
     }
 
     // Runs on the post (UI) thread. `primaries` are the deduped demos (one per content group);
@@ -1135,7 +1122,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // path, or inline on the legacy path. Self-contained failure handling so a throw marks ONLY this row
     // Failed. fanOutToOthers is true when Library is the producer (background tier-2); false when the parse
     // arrived opportunistically (the coordinator already handled the wider fan-out).
-    private void IndexTier2Core(DemoEntry entry, ParsedDemo parsed, bool fanOutToOthers)
+    //
+    // Internal so the real-demo test can drive one entry through it without a folder scan, which would
+    // mean linking or copying a demo into a temp library.
+    internal void IndexTier2Core(DemoEntry entry, ParsedDemo parsed, bool fanOutToOthers)
     {
         List<string> players;
         double duration;
@@ -1271,7 +1261,15 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             c.FullyIndexed = true;
         });
 
-        WriteTier2ToDemoCache(entry, parsed, map, duration, ctScore, tScore, ctClan, tClan, cachedPlayers, rounds);
+        // The content hash, for EVERY demo rather than only the size collisions reconcile hashes. The
+        // user-truth stores (annotations, breakpoints, tags) key on it, and a demo they can find again
+        // after a move or a re-download is only one the index already knows by content. Tier 2 is the
+        // pass that has just streamed the whole file through the parser, so the second read is served
+        // warm from the page cache; the (path,size,mtime) row makes a rescan free.
+        string? sha = GetOrComputeSha(entry.FilePath, entry.FileSizeBytes, entry.Modified);
+
+        WriteTier2ToDemoCache(entry, parsed, map, duration, ctScore, tScore, ctClan, tClan, cachedPlayers, rounds,
+            sha);
 
         // Persist periodically so a long scan's progress survives an app close, and nudge the VM so
         // the player/map filters grow during a long sequential scan (its end may be an hour away).
@@ -1301,7 +1299,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // projection threw; every other field is still worth writing.
     private void WriteTier2ToDemoCache(DemoEntry entry, ParsedDemo parsed, string? map, double duration,
         int? ctScore, int? tScore, string? ctClan, string? tClan,
-        List<CachedPlayerInfo>? players, List<CachedRound>? rounds)
+        List<CachedPlayerInfo>? players, List<CachedRound>? rounds, string? sha256)
     {
         if (_demoCache is null)
         {
@@ -1315,6 +1313,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 if (!string.IsNullOrEmpty(map))
                 {
                     record.Map = map;
+                }
+
+                // Null only when the file could not be read back: keep whatever the record holds rather
+                // than erasing a key some sidecar may already be joined on.
+                if (sha256 is not null)
+                {
+                    record.Sha256 = sha256;
                 }
 
                 record.Server = parsed.ServerName;

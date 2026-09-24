@@ -46,6 +46,11 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public bool IsPlaying { get; set; }
     public double Speed { get; set; } = 1.0;
     public int TotalFrames { get; set; } = 1000;
+
+    // The clock header the tab writes is built from these; a fake pinned at 0, 0 could only ever produce
+    // the all-zero header that ClockIdentity.Matches treats as unknown.
+    public int FirstTick { get; set; }
+    public int LastTick { get; set; }
     public bool IsSpeedLocked { get; set; }
 
     public IModuleFeatureGate? Features => Gate;

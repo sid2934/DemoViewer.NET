@@ -45,6 +45,12 @@ public sealed class DemoCacheStore
     private readonly Dictionary<string, DemoCacheIndexEntry> _index =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // The reverse of _index: content hash → the paths that carry it, maintained by the same three
+    // mutations (load, upsert, remove) so it can never disagree. A set rather than one entry because a
+    // copied demo legitimately puts two rows under one hash; the lookup picks the primary the same way
+    // the library does. Under _gate.
+    private readonly Dictionary<string, HashSet<string>> _pathsBySha = new(StringComparer.Ordinal);
+
     /// <summary>
     ///     Record store used when there is no cache root: the browser host, and tests.
     ///     <para>
@@ -186,6 +192,43 @@ public sealed class DemoCacheStore
         lock (_gate)
         {
             return _index.GetValueOrDefault(path);
+        }
+    }
+
+    /// <summary>
+    ///     The index row carrying a content hash, or null when no indexed demo has it (never hashed yet,
+    ///     or not in the library). The bridge from a user-truth store keyed by hash back to a path.
+    ///     <para>
+    ///         Two rows with one hash are a copied demo; the lexicographically-smallest path wins, which is
+    ///         the primary the library shows as the card (<c>DemoLibraryService.ResolveContentIdentities</c>),
+    ///         so both sides of the join name the same file.
+    ///     </para>
+    /// </summary>
+    /// <param name="sha256">Lowercase-hex SHA-256 of the demo's bytes.</param>
+    public DemoCacheIndexEntry? TryGetIndexBySha256(string sha256)
+    {
+        if (string.IsNullOrEmpty(sha256))
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            if (!_pathsBySha.TryGetValue(sha256, out HashSet<string>? paths))
+            {
+                return null;
+            }
+
+            string? primary = null;
+            foreach (string path in paths)
+            {
+                if (primary is null || string.CompareOrdinal(path, primary) < 0)
+                {
+                    primary = path;
+                }
+            }
+
+            return primary is null ? null : _index.GetValueOrDefault(primary);
         }
     }
 
@@ -374,7 +417,7 @@ public sealed class DemoCacheStore
         string json = JsonSerializer.Serialize(record, _jsonOptions);
         lock (_gate)
         {
-            _index[record.Path] = record.ToIndexEntry();
+            SetIndexEntry(record.ToIndexEntry());
             _lastRecordPath = record.Path;
             _lastRecordJson = json;
         }
@@ -423,7 +466,12 @@ public sealed class DemoCacheStore
         bool removed;
         lock (_gate)
         {
-            removed = _index.Remove(path);
+            removed = _index.Remove(path, out DemoCacheIndexEntry? gone);
+            if (removed)
+            {
+                UnlinkSha(gone!);
+            }
+
             if (_lastRecordPath is not null
                 && string.Equals(_lastRecordPath, path, StringComparison.OrdinalIgnoreCase))
             {
@@ -594,13 +642,51 @@ public sealed class DemoCacheStore
                 _legacyMigrationVersion = file.LegacyMigrationVersion;
                 foreach (DemoCacheIndexEntry entry in file.Entries.Where(e => !string.IsNullOrEmpty(e.Path)))
                 {
-                    _index[entry.Path] = entry;
+                    SetIndexEntry(entry);
                 }
             }
         }
         catch (Exception)
         {
             // Corrupt index = start empty and rebuild.
+        }
+    }
+
+    // The only writer of _index, so the reverse map moves with it. Under _gate. A row re-upserted with a
+    // different hash (the file was replaced and re-indexed) leaves the old hash's set first.
+    private void SetIndexEntry(DemoCacheIndexEntry entry)
+    {
+        if (_index.TryGetValue(entry.Path, out DemoCacheIndexEntry? previous))
+        {
+            UnlinkSha(previous);
+        }
+
+        _index[entry.Path] = entry;
+        if (!string.IsNullOrEmpty(entry.Sha256))
+        {
+            if (!_pathsBySha.TryGetValue(entry.Sha256, out HashSet<string>? paths))
+            {
+                paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _pathsBySha[entry.Sha256] = paths;
+            }
+
+            paths.Add(entry.Path);
+        }
+    }
+
+    // Under _gate. Drops the hash key entirely once no path carries it, so the map never outgrows the index.
+    private void UnlinkSha(DemoCacheIndexEntry entry)
+    {
+        if (string.IsNullOrEmpty(entry.Sha256)
+            || !_pathsBySha.TryGetValue(entry.Sha256, out HashSet<string>? paths))
+        {
+            return;
+        }
+
+        paths.Remove(entry.Path);
+        if (paths.Count == 0)
+        {
+            _pathsBySha.Remove(entry.Sha256);
         }
     }
 
