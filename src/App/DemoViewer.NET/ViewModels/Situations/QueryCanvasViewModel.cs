@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
@@ -143,6 +144,13 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <summary>The ten slots. Shared with the layer and the tool.</summary>
     public QueryCanvasDocument Document { get; }
+
+    /// <summary>
+    ///     The Overlay View's points, drawn over the canvas by the heatmap layer the host mounts. The
+    ///     Result Cards fill it from the hits' positions files; it empties with the map, since a
+    ///     position on one map means nothing on another.
+    /// </summary>
+    public OverlayDocument Overlay { get; } = new();
 
     /// <summary>The query object model over the document.</summary>
     public SituationQueryDraft Draft { get; }
@@ -419,6 +427,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     {
         Disarm();
         Document.MapName = value ?? "";
+        Overlay.Clear();
 
         // The old bundle is retired one dispatcher hop later, not here: the host rebinds on MapChanged
         // below, and the render thread may still be replaying a picture that references the old radar

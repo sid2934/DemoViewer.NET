@@ -601,16 +601,18 @@ public class Playback2DExportDialogTests
     }
 
     /// <summary>
-    ///     Every scene-stack id except vision and the query tokens: `dv2d export --hud --annotations`.
-    ///     <c>playback2d.query</c> is opt-in like the ink but no export feeds it: the Situations tab's
-    ///     canvas draws it over a static map frame, and a video comes off a demo with no query document,
-    ///     so neither front end names it (<c>ExportCommand.BuildLayerIds</c> adds the HUD ids and the
-    ///     ink by name for the same reason).
+    ///     Every scene-stack id except vision, the query tokens and the overlay heatmap: `dv2d export
+    ///     --hud --annotations`. <c>playback2d.query</c> and <c>playback2d.overlay</c> are opt-in like the
+    ///     ink but no export feeds them: the Situations tab's canvas draws them over a static map frame,
+    ///     and a video comes off a demo with no query or overlay document, so neither front end names
+    ///     them (<c>ExportCommand.BuildLayerIds</c> adds the HUD ids and the ink by name for the same
+    ///     reason).
     /// </summary>
     internal static IEnumerable<string> FullOverlaySet() =>
         SceneLayerCatalog.SceneStackIds
             .Where(id => !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal) &&
-                         !string.Equals(id, SceneLayerIds.Query, StringComparison.Ordinal));
+                         !string.Equals(id, SceneLayerIds.Query, StringComparison.Ordinal) &&
+                         !string.Equals(id, SceneLayerIds.Overlay, StringComparison.Ordinal));
 
     /// <summary>Every non-opt-in scene-stack id except vision: bare `dv2d export`.</summary>
     internal static IEnumerable<string> BareSceneSet() =>

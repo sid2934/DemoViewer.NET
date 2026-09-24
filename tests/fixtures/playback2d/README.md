@@ -13,6 +13,7 @@ goldens/cpu/<name>@<w>x<h>.png    the CPU-provider golden for it
 goldens/gpu/<name>@<w>x<h>.png    the GPU parity image (C2)
 annotations/<name>.dvann.json     the annotation sidecar (B2)
 queries/<name>.dvquery.json       the Query Canvas tokens the entry draws (Strat Room, Query Canvas)
+overlays/<name>.dvoverlay.json    the Overlay View points the entry stacks (Strat Room, Overlay View)
 manifest.json                     the corpus index (C1 owns this file)
 ```
 

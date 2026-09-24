@@ -10,7 +10,9 @@
       mini-radar of the matched state (rendered from the positions file, never from the demo), the
       match, the round, the score before the round, both buy types, the end reason and the clock at the
       matched tick. A click opens 2D playback ten seconds before the match; J / K walk the set from
-      inside playback.
+      inside playback. "Overlay all N" stacks every matched state of the set onto the canvas above as a
+      heatmap, per floor, CT-tinted where CT stood and T-tinted where T stood; the line beside it says
+      what was stacked and how many rounds had no positions to give.
 
       Every fact comes from the demo's Round Facts rows and reads "no data" when the demo has none:
       the stats-board rule, never a zero that reads as a score. A tile with no picture says why.
@@ -50,6 +52,18 @@
                        Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" VerticalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="{Binding WalkLine}" FontSize="11" Classes="mono"
                        Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Overlay View: the action, the clear, and what the last build stacked. -->
+        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+            <Button Grid.Column="0" Content="{Binding OverlayLabel}" Classes="ghost" FontSize="11" Padding="10 5"
+                    Command="{Binding OverlayAllCommand}"
+                    ToolTip.Tip="Stack every matched state of these rounds onto the map above as a heatmap, one wash per floor: CT-tinted where CT stood, T-tinted where T stood" />
+            <Button Grid.Column="1" Content="Clear overlay" Classes="ghost" FontSize="11" Padding="10 5"
+                    IsVisible="{Binding IsOverlayShown}" Command="{Binding ClearOverlayCommand}"
+                    ToolTip.Tip="Take the heatmap off the map; the cards stay" />
+            <TextBlock Grid.Column="2" Text="{Binding OverlayLine}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" TextWrapping="Wrap" />
         </Grid>
 
         <!-- The cards. -->

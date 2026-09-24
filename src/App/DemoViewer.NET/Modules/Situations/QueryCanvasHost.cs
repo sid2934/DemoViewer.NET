@@ -26,7 +26,7 @@ namespace DemoViewer.NET.Modules.Situations;
 
 /// <summary>
 ///     The Query Canvas surface: the playback scene's radar, level model and panes with no demo behind
-///     them, hosting the query token layer and the query token tool.
+///     them, hosting the query token layer, the Overlay View heatmap and the query token tool.
 ///     <para>
 ///         <b>A sibling of <see cref="Scene2DHost" />, not a fork of it.</b> Every piece that draws or
 ///         routes is the same Core type the playback surface uses (<see cref="SceneCompositor" />,
@@ -56,6 +56,7 @@ public sealed class QueryCanvasHost : Control, IDisposable
     private WriteableBitmap? _fallbackBitmap;
     private Scene2DFrame _frame = Scene2DFrame.Empty;
     private SceneSubmission? _lastSubmission;
+    private OverlayHeatmapLayer? _overlayLayer;
     private ScenePalette _palette = ScenePalette.Dark;
     private bool _panFallback;
     private QueryTokenLayer? _queryLayer;
@@ -388,6 +389,7 @@ public sealed class QueryCanvasHost : Control, IDisposable
 
         _boundAsset = null;
         _queryLayer = null;
+        _overlayLayer = null;
         _released = false;
     }
 
@@ -434,6 +436,7 @@ public sealed class QueryCanvasHost : Control, IDisposable
         {
             _vm.MapChanged -= OnMapChanged;
             _vm.Document.Changed -= OnDocumentChanged;
+            _vm.Overlay.Changed -= OnDocumentChanged;
         }
 
         Router.CancelActive();
@@ -448,10 +451,19 @@ public sealed class QueryCanvasHost : Control, IDisposable
                 _queryLayer = null;
             }
 
+            if (_overlayLayer is not null)
+            {
+                _compositor.Remove(SceneLayerIds.Overlay);
+                _overlayLayer = null;
+            }
+
             if (vm is not null)
             {
                 _queryLayer = new QueryTokenLayer(vm.Document);
                 _compositor.Add(_queryLayer);
+                // Under the tokens: the heat is what a token is being placed on, never what hides it.
+                _overlayLayer = new OverlayHeatmapLayer(vm.Overlay);
+                _compositor.Add(_overlayLayer);
             }
         }
 
@@ -465,6 +477,7 @@ public sealed class QueryCanvasHost : Control, IDisposable
         Router.SetActive(ToolKind.QueryToken);
         vm.MapChanged += OnMapChanged;
         vm.Document.Changed += OnDocumentChanged;
+        vm.Overlay.Changed += OnDocumentChanged;
         OnMapChanged();
     }
 
