@@ -1326,6 +1326,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 }
 
                 record.Server = parsed.ServerName;
+                // The header classifier's verdict, stored by name: what Demo Provenance Labels reads
+                // as "matchmaking" without opening the file again.
+                record.SourceKind = parsed.Profile.SourceKind.ToString();
                 record.DurationSeconds = duration;
                 record.TickRate = parsed.TickRate;
                 record.TickCount = parsed.TickCount;

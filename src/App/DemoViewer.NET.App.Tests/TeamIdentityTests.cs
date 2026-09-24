@@ -623,7 +623,11 @@ public class TeamIdentityTests
                 }
             ],
             Tombstones = [gone],
-            Overrides = [new TeamOverride { DemoSha256 = "ab12", Side = 3, TeamId = null }]
+            Overrides = [new TeamOverride { DemoSha256 = "ab12", Side = 3, TeamId = null }],
+            Provenance = new ProvenanceSection
+            {
+                Overrides = [new ProvenanceOverride { DemoSha256 = "ab12", Label = "our scrim" }]
+            }
         };
         TeamClusterer clusterer = new(teams);
         clusterer.Assign(new DemoSideInput
@@ -690,6 +694,8 @@ public class TeamIdentityTests
             await Assert.That(indexBack.Demos["demo2"].Side(3)!.Override).IsTrue();
             await Assert.That(teamsBack!.Teams.Single().Rosters.Single().CoreLineup).IsEquivalentTo(Ids(1, 2, 3, 4, 5))
                 .Because("a rebuild never rewrites an established five");
+            await Assert.That(teamsBack.Provenance.Overrides.Single().Label).IsEqualTo("our scrim")
+                .Because("the provenance section rides in the same file");
         }
     }
 

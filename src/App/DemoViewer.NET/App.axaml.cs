@@ -25,6 +25,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Teams;
@@ -800,6 +801,13 @@ public class App : Application
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IRoundFactsSource>(),
             action => Dispatcher.UIThread.Post(action)));
+        // Demo Provenance Labels: the override from teams.json else the heuristic over the cache row and
+        // the assignment. No store of its own; it re-raises the two stores' Changed on the UI thread.
+        services.AddSingleton(sp => new DemoProvenanceSource(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<TeamIdentityService>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton<IDemoProvenanceSource>(sp => sp.GetRequiredService<DemoProvenanceSource>());
         // The Teams tab VM: a container singleton resolved lazily on first activation. Opening a demo
         // reaches the shell at call time, never at construction.
         services.AddSingleton(sp => new TeamsTabViewModel(
@@ -960,7 +968,9 @@ public class App : Application
                 // parsing anything.
                 sp.GetRequiredService<DemoCacheStore>(),
                 // Team Identity, for the Library's team filter.
-                sp.GetRequiredService<TeamIdentityService>());
+                sp.GetRequiredService<TeamIdentityService>(),
+                // Demo Provenance Labels, for the Library card's label chip.
+                sp.GetRequiredService<IDemoProvenanceSource>());
         }
         finally
         {

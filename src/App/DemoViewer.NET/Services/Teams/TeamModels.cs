@@ -101,10 +101,22 @@ public sealed class MeAccounts
 }
 
 /// <summary>
+///     What every per-demo entry of <c>teams.json</c> keys by: the content hash when the demo has one,
+///     else the cache's stable path key, upgraded to the hash the moment it appears so a moved file keeps
+///     the entry. One rule, shared by the side overrides and the provenance overrides.
+/// </summary>
+public interface IDemoKeyedOverride
+{
+    string? DemoSha256 { get; set; }
+
+    string? DemoStableKey { get; set; }
+}
+
+/// <summary>
 ///     A manual per-demo side assignment. User truth, so it keys by content hash; until Content Identity
 ///     has hashed the demo it keys by the cache's stable path key and is upgraded when the hash appears.
 /// </summary>
-public sealed class TeamOverride
+public sealed class TeamOverride : IDemoKeyedOverride
 {
     public string? DemoSha256 { get; set; }
 
@@ -115,6 +127,29 @@ public sealed class TeamOverride
 
     /// <summary>The team the side belongs to, or null for "this side is not a team".</summary>
     public Guid? TeamId { get; set; }
+}
+
+/// <summary>
+///     A user's provenance label on one demo (overview correction 24): user truth keyed like
+///     <see cref="TeamOverride" />. The label is one of <see cref="Provenance.DemoProvenanceLabel.All" />;
+///     removing the entry hands the demo back to the heuristic default.
+/// </summary>
+public sealed class ProvenanceOverride : IDemoKeyedOverride
+{
+    public string? DemoSha256 { get; set; }
+
+    public string? DemoStableKey { get; set; }
+
+    public string Label { get; set; } = "";
+}
+
+/// <summary>
+///     The <c>provenance</c> section of <c>teams.json</c>: the smallest home for the override store, since
+///     Team Identity already owns the default and both files are read at startup (overview correction 24).
+/// </summary>
+public sealed class ProvenanceSection
+{
+    public List<ProvenanceOverride> Overrides { get; set; } = [];
 }
 
 /// <summary>
@@ -135,6 +170,9 @@ public sealed class TeamsFile
     public List<Guid> Tombstones { get; set; } = [];
 
     public List<TeamOverride> Overrides { get; set; } = [];
+
+    /// <summary>Demo Provenance Labels' user overrides. Additive: a file written before the section reads empty.</summary>
+    public ProvenanceSection Provenance { get; set; } = new();
 
     /// <summary>Both team files share one serializer shape: camel case, enums by name, indented.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()
