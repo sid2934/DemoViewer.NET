@@ -33,6 +33,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.Idle;
@@ -97,6 +98,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["builtin.stats"] = "tab.stats",
         ["highlights.browser"] = "tab.highlights",
         ["situations.search"] = "tab.situations",
+        ["teams.browser"] = "tab.teams",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
         ["playback2d.viewport"] = "tab.playback2d",
@@ -486,6 +488,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     that demo's cached record on Match Overview without parsing anything. Null (WASM, most tests) →
     ///     the preview is simply inert.
     /// </param>
+    /// <param name="teams">
+    ///     Team Identity, for the Library's Team filter. Null (designer, most tests) → the filter is not
+    ///     offered.
+    /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -495,7 +501,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IDemoProcessingQueue? processingQueue = null,
         DemoEvaluationCoordinator? evaluationCoordinator = null,
         Func<string?>? tourSampleLocator = null,
-        DemoCacheStore? demoCache = null)
+        DemoCacheStore? demoCache = null,
+        TeamIdentityService? teams = null)
     {
         _demoCache = demoCache;
         _windowService = windowService;
@@ -839,7 +846,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             PickFoldersAsync,
             OpenFileAsync, // the Library's "Open Demo…" CTA shares the one picker → LoadDemoFromBytesAsync funnel
             _recentFiles,
-            _tourSamplePath); // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
+            _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
+            teams); // the Team filter: "All teams", "Us", then every visible team
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.

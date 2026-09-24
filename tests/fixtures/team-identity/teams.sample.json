@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "me": {
+    "steamIds": [
+      "76561198000000001"
+    ]
+  },
+  "teams": [
+    {
+      "id": "3f2a0000-0000-4000-8000-000000000001",
+      "name": "FURIA",
+      "nameSource": "ClanTag",
+      "isUs": false,
+      "hidden": false,
+      "rosters": [
+        {
+          "id": "r1",
+          "since": "2026-06-01",
+          "coreLineup": [
+            "76560001",
+            "76560002",
+            "76560003",
+            "76560004",
+            "76560005"
+          ],
+          "extendedCore": [
+            "76560001",
+            "76560002",
+            "76560003",
+            "76560004",
+            "76560006",
+            "76560005"
+          ],
+          "label": null,
+          "userStarted": false
+        }
+      ],
+      "mergedFrom": [
+        "9c1b0000-0000-4000-8000-000000000002"
+      ],
+      "notes": ""
+    }
+  ],
+  "tombstones": [
+    "9c1b0000-0000-4000-8000-000000000002"
+  ],
+  "overrides": [
+    {
+      "demoSha256": "ab12",
+      "demoStableKey": null,
+      "side": 3,
+      "teamId": null
+    }
+  ]
+}

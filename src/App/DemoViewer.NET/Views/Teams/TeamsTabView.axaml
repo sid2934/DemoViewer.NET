@@ -1,0 +1,202 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Teams"
+             x:Class="DemoViewer.NET.Views.Teams.TeamsTabView"
+             x:DataType="vm:TeamsTabViewModel">
+
+    <!--
+      THE TEAMS TAB: Team Identity's one home.
+
+      Top: the me accounts and the share suggestion (confirmed here, never written on its own), the
+      teams.json problem line when the file was refused, and the browser note. Left: the team list.
+      Right: the selected team's name and actions, its rosters with the fixed five or "no fixed five
+      yet" plus the extended core, the member table per roster, and the demo list with the side, the
+      opponent and the stand-in mark. Bottom: how many demos could not be clustered, and whether any
+      opponent recurs.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <DockPanel Margin="16">
+
+        <!-- Me, and the file problem. -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Me" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                <TextBlock Text="{x:Static vm:TeamsTabViewModel.BrowserNote}" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+                <TextBlock Text="{Binding TeamsFileProblem}" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasTeamsFileProblem}" />
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <TextBlock Grid.Column="0" Text="My accounts (SteamID64, comma separated)" FontSize="12"
+                               Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding MyAccountsText}" FontSize="12" Watermark="76561198…" />
+                    <Button Grid.Column="2" Content="Save" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding SaveMyAccountsCommand}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding HasMeSuggestion}">
+                    <TextBlock Grid.Column="0" Text="{Binding MeSuggestionLine}" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="Yes, that is me" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding ConfirmMeSuggestionCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- The footer. -->
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding FooterLine}" FontSize="11" TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextMid}" Margin="0 12 0 0" />
+
+        <Grid ColumnDefinitions="280,12,*">
+
+            <!-- The team list. -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0 0 0 8">
+                        <TextBlock Grid.Column="0" Text="Teams" Classes="col-label"
+                                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                        <CheckBox Grid.Column="1" Content="show hidden" IsChecked="{Binding ShowHidden}" FontSize="11" />
+                    </Grid>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0 8 0 0">
+                        <Button Content="⟳ Recompute" Classes="ghost" FontSize="11" Padding="10 5"
+                                Command="{Binding RecomputeCommand}"
+                                ToolTip.Tip="Re-read every demo's roster and re-run clustering; names, merges and the us mark are kept" />
+                    </StackPanel>
+                    <TextBlock Text="no teams yet: a team appears once the same players are seen on two demos"
+                               FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                               IsVisible="{Binding !HasTeams}" />
+                    <ListBox ItemsSource="{Binding Teams}" SelectedItem="{Binding SelectedTeam}"
+                             IsVisible="{Binding HasTeams}" Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TeamRow">
+                                <StackPanel Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                                        <TextBlock Text="us" FontSize="10" IsVisible="{Binding IsUs}"
+                                                   Foreground="{DynamicResource TextCardHeader}" VerticalAlignment="Center" />
+                                        <TextBlock Text="hidden" FontSize="10" IsVisible="{Binding Hidden}"
+                                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Summary}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- The selected team. -->
+            <Border Grid.Column="2"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="select a team" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                   IsVisible="{Binding !HasSelection}" />
+
+                        <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
+                            <!-- Name and the actions. -->
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBox Text="{Binding RenameText}" FontSize="12" MinWidth="200" Margin="0 0 8 4" />
+                                <Button Content="Rename" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                                        Command="{Binding RenameCommand}" />
+                                <Button Content="Set as us" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                                        Command="{Binding SetAsUsCommand}"
+                                        ToolTip.Tip="Exactly one team is us; setting another clears the first" />
+                                <Button Content="{Binding HideLabel}" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                                        Command="{Binding HideCommand}" />
+                            </WrapPanel>
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Text="Merge into this team:" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                                <ComboBox ItemsSource="{Binding MergeTargets}" SelectedItem="{Binding MergeTarget}"
+                                          FontSize="12" MinWidth="180" Margin="0 0 8 4" PlaceholderText="another team">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TeamRow">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Content="Merge" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                                        Command="{Binding MergeCommand}"
+                                        ToolTip.Tip="The other team's rosters join this one, its demos re-assign here, and its id is tombstoned" />
+                            </WrapPanel>
+
+                            <!-- Rosters. -->
+                            <TextBlock Text="Rosters" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                            <ItemsControl ItemsSource="{Binding Rosters}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RosterRow">
+                                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="0 4 0 8" Margin="0 0 0 4">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                                                <TextBlock Text="{Binding FiveLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Text="{Binding CoreLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                                                <ItemsControl ItemsSource="{Binding Members}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:MemberRow">
+                                                            <Grid ColumnDefinitions="180,60,90,90,60" ColumnSpacing="6">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding Appearances}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding FirstSeen}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                                <TextBlock Grid.Column="3" Text="{Binding LastSeen}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                                <TextBlock Grid.Column="4" Text="{Binding StandIns, StringFormat='{}{0} stand-in'}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Demos. -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Demos" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                <WrapPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="Split checked into a new team" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 0"
+                                            Command="{Binding SplitCommand}" />
+                                    <Button Content="Start roster here" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 0"
+                                            Command="{Binding StartRosterCommand}"
+                                            ToolTip.Tip="A new roster from the selected demo's date on; it establishes its own five" />
+                                    <Button Content="Not a team" Classes="ghost" FontSize="11" Padding="10 5"
+                                            Command="{Binding NotATeamCommand}"
+                                            ToolTip.Tip="The selected demo's side is not this team; an override, kept by every rebuild" />
+                                </WrapPanel>
+                            </Grid>
+                            <ListBox ItemsSource="{Binding Demos}" SelectedItem="{Binding SelectedDemo}" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DemoRow">
+                                        <Grid ColumnDefinitions="Auto,90,110,30,*,110,Auto" ColumnSpacing="8">
+                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Date}" FontSize="11" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Map}" FontSize="11" Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Text="{Binding SideLabel}" FontSize="11" Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Opponent, StringFormat='vs {0}'}" FontSize="11" Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="with a stand-in" FontSize="10" IsVisible="{Binding StandIn}" Foreground="{DynamicResource TextMid}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="5" Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                            <Button Grid.Column="6" Content="Open" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding $parent[UserControl].((vm:TeamsTabViewModel)DataContext).OpenDemoCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </DockPanel>
+
+</UserControl>

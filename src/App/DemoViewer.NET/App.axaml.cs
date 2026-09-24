@@ -18,6 +18,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -26,6 +27,7 @@ using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -33,6 +35,7 @@ using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.ViewModels.Teams;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.RuleWorkbench;
 using Microsoft.Extensions.DependencyInjection;
@@ -788,6 +791,28 @@ public class App : Application
                 sidecars: sp.GetRequiredService<RoundIndexStore>());
         });
 
+        // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
+        // user's teams.json beside settings.json and the derived team-index.json under cache/; the
+        // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.
+        // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
+        services.AddSingleton(sp => new TeamIdentityService(
+            AppPaths.ConfigRoot,
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<IRoundFactsSource>(),
+            action => Dispatcher.UIThread.Post(action)));
+        // The Teams tab VM: a container singleton resolved lazily on first activation. Opening a demo
+        // reaches the shell at call time, never at construction.
+        services.AddSingleton(sp => new TeamsTabViewModel(
+            sp.GetRequiredService<TeamIdentityService>(),
+            sp.GetRequiredService<DemoCacheStore>(),
+            async path =>
+            {
+                if (Services?.GetService<MainViewModel>() is { } shell)
+                {
+                    await shell.LoadDemoFromPathAsync(path);
+                }
+            }));
+
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
         // Like This, so the set the keys walk is the set the tab shows.
         services.AddSingleton<ISituationResultWalk>(sp => new SituationResultWalk(
@@ -866,6 +891,9 @@ public class App : Application
         // The situation index's startup load: every current sidecar, off the UI thread (2 ms per demo
         // measured). Queries before it finishes answer empty with IsReady false and the strip says so.
         _ = provider.GetRequiredService<SituationIndex>().StartLoadAsync();
+        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
+        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
+        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
         Services = provider;
         return provider;
     }
@@ -930,7 +958,9 @@ public class App : Application
                 TourDemoLocator.FindSampleDemo,
                 // The unified demo cache: what a Library single-click renders on Match Overview without
                 // parsing anything.
-                sp.GetRequiredService<DemoCacheStore>());
+                sp.GetRequiredService<DemoCacheStore>(),
+                // Team Identity, for the Library's team filter.
+                sp.GetRequiredService<TeamIdentityService>());
         }
         finally
         {
@@ -981,6 +1011,9 @@ public class App : Application
         // The Situations tab. Registered on both hosts: the browser renders the strip and says there is
         // no library index there. The VM is a container singleton resolved lazily on first activation.
         registry.Register(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>));
+
+        // The Teams tab. Registered on both hosts: the browser keeps teams for the session and says so.
+        registry.Register(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
         return registry;
     }
 
