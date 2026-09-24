@@ -10,10 +10,10 @@ using ValveResourceFormat.ResourceTypes;
 #endregion
 
 const int SchemaVersion = 1;
-const string BakerVersion = "0.3+vrf19.2.6339";
+const string BakerVersion = "0.4+vrf19.2.6339";
 
 // ── args: <map> [<map>...] [--diag] ──
-// Modes that stop early and need no staged cs2-assets/ cache: --list-icons, --icons, --collision.
+// Modes that stop early and need no staged cs2-assets/ cache: --list-icons, --icons, --collision, --zones.
 // With no map args, bake the full shipping set (the Active Duty / commonly-demoed pool). Each
 // needs a source vpk (cs2-assets/maps/), a radar vtex_c, and an overview txt, all present in the
 // gitignored cs2-assets/ cache. Pass explicit map names to bake a subset.
@@ -141,6 +141,118 @@ if (args.Contains("--collision"))
     }
 
     Console.WriteLine($"\n{baked}/{soupMaps.Length} soup(s) baked.");
+    return;
+}
+
+// -- --zones: bake ONLY the place and trigger volumes joined to the nav (zones.json) and stop --
+// The third top-up mode, for the reasons --collision is one: the volumes and the nav live in the
+// per-map vpks in the CS2 install, so a map baked years ago by baker 0.1 gets zones without a
+// re-stage. Maps are discovered by the presence of bundle.json, the floors and mapVersion are read
+// back out of that bundle so the floor keys in zones.json are the ones the app already shows, and
+// bundle.json itself is never written (decision D1 of the zone-baking design): the app locates
+// zones.json by path, and bundleMapVersion inside it is what detects drift between the two files.
+//
+// With --diag, prints the per-map coverage table beside the design's baseline and the place
+// adjacency list, and exits non-zero when a self-check fails: a hull whose planes satisfy neither
+// sign convention, a place or bombsite volume with no hull, a de_ map without exactly two bombsites
+// designated 0 and 1, or a coverage column outside tolerance. Those are the checks a test project
+// would carry, run inside the bake that produces the artifacts, because every one of them needs the
+// installed CS2 and the tool is outside the solution's test runner.
+if (args.Contains("--zones"))
+{
+    string? zonesCs2 = args
+        .FirstOrDefault(a => a.StartsWith("--cs2=", StringComparison.Ordinal))?["--cs2=".Length..];
+
+    string zonesMapsSource = SteamLibrary.FindCs2MapsDir(zonesCs2)
+                             ?? throw new DirectoryNotFoundException(
+                                 "Counter-Strike 2 map archives not found. Pass --cs2=<install root, pak01_dir.vpk, "
+                                 + "or the game/csgo/maps directory>.");
+
+    string zonesRoot = Path.Combine(FindRepoRoot(), "assets");
+    string[] zoneMaps = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+    if (zoneMaps.Length == 0)
+    {
+        zoneMaps = Directory.Exists(zonesRoot)
+            ? Directory.GetDirectories(zonesRoot)
+                .Where(d => File.Exists(Path.Combine(d, "bundle.json")))
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .OrderBy(m => m, StringComparer.Ordinal)
+                .ToArray()
+            : [];
+    }
+
+    Console.WriteLine($"cs2 maps:  {zonesMapsSource}");
+    Console.WriteLine($"zones ->   {zonesRoot}");
+    Console.WriteLine($"baking zones for {zoneMaps.Length} map(s): {string.Join(", ", zoneMaps)}\n");
+
+    List<Zones.Coverage> coverage = new();
+    List<string> zoneFailures = new();
+    foreach (string map in zoneMaps)
+    {
+        string mapVpk = Path.Combine(zonesMapsSource, map + ".vpk");
+        string bundlePath = Path.Combine(zonesRoot, map, "bundle.json");
+        if (!File.Exists(mapVpk))
+        {
+            Console.WriteLine($"  x {map}: no {map}.vpk in {zonesMapsSource}");
+            continue;
+        }
+
+        if (!File.Exists(bundlePath))
+        {
+            Console.WriteLine($"  x {map}: no bundle.json under {zonesRoot}; run a full bake first");
+            continue;
+        }
+
+        try
+        {
+            (IReadOnlyList<FloorBand> floors, string mapVersion) = Zones.ReadBundle(bundlePath);
+            Zones.Result zr = Zones.Bake(
+                mapVpk, map, floors, mapVersion, BakerVersion, Path.Combine(zonesRoot, map, "zones.json"));
+            Console.WriteLine($"# {map}");
+            foreach (string note in zr.Notes)
+            {
+                Console.WriteLine(note);
+            }
+
+            Console.WriteLine(zr.Diagnostic);
+            coverage.Add(zr.Coverage);
+            zoneFailures.AddRange(zr.Failures);
+            if (diag)
+            {
+                zoneFailures.AddRange(Zones.CheckAgainstBaseline(zr.Coverage));
+                Console.WriteLine("  adjacency:");
+                Console.Write(zr.AdjacencyText);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  x {map}: {ex.GetType().Name}: {ex.Message}");
+            zoneFailures.Add($"{map}: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    Console.WriteLine($"\n{coverage.Count}/{zoneMaps.Length} zone file(s) baked.");
+    if (diag)
+    {
+        Console.WriteLine("\ncoverage (this bake):");
+        Console.Write(Zones.FormatCoverageTable(coverage));
+        Console.WriteLine("\ncoverage (design baseline):");
+        Console.Write(Zones.FormatCoverageTable(
+            coverage.Select(c => Zones.ExpectedCoverage.GetValueOrDefault(c.Map)).OfType<Zones.Coverage>()));
+    }
+
+    if (zoneFailures.Count > 0)
+    {
+        Console.WriteLine($"\n{zoneFailures.Count} self-check failure(s):");
+        foreach (string f in zoneFailures)
+        {
+            Console.WriteLine("  ! " + f);
+        }
+
+        Environment.ExitCode = 1;
+    }
+
     return;
 }
 
@@ -301,7 +413,37 @@ void BakeMap(string map)
     string bundlePath = Path.Combine(outDir, "bundle.json");
     File.WriteAllText(bundlePath, bundle.ToJson());
     Console.WriteLine($"  version: {mapVersion}");
-    Console.WriteLine($"  → {bundlePath}\n");
+    Console.WriteLine($"  → {bundlePath}");
+
+    // 7. place and trigger volumes joined to the nav → zones.json. After the bundle rather than after the
+    //    nav step because the file records the mapVersion it was baked beside. Optional like collision:
+    //    a map whose zones fail still bakes its 2D assets, and --zones can top it up later.
+    try
+    {
+        Zones.Result zr = Zones.Bake(
+            vpk, map, floors.Floors, mapVersion, BakerVersion, Path.Combine(outDir, "zones.json"));
+        foreach (string note in zr.Notes)
+        {
+            Console.WriteLine(note);
+        }
+
+        Console.WriteLine(zr.Diagnostic);
+        foreach (string failure in zr.Failures)
+        {
+            Console.WriteLine($"  ! zones: {failure}");
+        }
+
+        if (diag)
+        {
+            Console.Write(zr.AdjacencyText);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"  zones: (skipped, {ex.GetType().Name}: {ex.Message})");
+    }
+
+    Console.WriteLine();
 }
 
 // Prefer *_radar_psd.vtex_c, then *_radar_tga.vtex_c. Returns (source vtex path, output png name) or null.
