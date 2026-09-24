@@ -16,6 +16,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
@@ -27,6 +28,7 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
@@ -35,6 +37,7 @@ using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
+using DemoViewer.NET.ViewModels.Review;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
@@ -691,7 +694,9 @@ public class App : Application
                 // v0.6.0 ffmpeg pre-flight (Services/Dependencies): detect up front and guide the
                 // user to a self-install, instead of a raw CSVG failure after CS2 launches. Real
                 // probe ONLY here. The VM's null default keeps pure-VM tests machine-independent.
-                FfmpegDependency.Locate)
+                FfmpegDependency.Locate,
+                // The tray is a client of the Review Queue: what it stages is queued there.
+                sp.GetRequiredService<ReviewQueue>())
             {
                 // The SAME instances the status-strip chips are bound to.
                 JobStatus = Shell().ReelJobStatus,
@@ -800,8 +805,19 @@ public class App : Application
                 // field through Demo Provenance Labels.
                 teams: sp.GetRequiredService<TeamIdentityService>(),
                 provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
-                watched: sp.GetRequiredService<WatchedSituationsService>());
+                watched: sp.GetRequiredService<WatchedSituationsService>(),
+                review: sp.GetRequiredService<ReviewQueue>());
         });
+
+        // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
+        // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
+        // all mutate the same list. Null config root (the browser) keeps it for the session.
+        services.AddSingleton(_ => new ReviewQueue(AppPaths.ConfigRoot));
+        // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
+        // through the same seek seam the Result Cards use.
+        services.AddSingleton(sp => new ReviewQueueTabViewModel(
+            sp.GetRequiredService<ReviewQueue>(),
+            () => sp.GetService<ISituationPlayback>()));
 
         // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
         // over one demo on the index's Indexed hook and over the library at the watermark on every
@@ -1076,6 +1092,11 @@ public class App : Application
 
         // The Teams tab. Registered on both hosts: the browser keeps teams for the session and says so.
         registry.Register(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
+
+        // The Review tab. Registered on both hosts: the browser keeps the queue for the session and says
+        // so. The badge reads the queue, so clips sent from another tab count before the tab is opened.
+        registry.Register(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
+            sp.GetRequiredService<ReviewQueue>()));
 
         // The Round Tagger. Registered on both hosts; a shell until the palette and The Matrix land, so
         // its ids exist before anything persists state under them.

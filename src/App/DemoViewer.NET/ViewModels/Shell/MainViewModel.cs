@@ -100,6 +100,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["highlights.browser"] = "tab.highlights",
         ["situations.search"] = "tab.situations",
         ["teams.browser"] = "tab.teams",
+        ["review.queue"] = "tab.review",
         ["tagger.matrix"] = "tab.tagger",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
