@@ -1,0 +1,299 @@
+{
+  "schema": 1,
+  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events until CS2DemoKit #54 ships Round Facts rows. Recapture with ST_GOLDEN_UPDATE=1.",
+  "demo": "match730_003731893271710924851_1024675027_129.dem",
+  "map": "de_nuke",
+  "tickRate": 64,
+  "regionTable": {
+    "schemaVersion": 1,
+    "map": "de_nuke",
+    "demoCount": 1,
+    "roundCount": 22,
+    "plants": {
+      "BombsiteA": 7,
+      "BombsiteB": 2
+    },
+    "regions": {
+      "BombsiteA": [
+        "BombsiteA",
+        "Hut",
+        "Mini",
+        "Squeaky"
+      ],
+      "BombsiteB": [
+        "BombsiteB"
+      ]
+    },
+    "spawnAdjacent": [
+      "Lobby",
+      "Outside",
+      "TSpawn"
+    ]
+  },
+  "round": {
+    "number": 15,
+    "startTick": 81149,
+    "endTick": 83995,
+    "bomb": {
+      "plantTick": 82792,
+      "site": "BombsiteA",
+      "defuseTick": 83547,
+      "explodeTick": null
+    },
+    "sides": {
+      "0": 2,
+      "1": 2,
+      "2": 2,
+      "3": 2,
+      "4": 2,
+      "5": 3,
+      "6": 3,
+      "7": 3,
+      "8": 3,
+      "9": 3
+    },
+    "places": {
+      "0": [
+        "0-7:TSpawn",
+        "8-10:Outside",
+        "11-19:Lobby",
+        "20-22:Hut",
+        "23-25:BombsiteA"
+      ],
+      "1": [
+        "0-6:TSpawn",
+        "7-9:Outside",
+        "10-12:Lobby",
+        "13-14:Squeaky",
+        "15-28:BombsiteA"
+      ],
+      "2": [
+        "0-5:TSpawn",
+        "6-8:Outside",
+        "9-12:Lobby",
+        "13-19:Hut",
+        "20-23:BombsiteA"
+      ],
+      "3": [
+        "0-5:TSpawn",
+        "6-7:Outside",
+        "8-10:Lobby",
+        "11-11:Squeaky",
+        "12-24:BombsiteA"
+      ],
+      "4": [
+        "0-6:TSpawn",
+        "7-10:Outside",
+        "11-13:Lobby",
+        "14-15:Squeaky",
+        "16-28:BombsiteA"
+      ],
+      "5": [
+        "0-2:CTSpawn",
+        "3-5:Outside",
+        "6-7:Hell",
+        "8-9:Heaven",
+        "10-15:Rafters",
+        "16-19:BombsiteA"
+      ],
+      "6": [
+        "0-2:CTSpawn",
+        "3-5:Outside",
+        "6-9:Hell",
+        "10-26:Heaven",
+        "27-44:Rafters"
+      ],
+      "7": [
+        "0-2:CTSpawn",
+        "3-4:Outside",
+        "5-6:Hell",
+        "7-7:Admin",
+        "8-11:Ramp",
+        "12-13:Control",
+        "14-14:Trophy",
+        "15-15:Vending",
+        "16-17:Lobby",
+        "18-19:Squeaky",
+        "20-44:BombsiteA"
+      ],
+      "8": [
+        "0-2:CTSpawn",
+        "3-18:Outside",
+        "19-23:Garage",
+        "24-26:Outside",
+        "27-30:Mini",
+        "31-44:BombsiteA"
+      ],
+      "9": [
+        "0-2:CTSpawn",
+        "3-5:Outside",
+        "6-6:Hell",
+        "7-8:Admin",
+        "9-17:Ramp",
+        "18-19:Admin",
+        "20-21:Hell",
+        "22-24:Heaven",
+        "25-25:Rafters",
+        "26-28:Heaven",
+        "29-32:Rafters",
+        "33-44:BombsiteA"
+      ]
+    }
+  },
+  "events": [
+    {
+      "tick": 81880,
+      "kind": "he",
+      "slot": 8,
+      "x": -25.1,
+      "y": -2106.3,
+      "z": -334.7,
+      "place": "Outside"
+    },
+    {
+      "tick": 81891,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 345.6,
+      "y": -922.1,
+      "z": -390,
+      "place": "Hut"
+    },
+    {
+      "tick": 82055,
+      "kind": "he",
+      "slot": 5,
+      "x": 275,
+      "y": -1050.7,
+      "z": -341,
+      "place": "Lobby"
+    },
+    {
+      "tick": 82071,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 373.8,
+      "y": -1441.6,
+      "z": -414,
+      "place": "BombsiteA"
+    },
+    {
+      "tick": 82603,
+      "kind": "he",
+      "slot": 6,
+      "x": 810.2,
+      "y": -523.5,
+      "z": -240.8,
+      "place": "BombsiteA"
+    },
+    {
+      "tick": 83005,
+      "kind": "smoke",
+      "slot": 1,
+      "x": 816.6,
+      "y": -373.1,
+      "z": -414,
+      "place": "BombsiteA"
+    },
+    {
+      "tick": 83504,
+      "kind": "flash",
+      "slot": 6,
+      "x": 365.3,
+      "y": -596,
+      "z": -345.2,
+      "place": "BombsiteA"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "exec|r15|T|BombsiteA|s=10",
+      "detector": "execute",
+      "code": "execute",
+      "round": 15,
+      "side": 2,
+      "fromTick": 81469,
+      "toTick": 82813,
+      "triggerTick": 82045,
+      "confidence": 0.48,
+      "factors": {
+        "count": 0.8,
+        "touch": 1,
+        "utility": 0.6
+      },
+      "labels": {
+        "count": "4",
+        "plant": "true",
+        "site": "BombsiteA",
+        "tempo": "rush"
+      },
+      "evidence": [
+        {
+          "kind": "occupancy",
+          "tick": 82045,
+          "text": "4 T in BombsiteA+Hut+Mini+Squeaky"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 82045,
+          "text": "T in BombsiteA"
+        }
+      ]
+    },
+    {
+      "id": "retake|r15|CT|BombsiteA|s=25",
+      "detector": "retake",
+      "code": "retake",
+      "round": 15,
+      "side": 3,
+      "fromTick": 82429,
+      "toTick": 83901,
+      "triggerTick": 82749,
+      "confidence": 0.85,
+      "factors": {
+        "base": 0.5,
+        "defused": 0.1,
+        "group": 0.15,
+        "utility": 0.1
+      },
+      "labels": {
+        "aliveCt": "4",
+        "group": "3",
+        "outcome": "defused",
+        "site": "BombsiteA"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 82603,
+          "text": "he by slot 6 -> BombsiteA"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 82749,
+          "text": "CT slot 7 enters BombsiteA"
+        },
+        {
+          "kind": "bomb",
+          "tick": 82792,
+          "text": "planted at BombsiteA with 4 CT alive"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 82877,
+          "text": "CT slot 8 enters Mini"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 83261,
+          "text": "CT slot 9 enters BombsiteA"
+        },
+        {
+          "kind": "event",
+          "tick": 83504,
+          "text": "flash by slot 6 -> BombsiteA"
+        }
+      ]
+    }
+  ]
+}

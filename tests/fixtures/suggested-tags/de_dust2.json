@@ -1,0 +1,432 @@
+{
+  "schema": 1,
+  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events until CS2DemoKit #54 ships Round Facts rows. Recapture with ST_GOLDEN_UPDATE=1.",
+  "demo": "match730_003744626821098897655_0217256255_410.dem",
+  "map": "de_dust2",
+  "tickRate": 64,
+  "regionTable": {
+    "schemaVersion": 1,
+    "map": "de_dust2",
+    "demoCount": 1,
+    "roundCount": 22,
+    "plants": {
+      "BombsiteA": 8,
+      "BombsiteB": 5
+    },
+    "regions": {
+      "BombsiteA": [
+        "BombsiteA",
+        "ARamp",
+        "LongA"
+      ],
+      "BombsiteB": [
+        "BombsiteB",
+        "BDoors",
+        "Hole",
+        "MidDoors",
+        "UpperTunnel"
+      ]
+    },
+    "spawnAdjacent": [
+      "OutsideLong",
+      "OutsideTunnel",
+      "TSpawn"
+    ]
+  },
+  "round": {
+    "number": 20,
+    "startTick": 116954,
+    "endTick": 120950,
+    "bomb": {
+      "plantTick": 120901,
+      "site": "BombsiteA",
+      "defuseTick": null,
+      "explodeTick": null
+    },
+    "sides": {
+      "0": 2,
+      "1": 2,
+      "2": 2,
+      "3": 2,
+      "4": 2,
+      "5": 3,
+      "6": 3,
+      "7": 3,
+      "8": 3,
+      "9": 3
+    },
+    "places": {
+      "0": [
+        "0-5:TSpawn",
+        "6-6:TopofMid",
+        "7-13:OutsideLong",
+        "14-19:LongDoors",
+        "20-20:Pit",
+        "21-42:LongA",
+        "43-53:ARamp"
+      ],
+      "1": [
+        "0-6:TSpawn",
+        "7-10:OutsideLong",
+        "11-17:LongDoors",
+        "18-48:LongA",
+        "49-54:ARamp",
+        "55-62:BombsiteA"
+      ],
+      "2": [
+        "0-10:TSpawn",
+        "11-15:OutsideLong",
+        "16-22:LongDoors",
+        "23-23:LongA",
+        "24-25:Side",
+        "26-38:LongA",
+        "39-40:ARamp"
+      ],
+      "3": [
+        "0-10:TSpawn",
+        "11-15:OutsideLong",
+        "16-21:LongDoors",
+        "22-39:LongA",
+        "40-41:ARamp"
+      ],
+      "4": [
+        "0-5:TSpawn",
+        "6-21:OutsideLong",
+        "22-29:LongDoors",
+        "30-44:LongA",
+        "45-49:Pit",
+        "50-62:LongA"
+      ],
+      "5": [
+        "0-1:CTSpawn",
+        "2-5:UnderA",
+        "6-7:ExtendedA",
+        "8-20:ShortStairs",
+        "21-24:ExtendedA",
+        "25-30:BombsiteA"
+      ],
+      "6": [
+        "0-4:CTSpawn",
+        "5-7:UnderA",
+        "8-24:LongA"
+      ],
+      "7": [
+        "0-3:CTSpawn",
+        "4-6:MidDoors",
+        "7-7:BDoors",
+        "8-19:BombsiteB",
+        "20-22:BDoors",
+        "23-24:MidDoors",
+        "25-28:CTSpawn",
+        "29-32:UnderA",
+        "33-36:ExtendedA",
+        "37-49:BombsiteA"
+      ],
+      "8": [
+        "0-2:CTSpawn",
+        "3-5:MidDoors",
+        "6-7:BDoors",
+        "8-18:BombsiteB",
+        "19-21:BDoors",
+        "22-25:MidDoors",
+        "26-29:Middle",
+        "30-32:Catwalk",
+        "33-37:ShortStairs",
+        "38-42:ExtendedA",
+        "43-43:ShortStairs",
+        "44-47:ExtendedA",
+        "48-55:ShortStairs"
+      ],
+      "9": [
+        "0-4:CTSpawn",
+        "5-7:MidDoors",
+        "8-18:LowerTunnel",
+        "19-21:Middle",
+        "22-24:TopofMid",
+        "25-30:OutsideLong",
+        "31-41:LongDoors"
+      ]
+    }
+  },
+  "events": [
+    {
+      "tick": 117369,
+      "kind": "flash",
+      "slot": 9,
+      "x": -816.9,
+      "y": 727.7,
+      "z": 680.1,
+      "place": null
+    },
+    {
+      "tick": 117375,
+      "kind": "smoke",
+      "slot": 3,
+      "x": -354.9,
+      "y": -1066.7,
+      "z": 91.3,
+      "place": "TSpawn"
+    },
+    {
+      "tick": 117563,
+      "kind": "inferno",
+      "slot": -1,
+      "x": -2020.8,
+      "y": 1598,
+      "z": 33.7,
+      "place": "UpperTunnel"
+    },
+    {
+      "tick": 117763,
+      "kind": "smoke",
+      "slot": 0,
+      "x": 1256,
+      "y": 1172.9,
+      "z": 2,
+      "place": "LongA"
+    },
+    {
+      "tick": 117785,
+      "kind": "flash",
+      "slot": 0,
+      "x": 1198.3,
+      "y": 938.9,
+      "z": 611.6,
+      "place": null
+    },
+    {
+      "tick": 117856,
+      "kind": "flash",
+      "slot": 3,
+      "x": 1317.5,
+      "y": 759.9,
+      "z": 770.2,
+      "place": null
+    },
+    {
+      "tick": 117897,
+      "kind": "smoke",
+      "slot": 2,
+      "x": 1233.5,
+      "y": 1094.3,
+      "z": 0.7,
+      "place": "LongDoors"
+    },
+    {
+      "tick": 117909,
+      "kind": "flash",
+      "slot": 2,
+      "x": 1269.1,
+      "y": 845.3,
+      "z": 615.3,
+      "place": null
+    },
+    {
+      "tick": 118088,
+      "kind": "smoke",
+      "slot": 8,
+      "x": -1941.5,
+      "y": 1456.9,
+      "z": 35,
+      "place": "UpperTunnel"
+    },
+    {
+      "tick": 118294,
+      "kind": "smoke",
+      "slot": 5,
+      "x": 393.9,
+      "y": 1822.1,
+      "z": 97.3,
+      "place": "ShortStairs"
+    },
+    {
+      "tick": 118409,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 1771.3,
+      "y": 2211,
+      "z": 5.4,
+      "place": "LongA"
+    },
+    {
+      "tick": 118508,
+      "kind": "flash",
+      "slot": 0,
+      "x": 1143.3,
+      "y": 2206.5,
+      "z": 7.4,
+      "place": "UnderA"
+    },
+    {
+      "tick": 118628,
+      "kind": "flash",
+      "slot": 5,
+      "x": 1658.5,
+      "y": 1419.7,
+      "z": 204,
+      "place": "LongA"
+    },
+    {
+      "tick": 118731,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 1461,
+      "y": 1757.5,
+      "z": -5.7,
+      "place": "LongA"
+    },
+    {
+      "tick": 118751,
+      "kind": "he",
+      "slot": 3,
+      "x": 926.1,
+      "y": 2767.1,
+      "z": 118.8,
+      "place": "BombsiteA"
+    },
+    {
+      "tick": 118758,
+      "kind": "he",
+      "slot": 7,
+      "x": 1329.5,
+      "y": 2074.5,
+      "z": -3.5,
+      "place": "LongA"
+    },
+    {
+      "tick": 118834,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 527.3,
+      "y": 618.9,
+      "z": 3.4,
+      "place": "LongDoors"
+    },
+    {
+      "tick": 118878,
+      "kind": "smoke",
+      "slot": 7,
+      "x": 894.5,
+      "y": 2290.4,
+      "z": -11.2,
+      "place": "UnderA"
+    },
+    {
+      "tick": 118925,
+      "kind": "smoke",
+      "slot": 1,
+      "x": 1233.1,
+      "y": 2208.4,
+      "z": 6.1,
+      "place": "LongA"
+    },
+    {
+      "tick": 119323,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 643.9,
+      "y": 2659.4,
+      "z": 96.7,
+      "place": "ExtendedA"
+    },
+    {
+      "tick": 119331,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 1584,
+      "y": 2554.9,
+      "z": 66.5,
+      "place": "ARamp"
+    },
+    {
+      "tick": 119667,
+      "kind": "he",
+      "slot": 9,
+      "x": 1524.4,
+      "y": 1422.1,
+      "z": -6.1,
+      "place": "LongA"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "exec|r20|T|BombsiteA|s=40",
+      "detector": "execute",
+      "code": "execute",
+      "round": 20,
+      "side": 2,
+      "fromTick": 117722,
+      "toTick": 120346,
+      "triggerTick": 119578,
+      "confidence": 0.336,
+      "factors": {
+        "count": 0.8,
+        "touch": 0.7,
+        "utility": 0.6
+      },
+      "labels": {
+        "count": "4",
+        "plant": "true",
+        "site": "BombsiteA",
+        "tempo": "mid"
+      },
+      "evidence": [
+        {
+          "kind": "occupancy",
+          "tick": 119578,
+          "text": "4 T in BombsiteA+ARamp+LongA"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 120474,
+          "text": "T in BombsiteA"
+        }
+      ]
+    },
+    {
+      "id": "opener|r20|T|BombsiteA|s=10",
+      "detector": "opener",
+      "code": "opener",
+      "round": 20,
+      "side": 2,
+      "fromTick": 117443,
+      "toTick": 118240,
+      "triggerTick": 117763,
+      "confidence": 0.8,
+      "factors": {
+        "base": 0.5,
+        "count": 0,
+        "early": 0.1,
+        "region": 0.2
+      },
+      "labels": {
+        "count": "3",
+        "kinds": "flash,smoke",
+        "region": "BombsiteA",
+        "side": "T"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 117763,
+          "text": "smoke by slot 0 -> LongA"
+        },
+        {
+          "kind": "event",
+          "tick": 117785,
+          "text": "flash by slot 0 -> unplaced"
+        },
+        {
+          "kind": "event",
+          "tick": 117856,
+          "text": "flash by slot 3 -> unplaced"
+        },
+        {
+          "kind": "event",
+          "tick": 117856,
+          "text": "all 1 placed detonations in BombsiteA+ARamp+LongA"
+        }
+      ]
+    }
+  ]
+}
