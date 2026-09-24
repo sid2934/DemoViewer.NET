@@ -51,5 +51,14 @@
       "side": 3,
       "teamId": null
     }
-  ]
+  ],
+  "provenance": {
+    "overrides": [
+      {
+        "demoSha256": "ab12",
+        "demoStableKey": null,
+        "label": "our scrim"
+      }
+    ]
+  }
 }

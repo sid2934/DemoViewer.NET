@@ -33,6 +33,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
@@ -492,6 +493,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Team Identity, for the Library's Team filter. Null (designer, most tests) → the filter is not
     ///     offered.
     /// </param>
+    /// <param name="provenance">
+    ///     Demo Provenance Labels, for the Library card's label chip. Null (designer, most tests) → no
+    ///     chip.
+    /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -502,7 +507,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DemoEvaluationCoordinator? evaluationCoordinator = null,
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
-        TeamIdentityService? teams = null)
+        TeamIdentityService? teams = null,
+        IDemoProvenanceSource? provenance = null)
     {
         _demoCache = demoCache;
         _windowService = windowService;
@@ -847,7 +853,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             OpenFileAsync, // the Library's "Open Demo…" CTA shares the one picker → LoadDemoFromBytesAsync funnel
             _recentFiles,
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
-            teams); // the Team filter: "All teams", "Us", then every visible team
+            teams, // the Team filter: "All teams", "Us", then every visible team
+            provenance); // the card's provenance chip
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.

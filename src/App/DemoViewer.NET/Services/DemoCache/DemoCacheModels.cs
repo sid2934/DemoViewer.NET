@@ -238,6 +238,13 @@ public sealed class DemoCacheRecord
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
 
+    /// <summary>
+    ///     The engine classifier's verdict on the file header (<c>DemoSourceKind</c> by name), written at
+    ///     tier 2 from the parse's profile. Additive: a record written before the field reads null, and
+    ///     Demo Provenance Labels then classifies from <see cref="Server" /> alone.
+    /// </summary>
+    public string? SourceKind { get; set; }
+
     // ── T2 parse ─────────────────────────────────────────────────────────────
     public TierStamp Parse { get; set; } = new();
 
@@ -427,6 +434,7 @@ public sealed class DemoCacheRecord
         Map = Map,
         Server = Server,
         DemoVersion = DemoVersion,
+        SourceKind = SourceKind,
         DurationSeconds = DurationSeconds,
         // The Library card prints player NAMES, so the index has to carry them; the richer per-player record
         // (slot / steamId / team / bot) stays in the sidecar. This is why an index row is ~780 B rather than
@@ -476,6 +484,9 @@ public sealed class DemoCacheIndexEntry
     public string? Map { get; set; }
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
+
+    /// <summary>The classifier's <c>DemoSourceKind</c> by name; see <see cref="DemoCacheRecord.SourceKind" />. Mirrored so a label needs no sidecar.</summary>
+    public string? SourceKind { get; set; }
 
     public double DurationSeconds { get; set; }
 
