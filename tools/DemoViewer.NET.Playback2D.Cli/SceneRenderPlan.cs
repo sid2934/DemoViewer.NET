@@ -5,10 +5,12 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
+using DemoViewer.NET.Playback2D.Pipeline.Query;
 using SkiaSharp;
 
 #endregion
@@ -111,10 +113,16 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     <c>annotations/&lt;name&gt;.dvann.json</c> (<c>golden</c>, <c>bench</c>). See
     ///     <see cref="FixtureInk" />.
     /// </param>
+    /// <param name="query">
+    ///     The Query Canvas tokens to draw, or null. Arrives the same two ways the ink does:
+    ///     <c>--query</c> (<c>render</c>) or the corpus convention
+    ///     <c>queries/&lt;name&gt;.dvquery.json</c> (<c>golden</c>, <c>bench</c>). See
+    ///     <see cref="FixtureQuery" />.
+    /// </param>
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
         IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true,
         RenderBackendPreference defaultBackend = RenderBackendPreference.Auto,
-        AnnotationSession? annotations = null)
+        AnnotationSession? annotations = null, QueryCanvasDocument? query = null)
     {
         ArgumentNullException.ThrowIfNull(args);
 
@@ -130,11 +138,12 @@ internal sealed class SceneRenderPlan : IDisposable
         SceneCompositor compositor;
         try
         {
-            RequireFeedableOptIns(include, annotations);
+            RequireFeedableOptIns(include, annotations, query);
 
             // The SAME builder `dv2d export` and the app's export use. A second table would let a
             // golden and a real export draw two different stacks silently.
-            compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations);
+            compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations,
+                query: query);
         }
         catch (ArgumentException e)
         {
@@ -230,8 +239,9 @@ internal sealed class SceneRenderPlan : IDisposable
     /// </summary>
     /// <param name="include">The resolved <c>--layers</c> / corpus-entry id set, or null.</param>
     /// <param name="annotations">The ink actually loaded, or null.</param>
+    /// <param name="query">The query fixture actually loaded, or null.</param>
     private static void RequireFeedableOptIns(IReadOnlyList<string>? include,
-        AnnotationSession? annotations)
+        AnnotationSession? annotations, QueryCanvasDocument? query)
     {
         if (include is null)
         {
@@ -253,6 +263,19 @@ internal sealed class SceneRenderPlan : IDisposable
                 }
 
                 continue; // fed, so it is not one of the three that cannot be
+            }
+
+            if (string.Equals(id, SceneLayerIds.Query, StringComparison.Ordinal))
+            {
+                if (query is null)
+                {
+                    throw new CliUsageException(
+                        $"--layers {raw} needs a query to draw. Pass --query <file{QueryFixtureStore.SidecarExtension}>, " +
+                        $"or name a corpus entry with a {FixtureQuery.CorpusDirectoryName}/<name>{QueryFixtureStore.SidecarExtension} " +
+                        "fixture beside its scene.");
+                }
+
+                continue;
             }
 
             // The three HUD ids feed from an IHudDataSource, which is built over a demo's tracker

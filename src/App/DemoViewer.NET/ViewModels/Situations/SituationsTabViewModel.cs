@@ -3,6 +3,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundIndex;
 
@@ -17,8 +18,8 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///     <para>
 ///         Delegate-injected (the Highlights precedent): the VM owns no engine; it reads the
 ///         <see cref="ISituationIndex" />, the cache rows and drives the <see cref="RoundIndexEvaluator" />.
-///         The search surfaces (Query Canvas, Result Cards, Overlay View, Tolerance Slider) are their
-///         own build items and land beside this strip.
+///         The Query Canvas (<see cref="Canvas" />) sits below the strip; Result Cards, Overlay View and
+///         the Tolerance Slider are their own build items and land beside it.
 ///     </para>
 ///     <para>
 ///         On the browser host there is no queue and no filesystem, so no library index exists; the
@@ -78,13 +79,15 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="sources">The fingerprint in force per map, for the stale count and the fallback note.</param>
     /// <param name="tokenSource">The live <c>SituationsSettings.TokenSource</c>.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
+    /// <param name="canvas">The Query Canvas; built over the same index and zone source when null, retiring bundles through the dispatcher.</param>
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
         DemoCacheStore demoCache,
         RoundIndexPlaceSources sources,
         Func<RoundIndexTokenSource> tokenSource,
-        bool? isBrowser = null)
+        bool? isBrowser = null,
+        QueryCanvasViewModel? canvas = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -97,6 +100,10 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         _tokenSource = tokenSource;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
 
+        // The canvas resolves a drop through the same zone source the builder mints tokens through, so
+        // the place a click names and the place a row stores come from one vocabulary.
+        Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), demoCache);
+
         // Both sources matter: the cache raises on every stamp, the index on load and merge. Subscribed
         // for the VM's life rather than per activation so the strip is right the moment the tab opens.
         _demoCache.Changed += OnCacheChanged;
@@ -106,6 +113,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
     /// <summary>True on the WASM head: no queue, no filesystem, no library index.</summary>
     public bool IsBrowser { get; }
+
+    /// <summary>The Query Canvas below the strip.</summary>
+    public QueryCanvasViewModel Canvas { get; }
 
     /// <summary>The line the strip shows instead of counts on the browser host: the annotation panel's words.</summary>
     public const string BrowserNote = "session only: no library index in the browser";
@@ -142,6 +152,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         _disposed = true;
         _demoCache.Changed -= OnCacheChanged;
         _index.Changed -= Refresh;
+        Canvas.Dispose();
     }
 
     /// <summary>

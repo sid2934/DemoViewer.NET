@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Query;
 
 #endregion
 
@@ -36,8 +37,14 @@ internal static class RenderCommand
                 "by a newer schema).")
             : null;
 
+        // The query fixture, read before the plan for the same reason as the ink.
+        QueryCanvasDocument? query = args.String("query") is { Length: > 0 } queryPath
+            ? FixtureQuery.Load(queryPath) ?? throw new CliUsageException(
+                $"--query {queryPath} holds no placed token this build can draw (missing or empty).")
+            : null;
+
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName,
-            annotations: ink);
+            annotations: ink, query: query);
 
         string outPath = args.String("out") ?? "dv2d-render.png";
         string? cameraSpec = args.String("camera");

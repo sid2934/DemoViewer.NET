@@ -5,6 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Core.Vision;
 
 #endregion
@@ -39,7 +40,7 @@ public static class SceneLayerCatalog
 
     /// <summary>
     ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: the seven scene
-    ///     layers, the ink, and the three HUD layers. The last four are
+    ///     layers, the ink, the three HUD layers and the query tokens. The last five are
     ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
     ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
     ///     <para>
@@ -61,7 +62,8 @@ public static class SceneLayerCatalog
         SceneLayerIds.Annotations,
         SceneLayerIds.HudRoster,
         SceneLayerIds.HudClock,
-        SceneLayerIds.HudKillFeed
+        SceneLayerIds.HudKillFeed,
+        SceneLayerIds.Query
     ];
 
     /// <summary>The ids in <paramref name="ids" /> that no layer answers to. Empty when all are known.</summary>
@@ -134,11 +136,16 @@ public static class SceneLayerCatalog
     ///     the feed to artwork changes every frame it appears in, so it comes with a re-baseline and is
     ///     therefore the caller's decision, not this method's.
     /// </param>
+    /// <param name="query">
+    ///     The Query Canvas document to draw; null leaves <c>playback2d.query</c> unregistered. A
+    ///     fixture render hands over the corpus's <c>.dvquery.json</c>; the Situations tab mounts its own
+    ///     layer over the live document and never comes through here.
+    /// </param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
     public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
         AnnotationSession? annotations = null, MarkerSmoother? smoother = null,
-        IIconSource? icons = null)
+        IIconSource? icons = null, QueryCanvasDocument? query = null)
     {
         HashSet<string>? wanted = include is null
             ? null
@@ -185,12 +192,12 @@ public static class SceneLayerCatalog
                     continue;
                 }
 
-                if (optIn && Starved(id, hud, annotations))
+                if (optIn && Starved(id, hud, annotations, query))
                 {
                     continue; // asked for, but nothing to feed it. Draw nothing rather than an empty box.
                 }
 
-                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons));
+                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons, query));
             }
         }
         catch
@@ -202,17 +209,21 @@ public static class SceneLayerCatalog
         return compositor;
     }
 
-    // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink feeds from the HUD
-    // source, so hud.roster needs no line here. Only a genuinely new kind of source would. The check
-    // is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
-    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations) =>
-        string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal)
-            ? annotations is null
-            : hud is null;
+    // Which source an opt-in id starves without. The ink and the query tokens each feed from their own
+    // document; everything else opt-in feeds from the HUD source, so hud.roster needs no line here. The
+    // check is what lets BuildLayer keep its `hud!` / `annotations!` / `query!`: an unfed layer never
+    // reaches it.
+    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations,
+        QueryCanvasDocument? query) => id switch
+    {
+        SceneLayerIds.Annotations => annotations is null,
+        SceneLayerIds.Query => query is null,
+        _ => hud is null
+    };
 
     private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
         AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text,
-        IIconSource? icons) => id switch
+        IIconSource? icons, QueryCanvasDocument? query) => id switch
     {
         SceneLayerIds.Radar => new RadarLayer(),
         SceneLayerIds.Trails => new TrailLayer(),
@@ -224,6 +235,7 @@ public static class SceneLayerCatalog
         SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
         SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
         SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
+        SceneLayerIds.Query => new QueryTokenLayer(query!),
         _ => new KillFeedLayer(hud!, text: text, icons: icons)
     };
 }

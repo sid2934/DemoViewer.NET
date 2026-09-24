@@ -262,6 +262,11 @@ public class RoundIndexBuilderTests
 
         public string? Resolve(System.Numerics.Vector3 world) => resolve(world);
 
+        // A floor click is answered as the world point on the floor key, which is what a resolver
+        // over areas of that floor would see.
+        public string? ResolveOnFloor(double x, double y, double floorKey) =>
+            resolve(new System.Numerics.Vector3((float)x, (float)y, (float)floorKey));
+
         public IReadOnlySet<string> Adjacent(string place) =>
             adjacency is not null && adjacency.TryGetValue(place, out string[]? neighbours)
                 ? new HashSet<string>(neighbours, StringComparer.Ordinal)

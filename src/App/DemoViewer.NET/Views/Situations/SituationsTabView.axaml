@@ -1,15 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             xmlns:views="using:DemoViewer.NET.Views.Situations"
              x:Class="DemoViewer.NET.Views.Situations.SituationsTabView"
              x:DataType="vm:SituationsTabViewModel">
 
     <!--
       THE SITUATIONS TAB: Situation Search over the round index.
 
-      This build ships the tab with the index STATUS STRIP only: "Indexed N of M demos · stale · indexing …",
-      Rebuild index and Retry failed. The Query Canvas, Result Cards, Overlay View and the Tolerance Slider
-      are their own build items and fill the space below the strip.
+      The index STATUS STRIP on top: "Indexed N of M demos · stale · indexing …", Rebuild index and Retry
+      failed. Below it the QUERY CANVAS (QueryCanvasView): the map picker, the ten-slot rail, the Skia
+      canvas and the Search button. Result Cards, Overlay View and the Tolerance Slider are their own
+      build items and land beside it.
 
       Colour: every value is a {DynamicResource} token. State is carried by the words and the shared dot
       classes, never by tinting the label (the StatusChip contrast contract). The browser host renders
@@ -52,10 +54,8 @@
             </StackPanel>
         </Border>
 
-        <!-- Where the search surfaces land. -->
-        <TextBlock Margin="0 16 0 0" FontSize="12" Foreground="{DynamicResource TextMid}"
-                   TextWrapping="Wrap"
-                   Text="Situation Search: drop place tokens on the map to find every round where the players stood like this. The query canvas and the result cards land here." />
+        <!-- The Query Canvas. Result Cards, Overlay View and the Tolerance Slider land beside it. -->
+        <views:QueryCanvasView Margin="0 12 0 0" DataContext="{Binding Canvas}" />
     </DockPanel>
 
 </UserControl>
