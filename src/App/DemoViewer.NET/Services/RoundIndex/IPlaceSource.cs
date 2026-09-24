@@ -82,6 +82,17 @@ public interface IZonePlaceResolver
     /// <param name="world">A world position.</param>
     string? Resolve(Vector3 world);
 
+    /// <summary>
+    ///     The place a click on a 2D pane falls in: the areas of that floor only, and the volumes whose
+    ///     Z range meets the floor's band. Null for none. Zone Baking's
+    ///     <c>PlaceResolver.ResolveOnFloor(x, y, floorKey)</c>; the Query Canvas is the consumer with a
+    ///     floor key and no world Z.
+    /// </summary>
+    /// <param name="x">World X.</param>
+    /// <param name="y">World Y.</param>
+    /// <param name="floorKey">The floor's key: <c>MapSpace.QuantizeZ</c> of the band's lower Z.</param>
+    string? ResolveOnFloor(double x, double y, double floorKey);
+
     /// <summary>The places sharing a nav connection with <paramref name="place" />; empty for an unknown place.</summary>
     /// <param name="place">A raw place name.</param>
     IReadOnlySet<string> Adjacent(string place);

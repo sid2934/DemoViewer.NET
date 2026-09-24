@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             xmlns:situations="using:DemoViewer.NET.Modules.Situations"
+             x:Class="DemoViewer.NET.Views.Situations.QueryCanvasView"
+             x:DataType="vm:QueryCanvasViewModel">
+
+    <!--
+      THE QUERY CANVAS: the map picker, the ten-slot token rail, the Skia canvas and the Search button.
+
+      The rail is Avalonia; the tokens on the map are the scene's own layer. A rail chip ARMS a slot, the
+      next press over the map places it, and the chip then names the place the drop resolved to. The place
+      name lives here and never in the golden: the layer draws no text.
+
+      Colour: every value is a {DynamicResource} token. The two rows carry the side in their label, never
+      in a tint of the text (the StatusChip contrast contract).
+    -->
+
+    <UserControl.Styles>
+        <!-- A rail chip: the side label, the slot number and the resolved place. -->
+        <Style Selector="Border.railSlot">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8 5" />
+            <Setter Property="MinWidth" Value="96" />
+        </Style>
+        <Style Selector="Border.railSlot.armed">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+        </Style>
+        <Style Selector="Border.railSlot.placed">
+            <Setter Property="Background" Value="{DynamicResource PanelBg}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+
+        <!-- The map picker and the clear action. -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="Map" Classes="col-label" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding Maps}" SelectedItem="{Binding Map}"
+                      MinWidth="160" FontSize="12" IsEnabled="{Binding HasMaps}" />
+            <TextBlock Grid.Column="2" Text="{Binding HintLine}" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            <Button Grid.Column="3" Content="Clear tokens" Classes="ghost" FontSize="11" Padding="10 5"
+                    Command="{Binding ClearTokensCommand}" />
+        </Grid>
+
+        <!-- The rail: five CT, five T. -->
+        <StackPanel Grid.Row="1" Spacing="6">
+            <ItemsControl ItemsSource="{Binding CtSlots}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:QueryRailSlotViewModel">
+                        <Border Classes="railSlot" Classes.armed="{Binding IsArmed}" Classes.placed="{Binding IsPlaced}">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <Button Grid.Column="0" Classes="chip" Padding="4 2" Command="{Binding ArmCommand}"
+                                        ToolTip.Tip="Arm this slot, then click the map to place it">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                        <TextBlock Text="{Binding Status}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMid}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Content="✕" Classes="ghost" FontSize="10" Padding="4 2"
+                                        IsVisible="{Binding IsPlaced}" Command="{Binding LiftCommand}"
+                                        ToolTip.Tip="Lift this token off the map" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ItemsControl ItemsSource="{Binding TSlots}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:QueryRailSlotViewModel">
+                        <Border Classes="railSlot" Classes.armed="{Binding IsArmed}" Classes.placed="{Binding IsPlaced}">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <Button Grid.Column="0" Classes="chip" Padding="4 2" Command="{Binding ArmCommand}"
+                                        ToolTip.Tip="Arm this slot, then click the map to place it">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                        <TextBlock Text="{Binding Status}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMid}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Content="✕" Classes="ghost" FontSize="10" Padding="4 2"
+                                        IsVisible="{Binding IsPlaced}" Command="{Binding LiftCommand}"
+                                        ToolTip.Tip="Lift this token off the map" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- The canvas: the map's radar and panes, hosting the token layer and the token tool. -->
+        <Border Grid.Row="2" MinHeight="320" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                CornerRadius="6" ClipToBounds="True">
+            <Panel>
+                <situations:QueryCanvasHost />
+                <!-- No bundle on this host: the ExportUnavailableNote shape, over the empty surface. -->
+                <TextBlock Text="{Binding MissingBundleNote}" IsVisible="{Binding IsMissingBundle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" Margin="24" />
+                <TextBlock Text="no indexed demos yet, so there is no map to search"
+                           IsVisible="{Binding !HasMaps}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" Margin="24" />
+            </Panel>
+        </Border>
+
+        <!-- The tokens as the index stores them, the Search button and the plain count. -->
+        <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+            <StackPanel Grid.Column="0" Spacing="2">
+                <TextBlock FontSize="11" Classes="mono" Foreground="{DynamicResource TextMid}">
+                    <Run Text="CT " /><Run Text="{Binding CtToken}" />
+                </TextBlock>
+                <TextBlock FontSize="11" Classes="mono" Foreground="{DynamicResource TextMid}">
+                    <Run Text="T  " /><Run Text="{Binding TToken}" />
+                </TextBlock>
+            </StackPanel>
+            <TextBlock Grid.Column="2" Text="{Binding ResultLine}" FontSize="12" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextValue}" />
+            <Button Grid.Column="3" Content="Search" Classes="primary" Padding="14 5"
+                    Command="{Binding SearchCommand}" />
+        </Grid>
+    </Grid>
+
+</UserControl>

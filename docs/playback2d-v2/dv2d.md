@@ -39,7 +39,7 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
               [--out <png>]              default ./dv2d-render.png
               [--size WxH]               default: the fixture's size, else 1920x1080
               [--layers a,b] [--exclude-layers a,b]
-              [--ink <file.dvann.json>]
+              [--ink <file.dvann.json>] [--query <file.dvquery.json>]
               [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
               [--layout stacked|single] [--level <levelId>]
               [--assets <dir>] [--no-radar]
@@ -58,10 +58,10 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   opt-in chrome, because both go through `SceneLayerCatalog.CreateSceneStack`. Until D6 they did not:
   `render`, `golden` and `bench` built from a second table holding one debug-grid layer, so
   `--layers markers` was an error and every committed golden was a picture of a grid (D6 G-1).
-- The four **opt-in** ids need a source, and this command refuses one it cannot feed rather than
-  handing back a PNG that quietly lacks it. `playback2d.annotations` takes `--ink`; `hud.roster`,
-  `hud.clock` and `hud.killfeed` need a demo's clock, scoreboard and kill timeline, so only
-  `dv2d export --hud` can draw them.
+- The five **opt-in** ids need a source, and this command refuses one it cannot feed rather than
+  handing back a PNG that quietly lacks it. `playback2d.annotations` takes `--ink`;
+  `playback2d.query` takes `--query`; `hud.roster`, `hud.clock` and `hud.killfeed` need a demo's
+  clock, scoreboard and kill timeline, so only `dv2d export --hud` can draw them.
 - `playback2d.vision` is **not** opt-in and needs no flag: it draws the fixture's own pre-solved
   `SceneVision`: the cones and could-see lines a scene file carries. It was in the default set and drew
   nothing until D6 round 3, because the layer read an `IVisionSolver` (which a fixture render has none
@@ -74,6 +74,12 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   `annotations/<name>.dvann.json` beside the corpus entry's scene, so a golden's ink is a committed
   artefact rather than a flag someone has to remember to pass. `annotated-mirage-b` is the entry that
   uses it, and it is the only golden anywhere that covers burned-in ink.
+- `--query <file.dvquery.json>` draws the Situations tab's Query Canvas tokens (`playback2d.query`)
+  into a single-frame render, read through the same `QueryFixtureStore` the corpus fixtures are
+  written with. `golden` and `bench` take it by the same convention: `queries/<name>.dvquery.json`
+  beside the entry's scene. `query-nuke-execute` is the entry that uses it: the canvas's own static
+  map frame (the bundle's floors and radar, no markers) with six tokens over it. The layer draws no
+  text, so that golden is judged at the unrelaxed gate on every platform.
 - `--camera` is a single-frame framing. Omit it and the fixture's own camera is used, re-fitted to the
   requested viewport (so `--size` reframes rather than crops).
 - `--diag-assemblies` writes the process's loaded-assembly list to stderr after the render. It exists

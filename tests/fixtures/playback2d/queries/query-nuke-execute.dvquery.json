@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "dvquery/1",
+  "map": "de_nuke",
+  "tokens": [
+    {
+      "side": "ct",
+      "slot": 0,
+      "worldX": 620,
+      "worldY": -420,
+      "levelMinZ": -512,
+      "place": "BombsiteA"
+    },
+    {
+      "side": "ct",
+      "slot": 1,
+      "worldX": 960,
+      "worldY": -640,
+      "levelMinZ": -512,
+      "place": "BombsiteA"
+    },
+    {
+      "side": "ct",
+      "slot": 2,
+      "worldX": 1380,
+      "worldY": -980,
+      "levelMinZ": -512,
+      "place": "Ramp"
+    },
+    {
+      "side": "t",
+      "slot": 0,
+      "worldX": 1420,
+      "worldY": -760,
+      "levelMinZ": -99968,
+      "place": "Ramp"
+    },
+    {
+      "side": "t",
+      "slot": 1,
+      "worldX": -1300,
+      "worldY": -900,
+      "levelMinZ": -512,
+      "place": "Outside"
+    },
+    {
+      "side": "t",
+      "slot": 4,
+      "worldX": 2600,
+      "worldY": 900,
+      "levelMinZ": -512
+    }
+  ]
+}

@@ -231,6 +231,28 @@
       },
       "pending": false,
       "notes": "The worst-case 1080p scene design section 6's 8 ms render budget is actually stated against: 10 markers, 4 sixty-four-point trails crossing both Z bands, 12 area effects, a defusing bomb, over 2 derived levels with floor captions. Authored in code (SyntheticScenes) and committed as JSON, which BudgetFixtureCorpusTests keeps in step. Was PENDING for B1 with the scene already on disk; map/map_version claimed de_mirage while the fixture's own mapName is synthetic_budget, so a verify would have injected Mirage radar art into a synthetic scene - both are null now, which is what the fixture says."
+    },
+    {
+      "name": "query-nuke-execute",
+      "scene": "scenes/query-nuke-execute.scene.json",
+      "size": {
+        "width": 640,
+        "height": 640
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "layers": [
+        "playback2d.radar",
+        "playback2d.query"
+      ],
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "The Query Canvas golden: de_nuke's two nav floors and radar with no markers, and six placed query tokens from queries/query-nuke-execute.dvquery.json drawn by playback2d.query. Two CT tokens on A, one CT and one T on Ramp (one per storey, which is the level-key assignment the layer has to get right), one T Outside, and one T token on the upper floor with no place, drawn hollow. The layer draws no text and the entry names no floor caption, so with zero marker labels the glyph allowance is zero and the gate is the unrelaxed one on every platform."
     }
   ]
 }

@@ -60,6 +60,9 @@ public sealed class RoundIndexPlaceSources
     /// <summary>The sampling parameters every build uses.</summary>
     public RoundIndexOptions Options => _options;
 
+    /// <summary>Where a map's zone resolver comes from. The Query Canvas resolves a drop through the same source the builder mints tokens through.</summary>
+    public IZonePlaceResolverSource Zones => _zones;
+
     /// <summary>The source rows for <paramref name="map" /> are minted through right now.</summary>
     /// <param name="map">The map, or null when the demo's header has not been read; the pawn then.</param>
     public IPlaceSource SourceFor(string? map)

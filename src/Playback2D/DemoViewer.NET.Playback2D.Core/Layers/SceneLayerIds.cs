@@ -48,6 +48,13 @@ public static class SceneLayerIds
     public const string HudKillFeed = "hud.killfeed";
 
     /// <summary>
+    ///     The Query Canvas tokens: the Situations tab's placed place tokens. Opt-in like the ink, and for
+    ///     the same reason: it draws a document a caller has to supply, so an export or a fixture render
+    ///     that did not name it never grows ten discs it did not ask for.
+    /// </summary>
+    public const string Query = "playback2d.query";
+
+    /// <summary>
     ///     The layers a stack registers <b>only when the caller names them</b>. Off under a null or empty
     ///     include set: an export that silently burned in a scoreboard, or someone else's telestration,
     ///     would be a surprise rather than a feature.
@@ -63,6 +70,7 @@ public static class SceneLayerIds
             Annotations,
             HudRoster,
             HudClock,
-            HudKillFeed
+            HudKillFeed,
+            Query
         };
 }
