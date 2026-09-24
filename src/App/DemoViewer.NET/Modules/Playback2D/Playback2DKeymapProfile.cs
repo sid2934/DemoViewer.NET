@@ -246,6 +246,29 @@ public sealed class Playback2DKeymapProfile
         return false;
     }
 
+    /// <summary>
+    ///     Resolves a keypress against ONE scope's rows of this profile. The Tag Palette asks it for
+    ///     <see cref="Playback2DBindingScope.WhenPaletteFocused" /> before its button hotkeys and before
+    ///     <see cref="TryResolve(Key, KeyModifiers, bool, out Playback2DAction)" />, which is what puts the
+    ///     palette scope above the tool and always scopes. A reserved row resolves to nothing.
+    /// </summary>
+    /// <param name="scope">The scope to look in.</param>
+    /// <param name="key">The pressed key.</param>
+    /// <param name="modifiers">The active modifiers.</param>
+    /// <param name="action">The resolved action.</param>
+    public bool TryResolveInScope(Playback2DBindingScope scope, Key key, KeyModifiers modifiers,
+        out Playback2DAction action)
+    {
+        if (TryFind(scope, key, modifiers, out Playback2DBinding found) && !found.IsReserved)
+        {
+            action = found.Action;
+            return true;
+        }
+
+        action = Playback2DAction.None;
+        return false;
+    }
+
     /// <summary>Convenience overload for the view's KeyDown handler.</summary>
     /// <param name="e">The key event.</param>
     /// <param name="toolActive">Whether a pointer tool is selected.</param>

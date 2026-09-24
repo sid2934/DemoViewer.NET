@@ -15,6 +15,8 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Modules.RoundTagger;
+using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
@@ -368,6 +370,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _tagTrack = new TagTrack(_tagSession, static action => Dispatcher.UIThread.Post(action));
         Timeline.RegisterTrack(_tagTrack, TimelineBandRow.Lane);
 
+        // The Tag Palette docks here and edits through the same session. The playhead it tags at is the
+        // shared clock's tick, the annotation panel's source; its button colours become the track's.
+        TagPalette = new TagPaletteViewModel(_tagSession, TryResolve<TagPaletteStore>(),
+            () => _context?.CurrentTick ?? CurrentFrame.Time.Tick, () => _context?.TickRate ?? 64,
+            static action => Dispatcher.UIThread.Post(action));
+        TagPalette.SelectPalette(Settings()?.Current.Playback2D.TagPaletteId);
+        TagPalette.PaletteChosen += SaveTagPaletteSetting;
+        _tagTrack.CodeColour = code => TagPalette.Palette.ColourOf(code);
+
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
@@ -620,6 +631,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Annotations.Dispose();
         _annotationTrack.Dispose();
         _annotationController.Dispose();
+        TagPalette.PaletteChosen -= SaveTagPaletteSetting;
+        TagPalette.Finish();
+        TagPalette.Dispose();
         _tagTrack.Dispose();
         _tagSession.Dispose(); // detaches, which flushes
 
@@ -684,6 +698,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
         // fire-and-forget write races the process exit.
         _annotationController.Flush();
+        TagPalette.Leave(); // a tag still waiting for its labels is written, not dropped
         _tagSession.Flush();
 
         // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
@@ -1306,6 +1321,55 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public TagSession Tags => _tagSession;
 
+    /// <summary>The Tag Palette docked in this tab. Always built; <see cref="IsTagPaletteEnabled" /> decides whether it shows.</summary>
+    public TagPaletteViewModel TagPalette { get; }
+
+    /// <summary>Whether the <c>playback2d.tagger</c> feature is on. Fail-open, live; see <see cref="IsTimelineEnabled" />.</summary>
+    public bool IsTagPaletteEnabled => _features?.IsEnabled(RoundTaggerModule.PaletteFeatureId) ?? true;
+
+    /// <summary>Whether the palette has the keyboard: its keys then shadow the tab's (overview correction 21).</summary>
+    public bool IsTagPaletteFocused => IsTagPaletteEnabled && TagPalette.IsFocused;
+
+    /// <summary>
+    ///     The palette's turn at a key, taken by the View BEFORE the tab's own keymap: its palette-scoped
+    ///     rows, then the open panel's hotkeys. False when the palette does not have focus or nothing in
+    ///     it claims the key, and the key then resolves through <see cref="Keymap" /> as usual.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers held.</param>
+    public bool TryHandleTagPaletteKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
+        IsTagPaletteFocused && TagPalette.TryHandleKey(key, modifiers);
+
+    // The gate folds into the palette's focus: gated off, the palette cannot keep the keyboard, and a tag
+    // it was making is written rather than stranded behind a hidden panel.
+    private bool ToggleTagPaletteFocus()
+    {
+        if (!IsTagPaletteEnabled)
+        {
+            return false;
+        }
+
+        if (TagPalette.IsFocused)
+        {
+            TagPalette.Leave();
+            return true;
+        }
+
+        return TagPalette.Focus();
+    }
+
+    private void SaveTagPaletteSetting(string id)
+    {
+        try
+        {
+            Settings()?.Write(s => s.Playback2D.TagPaletteId = id);
+        }
+        catch (Exception)
+        {
+            // A read-only config directory must not take the palette down over which palette it shows.
+        }
+    }
+
     // Binds the tag session to whatever demo the context is on. Fire-and-forget like the annotations:
     // the hash may have to be computed off the UI thread (a demo Content Identity has not reached), and
     // an activation must not wait on it. Re-activation on the demo already attached keeps the in-memory
@@ -1319,6 +1383,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
+        // A tag the palette was still making belongs to the demo it was made on: written before the swap.
+        TagPalette.Leave();
         _ = AttachTagsAsync(ctx, ctx.DemoPath).ContinueWith(static _ => { }, TaskScheduler.Default);
     }
 
@@ -1682,6 +1748,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                     : ToolKind.Erase);
                 return true;
 
+            // One history per document kind, resolved by focus (tag-store.md §3.9): while the palette has
+            // the keyboard, undo and redo are the tags'.
+            case Playback2DAction.Undo when IsTagPaletteFocused:
+                TagPalette.Finish();
+                return _tagSession.Undo();
+
+            case Playback2DAction.Redo when IsTagPaletteFocused:
+                return _tagSession.Redo();
+
             case Playback2DAction.Undo:
                 if (!IsAnnotationsEnabled || !Annotations.CanUndo)
                 {
@@ -1720,6 +1795,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
             case Playback2DAction.PrevSituationResult:
                 return SituationResults?.Walk(-1) ?? false;
+
+            case Playback2DAction.FocusTagPalette:
+                return ToggleTagPaletteFocus();
+
+            // Palette-scoped: they arrive through TryHandleTagPaletteKey, and here only when the palette
+            // has the keyboard, so a stray call from another path cannot act on an unfocused palette.
+            case Playback2DAction.TagPaletteBack:
+            case Playback2DAction.TagNote:
+            case Playback2DAction.TagClearSticky:
+                return IsTagPaletteFocused && TagPalette.Execute(action);
 
             default:
                 return false;
@@ -1842,6 +1927,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(IsAnnotationsEnabled));
         OnPropertyChanged(nameof(AnnotationSession));
         OnPropertyChanged(nameof(IsAutoLevelEnabled));
+        OnPropertyChanged(nameof(IsTagPaletteEnabled));
+
+        // Gated off, the palette gives the keyboard back: its keys would otherwise keep shadowing the
+        // tab's behind a panel the user can no longer see.
+        if (!IsTagPaletteEnabled && TagPalette.IsFocused)
+        {
+            TagPalette.Leave();
+        }
+
+        OnPropertyChanged(nameof(IsTagPaletteFocused));
 
         // Same three inputs as the line below it: the gate, the context, and whether that context has a
         // demo. The export host is wired once at composition, before any tab is activated, so activation
@@ -1956,6 +2051,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // toolbar's DataContext is the panel, and a five-deep ancestor cast that silently yields "" on a
         // standalone mount is a worse contract than one assignment.
         Annotations.ApplyKeymap(Keymap);
+        TagPalette.ApplyKeymap(Keymap);
     }
 
     private void LoadLevelSettings()

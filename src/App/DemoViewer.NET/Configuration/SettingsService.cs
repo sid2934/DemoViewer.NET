@@ -505,6 +505,7 @@ public sealed class SettingsService
                 settings.Playback2D.ExportEncoder),
             new KeyValuePair<string, string?>("Playback2D:ExportQuality",
                 settings.Playback2D.ExportQuality),
+            new KeyValuePair<string, string?>("Playback2D:TagPaletteId", settings.Playback2D.TagPaletteId),
             // Situations: the tab renders on the browser head, so both keys are flattened even though
             // no index can be built there.
             new KeyValuePair<string, string?>("Situations:BackgroundIndex",
