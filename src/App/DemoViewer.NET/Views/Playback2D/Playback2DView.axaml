@@ -190,6 +190,11 @@
                                   ToolTip.Tip="Kill feed" />
                         <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
                                   ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
+                        <CheckBox Content="Zones" FontSize="11" IsChecked="{Binding ShowZones}"
+                                  ToolTip.Tip="Place outlines and callouts from the map's baked zones, plus your own zones from the config folder's zones/&lt;map&gt;.zones.json" />
+                        <Button Content="Reload zones" FontSize="11" Padding="6,1"
+                                Command="{Binding ReloadZonesCommand}"
+                                ToolTip.Tip="Re-read the zones file and your overlay without reloading the map" />
                     </WrapPanel>
 
                     <!-- Annotation toolbar (B2), on its OWN line rather than sharing the header's fill

@@ -38,6 +38,12 @@ internal static class RenderCommand
                 "by a newer schema).")
             : null;
 
+        string? zonesOverlay = args.String("zones-overlay");
+        if (zonesOverlay is { Length: > 0 } && !File.Exists(zonesOverlay))
+        {
+            throw new CliUsageException($"--zones-overlay {zonesOverlay} does not exist.");
+        }
+
         // The query fixture, read before the plan for the same reason as the ink.
         QueryCanvasDocument? query = args.String("query") is { Length: > 0 } queryPath
             ? FixtureQuery.Load(queryPath) ?? throw new CliUsageException(
@@ -51,7 +57,7 @@ internal static class RenderCommand
             : null;
 
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName,
-            annotations: ink, query: query, overlay: overlay);
+            annotations: ink, zonesOverlay: zonesOverlay, query: query, overlay: overlay);
 
         string outPath = args.String("out") ?? "dv2d-render.png";
         string? cameraSpec = args.String("camera");
@@ -95,6 +101,7 @@ internal static class RenderCommand
                 },
                 ["map"] = source.MapName,
                 ["map_version"] = plan.MapAssets?.Bundle.MapVersion ?? source.MapVersion,
+                ["zones_version"] = plan.Zones.Resolver?.Zones.EffectiveVersion,
                 ["tick"] = time.Tick,
                 ["frame_index"] = time.FrameIndex,
                 ["layers"] = ToArray(plan.LayerIds),

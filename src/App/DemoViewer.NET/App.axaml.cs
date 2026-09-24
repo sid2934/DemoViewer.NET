@@ -484,6 +484,7 @@ public class App : Application
         // Install merges the override dictionaries, so a persisted drop-in theme resolves at launch. (No
         // subscribers yet, so this startup reload paints nothing extra. ApplyTheme below does the initial paint.)
         AppPaths.EnsureThemesDirectory();
+        AppPaths.EnsureZonesDirectory();
         registry.Reload();
         registry.Install(Current!);
 
