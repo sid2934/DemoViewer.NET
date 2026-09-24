@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Overlay;
+using DemoViewer.NET.Playback2D.Core.Query;
 
 #endregion
 
@@ -42,8 +44,20 @@ internal static class RenderCommand
             throw new CliUsageException($"--zones-overlay {zonesOverlay} does not exist.");
         }
 
+        // The query fixture, read before the plan for the same reason as the ink.
+        QueryCanvasDocument? query = args.String("query") is { Length: > 0 } queryPath
+            ? FixtureQuery.Load(queryPath) ?? throw new CliUsageException(
+                $"--query {queryPath} holds no placed token this build can draw (missing or empty).")
+            : null;
+
+        // And the overlay fixture, for the same reason again.
+        OverlayDocument? overlay = args.String("overlay") is { Length: > 0 } overlayPath
+            ? FixtureOverlay.Load(overlayPath) ?? throw new CliUsageException(
+                $"--overlay {overlayPath} holds no point this build can draw (missing or empty).")
+            : null;
+
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName,
-            annotations: ink, zonesOverlay: zonesOverlay);
+            annotations: ink, zonesOverlay: zonesOverlay, query: query, overlay: overlay);
 
         string outPath = args.String("out") ?? "dv2d-render.png";
         string? cameraSpec = args.String("camera");

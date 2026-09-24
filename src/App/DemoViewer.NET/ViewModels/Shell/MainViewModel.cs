@@ -33,6 +33,8 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.Idle;
@@ -96,6 +98,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["builtin.entity"] = "tab.entity",
         ["builtin.stats"] = "tab.stats",
         ["highlights.browser"] = "tab.highlights",
+        ["situations.search"] = "tab.situations",
+        ["teams.browser"] = "tab.teams",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
         ["playback2d.viewport"] = "tab.playback2d",
@@ -485,6 +489,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     that demo's cached record on Match Overview without parsing anything. Null (WASM, most tests) →
     ///     the preview is simply inert.
     /// </param>
+    /// <param name="teams">
+    ///     Team Identity, for the Library's Team filter. Null (designer, most tests) → the filter is not
+    ///     offered.
+    /// </param>
+    /// <param name="provenance">
+    ///     Demo Provenance Labels, for the Library card's label chip. Null (designer, most tests) → no
+    ///     chip.
+    /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -494,7 +506,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IDemoProcessingQueue? processingQueue = null,
         DemoEvaluationCoordinator? evaluationCoordinator = null,
         Func<string?>? tourSampleLocator = null,
-        DemoCacheStore? demoCache = null)
+        DemoCacheStore? demoCache = null,
+        TeamIdentityService? teams = null,
+        IDemoProvenanceSource? provenance = null)
     {
         _demoCache = demoCache;
         _windowService = windowService;
@@ -838,7 +852,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             PickFoldersAsync,
             OpenFileAsync, // the Library's "Open Demo…" CTA shares the one picker → LoadDemoFromBytesAsync funnel
             _recentFiles,
-            _tourSamplePath); // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
+            _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
+            teams, // the Team filter: "All teams", "Us", then every visible team
+            provenance); // the card's provenance chip
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
@@ -3223,6 +3239,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public async Task OpenDemoInWorkspaceAsync(string path) => await LoadDemoFromPathAsync(path);
 
     /// <summary>
+    ///     The path of the loaded demo as the library knows it, or null with none. The Situations
+    ///     tab's seek seam reads it to skip the re-open when a Result Card names the demo already on
+    ///     the clock; the Diagnostics card and the idle resume read the same field.
+    /// </summary>
+    internal string? LoadedDemoPath => _loadedDemoPath;
+
+    /// <summary>
     ///     Drops every shell-held reference to the currently-loaded demo. Shared by the two load entry
     ///     points (<see cref="LoadDemoFromBytesAsync" /> / <see cref="AutoLoadDemoAsync" />, which used to
     ///     carry near-identical hand-maintained copies of this block) and by the standalone
@@ -3391,12 +3414,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Switches the workspace to the tab with the given TabId (null / absent = no-op). Wired to the tutorial
     // controller so a step can bring its target region on screen; a gated-off tab simply isn't found, and the
     // step degrades to a callout with no spotlight (anchor-missing → graceful).
-    private void SelectTabById(string? tabId)
+    private void SelectTabById(string? tabId) => TrySelectTab(tabId);
+
+    /// <summary>
+    ///     Switches to the tab with the given TabId and says whether it was there. A gated-off tab is
+    ///     absent from the strip, so false is how a module learns its target has nowhere to show (Find
+    ///     Rounds Like This leaves its key unhandled on that answer).
+    /// </summary>
+    /// <param name="tabId">The persisted tab id.</param>
+    internal bool TrySelectTab(string? tabId)
     {
         if (tabId is { Length: > 0 } && Tabs.FirstOrDefault(t => t.TabId == tabId) is { } tab)
         {
             SelectedTab = tab;
+            return true;
         }
+
+        return false;
     }
 
     /// <summary>

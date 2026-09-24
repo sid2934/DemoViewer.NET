@@ -231,7 +231,9 @@ internal static class GoldenCommand
         return SceneRenderPlan.Build(args, entry.Size, entry.MapName, entry.Layers,
             false, RenderBackendPreference.ForceCpu,
             FixtureInk.ForCorpusEntry(corpus.Directory, entry.Name),
-            FixtureZones.ForCorpusEntry(corpus.Directory, entry.Name));
+            FixtureZones.ForCorpusEntry(corpus.Directory, entry.Name),
+            FixtureQuery.ForCorpusEntry(corpus.Directory, entry.Name),
+            FixtureOverlay.ForCorpusEntry(corpus.Directory, entry.Name));
     }
 
     /// <summary>Renders one entry through a plan <see cref="PlanFor" /> built.</summary>

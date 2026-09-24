@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Teams;
 
 #endregion
 
@@ -87,6 +89,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly Func<Task<IReadOnlyList<string>>> _pickFolders; // folder picker
     private readonly RecentFilesStore? _recentFiles; // recent-files store (null on designer / older tests)
     private readonly string? _sampleDemoPath; // bundled tour sample (null = none ships / designer / tests)
+    private readonly TeamIdentityService? _teams; // the Team filter's source (null = no filter offered)
+    private readonly IDemoProvenanceSource? _provenance; // the card's provenance chip (null = no chip)
 
     [ObservableProperty]
     private bool _isCardView = true; // user default: card view
@@ -112,6 +116,9 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private string _selectedPlayer = AllPlayers;
 
     [ObservableProperty]
+    private TeamFilterItem _selectedTeam = TeamFilterItem.All;
+
+    [ObservableProperty]
     private LibrarySort _sort = LibrarySort.Newest;
 
     // Set while a bulk filter change (Clear) is in flight so per-control change handlers don't each re-apply.
@@ -123,7 +130,9 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         Func<Task<IReadOnlyList<string>>> pickFolders,
         Func<Task>? openFilePicker = null,
         RecentFilesStore? recentFiles = null,
-        string? sampleDemoPath = null)
+        string? sampleDemoPath = null,
+        TeamIdentityService? teams = null,
+        IDemoProvenanceSource? provenance = null)
     {
         _library = library;
         _openDemo = openDemo;
@@ -131,6 +140,23 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         _openFilePicker = openFilePicker;
         _recentFiles = recentFiles;
         _sampleDemoPath = sampleDemoPath;
+        _teams = teams;
+        _provenance = provenance;
+        if (_provenance is not null)
+        {
+            // Same lifetime as the team subscription: a pin set from another surface, a team marked
+            // as us or a demo indexed all change what the chips say.
+            _provenance.Changed += RefreshProvenance;
+        }
+
+        AvailableTeams.Add(TeamFilterItem.All);
+        if (_teams is not null)
+        {
+            // Subscribed for the VM's life: a team renamed or merged on the Teams tab must reach this
+            // dropdown before the user comes back to the Library.
+            _teams.Changed += OnTeamsChanged;
+            RefreshAvailableTeams();
+        }
 
         _library.Entries.CollectionChanged += OnEntriesChanged;
         _library.Folders.CollectionChanged += OnFoldersChanged;
@@ -144,6 +170,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         RefreshMapFilters();
         RefreshAvailablePlayers();
+        RefreshProvenance();
         ApplyFilter();
     }
 
@@ -181,6 +208,15 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>The multi-select map filter: one checkable item per distinct map. None checked = all maps.</summary>
     public ObservableCollection<MapFilterItem> MapFilters { get; } = [];
+
+    /// <summary>The Team filter's choices: "All teams", "Us", then every visible team. One entry when no service is wired.</summary>
+    public ObservableCollection<TeamFilterItem> AvailableTeams { get; } = [];
+
+    /// <summary>True when a Team Identity service backs the Team filter.</summary>
+    public bool HasTeamFilter => _teams is not null;
+
+    /// <summary>True when a provenance source backs the card's label chip.</summary>
+    public bool HasProvenance => _provenance is not null;
 
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
     public ObservableCollection<string> AvailablePlayers { get; } = [AllPlayers];
@@ -246,7 +282,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>True when any filter (search / map / player) is narrowing the list: drives the Clear button.</summary>
     public bool HasActiveFilters =>
-        !string.IsNullOrWhiteSpace(SearchText) || SelectedPlayer != AllPlayers || MapFilters.Any(m => m.IsSelected);
+        !string.IsNullOrWhiteSpace(SearchText) || SelectedPlayer != AllPlayers || MapFilters.Any(m => m.IsSelected)
+        || !SelectedTeam.IsAll;
 
     /// <summary>How many demos are waiting on a score re-derivation.</summary>
     public int ScoreRepairCount => _library.ScoreRepairPendingCount;
@@ -462,6 +499,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         _suppressApply = true;
         SearchText = "";
         SelectedPlayer = AllPlayers;
+        SelectedTeam = TeamFilterItem.All;
         foreach (MapFilterItem m in MapFilters)
         {
             m.IsSelected = false;
@@ -476,6 +514,37 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedPlayerChanged(string value) => ApplyFilter();
+    partial void OnSelectedTeamChanged(TeamFilterItem value) => ApplyFilter();
+
+    private void OnTeamsChanged()
+    {
+        RefreshAvailableTeams();
+        ApplyFilter();
+    }
+
+    // Rebuilt wholesale: the list is short (a library has tens of teams, not hundreds) and a team's
+    // name can change under the same id, which an add/remove diff would miss.
+    private void RefreshAvailableTeams()
+    {
+        if (_teams is null)
+        {
+            return;
+        }
+
+        Guid? keepId = SelectedTeam.TeamId;
+        bool keepUs = SelectedTeam.IsUs;
+        AvailableTeams.Clear();
+        AvailableTeams.Add(TeamFilterItem.All);
+        AvailableTeams.Add(TeamFilterItem.Us);
+        foreach (Team team in _teams.Teams)
+        {
+            AvailableTeams.Add(new TeamFilterItem(DisplayText.Sanitize(team.Name), team.Id, false));
+        }
+
+        SelectedTeam = keepUs ? TeamFilterItem.Us
+            : keepId is { } id ? AvailableTeams.FirstOrDefault(t => t.TeamId == id) ?? TeamFilterItem.All
+            : TeamFilterItem.All;
+    }
 
     partial void OnSortChanged(LibrarySort value)
     {
@@ -487,6 +556,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     {
         RefreshMapFilters();
         RefreshAvailablePlayers();
+        RefreshProvenance();
         ApplyFilter();
     }
 
@@ -502,7 +572,40 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RefreshMapFilters();
         RefreshAvailablePlayers();
         RaiseScoreRepairState();
+        RefreshProvenance();
         ApplyFilter();
+    }
+
+    // ── Provenance ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Pins a demo's provenance label, or with null goes back to the heuristic. The chip on the card
+    ///     re-reads through the source's Changed, so nothing is written onto the entry here.
+    /// </summary>
+    /// <param name="entry">The card.</param>
+    /// <param name="label">One of <see cref="DemoProvenanceLabel.All" />, or null for automatic.</param>
+    public void SetProvenance(DemoEntry entry, string? label)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        _teams?.SetProvenanceOverride(entry.FilePath, label);
+    }
+
+    // One batch over the entries: the source resolves every override and assignment in a single pass
+    // rather than a lookup storm per card, and an entry the cache does not know reads unlabeled.
+    private void RefreshProvenance()
+    {
+        if (_provenance is null)
+        {
+            return;
+        }
+
+        IReadOnlyDictionary<string, DemoProvenance> resolved = _provenance.ResolveAll(_library.Entries.Select(e => e.FilePath));
+        foreach (DemoEntry entry in _library.Entries)
+        {
+            DemoProvenance? p = resolved.GetValueOrDefault(entry.FilePath);
+            entry.ProvenanceLabel = p?.Label;
+            entry.ProvenanceIsOverride = p?.IsOverride ?? false;
+        }
     }
 
     private void RaiseScoreRepairState()
@@ -632,6 +735,15 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             q = q.Where(e => e.Players.Any(p => string.Equals(p, SelectedPlayer, StringComparison.OrdinalIgnoreCase)));
         }
 
+        // Team filter: "Us" keeps demos whose our side resolved (a roster of the us team, or a me
+        // account); a team keeps demos with either side assigned to it.
+        if (_teams is not null && !SelectedTeam.IsAll)
+        {
+            TeamFilterItem team = SelectedTeam;
+            q = q.Where(e => _teams.GetAssignment(e.FilePath) is { } a
+                             && (team.IsUs ? a.OurSide is not null : a.T.TeamId == team.TeamId || a.Ct.TeamId == team.TeamId));
+        }
+
         q = Sort switch
         {
             LibrarySort.Newest => q.OrderByDescending(e => e.Modified),
@@ -718,4 +830,17 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             CardRows.Add(new CardRow(row));
         }
     }
+}
+
+/// <summary>One choice of the Library's Team filter.</summary>
+/// <param name="Display">The label; a team's name is sanitized here, at the render boundary.</param>
+/// <param name="TeamId">The team, or null for the two sentinels.</param>
+/// <param name="IsUs">The "Us" sentinel: demos whose our side resolved.</param>
+public sealed record TeamFilterItem(string Display, Guid? TeamId, bool IsUs)
+{
+    public static TeamFilterItem All { get; } = new("All teams", null, false);
+
+    public static TeamFilterItem Us { get; } = new("Us", null, true);
+
+    public bool IsAll => TeamId is null && !IsUs;
 }

@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Views.Situations.ResultCardsView"
+             x:DataType="vm:ResultCardsViewModel">
+
+    <!--
+      RESULT CARDS: one card per hit of the last search, in the index's order. Each card is the
+      mini-radar of the matched state (rendered from the positions file, never from the demo), the
+      match, the round, the score before the round, both buy types, the end reason and the clock at the
+      matched tick. A click opens 2D playback ten seconds before the match; J / K walk the set from
+      inside playback. "Overlay all N" stacks every matched state of the set onto the canvas above as a
+      heatmap, per floor, CT-tinted where CT stood and T-tinted where T stood; the line beside it says
+      what was stacked and how many rounds had no positions to give.
+
+      Every fact comes from the demo's Round Facts rows and reads "no data" when the demo has none:
+      the stats-board rule, never a zero that reads as a score. A tile with no picture says why.
+
+      Colour: every value is a {DynamicResource} token. The selected card carries its state in the
+      border, never in a tint of the text (the StatusChip contrast contract).
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Border.resultCard">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Width" Value="184" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Border.resultCard:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+        </Style>
+        <Style Selector="Border.resultCard.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="TextBlock.fact">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="8" IsVisible="{Binding HasCards}">
+
+        <!-- The header: the count, the click and walk hint, and the walk's position. -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="{Binding HeaderLine}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding WalkLine}" FontSize="11" Classes="mono"
+                       Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Overlay View: the action, the clear, and what the last build stacked. -->
+        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+            <Button Grid.Column="0" Content="{Binding OverlayLabel}" Classes="ghost" FontSize="11" Padding="10 5"
+                    Command="{Binding OverlayAllCommand}"
+                    ToolTip.Tip="Stack every matched state of these rounds onto the map above as a heatmap, one wash per floor: CT-tinted where CT stood, T-tinted where T stood" />
+            <Button Grid.Column="1" Content="Clear overlay" Classes="ghost" FontSize="11" Padding="10 5"
+                    IsVisible="{Binding IsOverlayShown}" Command="{Binding ClearOverlayCommand}"
+                    ToolTip.Tip="Take the heatmap off the map; the cards stay" />
+            <TextBlock Grid.Column="2" Text="{Binding OverlayLine}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </Grid>
+
+        <!-- The cards. -->
+        <ItemsControl ItemsSource="{Binding Cards}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" ItemWidth="192" ItemHeight="212" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ResultCardViewModel">
+                    <Button Classes="chip" Padding="0" Margin="0 0 8 8" HorizontalAlignment="Left"
+                            Command="{Binding OpenCommand}"
+                            ToolTip.Tip="Open 2D playback ten seconds before the matched tick">
+                        <Border Classes="resultCard" Classes.selected="{Binding IsSelected}">
+                            <StackPanel Spacing="4">
+
+                                <!-- The mini-radar, or the note that stands in for it. -->
+                                <Border Width="168" Height="94" CornerRadius="4" ClipToBounds="True"
+                                        Background="{DynamicResource PanelBg}">
+                                    <Panel>
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                                               IsVisible="{Binding HasThumbnail}" />
+                                        <TextBlock Text="{Binding ThumbnailNote}" IsVisible="{Binding HasThumbnailNote}"
+                                                   FontSize="10" Foreground="{DynamicResource TextMid}"
+                                                   TextWrapping="Wrap" TextAlignment="Center"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8" />
+                                    </Panel>
+                                </Border>
+
+                                <!-- The match and the round. -->
+                                <TextBlock Text="{Binding MatchLabel}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding RoundLabel}" Classes="fact" />
+                                    <TextBlock Grid.Column="1" Text="{Binding ScoreText}" Classes="fact" />
+                                </Grid>
+
+                                <!-- Both buys, absolute per side: Team Identity turns them relative later. -->
+                                <TextBlock Classes="fact">
+                                    <Run Text="CT " /><Run Text="{Binding CtBuyText}" />
+                                    <Run Text=" · T " /><Run Text="{Binding TBuyText}" />
+                                </TextBlock>
+
+                                <!-- The end reason with its icon, and the clock at the matched tick. -->
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                                    <controls:GameIcon Grid.Column="0" Key="{Binding EndReasonIconKey}" IconHeight="10"
+                                                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding EndReasonText}" Classes="fact"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Classes="fact" VerticalAlignment="Center">
+                                        <Run Text="{Binding ElapsedText}" /><Run Text=" · " /><Run Text="{Binding RoundClockText}" />
+                                    </TextBlock>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+
+</UserControl>
