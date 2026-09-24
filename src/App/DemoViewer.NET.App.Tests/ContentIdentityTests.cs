@@ -2,10 +2,13 @@
 
 using System.Security.Cryptography;
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
@@ -175,6 +178,112 @@ public class ContentIdentityTests
 
         context.SetDemoSha256(null);
         await Assert.That(context.DemoSha256).IsNull().Because("unload clears it like the map name");
+    }
+
+    [Test]
+    public async Task TheContext_ReadsFirstAndLastTickOffTheFrameList()
+    {
+        await Assert.That(((IModuleContext)new Playback2DFakeContext()).FirstTick).IsEqualTo(0)
+            .Because("a double that never opted in reads as no extent, like TotalFrames");
+
+        using PlaybackController controller = new();
+        ModuleContext context = new(controller, () => null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(context.FirstTick).IsEqualTo(0);
+            await Assert.That(context.LastTick).IsEqualTo(0).Because("no demo, no extent");
+        }
+
+        controller.LoadDemo(Frames(1, 64, 64, 128, 132_516), 64);
+        using (Assert.Multiple())
+        {
+            await Assert.That(context.FirstTick).IsEqualTo(1).Because("Valve demos measure 1 on the first frame");
+            await Assert.That(context.LastTick).IsEqualTo(132_516).Because("the last frame's tick is TickCount");
+        }
+
+        controller.Unload();
+        await Assert.That(context.LastTick).IsEqualTo(0);
+    }
+
+    /// <summary>
+    ///     The one place a frame-clock header is assembled. Every store that writes one calls this, so the
+    ///     fill rule (rate, frame count, first and last tick straight off the context) has a single owner.
+    /// </summary>
+    [Test]
+    public async Task FrameClock_FillsTheHeaderFromTheContext()
+    {
+        Playback2DFakeContext ctx = new()
+        {
+            TickRate = 128,
+            TotalFrames = 154_869,
+            FirstTick = 1,
+            LastTick = 132_516
+        };
+
+        ClockIdentity clock = FrameClock.IdentityFor(ctx);
+        using (Assert.Multiple())
+        {
+            await Assert.That(clock).IsEqualTo(new ClockIdentity(ClockIdentity.DvFrameClock, 128, 154_869, 1, 132_516));
+            await Assert.That(clock.Matches(clock with { LastTick = 132_000 })).IsFalse()
+                .Because("a real extent is what lets a reparse be told apart from the authored one");
+        }
+
+        ctx.TickRate = 0;
+        await Assert.That(FrameClock.IdentityFor(ctx).TickRate).IsEqualTo(64)
+            .Because("the session divides by the rate, so an unknown one falls back to the shipped 64");
+    }
+
+    /// <summary>
+    ///     End to end from the context: the tab's attach carries the demo's real extent, not the 0, 0 every
+    ///     sidecar used to be written with (which Matches could only read as "unknown, never warn").
+    /// </summary>
+    [Test]
+    public async Task TheTab_AttachesWithTheDemoExtent()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Playback2DFakeContext ctx = new()
+            {
+                TickRate = 64,
+                TotalFrames = 2_000,
+                FirstTick = 1,
+                LastTick = 4_000,
+                Gate = new FakeModuleFeatureGate()
+            };
+
+            Playback2DTabViewModel vm = new();
+            vm.OnActivated(ctx);
+
+            // The attach flushes the previous demo before it takes the clock, so give it a moment.
+            ClockIdentity expected = new(ClockIdentity.DvFrameClock, 64, 2_000, 1, 4_000);
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (vm.Annotations.Clock != expected && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(15);
+            }
+
+            await Assert.That(vm.Annotations.Clock).IsEqualTo(expected);
+        });
+    }
+
+    private static DemoFrame[] Frames(params int[] ticks)
+    {
+        DemoFrame[] frames = new DemoFrame[ticks.Length];
+        for (int i = 0; i < ticks.Length; i++)
+        {
+            frames[i] = new DemoFrame
+            {
+                CommandKind = EDemoCommands.DemPacket,
+                FrameNumber = i,
+                ServerTick = ticks[i],
+                HeaderLength = 0,
+                RawLength = 0,
+                RawStart = 0,
+                IsCompressed = false
+            };
+        }
+
+        return frames;
     }
 
     /// <summary>

@@ -134,6 +134,11 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     // ── Timeline / transport seams (Playback2D v2 A1) ──
     public int TotalFrames => _controller.TotalFrames;
+
+    // Frame clock, read off the frame list the controller already holds rather than ParsedDemo.TickCount:
+    // the two agree on every measured demo, and the frame list is what the playhead actually walks.
+    public int FirstTick => _controller.Frames is { Count: > 0 } frames ? frames[0].ServerTick : 0;
+    public int LastTick => _controller.Frames is { Count: > 0 } frames ? frames[^1].ServerTick : 0;
     public int FrameIndexAtTick(int tick) => _controller.FrameIndexAtTick(tick);
 
     public IReadOnlyList<int> EventFrames(string eventName) =>

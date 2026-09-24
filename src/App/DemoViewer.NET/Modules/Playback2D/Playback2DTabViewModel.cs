@@ -1130,10 +1130,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        ClockIdentity clock = new(ClockIdentity.DvFrameClock,
-            ctx.TickRate > 0 ? ctx.TickRate : 64, ctx.TotalFrames, 0, 0);
-
-        _ = _annotationController.AttachDemoAsync(ctx.DemoPath, clock, force)
+        _ = _annotationController.AttachDemoAsync(ctx.DemoPath, FrameClock.IdentityFor(ctx), force)
             .ContinueWith(static _ => { }, TaskScheduler.Default);
     }
 

@@ -91,6 +91,17 @@ public interface IModuleContext
     int TotalFrames => 0;
 
     /// <summary>
+    ///     The first frame's server tick (the frame clock; 1 on Valve demos), 0 when no demo. With
+    ///     <see cref="LastTick" /> it is the parse extent a persisted per-demo store writes into its clock
+    ///     header, so a later load against a different parse can be told apart from the one the anchors
+    ///     were authored on. Default 0 for hosts / doubles that do not expose it.
+    /// </summary>
+    int FirstTick => 0;
+
+    /// <summary>The last frame's server tick, 0 when no demo. See <see cref="FirstTick" />.</summary>
+    int LastTick => 0;
+
+    /// <summary>
     ///     True while playback speed is pinned by the host (a Live Sync session without the plugin's
     ///     timescale capability). A module surfaces the lock rather than fighting it.
     /// </summary>

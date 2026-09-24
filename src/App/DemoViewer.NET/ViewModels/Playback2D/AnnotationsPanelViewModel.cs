@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using Playback2DAction = DemoViewer.NET.Modules.Playback2D.Playback2DAction;
 using Playback2DKeymapProfile = DemoViewer.NET.Modules.Playback2D.Playback2DKeymapProfile;
 
@@ -211,6 +212,9 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>The shared session: handed to the host so its layer and tools see the same document.</summary>
     public AnnotationSession Session => _controller.Session;
+
+    /// <summary>The clock header the attached demo's sidecar is written with (see <see cref="AnnotationSessionController.Clock" />).</summary>
+    public ClockIdentity Clock => _controller.Clock;
 
     /// <summary>The document, for the timeline track and the tests.</summary>
     public AnnotationDocument Document => _controller.Document;
