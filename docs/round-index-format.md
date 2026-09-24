@@ -130,3 +130,49 @@ middle stops use until Zone Baking's graph is available for the map.
 The root object accepts unknown fields and a reader should ignore fields it does not recognise. The
 `schemaVersion` is advisory on read: a higher number is read for whatever this build understands.
 The fingerprint, not the schema number, is what decides a rebuild.
+
+## The positions sibling: `.dvrp.json.gz` (schema v1)
+
+Beside every sidecar sits `<StableKey>.dvrp.json.gz`, the same rows seen the other way round: per live
+round, per sampled step, the alive players' positions the tokens were encoded from. A Result Card
+thumbnail is one step of this file rendered through the headless scene path, and Overlay View reads
+every step, so neither ever opens a demo (measured, a seek from the demo is 0.6 to 3.3 s and half a
+gigabyte of heap per hit; ten tuples render in half a millisecond). Written gzipped because the
+compact JSON is 170 to 210 KB per demo and 56 to 60 KB zipped, about the size of the sidecar. A
+committed uncompressed sample lives at
+[`tests/fixtures/round-index/schema-v1.sample.dvrp.json`](../tests/fixtures/round-index/schema-v1.sample.dvrp.json)
+and is round-trip-pinned by `RoundPositionsTests`.
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "fingerprint": "ri1;cadence=1;token=1;rf=1;src=pawn;pos=1",   // identical to the .dvri.json it belongs to
+  "demo": { "stableKey": "3f9c…", "sha256": null },
+  "cadenceTicks": 64,
+  "places": ["Outside", "Lobby", "Ramp", "?"],                   // the place table a tuple indexes; "?" is the null place
+  "rounds": [
+    { "number": 3, "freezeEndTick": 10746, "ct": [0, 2, 5, 7, 9],   // slots on CT this round, from Round Facts Slots
+      "pos": [                                                     // indexed by step; tick = freezeEndTick + step * cadenceTicks
+        [[0, -448, 1180, -416, 0], [1, 1320, -900, -700, 2], [2, -129, -1848, -416, 1]],
+        [[0, -401, 1130, -416, 0], [2, -129, -1848, -416, 1], [4, 2600, 900, -416, 3]]
+      ] }
+  ]
+}
+```
+
+* Each tuple is `[slot, x, y, z, placeId]`: **alive** slots only (the sidecar's own alive rule, so a
+  picture always agrees with its token), world units rounded to integers (a marker at card size is
+  about thirty units wide), Z kept for the level pick, slots ascending. A step the walk did not
+  sample is an empty list, so a tuple's tick is always its index times the cadence.
+* `pos=<n>` in the fingerprint is what a tuple means (`pos=1`: the above). It is part of the
+  index fingerprint, so a change re-indexes rather than reinterprets, and a sidecar written before
+  the positions file existed carries no `pos=` and is stale. "Never indexed" and "indexed before
+  positions existed" are therefore one state, which is what the cards' placeholder relies on.
+* A reader with the current fingerprint and the record's hash ignores a file under another
+  fingerprint or naming another hash, exactly as the sidecar rule says; the card then shows a note
+  instead of a picture and "Rebuild index" is the remedy.
+* The evaluator writes this file first, the sidecar second and the stamp last, so a crash leaves
+  "not indexed" or a positions file nothing reads, never an index whose cards have nothing to draw.
+  Deletion and the orphan sweep take both files.
+* Thumbnails themselves are never written to disk: a per-session memory cache keyed by
+  `(stableKey, round, tick, fingerprint)` holds the rendered PNGs, dropped on a rebuild.

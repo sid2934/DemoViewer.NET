@@ -11,10 +11,10 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.Services.RoundIndex;
 
 /// <summary>
-///     Folds one demo's position walk into its index document. Pure: no I/O, no cache, no UI. The
-///     walk stays engine-owned (<see cref="PositionSampler.Walk" />) and yields every pawn with a
-///     controller, dead or alive, so alive is decided from Round Facts <c>Kills</c> and side from
-///     <c>Slots</c>: the engine sample carries neither.
+///     Folds one demo's position walk into its index document and its positions file. Pure: no I/O,
+///     no cache, no UI. The walk stays engine-owned (<see cref="PositionSampler.Walk" />) and yields
+///     every pawn with a controller, dead or alive, so alive is decided from Round Facts <c>Kills</c>
+///     and side from <c>Slots</c>: the engine sample carries neither.
 ///     <para>
 ///         Sampling: from each live round's freeze end, one row every cadence step while the tick is
 ///         below the round's end. Freeze time is spawns and the post-round win panel carries no situation
@@ -22,13 +22,20 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///         past its due tick and takes every sample of that tick (several frames can share one, up to 39
 ///         on build 10231), later frames overwriting by slot; frames between two due ticks are skipped.
 ///     </para>
+///     <para>
+///         The positions file is the same rows seen the other way round: the alive tuples a row's
+///         tokens were encoded from, kept as integer world units and a place id. One close writes both,
+///         which is what lets a thumbnail built from a tuple list agree byte for byte with the token the
+///         search matched.
+///     </para>
 /// </summary>
 public static class RoundIndexBuilder
 {
     /// <summary>
-    ///     Builds the document for <paramref name="demo" /> over its Round Facts rows. The demo block is
-    ///     left for the caller, which has the record; the fingerprint is <paramref name="options" /> and
-    ///     <paramref name="source" /> composed.
+    ///     Builds the index document for <paramref name="demo" /> over its Round Facts rows. The demo
+    ///     block is left for the caller, which has the record; the fingerprint is
+    ///     <paramref name="options" /> and <paramref name="source" /> composed. The positions file of the
+    ///     same walk is discarded; <see cref="BuildWithPositions" /> keeps it.
     /// </summary>
     /// <param name="demo">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows: the round windows, the sides and the kills.</param>
@@ -44,6 +51,23 @@ public static class RoundIndexBuilder
         RoundFactsRows facts,
         RoundIndexOptions options,
         IPlaceSource source,
+        IEnumerable<PositionSample>? samples = null) =>
+        BuildWithPositions(demo, facts, options, source, samples).Index;
+
+    /// <summary>
+    ///     <see cref="Build" />, keeping the positions file the walk produced beside the index. Both
+    ///     carry the same fingerprint; the evaluator writes the positions first and the index second.
+    /// </summary>
+    /// <param name="demo">The held parse.</param>
+    /// <param name="facts">The demo's Round Facts rows.</param>
+    /// <param name="options">The sampling parameters.</param>
+    /// <param name="source">Which string names a sample's place.</param>
+    /// <param name="samples">The position walk to fold; null walks the parse.</param>
+    public static RoundIndexBuild BuildWithPositions(
+        ParsedDemo demo,
+        RoundFactsRows facts,
+        RoundIndexOptions options,
+        IPlaceSource source,
         IEnumerable<PositionSample>? samples = null)
     {
         ArgumentNullException.ThrowIfNull(demo);
@@ -54,18 +78,26 @@ public static class RoundIndexBuilder
         int cadenceTicks = options.CadenceTicks(demo.TickRate);
         int lastFrameTick = demo.Frames.Count > 0 ? demo.Frames[^1].ServerTick : 0;
         List<RoundWindow> windows = Windows(facts, lastFrameTick);
+        string fingerprint = RoundIndexFingerprint.Compose(options, source);
 
         RoundIndexDocument document = new()
         {
-            Fingerprint = RoundIndexFingerprint.Compose(options, source),
+            Fingerprint = fingerprint,
             Clock = RoundFactsClock.From(FrameClock.IdentityFor(demo)),
             Map = demo.MapName,
             CadenceTicks = cadenceTicks,
             Rounds = [.. windows.Select(w => w.Round)]
         };
+        RoundPositionsDocument positions = new()
+        {
+            Fingerprint = fingerprint,
+            CadenceTicks = cadenceTicks,
+            Rounds = [.. windows.Select(w => w.Positions)]
+        };
 
         Dictionary<string, PlaceSampleSummary> places = new(StringComparer.Ordinal);
         Dictionary<(string A, string B), int> transitions = [];
+        PlaceTable table = new(positions.Places);
 
         samples ??= PositionSampler.Walk(demo, options.FrameStride);
 
@@ -79,7 +111,7 @@ public static class RoundIndexBuilder
             // walk is in frame order, so a round left behind is never revisited.
             while (current < windows.Count && sample.Tick >= windows[current].EndTick)
             {
-                CloseRow(ref row, windows[current], source, places, transitions, previousPlaces);
+                CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table);
                 previousPlaces.Clear();
                 current++;
             }
@@ -103,7 +135,7 @@ public static class RoundIndexBuilder
 
             if (row is null || sample.Tick >= row.NextDueTick)
             {
-                CloseRow(ref row, window, source, places, transitions, previousPlaces);
+                CloseRow(ref row, window, source, places, transitions, previousPlaces, table);
                 int step = (sample.Tick - window.FreezeEndTick) / cadenceTicks;
                 row = new OpenRow(step, sample.Tick, window.FreezeEndTick + (step + 1) * cadenceTicks);
                 row.Samples[sample.PlayerSlot] = sample;
@@ -112,7 +144,7 @@ public static class RoundIndexBuilder
 
         if (current < windows.Count)
         {
-            CloseRow(ref row, windows[current], source, places, transitions, previousPlaces);
+            CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table);
         }
 
         document.Places = places;
@@ -124,7 +156,7 @@ public static class RoundIndexBuilder
                 .ThenBy(t => t.Key.B, StringComparer.Ordinal)
                 .Select(t => new PlaceTransition(t.Key.A, t.Key.B, t.Value))
         ];
-        return document;
+        return new RoundIndexBuild(document, positions);
     }
 
     /// <summary>
@@ -180,6 +212,12 @@ public static class RoundIndexBuilder
                     FreezeEndTick = round.FreezeEndTick,
                     EndTick = end
                 },
+                new RoundPositionsRound
+                {
+                    Number = round.Number,
+                    FreezeEndTick = round.FreezeEndTick,
+                    Ct = [.. sideBySlot.Where(s => s.Value == 3).Select(s => s.Key).Order()]
+                },
                 sideBySlot,
                 deathTickBySlot));
         }
@@ -187,14 +225,16 @@ public static class RoundIndexBuilder
         return windows;
     }
 
-    // Encodes the open row's tokens, appends it to the round's runs and accumulates the summaries.
+    // Encodes the open row's tokens, appends it to the round's runs, keeps its alive tuples for the
+    // positions file and accumulates the summaries.
     private static void CloseRow(
         ref OpenRow? row,
         RoundWindow window,
         IPlaceSource source,
         Dictionary<string, PlaceSampleSummary> places,
         Dictionary<(string A, string B), int> transitions,
-        Dictionary<int, string> previousPlaces)
+        Dictionary<int, string> previousPlaces,
+        PlaceTable table)
     {
         if (row is not { } open)
         {
@@ -205,6 +245,7 @@ public static class RoundIndexBuilder
 
         List<string?> ct = [];
         List<string?> t = [];
+        List<RoundPosition> tuples = [];
         Dictionary<int, string> currentPlaces = [];
         foreach ((int slot, PositionSample sample) in open.Samples)
         {
@@ -220,6 +261,11 @@ public static class RoundIndexBuilder
 
             string? place = source.PlaceFor(in sample);
             (side == 3 ? ct : t).Add(place);
+            tuples.Add(new RoundPosition(slot,
+                RoundIndexBuild.Quantize(sample.Position.X),
+                RoundIndexBuild.Quantize(sample.Position.Y),
+                RoundIndexBuild.Quantize(sample.Position.Z),
+                table.IdOf(place)));
             if (place is null)
             {
                 continue;
@@ -244,6 +290,17 @@ public static class RoundIndexBuilder
         {
             previousPlaces[slot] = place;
         }
+
+        // Tuples in slot order so the file is stable for a fixture and a diff; the walk's dictionary
+        // order is frame order, which is not.
+        tuples.Sort((a, b) => a.Slot.CompareTo(b.Slot));
+        List<List<RoundPosition>> steps = window.Positions.Pos;
+        while (steps.Count < open.Step)
+        {
+            steps.Add([]); // a step the walk did not sample keeps the index-is-step rule
+        }
+
+        steps.Add(tuples);
 
         string ctToken = PlaceCountToken.EncodePlaces(ct);
         string tToken = PlaceCountToken.EncodePlaces(t);
@@ -298,6 +355,7 @@ public static class RoundIndexBuilder
 
     private sealed record RoundWindow(
         RoundIndexRound Round,
+        RoundPositionsRound Positions,
         Dictionary<int, int> SideBySlot,
         Dictionary<int, int> DeathTickBySlot)
     {
@@ -315,5 +373,24 @@ public static class RoundIndexBuilder
         public int NextDueTick { get; } = nextDueTick;
 
         public Dictionary<int, PositionSample> Samples { get; } = [];
+    }
+
+    // The per-document place table: first seen, first numbered, with the reserved "?" for a null place.
+    private sealed class PlaceTable(List<string> places)
+    {
+        private readonly Dictionary<string, int> _ids = new(StringComparer.Ordinal);
+
+        public int IdOf(string? place)
+        {
+            string key = place ?? PlaceCountToken.NullPlace;
+            if (!_ids.TryGetValue(key, out int id))
+            {
+                id = places.Count;
+                places.Add(key);
+                _ids[key] = id;
+            }
+
+            return id;
+        }
     }
 }

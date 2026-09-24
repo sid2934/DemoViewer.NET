@@ -18,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class SituationQueryTests
 {
-    private const string Fingerprint = "ri1;cadence=1;token=1;rf=1;src=pawn";
+    private const string Fingerprint = "ri1;cadence=1;token=1;rf=1;src=pawn;pos=1";
     private const string DemoA = "/d/a.dem";
     private const string DemoB = "/d/b.dem";
     private const string DemoC = "/d/c.dem";
@@ -347,7 +347,7 @@ public class SituationQueryTests
     {
         Harness h = new(null, null);
         RoundIndexDocument stale = DocA();
-        stale.Fingerprint = "ri1;cadence=2;token=1;rf=1;src=pawn";
+        stale.Fingerprint = "ri1;cadence=2;token=1;rf=1;src=pawn;pos=1";
         Indexed(h.Cache, h.Sidecars, DemoA, stale);
         Indexed(h.Cache, h.Sidecars, DemoB, DocB());
         h.Index.Load();

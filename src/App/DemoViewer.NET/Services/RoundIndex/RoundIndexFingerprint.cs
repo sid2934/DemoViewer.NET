@@ -10,9 +10,11 @@ namespace DemoViewer.NET.Services.RoundIndex;
 /// <summary>
 ///     What decides whether a demo's index rows are current. Anything that changes what a row means is
 ///     in it: the sidecar schema, the cadence, the token grammar, the Round Facts schema the alive and
-///     side joins read, and the token source with the per-map zone version in the zones mode. Anything
-///     joined at query time (buy thresholds, team identity) is not, so a Round Facts <c>params:</c> edit
-///     never re-indexes the library.
+///     side joins read, the token source with the per-map zone version in the zones mode, and the
+///     positions file's tuple meaning. Anything joined at query time (buy thresholds, team identity) is
+///     not, so a Round Facts <c>params:</c> edit never re-indexes the library. A sidecar written before
+///     the positions file existed carries no <c>pos=</c> and is stale, which is what lets a Result Card
+///     treat "never indexed" and "indexed before positions" as one state.
 /// </summary>
 public static class RoundIndexFingerprint
 {
@@ -27,7 +29,12 @@ public static class RoundIndexFingerprint
         string fingerprint =
             $"ri{DemoCacheRecord.RoundIndexSchema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
             + $";token={PlaceCountToken.TokenVersion};rf={DemoCacheRecord.RoundFactsSchema};src={source.SourceId}";
-        return source.ZonesVersion is { } version ? $"{fingerprint};zv={version}" : fingerprint;
+        if (source.ZonesVersion is { } version)
+        {
+            fingerprint = $"{fingerprint};zv={version}";
+        }
+
+        return $"{fingerprint};pos={RoundPositionsDocument.PositionSchema}";
     }
 }
 

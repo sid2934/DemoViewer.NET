@@ -278,7 +278,13 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
                    + $"{placed} placed{overflow}";
     }
 
-    /// <summary>Runs the query against the index and shows the count. Synchronous: the count is microseconds.</summary>
+    /// <summary>The last search's hits, in the index's order; the Result Cards load from here.</summary>
+    public event Action<IReadOnlyList<SituationHit>>? Searched;
+
+    /// <summary>
+    ///     Runs the query against the index, shows the count and hands the hits to <see cref="Searched" />.
+    ///     Synchronous: the query is microseconds, and the count is the hit list's length by construction.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanSearch))]
     private void Search()
     {
@@ -287,11 +293,13 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        int count = _index.Count(Draft.ToQuery());
+        IReadOnlyList<SituationHit> hits = _index.Query(Draft.ToQuery());
+        int count = hits.Count;
         ResultCount = count;
         string rounds = count == 1 ? "1 round" : $"{count} rounds";
         string scope = Draft.IsEmpty ? " (nothing placed: every indexed round)" : "";
         ResultLine = $"{rounds} over {_index.IndexedDemoCount} indexed demos{scope}";
+        Searched?.Invoke(hits);
     }
 
     /// <summary>Empties every slot.</summary>

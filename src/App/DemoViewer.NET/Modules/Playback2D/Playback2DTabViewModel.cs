@@ -334,6 +334,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         _roundFacts = TryResolveRoundFacts();
         FindRounds = TryResolveFindRounds();
+        SituationResults = TryResolveSituationResults();
 
         Timeline.RegisterTrack(_roundTrack);
         Timeline.RegisterTrack(new KillTrack());
@@ -558,6 +559,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     left unhandled. Settable so a test can watch what the key sends without a container.
     /// </summary>
     internal IFindRoundsLikeThis? FindRounds { get; set; }
+
+    /// <summary>
+    ///     Where <c>J</c> / <c>K</c> walk the Situations result set. Resolved like <see cref="FindRounds" />;
+    ///     null on a host without the Situations module, and the keys are then left unhandled. Settable
+    ///     so a test can watch what the keys send without a container.
+    /// </summary>
+    internal ISituationResultWalk? SituationResults { get; set; }
 
     /// <summary>The mode menu's entry, with the resolved gesture: "Find rounds like this (Ctrl+F)".</summary>
     public string FindRoundsLikeThisLabel => $"Find rounds like this{GestureHint(Playback2DAction.FindRoundsLikeThis)}";
@@ -1170,6 +1178,18 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
+    private static ISituationResultWalk? TryResolveSituationResults()
+    {
+        try
+        {
+            return App.Services?.GetService<ISituationResultWalk>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     ///     The round facts the winner tint reads. Resolved from the container in the constructor; a test
     ///     without one assigns a fake here before activation, or leaves it null for the pre-facts tint.
@@ -1556,6 +1576,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
             case Playback2DAction.FindRoundsLikeThis:
                 return TryFindRoundsLikeThis();
+
+            // The walk seeks through the same shell funnels a card click does, so the shared clock and
+            // LiveSync's observer see it as any other seek. No seam, or no result set, leaves the key
+            // unhandled.
+            case Playback2DAction.NextSituationResult:
+                return SituationResults?.Walk(+1) ?? false;
+
+            case Playback2DAction.PrevSituationResult:
+                return SituationResults?.Walk(-1) ?? false;
 
             default:
                 return false;
