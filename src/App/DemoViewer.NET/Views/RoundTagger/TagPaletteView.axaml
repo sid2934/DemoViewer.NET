@@ -27,7 +27,7 @@
     <Border Classes="palette" Classes.focused="{Binding IsFocused}" Padding="8,6" CornerRadius="4"
             Background="{DynamicResource Pb2dCardBg}">
         <StackPanel Spacing="4">
-            <Grid ColumnDefinitions="Auto,*,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="Tags" FontWeight="SemiBold" VerticalAlignment="Center"
                            Foreground="{DynamicResource Pb2dTextBrightest}" />
                 <ComboBox Grid.Column="1" Margin="8,0" HorizontalAlignment="Stretch" Focusable="False"
@@ -39,12 +39,24 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Button Grid.Column="2" Content="⟳" Padding="6,1" Focusable="False"
+                <!-- Label Mode: the second pass. Checked, the buttons below are label groups for tags
+                     that already exist; the tab's key for it is in the hint line. -->
+                <ToggleButton Grid.Column="2" Content="Label" Padding="6,1" Margin="0,0,4,0" Focusable="False"
+                              IsChecked="{Binding IsLabelMode, Mode=OneWay}"
+                              Command="{Binding ToggleLabelModeButtonCommand}"
+                              ToolTip.Tip="Label mode: add labels to the tag under the playhead, or the one picked on the tag lane, without making new tags" />
+                <Button Grid.Column="3" Content="⟳" Padding="6,1" Focusable="False"
                         Command="{Binding ReloadPalettesCommand}"
                         ToolTip.Tip="Reload palettes from the palettes folder" />
             </Grid>
 
-            <TextBlock Text="{Binding PanelTitle}" FontSize="10" Foreground="{DynamicResource Pb2dTextDim}" />
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding PanelTitle}" FontSize="10" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Pb2dTextDim}" />
+                <Button Grid.Column="1" Content="next group" Padding="4,0" FontSize="10" Focusable="False"
+                        IsVisible="{Binding IsLabelMode}" Command="{Binding NextLabelGroupButtonCommand}"
+                        ToolTip.Tip="Show the next label group" />
+            </Grid>
 
             <ItemsControl x:Name="PaletteButtons" ItemsSource="{Binding Buttons}">
                 <ItemsControl.ItemsPanel>
@@ -71,6 +83,11 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTextBright}"
+                       IsVisible="{Binding IsLabelMode}">
+                <Run Text="labelling: " Foreground="{DynamicResource Pb2dTextDim}" />
+                <Run Text="{Binding LabelTargetText}" />
+            </TextBlock>
             <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTextBright}"
                        IsVisible="{Binding HasPending}">
                 <Run Text="making: " Foreground="{DynamicResource Pb2dTextDim}" />
