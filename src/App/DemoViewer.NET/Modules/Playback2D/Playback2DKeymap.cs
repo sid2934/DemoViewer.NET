@@ -42,7 +42,14 @@ public enum Playback2DAction
 
     // Bound by Result Cards And Walking (Strat Room): J / K over the Situations result set.
     NextSituationResult,
-    PrevSituationResult
+    PrevSituationResult,
+
+    // Bound by Tag Palette (Strat Room). The first is how the keyboard reaches the palette; the rest
+    // are palette-scoped, so they only act while it has focus.
+    FocusTagPalette,
+    TagPaletteBack,
+    TagNote,
+    TagClearSticky
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -52,7 +59,13 @@ public enum Playback2DBindingScope
     Always,
 
     /// <summary>Applies only while a pointer TOOL (draw / erase) is active, and then shadows <see cref="Always" />.</summary>
-    WhenToolActive
+    WhenToolActive,
+
+    /// <summary>
+    ///     Applies only while the Tag Palette has focus, and then shadows both scopes above (overview
+    ///     correction 21). The palette's own button hotkeys are routed at this scope too, after its rows.
+    /// </summary>
+    WhenPaletteFocused
 }
 
 /// <summary>One row of the declarative keymap.</summary>
@@ -308,6 +321,7 @@ public static class Playback2DKeymap
         Key.Escape => "Esc",
         Key.Space => "Space",
         Key.Home => "Home",
+        Key.Back => "Backspace",
         _ => key.ToString()
     };
 
@@ -374,6 +388,22 @@ public static class Playback2DKeymap
             "Next situation result: seek to the next card of the Situations search", false),
         new(Playback2DAction.PrevSituationResult, Key.K, KeyModifiers.None, Playback2DBindingScope.Always,
             "Previous situation result: seek to the previous card of the Situations search", false),
+
+        // ── Tag Palette. C (for code) reaches the palette from anywhere on the surface; the three below
+        //    act only while the palette has focus, which is how Esc steps back out of a panel instead of
+        //    clearing the follow. The note and the sticky reset are chords so a palette author keeps
+        //    every bare letter and digit for buttons. None of the four touches Ctrl+F or the Suggested
+        //    Tags queue's J/K/Y/N/Enter/Ctrl+Y (suggested-tags.md §3.6), and C is none of Step
+        //    Authoring's V/A/T/L/R/O.
+        new(Playback2DAction.FocusTagPalette, Key.C, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Tag palette: focus it so its hotkeys tag (press again to leave)", false),
+        new(Playback2DAction.TagPaletteBack, Key.Escape, KeyModifiers.None,
+            Playback2DBindingScope.WhenPaletteFocused,
+            "Tag palette: finish the tag and go back to the codes, or leave the palette", false),
+        new(Playback2DAction.TagNote, Key.M, KeyModifiers.Control, Playback2DBindingScope.WhenPaletteFocused,
+            "Tag palette: write a note on the tag just made", false),
+        new(Playback2DAction.TagClearSticky, Key.Back, KeyModifiers.Control,
+            Playback2DBindingScope.WhenPaletteFocused, "Tag palette: clear the sticky labels", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,

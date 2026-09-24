@@ -6,6 +6,7 @@
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
+             xmlns:rt="using:DemoViewer.NET.Views.RoundTagger"
              xmlns:scene="using:DemoViewer.NET.Playback2D.Core"
              controls:TutorialAnchor.Target="PlaybackTab"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
@@ -502,8 +503,8 @@
 
         <GridSplitter Grid.Column="1" Background="{DynamicResource Pb2dGridSplitter}" Width="4" />
 
-        <!-- Right: game-info panel over the attributes panel. -->
-        <Grid Grid.Column="2" RowDefinitions="Auto,*" Background="{DynamicResource Pb2dPanelBg}">
+        <!-- Right: game-info panel, the Tag Palette, and the attributes panel. -->
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*" Background="{DynamicResource Pb2dPanelBg}">
             <!-- Game-info: score / round / phase / bomb / time. -->
             <Border Grid.Row="0" Background="{DynamicResource Pb2dInfoBg}" Padding="10,8" Margin="0,0,0,2">
                 <StackPanel Spacing="6">
@@ -547,8 +548,15 @@
                 </StackPanel>
             </Border>
 
+            <!-- The Tag Palette (Round Tagger), docked under the game info so the round being tagged and the
+                 codes tagging it are read in one glance. Gated by
+                 playback2d.tagger; the Auto row measures to nothing when the gate is off. -->
+            <Border Grid.Row="1" Margin="6,0,6,2" IsVisible="{Binding IsTagPaletteEnabled}">
+                <rt:TagPaletteView x:Name="TagPaletteHost" DataContext="{Binding TagPalette}" />
+            </Border>
+
             <!-- Attributes panel. -->
-            <ScrollViewer Grid.Row="1" Padding="6">
+            <ScrollViewer Grid.Row="2" Padding="6">
                 <!-- Selection surface: picking a card follows that player in the 2D camera AND relays the
                      pick down the existing NotifySpectateTarget -> SyncStateObserver -> SetDesiredSpectator
                      chain. The container chrome is stripped to nothing so the card Border below renders

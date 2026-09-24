@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.Modules.RoundTagger.Palette"
+             xmlns:tags="using:DemoViewer.NET.Services.Tags"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="220"
+             x:Class="DemoViewer.NET.Views.RoundTagger.TagPaletteView"
+             Focusable="False"
+             x:DataType="vm:TagPaletteViewModel">
+
+    <UserControl.Styles>
+        <!-- The focused palette is outlined: its keys are shadowing the tab's, and nothing else on screen
+             would say so. Outline only, the followed-player card's treatment. -->
+        <Style Selector="Border.palette">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.palette.focused">
+            <Setter Property="BorderBrush" Value="{DynamicResource Pb2dPositive}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- The Tag Palette, docked in the 2D tab's right column. Every control that can take a click is
+         Focusable="False" except the note box: the tab's tunnelling key handler owns the keyboard, and a
+         focused button would eat Space and Enter before the palette ever saw them. -->
+    <Border Classes="palette" Classes.focused="{Binding IsFocused}" Padding="8,6" CornerRadius="4"
+            Background="{DynamicResource Pb2dCardBg}">
+        <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0" Text="Tags" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Pb2dTextBrightest}" />
+                <ComboBox Grid.Column="1" Margin="8,0" HorizontalAlignment="Stretch" Focusable="False"
+                          ItemsSource="{Binding Palettes}" SelectedItem="{Binding SelectedPalette}"
+                          ToolTip.Tip="Palette: a vocabulary of codes and labels, read from the palettes folder">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="tags:TagPaletteDefinition">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Grid.Column="2" Content="⟳" Padding="6,1" Focusable="False"
+                        Command="{Binding ReloadPalettesCommand}"
+                        ToolTip.Tip="Reload palettes from the palettes folder" />
+            </Grid>
+
+            <TextBlock Text="{Binding PanelTitle}" FontSize="10" Foreground="{DynamicResource Pb2dTextDim}" />
+
+            <ItemsControl x:Name="PaletteButtons" ItemsSource="{Binding Buttons}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="4" LineSpacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TagPaletteButtonViewModel">
+                        <Button Focusable="False" Padding="6,2"
+                                Command="{Binding $parent[ItemsControl].((vm:TagPaletteViewModel)DataContext).PressButtonCommand}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <Border Width="8" Height="8" CornerRadius="2" VerticalAlignment="Center"
+                                        Background="{Binding Swatch}"
+                                        IsVisible="{Binding Swatch, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBlock Text="{Binding HotkeyText}" FontFamily="Consolas,Menlo,monospace"
+                                           FontSize="10" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Pb2dTextDim}" />
+                                <TextBlock Text="{Binding Caption}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTextBright}"
+                       IsVisible="{Binding HasPending}">
+                <Run Text="making: " Foreground="{DynamicResource Pb2dTextDim}" />
+                <Run Text="{Binding PendingText}" />
+            </TextBlock>
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTextMid}"
+                       IsVisible="{Binding LastText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <Run Text="last: " Foreground="{DynamicResource Pb2dTextDim}" />
+                <Run Text="{Binding LastText}" />
+            </TextBlock>
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTextMid}"
+                       IsVisible="{Binding HasSticky}">
+                <Run Text="sticky: " Foreground="{DynamicResource Pb2dTextDim}" />
+                <Run Text="{Binding StickyText}" />
+            </TextBlock>
+
+            <!-- The note box: the one focusable control. Enter keeps the note and Esc drops the edit; the
+                 tab's key handler stands aside while a text box has focus. -->
+            <TextBox x:Name="NoteBox" Text="{Binding NoteDraft}" IsVisible="{Binding IsEditingNote}"
+                     Watermark="note for this tag: Enter keeps it, Esc drops the edit" AcceptsReturn="False"
+                     TextWrapping="Wrap" FontSize="11" />
+
+            <TextBlock Text="{Binding HintText}" TextWrapping="Wrap" FontSize="10"
+                       Foreground="{DynamicResource Pb2dTextDim}" />
+            <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="10"
+                       Foreground="{DynamicResource Pb2dTextDim}" />
+            <TextBlock Text="{Binding DiagnosticsText}" TextWrapping="Wrap" FontSize="10"
+                       Foreground="{DynamicResource Pb2dTeamT}" IsVisible="{Binding HasDiagnostics}" />
+        </StackPanel>
+    </Border>
+</UserControl>

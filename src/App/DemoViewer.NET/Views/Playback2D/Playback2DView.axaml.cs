@@ -219,6 +219,14 @@ public partial class Playback2DView : UserControl
             return;
         }
 
+        // The Tag Palette first while it has focus: its scope shadows the tool and always scopes
+        // (overview correction 21), so Esc steps out of a panel and a palette's "A" is a site, not a tool.
+        if (vm.TryHandleTagPaletteKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            return;
+        }
+
         // A drawing tool being active is what makes the keymap's tool-scoped rows shadow the always-scoped
         // ones: the mechanism by which Space and Esc change meaning without a second table.
         bool toolActive = vm.IsAnnotationsEnabled && vm.Annotations.IsDrawingToolActive;

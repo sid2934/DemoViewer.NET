@@ -173,6 +173,57 @@ cannot match before opening them. DemoViewer rebuilds it from `demos/` when it i
 and reconciles it against the directory at startup, so deleting it is always safe. A third party that
 writes a document need not touch the index.
 
+## Palettes (`.tagpalette.json`)
+
+The Tag Palette in the 2D Playback tab writes instances from a **palette**: the codes a team tags with,
+the label panels each code leads to, how far before and after the playhead a code's span reaches, and
+which label groups stay set between tags. A palette is data, so a team writes its own and shares the
+file:
+
+| File | Desktop | Browser build |
+|---|---|---|
+| The built-in `cs2-default` | inside the app | inside the app |
+| One file per user palette | `<app config root>/palettes/<name>.tagpalette.json` | Nowhere. Only the built-in is offered. |
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "id": "cs2-default", "name": "CS2 default",       // id is what settings and a tag file's "palette" name
+  "panels": [
+    { "id": "root", "buttons": [                       // "root", else the first panel, is where tagging starts
+        { "code": "A execute", "hotkey": "1", "leadSeconds": 5, "lagSeconds": 10,
+          "then": "outcome", "colorArgb": 4293467747 },
+        { "code": "Default", "hotkey": "3", "leadSeconds": 0, "lagSeconds": 20 } ] },
+    { "id": "outcome", "kind": "labels", "group": "outcome", "then": "site", "buttons": [
+        { "value": "won", "hotkey": "W" }, { "value": "lost", "hotkey": "L" } ] },
+    { "id": "site", "kind": "labels", "group": "site", "buttons": [
+        { "value": "A", "hotkey": "A" }, { "value": "B", "hotkey": "B" } ] }
+  ],
+  "stickyGroups": ["opponent", "map"],
+  "clampToRound": true                                 // the default when absent
+}
+```
+
+* A code button makes an instance from `leadSeconds` before the playhead to `lagSeconds` after, in the
+  demo's own ticks. With `clampToRound` the span stays inside the playhead's round (from its start to
+  the tick before the next round starts).
+* `then` names the **labels** panel shown after the press, and only that panel; a labels panel adds one
+  label of its `group` and shows its own `then`. When the chain ends the instance is written, code and
+  labels together, as one undo step. Esc part-way writes it with the labels it has.
+* A value picked in one of the `stickyGroups` is kept for the rest of the session: it is added to every
+  new instance, and a panel for that group is answered from it and skipped, until the sticky labels are
+  cleared. The stored label is an ordinary label.
+* A hotkey is one key, optionally with `Ctrl+`, `Shift+` or both. A bare digit is the top-row digit, and
+  the number pad works too. Keys are live only while the palette has focus.
+
+A file is refused, with a line in the diagnostics log and on the palette panel, when it cannot be
+parsed; when a hotkey is an app-wide shortcut, a key the browser keeps for itself, or one of the
+palette's own keys (Esc and the note and sticky-reset chords); when two buttons of one panel share a
+hotkey; when a group is one of the fact names or the reserved strat groups above; or when a `then` names
+no labels panel or loops. A hotkey that shadows a 2D Playback key while the palette has focus (`F`
+follow, `Q`/`E` rounds, `Ctrl+Z`) loads with a warning naming the key. A user palette may not reuse a
+built-in id. DemoViewer never writes palettes; edit the file and press the palette's reload button.
+
 ## Querying
 
 DemoViewer reads the files through one query layer (`TagQuery`), which is also the clearest statement

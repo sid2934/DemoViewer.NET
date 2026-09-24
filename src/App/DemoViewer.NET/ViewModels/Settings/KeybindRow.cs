@@ -48,7 +48,12 @@ public sealed partial class KeybindRow : ObservableObject
         Action = binding.Action;
         Label = binding.Description;
         IsReserved = binding.IsReserved;
-        ScopeLabel = binding.Scope == Playback2DBindingScope.WhenToolActive ? "while drawing" : "always";
+        ScopeLabel = binding.Scope switch
+        {
+            Playback2DBindingScope.WhenToolActive => "while drawing",
+            Playback2DBindingScope.WhenPaletteFocused => "while tagging",
+            _ => "always"
+        };
 
         // Seeded from the SHIPPED profile and replaced by the first Refresh. Reading the static table
         // here instead would work today and be the wrong door: gesture text is the profile's to answer.
@@ -61,7 +66,7 @@ public sealed partial class KeybindRow : ObservableObject
     /// <summary>Human description, straight from the keymap table so the two can never drift.</summary>
     public string Label { get; }
 
-    /// <summary>"always" or "while drawing": the scope chip, and the reason two rows can share a key.</summary>
+    /// <summary>"always", "while drawing" or "while tagging": the scope chip, and the reason two rows can share a key.</summary>
     public string ScopeLabel { get; }
 
     /// <summary>Declared but unroutable: listed so the gesture does not look free, but not rebindable.</summary>
