@@ -38,6 +38,7 @@ using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Review;
+using DemoViewer.NET.ViewModels.RoundTagger;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
@@ -847,6 +848,21 @@ public class App : Application
                 path => cache.TryGetIndex(path)?.Sha256);
         });
 
+        // The Matrix: tag instances pivoted over the store, a container singleton resolved lazily on first
+        // activation. The cache index is the hash-to-path join a cell's clips need, Team Identity the scope
+        // of the multi-demo mode, and the tab switch after a send reaches the shell at call time.
+        services.AddSingleton(sp =>
+        {
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            return new TagMatrixTabViewModel(
+                sp.GetRequiredService<TagStore>(),
+                sp.GetRequiredService<ReviewQueue>(),
+                cache.TryGetIndexBySha256,
+                sp.GetRequiredService<TeamIdentityService>(),
+                tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
+                action => Dispatcher.UIThread.Post(action));
+        });
+
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
         // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
         // no directory and offers the built-in alone.
@@ -1098,9 +1114,9 @@ public class App : Application
         registry.Register(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
             sp.GetRequiredService<ReviewQueue>()));
 
-        // The Round Tagger. Registered on both hosts; a shell until the palette and The Matrix land, so
-        // its ids exist before anything persists state under them.
-        registry.Register(new RoundTaggerModule());
+        // The Round Tagger's Matrix tab. Registered on both hosts: the browser pivots the session's
+        // in-memory tag documents and says so. The VM is a container singleton resolved lazily.
+        registry.Register(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));
         return registry;
     }
 

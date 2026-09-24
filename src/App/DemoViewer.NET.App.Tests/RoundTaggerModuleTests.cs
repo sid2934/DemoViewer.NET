@@ -10,20 +10,24 @@ using DemoViewer.NET.Modules.RoundTagger;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Round Tagger module shell (tag-store.md §3.11): its persisted ids, the two feature rows with the
-///     right scope and parent, and no tab until The Matrix lands.
+///     The Round Tagger module (tag-store.md §3.11): its persisted ids, the two feature rows with the right
+///     scope and parent, and The Matrix's one Main-strip tab.
 /// </summary>
 public class RoundTaggerModuleTests
 {
     [Test]
-    public async Task TheModule_HasItsPersistedIds_AndNoTabYet()
+    public async Task TheModule_HasItsPersistedIds_AndTheMatrixTab()
     {
-        RoundTaggerModule module = new();
+        RoundTaggerModule module = new(() => throw new InvalidOperationException("never built here"));
+        List<WorkspaceTabDescriptor> tabs = [.. module.CreateTabs(null!)];
 
         using (Assert.Multiple())
         {
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.roundtagger");
-            await Assert.That(module.CreateTabs(null!)).IsEmpty();
+            await Assert.That(tabs.Count).IsEqualTo(1);
+            await Assert.That(tabs[0].TabId).IsEqualTo("tagger.matrix");
+            await Assert.That(tabs[0].Placement).IsEqualTo(TabPlacement.Main);
+            await Assert.That(tabs[0].Order).IsEqualTo(7).Because("after Review");
             await Assert.That(FeatureCatalog.ById("tab.tagger")).IsNotNull();
             await Assert.That(FeatureCatalog.ById("playback2d.tagger")).IsNotNull();
         }
