@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             x:Class="DemoViewer.NET.Views.Situations.SituationsTabView"
+             x:DataType="vm:SituationsTabViewModel">
+
+    <!--
+      THE SITUATIONS TAB: Situation Search over the round index.
+
+      This build ships the tab with the index STATUS STRIP only: "Indexed N of M demos · stale · indexing …",
+      Rebuild index and Retry failed. The Query Canvas, Result Cards, Overlay View and the Tolerance Slider
+      are their own build items and fill the space below the strip.
+
+      Colour: every value is a {DynamicResource} token. State is carried by the words and the shared dot
+      classes, never by tinting the label (the StatusChip contrast contract). The browser host renders
+      the same strip and says what it cannot do, the ExportUnavailableNote shape.
+    -->
+
+    <DockPanel Margin="16">
+
+        <!-- The status strip. -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Round index" Classes="col-label"
+                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Center"
+                             Classes.stateOff="{Binding !IsIndexing}"
+                             Classes.stateWorking="{Binding IsIndexing}"
+                             Classes.pulsing="{Binding IsIndexing}" />
+                    <TextBlock Grid.Column="1" Text="{Binding StatusLine}"
+                               Foreground="{DynamicResource TextValue}" FontSize="12"
+                               TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <!-- Retries the FAILED rows only; the difference from Rebuild is the whole point. -->
+                        <Button Content="Retry failed" Classes="ghost" FontSize="11" Padding="10 5"
+                                IsVisible="{Binding HasFailed}" Command="{Binding RetryFailedCommand}" />
+                        <Button Content="⟳ Rebuild index" Classes="ghost" FontSize="11" Padding="10 5"
+                                IsVisible="{Binding CanRebuild}" Command="{Binding RebuildIndexCommand}"
+                                ToolTip.Tip="Mark every demo's index stale and rebuild it in the background; the old rows keep answering until each is replaced" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- The token source, and the per-map fallback when the zones mode has no zones for a map. -->
+                <TextBlock Text="{Binding TokenSourceLine}" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap"
+                           IsVisible="{Binding !IsBrowser}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Where the search surfaces land. -->
+        <TextBlock Margin="0 16 0 0" FontSize="12" Foreground="{DynamicResource TextMid}"
+                   TextWrapping="Wrap"
+                   Text="Situation Search: drop place tokens on the map to find every round where the players stood like this. The query canvas and the result cards land here." />
+    </DockPanel>
+
+</UserControl>
