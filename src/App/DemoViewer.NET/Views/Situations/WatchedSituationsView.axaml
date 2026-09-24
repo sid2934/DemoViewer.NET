@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             x:Class="DemoViewer.NET.Views.Situations.WatchedSituationsView"
+             x:DataType="vm:WatchedSituationsViewModel">
+
+    <!--
+      WATCHED SITUATIONS: the saved queries. The header carries the same "N new" the tab badge shows;
+      each row is one saved query with its name, the query as text, its own "N new" and three actions:
+      Run puts the tokens and filters back on the canvas below and searches, Mark seen clears the
+      row's badge, Remove drops it. Watch saves the canvas's query as it stands under the name typed
+      here, or under the query's own line when the box is empty.
+
+      Colour: every value is a {DynamicResource} token. A row's newness is carried by the words on the
+      badge, never by a tint of the name (the StatusChip contrast contract).
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Border.watchRow">
+            <Setter Property="Background" Value="{DynamicResource PanelBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10 6" />
+        </Style>
+        <Style Selector="Border.newBadge">
+            <Setter Property="Background" Value="{DynamicResource LibraryCardBadgeBg}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6 1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="{DynamicResource CardBg}"
+            BorderBrush="{DynamicResource BorderSubtle}"
+            BorderThickness="1" CornerRadius="6" Padding="12 10">
+        <StackPanel Spacing="8">
+
+            <!-- The header, and Mark all seen when anything is new. -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBlock Grid.Column="0" Text="{Binding HeaderLine}" Classes="col-label"
+                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Mark all seen" Classes="ghost" FontSize="11" Padding="10 5"
+                        IsVisible="{Binding HasNew}" Command="{Binding MarkAllSeenCommand}"
+                        ToolTip.Tip="Clear every badge; a demo indexed from now on counts as new again" />
+            </Grid>
+
+            <!-- Where the list cannot persist, or the file was refused. -->
+            <TextBlock Text="{x:Static vm:WatchedSituationsViewModel.SessionNote}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsSessionOnly}" />
+            <TextBlock Text="{Binding FileProblem}" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasFileProblem}" />
+
+            <!-- Watch the canvas's query. -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Text="{Binding NameText}" FontSize="12"
+                         Watermark="{Binding SuggestedName}" />
+                <Button Grid.Column="1" Content="Watch this query" Classes="ghost" FontSize="11" Padding="10 5"
+                        Command="{Binding WatchCurrentCommand}"
+                        ToolTip.Tip="Save the tokens, tolerance and filters on the canvas; every demo indexed from now on that matches counts as new" />
+            </Grid>
+
+            <!-- The rows. -->
+            <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding HasRows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WatchedSituationRowViewModel">
+                        <Border Classes="watchRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Map}" FontSize="10" Classes="mono"
+                                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                        <Border Classes="newBadge" IsVisible="{Binding HasNew}">
+                                            <TextBlock Text="{Binding BadgeText}" FontSize="10"
+                                                       Foreground="{DynamicResource TextValue}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding QueryLine}" FontSize="10" Classes="mono"
+                                               Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding NewLine}" FontSize="10"
+                                               Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                                    <Button Content="Run" Classes="ghost" FontSize="11" Padding="10 5"
+                                            Command="{Binding RunCommand}"
+                                            ToolTip.Tip="Put this query back on the canvas and search it" />
+                                    <Button Content="Mark seen" Classes="ghost" FontSize="11" Padding="10 5"
+                                            IsVisible="{Binding HasNew}" Command="{Binding MarkSeenCommand}"
+                                            ToolTip.Tip="Clear this badge" />
+                                    <Button Content="✕" Classes="ghost" FontSize="10" Padding="6 2"
+                                            Command="{Binding RemoveCommand}"
+                                            ToolTip.Tip="Drop this watched situation" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+
+</UserControl>

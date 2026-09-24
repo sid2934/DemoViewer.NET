@@ -9,10 +9,12 @@
       THE SITUATIONS TAB: Situation Search over the round index.
 
       The index STATUS STRIP on top: "Indexed N of M demos · stale · indexing …", Rebuild index and Retry
-      failed. Below it the QUERY CANVAS (QueryCanvasView): the map picker, the ten-slot rail, the Skia
-      canvas and the Search button. Below that the RESULT CARDS (ResultCardsView): one card per hit of
-      the last search, a click seeking playback ten seconds before the match, and Overlay all N stacking
-      every matched state onto the canvas as a heatmap. The Tolerance Slider is its own build item.
+      failed. Under it the WATCHED SITUATIONS list (WatchedSituationsView): the saved queries with their
+      "N new" badges, Watch this query, Run, Mark seen. Below it the QUERY CANVAS (QueryCanvasView): the
+      map picker, the ten-slot rail, the Skia canvas and the Search button. Below that the RESULT CARDS
+      (ResultCardsView): one card per hit of the last search, a click seeking playback ten seconds
+      before the match, and Overlay all N stacking every matched state onto the canvas as a heatmap.
+      The Tolerance Slider is its own build item.
 
       Colour: every value is a {DynamicResource} token. State is carried by the words and the shared dot
       classes, never by tinting the label (the StatusChip contrast contract). The browser host renders
@@ -55,10 +57,11 @@
             </StackPanel>
         </Border>
 
-        <!-- The Query Canvas, and the Result Cards under it, in one scroll so a long result set never
-             squeezes the canvas. The Tolerance Slider lands beside them. -->
+        <!-- The watched list, the Query Canvas and the Result Cards under it, in one scroll so a long
+             result set never squeezes the canvas. The Tolerance Slider lands beside them. -->
         <ScrollViewer Margin="0 12 0 0" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="12">
+                <views:WatchedSituationsView DataContext="{Binding Watched}" />
                 <views:QueryCanvasView DataContext="{Binding Canvas}" />
                 <views:ResultCardsView DataContext="{Binding Results}" />
             </StackPanel>

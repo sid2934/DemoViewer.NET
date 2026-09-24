@@ -794,8 +794,21 @@ public class App : Application
                 // The filter rail's opponent and our-side fields join through Team Identity; its source
                 // field through Demo Provenance Labels.
                 teams: sp.GetRequiredService<TeamIdentityService>(),
-                provenance: sp.GetRequiredService<IDemoProvenanceSource>());
+                provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
+                watched: sp.GetRequiredService<WatchedSituationsService>());
         });
+
+        // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
+        // over one demo on the index's Indexed hook and over the library at the watermark on every
+        // other change. A container singleton so the module's badge and the tab's list share one
+        // state; null config root (the browser) keeps the list for the session.
+        services.AddSingleton(sp => new WatchedSituationsService(
+            AppPaths.ConfigRoot,
+            sp.GetRequiredService<ISituationIndex>(),
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<TeamIdentityService>(),
+            sp.GetRequiredService<IDemoProvenanceSource>(),
+            action => Dispatcher.UIThread.Post(action)));
 
         // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
         // user's teams.json beside settings.json and the derived team-index.json under cache/; the
@@ -1025,7 +1038,8 @@ public class App : Application
 
         // The Situations tab. Registered on both hosts: the browser renders the strip and says there is
         // no library index there. The VM is a container singleton resolved lazily on first activation.
-        registry.Register(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>));
+        registry.Register(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
+            sp.GetRequiredService<WatchedSituationsService>()));
 
         // The Teams tab. Registered on both hosts: the browser keeps teams for the session and says so.
         registry.Register(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));

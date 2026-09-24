@@ -21,7 +21,8 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         Delegate-injected (the Highlights precedent): the VM owns no engine; it reads the
 ///         <see cref="ISituationIndex" />, the cache rows and drives the <see cref="RoundIndexEvaluator" />.
 ///         The Query Canvas (<see cref="Canvas" />) sits below the strip with the Result Cards under it,
-///         whose Overlay all N stacks onto the canvas; the Tolerance Slider is its own build item.
+///         whose Overlay all N stacks onto the canvas; the Watched Situations list (<see cref="Watched" />)
+///         sits between the strip and the canvas; the Tolerance Slider is its own build item.
 ///     </para>
 ///     <para>
 ///         On the browser host there is no queue and no filesystem, so no library index exists; the
@@ -34,6 +35,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     private readonly DemoCacheStore _demoCache;
     private readonly RoundIndexEvaluator? _evaluator;
     private readonly ISituationIndex _index;
+
+    // The session-only service built when the host passes none; the host owns one it passed.
+    private readonly WatchedSituationsService? _ownedWatched;
     private readonly RoundIndexPlaceSources _sources;
     private readonly Func<RoundIndexTokenSource> _tokenSource;
 
@@ -87,6 +91,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="sidecars">The sidecar store the cards read positions from; needed when <paramref name="results" /> is null.</param>
     /// <param name="teams">Team Identity, for the rail's opponent and our-side fields; null offers neither. Used when <paramref name="canvas" /> is null.</param>
     /// <param name="provenance">Demo Provenance Labels, for the rail's source field; null offers none. Used when <paramref name="canvas" /> is null.</param>
+    /// <param name="watched">Watched Situations; a session-only service over the same index and services when null.</param>
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
@@ -99,7 +104,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         Func<ISituationPlayback?>? playback = null,
         RoundIndexStore? sidecars = null,
         TeamIdentityService? teams = null,
-        IDemoProvenanceSource? provenance = null)
+        IDemoProvenanceSource? provenance = null,
+        WatchedSituationsService? watched = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -127,6 +133,11 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         Canvas.Searched += Results.Load;
         Canvas.PropertyChanged += OnCanvasPropertyChanged;
 
+        // The saved list saves from and re-runs onto this canvas. A host that passes no service gets
+        // a session-only one over the same index, the browser's own state.
+        _ownedWatched = watched is null ? new WatchedSituationsService(null, index, demoCache, teams, provenance) : null;
+        Watched = new WatchedSituationsViewModel(watched ?? _ownedWatched!, Canvas, teams);
+
         // Both sources matter: the cache raises on every stamp, the index on load and merge. Subscribed
         // for the VM's life rather than per activation so the strip is right the moment the tab opens.
         _demoCache.Changed += OnCacheChanged;
@@ -145,6 +156,9 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
     /// <summary>The Result Cards below the canvas: the last search's hits, and the walk over them.</summary>
     public ResultCardsViewModel Results { get; }
+
+    /// <summary>The Watched Situations list between the strip and the canvas.</summary>
+    public WatchedSituationsViewModel Watched { get; }
 
     /// <summary>The line the strip shows instead of counts on the browser host: the annotation panel's words.</summary>
     public const string BrowserNote = "session only: no library index in the browser";
@@ -183,6 +197,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         _index.Changed -= Refresh;
         Canvas.Searched -= Results.Load;
         Canvas.PropertyChanged -= OnCanvasPropertyChanged;
+        Watched.Dispose();
+        _ownedWatched?.Dispose();
         Canvas.Dispose();
     }
 

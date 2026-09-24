@@ -44,6 +44,14 @@
             <Setter Property="Padding" Value="18 6" />
             <Setter Property="MinHeight" Value="0" />
         </Style>
+        <!-- A module's live annotation beside its header ("3 new"): collapsed while the descriptor's
+             Badge is null, so a tab without one lays out exactly as before. -->
+        <Style Selector="Border.tabBadge">
+            <Setter Property="Background" Value="{DynamicResource LibraryCardBadgeBg}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6 1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
     </UserControl.Styles>
 
     <!-- Root wraps the shell chrome + the WASM Settings overlay (a sibling that draws on top). -->
@@ -245,7 +253,12 @@
                                 Background="{DynamicResource ShellBg}">
                         <TabControl.ItemTemplate>
                             <DataTemplate x:DataType="modules:WorkspaceTabDescriptor">
-                                <TextBlock Text="{Binding Header}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
+                                    <Border Classes="tabBadge" IsVisible="{Binding HasBadge}">
+                                        <TextBlock Text="{Binding Badge}" FontSize="10" />
+                                    </Border>
+                                </StackPanel>
                             </DataTemplate>
                         </TabControl.ItemTemplate>
                         <TabControl.ContentTemplate>
