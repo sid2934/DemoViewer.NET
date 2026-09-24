@@ -15,6 +15,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -33,9 +34,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
@@ -121,6 +124,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
     // through the same IsAvailable the timeline band asks: one answer, not two that can disagree.
     private readonly RoundTrack _roundTrack = new();
+
+    // The open demo's tags and their lane on the timeline (tag-store.md §3.11). The tab owns the session
+    // because the Tag Palette docks here; the Round Tagger module contributes no surface of its own to
+    // the 2D tab. One session per tab: the store's CheckOut is single-writer.
+    private readonly TagSession _tagSession;
+    private readonly TagTrack _tagTrack;
 
     // Cached round facts, the winner tint's source on a Valve demo (which carries no round_end). Resolved
     // ambiently like the settings: a headless test builds this with no container and gets null, and the
@@ -351,6 +360,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Timeline.RegisterTrack(new KillTrack());
         Timeline.RegisterTrack(new BombTrack());
         Timeline.RegisterTrack(_annotationTrack);
+
+        // No container means session-only tags, the annotation rule. The track re-queries on every
+        // session version bump, posted to the UI thread because a save can raise Changed off it.
+        DemoCacheStore? cache = TryResolve<DemoCacheStore>();
+        _tagSession = new TagSession(TryResolve<TagStore>(), path => cache?.TryLoadRecord(path)?.Rounds);
+        _tagTrack = new TagTrack(_tagSession, static action => Dispatcher.UIThread.Post(action));
+        Timeline.RegisterTrack(_tagTrack, TimelineBandRow.Lane);
 
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
@@ -604,6 +620,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Annotations.Dispose();
         _annotationTrack.Dispose();
         _annotationController.Dispose();
+        _tagTrack.Dispose();
+        _tagSession.Dispose(); // detaches, which flushes
 
         // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
         // a running export, which would otherwise raise a terminal status into a half-torn-down shell.
@@ -655,6 +673,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // before the next push arrives.
         ResyncToCurrentDemo();
         AttachAnnotationsToCurrentDemo(false);
+        AttachTagsToCurrentDemo();
         Status = $"2D Playback — active · {context.CurrentPlayers.Count} players · 0 pushes";
     }
 
@@ -665,6 +684,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
         // fire-and-forget write races the process exit.
         _annotationController.Flush();
+        _tagSession.Flush();
 
         // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
         // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed
@@ -1153,6 +1173,18 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
+    private static T? TryResolve<T>() where T : class
+    {
+        try
+        {
+            return App.Services?.GetService<T>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     private static SettingsService? TryResolveSettings()
     {
         try
@@ -1266,6 +1298,41 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         _ = _annotationController.AttachDemoAsync(ctx.DemoPath, FrameClock.IdentityFor(ctx), force)
             .ContinueWith(static _ => { }, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    ///     The open demo's tag session: the Tag Track reads it, and the Tag Palette will edit through it.
+    ///     Attached on activation and on every demo swap; unattached while no demo file is open.
+    /// </summary>
+    public TagSession Tags => _tagSession;
+
+    // Binds the tag session to whatever demo the context is on. Fire-and-forget like the annotations:
+    // the hash may have to be computed off the UI thread (a demo Content Identity has not reached), and
+    // an activation must not wait on it. Re-activation on the demo already attached keeps the in-memory
+    // document; a swap flushes the old one inside AttachAsync.
+    private void AttachTagsToCurrentDemo()
+    {
+        if (_context is not { } ctx || string.IsNullOrEmpty(ctx.DemoPath)
+                                    || string.Equals(_tagSession.DemoPath, ctx.DemoPath,
+                                        StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _ = AttachTagsAsync(ctx, ctx.DemoPath).ContinueWith(static _ => { }, TaskScheduler.Default);
+    }
+
+    private async Task AttachTagsAsync(IModuleContext ctx, string demoPath)
+    {
+        // Resumes on the calling (UI) context: the session is UI-thread affine.
+        DemoIdentity? demo = await TagSession.IdentityForAsync(demoPath, ctx.DemoSha256);
+        if (demo is null || !ReferenceEquals(_context, ctx)
+                         || !string.Equals(ctx.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return; // unreadable, or the user moved on while it hashed
+        }
+
+        await _tagSession.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
     }
 
     private static string[] BuildMyWeaponsPaths()
@@ -2077,6 +2144,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one
         // forces, unlike a tab re-activation, which must keep the in-memory document.
         AttachAnnotationsToCurrentDemo(true);
+        AttachTagsToCurrentDemo();
     }
 
     // Rebuilds ALL per-demo draw-state from the CURRENT context, shared by on-activation and by the
