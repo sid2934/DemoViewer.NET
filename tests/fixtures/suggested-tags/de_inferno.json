@@ -1,0 +1,523 @@
+{
+  "schema": 1,
+  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events until CS2DemoKit #54 ships Round Facts rows. Recapture with ST_GOLDEN_UPDATE=1.",
+  "demo": "match730_003752202995232669993_0995639494_129.dem",
+  "map": "de_inferno",
+  "tickRate": 64,
+  "regionTable": {
+    "schemaVersion": 1,
+    "map": "de_inferno",
+    "demoCount": 1,
+    "roundCount": 17,
+    "plants": {
+      "BombsiteA": 7,
+      "BombsiteB": 8
+    },
+    "regions": {
+      "BombsiteA": [
+        "BombsiteA",
+        "Apartments",
+        "Balcony",
+        "Middle",
+        "Pit",
+        "SecondMid",
+        "TopofMid"
+      ],
+      "BombsiteB": [
+        "BombsiteB",
+        "Banana",
+        "Ruins"
+      ]
+    },
+    "spawnAdjacent": [
+      "LowerMid",
+      "TRamp",
+      "TSpawn"
+    ]
+  },
+  "round": {
+    "number": 11,
+    "startTick": 66864,
+    "endTick": 71783,
+    "bomb": {
+      "plantTick": 70421,
+      "site": "BombsiteB",
+      "defuseTick": null,
+      "explodeTick": null
+    },
+    "sides": {
+      "0": 2,
+      "1": 2,
+      "2": 2,
+      "3": 2,
+      "4": 2,
+      "5": 3,
+      "6": 3,
+      "7": 3,
+      "8": 3,
+      "9": 3
+    },
+    "places": {
+      "0": [
+        "0-7:TSpawn",
+        "8-10:LowerMid",
+        "11-18:TRamp",
+        "19-19:Middle",
+        "20-46:Banana",
+        "47-49:BombsiteB"
+      ],
+      "1": [
+        "0-4:TSpawn",
+        "5-6:LowerMid",
+        "7-17:TRamp",
+        "18-18:Banana",
+        "19-19:TRamp",
+        "20-25:Middle",
+        "26-29:TopofMid",
+        "30-32:Arch",
+        "33-51:CTSpawn",
+        "52-73:Ruins",
+        "74-76:BombsiteB"
+      ],
+      "2": [
+        "0-5:TSpawn",
+        "6-7:LowerMid",
+        "8-11:TRamp",
+        "12-13:Middle",
+        "14-44:Banana",
+        "45-76:BombsiteB"
+      ],
+      "3": [
+        "0-8:TSpawn",
+        "9-10:LowerMid",
+        "11-16:TRamp",
+        "17-23:Middle",
+        "24-27:TopofMid",
+        "28-30:Arch",
+        "31-41:CTSpawn",
+        "42-47:Ruins",
+        "48-76:BombsiteB"
+      ],
+      "4": [
+        "0-4:TSpawn",
+        "5-6:LowerMid",
+        "7-9:TRamp",
+        "10-15:Middle",
+        "16-18:TopofMid",
+        "19-22:Arch",
+        "23-36:CTSpawn",
+        "37-42:Ruins",
+        "43-57:BombsiteB"
+      ],
+      "5": [
+        "0-2:CTSpawn",
+        "3-5:Arch",
+        "6-10:TopofMid",
+        "11-34:Apartments",
+        "35-35:TopofMid",
+        "36-43:Middle",
+        "44-66:Banana",
+        "67-69:BombsiteB"
+      ],
+      "6": [
+        "0-7:CTSpawn",
+        "8-12:Ruins",
+        "13-42:BombsiteB"
+      ],
+      "7": [
+        "0-4:CTSpawn",
+        "5-7:Ruins",
+        "8-9:BombsiteB",
+        "10-17:Banana",
+        "18-24:BombsiteB",
+        "25-36:Banana"
+      ],
+      "8": [
+        "0-3:CTSpawn",
+        "4-6:Arch",
+        "7-16:TopofMid"
+      ],
+      "9": [
+        "0-2:CTSpawn",
+        "3-4:Library",
+        "5-11:BombsiteA",
+        "12-12:Balcony",
+        "13-19:Apartments",
+        "20-23:BackAlley",
+        "24-31:Apartments",
+        "32-35:BackAlley",
+        "36-41:Apartments",
+        "42-48:Middle",
+        "49-57:Banana"
+      ]
+    }
+  },
+  "events": [
+    {
+      "tick": 67335,
+      "kind": "smoke",
+      "slot": 5,
+      "x": 1247.5,
+      "y": 531.1,
+      "z": 118.9,
+      "place": "Middle"
+    },
+    {
+      "tick": 67591,
+      "kind": "smoke",
+      "slot": 0,
+      "x": 1176.2,
+      "y": 572,
+      "z": 120.6,
+      "place": "Middle"
+    },
+    {
+      "tick": 67630,
+      "kind": "flash",
+      "slot": 7,
+      "x": -70.3,
+      "y": 1424.1,
+      "z": 117.7,
+      "place": "Banana"
+    },
+    {
+      "tick": 67661,
+      "kind": "he",
+      "slot": 4,
+      "x": 1515.5,
+      "y": 463.8,
+      "z": 123.8,
+      "place": "TopofMid"
+    },
+    {
+      "tick": 67808,
+      "kind": "smoke",
+      "slot": 4,
+      "x": 1338.3,
+      "y": 380.8,
+      "z": 130,
+      "place": "TopofMid"
+    },
+    {
+      "tick": 67839,
+      "kind": "he",
+      "slot": 8,
+      "x": 1227.1,
+      "y": 496.7,
+      "z": 117.3,
+      "place": "Middle"
+    },
+    {
+      "tick": 67853,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 326.4,
+      "y": 1963.2,
+      "z": 136,
+      "place": "Banana"
+    },
+    {
+      "tick": 68165,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 2287.8,
+      "y": 1164.9,
+      "z": 173.7,
+      "place": "BombsiteA"
+    },
+    {
+      "tick": 68243,
+      "kind": "smoke",
+      "slot": 3,
+      "x": 1521.6,
+      "y": 491.6,
+      "z": 122,
+      "place": "TopofMid"
+    },
+    {
+      "tick": 68344,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 799.8,
+      "y": 2581.1,
+      "z": 138,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 68430,
+      "kind": "flash",
+      "slot": 2,
+      "x": 466.6,
+      "y": 2032.1,
+      "z": 189.5,
+      "place": "Banana"
+    },
+    {
+      "tick": 68922,
+      "kind": "flash",
+      "slot": 0,
+      "x": 835.7,
+      "y": 2597.8,
+      "z": 344.3,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 69218,
+      "kind": "smoke",
+      "slot": 2,
+      "x": 1137.3,
+      "y": 2647.6,
+      "z": 132,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 69391,
+      "kind": "flash",
+      "slot": 4,
+      "x": 646.6,
+      "y": 2926.6,
+      "z": 607.5,
+      "place": null
+    },
+    {
+      "tick": 69487,
+      "kind": "flash",
+      "slot": 2,
+      "x": 870.3,
+      "y": 2727.3,
+      "z": 427.4,
+      "place": "Ruins"
+    },
+    {
+      "tick": 69737,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 145,
+      "y": 2568.9,
+      "z": 163,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 70159,
+      "kind": "he",
+      "slot": 0,
+      "x": 119.8,
+      "y": 1193.1,
+      "z": 114.6,
+      "place": "Banana"
+    },
+    {
+      "tick": 70418,
+      "kind": "flash",
+      "slot": 5,
+      "x": 866.5,
+      "y": 1875.6,
+      "z": 159,
+      "place": "Banana"
+    },
+    {
+      "tick": 70958,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 546.8,
+      "y": 3028.3,
+      "z": 265,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 71089,
+      "kind": "he",
+      "slot": 5,
+      "x": 358.4,
+      "y": 3017.8,
+      "z": 205.4,
+      "place": "BombsiteB"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "exec|r11|T|BombsiteB|s=40",
+      "detector": "execute",
+      "code": "execute",
+      "round": 11,
+      "side": 2,
+      "fromTick": 67376,
+      "toTick": 70320,
+      "triggerTick": 69552,
+      "confidence": 0.64,
+      "factors": {
+        "count": 0.8,
+        "touch": 1,
+        "utility": 0.8
+      },
+      "labels": {
+        "count": "4",
+        "plant": "true",
+        "site": "BombsiteB",
+        "tempo": "mid"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 69218,
+          "text": "smoke by slot 2 -> BombsiteB"
+        },
+        {
+          "kind": "event",
+          "tick": 69487,
+          "text": "flash by slot 2 -> Ruins"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 69552,
+          "text": "4 T in BombsiteB+Banana+Ruins"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 69616,
+          "text": "T in BombsiteB"
+        }
+      ]
+    },
+    {
+      "id": "default|r11|T",
+      "detector": "default",
+      "code": "default",
+      "round": 11,
+      "side": 2,
+      "fromTick": 66864,
+      "toTick": 69552,
+      "triggerTick": 68784,
+      "confidence": 0.6,
+      "factors": {
+        "base": 0.5,
+        "spread": 0,
+        "utility": 0.1
+      },
+      "labels": {
+        "places": "Arch,Banana,CTSpawn",
+        "then": "execute@BombsiteB"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 67661,
+          "text": "he by slot 4 -> TopofMid"
+        },
+        {
+          "kind": "event",
+          "tick": 67808,
+          "text": "smoke by slot 4 -> TopofMid"
+        },
+        {
+          "kind": "event",
+          "tick": 68243,
+          "text": "smoke by slot 3 -> TopofMid"
+        },
+        {
+          "kind": "event",
+          "tick": 68430,
+          "text": "flash by slot 2 -> Banana"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 68784,
+          "text": "T in 3 places: Arch, Banana, CTSpawn"
+        },
+        {
+          "kind": "event",
+          "tick": 68922,
+          "text": "flash by slot 0 -> BombsiteB"
+        },
+        {
+          "kind": "event",
+          "tick": 69218,
+          "text": "smoke by slot 2 -> BombsiteB"
+        }
+      ]
+    },
+    {
+      "id": "fake|r11|T|BombsiteA>BombsiteB|s=40",
+      "detector": "fake",
+      "code": "fake",
+      "round": 11,
+      "side": 2,
+      "fromTick": 67987,
+      "toTick": 70320,
+      "triggerTick": 68243,
+      "confidence": 0.576,
+      "factors": {
+        "execute": 0.64,
+        "fake": 0.9
+      },
+      "labels": {
+        "fake": "BombsiteA",
+        "presence": "2",
+        "real": "BombsiteB",
+        "utility": "1"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 68243,
+          "text": "smoke by slot 3 -> TopofMid"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 68528,
+          "text": "2 T in BombsiteA+Apartments+Balcony+Pit+SecondMid+TopofMid"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 69552,
+          "text": "execute at BombsiteB"
+        }
+      ]
+    },
+    {
+      "id": "retake|r11|CT|BombsiteB|s=55",
+      "detector": "retake",
+      "code": "retake",
+      "round": 11,
+      "side": 3,
+      "fromTick": 70064,
+      "toTick": 71024,
+      "triggerTick": 70384,
+      "confidence": 0.6,
+      "factors": {
+        "base": 0.5,
+        "defused": 0,
+        "group": 0,
+        "utility": 0.1
+      },
+      "labels": {
+        "aliveCt": "2",
+        "group": "2",
+        "outcome": "wiped",
+        "site": "BombsiteB"
+      },
+      "evidence": [
+        {
+          "kind": "occupancy",
+          "tick": 70384,
+          "text": "CT slot 5 enters Banana"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 70384,
+          "text": "CT slot 9 enters Banana"
+        },
+        {
+          "kind": "event",
+          "tick": 70418,
+          "text": "flash by slot 5 -> Banana"
+        },
+        {
+          "kind": "bomb",
+          "tick": 70421,
+          "text": "planted at BombsiteB with 2 CT alive"
+        }
+      ]
+    }
+  ]
+}
