@@ -35,6 +35,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private const int MaxFoldedTooltipLines = 5;
 
     private readonly List<TimelineBand> _builtBands = new();
+    private readonly List<TimelineBand> _builtLaneBands = new();
     private readonly List<TimelineMarker> _builtMarkers = new();
     private readonly List<TimelineTrackToggle> _toggles = new();
 
@@ -44,7 +45,11 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private readonly List<List<TimelineBand>> _trackBands = new();
     private readonly List<Action> _trackHandlers = new();
     private readonly List<List<TimelineMarker>> _trackMarkers = new();
+    private readonly List<TimelineBandRow> _trackRows = new();
     private readonly List<ITimelineTrack> _tracks = new();
+
+    [ObservableProperty]
+    private bool _hasLaneBands;
 
     [ObservableProperty]
     private int _currentFrameIndex = -1;
@@ -102,6 +107,13 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>The laid-out round bands. Rebuilt on <see cref="Rebuild" /> and on a width change.</summary>
     public ObservableCollection<TimelineBandViewModel> Bands { get; } = new();
 
+    /// <summary>
+    ///     The laid-out bands of the tracks registered on <see cref="TimelineBandRow.Lane" />, drawn in a row
+    ///     of their own under the rounds. Kept apart from <see cref="Bands" /> because the rounds row's
+    ///     label search needs one ascending, non-overlapping list, and a tag span overlaps a round.
+    /// </summary>
+    public ObservableCollection<TimelineBandViewModel> LaneBands { get; } = new();
+
     /// <summary>The laid-out point markers, after same-track coalescing.</summary>
     public ObservableCollection<TimelineMarkerViewModel> Markers { get; } = new();
 
@@ -145,7 +157,8 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     ///     </para>
     /// </summary>
     /// <param name="track">The track.</param>
-    public void RegisterTrack(ITimelineTrack track)
+    /// <param name="row">Which band row the track's bands draw in. Markers always go on the scrub bar.</param>
+    public void RegisterTrack(ITimelineTrack track, TimelineBandRow row = TimelineBandRow.Rounds)
     {
         ArgumentNullException.ThrowIfNull(track);
 
@@ -163,6 +176,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         _toggles.Add(toggle);
         _trackBands.Add([]);
         _trackMarkers.Add([]);
+        _trackRows.Add(row);
 
         // Captured so Dispose can take it back off: an anonymous lambda cannot be unsubscribed, and the
         // track outlives this view-model in the tab that owns both.
@@ -226,11 +240,12 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private void Recombine()
     {
         _builtBands.Clear();
+        _builtLaneBands.Clear();
         _builtMarkers.Clear();
 
         for (int i = 0; i < _tracks.Count; i++)
         {
-            _builtBands.AddRange(_trackBands[i]);
+            (_trackRows[i] == TimelineBandRow.Lane ? _builtLaneBands : _builtBands).AddRange(_trackBands[i]);
             _builtMarkers.AddRange(_trackMarkers[i]);
         }
 
@@ -410,13 +425,9 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     // re-runs a track: a width change must not re-decode the demo's events.
     private void Relayout()
     {
-        Bands.Clear();
-        foreach (TimelineBand band in _builtBands)
-        {
-            double x = XForFrame(band.StartFrameIndex);
-            double width = Math.Max(1.0, XForFrame(band.EndFrameIndex + 1) - x);
-            Bands.Add(new TimelineBandViewModel(band, x, width, BrushForBand(band)));
-        }
+        LayOutBands(_builtBands, Bands);
+        LayOutBands(_builtLaneBands, LaneBands);
+        HasLaneBands = LaneBands.Count > 0;
 
         Markers.Clear();
         int i = 0;
@@ -437,6 +448,17 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
             Markers.Add(new TimelineMarkerViewModel(first, x, BrushForMarker(first),
                 FoldTooltip(i, j, first)));
             i = j;
+        }
+    }
+
+    private void LayOutBands(List<TimelineBand> built, ObservableCollection<TimelineBandViewModel> into)
+    {
+        into.Clear();
+        foreach (TimelineBand band in built)
+        {
+            double x = XForFrame(band.StartFrameIndex);
+            double width = Math.Max(1.0, XForFrame(band.EndFrameIndex + 1) - x);
+            into.Add(new TimelineBandViewModel(band, x, width, BrushForBand(band)));
         }
     }
 
@@ -552,6 +574,19 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
         return new ImmutableSolidColorBrush(ThemeColors.Get(key, app.ActualThemeVariant, fallback));
     }
+}
+
+/// <summary>Which band row a track draws in. Registration order is still display order within a row.</summary>
+public enum TimelineBandRow
+{
+    /// <summary>The rounds row at the top; the footer's round label reads it.</summary>
+    Rounds,
+
+    /// <summary>
+    ///     The lane under the rounds, hidden while empty. The Tag Store's instances draw here, one lane for
+    ///     every code (tag-store.md §4.6).
+    /// </summary>
+    Lane
 }
 
 /// <summary>One laid-out point marker on the scrub bar.</summary>
