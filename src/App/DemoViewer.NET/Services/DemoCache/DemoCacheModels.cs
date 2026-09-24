@@ -3,6 +3,7 @@
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
@@ -205,6 +206,9 @@ public sealed class DemoCacheRecord
     public const int ParseSchema = 1;
     public const int AnalysisSchema = 1;
 
+    /// <summary>The <see cref="RoundFacts" /> payload shape. Folded into <see cref="RoundFactsFingerprint" />, so a bump re-runs the evaluator alone.</summary>
+    public const int RoundFactsSchema = 1;
+
     // ── T0 identity ──────────────────────────────────────────────────────────
     public string Path { get; set; } = "";
 
@@ -271,6 +275,21 @@ public sealed class DemoCacheRecord
     /// <summary>Per-highlight-definition hashes, for finer-grained staleness than the combined fingerprint.</summary>
     public Dictionary<string, string> HighlightHashes { get; set; } = new();
 
+    /// <summary>
+    ///     The <c>round_facts</c> ruleset's output: one row per round, two sides each. An analysis output
+    ///     that rides the tier-2 parse, so it sits in this tier but is stamped by its own fingerprint and
+    ///     schema rather than by <see cref="Analysis" />: a threshold edit re-runs only this evaluator,
+    ///     never the highlight scan. Null on every sidecar written before the field existed.
+    /// </summary>
+    public RoundFactsRows? RoundFacts { get; set; }
+
+    /// <summary>
+    ///     The resolved identity of the effective <c>round_facts</c> ruleset (user override included)
+    ///     folded with <see cref="RoundFactsSchema" />, as it was when <see cref="RoundFacts" /> was
+    ///     written. A mismatch marks the rows stale.
+    /// </summary>
+    public string? RoundFactsFingerprint { get; set; }
+
     /// <summary>The highest tier actually present.</summary>
     [JsonIgnore]
     public DemoCacheTier Tier =>
@@ -327,6 +346,26 @@ public sealed class DemoCacheRecord
         AnalysisState != DemoAnalysisState.Failed && !IsAnalysisCurrent(currentFingerprint);
 
     /// <summary>
+    ///     Are the round facts still valid under <paramref name="currentFingerprint" />? Rows written at
+    ///     another schema or another ruleset identity are stale; a null current fingerprint means there is
+    ///     no <c>round_facts</c> ruleset to run, so nothing can be current.
+    /// </summary>
+    /// <param name="currentFingerprint">The effective ruleset's fingerprint, or null when there is none.</param>
+    public bool IsRoundFactsCurrent(string? currentFingerprint) =>
+        RoundFacts is { Schema: RoundFactsSchema }
+        && currentFingerprint is not null
+        && string.Equals(RoundFactsFingerprint, currentFingerprint, StringComparison.Ordinal);
+
+    /// <summary>
+    ///     Does this demo want the round facts evaluator? Derived, like <see cref="NeedsAnalysis" />, and
+    ///     false whenever there is no ruleset to run: the rows are an output of that ruleset, so its
+    ///     absence is "nothing to do", never "everything is stale".
+    /// </summary>
+    /// <param name="currentFingerprint">The effective ruleset's fingerprint, or null when there is none.</param>
+    public bool NeedsRoundFacts(string? currentFingerprint) =>
+        currentFingerprint is not null && !IsRoundFactsCurrent(currentFingerprint);
+
+    /// <summary>
     ///     Does this record still describe the file on disk? Size + mtime, exactly as the library cache keys
     ///     freshness today: cheap, and a content hash is not affordable per reconcile pass.
     /// </summary>
@@ -366,7 +405,9 @@ public sealed class DemoCacheRecord
         AnalysisSchema = Analysis.Schema,
         AnalysisState = AnalysisState,
         ConfigFingerprint = ConfigFingerprint,
-        HighlightCount = Highlights.Count
+        HighlightCount = Highlights.Count,
+        RoundFactsSchema = RoundFacts?.Schema ?? 0,
+        RoundFactsFingerprint = RoundFactsFingerprint
     };
 }
 
@@ -418,6 +459,16 @@ public sealed class DemoCacheIndexEntry
     /// </summary>
     public int HighlightCount { get; set; }
 
+    /// <summary>
+    ///     Schema of the sidecar's round facts, 0 when it holds none. Mirrored with its fingerprint for
+    ///     the same reason <see cref="ConfigFingerprint" /> is: the evaluator's backlog derives from the
+    ///     index without opening a sidecar.
+    /// </summary>
+    public int RoundFactsSchema { get; set; }
+
+    /// <summary>The fingerprint the sidecar's round facts were written under; see <see cref="DemoCacheRecord.RoundFactsFingerprint" />.</summary>
+    public string? RoundFactsFingerprint { get; set; }
+
     [JsonIgnore]
     public DemoCacheTier Tier =>
         AnalysisSchema > 0 ? DemoCacheTier.Analysis
@@ -438,6 +489,15 @@ public sealed class DemoCacheIndexEntry
              && AnalysisState == DemoAnalysisState.Indexed
              && (currentFingerprint is null
                  || string.Equals(ConfigFingerprint, currentFingerprint, StringComparison.Ordinal)));
+
+    /// <summary>
+    ///     Index-level twin of <see cref="DemoCacheRecord.NeedsRoundFacts" />: same rule, no sidecar read.
+    /// </summary>
+    /// <param name="currentFingerprint">The effective ruleset's fingerprint, or null when there is none.</param>
+    public bool NeedsRoundFacts(string? currentFingerprint) =>
+        currentFingerprint is not null
+        && !(RoundFactsSchema == DemoCacheRecord.RoundFactsSchema
+             && string.Equals(RoundFactsFingerprint, currentFingerprint, StringComparison.Ordinal));
 
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;
