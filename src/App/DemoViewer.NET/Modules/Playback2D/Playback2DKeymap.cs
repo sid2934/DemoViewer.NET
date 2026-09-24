@@ -49,7 +49,11 @@ public enum Playback2DAction
     FocusTagPalette,
     TagPaletteBack,
     TagNote,
-    TagClearSticky
+    TagClearSticky,
+
+    // Bound by Label Mode (Strat Room): palette-scoped like the three above.
+    TagLabelMode,
+    TagLabelGroupNext
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -404,6 +408,14 @@ public static class Playback2DKeymap
             "Tag palette: write a note on the tag just made", false),
         new(Playback2DAction.TagClearSticky, Key.Back, KeyModifiers.Control,
             Playback2DBindingScope.WhenPaletteFocused, "Tag palette: clear the sticky labels", false),
+
+        // ── Label Mode. Chords for the palette's reason: a palette author keeps every bare key. Ctrl+L
+        //    and Ctrl+G are neither shell accelerators nor gestures the browser keeps from the page.
+        new(Playback2DAction.TagLabelMode, Key.L, KeyModifiers.Control, Playback2DBindingScope.WhenPaletteFocused,
+            "Tag palette: label mode, adding labels to the tag under the playhead instead of making tags", false),
+        new(Playback2DAction.TagLabelGroupNext, Key.G, KeyModifiers.Control,
+            Playback2DBindingScope.WhenPaletteFocused, "Tag palette: in label mode, show the next label group",
+            false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,
