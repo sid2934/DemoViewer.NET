@@ -31,6 +31,13 @@ public static class SceneLayerIds
     public const string Annotations = "playback2d.annotations";
 
     /// <summary>
+    ///     Place outlines and labels from the baked <c>zones.json</c> plus the user overlay. Opt-in and
+    ///     off by default like the ink: it needs a <c>PlaceResolver</c>, which only a map with a zones
+    ///     file can supply, and a map overlay nobody asked for is clutter.
+    /// </summary>
+    public const string Zones = "playback2d.zones";
+
+    /// <summary>
     ///     Player cards down both pane edges, T on one side and CT on the other. Ordered 65, between the
     ///     floor caption and the clock, so a card sits over the map but under the scoreboard it would
     ///     otherwise crowd at the top centre.
@@ -75,6 +82,7 @@ public static class SceneLayerIds
         new HashSet<string>(StringComparer.Ordinal)
         {
             Annotations,
+            Zones,
             HudRoster,
             HudClock,
             HudKillFeed,

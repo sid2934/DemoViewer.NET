@@ -22,10 +22,11 @@ namespace DemoViewer.NET.AppTests;
 ///         differ is the <b>id set</b>.
 ///     </para>
 ///     <para>
-///         The six <see cref="SceneLayerIds.OptIn" /> ids are absent from every scene stack (they need a
-///         HUD source, an ink document, a query document or an overlay document the caller supplies), and <c>Scene2DHost</c> mounts
-///         <c>playback2d.annotations</c> later, when a session attaches. The claim under test is "the
-///         non-opt-in set is identical", not "the lists are equal".
+///         The seven <see cref="SceneLayerIds.OptIn" /> ids are absent from every scene stack (they need a
+///         HUD source, an ink document, a query document, an overlay document or a place resolver only a
+///         fed caller supplies), and <c>Scene2DHost</c> mounts <c>playback2d.annotations</c> later, when
+///         a session attaches, and <c>playback2d.zones</c> later still, when the toggle is on and the map
+///         has zones. The claim under test is "the non-opt-in set is identical", not "the lists are equal".
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -66,14 +67,15 @@ public class SceneLayerListParityTests
             // catalog, so the count is pinned independently.
             await Assert.That(scene.Length).IsEqualTo(7);
 
-            // And the ONLY opt-in id a window may hold. The three HUD layers are burned-in export
-            // chrome, the window draws its scoreboard, clock and kill feed in XAML, so one appearing
-            // here would mean an export-only layer had leaked into the interactive stack.
+            // And the ONLY opt-in ids a window may hold: the ink, and the zone outlines once the toggle
+            // is on. The three HUD layers are burned-in export chrome, the window draws its scoreboard,
+            // clock and kill feed in XAML, so one appearing here would mean an export-only layer had
+            // leaked into the interactive stack.
             string[] optIn = [.. mounted.Where(SceneLayerIds.OptIn.Contains)];
-            await Assert.That(optIn.Length).IsLessThanOrEqualTo(1);
+            await Assert.That(optIn.Length).IsLessThanOrEqualTo(2);
             foreach (string id in optIn)
             {
-                await Assert.That(id).IsEqualTo(SceneLayerIds.Annotations);
+                await Assert.That(id is SceneLayerIds.Annotations or SceneLayerIds.Zones).IsTrue();
             }
 
             window.Close();
@@ -88,13 +90,14 @@ public class SceneLayerListParityTests
     ///     actually decides draw order, a reader of the table has every right to expect the two agree.
     /// </summary>
     [Test]
-    public async Task CatalogTable_IsTheThirteenPersistedIds_InDrawOrder()
+    public async Task CatalogTable_IsTheFourteenPersistedIds_InDrawOrder()
     {
         string[] expected =
         [
             "playback2d.radar", "playback2d.trails", "playback2d.areaeffects", "playback2d.vision",
-            "playback2d.markers", "playback2d.bomb", "playback2d.floorlabel", "playback2d.annotations",
-            "hud.roster", "hud.clock", "hud.killfeed", "playback2d.query", "playback2d.overlay"
+            "playback2d.markers", "playback2d.bomb", "playback2d.floorlabel", "playback2d.zones",
+            "playback2d.annotations", "hud.roster", "hud.clock", "hud.killfeed", "playback2d.query",
+            "playback2d.overlay"
         ];
 
         await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected);

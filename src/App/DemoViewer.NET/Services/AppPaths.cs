@@ -150,6 +150,21 @@ public static class AppPaths
     }
 
     /// <summary>
+    ///     The user zones overlay directory: <c>&lt;config&gt;/zones/</c>, one <c>&lt;map&gt;.zones.json</c>
+    ///     per map, read by <c>ZoneAssetPipeline</c> over the baked <c>zones.json</c> the way
+    ///     <see cref="ThemesDirectory" /> drop-ins are read over the built-in themes. A PURE path;
+    ///     <see cref="EnsureZonesDirectory" /> creates it once at app startup. <c>null</c> on WASM.
+    /// </summary>
+    public static string? ZonesDirectory
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "zones");
+        }
+    }
+
+    /// <summary>
     ///     Directory for the unified diagnostics rolling log files: <c>&lt;config&gt;/logs/</c>. A stable,
     ///     discoverable location under the app-data root (NOT the OS temp dir, which is too ephemeral for
     ///     "attach recent logs to a user-reported issue"). A PURE path: no directory creation, so getter
@@ -212,6 +227,31 @@ public static class AppPaths
         catch
         {
             // Best-effort, the scan (LoadUserThemes) checks Directory.Exists and no-ops when absent.
+        }
+
+        return dir;
+    }
+
+    /// <summary>
+    ///     Best-effort creates <see cref="ZonesDirectory" /> so a user has somewhere to drop a zones
+    ///     overlay (called once at startup, off the hot path). No-op on WASM; a failure is swallowed, the
+    ///     zones loader tolerates a missing directory (no overlay). Returns the path (or <c>null</c> on WASM).
+    /// </summary>
+    public static string? EnsureZonesDirectory()
+    {
+        string? dir = ZonesDirectory;
+        if (dir is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch
+        {
+            // Best-effort, ZoneAssetPipeline checks File.Exists on the overlay and no-ops when absent.
         }
 
         return dir;

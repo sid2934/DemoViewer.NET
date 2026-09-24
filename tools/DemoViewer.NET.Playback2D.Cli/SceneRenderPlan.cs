@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
@@ -33,7 +34,7 @@ internal sealed class SceneRenderPlan : IDisposable
 
     private SceneRenderPlan(ResolvedBackend backend, SceneCompositor compositor,
         HeadlessSceneRenderer renderer, IReadOnlyList<string> layerIds, AssetsRoot assets,
-        LoadedMapAsset? mapAssets, SKSizeI size)
+        LoadedMapAsset? mapAssets, ZoneLoadResult zones, SKSizeI size)
     {
         Backend = backend;
         Compositor = compositor;
@@ -41,6 +42,7 @@ internal sealed class SceneRenderPlan : IDisposable
         LayerIds = layerIds;
         Assets = assets;
         MapAssets = mapAssets;
+        Zones = zones;
         Size = size;
 
         // Described once: DescribeRadars materialises an array, and a bench run re-enriches the same
@@ -72,6 +74,13 @@ internal sealed class SceneRenderPlan : IDisposable
 
     /// <summary>The loaded map bundle, or null when there is none (or <c>--no-radar</c>).</summary>
     public LoadedMapAsset? MapAssets { get; }
+
+    /// <summary>
+    ///     The map's zones, with the overlay applied when one was given: what feeds
+    ///     <c>playback2d.zones</c>. <see cref="ZoneLoadResult.Empty" /> with no bundle or no
+    ///     <c>zones.json</c>.
+    /// </summary>
+    public ZoneLoadResult Zones { get; }
 
     /// <summary>The output size.</summary>
     public SKSizeI Size { get; }
@@ -115,6 +124,12 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     <c>annotations/&lt;name&gt;.dvann.json</c> (<c>golden</c>, <c>bench</c>). See
     ///     <see cref="FixtureInk" />.
     /// </param>
+    /// <param name="zonesOverlay">
+    ///     A user zones overlay to apply over the map's <c>zones.json</c>, or null for the baked set.
+    ///     From <c>--zones-overlay</c> (<c>render</c>) or the corpus convention
+    ///     <c>zones/&lt;name&gt;.zones.json</c> (<c>golden</c>, <c>bench</c>); see
+    ///     <see cref="FixtureZones" />. Its diagnostics are warnings on stderr.
+    /// </param>
     /// <param name="query">
     ///     The Query Canvas tokens to draw, or null. Arrives the same two ways the ink does:
     ///     <c>--query</c> (<c>render</c>) or the corpus convention
@@ -129,8 +144,8 @@ internal sealed class SceneRenderPlan : IDisposable
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
         IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true,
         RenderBackendPreference defaultBackend = RenderBackendPreference.Auto,
-        AnnotationSession? annotations = null, QueryCanvasDocument? query = null,
-        OverlayDocument? overlay = null)
+        AnnotationSession? annotations = null, string? zonesOverlay = null,
+        QueryCanvasDocument? query = null, OverlayDocument? overlay = null)
     {
         ArgumentNullException.ThrowIfNull(args);
 
@@ -143,31 +158,47 @@ internal sealed class SceneRenderPlan : IDisposable
         IReadOnlyList<string>? include = args.List("layers") ?? entryLayers;
         IReadOnlyList<string>? exclude = args.List("exclude-layers");
 
+        // The bundle comes first now: the zone outlines are fed from its directory, and a stack cannot
+        // know whether it can register playback2d.zones until the bundle has been looked for. The
+        // zones file is only read when the layer is asked for: it is a few hundred kilobytes and a
+        // grid build, and a render that did not name the layer must not pay for it or report it.
+        LoadedMapAsset? mapAssets = null;
+        ZoneLoadResult zones = ZoneLoadResult.Empty;
+        if (assets.Source != AssetsRootSource.Disabled && assets.Path is { } root && mapName is not null)
+        {
+            mapAssets = MapAssetPipeline.TryLoad(root, mapName);
+            if (mapAssets is not null && WantsZones(include))
+            {
+                zones = ZoneAssetPipeline.LoadWithOverlayFile(mapAssets.BakedDir, zonesOverlay);
+            }
+        }
+
+        foreach (ZoneDiagnostic diagnostic in zones.Diagnostics)
+        {
+            ConsoleOut.Warn($"zones overlay: {diagnostic.Code}: {diagnostic.Message}");
+        }
+
         SceneCompositor compositor;
         try
         {
-            RequireFeedableOptIns(include, annotations, query, overlay);
+            RequireFeedableOptIns(include, annotations, zones.Resolver, query, overlay);
 
             // The SAME builder `dv2d export` and the app's export use. A second table would let a
             // golden and a real export draw two different stacks silently.
             compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations,
-                query: query, overlay: overlay);
+                zones: zones.Resolver, query: query, overlay: overlay);
         }
         catch (ArgumentException e)
         {
+            mapAssets?.Dispose();
             backend.Provider.Dispose();
             throw new CliUsageException(e.Message, e);
         }
         catch
         {
+            mapAssets?.Dispose();
             backend.Provider.Dispose();
             throw;
-        }
-
-        LoadedMapAsset? mapAssets = null;
-        if (assets.Source != AssetsRootSource.Disabled && assets.Path is { } root && mapName is not null)
-        {
-            mapAssets = MapAssetPipeline.TryLoad(root, mapName);
         }
 
         HeadlessSceneRenderer renderer = new(backend.Provider, compositor)
@@ -181,7 +212,7 @@ internal sealed class SceneRenderPlan : IDisposable
         // histogram, and the binder gives each band its radar image. Skip it and dv2d derives a
         // different level set from the app for the same frame.
         string[] layerIds = [.. compositor.Layers.Select(static l => l.Id)];
-        SceneRenderPlan plan = new(backend, compositor, renderer, layerIds, assets, mapAssets, size);
+        SceneRenderPlan plan = new(backend, compositor, renderer, layerIds, assets, mapAssets, zones, size);
         renderer.Levels.SetAuthoritativeFloors(plan.AuthoritativeFloors);
         renderer.Levels.RadarBinder = plan.RadarBinder;
         return plan;
@@ -247,10 +278,11 @@ internal sealed class SceneRenderPlan : IDisposable
     /// </summary>
     /// <param name="include">The resolved <c>--layers</c> / corpus-entry id set, or null.</param>
     /// <param name="annotations">The ink actually loaded, or null.</param>
+    /// <param name="zones">The place resolver actually loaded, or null.</param>
     /// <param name="query">The query fixture actually loaded, or null.</param>
     /// <param name="overlay">The overlay fixture actually loaded, or null.</param>
     private static void RequireFeedableOptIns(IReadOnlyList<string>? include,
-        AnnotationSession? annotations, QueryCanvasDocument? query, OverlayDocument? overlay)
+        AnnotationSession? annotations, PlaceResolver? zones, QueryCanvasDocument? query, OverlayDocument? overlay)
     {
         if (include is null)
         {
@@ -272,6 +304,19 @@ internal sealed class SceneRenderPlan : IDisposable
                 }
 
                 continue; // fed, so it is not one of the three that cannot be
+            }
+
+            if (string.Equals(id, SceneLayerIds.Zones, StringComparison.Ordinal))
+            {
+                if (zones is null)
+                {
+                    throw new CliUsageException(
+                        $"--layers {raw} needs a map bundle with a {ZoneAssetPipeline.FileName} to draw: the scene " +
+                        "must name a map, and --assets (or DV2D_ASSETS) must reach a directory holding that " +
+                        "map's baked zones. --no-radar disables the asset root, zones included.");
+                }
+
+                continue;
             }
 
             if (string.Equals(id, SceneLayerIds.Query, StringComparison.Ordinal))
@@ -311,6 +356,24 @@ internal sealed class SceneRenderPlan : IDisposable
                     "timeline — which a fixture does not carry. Only 'dv2d export --hud' can feed it.");
             }
         }
+    }
+
+    private static bool WantsZones(IReadOnlyList<string>? include)
+    {
+        if (include is null)
+        {
+            return false;
+        }
+
+        foreach (string id in include)
+        {
+            if (string.Equals(SceneLayerCatalog.Normalize(id), SceneLayerIds.Zones, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // `single` and a per-level selection need the level model's single-level layout, which is not

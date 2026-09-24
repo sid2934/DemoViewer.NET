@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.RulesetsV2.Model;
+using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
@@ -32,5 +33,19 @@ public sealed record WorkbenchDiagnostic(
         SourcePosition p = diagnostic.Position;
         return new WorkbenchDiagnostic(
             p.ToString(), diagnostic.Message, diagnostic.Code, p.File, p.Line, p.Column);
+    }
+
+    /// <summary>
+    ///     Projects a zones-overlay diagnostic to a display row. The overlay reader keeps no line
+    ///     positions (one bad entry is skipped as a whole), so the location is the file alone, and the
+    ///     entry name the diagnostic carries is folded into the message.
+    /// </summary>
+    /// <param name="diagnostic">The loader's diagnostic.</param>
+    /// <param name="overlayPath">The overlay file, or null.</param>
+    public static WorkbenchDiagnostic FromZones(ZoneDiagnostic diagnostic, string? overlayPath)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        string location = overlayPath is null ? "zones overlay" : Path.GetFileName(overlayPath);
+        return new WorkbenchDiagnostic(location, diagnostic.Message, diagnostic.Code, overlayPath, 0, 0);
     }
 }

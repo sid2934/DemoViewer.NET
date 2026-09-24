@@ -48,6 +48,7 @@ internal static class BenchCommand
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry?.Size ?? source.DefaultSize,
             source.MapName, entry?.Layers,
             annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name),
+            zonesOverlay: entry is null ? null : FixtureZones.ForCorpusEntry(entry.CorpusDirectory, entry.Name),
             query: entry is null ? null : FixtureQuery.ForCorpusEntry(entry.CorpusDirectory, entry.Name),
             overlay: entry is null ? null : FixtureOverlay.ForCorpusEntry(entry.CorpusDirectory, entry.Name));
 

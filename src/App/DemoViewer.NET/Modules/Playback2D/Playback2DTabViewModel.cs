@@ -24,6 +24,7 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
@@ -35,6 +36,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -289,6 +291,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // off-thread) the first time it's enabled on a map that has baked collision. Draws could-see sightlines.
     [ObservableProperty]
     private bool _showVision;
+
+    // Place outlines from the baked zones.json plus the user overlay. OFF by default like the ink: the
+    // zones file is parsed and its grid built the first time the layer is shown, not on every map load.
+    [ObservableProperty]
+    private bool _showZones;
+
+    // The zones load whose diagnostics were last published, so a lazy first read and a reload each
+    // publish exactly once and a steady-state frame publishes nothing.
+    private ZoneLoadResult? _publishedZoneLoad;
 
     /// <summary>One-shot footer hint set when a speed key is refused because Live Sync pins the speed.</summary>
     [ObservableProperty]
@@ -1276,6 +1287,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public event Action? FrameUpdated;
 
     partial void OnShowRadarChanged(bool value) => FrameUpdated?.Invoke();
+    partial void OnShowZonesChanged(bool value) => FrameUpdated?.Invoke();
     partial void OnShowTrailsChanged(bool value) => FrameUpdated?.Invoke();
     partial void OnShowAreaEffectsChanged(bool value) => FrameUpdated?.Invoke();
     partial void OnShowBombRingChanged(bool value) => FrameUpdated?.Invoke();
@@ -1308,6 +1320,62 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         IsLiveSyncHudWorking = hud.Dot == LiveSyncHudDot.Working;
         IsLiveSyncHudDegraded = hud.Dot == LiveSyncHudDot.Degraded;
         IsLiveSyncHudError = hud.Dot == LiveSyncHudDot.Error;
+    }
+
+    /// <summary>
+    ///     The current map's place resolver (baked <c>zones.json</c> plus the user overlay), or null when
+    ///     the map has none. Lazy through <see cref="LoadedMapAsset.Zones" />; the first read of each load
+    ///     publishes the overlay's diagnostics to the Rule Workbench.
+    /// </summary>
+    public PlaceResolver? Zones
+    {
+        get
+        {
+            if (MapAsset is not { } asset)
+            {
+                return null;
+            }
+
+            ZoneLoadResult load = asset.ZoneLoad;
+            PublishZoneDiagnostics(asset, load);
+            return load.Resolver;
+        }
+    }
+
+    /// <summary>
+    ///     Re-reads the map's zones file and the user overlay without a map reload: the author edits
+    ///     <c>&lt;config&gt;/zones/&lt;map&gt;.zones.json</c>, saves, and presses this to see the outline.
+    ///     The scene host picks up the new resolver on the next sync.
+    /// </summary>
+    [RelayCommand]
+    private void ReloadZones()
+    {
+        if (MapAsset is not { } asset)
+        {
+            return;
+        }
+
+        ZoneLoadResult load = asset.ReloadZones();
+        PublishZoneDiagnostics(asset, load);
+        Status = load.Resolver is null
+            ? "Zones: this map has no zones.json"
+            : load.Diagnostics.Count == 0
+                ? $"Zones reloaded ({load.Resolver.Zones.Places.Count} places" +
+                  (load.OverlayApplied ? ", overlay applied)" : ")")
+                : $"Zones reloaded with {load.Diagnostics.Count} skipped overlay entr" +
+                  (load.Diagnostics.Count == 1 ? "y" : "ies") + "; see the Rule Workbench";
+        FrameUpdated?.Invoke();
+    }
+
+    private void PublishZoneDiagnostics(LoadedMapAsset asset, ZoneLoadResult load)
+    {
+        if (ReferenceEquals(_publishedZoneLoad, load))
+        {
+            return;
+        }
+
+        _publishedZoneLoad = load;
+        ZoneOverlayDiagnostics.Publish(asset.Bundle.MapName, load.OverlayPath, load.Diagnostics);
     }
 
     /// <summary>Seek the shared clock to the next kill (player_death). Module-local forward-nav.</summary>
@@ -2161,7 +2229,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void ReplaceMapAsset(LoadedMapAsset? next)
     {
         LoadedMapAsset? previous = MapAsset;
+        if (next is not null)
+        {
+            // Before anything can read Zones: the overlay lives under the config root, which only the
+            // App knows, and the asset reads it lazily from here.
+            next.ZoneOverlayDirectory = AppPaths.ZonesDirectory;
+        }
+
         MapAsset = next;
+        _publishedZoneLoad = null;
 
         // Described ONCE per map, not per push: the frame publishes the same list instance every frame
         // so SceneFrameBuilder's "map facts unchanged" short-circuit holds and the steady state stays
