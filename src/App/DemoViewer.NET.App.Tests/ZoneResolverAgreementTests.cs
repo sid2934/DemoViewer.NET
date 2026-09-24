@@ -18,15 +18,20 @@ namespace DemoViewer.NET.AppTests;
 ///     The design's baseline measurement, re-run through the real reader and resolver: for every
 ///     placed sample on every 32nd frame of every demo under <c>DEMO_PATH</c> whose map has a
 ///     <c>zones.json</c>, the cascade's answer is compared with the pawn's own
-///     <c>m_szLastPlaceName</c>, and the agreement must clear a per-map floor set one point under
-///     what was measured (decision D7). The per-place table goes to the test output so a map that
-///     slips can be read off, place by place.
+///     <c>m_szLastPlaceName</c>. The samples of every demo of a map are POOLED and the pooled
+///     agreement must clear that map's floor (decision D7, taken 2026-09-24: pooled, not per demo).
+///     The per-demo and per-place tables still go to the test output so a map that slips can be read
+///     off, demo by demo and place by place.
 ///     <para>
-///         The pawn field is sticky (it is the last place the pawn was inside), so part of the residual
-///         is the field, not the resolver; the floors state a miss rate rather than pretend to separate
-///         the two. Skipped unless <c>DEMO_PATH</c> names a demo or a folder of them. A replays folder
-///         holds hundreds of matches, so <c>DEMO_ZONES_PER_MAP</c> (unset means every demo) caps how
-///         many are measured per map, smallest first; the map is read off the header, not a parse.
+///         Pooled because a single demo is not a measurement of the resolver: an abandoned 9.4-minute
+///         mirage replay scored 90.35 percent on its own while the ten mirage demos together scored
+///         92.83, and the difference was the sticky pawn field (Underpass held while the pawn stood on
+///         Catwalk), not the cascade. The field is the last place the pawn was inside, so part of the
+///         residual is the field, not the resolver; the floors state a miss rate rather than pretend to
+///         separate the two. Skipped unless <c>DEMO_PATH</c> names a demo or a folder of them. A
+///         replays folder holds hundreds of matches, so <c>DEMO_ZONES_PER_MAP</c> (unset means every
+///         demo) caps how many are measured per map, smallest first; the map is read off the header,
+///         not a parse.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -37,20 +42,44 @@ public class ZoneResolverAgreementTests
     private const double DefaultFloor = 90;
     private const string PerMapEnvVar = "DEMO_ZONES_PER_MAP";
 
+    // Each floor is the pooled agreement measured over the smallest ten demos of the map in the Steam
+    // replays folder (DEMO_ZONES_PER_MAP=10, 83 demos, 2026-09-24), less one point, rounded down to
+    // the whole number. A map with only one demo would keep the design's floor (section 7.2); every
+    // map with a zones.json had at least two. The pooled values, with the per-demo spread they hide:
+    //   de_ancient   96.95 % over ten demos  (96.22 to 98.44)   floor 95
+    //   de_anubis    97.99 % over ten demos  (97.64 to 98.36)   floor 96
+    //   de_cache     98.82 % over four demos (98.72 to 98.93)   floor 97
+    //   de_dust2     99.43 % over ten demos  (99.22 to 99.56)   floor 98
+    //   de_inferno   97.28 % over ten demos  (94.59 to 98.40)   floor 96
+    //   de_mirage    92.91 % over ten demos  (90.35 to 94.42)   floor 91
+    //                (92.83 in the Phase 0 fix pass; the low demo is the abandoned 9.4-minute replay,
+    //                and with DEMO_ZONES_PER_MAP=2 it is half the pool: 91.67 over the smallest two,
+    //                which is why the floor is measured minus one and not the 92 first proposed)
+    //   de_nuke      96.79 % over ten demos  (96.02 to 97.77)   floor 95
+    //   de_overpass  94.66 % over ten demos  (92.56 to 96.09)   floor 93
+    //   de_train     98.41 % over six demos  (98.23 to 98.56)   floor 97
+    //   de_vertigo   97.09 % over two demos  (96.48 to 97.27)   floor 96
+    // de_dogtown has no zones.json and is skipped; DefaultFloor covers a map baked after this table.
     private static readonly Dictionary<string, double> _floors = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["de_nuke"] = 96,
-        ["de_mirage"] = 92,
-        ["de_dust2"] = 99,
-        ["de_inferno"] = 96
+        ["de_ancient"] = 95,
+        ["de_anubis"] = 96,
+        ["de_cache"] = 97,
+        ["de_dust2"] = 98,
+        ["de_inferno"] = 96,
+        ["de_mirage"] = 91,
+        ["de_nuke"] = 95,
+        ["de_overpass"] = 93,
+        ["de_train"] = 97,
+        ["de_vertigo"] = 96
     };
 
     [Test]
-    public async Task CascadeAgreement_ClearsThePerMapFloor_OnEveryDemoUnderDemoPath()
+    public async Task CascadeAgreement_ClearsThePerMapFloor_OnThePooledSamplesUnderDemoPath()
     {
         string[] demos = ResolveDemos();
+        Dictionary<string, Pool> pools = new(StringComparer.OrdinalIgnoreCase);
         List<string> failures = [];
-        int measured = 0;
 
         foreach (string path in demos)
         {
@@ -65,24 +94,41 @@ public class ZoneResolverAgreementTests
             }
 
             Measurement m = Measure(demo, resolver);
-            measured++;
             double floor = _floors.GetValueOrDefault(map!, DefaultFloor);
             Console.WriteLine(m.Report(Path.GetFileName(path), map!, floor));
 
             if (m.Placed == 0)
             {
+                // Pooling would hide a demo the sampler found nothing in, and that is a defect of
+                // its own (the walk, or the field), not a low agreement.
                 failures.Add($"{Path.GetFileName(path)}: no placed samples");
+                continue;
             }
-            else if (m.AgreementPercent < floor)
+
+            if (!pools.TryGetValue(map!, out Pool? pool))
             {
-                failures.Add(string.Create(CultureInfo.InvariantCulture,
-                    $"{Path.GetFileName(path)} ({map}): {m.AgreementPercent:F1} % agreement is under the {floor} % floor"));
+                pool = new Pool();
+                pools[map!] = pool;
             }
+
+            pool.Add(Path.GetFileName(path), m);
         }
 
-        if (measured == 0)
+        if (pools.Count == 0 && failures.Count == 0)
         {
             throw new SkipTestException("no demo under DEMO_PATH is on a map with a zones.json");
+        }
+
+        foreach ((string map, Pool pool) in pools.OrderBy(p => p.Key))
+        {
+            double floor = _floors.GetValueOrDefault(map, DefaultFloor);
+            Console.WriteLine(pool.Report(map, floor));
+            if (pool.AgreementPercent < floor)
+            {
+                failures.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"{map}: {pool.AgreementPercent:F2} % pooled agreement over {pool.Demos} demo(s) " +
+                    $"is under the {floor} % floor (per demo: {pool.PerDemo()})"));
+            }
         }
 
         await Assert.That(failures).IsEmpty();
@@ -159,6 +205,32 @@ public class ZoneResolverAgreementTests
                           $"({(perMap == int.MaxValue ? "no" : perMap.ToString(CultureInfo.InvariantCulture))} per-map cap): " +
                           string.Join(", ", taken.OrderBy(t => t.Key).Select(t => $"{t.Key} x{t.Value}")));
         return [.. chosen];
+    }
+
+    // One map's demos summed: the assertion reads this, the per-demo tables are for reading.
+    private sealed class Pool
+    {
+        private readonly List<(string Demo, double Percent)> _demos = [];
+
+        public int Demos => _demos.Count;
+        public int Placed { get; private set; }
+        public int Agreed { get; private set; }
+        public double AgreementPercent => Placed == 0 ? 0 : 100.0 * Agreed / Placed;
+
+        public void Add(string demo, Measurement m)
+        {
+            Placed += m.Placed;
+            Agreed += m.Agreed;
+            _demos.Add((demo, m.AgreementPercent));
+        }
+
+        public string PerDemo() => string.Join(", ",
+            _demos.Select(d => string.Create(CultureInfo.InvariantCulture, $"{d.Demo} {d.Percent:F2}")));
+
+        public string Report(string map, double floor) => string.Create(CultureInfo.InvariantCulture,
+            $"[agreement] POOLED {map}  demos={Demos}  placed={Placed}  agreed={Agreed}  " +
+            $"agree={AgreementPercent:F2} %  min={_demos.Min(d => d.Percent):F2} %  max={_demos.Max(d => d.Percent):F2} %  " +
+            $"floor={floor} %  {(AgreementPercent >= floor ? "OK" : "UNDER")}");
     }
 
     private sealed class Measurement(string zonesVersion)
