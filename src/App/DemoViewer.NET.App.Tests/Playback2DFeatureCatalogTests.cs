@@ -10,8 +10,9 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     B5-1's audit, as a test: the five Playback2D v2 sub-feature rows are present, shaped as registry
+///     B5-1's audit, as a test: the Playback2D v2 sub-feature rows are present, shaped as registry
 ///     §3.10 pins them, ordered as one contiguous block, and cascade correctly with their parent tab.
+///     The Round Tagger's palette (tag-store.md §3.11) is the sixth, appended to the block.
 ///     <para>
 ///         The ids are <b>persisted override keys</b> (settings write <c>Features:Overrides:{id}</c>), so a
 ///         rename is a silent reset of every user's choice. This class is what makes that rename fail.
@@ -24,14 +25,15 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class Playback2DFeatureCatalogTests
 {
-    /// <summary>The five ids, in the order registry §3.10 fixes for the contiguous catalog block.</summary>
+    /// <summary>The ids, in the order registry §3.10 fixes for the contiguous catalog block, then the tag palette.</summary>
     internal static readonly string[] Ids =
     [
         "playback2d.annotations",
         "playback2d.timeline",
         "playback2d.levels.auto",
         "playback2d.follow",
-        "playback2d.export"
+        "playback2d.export",
+        "playback2d.tagger"
     ];
 
     [Test]

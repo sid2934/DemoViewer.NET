@@ -16,6 +16,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.Teams;
@@ -28,6 +29,7 @@ using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
@@ -813,6 +815,11 @@ public class App : Application
             sp.GetRequiredService<IDemoProvenanceSource>(),
             action => Dispatcher.UIThread.Post(action)));
 
+        // The Round Tagger's store: per-demo tag documents keyed by content hash under <config>/tags. One
+        // per process, because CheckOut's single-writer guarantee is only as wide as the instance that
+        // holds it. Null root (the browser) keeps tags in memory for the session.
+        services.AddSingleton(_ => new TagStore(AppPaths.TagsDir, action => Dispatcher.UIThread.Post(action)));
+
         // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
         // user's teams.json beside settings.json and the derived team-index.json under cache/; the
         // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.
@@ -1046,6 +1053,10 @@ public class App : Application
 
         // The Teams tab. Registered on both hosts: the browser keeps teams for the session and says so.
         registry.Register(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
+
+        // The Round Tagger. Registered on both hosts; a shell until the palette and The Matrix land, so
+        // its ids exist before anything persists state under them.
+        registry.Register(new RoundTaggerModule());
         return registry;
     }
 
