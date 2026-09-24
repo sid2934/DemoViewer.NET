@@ -40,7 +40,7 @@ public sealed class SituationQueryDraft
     /// <summary>The map the query runs over.</summary>
     public string Map => Document.MapName;
 
-    /// <summary>How loosely the pairs match. Exact until the Tolerance Slider lands.</summary>
+    /// <summary>How loosely the pairs match; the canvas's tolerance slider writes it.</summary>
     public SituationTolerance Tolerance { get; set; } = SituationTolerance.Exact;
 
     /// <summary>The Round Facts filter; null until Search Filters lands.</summary>

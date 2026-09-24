@@ -42,6 +42,14 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         demo would snap to nothing. On the browser host there is no library index and no bundle
 ///         directory, so the picker is empty and the canvas says why.
 ///     </para>
+///     <para>
+///         <b>The tolerance slider</b> (round-index.md §3.7, §3.8) runs from exact to any place. With an
+///         adjacency graph for the map it has four stops; without one the middle two would only repeat
+///         Exact (the index collapses them), so it shows the two that differ, the plan's degraded form.
+///         Every move re-asks the live count, and the count never falls as the slider loosens because
+///         each stop's match implies the next one's. The graph's source is named beside the slider, so
+///         a user can tell the zone graph from the one the index folded from its own transitions.
+///     </para>
 /// </summary>
 public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 {
@@ -51,6 +59,14 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
 
+    private static readonly SituationTolerance[] _allStops =
+    [
+        SituationTolerance.Exact, SituationTolerance.Adjacent, SituationTolerance.TwoHops, SituationTolerance.AnyPlace
+    ];
+
+    private static readonly SituationTolerance[] _degradedStops = [SituationTolerance.Exact, SituationTolerance.AnyPlace];
+
+    private IPlaceAdjacency? _adjacency;
     private bool _disposed;
 
     /// <summary>The rail slot armed for the next press over the map; null when none.</summary>
@@ -138,6 +154,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         _index.Changed += OnIndexChanged;
         RefreshMaps();
         RefreshRail();
+        RefreshAdjacency();
         HintLine = DefaultHint();
         RequestCount();
     }
@@ -168,6 +185,83 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     public string CoverageLine => LiveCount is not null
         ? $"over {_index.IndexedDemoCount} of {_demoCache.Index.Count} demos"
         : IsCounting ? "counting" : "";
+
+    /// <summary>
+    ///     How loosely the pairs match: the draft's tolerance, which the slider drives. Setting it re-asks
+    ///     the live count and drops the last search's line, as a token move does.
+    /// </summary>
+    public SituationTolerance Tolerance
+    {
+        get => Draft.Tolerance;
+        set
+        {
+            if (Draft.Tolerance == value)
+            {
+                return;
+            }
+
+            Draft.Tolerance = value;
+            OnToleranceChanged();
+            ResultCount = null;
+            ResultLine = "";
+            RequestCount();
+        }
+    }
+
+    /// <summary>The slider's stops, exact first: all four with an adjacency graph, exact and any place without.</summary>
+    public IReadOnlyList<SituationTolerance> ToleranceStops => _adjacency is null ? _degradedStops : _allStops;
+
+    /// <summary>The slider's last stop index.</summary>
+    public int ToleranceMaximum => ToleranceStops.Count - 1;
+
+    /// <summary>
+    ///     The slider's position, a stop index. A tolerance the stops do not offer (a watch saved at
+    ///     Adjacent, loaded on a map with no graph) sits on Exact, which is what the index runs it as.
+    /// </summary>
+    public double ToleranceValue
+    {
+        get => Math.Max(0, IndexOfStop(Draft.Tolerance));
+        set
+        {
+            int stop = Math.Clamp((int)Math.Round(value), 0, ToleranceMaximum);
+            if (stop == IndexOfStop(Draft.Tolerance))
+            {
+                return;
+            }
+
+            Tolerance = ToleranceStops[stop];
+        }
+    }
+
+    /// <summary>What the slider's stop means, as the user reads it.</summary>
+    public string ToleranceLabel => EffectiveTolerance switch
+    {
+        SituationTolerance.Adjacent => "adjacent places, at least N",
+        SituationTolerance.TwoHops => "two hops, at least N",
+        SituationTolerance.AnyPlace => "any place, at least N alive",
+        _ => "exact, exactly N"
+    };
+
+    /// <summary>"zones", "empirical", or null when the map has no graph.</summary>
+    public string? AdjacencySource => _adjacency is null ? null : SourceKind(_adjacency.Source);
+
+    /// <summary>The line beside the slider naming where "adjacent" comes from.</summary>
+    public string AdjacencyLine => _adjacency is null
+        ? Map is null ? "" : "no adjacency graph: exact or any place"
+        : $"adjacency: {AdjacencySource}";
+
+    /// <summary>The slider's tooltip: the stops' semantics and the graph's full source.</summary>
+    public string ToleranceTip => _adjacency is null
+        ? "Exact matches exactly N in each place; any place matches when the side has at least that many alive. "
+          + "The middle stops need an adjacency graph, and this map has none yet."
+        : "Exact matches exactly N in each place; the wider stops match at least N over the place and its "
+          + $"neighbours, then their neighbours, then anywhere. Adjacency: {AdjacencySource} ({_adjacency.Source}).";
+
+    // The tolerance the index actually runs: the middle stops collapse to Exact without a graph.
+    private SituationTolerance EffectiveTolerance =>
+        _adjacency is null && Draft.Tolerance is SituationTolerance.Adjacent or SituationTolerance.TwoHops
+            ? SituationTolerance.Exact
+            : Draft.Tolerance;
 
     /// <summary>The canvas tool the host registers on its router.</summary>
     public QueryTokenTool Tool { get; }
@@ -356,6 +450,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         }
 
         Draft.Tolerance = watch.Tolerance;
+        OnToleranceChanged();
         Filters.Apply(watch.Filters);
         HintLine = $"watched situation loaded: {watch.Name}";
         RequestCount();
@@ -388,6 +483,46 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     }
 
     private static string Rounds(int count) => count == 1 ? "1 round" : $"{count} rounds";
+
+    // The seam's source string is "zones:<version>" or "index:<demoCount>" (round-index.md §3.8); the
+    // slider names the kind, and the tooltip carries the rest.
+    private static string SourceKind(string source) =>
+        source.StartsWith("zones:", StringComparison.Ordinal) ? "zones" : "empirical";
+
+    private int IndexOfStop(SituationTolerance tolerance)
+    {
+        IReadOnlyList<SituationTolerance> stops = ToleranceStops;
+        for (int i = 0; i < stops.Count; i++)
+        {
+            if (stops[i] == tolerance)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void OnToleranceChanged()
+    {
+        OnPropertyChanged(nameof(Tolerance));
+        OnPropertyChanged(nameof(ToleranceValue));
+        OnPropertyChanged(nameof(ToleranceLabel));
+    }
+
+    // Re-asks the index for the map's graph: the map changed, or a merge moved the empirical one (a
+    // first demo creates it) or the zones arrived. The draft's tolerance is left alone, so a watch
+    // saved at Adjacent keeps its meaning when it is saved again; the slider shows the stop it runs as.
+    private void RefreshAdjacency()
+    {
+        _adjacency = Map is null ? null : _index.Adjacency(Map);
+        OnPropertyChanged(nameof(ToleranceStops));
+        OnPropertyChanged(nameof(ToleranceMaximum));
+        OnPropertyChanged(nameof(AdjacencySource));
+        OnPropertyChanged(nameof(AdjacencyLine));
+        OnPropertyChanged(nameof(ToleranceTip));
+        OnToleranceChanged();
+    }
 
     // What an empty set can be loosened by, in the order a user would try: a filter first, since it is
     // the cheaper change, then a token.
@@ -473,6 +608,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsMissingBundle));
         OnPropertyChanged(nameof(MissingBundleNote));
         SearchCommand.NotifyCanExecuteChanged();
+        RefreshAdjacency();
         MapChanged?.Invoke();
         RequestCount();
     }
@@ -518,6 +654,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     private void OnIndexChanged()
     {
         RefreshMaps();
+        RefreshAdjacency();
         SearchCommand.NotifyCanExecuteChanged();
         RequestCount();
     }
