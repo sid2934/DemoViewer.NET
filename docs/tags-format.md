@@ -145,6 +145,10 @@ A position is a world point on one floor: `x`, `y` in world units and `levelMinZ
 index. `tick` is when the click was made, absent when the click was not time-specific. A movement is a
 `from` and a `to`. Both arrays are empty when the code press had no click.
 
+DemoViewer writes them from clicks on the 2D map while the Tag Palette has focus: the first click on a
+tag adds a position, the second turns that position into the `from` of a movement whose `to` is the
+new click, and the click after that starts a new position. `tick` is the playhead at the click.
+
 Coordinates are what a person clicked and are never rewritten. `place` is derived, and `placeSource`
 says how, so a later pass knows whether it can do better:
 
@@ -234,6 +238,9 @@ of what the fields are for:
   rounds, a creation-time cursor (strictly after), the source, and label predicates. A predicate is a
   namespace (`labels`, `facts` or either), a group and a set of accepted values; several predicates must
   all hold. With no source named, every source but `import` is read.
+  A slice may also carry position predicates: a set of place names, a world-XY polygon and a
+  `levelMinZ`, each optional, all of which one clicked point (a position or either end of a movement)
+  must satisfy. An unresolved point matches no place set, but the polygon still reads its coordinates.
 * **`Pivot(documents, slice, rows, columns)`** is the Matrix: a table keyed by code, by one label group's
   values, by demo or by round. An instance with two values of a pivoted group appears under each (once
   per distinct value), and one with no value on an axis is in no cell. The table is sparse: an empty
