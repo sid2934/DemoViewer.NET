@@ -364,9 +364,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Timeline.RegisterTrack(_annotationTrack);
 
         // No container means session-only tags, the annotation rule. The track re-queries on every
-        // session version bump, posted to the UI thread because a save can raise Changed off it.
+        // session version bump, posted to the UI thread because a save can raise Changed off it. Round
+        // Facts gives a new tag its round's facts as it is made.
         DemoCacheStore? cache = TryResolve<DemoCacheStore>();
-        _tagSession = new TagSession(TryResolve<TagStore>(), path => cache?.TryLoadRecord(path)?.Rounds);
+        _tagSession = new TagSession(TryResolve<TagStore>(), path => cache?.TryLoadRecord(path)?.Rounds, _roundFacts);
         _tagTrack = new TagTrack(_tagSession, static action => Dispatcher.UIThread.Post(action));
         Timeline.RegisterTrack(_tagTrack, TimelineBandRow.Lane);
 

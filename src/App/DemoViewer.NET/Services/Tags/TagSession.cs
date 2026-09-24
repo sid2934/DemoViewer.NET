@@ -3,6 +3,7 @@
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
@@ -58,6 +59,7 @@ public sealed class TagSession : IDisposable
 
     private readonly Func<bool> _isBrowser;
     private readonly List<TagDelta> _redo = [];
+    private readonly IRoundFactsSource? _roundFacts;
     private readonly Func<string, IReadOnlyList<CachedRound>?>? _roundsFor;
 
     // Saves are serialized, the annotation controller's reason: cancelling the debounce does not stop a
@@ -70,6 +72,12 @@ public sealed class TagSession : IDisposable
     private IDisposable? _checkOut;
     private CancellationTokenSource? _debounce;
     private bool _disposed;
+
+    // The attached demo's Round Facts rows, read once and dropped when the source says they were
+    // rewritten, so a code press costs no sidecar read. _factRowsRead separates "not read yet" from
+    // "read, and the demo has none".
+    private RoundFactsRows? _factRows;
+    private bool _factRowsRead;
     private int _lastSavedVersion = -1;
     private IReadOnlyList<CachedRound>? _rounds;
     private bool _saveFailed;
@@ -79,22 +87,32 @@ public sealed class TagSession : IDisposable
     /// <param name="roundsFor">
     ///     Demo path to its cached rounds (frame clock), for deriving <c>round</c>; null leaves rounds unset.
     /// </param>
-    public TagSession(TagStore? store, Func<string, IReadOnlyList<CachedRound>?>? roundsFor = null)
-        : this(store, roundsFor, OperatingSystem.IsBrowser, () => DateTime.UtcNow)
+    /// <param name="roundFacts">
+    ///     Round Facts, for the facts a new instance is made with (<see cref="TagFactsRefresher" />); null
+    ///     leaves <c>facts</c> to the refresher.
+    /// </param>
+    public TagSession(TagStore? store, Func<string, IReadOnlyList<CachedRound>?>? roundsFor = null,
+        IRoundFactsSource? roundFacts = null)
+        : this(store, roundsFor, OperatingSystem.IsBrowser, () => DateTime.UtcNow, roundFacts)
     {
     }
 
     /// <summary>Test seam: the host predicate and the clock injected.</summary>
     internal TagSession(TagStore? store, Func<string, IReadOnlyList<CachedRound>?>? roundsFor,
-        Func<bool> isBrowser, Func<DateTime> utcNow)
+        Func<bool> isBrowser, Func<DateTime> utcNow, IRoundFactsSource? roundFacts = null)
     {
         ArgumentNullException.ThrowIfNull(isBrowser);
         ArgumentNullException.ThrowIfNull(utcNow);
         _store = store;
         _roundsFor = roundsFor;
+        _roundFacts = roundFacts;
         _isBrowser = isBrowser;
         _utcNow = utcNow;
         StatusText = Describe();
+        if (_roundFacts is not null)
+        {
+            _roundFacts.Updated += OnRoundFactsUpdated;
+        }
     }
 
     /// <summary>The attached document, or null before <see cref="AttachAsync" />.</summary>
@@ -154,6 +172,11 @@ public sealed class TagSession : IDisposable
         }
 
         _disposed = true;
+        if (_roundFacts is not null)
+        {
+            _roundFacts.Updated -= OnRoundFactsUpdated;
+        }
+
         CancelDebounce();
         ReleaseCheckOut();
         _saveSerializer.Dispose();
@@ -213,6 +236,8 @@ public sealed class TagSession : IDisposable
 
         DemoPath = demoPath;
         _rounds = string.IsNullOrEmpty(demoPath) ? null : _roundsFor?.Invoke(demoPath);
+        _factRows = null;
+        _factRowsRead = false;
         _saveFailed = false;
 
         TagLoadResult result = _store?.Load(demo.Sha256, clock) ?? TagLoadResult.Empty(null);
@@ -223,13 +248,22 @@ public sealed class TagSession : IDisposable
         _checkOut = _store?.CheckOut(Document.Demo.Sha256, this);
 
         // Loading is not editing, so nothing here is undoable; but a derived round is a change to the
-        // stored document, so it bumps the version and saves like a refresh does.
+        // stored document, so it bumps the version and saves like a refresh does. Facts are filled for an
+        // instance made before the demo had rows, or stamped under another Round Facts schema: the
+        // refresher only runs on a rows write, and neither case is one.
         bool derived = false;
         foreach (TagInstance instance in Document.Instances)
         {
             if (instance.Round is null && RoundAt(instance.FromTick) is { } round)
             {
                 instance.Round = round;
+                derived = true;
+            }
+
+            if (_roundFacts is not null
+                && (instance.FactsStamp is null || instance.FactsStamp.Schema != _roundFacts.Schema)
+                && StampFacts(instance))
+            {
                 derived = true;
             }
         }
@@ -350,6 +384,54 @@ public sealed class TagSession : IDisposable
 
     private int? RoundAt(int tick) => RoundAt(_rounds, tick);
 
+    // Facts for one instance from the attached demo's rows. False without a source or without rows, in
+    // which case the instance is left as it was and the refresher fills it when rows are written.
+    private bool StampFacts(TagInstance instance)
+    {
+        if (_roundFacts is null || FactRows() is not { } rows)
+        {
+            return false;
+        }
+
+        TagFactsRefresher.RefreshInstance(instance, rows.Rounds, _roundFacts.Schema, _utcNow());
+        return true;
+    }
+
+    private RoundFactsRows? FactRows()
+    {
+        if (_roundFacts is null || string.IsNullOrEmpty(DemoPath))
+        {
+            return null;
+        }
+
+        if (!_factRowsRead)
+        {
+            try
+            {
+                _factRows = _roundFacts.TryGet(DemoPath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                _factRows = null;
+            }
+
+            _factRowsRead = true;
+        }
+
+        return _factRows;
+    }
+
+    // Raised on the UI thread by the evaluator. The refresher rewrites the document itself; this only
+    // stops the next code press from stamping facts off the rows that were replaced.
+    private void OnRoundFactsUpdated(string demoPath)
+    {
+        if (string.Equals(demoPath, DemoPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _factRows = null;
+            _factRowsRead = false;
+        }
+    }
+
     private void ReleaseCheckOut()
     {
         _checkOut?.Dispose();
@@ -431,6 +513,13 @@ public sealed class TagSession : IDisposable
 
                     instance.ModifiedUtc = now;
                     instance.Round ??= RoundAt(instance.FromTick);
+
+                    // Free labels: a fresh instance carries its round's facts from the moment it is made.
+                    // Stamped once, so a redo re-adds the instance with the facts it was made with.
+                    if (instance.FactsStamp is null)
+                    {
+                        StampFacts(instance);
+                    }
                 }
 
                 int at = add.Index >= 0 && add.Index <= document.Instances.Count ? add.Index : document.Instances.Count;
@@ -472,6 +561,13 @@ public sealed class TagSession : IDisposable
                     {
                         next.Round = RoundAt(next.FromTick);
                     }
+                }
+
+                // The facts carried over are the displaced start's: phase and man count are read at
+                // fromTick, and a moved start may sit in another round. Undo and redo move it too.
+                if (next.FromTick != current.FromTick)
+                {
+                    StampFacts(next);
                 }
 
                 document.Instances[at] = next;

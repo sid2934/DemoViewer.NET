@@ -819,6 +819,17 @@ public class App : Application
         // per process, because CheckOut's single-writer guarantee is only as wide as the instance that
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(_ => new TagStore(AppPaths.TagsDir, action => Dispatcher.UIThread.Post(action)));
+        // Free labels: every tag instance carries its round's facts in the parser namespace, rewritten
+        // when the evaluator rewrites a demo's rows. The cache index is the path-to-hash join; the
+        // refresh itself runs off the UI thread and reaches an open demo through the store's routing.
+        services.AddSingleton(sp =>
+        {
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            return new TagFactsRefresher(
+                sp.GetRequiredService<TagStore>(),
+                sp.GetRequiredService<IRoundFactsSource>(),
+                path => cache.TryGetIndex(path)?.Sha256);
+        });
 
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
         // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
@@ -940,6 +951,8 @@ public class App : Application
         // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
         // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
         _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
+        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
+        provider.GetRequiredService<TagFactsRefresher>();
         Services = provider;
         return provider;
     }
