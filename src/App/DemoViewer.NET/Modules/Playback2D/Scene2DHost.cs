@@ -517,6 +517,12 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         Router.SecondaryTool = _boundSession?.SecondaryTool;
 
         ToolPointerEvent sample = Translate(e, false);
+        if (TryTagPosition(in sample))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (Router.OnPressed(in sample))
         {
             e.Pointer.Capture(this);
@@ -594,6 +600,18 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             e.Delta.Y, Translate(e.KeyModifiers)));
         e.Handled = true;
     }
+
+    // Click To Tag Position: while the Tag Palette has focus a plain left click is a point for the tag,
+    // taken ahead of the router so the selected tool never sees it. Everything that diverts a press to
+    // pan (Space, Ctrl, the middle button) still pans, which is how a tagger moves the view meanwhile. A
+    // click is a whole gesture, so nothing is captured and the release reaches a router with no gesture.
+    private bool TryTagPosition(in ToolPointerEvent sample) =>
+        sample.Button == ToolPointerButton.Left
+        && sample.Pane is { } pane
+        && !Router.IsSpaceHeld
+        && (sample.Modifiers & (ToolModifiers.Space | ToolModifiers.Control)) == 0
+        && _vm is { } vm
+        && vm.TryTagPositionAt(pane.Level, sample.World.X, sample.World.Y);
 
     // Avalonia event → pane-resolved, world-resolved tool sample. The coalesced samples are the reason
     // a fast stroke looks smooth: a 1000 Hz digitiser delivers dozens of points per 60 Hz frame, and
