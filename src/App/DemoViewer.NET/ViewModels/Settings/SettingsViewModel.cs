@@ -62,7 +62,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                        + "bitrate resolution audio scan"),
         ("Diagnostics", "diagnostics logging log level rows file rolling caps size count"),
         ("Playback2DKeys", "keys keybinds keybindings keyboard shortcuts hotkeys gestures rebind "
-                           + "controls 2d playback radar draw erase undo pan follow round kill speed")
+                           + "controls 2d playback radar draw erase undo pan follow round kill speed"),
+        ("SuggestedTagsTuning", "suggested tags tuning detectors profile execute default fake opener "
+                                + "retake recall precision parameters preview verdicts")
     ];
 
     // Every feature row, in one flat list, for the gate-driven refresh sweep (the bound collections below are
@@ -338,6 +340,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _showSectionProcessing = true;
 
     [ObservableProperty]
+    private bool _showSectionSuggestedTagsTuning = true;
+
+    [ObservableProperty]
     private bool _showSectionTheme = true;
 
     [ObservableProperty]
@@ -363,8 +368,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Action? replayWalkthrough = null)
-        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough)
+        Action? replayWalkthrough = null, SuggestedTagsTuningViewModel? suggestedTagsTuning = null)
+        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, suggestedTagsTuning)
     {
     }
 
@@ -381,9 +386,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <param name="themes">The theme catalogue.</param>
     /// <param name="isBrowser">Whether the host is the WASM head.</param>
     /// <param name="replayWalkthrough">Re-runs the tutorial walkthrough, or null.</param>
+    /// <param name="suggestedTagsTuning">The Suggested Tags tuning section's VM; a hidden stand-in when null.</param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Func<bool> isBrowser, Action? replayWalkthrough = null)
+        Func<bool> isBrowser, Action? replayWalkthrough = null, SuggestedTagsTuningViewModel? suggestedTagsTuning = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -395,6 +401,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _isBrowser = isBrowser;
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
+        // Null in a test that does not wire the tuning harness: the section then hides itself
+        // (SuggestedTagsTuningViewModel(null, null) reports CanManageTuning = false).
+        SuggestedTagsTuning = suggestedTagsTuning ?? new SuggestedTagsTuningViewModel(null, null, isBrowser());
 
         Categories = BuildCategoryOptions();
         // Populate the theme list from the registry. Held in an ObservableCollection so "Reload themes" can
@@ -503,6 +512,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     Settings view (version line, Check button, status text).
     /// </summary>
     public UpdateViewModel Update { get; } = UpdateViewModel.Shared;
+
+    /// <summary>
+    ///     Suggested Tags' tuning section (suggested-tags.md §3.7): a fresh instance per Settings open,
+    ///     since it reads the harness's stored report at construction. Hides itself
+    ///     (<see cref="SuggestedTagsTuningViewModel.CanManageTuning" />) on the browser, where there is
+    ///     no tuning view per §3.8.
+    /// </summary>
+    public SuggestedTagsTuningViewModel SuggestedTagsTuning { get; }
 
     /// <summary>Offered reel container formats.</summary>
     public IReadOnlyList<string> ReelContainerFormats { get; } = ["mp4", "mkv", "mov"];
@@ -694,9 +711,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ShowSectionDiagnostics = CanManageDiagnosticsLogging && SectionMatches("Diagnostics", filter);
         // No platform gate: the 2D tab (and therefore its keymap) is WASM-reachable.
         ShowSectionPlayback2DKeys = SectionMatches("Playback2DKeys", filter);
+        // Its own gate: no filesystem for the profile file on the browser (§3.8).
+        ShowSectionSuggestedTagsTuning = SuggestedTagsTuning.CanManageTuning && SectionMatches("SuggestedTagsTuning", filter);
 
         ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates
-                           || ShowSectionPlayback2DKeys;
+                           || ShowSectionPlayback2DKeys || ShowSectionSuggestedTagsTuning;
         ShowGroupLibrary = ShowSectionFolders || ShowSectionProcessing || ShowSectionIdle;
         ShowGroupFeatures = ShowSectionFeatures;
         ShowGroupLiveCs2 = ShowSectionLiveSync || ShowSectionHighlights;

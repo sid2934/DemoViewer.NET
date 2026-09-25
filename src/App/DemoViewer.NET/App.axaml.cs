@@ -593,7 +593,13 @@ public class App : Application
             sp.GetRequiredService<ThemeRegistry>(),
             // Replay-walkthrough starter: resolves the singleton shell lazily (never at ctor time, which
             // would recurse through the shell factory). Null-safe if the shell isn't built yet.
-            () => Services?.GetService<MainViewModel>()?.StartWalkthrough()));
+            () => Services?.GetService<MainViewModel>()?.StartWalkthrough(),
+            // Suggested Tags tuning (§3.7): a fresh VM per open, reading the harness's stored report at
+            // construction like the rest of this screen's sections do.
+            new SuggestedTagsTuningViewModel(
+                sp.GetRequiredService<SuggestedTagsTuningService>(),
+                sp.GetRequiredService<ProfileStore>(),
+                OperatingSystem.IsBrowser())));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
@@ -872,6 +878,10 @@ public class App : Application
         // browser) keep all of it for the session.
         services.AddSingleton(sp => new ProposalStore(AppPaths.DemoCacheDir, sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(_ => new SiteRegionStore(AppPaths.SuggestedTagsDirectory));
+        // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
+        // on first read the way a theme drop-in folder is (§3.7). A singleton so the evaluator's Func
+        // and the tuning view's save reach the same in-memory Current.
+        services.AddSingleton(_ => new ProfileStore(AppPaths.SuggestedTagsDirectory));
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
@@ -881,7 +891,7 @@ public class App : Application
                 sp.GetRequiredService<ProposalStore>(),
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<SiteRegionStore>(),
-                () => DetectorProfile.Default,
+                () => sp.GetRequiredService<ProfileStore>().Current,
                 () => features?.IsEnabled(SuggestedTagsService.FeatureId) ?? true,
                 () => monitor?.CurrentValue.Playback2D.SuggestedTagsBackground ?? false,
                 sp.GetRequiredService<RoundIndexStore>(),
@@ -891,6 +901,14 @@ public class App : Application
                 () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
                 action => Dispatcher.UIThread.Post(action));
         });
+        // The tuning view's harness: stored counts for free, an in-memory re-run over a candidate
+        // profile for recall/precision (§3.7). Shares the evaluator's store and region table so a
+        // preview scores exactly what the queue already built.
+        services.AddSingleton(sp => new SuggestedTagsTuningService(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<SuggestedTagsService>(),
+            sp.GetRequiredService<TagStore>(),
+            sp.GetRequiredService<SiteRegionStore>()));
 
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
         // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
