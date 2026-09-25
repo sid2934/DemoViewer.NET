@@ -125,8 +125,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // the host wired none, so the tab still renders (empty) rather than needing a fourth optional
         // to become required.
         TagStore recordTags = tags ?? new TagStore(null);
-        RecordPanel = new StratRecordPanelViewModel(
-            evidence ?? new StratEvidenceService(recordTags), recordTags, review, indexBySha, selectTab, _post);
+        StratEvidenceService recordEvidence = evidence ?? new StratEvidenceService(recordTags);
+        RecordPanel = new StratRecordPanelViewModel(recordEvidence, recordTags, review, indexBySha, selectTab, _post);
+
+        // Strat Version History (plan.md §3, strat-model.md §3.8): the append-only diff log as a pane,
+        // the record split either side of each entry. Reads the same evidence and Tag Store as the
+        // Record Panel above, so the two never disagree about what "run" or "won" means.
+        HistoryPanel = new StratHistoryPanelViewModel(store, recordEvidence, recordTags, _calloutResolvers, _post);
 
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
@@ -176,6 +181,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>The Strat Record Panel over the open strat (strat-model.md §3.6).</summary>
     public StratRecordPanelViewModel RecordPanel { get; }
+
+    /// <summary>Strat Version History over the open strat (strat-model.md §3.8).</summary>
+    public StratHistoryPanelViewModel HistoryPanel { get; }
 
     /// <summary>Every book: <c>me</c>, then each visible team.</summary>
     public ObservableCollection<StratOwnerOption> Owners { get; } = [];
@@ -323,6 +331,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas.Dispose();
         Session.Dispose();
         RecordPanel.Dispose();
+        HistoryPanel.Dispose();
     }
 
     // ── Actions ──────────────────────────────────────────────────────────────────────────────────
@@ -616,6 +625,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     {
         Editor.Project();
         RecordPanel.Configure(Session.Document);
+        HistoryPanel.Configure(Session.Document);
         OnPropertyChanged(nameof(HasOpenStrat));
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
