@@ -3,6 +3,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D;
@@ -23,7 +24,9 @@ public sealed class TagPaletteButtonViewModel
         Key = key;
         Modifiers = modifiers;
         HotkeyText = HasHotkey ? Playback2DKeymap.Format(key, modifiers) : "";
-        Swatch = button.ColorArgb is { } argb ? new SolidColorBrush(Color.FromUInt32(argb)) : null;
+        // Immutable, so a view model built off the UI thread (the headless render tests do) can hand it
+        // to a Border without the compositor tripping VerifyAccess on a thread-bound brush.
+        Swatch = button.ColorArgb is { } argb ? new ImmutableSolidColorBrush(Color.FromUInt32(argb)) : null;
     }
 
     public TagPaletteButton Button { get; }
