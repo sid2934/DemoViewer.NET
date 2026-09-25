@@ -260,7 +260,7 @@ public static class RoundFactsSourceKind
 {
     public const string Engine = "Engine";
 
-    /// <summary>The engine did not provide the surface (a partial CS2DemoKit #54), distinct from a null the demo produced.</summary>
+    /// <summary>The ruleset does not emit the column, distinct from a null the demo produced.</summary>
     public const string Unavailable = "Unavailable";
 }
 

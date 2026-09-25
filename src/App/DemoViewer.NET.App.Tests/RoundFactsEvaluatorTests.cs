@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The evaluator's staleness and write logic over a fake ruleset identity and a fake row source:
-///     no ruleset means nothing runs, the parked engine source writes nothing, rows write once under
+///     no ruleset means nothing runs, a source with no rows writes nothing, rows write once under
 ///     the fingerprint they were produced under, a changed identity (a threshold edit) re-runs, and an
 ///     identity that did not change (a malformed override the loader dropped) leaves the rows alone.
 /// </summary>
@@ -111,27 +111,25 @@ public class RoundFactsEvaluatorTests
     }
 
     [Test]
-    public async Task TheParkedEngineSource_ReportsEverythingUnavailable_AndWritesNoRows()
+    public async Task ASourceWithNoRows_WritesNothing_AndTheDemoStillWantsRows()
     {
         DemoCacheStore store = StoreWithParsedDemo();
-        RoundFactsEvaluator evaluator = new(store, new EngineRoundFactsRowSource(), new FakeIdentity("rf-A"));
+        CountingSource source = new(RoundFactsTable.Unavailable("round_facts: the ruleset produced no round_facts table"));
+        RoundFactsEvaluator evaluator = new(store, source, new FakeIdentity("rf-A"));
         int updates = 0;
         evaluator.Updated += _ => updates++;
 
-        RoundFactsTable table = new EngineRoundFactsRowSource().Rows(TwoRoundDemo());
         evaluator.Evaluate(Demo, TwoRoundDemo());
         DemoCacheRecord record = store.TryLoadRecord(Demo)!;
 
         using (Assert.Multiple())
         {
-            await Assert.That(table.Rows).IsEmpty();
-            await Assert.That(table.UnavailableColumns).IsEquivalentTo(RoundFactsColumns.Known);
-            await Assert.That(table.Diagnostics.Single()).Contains("CS2DemoKit #54");
-            await Assert.That(record.RoundFacts).IsNull().Because("no rows means nothing is written, so nothing changes for users");
+            await Assert.That(source.Calls).IsEqualTo(1);
+            await Assert.That(record.RoundFacts).IsNull().Because("an empty payload would mark the demo current and hide that nothing ran");
             await Assert.That(record.RoundFactsFingerprint).IsNull();
             await Assert.That(updates).IsEqualTo(0);
             await Assert.That(evaluator.Wants(Demo)).IsTrue()
-                .Because("the demo still wants rows; it is the engine that cannot supply them yet");
+                .Because("the demo still wants rows; the source could not supply them this time");
         }
     }
 

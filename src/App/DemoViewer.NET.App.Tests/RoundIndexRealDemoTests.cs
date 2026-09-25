@@ -16,19 +16,15 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The round index against a real Valve matchmaking demo, as the design's §7 lists it. The index
-///     joins alive and side against Round Facts rows, and rows need the engine surfaces filed as
-///     CS2DemoKit #54; until that release is pinned no row is written, so every test that needs the
-///     real rows is skipped with that reason. One test runs today: the builder over the real position
-///     walk with rounds synthesised from <see cref="ClipRounds" /> and sides from the tier-2 roster,
-///     which checks the walk, the step arithmetic and the frame-clock alignment without a kill table.
+///     joins alive and side against Round Facts rows, which the shipped ruleset writes through the
+///     production evaluator. One test builds without them: the builder over the real position walk with
+///     rounds synthesised from <see cref="ClipRounds" /> and sides from the tier-2 roster, which checks
+///     the walk, the step arithmetic and the frame-clock alignment without a kill table.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class RoundIndexRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the index joins alive and side against Round Facts rows, and the engine row source writes none yet";
-
     // Rounds from the clip authority and sides from the parse's own roster, with no kills: the
     // alive filter is a no-op, so every token counts every seated pawn the walk yields.
     private static RoundFactsRows SyntheticRows(ParsedDemo parsed)
@@ -96,7 +92,6 @@ public class RoundIndexRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task AliveFromKills_AgreesWithLifeState_ExceptAtTheDeathTick()
     {
         // Written against the record: the evaluator's document over the real rows versus a second walk
@@ -114,7 +109,6 @@ public class RoundIndexRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task OnNuke_TheEmpiricalAdjacency_HoldsTheCalloutNeighbours_AndNotTheSkipThroughs()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -141,7 +135,6 @@ public class RoundIndexRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task FindRoundsLikeThis_RoundTrips_ThroughTheSameEncoder()
     {
         // The 2D scene's alive players at a sampled tick, encoded by PlaceCountToken, must be a token
@@ -158,7 +151,6 @@ public class RoundIndexRealDemoTests
     ///     is asserted on the loaded index.
     /// </summary>
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task TheRealCorpus_IndexesAtAStatedRate_AndLooksUpInUnderASecond()
     {
         string reference = DemoTestHelper.RequireDemo();
