@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events on purpose, so the fixture is pinned to them; the engine's own Round Facts rows close a round earlier and keep every round, so their fold is pinned apart under engine-rows/. Recapture with ST_GOLDEN_UPDATE=1.",
+  "note": "suggested-tags.md §7.2: the same round as ../<map>.json, folded over the engine's own Round Facts rows (the shipped round_facts ruleset), which end the round at round_decided rather than round_officially_ended. Recapture with ST_GOLDEN_UPDATE=1.",
   "demo": "match730_003731893271710924851_1024675027_129.dem",
   "map": "de_nuke",
   "tickRate": 64,
@@ -8,7 +8,7 @@
     "schemaVersion": 1,
     "map": "de_nuke",
     "demoCount": 1,
-    "roundCount": 22,
+    "roundCount": 23,
     "plants": {
       "BombsiteA": 7,
       "BombsiteB": 2
@@ -33,7 +33,7 @@
   "round": {
     "number": 15,
     "startTick": 81149,
-    "endTick": 83995,
+    "endTick": 83547,
     "bomb": {
       "plantTick": 82792,
       "site": "BombsiteA",
@@ -101,7 +101,7 @@
         "3-5:Outside",
         "6-9:Hell",
         "10-26:Heaven",
-        "27-44:Rafters"
+        "27-37:Rafters"
       ],
       "7": [
         "0-2:CTSpawn",
@@ -114,7 +114,7 @@
         "15-15:Vending",
         "16-17:Lobby",
         "18-19:Squeaky",
-        "20-44:BombsiteA"
+        "20-37:BombsiteA"
       ],
       "8": [
         "0-2:CTSpawn",
@@ -122,7 +122,7 @@
         "19-23:Garage",
         "24-26:Outside",
         "27-30:Mini",
-        "31-44:BombsiteA"
+        "31-37:BombsiteA"
       ],
       "9": [
         "0-2:CTSpawn",
@@ -136,7 +136,7 @@
         "25-25:Rafters",
         "26-28:Heaven",
         "29-32:Rafters",
-        "33-44:BombsiteA"
+        "33-37:BombsiteA"
       ]
     }
   },
@@ -166,7 +166,7 @@
       "x": 275,
       "y": -1050.7,
       "z": -341,
-      "place": "Lobby"
+      "place": "Hut"
     },
     {
       "tick": 82071,
@@ -184,7 +184,7 @@
       "x": 810.2,
       "y": -523.5,
       "z": -240.8,
-      "place": "BombsiteA"
+      "place": "Rafters"
     },
     {
       "tick": 83005,
@@ -247,7 +247,7 @@
       "round": 15,
       "side": 3,
       "fromTick": 82429,
-      "toTick": 83901,
+      "toTick": 83547,
       "triggerTick": 82749,
       "confidence": 0.85,
       "factors": {
@@ -263,11 +263,6 @@
         "site": "BombsiteA"
       },
       "evidence": [
-        {
-          "kind": "event",
-          "tick": 82603,
-          "text": "he by slot 6 -> BombsiteA"
-        },
         {
           "kind": "occupancy",
           "tick": 82749,

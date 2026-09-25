@@ -226,35 +226,64 @@ public class SuggestedTagsRealDemoTests
     }
 
     /// <summary>
-    ///     The engine's rows replace the demo's own synthesised ones for the round pinned from
-    ///     de_nuke (§10): the fold, the placed detonations and the detectors' proposals must still equal
-    ///     the committed fixture, the same property <see cref="ThePinnedRound_RecapturesToTheCommittedFixture" />
-    ///     checks over the synthesised rows.
+    ///     The engine's rows replace the demo's own synthesised ones for the round pinned from de_nuke
+    ///     (§10). The fold cannot equal the synthesised fixture byte for byte: the engine ends a round
+    ///     at <c>round_decided</c>, 448 ticks (seven seconds) before the <c>round_officially_ended</c>
+    ///     the synthesised rows close on, and it keeps the 23rd round they drop, so the learned cloud
+    ///     places two detonations differently. The engine fold is pinned in its own fixture, and what
+    ///     the two row sources must share (the round's start, sides and plant, and which proposals fire)
+    ///     is checked against the synthesised one.
     /// </summary>
     [Test]
-    public async Task OverTheEngineRows_ThePinnedRounds_MatchTheCommittedFolds()
+    public async Task OverTheEngineRows_ThePinnedRound_MatchesItsCommittedFold()
     {
         (string map, string demo, int number) = Pinned[0];
         string repo = DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("repo root not found");
-        string file = Path.Combine(SuggestedTagsGolden.FixtureDirectory(repo), $"{map}.json");
-        if (!File.Exists(file))
-        {
-            throw new SkipTestException($"missing {file}; capture it with ST_GOLDEN_UPDATE=1");
-        }
+        string synthesised = Path.Combine(SuggestedTagsGolden.FixtureDirectory(repo), $"{map}.json");
+        string file = Path.Combine(SuggestedTagsGolden.EngineRowsFixtureDirectory(repo), $"{map}.json");
 
         Walked walked = WalkFromEngineRows(demo);
         RoundOccupancy round = walked.Build.Rounds.Single(r => r.Round == number);
         SuggestedTagsGolden golden = SuggestedTagsGolden.Capture(demo, map, walked.Parsed.TickRate, walked.Table, round,
             walked.Events);
+        golden.Note = SuggestedTagsGolden.EngineRowsNote;
         golden.Proposals = golden.Detect();
 
-        await Assert.That(golden.Serialize()).IsEqualTo(File.ReadAllText(file).Replace("\r\n", "\n", StringComparison.Ordinal))
-            .Because("the sides and kills are the same facts under either row source");
+        if (Environment.GetEnvironmentVariable("ST_GOLDEN_UPDATE") == "1")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, golden.Serialize());
+        }
+
+        if (!File.Exists(file) || !File.Exists(synthesised))
+        {
+            throw new SkipTestException($"missing {file} or {synthesised}; capture them with ST_GOLDEN_UPDATE=1");
+        }
+
+        SuggestedTagsGolden fromSynthesised = SuggestedTagsGolden.Load(synthesised);
+        using (Assert.Multiple())
+        {
+            await Assert.That(golden.Serialize()).IsEqualTo(File.ReadAllText(file).Replace("\r\n", "\n", StringComparison.Ordinal))
+                .Because("the fold, the placed events and the learned table over the engine's rows are pinned");
+            await Assert.That(golden.Round.StartTick).IsEqualTo(fromSynthesised.Round.StartTick);
+            await Assert.That(golden.Round.EndTick).IsLessThan(fromSynthesised.Round.EndTick)
+                .Because("the engine closes the round when it is decided, not when it is officially over");
+            await Assert.That(golden.Round.Sides).IsEquivalentTo(fromSynthesised.Round.Sides)
+                .Because("the sides are the same facts under either row source");
+            await Assert.That(golden.Round.Bomb).IsEqualTo(fromSynthesised.Round.Bomb)
+                .Because("the plant is the same fact under either row source");
+            await Assert.That(golden.Proposals.Select(p => p.Id)).IsEquivalentTo(fromSynthesised.Proposals.Select(p => p.Id))
+                .Because("the same proposals fire under either row source");
+        }
     }
 
     /// <summary>
     ///     With the engine's rows behind the index evaluator too, the index source must feed the per-side
-    ///     detectors the same proposals as the walk does, on the de_inferno replay §10 pins.
+    ///     detectors the same executes, defaults and fakes as the walk does, on the de_inferno replay §10
+    ///     pins. Retakes are left out: they turn on which CT is alive at the plant and when each first
+    ///     enters the site, which the walk (first frame of every eighth) and the index (its due tick)
+    ///     read at different frames inside a second, and they differ between the two sources over the
+    ///     synthesised rows just the same (rounds 2, 3, 5, 10, 11 and 14 of this replay).
     /// </summary>
     [Test]
     public async Task OverTheEngineRows_TheIndexSource_FeedsTheSameProposalsAsTheWalk()
@@ -271,8 +300,13 @@ public class SuggestedTagsRealDemoTests
         IReadOnlyList<TagProposal> fromIndexed = ProposalDetection.Detect(map, walked.Parsed.TickRate, regions, walked.Events,
             fromIndex, DetectorProfile.Default);
 
-        string Key(TagProposal p) => $"{p.Round}:{p.Detector}:{string.Join(',', p.Labels.Select(l => $"{l.Key}={l.Value}"))}";
-        await Assert.That(fromIndexed.Select(Key).OrderBy(k => k, StringComparer.Ordinal))
-            .IsEquivalentTo(fromWalk.Select(Key).OrderBy(k => k, StringComparer.Ordinal));
+        HashSet<string> occupancyDetectors = [ExecuteDetector.DetectorId, DefaultDetector.DetectorId, FakeDetector.DetectorId];
+        IEnumerable<string> Keys(IEnumerable<TagProposal> proposals) => proposals
+            .Where(p => occupancyDetectors.Contains(p.Detector))
+            .Select(p => $"{p.Round}:{p.Detector}:{string.Join(',', p.Labels.Select(l => $"{l.Key}={l.Value}"))}")
+            .Order(StringComparer.Ordinal);
+
+        await Assert.That(Keys(fromWalk)).IsNotEmpty();
+        await Assert.That(Keys(fromIndexed)).IsEquivalentTo(Keys(fromWalk));
     }
 }
