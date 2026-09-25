@@ -58,36 +58,95 @@
 
         <Grid ColumnDefinitions="280,12,*">
 
-            <!-- The strat list. -->
-            <Border Grid.Column="0"
-                    Background="{DynamicResource CardBg}"
-                    BorderBrush="{DynamicResource BorderSubtle}"
-                    BorderThickness="1" CornerRadius="6" Padding="12 10">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Strats" Classes="col-label"
-                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" Margin="0 0 0 8" />
-                    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0 8 0 0">
-                        <TextBlock Text="{Binding ListLine}" FontSize="11" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextMid}" />
-                        <Button Content="Delete" Classes="ghost" FontSize="11" Padding="10 5"
-                                Command="{Binding DeleteStratCommand}"
-                                ToolTip.Tip="Moves the strat and its history to the book's .trash folder" />
+            <!-- The strat list, and below it the book's callout aliases for the selected map. -->
+            <Grid Grid.Column="0" RowDefinitions="*,12,Auto">
+                <Border Grid.Row="0"
+                        Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="1" CornerRadius="6" Padding="12 10">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Strats" Classes="col-label"
+                                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" Margin="0 0 0 8" />
+                        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0 8 0 0">
+                            <TextBlock Text="{Binding ListLine}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMid}" />
+                            <Button Content="Delete" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding DeleteStratCommand}"
+                                    ToolTip.Tip="Moves the strat and its history to the book's .trash folder" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
+                                 IsVisible="{Binding HasStrats}" Background="Transparent">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StratListRow">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMid}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <!-- Callout Aliases (strat-model.md §3.7): the book's words over this map's places. -->
+                <Border Grid.Row="2"
+                        Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="1" CornerRadius="6" Padding="12 10"
+                        DataContext="{Binding Callouts}" x:DataType="vm:CalloutsEditorViewModel">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Callouts" Classes="col-label"
+                                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                        <TextBlock Text="pick one map (not all maps) to edit its aliases" FontSize="11"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasMap}" />
+                        <StackPanel Spacing="6" IsVisible="{Binding HasMap}">
+                            <TextBlock Text="{Binding MapLine}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                            <ItemsControl ItemsSource="{Binding Aliases}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CalloutAliasRow">
+                                        <Grid ColumnDefinitions="80,*,Auto,Auto" ColumnSpacing="4" Margin="0 0 0 3">
+                                            <TextBox Grid.Column="0" FontSize="11" Watermark="alias"
+                                                     Text="{Binding Alias, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout"
+                                                     Text="{Binding Place, UpdateSourceTrigger=LostFocus}" />
+                                            <CheckBox Grid.Column="2" Content="primary" FontSize="10"
+                                                      IsChecked="{Binding Primary}"
+                                                      ToolTip.Tip="The word the UI shows for this place" />
+                                            <Button Grid.Column="3" Content="✕" Classes="ghost" FontSize="10" Padding="6 2"
+                                                    Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this alias" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Grid ColumnDefinitions="80,*,Auto" ColumnSpacing="4">
+                                <TextBox Grid.Column="0" FontSize="11" Watermark="new alias" Text="{Binding NewAliasText}" />
+                                <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout" Text="{Binding NewPlaceText}" />
+                                <Button Grid.Column="2" Content="Add" Classes="ghost" FontSize="11" Padding="8 3"
+                                        Command="{Binding AddAliasCommand}" />
+                            </Grid>
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Text="copy from" FontSize="11" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                <ComboBox ItemsSource="{Binding CopySources}" SelectedItem="{Binding CopyFrom}"
+                                          FontSize="11" MinWidth="120" Margin="0 0 6 4">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratOwnerOption">
+                                            <TextBlock Text="{Binding Label}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Content="Copy aliases" Classes="ghost" FontSize="11" Padding="8 3" Margin="0 0 0 4"
+                                        Command="{Binding CopyAliasesCommand}"
+                                        ToolTip.Tip="Replaces this book's aliases on this map with theirs" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding IssueLine}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasIssue}" />
+                        </StackPanel>
                     </StackPanel>
-                    <ListBox ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
-                             IsVisible="{Binding HasStrats}" Background="Transparent">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:StratListRow">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextMid}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </Border>
+                </Border>
+            </Grid>
 
             <!-- The editor. -->
             <Border Grid.Column="2"
