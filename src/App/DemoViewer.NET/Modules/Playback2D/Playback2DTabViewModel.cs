@@ -61,7 +61,8 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     returns. The viewport redraw is coalesced to the render frame, driven by
 ///     <see cref="FrameUpdated" />.
 /// </summary>
-public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel, IDisposable
+public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel, ISceneFrameHost,
+    IDisposable
 {
     // The inventory array slots scanned per player: the dotted bracket-indexed paths are built ONCE
     // here, not per-frame, so the per-tick grenade loop allocates no path strings.
@@ -576,6 +577,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     </para>
     /// </summary>
     public bool IsAnnotationsEnabled => Annotations.IsEnabled;
+
+    // A demo has no tokens: the token tool is registered on the host but falls through here. The strat
+    // canvas is the frame host that supplies one (step-authoring.md §3.10).
+    /// <inheritdoc />
+    ITokenEditor? ISceneFrameHost.TokenEditor => null;
 
     /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
     public Playback2DTimelineViewModel Timeline { get; } = new();
