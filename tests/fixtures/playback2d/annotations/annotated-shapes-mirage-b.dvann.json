@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "demo": {
+    "fileName": "annotated-shapes-mirage-b.scene.json",
+    "sizeBytes": 0
+  },
+  "clock": {
+    "kind": "dv-frame-clock",
+    "tickRate": 64,
+    "frameCount": 0,
+    "firstTick": 0,
+    "lastTick": 0
+  },
+  "elements": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "kind": "Freehand",
+      "colorArgb": 4294951175,
+      "widthWorld": 20,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -3000,
+        -300,
+        0.5,
+        -2900,
+        -220,
+        0.5,
+        -2780,
+        -180,
+        0.5,
+        -2650,
+        -200,
+        0.5
+      ]
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "kind": "Line",
+      "colorArgb": 4280923894,
+      "widthWorld": 18,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -3100,
+        700,
+        0.5,
+        -2500,
+        700,
+        0.5
+      ]
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "kind": "Arrow",
+      "colorArgb": 4294922834,
+      "widthWorld": 22,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -2300,
+        500,
+        0.5,
+        -1600,
+        160,
+        0.5
+      ]
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "kind": "Ellipse",
+      "colorArgb": 4285132974,
+      "widthWorld": 16,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -1700,
+        420,
+        0.5,
+        -1200,
+        780,
+        0.5
+      ]
+    },
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "kind": "Text",
+      "colorArgb": 4294967295,
+      "widthWorld": 14,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -3150,
+        1000,
+        0.5
+      ],
+      "text": "B site execute"
+    },
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "kind": "Rect",
+      "colorArgb": 4280923894,
+      "widthWorld": 16,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fromTick": 21000,
+      "untilTick": 21300,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        -1000,
+        -400,
+        0.5,
+        -600,
+        0,
+        0.5
+      ]
+    },
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "kind": "Text",
+      "colorArgb": 4294951175,
+      "widthWorld": 10,
+      "opacity": 1.0,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -170,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fromTick": 21000,
+      "untilTick": 21300,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        -1000,
+        120,
+        0.5
+      ],
+      "text": "hold"
+    }
+  ]
+}

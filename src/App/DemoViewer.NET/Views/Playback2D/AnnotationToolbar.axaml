@@ -52,6 +52,30 @@
                               Command="{Binding SelectEraseCommand}"
                               ToolTip.Tip="{Binding EraseToolTip}" />
 
+                <!-- Shape Tools (step-authoring.md §3.2): drag from one point to the other, Shift to
+                     constrain. Text places a label and opens an editor over it. They draw with the same
+                     pens, width and visibility as the freehand tool. -->
+                <ToggleButton x:Name="LineTool" Padding="8,2" Content="╱"
+                              IsChecked="{Binding IsLineSelected, Mode=OneWay}"
+                              Command="{Binding SelectLineCommand}"
+                              ToolTip.Tip="{Binding LineToolTip}" />
+                <ToggleButton x:Name="ArrowTool" Padding="8,2" Content="➚"
+                              IsChecked="{Binding IsArrowSelected, Mode=OneWay}"
+                              Command="{Binding SelectArrowCommand}"
+                              ToolTip.Tip="{Binding ArrowToolTip}" />
+                <ToggleButton x:Name="RectTool" Padding="8,2" Content="▭"
+                              IsChecked="{Binding IsRectSelected, Mode=OneWay}"
+                              Command="{Binding SelectRectCommand}"
+                              ToolTip.Tip="{Binding RectToolTip}" />
+                <ToggleButton x:Name="EllipseTool" Padding="8,2" Content="◯"
+                              IsChecked="{Binding IsEllipseSelected, Mode=OneWay}"
+                              Command="{Binding SelectEllipseCommand}"
+                              ToolTip.Tip="{Binding EllipseToolTip}" />
+                <ToggleButton x:Name="TextTool" Padding="8,2" Content="T"
+                              IsChecked="{Binding IsTextSelected, Mode=OneWay}"
+                              Command="{Binding SelectTextCommand}"
+                              ToolTip.Tip="{Binding TextToolTip}" />
+
                 <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
 
                 <!-- Ink colour. The live swatch is what the user actually reads at a glance; the picker

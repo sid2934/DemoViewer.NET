@@ -143,6 +143,34 @@
       "notes": "duel-mirage-b's frame plus burned-in ink: a static world-anchored arrow across B and a time-anchored ring around the smoke, live at tick 21120 - so the golden covers both halves of AnnotationLayer's split (the cached dry recording and the per-frame animated path). THE ONLY GOLDEN ANYWHERE THAT COVERS playback2d.annotations. The document is annotations/annotated-mirage-b.dvann.json, resolved by convention rather than by a manifest field; golden, bench and render (--ink) all read it through the production AnnotationStore. Was PENDING for B2 with no scene file at all, which is why the feature shipped uncovered."
     },
     {
+      "name": "annotated-shapes-mirage-b",
+      "scene": "scenes/annotated-shapes-mirage-b.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "9e86faf4",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.trails",
+        "playback2d.areaeffects",
+        "playback2d.vision",
+        "playback2d.markers",
+        "playback2d.bomb",
+        "playback2d.floorlabel",
+        "playback2d.annotations"
+      ],
+      "notes": "The Shape Tools golden (step-authoring.md §3.2): duel-mirage-b's frame plus one annotation of every kind. Freehand, Line, Arrow, Ellipse and a Text label are static and world-anchored, so they go through the dry recording; a Rect and a second label are time-anchored and live at tick 21120, so they go through the per-frame path. The document is annotations/annotated-shapes-mirage-b.dvann.json, read by convention through the production AnnotationStore like annotated-mirage-b's."
+    },
+    {
       "name": "nuke-single-upper",
       "scene": "scenes/nuke-single-upper.scene.json",
       "size": {

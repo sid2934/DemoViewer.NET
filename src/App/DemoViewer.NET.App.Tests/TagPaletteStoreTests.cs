@@ -52,8 +52,19 @@ public class TagPaletteStoreTests
             await Assert.That(palette.Root!.Buttons.Select(b => b.Code)).IsEquivalentTo(DefaultCodes);
             await Assert.That(palette.ClampToRound).IsTrue().Because("decision D3: the shipped palette clamps");
             await Assert.That(palette.StickyGroups).Contains("opponent");
-            await Assert.That(store.Diagnostics).IsEmpty()
-                .Because("the shipped palette must shadow nothing and be refused for nothing");
+            // Refused for nothing, and shadowing exactly what overview correction 21 says it does: the
+            // site "A" and outcome "L" labels are the Arrow and Line tool keys since Shape Tools, and the
+            // palette's scope wins while it has focus, so the load warns and names the tool each one hides.
+            await Assert.That(store.Diagnostics.Count).IsEqualTo(2)
+                .Because("the shipped palette must be refused for nothing and shadow only the two tool keys");
+            await Assert.That(store.Diagnostics.Any(d => d.Contains("skipped", StringComparison.Ordinal)))
+                .IsFalse();
+            await Assert.That(store.Diagnostics.Count(d => d.Contains(
+                    "A shadows \"Arrow tool (press again for pan)\"", StringComparison.Ordinal)))
+                .IsEqualTo(1);
+            await Assert.That(store.Diagnostics.Count(d => d.Contains(
+                    "L shadows \"Line tool (press again for pan)\"", StringComparison.Ordinal)))
+                .IsEqualTo(1);
         }
     }
 

@@ -50,13 +50,21 @@ public class AnnotationSchemaSnapshotTests
         AnnotationStore store = new(sidecar.AppData, _ => TempSidecar.DemoHash);
 
         AnnotationLoadResult loaded = await store.LoadAsync(sidecar.DemoPath, TempSidecar.Clock);
-        await Assert.That(loaded.Elements.Count).IsEqualTo(2);
+        await Assert.That(loaded.Elements.Count).IsEqualTo(7);
         await Assert.That(loaded.DemoMismatch).IsFalse();
         await Assert.That(loaded.ClockMismatch).IsFalse();
         await Assert.That(loaded.SchemaVersion).IsEqualTo(AnnotationStore.SchemaVersion);
 
         await Assert.That(loaded.Elements[0].Space).IsTypeOf<SpaceRef.World>();
         await Assert.That(loaded.Elements[1].Space).IsTypeOf<SpaceRef.Entity>();
+
+        // One element per kind (step-authoring.md §3.2): a shape is two points, text is one point and a
+        // string, and each loads back as the kind it was written as.
+        await Assert.That(loaded.Elements.Select(e => e.Kind).ToArray()).IsEquivalentTo([
+            AnnotationKind.Freehand, AnnotationKind.Freehand, AnnotationKind.Line, AnnotationKind.Arrow,
+            AnnotationKind.Rect, AnnotationKind.Ellipse, AnnotationKind.Text
+        ]);
+        await Assert.That(loaded.Elements[6].Text).IsEqualTo("A main smoke");
 
         // The `timing` field is additive and NULLABLE, which is the only reason the byte comparison below
         // still holds: WhenWritingNull emits nothing for an element that has no cadence, and neither of
@@ -96,7 +104,24 @@ public class AnnotationSchemaSnapshotTests
             [new InkPoint(0f, 0f, 0.5f), new InkPoint(24f, 12f, 0.55f)],
             null);
 
-        await store.SaveAsync(sidecar.DemoPath, TempSidecar.Demo, TempSidecar.Clock, [stat, tracked]);
+        AnnotationElement line = Shape("33333333-3333-4333-8333-333333333333", AnnotationKind.Line,
+            -200f, 100f, 40f, 180f);
+        AnnotationElement arrow = Shape("44444444-4444-4444-8444-444444444444", AnnotationKind.Arrow,
+            -320f, -64f, -96f, 128f);
+        AnnotationElement rect = Shape("55555555-5555-4555-8555-555555555555", AnnotationKind.Rect,
+            200f, -40f, 360f, 72f);
+        AnnotationElement ellipse = Shape("66666666-6666-4666-8666-666666666666", AnnotationKind.Ellipse,
+            -80f, -300f, 80f, -180f);
+
+        AnnotationElement label = new(
+            Guid.Parse("77777777-7777-4777-8777-777777777777"), AnnotationKind.Text,
+            new AnnotationStyle(0xFFFFFFFF, 8f, 1f), new SpaceRef.World(-384),
+            new TimeEnvelope(1280, 1600, 8, 16),
+            [new InkPoint(64f, 320f, 0.5f)],
+            "A main smoke");
+
+        await store.SaveAsync(sidecar.DemoPath, TempSidecar.Demo, TempSidecar.Clock,
+            [stat, tracked, line, arrow, rect, ellipse, label]);
 
         // Inject the two forward-compatibility fields the sample exists to prove survive a round trip.
         string text = File.ReadAllText(sidecar.SidecarPath);
@@ -147,6 +172,11 @@ public class AnnotationSchemaSnapshotTests
         File.WriteAllText(path, Encoding.UTF8.GetString(buffer.ToArray()));
         Console.WriteLine($"[schema] wrote {path}");
     }
+
+    private static AnnotationElement Shape(string id, AnnotationKind kind, float x0, float y0, float x1,
+        float y1) =>
+        new(Guid.Parse(id), kind, new AnnotationStyle(0xFF4FC3F7, 12f, 1f), new SpaceRef.World(-384),
+            TimeEnvelope.Static, [new InkPoint(x0, y0, 0.5f), new InkPoint(x1, y1, 0.5f)], null);
 
     /// <summary>A temp demo plus a sidecar seeded from the committed sample.</summary>
     private sealed class TempSidecar : IDisposable

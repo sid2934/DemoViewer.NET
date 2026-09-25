@@ -31,6 +31,13 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///         <see cref="Cache" /> is <see cref="LayerCacheHint.Dynamic" />: the wet stroke changes every
 ///         frame, so the compositor must not record the whole layer.
 ///     </para>
+///     <para>
+///         <b>Every kind draws through <see cref="DrawElement" /></b>, so the dry recording, the per-frame
+///         path and the wet preview share one geometry per kind (step-authoring.md §3.2): a shape is cached
+///         when Static and animated when anchored with no second code path. Freehand keeps its outline;
+///         Line, Arrow, Rect and Ellipse are stroked from their first and last point; Text is a shaped
+///         blob at its first point, sized by <see cref="AnnotationText" />.
+///     </para>
 /// </summary>
 public sealed class AnnotationLayer : ISceneLayer
 {
@@ -64,6 +71,16 @@ public sealed class AnnotationLayer : ISceneLayer
     private readonly AnnotationSession _session;
     private readonly List<StrokePoint> _strokePoints = new(512);
     private readonly SKPath _wetPath = new();
+
+    // Shape scratch: the centre line a shape is stroked along, and an arrowhead to union onto it. The
+    // union is what keeps a faded arrow one even alpha: two fills drawn over each other would darken
+    // where the shaft runs into the head.
+    private readonly SKPath _shape = new();
+    private readonly SKPath _shaft = new();
+    private readonly SKPath _head = new();
+    private readonly SKPaint _stroke;
+    private readonly TextBlobCache _text;
+    private readonly bool _ownsText;
     private bool _disposed;
 
     private int _dryVersion = -1;
@@ -72,15 +89,29 @@ public sealed class AnnotationLayer : ISceneLayer
 
     /// <summary>Creates the layer over a session.</summary>
     /// <param name="session">The session whose document and wet stroke are drawn.</param>
-    public AnnotationLayer(AnnotationSession session)
+    /// <param name="text">
+    ///     A shared blob cache for text labels, or null to own one. Shared with the host's other layers
+    ///     when it has one, since every call to it happens under the same render gate.
+    /// </param>
+    public AnnotationLayer(AnnotationSession session, TextBlobCache? text = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        _ownsText = text is null;
+        _text = text ?? new TextBlobCache();
 
         _fill = new SKPaint
         {
             Style = SKPaintStyle.Fill,
             IsAntialias = true
+        };
+
+        _stroke = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            StrokeCap = SKStrokeCap.Round,
+            StrokeJoin = SKStrokeJoin.Round
         };
     }
 
@@ -174,6 +205,14 @@ public sealed class AnnotationLayer : ISceneLayer
         _fill.Dispose();
         _path.Dispose();
         _wetPath.Dispose();
+        _shape.Dispose();
+        _shaft.Dispose();
+        _head.Dispose();
+        _stroke.Dispose();
+        if (_ownsText)
+        {
+            _text.Dispose();
+        }
     }
 
     /// <summary>
@@ -228,14 +267,8 @@ public sealed class AnnotationLayer : ISceneLayer
 
             // Whole, always: a dry element is Static by definition, so there is nothing to reveal and no
             // section to fade.
-            BuildPath(element.Points, element.Points.Count, element.Style.WidthWorld, _path);
-            if (_path.IsEmpty)
-            {
-                continue;
-            }
-
-            _fill.Color = ColorOf(element.Style, 1.0);
-            recording.DrawPath(_path, _fill);
+            DrawElement(recording, element.Kind, element.Points, 0, element.Points.Count,
+                element.Style.WidthWorld, element.Text, ColorOf(element.Style, 1.0), _path);
         }
 
         _dry[levelMinZ] = recorder.EndRecording();
@@ -376,15 +409,9 @@ public sealed class AnnotationLayer : ISceneLayer
             for (int s = 0; s < prepared.SectionCount; s++)
             {
                 Section section = _sections[prepared.SectionStart + s];
-                BuildPath(prepared.Element.Points, section.Start, section.Count,
-                    prepared.Element.Style.WidthWorld, _path);
-                if (_path.IsEmpty)
-                {
-                    continue;
-                }
-
-                _fill.Color = ColorOf(prepared.Element.Style, section.Opacity);
-                canvas.DrawPath(_path, _fill);
+                AnnotationElement element = prepared.Element;
+                DrawElement(canvas, element.Kind, element.Points, section.Start, section.Count,
+                    element.Style.WidthWorld, element.Text, ColorOf(element.Style, section.Opacity), _path);
             }
 
             canvas.RestoreToCount(save);
@@ -410,7 +437,7 @@ public sealed class AnnotationLayer : ISceneLayer
 
         if (wet.Version != _wetVersion)
         {
-            BuildPath(wet.Points, wet.Points.Count, wet.Style.WidthWorld, _wetPath);
+            BuildPath(wet.Kind, wet.Points, 0, wet.Points.Count, wet.Style.WidthWorld, _wetPath);
             _wetVersion = wet.Version;
         }
 
@@ -425,13 +452,154 @@ public sealed class AnnotationLayer : ISceneLayer
 
     // ── Geometry. ───────────────────────────────────────────────────────────────────────────────────
 
-    private void BuildPath(IReadOnlyList<InkPoint> points, int count, float widthWorld, SKPath into) =>
-        BuildPath(points, 0, count, widthWorld, into);
+    // The one draw call every path takes: the dry recording, each prepared section and nothing else, so
+    // a kind cannot look one way cached and another animated.
+    private void DrawElement(SKCanvas canvas, AnnotationKind kind, IReadOnlyList<InkPoint> points,
+        int start, int count, float widthWorld, string? text, SKColor colour, SKPath scratch)
+    {
+        if (kind == AnnotationKind.Text)
+        {
+            DrawText(canvas, points, widthWorld, text, colour);
+            return;
+        }
+
+        BuildPath(kind, points, start, count, widthWorld, scratch);
+        if (scratch.IsEmpty)
+        {
+            return;
+        }
+
+        _fill.Color = colour;
+        canvas.DrawPath(scratch, _fill);
+    }
+
+    // The canvas carries the camera's world matrix, whose Y is negated, so the blob is drawn under a local
+    // flip about its anchor or it would read upside down. The scale takes the reference-size blob to the
+    // world em size, which is what makes a label zoom with the map like the ink around it.
+    private void DrawText(SKCanvas canvas, IReadOnlyList<InkPoint> points, float widthWorld, string? text,
+        SKColor colour)
+    {
+        if (points.Count == 0 || _text.Get(text, AnnotationText.ReferenceSizePx) is not { } shaped)
+        {
+            return;
+        }
+
+        float scale = AnnotationText.Scale(widthWorld);
+        if (scale <= 0)
+        {
+            return;
+        }
+
+        InkPoint anchor = points[0];
+        int save = canvas.Save();
+        canvas.Translate(anchor.X, anchor.Y);
+        canvas.Scale(scale, -scale);
+
+        (float x, float y) = shaped.OriginForTopLeft(0, 0);
+        _fill.Color = colour;
+        canvas.DrawText(shaped.Blob, x, y, _fill);
+        canvas.RestoreToCount(save);
+    }
+
+    // Freehand runs through the outliner; a shape is its first and last point stroked at WidthWorld.
+    // Text is not a path and never reaches here (DrawElement), except as the wet preview, which a text
+    // gesture never has.
+    private void BuildPath(AnnotationKind kind, IReadOnlyList<InkPoint> points, int start, int count,
+        float widthWorld, SKPath into)
+    {
+        if (kind == AnnotationKind.Freehand)
+        {
+            BuildOutline(points, start, count, widthWorld, into);
+            return;
+        }
+
+        into.Reset();
+        if (points.Count == 0 || kind == AnnotationKind.Text)
+        {
+            return;
+        }
+
+        InkPoint a = points[0];
+        InkPoint b = points[^1];
+        float width = Math.Max(0f, widthWorld);
+        _stroke.StrokeWidth = width;
+        _shape.Reset();
+
+        switch (kind)
+        {
+            case AnnotationKind.Line:
+                _shape.MoveTo(a.X, a.Y);
+                _shape.LineTo(b.X, b.Y);
+                _stroke.GetFillPath(_shape, into);
+                break;
+
+            case AnnotationKind.Arrow:
+                BuildArrow(a, b, width, into);
+                break;
+
+            case AnnotationKind.Rect:
+                _shape.AddRect(Corners(a, b));
+                _stroke.StrokeJoin = SKStrokeJoin.Miter;
+                _stroke.GetFillPath(_shape, into);
+                _stroke.StrokeJoin = SKStrokeJoin.Round;
+                break;
+
+            case AnnotationKind.Ellipse:
+                _shape.AddOval(Corners(a, b));
+                _stroke.GetFillPath(_shape, into);
+                break;
+        }
+    }
+
+    // The head is a filled triangle of length 3 × width at the last point, clamped to half the segment so
+    // a short arrow is still an arrow and not a triangle with no shaft. The shaft stops at the head's base,
+    // where its round cap is buried inside the triangle, so the tip stays sharp.
+    private void BuildArrow(InkPoint a, InkPoint b, float width, SKPath into)
+    {
+        float dx = b.X - a.X;
+        float dy = b.Y - a.Y;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length <= float.Epsilon)
+        {
+            _shape.MoveTo(a.X, a.Y);
+            _shape.LineTo(b.X, b.Y);
+            _stroke.GetFillPath(_shape, into);
+            return;
+        }
+
+        float ux = dx / length;
+        float uy = dy / length;
+        float head = Math.Min(3f * width, length / 2f);
+        float halfBase = head * 0.6f;
+        float baseX = b.X - ux * head;
+        float baseY = b.Y - uy * head;
+
+        _shape.MoveTo(a.X, a.Y);
+        _shape.LineTo(baseX, baseY);
+        _shaft.Reset();
+        _stroke.GetFillPath(_shape, _shaft);
+
+        _head.Reset();
+        _head.MoveTo(b.X, b.Y);
+        _head.LineTo(baseX - uy * halfBase, baseY + ux * halfBase);
+        _head.LineTo(baseX + uy * halfBase, baseY - ux * halfBase);
+        _head.Close();
+
+        if (!_shaft.Op(_head, SKPathOp.Union, into))
+        {
+            into.Reset();
+            into.AddPath(_shaft);
+            into.AddPath(_head);
+        }
+    }
+
+    private static SKRect Corners(InkPoint a, InkPoint b) =>
+        new(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
 
     // The outliner takes a SPAN of the sample list, so a section costs one copy and one outline pass and
     // needs no geometry the whole-stroke path does not already have. The two ends get their own caps, so
     // neighbouring sections overlap cleanly instead of abutting.
-    private void BuildPath(IReadOnlyList<InkPoint> points, int start, int count, float widthWorld,
+    private void BuildOutline(IReadOnlyList<InkPoint> points, int start, int count, float widthWorld,
         SKPath into)
     {
         into.Reset();

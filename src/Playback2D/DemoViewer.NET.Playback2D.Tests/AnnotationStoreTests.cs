@@ -389,46 +389,48 @@ public class AnnotationStoreTests
     }
 
     /// <summary>
-    ///     <b>A reserved <c>AnnotationKind</c> in a hand-edited sidecar kills the eraser.</b> Parsing any
-    ///     member of the enum is enough to do it: <c>AnnotationHitTester</c> throws
-    ///     <c>NotSupportedException</c> for everything but <c>Freehand</c> (correctly; it is an internal
-    ///     contract) and <c>EraseTool</c> has no catch, so the throw escapes into Avalonia's pointer
-    ///     pipeline on the first erase drag over that stroke. <c>LevelLayouts.Parse</c> fences its own
-    ///     reserved member for the same reason.
+    ///     <b>Every declared kind loads as itself, and the eraser survives each one.</b> Shape Tools
+    ///     (step-authoring.md §3.2) made all six kinds drawable and erasable, so the old fence that forced
+    ///     them to Freehand is gone; the one that stays is <c>Enum.IsDefined</c>, because
+    ///     <c>Enum.TryParse</c> also accepts any number, and a kind no branch knows would reach the layer
+    ///     and the eraser as a value neither handles. A number that IS declared loads as its kind.
     ///     <para>
     ///         The drag is part of the test on purpose: asserting only on the loaded <c>Kind</c> proves
-    ///         the fence, not the thing the fence exists to prevent.
+    ///         the parse, not that the eraser can still take the element away.
     ///     </para>
     /// </summary>
     [Test]
-    [Arguments("Arrow")]
-    [Arguments("Text")]
-    [Arguments("4")]
-    [Arguments("99")]
-    public async Task Load_AReservedKind_BecomesFreehand_SoTheEraserSurvivesIt(string edited)
+    [Arguments("Arrow", AnnotationKind.Arrow)]
+    [Arguments("Line", AnnotationKind.Line)]
+    [Arguments("Rect", AnnotationKind.Rect)]
+    [Arguments("Text", AnnotationKind.Text)]
+    [Arguments("4", AnnotationKind.Ellipse)]
+    [Arguments("99", AnnotationKind.Freehand)]
+    public async Task Load_EveryDeclaredKind_KeepsItsKind_AndTheEraserSurvivesIt(string edited,
+        AnnotationKind expected)
     {
         using TempTree tree = new();
         AnnotationStore store = new(tree.AppData);
         await store.SaveAsync(tree.DemoPath, tree.Demo, tree.Clock, [AnnotationFakes.Stroke()]);
 
         // Guarded, because this is the one edit whose no-op is invisible: the file would still say
-        // Freehand, the assertion below expects Freehand, and the fence would go untested.
+        // Freehand, and the "99" row expects Freehand.
         await Rewrite(store.ResolvePath(tree.DemoPath)!, "\"kind\": \"Freehand\"", $"\"kind\": \"{edited}\"");
 
         AnnotationLoadResult loaded = await store.LoadAsync(tree.DemoPath, tree.Clock);
 
         await Assert.That(loaded.Elements.Count).IsEqualTo(1);
-        await Assert.That(loaded.Elements[0].Kind).IsEqualTo(AnnotationKind.Freehand)
-            .Because("the points are a polyline either way, so loading it as Freehand keeps the stroke");
+        await Assert.That(loaded.Elements[0].Kind).IsEqualTo(expected)
+            .Because("a declared kind is drawn and erased as itself; an undeclared one as the polyline it is");
 
         AnnotationSession session = new(new AnnotationDocument());
         session.Document.Reset(loaded.Elements);
 
         LevelPane pane = AnnotationFakes.Pane(400, 400);
 
-        // Straight over the stroke's middle sample: without the fence this drag throws out of the
-        // pointer pipeline instead of erasing anything.
-        EraseOver(session, pane, new SKPoint(40, 10));
+        // Over the first sample, which every kind's geometry passes through or anchors at (the flat
+        // ellipse of the "4" row is drawn along its line): the drag must erase, not throw.
+        EraseOver(session, pane, new SKPoint(2, 2));
 
         await Assert.That(session.Document.Elements).IsEmpty();
     }

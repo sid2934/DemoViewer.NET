@@ -172,7 +172,8 @@ public sealed class DrawTool : IPointerTool
         _gesture = null;
     }
 
-    private static SpaceRef ResolveSpace(LevelPane pane, in ToolPointerEvent e, IToolServices s)
+    // Internal so the shape and text tools anchor exactly as the pen does (step-authoring.md §3.2).
+    internal static SpaceRef ResolveSpace(LevelPane pane, in ToolPointerEvent e, IToolServices s)
     {
         AnnotationSession session = s.Session;
 
