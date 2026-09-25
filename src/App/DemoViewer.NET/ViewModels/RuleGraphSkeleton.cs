@@ -82,9 +82,9 @@ public static class RuleGraphSkeleton
             }
         }
 
-        // No groups: build.GroupHints is declared by the engine and never appended to, so this
-        // always produced an empty list (CS2DemoKit#50). Restore the loop from git history if the
-        // engine starts filling it.
+        // No groups: build.GroupHints was never appended to and is gone in 0.13, so this always
+        // produced an empty list (CS2DemoKit#50). The 0.13 clustering source is
+        // RuleGraphNode.Ruleset on RuleGraph.FromBuild.
         return new Skeleton(
             nodeVms.Cast<IGraphNode>().ToList(),
             edgeVms.Cast<IGraphEdge>().ToList(),

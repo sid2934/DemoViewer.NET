@@ -85,10 +85,19 @@
             with null meaning on over a ParsedDemo and off over a stream; DemoAnalyzer,
             DemoContext and RoundInfo are gone; ParsedDemo's constructor is public; enum-typed
             and GameTick_t entity fields project as int rather than ulong.
+
+            0.13.0-beta0001 is mostly additions (for: each_team and the round facts behind it, the
+            server's round_decided verdict, RuleGraph, grenade projectiles, rebuilt player input).
+            The compile breaks: BuildResult lost Chains, GroupHints and NodeChains; PositionSample
+            gained Team and IsAlive after Place. Numbers that move without one: m_iClip1/m_iClip2
+            read the magazine count (-1 with no magazine), smokes decode their full baseline,
+            round_won/round_lost fire only for the team they name and the winner is the server's,
+            and the per-pawn digest gains entity.controller.money. rules/ is re-extracted from the
+            package with each bump, since the shipped rulesets changed with it.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.12.0"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.12.0"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.12.0"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.13.0-beta0001"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.13.0-beta0001"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.13.0-beta0001"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
