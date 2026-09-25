@@ -2,8 +2,8 @@
 
 Suggested Tags proposes tag instances from an app-side detector pass over a demo's occupancy and events
 (rules, not a classifier: a coach can read a definition and change its numbers). This document is for
-anyone who wants to read the file the detectors write. It does not cover the **verdicts** file — what a
-person decided about each proposal — which is user truth and lives in, and is documented by, the Tag
+anyone who wants to read the file the detectors write. It does not cover the **verdicts** file (what a
+person decided about each proposal), which is user truth and lives in, and is documented by, the Tag
 Store; see [Suggested Tags verdicts](tags-format.md#suggested-tags-verdicts-verdictssha256verdictsjson)
 in [`tags-format.md`](tags-format.md). A committed sample of the proposals shape lives under
 [`tests/fixtures/suggested-tags/`](../tests/fixtures/suggested-tags/), one small fixture per measured
@@ -21,7 +21,7 @@ identity, clock and forward compatibility the same way.
 `StableKey` is a hash of the demo's **path**, not its content (`DemoCacheStore.StableKey`), the same key
 every derived cache sidecar uses. The file is rebuilt wholesale whenever the detector-set fingerprint
 changes (a profile edit, a learned site-region table changing, or a detector-code version bump); nothing
-in it is user truth, and deleting it is always safe — the evaluator writes it again the next time the
+in it is user truth, and deleting it is always safe: the evaluator writes it again the next time the
 demo is considered.
 
 **A citation note.** The Strat Room overview's integrator correction 1 asks Suggested Tags to drop this
@@ -32,7 +32,7 @@ document describes. Where the two disagree, this page follows the code; migratin
 work, not part of this document.
 
 The demo cache's index row carries one mirror field, `SuggestionCount` (the file's pending count), the
-way `HighlightCount` mirrors the highlight scan — a surface can show "12 pending" without opening the
+way `HighlightCount` mirrors the highlight scan: a surface can show "12 pending" without opening the
 file.
 
 ## Top level
@@ -106,7 +106,7 @@ file.
   `side` is `T`, `CT` or `?`; `where` is the site, the region, or a fake-to-real pair, omitted when the
   detector has none; the trigger second is floored to a 5-second quantum so a re-run with slightly
   different sampling still lands on the same key. It is **not** stable across a re-parse that renumbers
-  rounds — that is what the verdicts file's re-match by nearest trigger tick is for (see
+  rounds: that is what the verdicts file's re-match by nearest trigger tick is for (see
   [`tags-format.md`](tags-format.md#suggested-tags-verdicts-verdictssha256verdictsjson)).
 * **`detector`** and **`code`** are the same string today (one code per detector); a reader should treat
   them as independent fields in case a future detector proposes more than one code.
@@ -129,7 +129,7 @@ file.
 ## Forward compatibility
 
 The root object, `demo`, `clock`, `detectorSet` and each proposal accept unknown fields, and DemoViewer
-preserves them across a load, edit (a rebuild reads nothing from the old file) and save — though because
+preserves them across a load, edit (a rebuild reads nothing from the old file) and save. Because
 the whole file is rebuilt wholesale on a fingerprint change, "preserved" here means only "not lost by a
 reader that round-trips the file between two builds of the same fingerprint," the way `Extra` bags work
 throughout this project's stores. Readers should ignore fields they do not recognise rather than

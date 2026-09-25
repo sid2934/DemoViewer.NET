@@ -20,7 +20,7 @@ public readonly record struct HandTagWindow(int Round, int FromTick, int ToTick)
 ///     One detector's line in the tuning view (suggested-tags.md §3.7): what the verdicts over demos
 ///     that have any say, and what recall and precision say over demos that also carry hand tags of the
 ///     same code. <see cref="Recall" /> and <see cref="Precision" /> are null rather than zero when
-///     there is nothing to score against — a team that has not hand-tagged this code yet sees "no
+///     there is nothing to score against: a team that has not hand-tagged this code yet sees "no
 ///     data", not a discouraging 0%, the same rule the Sight columns use for missing geometry.
 /// </summary>
 /// <param name="Detector">The detector id, the profile section and the tag code it proposes.</param>

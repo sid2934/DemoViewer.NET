@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The tuning view's pure half (suggested-tags.md §3.7, step 6): verdict aggregation and the
-///     overlap-rule score, both exercised with hand-built fixtures — no demo, no parse, no store.
+///     overlap-rule score, both exercised with hand-built fixtures: no demo, no parse, no store.
 /// </summary>
 public class SuggestedTagsTuningTests
 {
@@ -118,7 +118,7 @@ public class SuggestedTagsTuningTests
     public async Task Score_GreedyPairing_TakesTheLargestOverlapFirst()
     {
         // Two fired proposals both plausibly match one hand tag; the closer one (full overlap) must
-        // win it, leaving the other fired proposal unmatched — a one-to-one pairing, not double counting.
+        // win it, leaving the other fired proposal unmatched: a one-to-one pairing, not double counting.
         TagProposal close = Proposal("exec|r1|T|BombsiteA|s=10", "execute", 1, 100, 200, 150, 0.8);
         TagProposal far = Proposal("exec|r1|T|BombsiteA|s=30", "execute", 1, 140, 240, 190, 0.6);
         HandTagWindow hand = new(1, 100, 200);
