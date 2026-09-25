@@ -6,6 +6,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Teams;
 
@@ -69,8 +71,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="post">Marshals the session's timers onto the UI thread; defaults to synchronous.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="calloutResolvers">Builds a resolver over the store's aliases and a map's zones; one built from the store when omitted.</param>
+    /// <param name="canvasMapLoader">Loads the canvas's map bundle by name; the baked assets when omitted.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
-        CalloutResolverSource? calloutResolvers = null)
+        CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
@@ -81,6 +84,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Session = new StratSession(store, _post, () => IsBrowser, () => DateTime.UtcNow);
         Editor = new StratEditorViewModel(Session);
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
+
+        // A branch into another strat plays that strat's steps read from the store; it is not checked out,
+        // since the canvas does not write it.
+        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document);
 
         Session.Changed += OnSessionChanged;
         _store.Changed += OnStoreChanged;
@@ -105,6 +112,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>The alias table editor for the selected book and map (Callout Aliases, strat-model.md §3.7).</summary>
     public CalloutsEditorViewModel Callouts { get; }
+
+    /// <summary>The Step Authoring canvas over the open strat (step-authoring.md §3.10).</summary>
+    public StratCanvasViewModel Canvas { get; }
 
     /// <summary>Every book: <c>me</c>, then each visible team.</summary>
     public ObservableCollection<StratOwnerOption> Owners { get; } = [];
@@ -146,6 +156,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             SelectedMap = context.MapName.ToLowerInvariant();
         }
 
+        // A rebind made in Settings while the tab was hidden reaches the canvas's keys here.
+        Canvas.RefreshKeymap();
         RefreshList();
     }
 
@@ -158,6 +170,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             _context = null;
         }
 
+        Canvas.Transport.Pause();
         Session.Commit();
     }
 
@@ -192,6 +205,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
+        Canvas.Dispose();
         Session.Dispose();
     }
 
@@ -484,6 +498,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
                 .Select(e => new StratTargetOption(e.Id, e.Id == document.Id ? "this strat" : e.Name))
         ];
         Editor.Configure(places, PinsFor(document.Owner), targets);
+        Canvas.SetCallouts(places);
     }
 
     // The latest roster's members for a team, by last-seen name; the confirmed me accounts for the me book.

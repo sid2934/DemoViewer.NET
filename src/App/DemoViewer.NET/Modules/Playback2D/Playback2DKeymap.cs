@@ -69,7 +69,17 @@ public enum Playback2DAction
     ToolArrow,
     ToolRect,
     ToolEllipse,
-    ToolText
+    ToolText,
+
+    // Bound by Step Authoring (Strat Room, step-authoring.md §3.7): the strat canvas's token tool and
+    // step keys. Rows in this shared table so one set of overrides and one Settings list cover both
+    // tabs; the 2D Playback tab leaves every one of them unhandled.
+    ToolToken,
+    AddStep,
+    DuplicateStep,
+    DeleteStep,
+    PrevStep,
+    NextStep
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -350,6 +360,8 @@ public static class Playback2DKeymap
         Key.Space => "Space",
         Key.Home => "Home",
         Key.Back => "Backspace",
+        Key.OemOpenBrackets => "[",
+        Key.OemCloseBrackets => "]",
         Key.Enter => "Enter", // the same value as Key.Return, which is what ToString names it
         _ => key.ToString()
     };
@@ -475,6 +487,23 @@ public static class Playback2DKeymap
             "Rectangle tool (press again for pan)", false),
         new(Playback2DAction.ToolEllipse, Key.O, KeyModifiers.None, Playback2DBindingScope.Always,
             "Ellipse tool (press again for pan)", false),
+
+        // ── Step Authoring (step-authoring.md §3.7), acted on by the Strat Book canvas only. AddStep is
+        //    Shift+N, not N: Suggested Tags holds bare N for reject (overview correction 21). Ctrl+D is
+        //    Chrome's bookmark key but reaches the page and is cancellable, so it is deliberately not in
+        //    the browser list; [ and ] are free in every list.
+        new(Playback2DAction.ToolToken, Key.V, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Strat canvas: token tool (press again for pan)", false),
+        new(Playback2DAction.AddStep, Key.N, KeyModifiers.Shift, Playback2DBindingScope.Always,
+            "Strat canvas: insert a step after the active one at the playhead's round-clock time", false),
+        new(Playback2DAction.DuplicateStep, Key.D, KeyModifiers.Control, Playback2DBindingScope.Always,
+            "Strat canvas: copy the active step's positions and strokes into a new step 5 s later", false),
+        new(Playback2DAction.DeleteStep, Key.Delete, KeyModifiers.Control, Playback2DBindingScope.Always,
+            "Strat canvas: delete the active step", false),
+        new(Playback2DAction.PrevStep, Key.OemOpenBrackets, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Strat canvas: seek to the previous step and make it active", false),
+        new(Playback2DAction.NextStep, Key.OemCloseBrackets, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Strat canvas: seek to the next step and make it active", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,
