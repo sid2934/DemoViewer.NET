@@ -600,7 +600,9 @@ public static class StratDiffPhrasing
         return sentence.ToString();
     }
 
-    private static string ThirdPerson(string verb) => verb switch
+    // Internal rather than private: RoleSheet and StratTextExporter phrase steps the same way (§3.13,
+    // §3.14) and share these two rather than growing their own copies.
+    internal static string ThirdPerson(string verb) => verb switch
     {
         "other" => "acts",
         _ when verb.EndsWith('s') || verb.EndsWith('x') || verb.EndsWith("sh", StringComparison.Ordinal)
@@ -608,7 +610,7 @@ public static class StratDiffPhrasing
         _ => verb + "s"
     };
 
-    private static string Place(string place, CalloutResolver? callouts) =>
+    internal static string Place(string place, CalloutResolver? callouts) =>
         callouts?.Display(place) ?? CalloutResolver.SplitDisplay(place);
 
     // targetSite to "target site", holdSeconds to "hold seconds".
