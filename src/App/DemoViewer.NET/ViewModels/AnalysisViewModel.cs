@@ -1759,7 +1759,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         IReadOnlyList<AnalysisChainSummaryViewModel> summaries)
     {
         // Chains carry no scope any more. The game-scope signal was BuildResult.NodeChains, which
-        // the engine documents as always null, so every chip resolved PerPlayer regardless
+        // was always null and is gone in 0.13, so every chip resolved PerPlayer regardless
         // (CS2DemoKit#50). Carrying an enum whose other value was unreachable made the join look
         // conditional when it never was.
 
@@ -3211,10 +3211,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         IReadOnlyList<GraphNodeViewModel> renderNodes;
         IReadOnlyList<GraphEdgeViewModel> renderEdges;
-        // Always null. Cluster groups came from BuildResult.GroupHints, which the engine declares
-        // and never appends to, so the app has never had a group to draw (CS2DemoKit#50). The
-        // parameter stays on the calls because the visualization library supports groups; nothing
-        // here produces one. Restore the builder from git history when the engine fills the hints.
+        // Always null. Cluster groups came from BuildResult.GroupHints, which the engine never
+        // appended to and removed in 0.13, so the app has never had a group to draw (CS2DemoKit#50).
+        // The parameter stays on the calls because the visualization library supports groups;
+        // nothing here produces one. The 0.13 clustering source is RuleGraphNode.Ruleset.
         IReadOnlyList<INodeGroup>? renderGroups;
         IReadOnlyList<PlayerTableViewModel> renderTables;
 
@@ -3287,7 +3287,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         List<GraphNodeViewModel> members = new();
 
         // There is no game-scope seed. Nodes used to be seeded by chain membership, but that read
-        // BuildResult.NodeChains, which the engine documents as always null, so the set was always
+        // BuildResult.NodeChains, which was always null and is gone in 0.13, so the set was always
         // empty (CS2DemoKit#50). The per-player column seed below is the one that has real data:
         // PerPlayerColumnAssignment.ChainId is populated, and it is what a chain selection actually
         // resolves through. Seed the graph context from the lifecycle source nodes feeding a selected

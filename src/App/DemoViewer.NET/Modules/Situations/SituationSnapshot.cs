@@ -100,7 +100,7 @@ public sealed class SituationSnapshot
             // The sample the builder would have seen for this pawn at this tick, so a zone source
             // resolves the same position and the pawn source reads the same field.
             PositionSample sample = new(time.FrameIndex, time.Tick, marker.Slot,
-                new Vector3(marker.WorldX, marker.WorldY, marker.WorldZ), marker.Place);
+                new Vector3(marker.WorldX, marker.WorldY, marker.WorldZ), marker.Place, marker.Team, marker.IsAlive);
             SituationSnapshotPlayer player = new(marker.Slot, marker.WorldX, marker.WorldY, marker.WorldZ,
                 source.PlaceFor(in sample));
             (marker.Team == 3 ? ct : t).Add(player);
