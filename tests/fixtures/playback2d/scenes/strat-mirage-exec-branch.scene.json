@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 3520,
+    "frameIndex": 0,
+    "demoSeconds": 0,
+    "deltaSeconds": 0.05,
+    "isDiscontinuity": true
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 640,
+    "centerX": -670,
+    "centerY": -847,
+    "baseScale": 0.115,
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  },
+  "size": {
+    "width": 640,
+    "height": 640
+  },
+  "mapName": "de_mirage",
+  "mapVersion": "9e86faf4",
+  "frame": {
+    "time": {
+      "tick": 3520,
+      "frameIndex": 0,
+      "demoSeconds": 0,
+      "deltaSeconds": 0.05,
+      "isDiscontinuity": true
+    },
+    "markers": [
+      {
+        "slot": 0,
+        "team": 2,
+        "worldX": 400,
+        "worldY": -1800,
+        "worldZ": -224,
+        "yawDegrees": 180,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "A",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0
+      },
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": 420,
+        "worldY": -1750,
+        "worldZ": -224,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "B",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0
+      },
+      {
+        "slot": 2,
+        "team": 2,
+        "worldX": 380,
+        "worldY": -1700,
+        "worldZ": -224,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "C",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0
+      },
+      {
+        "slot": 5,
+        "team": 3,
+        "worldX": -1300,
+        "worldY": -2100,
+        "worldZ": -224,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "1",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0
+      }
+    ],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "\u2014",
+      "roundNumber": 0,
+      "roundsPlayed": -1,
+      "roundSeconds": 60,
+      "roundTime": "1:00",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "\u2014",
+      "defuseSeconds": "NaN",
+      "defuseTime": "\u2014",
+      "tScore": 0,
+      "ctScore": 0
+    },
+    "map": {
+      "mapName": "de_mirage",
+      "networkedBounds": {
+        "minX": -3230,
+        "minY": -3407,
+        "maxX": 1890,
+        "maxY": 1713
+      },
+      "observedBounds": {
+        "minX": -3230,
+        "minY": -3407,
+        "maxX": 1890,
+        "maxY": 1713
+      },
+      "radars": [
+        {
+          "name": "de_mirage.png",
+          "bounds": {
+            "minX": -3230,
+            "minY": -3407,
+            "maxX": 1890,
+            "maxY": 1713
+          },
+          "minZ": -100000,
+          "maxZ": 100000
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended (step-authoring.md \u00A77)",
+  "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, \u0027Current limitations\u0027), so only StratGoldenCaptureTests can verify it. The branch\u0027s target step (the sample\u0027s branch skips the peek step straight to \u0027all\u0027): every token holds the position it inherited from the smoke step, since none of A, B, C or O1 has a second keyframe on this path. hud.clock at 1:00."
+}
