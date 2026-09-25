@@ -92,11 +92,25 @@ public partial class TimelineControl : UserControl
     private void OnScrubExited(object? sender, PointerEventArgs e) => ViewModel?.ClearHover();
 
     // A round band seeks to its FIRST frame, not to the pixel under the cursor. The press goes through
-    // the view-model so a tag band can also pick its tag for Label Mode.
+    // the view-model so a tag band can also pick its tag for Label Mode. A right press on a round band is
+    // the menu instead (Create Strat From Round), and does not seek.
     private void OnBandPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (ViewModel is not { } vm || sender is not Control { DataContext: TimelineBandViewModel band })
+        if (ViewModel is not { } vm || sender is not Control { DataContext: TimelineBandViewModel band } control)
         {
+            return;
+        }
+
+        if (e.GetCurrentPoint(control).Properties.IsRightButtonPressed)
+        {
+            if (vm.CanCreateStrat && Playback2DTimelineViewModel.IsRoundBand(band))
+            {
+                MenuItem create = new() { Header = "Create strat from this round" };
+                create.Click += (_, _) => vm.RequestCreateStrat(band);
+                new ContextMenu { ItemsSource = new[] { create } }.Open(control);
+            }
+
+            e.Handled = true;
             return;
         }
 

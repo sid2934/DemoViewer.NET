@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
+             x:Class="DemoViewer.NET.Views.StratBook.CreateStratDialogView"
+             x:DataType="vm:CreateStratDialogViewModel">
+
+    <!--
+        CREATE STRAT FROM ROUND (step-authoring.md §3.9): the review before anything is saved. The walk runs off
+        the UI thread and reports on the status line; then the side, the five slots and the step list show, and
+        every change rebuilds the step list from the same capture.
+
+        Hosted in the 2D tab's side pane where the export pane sits, so the Pb2d* palette (design-system D21).
+        State is carried by words, never by tint.
+    -->
+    <StackPanel Spacing="10" Margin="12">
+
+        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
+        <TextBlock Text="{Binding BookLine}" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
+        <TextBlock Text="{Binding StatusLine}" Foreground="{DynamicResource Pb2dTextMid}" FontSize="11"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <StackPanel Spacing="10" IsVisible="{Binding Capture, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+            <StackPanel Spacing="3">
+                <TextBlock Text="Name" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
+                <TextBox Text="{Binding Name}" />
+            </StackPanel>
+
+            <StackPanel Spacing="3">
+                <TextBlock Text="Our side" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
+                <ComboBox ItemsSource="{x:Static vm:CreateStratDialogViewModel.SideOptions}"
+                          SelectedItem="{Binding SelectedSide}" MinWidth="100" />
+                <TextBlock Text="{Binding SideNote}" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+
+            <!-- The slot map: who plays A to E. Choosing a player already in another slot swaps the two. -->
+            <StackPanel Spacing="3" IsVisible="{Binding SelectedSide, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="Slots" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
+                <ItemsControl ItemsSource="{Binding Slots}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SlotChoiceViewModel">
+                            <DockPanel Margin="0 2">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding Slot}" Width="20"
+                                           VerticalAlignment="Center" FontWeight="SemiBold" />
+                                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:PlayerOption">
+                                            <TextBlock Text="{Binding Label}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <CheckBox Content="Draw throw arrows" IsChecked="{Binding DrawThrowArrows}" FontSize="12" />
+
+            <StackPanel Spacing="3" IsVisible="{Binding SelectedSide, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="Steps" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
+                <ItemsControl ItemsSource="{Binding StepLines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <TextBlock Text="{Binding}" FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                       Foreground="{DynamicResource Pb2dTextMid}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <Button Content="Create strat" HorizontalAlignment="Left" Command="{Binding CreateCommand}"
+                    ToolTip.Tip="Save it to the book and open it in the Strat Book" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

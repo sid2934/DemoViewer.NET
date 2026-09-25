@@ -352,6 +352,34 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     }
 
     /// <summary>
+    ///     Whether a round band offers "Create strat from this round" on right-click (step-authoring.md §3.9). Set
+    ///     by the tab, which knows whether a capture host and a parsed demo are there.
+    /// </summary>
+    public bool CanCreateStrat { get; set; }
+
+    /// <summary>True for a band the rounds track made for a round, which excludes the warmup band.</summary>
+    /// <param name="band">A band from either row.</param>
+    public static bool IsRoundBand(TimelineBandViewModel band)
+    {
+        ArgumentNullException.ThrowIfNull(band);
+        return band.TrackId == "round" && int.TryParse(band.Label, NumberStyles.None, CultureInfo.InvariantCulture, out _);
+    }
+
+    /// <summary>Asks the tab to create a strat from a round band. No-op for any other band, or when the tab cannot.</summary>
+    /// <param name="band">The round band right-clicked.</param>
+    public void RequestCreateStrat(TimelineBandViewModel band)
+    {
+        ArgumentNullException.ThrowIfNull(band);
+        if (CanCreateStrat && IsRoundBand(band))
+        {
+            CreateStratRequested?.Invoke(band);
+        }
+    }
+
+    /// <summary>Raised by <see cref="RequestCreateStrat" />; the tab opens the review for the band's round.</summary>
+    public event Action<TimelineBandViewModel>? CreateStratRequested;
+
+    /// <summary>
     ///     Raised for a band click before its seek. The tab picks a tag for the Tag Palette's Label Mode
     ///     from the tag lane with it; the timeline itself knows nothing of what a band stands for.
     /// </summary>

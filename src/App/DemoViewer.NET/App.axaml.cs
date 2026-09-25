@@ -179,6 +179,8 @@ public class App : Application
                     viewModel.OpenOutputFolder));
             }
 
+            WireStratCapture(services, viewModel);
+
             // The highlight-scan chip. Attached from the container's instance so the strip shows a
             // running library scan even when the Reels tab has never been opened (module tab VMs are lazy).
             viewModel.AttachHighlightScanStatus(services.GetRequiredService<HighlightScanStatusViewModel>());
@@ -415,6 +417,10 @@ public class App : Application
             WireTheme(services); // L0c: apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab (file no-ops on WASM)
+            // Create Strat From Round works here too, session only (step-authoring.md §3.10): the parse is in
+            // memory and so is the strat store.
+            WireStratCapture(services, viewModel);
+
             // Same ordering contract as the desktop root above: after the singleton is cached, never in
             // the ctor. No-ops on WASM (fileless settings persist no session), but the call site stays so
             // the two roots do not drift.
@@ -432,6 +438,30 @@ public class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    ///     Hands 2D Playback Create Strat From Round's host (step-authoring.md §3.9): the open parse, the strat
+    ///     store and Team Identity, and the way to the new strat, which selects the Strat Book tab and opens it
+    ///     there. Both heads: nothing in it writes a file the store would not.
+    /// </summary>
+    private static void WireStratCapture(ServiceProvider services, MainViewModel viewModel)
+    {
+        if (viewModel.ModuleContext is not ModuleContext moduleContext)
+        {
+            return;
+        }
+
+        moduleContext.SetStratCaptureHost(new StratCaptureHost(
+            () => moduleContext.CurrentDemo,
+            services.GetRequiredService<StratStore>(),
+            services.GetService<TeamIdentityService>(),
+            id =>
+            {
+                // The tab first: activation refreshes its list, which the open strat is then selected in.
+                viewModel.TrySelectTab(StratBookModule.BrowserTabId);
+                services.GetRequiredService<StratBookTabViewModel>().OpenStrat(id);
+            }));
     }
 
     /// <summary>
