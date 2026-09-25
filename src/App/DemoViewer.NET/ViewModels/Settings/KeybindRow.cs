@@ -52,6 +52,7 @@ public sealed partial class KeybindRow : ObservableObject
         {
             Playback2DBindingScope.WhenToolActive => "while drawing",
             Playback2DBindingScope.WhenPaletteFocused => "while tagging",
+            Playback2DBindingScope.WhenSuggestionSelected => "while reviewing suggestions",
             _ => "always"
         };
 

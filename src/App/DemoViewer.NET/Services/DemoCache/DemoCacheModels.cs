@@ -326,6 +326,17 @@ public sealed class DemoCacheRecord
     /// <summary>Sampled rows in the sidecar, for the status strip; 0 when absent.</summary>
     public int RoundIndexRowCount { get; set; }
 
+    // ── Suggested tags ───────────────────────────────────────────────────────
+    // The proposals live under cache/suggestions/ with their own fingerprint (suggested-tags.md §3.4);
+    // only the stamp and the pending count ride the record, so the evaluator's backlog and the queue's
+    // counter derive from the index without opening that file.
+
+    /// <summary>The detector-set fingerprint the proposals file was built under; null when there is none.</summary>
+    public string? SuggestionsFingerprint { get; set; }
+
+    /// <summary>Proposals with no verdict yet, 0 when there are none or no file.</summary>
+    public int SuggestionCount { get; set; }
+
     /// <summary>The highest tier actually present.</summary>
     [JsonIgnore]
     public DemoCacheTier Tier =>
@@ -465,7 +476,9 @@ public sealed class DemoCacheRecord
         RoundIndexComputedAtTicks = RoundIndex.ComputedAtTicks,
         RoundIndexState = RoundIndexState,
         RoundIndexFingerprint = RoundIndexFingerprint,
-        RoundIndexRowCount = RoundIndexRowCount
+        RoundIndexRowCount = RoundIndexRowCount,
+        SuggestionsFingerprint = SuggestionsFingerprint,
+        SuggestionCount = SuggestionCount
     };
 }
 
@@ -544,6 +557,15 @@ public sealed class DemoCacheIndexEntry
     public string? RoundIndexFingerprint { get; set; }
 
     public int RoundIndexRowCount { get; set; }
+
+    /// <summary>The proposals file's fingerprint, mirrored so the suggested tags backlog needs no file read.</summary>
+    public string? SuggestionsFingerprint { get; set; }
+
+    /// <summary>
+    ///     Pending proposals for the demo, mirrored the way <see cref="HighlightCount" /> is, so the queue
+    ///     can say "12 pending" without opening the proposals file.
+    /// </summary>
+    public int SuggestionCount { get; set; }
 
     [JsonIgnore]
     public DemoCacheTier Tier =>

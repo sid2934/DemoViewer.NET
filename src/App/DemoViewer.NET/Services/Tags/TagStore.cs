@@ -49,6 +49,12 @@ public sealed class TagStore
     /// <summary>The reserved human label group that links an instance to a strat (overview correction 23).</summary>
     public const string StratGroup = "strat";
 
+    /// <summary>The Suggested Tags verdicts file schema this build writes.</summary>
+    public const int VerdictsSchemaVersion = 1;
+
+    /// <summary>The verdicts file extension, after the hash.</summary>
+    public const string VerdictsExtension = ".verdicts.json";
+
     private readonly Dictionary<string, TagSession> _checkedOut = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
     private readonly Dictionary<string, TagIndexEntry> _index = new(StringComparer.Ordinal);
@@ -56,6 +62,9 @@ public sealed class TagStore
     // The browser's (and tests') documents, as JSON text so a reader never shares a live object with a
     // writer. Under _gate.
     private readonly Dictionary<string, string> _memory = new(StringComparer.Ordinal);
+
+    // The browser's verdict files, the same rule as _memory. Under _gate.
+    private readonly Dictionary<string, string> _memoryVerdicts = new(StringComparer.Ordinal);
 
     private readonly Action<Action> _post;
 
@@ -101,6 +110,8 @@ public sealed class TagStore
     private string? IndexPath => _root is null ? null : Path.Combine(_root, "index.json");
 
     private string? DemosDir => _root is null ? null : Path.Combine(_root, "demos");
+
+    private string? VerdictsDir => _root is null ? null : Path.Combine(_root, "verdicts");
 
     /// <summary>
     ///     Raised through the post delegate after a save or a delete, with the hash that changed, or once
@@ -327,6 +338,144 @@ public sealed class TagStore
 
             mutate(document);
             Save(document);
+        }
+    }
+
+    /// <summary>
+    ///     Adds one instance to a demo's document, creating the document when the demo has none: the
+    ///     Suggested Tags accept path, which writes from outside any session. When a session holds the
+    ///     document the instance is posted to it (outside its undo history, then autosaved), the
+    ///     <see cref="Update" /> rule; otherwise it is a read-modify-write here. False when the write
+    ///     failed or the hash is refused; a posted add reports true, the session owning the save.
+    /// </summary>
+    /// <param name="demo">The demo's identity; names the document.</param>
+    /// <param name="clock">The clock the instance's ticks are on; stamped on a fresh document.</param>
+    /// <param name="instance">The instance. The store keeps a copy.</param>
+    public bool Append(DemoIdentity demo, ClockIdentity clock, TagInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(demo);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        string key = Normalize(demo.Sha256);
+        TagInstance copy = instance.Clone();
+        TagSession? holder;
+        lock (_gate)
+        {
+            holder = _checkedOut.GetValueOrDefault(key);
+        }
+
+        if (holder is not null)
+        {
+            _post(() => holder.ApplyExternal(document => document.Instances.Add(copy.Clone())));
+            return true;
+        }
+
+        lock (_rmwGate)
+        {
+            TagDocument document = LoadOrCreate(demo, clock);
+            document.Instances.Add(copy);
+            return Save(document);
+        }
+    }
+
+    /// <summary>The verdicts file this store would use for a hash, or null when it keeps them in memory.</summary>
+    /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
+    public string? VerdictsPathFor(string sha256) =>
+        VerdictsDir is { } dir ? Path.Combine(dir, Normalize(sha256) + VerdictsExtension) : null;
+
+    /// <summary>
+    ///     A demo's Suggested Tags verdicts, empty when it has none. Null when the file exists and cannot
+    ///     be read or names another demo: the caller then offers nothing, since it cannot tell what was
+    ///     already rejected, and <see cref="RecordVerdict" /> declines to write over it.
+    /// </summary>
+    /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
+    public SuggestionVerdictDocument? LoadVerdicts(string sha256)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sha256);
+        string key = Normalize(sha256);
+        string? path = VerdictsPathFor(key);
+        string? json;
+        if (path is null)
+        {
+            lock (_gate)
+            {
+                json = _memoryVerdicts.GetValueOrDefault(key);
+            }
+        }
+        else
+        {
+            try
+            {
+                json = File.Exists(path) ? File.ReadAllText(path) : null;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        if (json is null)
+        {
+            return new SuggestionVerdictDocument { Demo = new TagDemoHeader { Sha256 = key } };
+        }
+
+        try
+        {
+            SuggestionVerdictDocument? document =
+                JsonSerializer.Deserialize(json, TagJsonContext.Default.SuggestionVerdictDocument);
+            return document?.Demo is { Sha256.Length: > 0 } demo
+                   && string.Equals(Normalize(demo.Sha256), key, StringComparison.Ordinal)
+                ? document
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Adds one verdict to a demo's file. Append only: a key that already has a verdict keeps it and
+    ///     this returns false, as it does for an unreadable file and a failed write. Never throws for I/O.
+    /// </summary>
+    /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
+    /// <param name="proposalId">The proposal's identity key.</param>
+    /// <param name="verdict">The verdict. The store keeps it as given.</param>
+    public bool RecordVerdict(string sha256, string proposalId, SuggestionVerdict verdict)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sha256);
+        ArgumentException.ThrowIfNullOrEmpty(proposalId);
+        ArgumentNullException.ThrowIfNull(verdict);
+        string key = Normalize(sha256);
+        lock (_rmwGate)
+        {
+            if (LoadVerdicts(key) is not { } document || !document.Verdicts.TryAdd(proposalId, verdict))
+            {
+                return false;
+            }
+
+            string json = JsonSerializer.Serialize(document, TagJsonContext.Default.SuggestionVerdictDocument);
+            string? path = VerdictsPathFor(key);
+            if (path is null)
+            {
+                lock (_gate)
+                {
+                    _memoryVerdicts[key] = json;
+                }
+
+                return true;
+            }
+
+            try
+            {
+                WriteAtomic(path, json);
+                return true;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return false;
+            }
         }
     }
 

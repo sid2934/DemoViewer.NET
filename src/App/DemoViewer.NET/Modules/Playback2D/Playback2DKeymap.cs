@@ -53,7 +53,15 @@ public enum Playback2DAction
 
     // Bound by Label Mode (Strat Room): palette-scoped like the three above.
     TagLabelMode,
-    TagLabelGroupNext
+    TagLabelGroupNext,
+
+    // Bound by Suggested Tags Review (Strat Room): the Proposal Queue's walk and verdicts.
+    SuggestionNext,
+    SuggestionPrev,
+    SuggestionAccept,
+    SuggestionReject,
+    SuggestionEdit,
+    SuggestionAcceptAll
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -69,7 +77,15 @@ public enum Playback2DBindingScope
     ///     Applies only while the Tag Palette has focus, and then shadows both scopes above (overview
     ///     correction 21). The palette's own button hotkeys are routed at this scope too, after its rows.
     /// </summary>
-    WhenPaletteFocused
+    WhenPaletteFocused,
+
+    /// <summary>
+    ///     Applies only while a proposal is selected in the Suggested Tags queue, and then shadows
+    ///     <see cref="Always" /> and <see cref="WhenToolActive" />; the palette scope still wins. It exists for
+    ///     J / K, which walk the Situations result set otherwise: both walks keep the keys the plan gave
+    ///     them, and the one on screen is the one they drive.
+    /// </summary>
+    WhenSuggestionSelected
 }
 
 /// <summary>One row of the declarative keymap.</summary>
@@ -326,6 +342,7 @@ public static class Playback2DKeymap
         Key.Space => "Space",
         Key.Home => "Home",
         Key.Back => "Backspace",
+        Key.Enter => "Enter", // the same value as Key.Return, which is what ToString names it
         _ => key.ToString()
     };
 
@@ -416,6 +433,25 @@ public static class Playback2DKeymap
         new(Playback2DAction.TagLabelGroupNext, Key.G, KeyModifiers.Control,
             Playback2DBindingScope.WhenPaletteFocused, "Tag palette: in label mode, show the next label group",
             false),
+
+        // ── Suggested Tags queue (suggested-tags.md §3.6). Y, N, Enter and Ctrl+Y are Always rows so the
+        //    checker keeps them for the queue, and they do nothing until a proposal is selected. J and K
+        //    are the Situations walk's Always rows, so the queue's walk sits in its own scope that only a
+        //    selection turns on; next is J there too, the direction the result walk shipped with.
+        new(Playback2DAction.SuggestionNext, Key.J, KeyModifiers.None,
+            Playback2DBindingScope.WhenSuggestionSelected,
+            "Suggested tags: select the next pending proposal and seek to it", false),
+        new(Playback2DAction.SuggestionPrev, Key.K, KeyModifiers.None,
+            Playback2DBindingScope.WhenSuggestionSelected,
+            "Suggested tags: select the previous pending proposal and seek to it", false),
+        new(Playback2DAction.SuggestionAccept, Key.Y, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Suggested tags: accept the selected proposal as a tag and go to the next", false),
+        new(Playback2DAction.SuggestionReject, Key.N, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Suggested tags: reject the selected proposal and go to the next", false),
+        new(Playback2DAction.SuggestionEdit, Key.Enter, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Suggested tags: edit the selected proposal before accepting it", false),
+        new(Playback2DAction.SuggestionAcceptAll, Key.Y, KeyModifiers.Control, Playback2DBindingScope.Always,
+            "Suggested tags: accept every pending proposal the queue's filter shows, after a confirm", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,

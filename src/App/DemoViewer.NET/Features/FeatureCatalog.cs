@@ -173,7 +173,7 @@ public static class FeatureCatalog
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
         // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
-        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export · tagger): the ids
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export · tagger · suggestedtags): the ids
         // are persisted override keys and must never be renamed.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
@@ -204,6 +204,12 @@ public static class FeatureCatalog
         new(
             "playback2d.tagger", FeatureScope.SubFeature, "Tag palette",
             "Tag the round you are watching with a hotkey palette; tags are saved per demo.",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
+        // Suggested Tags (suggested-tags.md §3.6): the Suggested track, the proposal queue and the
+        // evaluator. On for both hosts; the browser keeps proposals and verdicts for the session.
+        new(
+            "playback2d.suggestedtags", FeatureScope.SubFeature, "Suggested tags",
+            "Offer tags found by detectors (execute, default, fake, opener, retake) to accept, edit or reject.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------

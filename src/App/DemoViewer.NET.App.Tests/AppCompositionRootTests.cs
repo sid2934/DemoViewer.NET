@@ -103,7 +103,7 @@ public class AppCompositionRootTests
     // The fan-out order is a contract (overview correction 19): an evaluator may read what the one before
     // it wrote in the same pass, so the round index, when it lands, goes after round facts and reads them.
     [Test]
-    public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndex()
+    public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTags()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
@@ -113,11 +113,16 @@ public class AppCompositionRootTests
                 .IsEquivalentTo(new[]
                 {
                     "library", "highlights", Services.RoundFacts.RoundFactsEvaluator.EvaluatorId,
-                    Services.RoundIndex.RoundIndexEvaluator.EvaluatorId
+                    Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
+                    Modules.SuggestedTags.SuggestedTagsService.EvaluatorId
                 });
             await Assert.That(coordinator.EvaluatorIds[2]).IsEqualTo("roundfacts");
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
             await Assert.That(coordinator.EvaluatorIds[3]).IsEqualTo("roundindex");
+            // Suggested Tags reads the index written in the same pass, so it comes last.
+            await Assert.That(coordinator.EvaluatorIds[4]).IsEqualTo("suggestedtags");
+            await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Coordinator)
+                .IsSameReferenceAs(coordinator);
             await Assert.That(provider.GetRequiredService<Services.RoundFacts.IRoundFactsSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.ISituationIndex>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.Provenance.IDemoProvenanceSource>()).IsNotNull();
