@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -364,5 +365,333 @@ public sealed class StratCommitBuffer
         _ops.Clear();
         LastEditUtc = null;
         return ops;
+    }
+}
+
+/// <summary>
+///     A history entry's words (strat-model.md §3.8): "molotov moved from 1:22 to 1:16", "step added: A peeks
+///     Connector at 1:05", "branch removed", "status Active → Archived". Free text for a person; the ops stay the
+///     truth. Each op is read against the document as it stood just before it, so a step is named by what it
+///     was then, and places print through the owner's callouts when a resolver is given.
+/// </summary>
+public static class StratDiffPhrasing
+{
+    // Fields whose value is prose: printing it in a one-line summary says nothing the pane's diff does not.
+    private static readonly HashSet<string> TextFields = new(StringComparer.Ordinal) { "notes", "note", "text" };
+
+    /// <summary>One line per op, a repeated line said once, in op order.</summary>
+    /// <param name="before">The document before the first op; null before revision 1.</param>
+    /// <param name="ops">The entry's ops.</param>
+    /// <param name="callouts">The owner's callouts for the map, for place names; null prints canonical names split into words.</param>
+    public static IReadOnlyList<string> Describe(JsonNode? before, IEnumerable<PatchOp> ops, CalloutResolver? callouts = null)
+    {
+        ArgumentNullException.ThrowIfNull(ops);
+        JsonNode? tree = before?.DeepClone();
+        List<string> lines = [];
+        foreach (PatchOp op in ops)
+        {
+            string line = DescribeOne(tree, op, callouts);
+            if (!lines.Contains(line, StringComparer.Ordinal))
+            {
+                lines.Add(line);
+            }
+
+            try
+            {
+                tree = StratHistory.ApplyAll(tree, [op]);
+            }
+            catch (InvalidOperationException)
+            {
+                // A log that does not apply still gets words for the rest, just without the context.
+                tree = null;
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>The lines joined as a history summary: <c>branch added; status Theory → Active</c>.</summary>
+    /// <param name="before">The document before the first op; null before revision 1.</param>
+    /// <param name="ops">The entry's ops.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string Summary(JsonNode? before, IEnumerable<PatchOp> ops, CalloutResolver? callouts = null) =>
+        string.Join("; ", Describe(before, ops, callouts));
+
+    /// <summary>
+    ///     The summary of ops already applied to <paramref name="after" />: the state before is recovered by
+    ///     inverting them, which is what <c>from</c> is for. What the store calls when a commit brings no summary.
+    /// </summary>
+    /// <param name="after">The document after the ops.</param>
+    /// <param name="ops">The ops, in the order they were applied.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string SummaryAfter(StratDocument after, IReadOnlyList<PatchOp> ops, CalloutResolver? callouts = null)
+    {
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(ops);
+        JsonNode? before;
+        try
+        {
+            before = StratHistory.ApplyAll(StratHistory.ToNode(after), ops.Reverse().Select(o => o.Inverse()));
+        }
+        catch (InvalidOperationException)
+        {
+            before = null;
+        }
+
+        return Summary(before, ops, callouts);
+    }
+
+    private static string DescribeOne(JsonNode? tree, PatchOp op, CalloutResolver? callouts)
+    {
+        if (op.Path.Length == 0)
+        {
+            return op.Op == PatchOp.Remove ? "deleted" : "created";
+        }
+
+        string[] tokens =
+        [
+            .. op.Path[1..].Split('/')
+                .Select(t => t.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal))
+        ];
+
+        switch (tokens)
+        {
+            case ["steps", _]:
+                JsonNode? step = op.Op == PatchOp.Add ? op.Value : StratHistory.ValueAt(tree, op.Path) ?? op.From;
+                return op.Op switch
+                {
+                    PatchOp.Add => "step added: ",
+                    PatchOp.Remove => "step removed: ",
+                    _ => "step replaced: "
+                } + StepSentence(op.Op == PatchOp.Replace ? op.Value : step, callouts);
+            case ["steps", var index, "atSeconds"] when op.Op == PatchOp.Replace && Number(op.From) is { } from && Number(op.Value) is { } to:
+                return $"{StepName(StratHistory.ValueAt(tree, "/steps/" + index))} moved from {StratClock.Format(from)} to {StratClock.Format(to)}";
+            case ["steps", var index, .. var rest]:
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + FieldChange(rest, op, callouts);
+            case ["branches", _]:
+                return op.Op switch
+                {
+                    PatchOp.Add => "branch added",
+                    PatchOp.Remove => "branch removed",
+                    _ => "branch replaced"
+                };
+            case ["branches", _, .. var rest]:
+                return "branch: " + FieldChange(rest, op, callouts);
+            case ["slots", var index, .. var rest] when rest.Length > 0:
+                string letter = Text(StratHistory.ValueAt(tree, "/slots/" + index + "/slot")) ?? index;
+                if (rest is ["steamId"])
+                {
+                    return op.Op == PatchOp.Remove || op.Value is null ? $"slot {letter} unpinned" : $"slot {letter} pinned";
+                }
+
+                return $"slot {letter} " + FieldChange(rest, op, callouts);
+            case ["tags", _] when op.Op is PatchOp.Add or PatchOp.Remove:
+                string? tag = Text(op.Op == PatchOp.Add ? op.Value : op.From ?? StratHistory.ValueAt(tree, op.Path));
+                return $"tag {(op.Op == PatchOp.Add ? "added" : "removed")}" + (tag is null ? "" : ": " + tag);
+            case ["name"] when op.Op != PatchOp.Remove && Text(op.Value) is { } name:
+                return "renamed to " + name;
+            default:
+                return FieldChange(tokens, op, callouts);
+        }
+    }
+
+    // "economy full → force", "target site cleared", "note removed", "landing set to Jungle".
+    private static string FieldChange(IReadOnlyList<string> tokens, PatchOp op, CalloutResolver? callouts)
+    {
+        // A place is an object with one field that matters; "to" reads better than "to place".
+        List<string> named = [.. tokens.Where(t => !int.TryParse(t, NumberStyles.None, CultureInfo.InvariantCulture, out _))];
+        bool isPlace = named.Count > 1 && named[^1] == "place";
+        if (isPlace)
+        {
+            named.RemoveAt(named.Count - 1);
+        }
+
+        string field = named.Count == 0 ? "value" : string.Join(' ', named.Select(Words));
+        bool prose = named.Count > 0 && TextFields.Contains(named[^1]);
+        string? from = prose ? null : isPlace && Text(op.From) is { } fromPlace ? Place(fromPlace, callouts) : ValueText(op.From, callouts);
+        string? to = prose ? null : isPlace && Text(op.Value) is { } toPlace ? Place(toPlace, callouts) : ValueText(op.Value, callouts);
+
+        return op.Op switch
+        {
+            PatchOp.Remove => field + " removed",
+            PatchOp.Add when prose || to is null => field + " added",
+            PatchOp.Add => $"{field} set to {to}",
+            _ when op.Value is null => field + " cleared",
+            _ when prose => field + " edited",
+            _ when op.From is null && to is not null => $"{field} set to {to}",
+            _ when from is not null && to is not null => $"{field} {from} → {to}",
+            _ => field + " changed"
+        };
+    }
+
+    // Scalars print; a place object prints its place; anything else (a position, a stroke) is just "changed".
+    private static string? ValueText(JsonNode? value, CalloutResolver? callouts)
+    {
+        if (value is JsonObject obj)
+        {
+            return obj.Count == 1 && Text(obj["place"]) is { } inner ? Place(inner, callouts) : null;
+        }
+
+        if (Number(value) is { } number)
+        {
+            return number.ToString("0.##", CultureInfo.InvariantCulture);
+        }
+
+        string? text = Text(value);
+        return text is not null && callouts?.IsCanonical(text) == true ? Place(text, callouts) : text;
+    }
+
+    // What a line about a step calls it: its utility when it has one ("molotov"), else whose move it is.
+    private static string StepName(JsonNode? step)
+    {
+        if (step is not JsonObject obj)
+        {
+            return "a step";
+        }
+
+        if (Text(obj["utility"]?["kind"]) is { } kind)
+        {
+            return kind;
+        }
+
+        string actor = Text(obj["actor"]) ?? StratVocabulary.ActorAll;
+        string verb = Text(obj["verb"]) ?? "move";
+        return actor == StratVocabulary.ActorAll ? "the team's " + verb : $"{actor}'s {verb}";
+    }
+
+    // "A peeks Connector at 1:05", "C throws molotov to Jungle at 1:22", "all rotate to Bombsite B at 0:40".
+    private static string StepSentence(JsonNode? step, CalloutResolver? callouts)
+    {
+        if (step is not JsonObject obj)
+        {
+            return "a step";
+        }
+
+        string actor = Text(obj["actor"]) ?? StratVocabulary.ActorAll;
+        string verb = Text(obj["verb"]) ?? "move";
+        string? utility = Text(obj["utility"]?["kind"]);
+        string? target = Text(obj["utility"]?["landing"]?["place"]) ?? Text(obj["to"]?["place"]) ?? Text(obj["from"]?["place"]);
+
+        StringBuilder sentence = new(actor);
+        sentence.Append(' ').Append(actor == StratVocabulary.ActorAll ? verb : ThirdPerson(verb));
+        if (utility is not null)
+        {
+            sentence.Append(' ').Append(utility);
+        }
+
+        if (target is not null)
+        {
+            string preposition = utility is not null
+                ? " to "
+                : verb switch
+                {
+                    "move" or "rotate" or "throw" => " to ",
+                    "wait" or "call" or "other" => " at ",
+                    _ => " "
+                };
+            sentence.Append(preposition).Append(Place(target, callouts));
+        }
+
+        if (Number(obj["atSeconds"]) is { } at)
+        {
+            sentence.Append(" at ").Append(StratClock.Format(at));
+        }
+
+        return sentence.ToString();
+    }
+
+    private static string ThirdPerson(string verb) => verb switch
+    {
+        "other" => "acts",
+        _ when verb.EndsWith('s') || verb.EndsWith('x') || verb.EndsWith("sh", StringComparison.Ordinal)
+               || verb.EndsWith("ch", StringComparison.Ordinal) => verb + "es",
+        _ => verb + "s"
+    };
+
+    private static string Place(string place, CalloutResolver? callouts) =>
+        callouts?.Display(place) ?? CalloutResolver.SplitDisplay(place);
+
+    // targetSite to "target site", holdSeconds to "hold seconds".
+    private static string Words(string camel)
+    {
+        StringBuilder words = new();
+        foreach (char c in camel)
+        {
+            if (char.IsUpper(c) && words.Length > 0)
+            {
+                words.Append(' ');
+            }
+
+            words.Append(char.ToLowerInvariant(c));
+        }
+
+        return words.ToString();
+    }
+
+    private static string? Text(JsonNode? node) =>
+        node is JsonValue value && value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : null;
+
+    // Through the JSON text: a value built in code holds an int that GetValue<double> refuses, one read from a
+    // file holds a JsonElement that accepts it.
+    private static double? Number(JsonNode? node) =>
+        node is JsonValue value && value.GetValueKind() == JsonValueKind.Number
+            ? double.Parse(value.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture)
+            : null;
+}
+
+/// <summary>
+///     One line of the history pane (Strat Version History): an entry's revision, time, summary and per-op
+///     words, and the record either side of it when a record is at hand (§3.8: runs tagged below this revision
+///     against runs tagged at it or later).
+/// </summary>
+/// <param name="Revision">The entry's revision.</param>
+/// <param name="AtUtc">When it was committed.</param>
+/// <param name="Summary">The stored summary, or the phrased one when the entry has none.</param>
+/// <param name="Changes">One line per op, phrased against the document as it stood before the entry.</param>
+/// <param name="Before">Runs tagged at an earlier revision; null without a record.</param>
+/// <param name="After">Runs tagged at this revision or later; null without a record.</param>
+public sealed record StratHistoryRow(
+    int Revision,
+    DateTime AtUtc,
+    string Summary,
+    IReadOnlyList<string> Changes,
+    RecordSplit? Before,
+    RecordSplit? After);
+
+/// <summary>The history pane's data: one row per log entry, newest first.</summary>
+public static class StratHistoryPane
+{
+    /// <summary>
+    ///     The rows for a log. The log is replayed once, so each entry is phrased against its own before-state
+    ///     without materializing every revision separately.
+    /// </summary>
+    /// <param name="log">The history, in file order.</param>
+    /// <param name="callouts">The owner's callouts for the strat's map; null for canonical names.</param>
+    /// <param name="record">The strat's record, for the split either side of each entry; null leaves the splits out.</param>
+    public static IReadOnlyList<StratHistoryRow> Rows(IReadOnlyList<HistoryEntry> log, CalloutResolver? callouts = null,
+        StratRecord? record = null)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        List<StratHistoryRow> rows = [];
+        JsonNode? tree = null;
+        foreach (HistoryEntry entry in log)
+        {
+            IReadOnlyList<string> changes = StratDiffPhrasing.Describe(tree, entry.Ops, callouts);
+            try
+            {
+                tree = StratHistory.ApplyAll(tree, entry.Ops);
+            }
+            catch (InvalidOperationException)
+            {
+                tree = null;
+            }
+
+            (RecordSplit Before, RecordSplit After)? split = record?.SplitAround(entry.Revision);
+            string summary = string.IsNullOrWhiteSpace(entry.Summary) ? string.Join("; ", changes) : entry.Summary;
+            rows.Add(new StratHistoryRow(entry.Revision, entry.AtUtc, summary, changes, split?.Before, split?.After));
+        }
+
+        rows.Reverse();
+        return rows;
     }
 }
