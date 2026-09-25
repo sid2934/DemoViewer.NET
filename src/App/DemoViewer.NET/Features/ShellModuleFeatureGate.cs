@@ -61,7 +61,10 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
         // Video export writes a file and drives an ffmpeg subprocess. The WASM head has no filesystem and
         // no System.Diagnostics.Process, so the feature cannot exist there whatever the user's override
         // says (B4.13).
-        "playback2d.export"
+        "playback2d.export",
+
+        // Strat Export: the same job and the same file, so the same reason (step-authoring.md §3.10).
+        "stratbook.export"
     };
 
     /// <inheritdoc />
