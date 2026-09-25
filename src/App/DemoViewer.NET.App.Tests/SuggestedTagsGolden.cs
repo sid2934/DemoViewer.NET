@@ -42,8 +42,14 @@ internal sealed class SuggestedTagsGolden
     public string Note { get; set; } =
         "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, " +
         "gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. " +
-        "Rows are synthesised from the demo's own events on purpose, so the fixture is pinned to them; a real-demo test " +
-        "recaptures the same round from the engine's own Round Facts rows and holds it to this same file. Recapture with ST_GOLDEN_UPDATE=1.";
+        "Rows are synthesised from the demo's own events on purpose, so the fixture is pinned to them; the engine's own " +
+        "Round Facts rows close a round earlier and keep every round, so their fold is pinned apart under engine-rows/. " +
+        "Recapture with ST_GOLDEN_UPDATE=1.";
+
+    /// <summary>The note a fixture under <see cref="EngineRowsFixtureDirectory" /> carries.</summary>
+    internal const string EngineRowsNote =
+        "suggested-tags.md §7.2: the same round as ../<map>.json, folded over the engine's own Round Facts rows (the shipped " +
+        "round_facts ruleset), which end the round at round_decided rather than round_officially_ended. Recapture with ST_GOLDEN_UPDATE=1.";
 
     public string Demo { get; set; } = "";
 
@@ -205,6 +211,9 @@ internal sealed class SuggestedTagsGolden
         ?? throw new InvalidOperationException($"{path} is not a golden");
 
     internal static string FixtureDirectory(string repo) => Path.Combine(repo, "tests", "fixtures", "suggested-tags");
+
+    // A subfolder, so the synthesised-row snapshot tests that read FixtureDirectory's own *.json leave it out.
+    internal static string EngineRowsFixtureDirectory(string repo) => Path.Combine(FixtureDirectory(repo), "engine-rows");
 
     private static string? Entry(RoundOccupancy round, int slot, int second) =>
         round.PlaceOf(slot, second) ?? (round.IsAlive(slot, second) ? RoundOccupancy.Unplaced : null);
