@@ -48,9 +48,7 @@ public sealed class SceneExportRunner : IExportRunner
         "No ffmpeg was found, so only GIF can be exported. Install ffmpeg — or use the export pane's " +
         "Download button where one is offered — then press Re-check, or switch the format to GIF.";
 
-    private readonly EncoderSelector _encoders;
-    private readonly Action<string>? _log;
-    private readonly Func<string?> _managedFfmpegDirectory;
+    private readonly ExportEncoding _encoding;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup?> _setup;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
 
@@ -78,9 +76,8 @@ public sealed class SceneExportRunner : IExportRunner
         ArgumentNullException.ThrowIfNull(setup);
         _setup = setup;
         _surfaces = surfaces ?? (static () => new CpuSurfaceProvider());
-        _managedFfmpegDirectory = managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory);
-        _log = log;
-        _encoders = new EncoderSelector(encoderProbe);
+        _encoding = new ExportEncoding(managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory),
+            FfmpegLocator.Locate, log, new EncoderSelector(encoderProbe));
     }
 
     /// <inheritdoc />
@@ -93,26 +90,10 @@ public sealed class SceneExportRunner : IExportRunner
                                  ?? throw new ExportRefusedException(
                                      "There is no loaded demo to export.");
 
-        FfmpegLocation ffmpeg = FfmpegLocator.Locate(_managedFfmpegDirectory());
-        bool gif = string.Equals(request.Core.FormatId, ExportFormats.Gif, StringComparison.Ordinal);
-
-        if (!ffmpeg.Found && !gif)
-        {
-            throw new ExportRefusedException(NoFfmpegRefusal);
-        }
-
         // BEFORE the replay: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal
         // ("you asked for h264_nvenc and this driver cannot run it") has to arrive before the export
         // spends a minute seeking rather than after it spends ten encoding into a pipe (plan P2 D1).
-        EncoderSelection? encoder = gif && !ffmpeg.Found
-            ? null
-            : _encoders.Select(request.Core.FormatId, request.EncoderOverride,
-                ExportQualities.ParseOrDefault(request.Quality), ffmpeg.Directory, ct);
-
-        if (encoder is not null)
-        {
-            _log?.Invoke("video encoder: " + encoder.Describe());
-        }
+        (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
         using TrackerFrameSource source = BuildSource(request, setup);
         ExportRequest core = request.Core with
@@ -138,7 +119,7 @@ public sealed class SceneExportRunner : IExportRunner
             RadarBinder = setup.MapAssets is null ? null : new MapRadarBinder(setup.MapAssets)
         };
 
-        IFrameSink sink = BuildSink(request, core, ffmpeg, encoder);
+        IFrameSink sink = _encoding.BuildSink(request, core, ffmpeg, encoder);
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
     }
 
@@ -167,25 +148,5 @@ public sealed class SceneExportRunner : IExportRunner
         // Empty LayerIds means "the scene, nothing opt-in": CreateSceneStack's own null-include behaviour.
         IReadOnlyList<string>? include = core.LayerIds.Count == 0 ? null : [.. core.LayerIds];
         return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud, setup.Annotations);
-    }
-
-    private IFrameSink BuildSink(Scene2DExportRequest request, ExportRequest core, FfmpegLocation ffmpeg,
-        EncoderSelection? encoder)
-    {
-        if (!ffmpeg.Found)
-        {
-            // The floor. Reached only for GIF: RunAsync refused the video formats above.
-            return new ManagedGifSink(request.OutputPath, core.Fps);
-        }
-
-        return new FfmpegFrameSink(new FfmpegSinkOptions(
-            request.OutputPath,
-            core.FormatId,
-            core.Size.Width,
-            core.Size.Height,
-            core.Fps,
-            ffmpeg.Directory,
-            encoder,
-            Log: _log));
     }
 }

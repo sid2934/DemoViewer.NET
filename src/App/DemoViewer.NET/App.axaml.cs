@@ -165,6 +165,18 @@ public class App : Application
                     // first Export: see Playback2DExportHost.MountStatusChip.
                     viewModel.AttachPlayback2DExportStatus,
                     viewModel.OpenOutputFolder));
+
+                // Strat Export (step-authoring.md §3.6): the same gate, interlocks and settings, no frame list
+                // (a strat is its own scene), and a chip slot of its own so the two tabs' exports never
+                // unmount each other.
+                moduleContext.SetStratExportHost(new StratExportHost(
+                    services.GetRequiredService<HeavyJobGate>(),
+                    () => liveSync?.State.IsSessionActive == true,
+                    () => reelJob?.Status.IsRunning == true,
+                    () => settings.Current,
+                    settings.Write,
+                    viewModel.AttachStratExportStatus,
+                    viewModel.OpenOutputFolder));
             }
 
             // The highlight-scan chip. Attached from the container's instance so the strip shows a
