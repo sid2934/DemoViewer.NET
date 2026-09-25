@@ -20,6 +20,7 @@ using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Services;
@@ -32,6 +33,7 @@ using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Zones;
@@ -44,6 +46,7 @@ using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.ViewModels.Teams;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.RuleWorkbench;
@@ -277,6 +280,13 @@ public class App : Application
                 }
 
                 viewModel.SaveSession();
+
+                // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
+                // their index to it: the Strat Book writes its own, and the Tag Store's is written here, the call
+                // its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
+                services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown();
+                services.GetService<TagStore>()?.SaveIndex();
+
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
                 // A running 2D export owns an ffmpeg subprocess and a half-written video file. Exiting
@@ -949,6 +959,16 @@ public class App : Application
                 }
             }));
 
+        // The Strat Book's store: one folder per book under <config>/strats. One per process, because CheckOut's
+        // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
+        // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
+        // activation; its books are Team Identity's teams plus me.
+        services.AddSingleton(_ => new StratStore(AppPaths.StratsDir, action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp => new StratBookTabViewModel(
+            sp.GetRequiredService<StratStore>(),
+            sp.GetRequiredService<TeamIdentityService>(),
+            action => Dispatcher.UIThread.Post(action)));
+
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
         // Like This, so the set the keys walk is the set the tab shows.
         services.AddSingleton<ISituationResultWalk>(sp => new SituationResultWalk(
@@ -1167,6 +1187,9 @@ public class App : Application
         // The Round Tagger's Matrix tab. Registered on both hosts: the browser pivots the session's
         // in-memory tag documents and says so. The VM is a container singleton resolved lazily.
         registry.Register(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));
+
+        // The Strat Book tab. Registered on both hosts: the browser keeps strats for the session and says so.
+        registry.Register(new StratBookModule(sp.GetRequiredService<StratBookTabViewModel>));
         return registry;
     }
 
