@@ -176,17 +176,19 @@ public class RenderFixtureTests
 
     /// <summary>
     ///     <c>--ink</c> feeds the annotation layer for a render with no demo. Without it the
-    ///     <c>annotated-mirage-b</c> corpus entry, the only golden anywhere covering burned-in ink,
-    ///     could not exist. The sidecar is read through the production <c>AnnotationStore</c>, so a
-    ///     document the app wrote and one the corpus ships take one code path.
+    ///     <c>annotated-mirage-b</c> corpus entry could not exist, nor <c>annotated-shapes-mirage-b</c>,
+    ///     which burns in one element of every kind (step-authoring.md §3.2). The sidecar is read through
+    ///     the production <c>AnnotationStore</c>, so a document the app wrote and one the corpus ships
+    ///     take one code path.
     /// </summary>
+    /// <param name="entry">The corpus entry whose scene and sidecar are rendered.</param>
     [Test]
-    public async Task Ink_RegistersTheAnnotationLayer_AndChangesThePicture()
+    [Arguments("annotated-mirage-b")]
+    [Arguments("annotated-shapes-mirage-b")]
+    public async Task Ink_RegistersTheAnnotationLayer_AndChangesThePicture(string entry)
     {
-        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes",
-            "annotated-mirage-b.scene.json");
-        string inkPath = Path.Combine(Dv2d.CorpusDirectory, "annotations",
-            "annotated-mirage-b.dvann.json");
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", entry + ".scene.json");
+        string inkPath = Path.Combine(Dv2d.CorpusDirectory, "annotations", entry + ".dvann.json");
         using TempDirectory temp = new();
         string withInk = Path.Combine(temp.Path, "ink.png");
         string without = Path.Combine(temp.Path, "no-ink.png");

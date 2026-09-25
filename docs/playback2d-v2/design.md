@@ -672,7 +672,8 @@ upstream. Surface SteamId through the chain when that capability reports true.
 ### 7.5 Keybinds
 Declarative `Playback2DKeymap` (action → gesture table, conflict-checked at registration,
 future-rebindable), bound on the focusable host: Space play/pause, ←/→ step, ↑/↓ speed, Q/E round
-nav, F follow-cycle, D draw, E erase, Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity),
+nav, F follow-cycle, D draw, E erase, A arrow, T text, L line, R rectangle, O ellipse (Shape Tools; each
+pressed again goes back to pan), Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity),
 Ctrl+F find rounds like this (the Strat Room's Situation Search; plan D7 there, since F is taken),
 J/K next and previous situation result (walking the Situations tab's cards from inside playback).
 C focuses the Tag Palette; while it has focus its own scope wins over the tool and always scopes, so

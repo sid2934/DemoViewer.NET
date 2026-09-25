@@ -7,9 +7,10 @@ using System.Diagnostics.CodeAnalysis;
 namespace DemoViewer.NET.Playback2D.Core.Annotations;
 
 /// <summary>
-///     What an <see cref="AnnotationElement" /> draws. Only <see cref="Freehand" /> is implemented today;
-///     the rest exist from day one so a later shape tool is an additive branch rather than a schema
-///     migration.
+///     What an <see cref="AnnotationElement" /> draws. Every member has a tool, a geometry and a hit test
+///     since Shape Tools (step-authoring.md §3.2). They were declared from day one, so the shapes arrived
+///     as additive branches rather than a schema migration: a shape is its first and last point, and text
+///     is one point and a string.
 /// </summary>
 public enum AnnotationKind
 {

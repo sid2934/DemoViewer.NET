@@ -40,7 +40,7 @@ The writable check is a create-and-delete probe, run once per directory per sess
 ```jsonc
 {
   "id": "11111111-1111-4111-8111-111111111111",  // GUID, stable across edits
-  "kind": "Freehand",                            // only Freehand is written today
+  "kind": "Freehand",                            // Freehand | Line | Arrow | Rect | Ellipse | Text
   "colorArgb": 4294951175,                       // packed 0xAARRGGBB as an unsigned integer
   "widthWorld": 6,                               // stroke width in WORLD units, not pixels
   "opacity": 1,                                  // 0..1, multiplied onto the envelope's opacity
@@ -55,7 +55,7 @@ The writable check is a create-and-delete probe, run once per directory per sess
   "fadeInTicks": 0, "fadeOutTicks": 0,           // ramps OUTSIDE the window (see below)
 
   "points": [ -120.5, 240.25, 0.5, -60, 260, 0.62 ],  // flat [x, y, pressure] triples, world space
-  "text": null,                                  // label content, for the (unimplemented) Text kind
+  "text": null,                                  // label content for the Text kind; null otherwise
 
   "timing": {                                    // OPTIONAL; absent on all but real-time strokes
     "runs": [ 0, 0, 41, 96, 41, 160, 78, 214 ],  // flat [sampleIndex, tickOffset] pairs
@@ -99,6 +99,24 @@ reader that wants pixel-identical strokes should use the same library with those
 only wants approximate geometry can stroke the polyline at `widthWorld`.
 
 Pressure is `0..1`; devices that report none write `0.5`.
+
+### Shapes and text
+
+Every kind but `Freehand` reads its geometry from `points` alone, so the field means the same thing
+everywhere and the format carries no per-kind fields.
+
+| `kind` | `points` | Drawn as |
+|---|---|---|
+| `Line` | two triples, first and last | a segment stroked at `widthWorld`, round caps |
+| `Arrow` | two triples, tail then tip | the segment plus a filled triangular head at the tip, `3 × widthWorld` long (clamped to half the segment) and `0.6 ×` that to each side |
+| `Rect` | two triples, opposite corners | the axis-aligned rectangle they span, stroked at `widthWorld` |
+| `Ellipse` | two triples, opposite corners | the ellipse inscribed in that rectangle, stroked at `widthWorld` |
+| `Text` | one triple, the anchor | `text` at an em size of `6 × widthWorld` world units, the top-left of its line box at the anchor, zooming with the map like ink |
+
+A shape written by DemoViewer has exactly two points; a reader given more should use the first and the
+last. Pressure is recorded but does not affect a shape. A `Text` element with an empty or null `text`
+draws nothing. A `kind` this reader does not know is read as `Freehand`: the points are a polyline
+either way, so the element is drawn and erasable rather than lost.
 
 ### The authoring cadence (`timing`), optional
 

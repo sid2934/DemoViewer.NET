@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core.Input;
 
 #endregion
 
@@ -183,6 +184,38 @@ public class Playback2DActionDispatchTests
         await Assert.That(vm.IsFollowEnabled).IsFalse();
         await Assert.That(vm.ExecuteAction(Playback2DAction.CycleFollowNext)).IsFalse();
         await Assert.That(vm.FollowedSlot).IsEqualTo(-1);
+    }
+
+    /// <summary>
+    ///     A shape tool's key selects it and pressing it again goes back to pan, exactly as D and X do,
+    ///     and a selected shape tool is a drawing tool as far as the keymap's tool scope is concerned.
+    /// </summary>
+    [Test]
+    [Arguments(Playback2DAction.ToolLine, ToolKind.Line)]
+    [Arguments(Playback2DAction.ToolArrow, ToolKind.Arrow)]
+    [Arguments(Playback2DAction.ToolRect, ToolKind.Rect)]
+    [Arguments(Playback2DAction.ToolEllipse, ToolKind.Ellipse)]
+    [Arguments(Playback2DAction.ToolText, ToolKind.Text)]
+    public async Task ShapeToolKey_SelectsTheTool_AndAgainGoesBackToPan(Playback2DAction action, ToolKind kind)
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext _) = Activated();
+
+        await Assert.That(vm.ExecuteAction(action)).IsTrue();
+        await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(kind);
+        await Assert.That(vm.Annotations.IsDrawingToolActive).IsTrue();
+
+        await Assert.That(vm.ExecuteAction(action)).IsTrue();
+        await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+    }
+
+    [Test]
+    public async Task ShapeToolKey_GatedOff_IsLeftUnhandled()
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        ctx.Gate!.SetEnabled("playback2d.annotations", false);
+
+        await Assert.That(vm.ExecuteAction(Playback2DAction.ToolArrow)).IsFalse();
+        await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
     }
 
     /// <param name="demoPath">

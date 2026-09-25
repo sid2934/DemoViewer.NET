@@ -64,6 +64,121 @@
         12,
         0.55
       ]
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "kind": "Line",
+      "colorArgb": 4283417591,
+      "widthWorld": 12,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -384,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -200,
+        100,
+        0.5,
+        40,
+        180,
+        0.5
+      ]
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "kind": "Arrow",
+      "colorArgb": 4283417591,
+      "widthWorld": 12,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -384,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -320,
+        -64,
+        0.5,
+        -96,
+        128,
+        0.5
+      ]
+    },
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "kind": "Rect",
+      "colorArgb": 4283417591,
+      "widthWorld": 12,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -384,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        200,
+        -40,
+        0.5,
+        360,
+        72,
+        0.5
+      ]
+    },
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "kind": "Ellipse",
+      "colorArgb": 4283417591,
+      "widthWorld": 12,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -384,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -80,
+        -300,
+        0.5,
+        80,
+        -180,
+        0.5
+      ]
+    },
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "kind": "Text",
+      "colorArgb": 4294967295,
+      "widthWorld": 8,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -384,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fromTick": 1280,
+      "untilTick": 1600,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        64,
+        320,
+        0.5
+      ],
+      "text": "A main smoke"
     }
   ],
   "futureRootField": "written by a newer build"
