@@ -8,6 +8,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Teams;
 
 #endregion
@@ -94,6 +95,10 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="provenance">Demo Provenance Labels, for the rail's source field; null offers none. Used when <paramref name="canvas" /> is null.</param>
     /// <param name="watched">Watched Situations; a session-only service over the same index and services when null.</param>
     /// <param name="review">The Review Queue the cards send their set to; null hides the action. Used when <paramref name="results" /> is null.</param>
+    /// <param name="callouts">
+    ///     Callout Aliases' resolver builder; null shows the canvas's place names in their stored canonical
+    ///     spelling. Used when <paramref name="canvas" /> is null.
+    /// </param>
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
@@ -108,7 +113,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         TeamIdentityService? teams = null,
         IDemoProvenanceSource? provenance = null,
         WatchedSituationsService? watched = null,
-        ReviewQueue? review = null)
+        ReviewQueue? review = null,
+        CalloutResolverSource? callouts = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -125,7 +131,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         // the place a click names and the place a row stores come from one vocabulary. Its filter rail
         // reads the two services the opponent, side and source fields join through.
         Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), demoCache,
-            filters: new SearchFiltersViewModel(demoCache, teams, provenance));
+            filters: new SearchFiltersViewModel(demoCache, teams, provenance),
+            calloutResolverFor: callouts is null ? null : map => callouts.ForDefaultOwner(teams, map));
 
         // The cards read the positions files the same store wrote, under the fingerprint in force for
         // the map; a set built without a sidecar store has nothing to draw and says so on every tile.

@@ -36,6 +36,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>The side filter's "no filter" entry.</summary>
     public const string AllSides = "all sides";
 
+    private readonly CalloutResolverSource _calloutResolvers;
     private readonly Action<Action> _post;
     private readonly StratStore _store;
     private readonly TeamIdentityService? _teams;
@@ -43,6 +44,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private IModuleContext? _context;
     private bool _disposed;
     private bool _refreshing;
+
+    // What the callouts editor was last pointed at, so a RefreshList that changed nothing about the
+    // book or map (the open strat's own half-second working-copy writes) does not reload it.
+    private (StratOwner Owner, string Map)? _calloutsConfiguredFor;
 
     [ObservableProperty]
     private string _listLine = "";
@@ -63,15 +68,19 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="teams">Team Identity, for the books; null offers the <c>me</c> book alone.</param>
     /// <param name="post">Marshals the session's timers onto the UI thread; defaults to synchronous.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null)
+    /// <param name="calloutResolvers">Builds a resolver over the store's aliases and a map's zones; one built from the store when omitted.</param>
+    public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
+        CalloutResolverSource? calloutResolvers = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
         _teams = teams;
         _post = post ?? (action => action());
+        _calloutResolvers = calloutResolvers ?? new CalloutResolverSource(store);
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Session = new StratSession(store, _post, () => IsBrowser, () => DateTime.UtcNow);
         Editor = new StratEditorViewModel(Session);
+        Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
 
         Session.Changed += OnSessionChanged;
         _store.Changed += OnStoreChanged;
@@ -93,6 +102,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     public StratSession Session { get; }
 
     public StratEditorViewModel Editor { get; }
+
+    /// <summary>The alias table editor for the selected book and map (Callout Aliases, strat-model.md §3.7).</summary>
+    public CalloutsEditorViewModel Callouts { get; }
 
     /// <summary>Every book: <c>me</c>, then each visible team.</summary>
     public ObservableCollection<StratOwnerOption> Owners { get; } = [];
@@ -434,6 +446,28 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         {
             ConfigureEditor();
         }
+
+        RefreshCallouts();
+    }
+
+    // The callouts editor follows the book selector, not the open strat: aliases are per owner per map,
+    // so "all maps" or no book leaves it with nothing to edit. Skipped when nothing it reads changed,
+    // since RefreshList also runs on the open strat's own half-second working-copy writes and a table
+    // reload mid-edit would drop the "copy from" selection out from under the user for no reason.
+    private void RefreshCallouts()
+    {
+        (StratOwner Owner, string Map) target = SelectedOwner is { } book && SelectedMap != AllMaps
+            ? (book.Owner, SelectedMap)
+            : (StratOwner.Me(), "");
+
+        if (_calloutsConfiguredFor is { } current && current.Owner.Equals(target.Owner)
+            && string.Equals(current.Map, target.Map, StringComparison.Ordinal) && Callouts.CopySources.Count == Owners.Count - 1)
+        {
+            return;
+        }
+
+        _calloutsConfiguredFor = target;
+        Callouts.Configure(target.Owner, target.Map, Owners);
     }
 
     private void ConfigureEditor()
@@ -443,7 +477,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             return;
         }
 
-        CalloutResolver places = CalloutResolver.For(document.Map, null, _store.LoadCallouts(document.Owner, document.Map));
+        CalloutResolver places = _calloutResolvers.For(document.Owner, document.Map);
         List<StratTargetOption> targets =
         [
             .. _store.Query(document.Owner, document.Map, null, null)

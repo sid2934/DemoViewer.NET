@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 
 #endregion
 
@@ -53,11 +54,16 @@ namespace DemoViewer.NET.ViewModels.Situations;
 /// </summary>
 public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 {
+    private readonly Func<string, CalloutResolver>? _calloutResolverFor;
     private readonly SituationLiveCount _counter;
     private readonly DemoCacheStore _demoCache;
     private readonly ISituationIndex _index;
     private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
+
+    // Built on a map change, not per drop: a resolver read is a zones-file load behind the seam, and
+    // every rail slot's Status asks for a display name on every refresh.
+    private CalloutResolver? _placeCallouts;
 
     private static readonly SituationTolerance[] _allStops =
     [
@@ -112,6 +118,10 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     /// <param name="filters">The filter rail; one over the cache alone, with no team or source fields, when null.</param>
     /// <param name="post">Marshals the live count's answer onto the UI thread; a dispatcher post in the app, inline in a test.</param>
     /// <param name="countDelay">The live count's debounce; <see cref="SituationLiveCount.DefaultDelay" /> when null, zero in a test.</param>
+    /// <param name="calloutResolverFor">
+    ///     Builds the map's <see cref="CalloutResolver" /> (Callout Aliases, strat-model.md §3.7) for the place
+    ///     names this canvas shows; null shows the stored canonical spelling, as if no aliases existed.
+    /// </param>
     public QueryCanvasViewModel(
         ISituationIndex index,
         IQueryPlaceResolver resolver,
@@ -120,7 +130,8 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Action<Action>? retire = null,
         SearchFiltersViewModel? filters = null,
         Action<Action>? post = null,
-        TimeSpan? countDelay = null)
+        TimeSpan? countDelay = null,
+        Func<string, CalloutResolver>? calloutResolverFor = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(resolver);
@@ -129,6 +140,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         _demoCache = demoCache;
         _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
+        _calloutResolverFor = calloutResolverFor;
         _counter = new SituationLiveCount(index, post ?? (action => Dispatcher.UIThread.Post(action)), countDelay);
         _counter.Counted += OnCounted;
 
@@ -586,11 +598,16 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Document.Clear();
     }
 
+    /// <summary>What the rail shows for a stored canonical place: the default owner's word for it, else the name as stored.</summary>
+    /// <param name="place">A place a drop resolved to.</param>
+    internal string DisplayPlace(string place) => _placeCallouts?.Display(place) ?? place;
+
     partial void OnMapChanged(string? value)
     {
         Disarm();
         Document.MapName = value ?? "";
         Overlay.Clear();
+        _placeCallouts = value is null ? null : _calloutResolverFor?.Invoke(value);
 
         // The old bundle is retired one dispatcher hop later, not here: the host rebinds on MapChanged
         // below, and the render thread may still be replaying a picture that references the old radar
@@ -635,7 +652,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     // The release's answer, after the document already carries the placed token.
     private void OnDropped(QueryPlaceHit? hit) => HintLine = hit is not null
-        ? $"resolved to {hit.Place} ({hit.Source})"
+        ? $"resolved to {DisplayPlace(hit.Place)} ({hit.Source})"
         : "no place near that drop; the token is on the map but not in the query";
 
     // A row that arrived or left moves the coverage and, with a demo-level filter set, the demo set;
@@ -759,8 +776,8 @@ public sealed partial class QueryRailSlotViewModel : ViewModelBase
     /// <summary>"CT 1" to "CT 5", "T 1" to "T 5".</summary>
     public string Label => $"{(Side == QuerySide.Ct ? "CT" : "T")} {Slot + 1}";
 
-    /// <summary>The place, or what the slot is doing instead.</summary>
-    public string Status => Place ?? (IsPlaced ? "no place" : IsArmed ? "click the map" : "");
+    /// <summary>The place, in the default owner's word for it, or what the slot is doing instead.</summary>
+    public string Status => Place is { } place ? _owner.DisplayPlace(place) : IsPlaced ? "no place" : IsArmed ? "click the map" : "";
 
     /// <summary>Arms or disarms this slot.</summary>
     [RelayCommand]

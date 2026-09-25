@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Services.Tags;
 
 #endregion
 
@@ -108,6 +109,24 @@ public sealed class CalloutResolver
     /// <summary>Whether a stored place is one of the map's canonical names, exactly as spelled.</summary>
     /// <param name="place">A place from a step.</param>
     public bool IsCanonical(string? place) => place is not null && _canonicalExact.Contains(place);
+
+    /// <summary>
+    ///     A <see cref="PositionPredicate" /> for what a user typed: "popdog" resolves to its canonical place
+    ///     the same way a strat step's from and to do, so a TagQuery place filter reads a team's word too.
+    ///     Text that resolves to nothing matches nothing, distinct from <see cref="PositionPredicate.Places" />
+    ///     being null (no place filter at all).
+    /// </summary>
+    /// <param name="text">What was typed into a place filter.</param>
+    public PositionPredicate FilterFor(string? text)
+    {
+        HashSet<string> places = new(StringComparer.Ordinal);
+        if (Resolve(text) is { } place)
+        {
+            places.Add(place);
+        }
+
+        return new PositionPredicate(places);
+    }
 
     /// <summary>What the UI shows for a place: the owner's primary alias, else the canonical name split into words.</summary>
     /// <param name="place">A canonical place.</param>
