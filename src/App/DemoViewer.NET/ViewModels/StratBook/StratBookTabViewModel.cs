@@ -21,8 +21,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.Dependencies;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Playback2D;
 
@@ -97,8 +100,15 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="calloutResolvers">Builds a resolver over the store's aliases and a map's zones; one built from the store when omitted.</param>
     /// <param name="canvasMapLoader">Loads the canvas's map bundle by name; the baked assets when omitted.</param>
+    /// <param name="tags">The Tag Store the Strat Record Panel reads and listens to; a session-only store when omitted.</param>
+    /// <param name="evidence">Computes a strat's record from <paramref name="tags" />; built without Demo Provenance Labels when omitted.</param>
+    /// <param name="review">Where the record panel's numbers send their clips; null says there is none on this host.</param>
+    /// <param name="indexBySha">Hash to library row, for a clip's path (<see cref="DemoCacheStore.TryGetIndexBySha256" />).</param>
+    /// <param name="selectTab">Shows a tab by id, for the Review tab after the record panel sends clips; null stays on the Strat Book.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
-        CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null)
+        CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
+        TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
+        Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
@@ -109,6 +119,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Session = new StratSession(store, _post, () => IsBrowser, () => DateTime.UtcNow);
         Editor = new StratEditorViewModel(Session);
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
+
+        // Strat Record Panel (plan.md §3, strat-model.md §3.6): run / won / aborted, split by Demo
+        // Provenance Labels, the failure breakdown, every number a clip. A session-only Tag Store when
+        // the host wired none, so the tab still renders (empty) rather than needing a fourth optional
+        // to become required.
+        TagStore recordTags = tags ?? new TagStore(null);
+        RecordPanel = new StratRecordPanelViewModel(
+            evidence ?? new StratEvidenceService(recordTags), recordTags, review, indexBySha, selectTab, _post);
 
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
@@ -155,6 +173,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>The Step Authoring canvas over the open strat (step-authoring.md §3.10).</summary>
     public StratCanvasViewModel Canvas { get; }
+
+    /// <summary>The Strat Record Panel over the open strat (strat-model.md §3.6).</summary>
+    public StratRecordPanelViewModel RecordPanel { get; }
 
     /// <summary>Every book: <c>me</c>, then each visible team.</summary>
     public ObservableCollection<StratOwnerOption> Owners { get; } = [];
@@ -301,6 +322,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Session.Changed -= OnSessionChanged;
         Canvas.Dispose();
         Session.Dispose();
+        RecordPanel.Dispose();
     }
 
     // ── Actions ──────────────────────────────────────────────────────────────────────────────────
@@ -593,6 +615,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private void OnSessionChanged()
     {
         Editor.Project();
+        RecordPanel.Configure(Session.Document);
         OnPropertyChanged(nameof(HasOpenStrat));
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));

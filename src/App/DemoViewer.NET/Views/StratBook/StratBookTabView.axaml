@@ -22,6 +22,45 @@
         <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
     </UserControl.KeyBindings>
 
+    <UserControl.Resources>
+        <!-- One row of the Strat Record Panel (strat-model.md §3.6): a scope's run/won/lost/aborted/unknown
+             counts, each a button when its clips are nonempty, and the win rate. Shared by the total row
+             and the provenance rows so both read the same. -->
+        <DataTemplate x:Key="RecordSplitRowTemplate" x:DataType="vm:StratRecordSplitRow">
+            <Grid ColumnDefinitions="100,56,56,56,60,64,56" ColumnSpacing="4" Margin="0 0 0 3">
+                <TextBlock Grid.Column="0" Text="{Binding Display}" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+                <Panel Grid.Column="1">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Run.CountText}"
+                            Command="{Binding Run.OpenCommand}" IsVisible="{Binding !Run.IsEmpty}" ToolTip.Tip="{Binding Run.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Run.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="2">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Won.CountText}"
+                            Command="{Binding Won.OpenCommand}" IsVisible="{Binding !Won.IsEmpty}" ToolTip.Tip="{Binding Won.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Won.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="3">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Lost.CountText}"
+                            Command="{Binding Lost.OpenCommand}" IsVisible="{Binding !Lost.IsEmpty}" ToolTip.Tip="{Binding Lost.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Lost.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="4">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Aborted.CountText}"
+                            Command="{Binding Aborted.OpenCommand}" IsVisible="{Binding !Aborted.IsEmpty}" ToolTip.Tip="{Binding Aborted.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Aborted.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="5">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Unknown.CountText}"
+                            Command="{Binding Unknown.OpenCommand}" IsVisible="{Binding !Unknown.IsEmpty}" ToolTip.Tip="{Binding Unknown.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Unknown.IsEmpty}" />
+                </Panel>
+                <TextBlock Grid.Column="6" Text="{Binding WinRateText}" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextMid}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <DockPanel Margin="16">
 
         <!-- The book, the filters, and the browser note. -->
@@ -366,6 +405,46 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </StackPanel>
+
+                            <!-- The Strat Record Panel (strat-model.md §3.6): run/won/lost/aborted, split by Demo
+                                 Provenance Labels, the small-sample caution, the failure breakdown; every number
+                                 sends its runs to the Review Queue. Reads the tab's RecordPanel, not the editor. -->
+                            <StackPanel Spacing="6"
+                                        DataContext="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).RecordPanel}"
+                                        x:DataType="vm:StratRecordPanelViewModel">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="Record" Classes="col-label"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="computing…" FontSize="11"
+                                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsComputing}" />
+                                </Grid>
+                                <TextBlock Text="{Binding Caution}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasCaution}" />
+                                <TextBlock Text="{Binding UnknownNote}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasUnknownNote}" />
+                                <ContentControl Content="{Binding Total}" ContentTemplate="{StaticResource RecordSplitRowTemplate}" />
+                                <TextBlock Text="by provenance" FontSize="10" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding HasProvenanceRows}" />
+                                <ItemsControl ItemsSource="{Binding ByProvenance}" ItemTemplate="{StaticResource RecordSplitRowTemplate}" />
+                                <TextBlock Text="Failures (lost or aborted runs only)" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" IsVisible="{Binding HasFailures}" />
+                                <ItemsControl ItemsSource="{Binding Failures}" IsVisible="{Binding HasFailures}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratRecordFailureRow">
+                                            <Grid ColumnDefinitions="140,56" ColumnSpacing="4" Margin="0 0 0 3">
+                                                <TextBlock Grid.Column="0" Text="{Binding Failure}" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                                <Button Grid.Column="1" Classes="ghost" FontSize="11" Padding="6 2"
+                                                        Content="{Binding Clips.CountText}" Command="{Binding Clips.OpenCommand}"
+                                                        ToolTip.Tip="{Binding Clips.Tip}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
