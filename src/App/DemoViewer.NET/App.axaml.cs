@@ -824,7 +824,11 @@ public class App : Application
                 teams: sp.GetRequiredService<TeamIdentityService>(),
                 provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
                 watched: sp.GetRequiredService<WatchedSituationsService>(),
-                review: sp.GetRequiredService<ReviewQueue>());
+                review: sp.GetRequiredService<ReviewQueue>(),
+                // The canvas shows the "us" team's callouts (Callout Aliases, strat-model.md §3.7) over
+                // the stored canonical place names; no team marked falls back to the me book, same as the
+                // Strat Book's own default.
+                callouts: sp.GetRequiredService<CalloutResolverSource>());
         });
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
@@ -964,10 +968,15 @@ public class App : Application
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
         services.AddSingleton(_ => new StratStore(AppPaths.StratsDir, action => Dispatcher.UIThread.Post(action)));
+        // Callout Aliases (strat-model.md §3.7): one resolver builder over the store's tables and the map's
+        // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
+        // a nav place.
+        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
         services.AddSingleton(sp => new StratBookTabViewModel(
             sp.GetRequiredService<StratStore>(),
             sp.GetRequiredService<TeamIdentityService>(),
-            action => Dispatcher.UIThread.Post(action)));
+            action => Dispatcher.UIThread.Post(action),
+            calloutResolvers: sp.GetRequiredService<CalloutResolverSource>()));
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
         // Like This, so the set the keys walk is the set the tab shows.
