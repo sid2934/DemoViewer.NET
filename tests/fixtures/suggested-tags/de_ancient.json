@@ -1,0 +1,568 @@
+{
+  "schema": 1,
+  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events until CS2DemoKit #54 ships Round Facts rows. Recapture with ST_GOLDEN_UPDATE=1.",
+  "demo": "match730_003765251335658668110_1533655444_405.dem",
+  "map": "de_ancient",
+  "tickRate": 64,
+  "regionTable": {
+    "schemaVersion": 1,
+    "map": "de_ancient",
+    "demoCount": 1,
+    "roundCount": 28,
+    "plants": {
+      "BombsiteA": 8,
+      "BombsiteB": 11
+    },
+    "regions": {
+      "BombsiteA": [
+        "BombsiteA",
+        "MainHall",
+        "Middle",
+        "SideHall"
+      ],
+      "BombsiteB": [
+        "BombsiteB",
+        "Middle",
+        "Ramp",
+        "TSideLower"
+      ]
+    },
+    "spawnAdjacent": [
+      "Outside",
+      "Ruins",
+      "TSpawn",
+      "Tunnel"
+    ]
+  },
+  "round": {
+    "number": 24,
+    "startTick": 140922,
+    "endTick": 146096,
+    "bomb": {
+      "plantTick": 144562,
+      "site": "BombsiteB",
+      "defuseTick": null,
+      "explodeTick": null
+    },
+    "sides": {
+      "0": 3,
+      "1": 3,
+      "2": 3,
+      "3": 3,
+      "4": 3,
+      "5": 2,
+      "6": 2,
+      "7": 2,
+      "8": 2,
+      "9": 2
+    },
+    "places": {
+      "0": [
+        "0-2:BombsiteA",
+        "3-6:CTSpawn",
+        "7-41:BombsiteA",
+        "42-46:MainHall",
+        "47-52:Outside",
+        "53-56:TSpawn",
+        "57-60:Tunnel",
+        "61-62:Water",
+        "63-70:Ruins",
+        "71-71:TSideLower",
+        "72-72:Ramp"
+      ],
+      "1": [
+        "0-2:Middle",
+        "3-5:CTSpawn",
+        "6-6:House",
+        "7-10:Alley",
+        "11-11:BombsiteB",
+        "12-33:SideEntrance"
+      ],
+      "2": [
+        "0-4:SideEntrance",
+        "5-11:CTSpawn",
+        "12-12:House",
+        "13-17:Alley",
+        "18-26:BombsiteB",
+        "27-32:Ramp",
+        "33-45:BombsiteB"
+      ],
+      "3": [
+        "0-1:TSpawn",
+        "2-4:CTSpawn",
+        "5-7:BombsiteA",
+        "8-38:SideHall",
+        "39-43:BombsiteA",
+        "44-48:CTSpawn",
+        "49-49:House",
+        "50-65:Alley"
+      ],
+      "4": [
+        "0-1:BombsiteB",
+        "2-7:CTSpawn",
+        "8-8:House",
+        "9-25:Alley",
+        "26-35:BombsiteB",
+        "36-67:Alley"
+      ],
+      "5": [
+        "0-1:TSpawn",
+        "2-4:Tunnel",
+        "5-6:Water",
+        "7-11:Ruins",
+        "12-15:TSideLower",
+        "16-21:TSideUpper",
+        "22-36:SideEntrance",
+        "37-39:TSideUpper",
+        "40-42:TSideLower",
+        "43-48:Ramp",
+        "49-55:BombsiteB"
+      ],
+      "6": [
+        "0-4:TSpawn",
+        "5-8:Tunnel",
+        "9-11:TSpawn",
+        "12-28:Outside",
+        "29-36:Middle",
+        "37-40:TSideUpper",
+        "41-43:SideEntrance",
+        "44-46:TSideUpper",
+        "47-52:TSideLower",
+        "53-53:TSideUpper",
+        "54-57:TSideLower",
+        "58-80:Ramp"
+      ],
+      "7": [
+        "0-2:TSpawn",
+        "3-8:Outside",
+        "9-27:Middle",
+        "28-31:TopofMid",
+        "32-47:Middle",
+        "48-49:TopofMid",
+        "50-80:House"
+      ],
+      "8": [
+        "0-10:TSpawn",
+        "11-22:Outside",
+        "23-41:Middle",
+        "42-44:TSideUpper",
+        "45-47:TSideLower",
+        "48-49:Ramp",
+        "50-54:BombsiteB"
+      ],
+      "9": [
+        "0-2:TSpawn",
+        "3-10:Outside",
+        "11-26:Middle",
+        "27-35:TSideUpper",
+        "36-40:SideEntrance",
+        "41-43:TSideUpper",
+        "44-49:TSideLower",
+        "50-51:Ramp",
+        "52-80:BombsiteB"
+      ]
+    }
+  },
+  "events": [
+    {
+      "tick": 141472,
+      "kind": "flash",
+      "slot": 7,
+      "x": -302.7,
+      "y": -618.8,
+      "z": 107.2,
+      "place": "Middle"
+    },
+    {
+      "tick": 141845,
+      "kind": "decoy",
+      "slot": -1,
+      "x": 123.5,
+      "y": -316.5,
+      "z": 211.8,
+      "place": "SideEntrance"
+    },
+    {
+      "tick": 141895,
+      "kind": "inferno",
+      "slot": -1,
+      "x": -406.1,
+      "y": -505.6,
+      "z": 39.2,
+      "place": "Middle"
+    },
+    {
+      "tick": 141970,
+      "kind": "inferno",
+      "slot": -1,
+      "x": -892.5,
+      "y": -125.7,
+      "z": 85.8,
+      "place": "Middle"
+    },
+    {
+      "tick": 142051,
+      "kind": "smoke",
+      "slot": 7,
+      "x": -762.3,
+      "y": -162.3,
+      "z": 68.7,
+      "place": "Middle"
+    },
+    {
+      "tick": 142157,
+      "kind": "he",
+      "slot": 3,
+      "x": -453.6,
+      "y": -526.5,
+      "z": 64.9,
+      "place": "Middle"
+    },
+    {
+      "tick": 142434,
+      "kind": "inferno",
+      "slot": -1,
+      "x": -394.6,
+      "y": 452.2,
+      "z": 175.9,
+      "place": "House"
+    },
+    {
+      "tick": 142454,
+      "kind": "flash",
+      "slot": 6,
+      "x": -1973,
+      "y": -398.1,
+      "z": 83.3,
+      "place": "MainHall"
+    },
+    {
+      "tick": 142498,
+      "kind": "smoke",
+      "slot": 9,
+      "x": -562.7,
+      "y": 133.5,
+      "z": 147.2,
+      "place": "TopofMid"
+    },
+    {
+      "tick": 142564,
+      "kind": "he",
+      "slot": 7,
+      "x": -1265.1,
+      "y": -207.4,
+      "z": 114.1,
+      "place": "SideHall"
+    },
+    {
+      "tick": 142761,
+      "kind": "smoke",
+      "slot": 8,
+      "x": -471,
+      "y": 718.3,
+      "z": 115.7,
+      "place": "House"
+    },
+    {
+      "tick": 142939,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 358.3,
+      "y": -132.5,
+      "z": 155,
+      "place": "SideEntrance"
+    },
+    {
+      "tick": 143001,
+      "kind": "inferno",
+      "slot": -1,
+      "x": -1225.9,
+      "y": -105.1,
+      "z": 105,
+      "place": "SideHall"
+    },
+    {
+      "tick": 143191,
+      "kind": "he",
+      "slot": 9,
+      "x": 1356.1,
+      "y": -578.9,
+      "z": 35.2,
+      "place": "Ramp"
+    },
+    {
+      "tick": 143501,
+      "kind": "he",
+      "slot": 8,
+      "x": -538.8,
+      "y": 426.3,
+      "z": 179.5,
+      "place": "House"
+    },
+    {
+      "tick": 143542,
+      "kind": "flash",
+      "slot": 9,
+      "x": 605.4,
+      "y": 140.7,
+      "z": 137.7,
+      "place": "SideEntrance"
+    },
+    {
+      "tick": 143655,
+      "kind": "flash",
+      "slot": 5,
+      "x": 1225.3,
+      "y": -238.2,
+      "z": 319.3,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 143917,
+      "kind": "smoke",
+      "slot": 4,
+      "x": 1217.7,
+      "y": -147.4,
+      "z": 122.8,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 144046,
+      "kind": "he",
+      "slot": 5,
+      "x": 600.4,
+      "y": 605.4,
+      "z": 126.1,
+      "place": "Alley"
+    },
+    {
+      "tick": 144120,
+      "kind": "flash",
+      "slot": 8,
+      "x": 1335.6,
+      "y": 373.4,
+      "z": 191,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 144404,
+      "kind": "smoke",
+      "slot": 5,
+      "x": 635.5,
+      "y": 734.3,
+      "z": 116.8,
+      "place": "Alley"
+    },
+    {
+      "tick": 144465,
+      "kind": "smoke",
+      "slot": 6,
+      "x": -251.5,
+      "y": -805.2,
+      "z": 157.5,
+      "place": "Middle"
+    },
+    {
+      "tick": 144478,
+      "kind": "he",
+      "slot": 4,
+      "x": 1146.5,
+      "y": 468.4,
+      "z": 230,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 145131,
+      "kind": "inferno",
+      "slot": -1,
+      "x": 704.5,
+      "y": 179.8,
+      "z": 132,
+      "place": "BombsiteB"
+    },
+    {
+      "tick": 145547,
+      "kind": "he",
+      "slot": 6,
+      "x": 1163,
+      "y": 765.1,
+      "z": 146.6,
+      "place": "Alley"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "exec|r24|T|BombsiteB|s=45",
+      "detector": "execute",
+      "code": "execute",
+      "round": 24,
+      "side": 2,
+      "fromTick": 142586,
+      "toTick": 144570,
+      "triggerTick": 143802,
+      "confidence": 0.8,
+      "factors": {
+        "count": 1,
+        "touch": 1,
+        "utility": 0.8
+      },
+      "labels": {
+        "count": "5",
+        "plant": "true",
+        "site": "BombsiteB",
+        "tempo": "mid"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 143655,
+          "text": "flash by slot 5 -> BombsiteB"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 143802,
+          "text": "5 T in BombsiteB+Middle+Ramp+TSideLower"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 144058,
+          "text": "T in BombsiteB"
+        },
+        {
+          "kind": "event",
+          "tick": 144120,
+          "text": "flash by slot 8 -> BombsiteB"
+        }
+      ]
+    },
+    {
+      "id": "default|r24|T",
+      "detector": "default",
+      "code": "default",
+      "round": 24,
+      "side": 2,
+      "fromTick": 140922,
+      "toTick": 143802,
+      "triggerTick": 142842,
+      "confidence": 0.7,
+      "factors": {
+        "base": 0.5,
+        "spread": 0.1,
+        "utility": 0.1
+      },
+      "labels": {
+        "places": "Middle,SideEntrance,TSideUpper,TopofMid",
+        "then": "execute@BombsiteB"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 141472,
+          "text": "flash by slot 7 -> Middle"
+        },
+        {
+          "kind": "event",
+          "tick": 142051,
+          "text": "smoke by slot 7 -> Middle"
+        },
+        {
+          "kind": "event",
+          "tick": 142454,
+          "text": "flash by slot 6 -> MainHall"
+        },
+        {
+          "kind": "event",
+          "tick": 142564,
+          "text": "he by slot 7 -> SideHall"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 142842,
+          "text": "T in 4 places: Middle, SideEntrance, TSideUpper, TopofMid"
+        },
+        {
+          "kind": "event",
+          "tick": 143191,
+          "text": "he by slot 9 -> Ramp"
+        }
+      ]
+    },
+    {
+      "id": "fake|r24|T|BombsiteA>BombsiteB|s=45",
+      "detector": "fake",
+      "code": "fake",
+      "round": 24,
+      "side": 2,
+      "fromTick": 142198,
+      "toTick": 144570,
+      "triggerTick": 142454,
+      "confidence": 0.64,
+      "factors": {
+        "execute": 0.8,
+        "fake": 0.8
+      },
+      "labels": {
+        "fake": "BombsiteA",
+        "presence": "0",
+        "real": "BombsiteB",
+        "utility": "2"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 142454,
+          "text": "flash by slot 6 -> MainHall"
+        },
+        {
+          "kind": "event",
+          "tick": 142564,
+          "text": "he by slot 7 -> SideHall"
+        },
+        {
+          "kind": "occupancy",
+          "tick": 143802,
+          "text": "execute at BombsiteB"
+        }
+      ]
+    },
+    {
+      "id": "opener|r24|T|s=20",
+      "detector": "opener",
+      "code": "opener",
+      "round": 24,
+      "side": 2,
+      "fromTick": 142134,
+      "toTick": 142948,
+      "triggerTick": 142454,
+      "confidence": 0.5,
+      "factors": {
+        "base": 0.5,
+        "count": 0,
+        "early": 0,
+        "region": 0
+      },
+      "labels": {
+        "count": "3",
+        "kinds": "flash,he,smoke",
+        "side": "T"
+      },
+      "evidence": [
+        {
+          "kind": "event",
+          "tick": 142454,
+          "text": "flash by slot 6 -> MainHall"
+        },
+        {
+          "kind": "event",
+          "tick": 142498,
+          "text": "smoke by slot 9 -> TopofMid"
+        },
+        {
+          "kind": "event",
+          "tick": 142564,
+          "text": "he by slot 7 -> SideHall"
+        }
+      ]
+    }
+  ]
+}
