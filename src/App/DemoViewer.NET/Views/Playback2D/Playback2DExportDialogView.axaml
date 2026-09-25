@@ -23,7 +23,7 @@
     -->
     <StackPanel Spacing="10" Margin="12">
 
-        <TextBlock Text="Export video" FontWeight="SemiBold" FontSize="14" />
+        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
 
         <!-- Range -->
         <StackPanel Spacing="3">
@@ -73,7 +73,7 @@
         <!-- Size -->
         <StackPanel Spacing="3">
             <TextBlock Text="Size" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
-            <ComboBox ItemsSource="{x:Static vm:Playback2DExportDialogViewModel.SizePresets}"
+            <ComboBox ItemsSource="{Binding Sizes}"
                       SelectedItem="{Binding SelectedSize}" HorizontalAlignment="Stretch"
                       IsEnabled="{Binding !UseCustomSize}">
                 <ComboBox.ItemTemplate>
@@ -101,6 +101,7 @@
                           ToolTip.Tip="The burned-in broadcast overlay. Pick which parts below." />
                 <CheckBox Content="Annotations" IsChecked="{Binding IncludeAnnotations}" FontSize="11" />
                 <CheckBox Content="Vision cones" IsChecked="{Binding IncludeVision}" FontSize="11"
+                          IsVisible="{Binding ShowDemoLayers}"
                           ToolTip.Tip="Off by default: solving line of sight is the most expensive thing in the frame, and it is the first thing to drop if an export is slower than realtime." />
             </WrapPanel>
 
@@ -109,8 +110,10 @@
             <WrapPanel ItemSpacing="14" LineSpacing="4" Margin="18,2,0,0"
                        IsEnabled="{Binding IncludeHud}">
                 <CheckBox Content="Score + clock" IsChecked="{Binding IncludeHudClock}" FontSize="11" />
-                <CheckBox Content="Kill feed" IsChecked="{Binding IncludeHudKillFeed}" FontSize="11" />
+                <CheckBox Content="Kill feed" IsChecked="{Binding IncludeHudKillFeed}" FontSize="11"
+                          IsVisible="{Binding ShowDemoLayers}" />
                 <CheckBox Content="Player cards" IsChecked="{Binding IncludeHudRoster}" FontSize="11"
+                          IsVisible="{Binding ShowDemoLayers}"
                           ToolTip.Tip="Health, armour, weapon and cash for each side, down both edges of the frame." />
             </WrapPanel>
         </StackPanel>

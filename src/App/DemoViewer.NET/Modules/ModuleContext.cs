@@ -6,6 +6,7 @@ using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.ViewModels.Playback;
 
 #endregion
@@ -102,6 +103,13 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     ///     </para>
     /// </summary>
     public Playback2DExportHost? ExportHost { get; private set; }
+
+    /// <summary>
+    ///     The Strat Book's export host, or null when this build has none (browser, tests, designer). Not on
+    ///     <see cref="IModuleContext" /> for <see cref="ExportHost" />'s reason: the gate and the chip mount are
+    ///     first-party capabilities the shell hands one tab.
+    /// </summary>
+    public StratExportHost? StratExportHost { get; private set; }
 
     /// <inheritdoc />
     public ParsedDemo? CurrentDemo { get; private set; }
@@ -279,6 +287,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <summary>Wires the export host once at composition (mirrors <see cref="SetLiveSyncHud" />).</summary>
     /// <param name="host">The host, or null for a build with no export.</param>
     public void SetExportHost(Playback2DExportHost? host) => ExportHost = host;
+
+    /// <summary>Wires the Strat Book's export host once at composition, beside <see cref="SetExportHost" />.</summary>
+    /// <param name="host">The host, or null for a build with no export.</param>
+    public void SetStratExportHost(StratExportHost? host) => StratExportHost = host;
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The

@@ -219,6 +219,13 @@ public static class FeatureCatalog
             "playback2d.suggestedtags", FeatureScope.SubFeature, "Suggested tags",
             "Offer tags found by detectors (execute, default, fake, opener, retake) to accept, edit or reject.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
+        // Strat Export (step-authoring.md §3.6): the open strat to GIF or video with no demo behind it. Desktop
+        // only for playback2d.export's reason, through the same ShellModuleFeatureGate.DesktopOnlyIds. Only
+        // the ID is a persisted key.
+        new(
+            "stratbook.export", FeatureScope.SubFeature, "Strat export",
+            "Render a strat to gif/webm/mp4 from the Strat Book canvas. Desktop only.",
+            "tab.stratbook", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------
         new(

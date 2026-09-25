@@ -961,7 +961,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             captureInk: SnapshotInkForExport,
             acquireFfmpeg: Playback2DExportDialogViewModel.ProductionAcquisition(
                 FfmpegDependency.ManagedDirectory),
-            capturePalette: CaptureExportPalette);
+            capturePalette: CaptureExportPalette,
+            scene: ExportDialogScene.Demo);
 
         ExportDialog.StartRequested += CloseExport;
     }

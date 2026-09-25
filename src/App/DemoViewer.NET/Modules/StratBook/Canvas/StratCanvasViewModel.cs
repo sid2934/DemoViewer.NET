@@ -388,6 +388,29 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     [RelayCommand]
     private void SelectTokenTool() => Annotations.SelectTool(ToolKind.Token);
 
+    /// <summary>The loader the canvas reads its map bundle with; the export loads its own copy through it.</summary>
+    internal Func<string?, LoadedMapAsset?> MapLoader => _mapLoader;
+
+    /// <summary>
+    ///     The open strat on the selected path as it stands now, for an export (step-authoring.md §3.6), or null
+    ///     with no strat open. On the UI thread only, at Start: the track set is copied and the ink is a
+    ///     <c>Reset</c> copy in a session of its own, so the canvas can keep editing while the file renders
+    ///     (the catalog's "never the live document" rule, <c>SceneLayerCatalog.CreateSceneStack</c>).
+    /// </summary>
+    internal StratExportCapture? CaptureForExport()
+    {
+        if (_projection is not { } projection || _session.Document is not { } document)
+        {
+            return null;
+        }
+
+        AnnotationDocument frozen = new();
+        frozen.Reset([.. _ink.Document.Elements]);
+        return new StratExportCapture(projection, new TokenTrackSet(Tracks.Tracks), new AnnotationSession(frozen),
+            document.Map, document.Name,
+            MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection));
+    }
+
     /// <summary>
     ///     Puts every slot the path never places on the map at the active step, so there is a token to drag:
     ///     a slot with no keyframe is not drawn. One undo entry.

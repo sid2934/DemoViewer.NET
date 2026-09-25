@@ -380,10 +380,43 @@
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="1" CornerRadius="6" Padding="12 10">
                 <Panel>
-                    <TextBlock Text="the canvas plays the open strat" FontSize="11"
-                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
-                    <sb:StratCanvasView DataContext="{Binding Canvas}" x:DataType="canvas:StratCanvasViewModel"
-                                        IsVisible="{Binding HasDocument}" />
+                    <DockPanel>
+                        <!-- Strat Export (step-authoring.md §3.6). The button when this build can export; on the
+                             browser the same slot says why it cannot, the 2D tab's wording. -->
+                        <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0 0 0 6">
+                            <Button x:Name="StratExportButton" DockPanel.Dock="Right" Content="Export strat…"
+                                    Classes="ghost" FontSize="11" Padding="8 3"
+                                    Command="{Binding OpenExportCommand}" IsVisible="{Binding CanExport}"
+                                    ToolTip.Tip="Render the strat to a GIF or video, first step to last plus 2 s by default. Runs in the background." />
+                            <TextBlock DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMid}"
+                                       Text="{Binding ExportUnavailableNote}"
+                                       IsVisible="{Binding HasExportUnavailableNote}"
+                                       ToolTip.Tip="An export writes a file and may drive ffmpeg; the browser head has neither." />
+                        </DockPanel>
+                        <Panel>
+                            <TextBlock Text="the canvas plays the open strat" FontSize="11"
+                                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
+                            <sb:StratCanvasView DataContext="{Binding Canvas}" x:DataType="canvas:StratCanvasViewModel"
+                                                IsVisible="{Binding HasDocument}" />
+                        </Panel>
+                    </DockPanel>
+
+                    <!-- The export pane, as on the 2D tab: not a modal; Start hands off and closes, and progress
+                         lives on the status chip. -->
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="360"
+                            BorderThickness="1,0,0,0"
+                            Background="{DynamicResource Pb2dPanelBg}"
+                            BorderBrush="{DynamicResource Pb2dGridSplitter}"
+                            IsVisible="{Binding ExportDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Grid RowDefinitions="*,Auto">
+                            <ScrollViewer Grid.Row="0">
+                                <ContentControl Content="{Binding ExportDialog}" />
+                            </ScrollViewer>
+                            <Button Grid.Row="1" Content="Close" Margin="12,0,12,12" HorizontalAlignment="Right"
+                                    Command="{Binding CloseExportCommand}" />
+                        </Grid>
+                    </Border>
                 </Panel>
             </Border>
         </Grid>
