@@ -227,6 +227,14 @@ public partial class Playback2DView : UserControl
             return;
         }
 
+        // Then the Suggested Tags queue while a proposal is selected: its scope is what makes J and K walk
+        // the queue instead of the Situations result set.
+        if (vm.TryHandleSuggestionKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            return;
+        }
+
         // A drawing tool being active is what makes the keymap's tool-scoped rows shadow the always-scoped
         // ones: the mechanism by which Space and Esc change meaning without a second table.
         bool toolActive = vm.IsAnnotationsEnabled && vm.Annotations.IsDrawingToolActive;
