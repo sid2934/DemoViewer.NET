@@ -371,6 +371,122 @@
       },
       "pending": false,
       "notes": "The Overlay View golden (Strat Room, Overlay View): de_nuke's two nav floors and radar with no markers, and overlays/overlay-nuke-execute.dvoverlay.json stacked over it by playback2d.overlay as a density wash per floor. A synthetic hit set of twenty-four rounds, six sampled steps each, of an A execute: CT on A, Outside and the upper Ramp with a fifth man on the lower storey, T through Lobby, Outside and the lower Ramp toward the site and one at Silo, alive counts falling with the steps. The lower-storey points must reach the lower pane only, and the CT and T clusters read in their side's colour with a blend where both stood. The layer draws no text and the entry names no floor caption, so with zero marker labels the glyph allowance is zero and the gate is the unrelaxed one on every platform."
+    },
+    {
+      "name": "strat-mirage-exec-step1",
+      "scene": "scenes/strat-mirage-exec-step1.scene.json",
+      "size": {
+        "width": 640,
+        "height": 640
+      },
+      "map": "de_mirage",
+      "map_version": "9e86faf4",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8,
+        "advance_p99_ms": 2,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.trails",
+        "playback2d.areaeffects",
+        "playback2d.vision",
+        "playback2d.markers",
+        "playback2d.bomb",
+        "playback2d.floorlabel",
+        "playback2d.annotations",
+        "hud.clock"
+      ],
+      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. The smoke step's tick: A, B and the opponent O1 at their first keyframes, the molotov's arrow not yet visible (it starts at Molly), the smoke step's own arrow at full opacity (right at its window's FromTick, so no fade-in remains), hud.clock at 1:30. step-authoring.md §7 describes this tick as reading 1:55; that number predates the schema sample's atSeconds values, and the sample (schema-v1.sample.dvstrat.json) is what this entry actually projects, so the code's 1:30 is what is pinned here."
+    },
+    {
+      "name": "strat-mirage-exec-branch",
+      "scene": "scenes/strat-mirage-exec-branch.scene.json",
+      "size": {
+        "width": 640,
+        "height": 640
+      },
+      "map": "de_mirage",
+      "map_version": "9e86faf4",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8,
+        "advance_p99_ms": 2,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.trails",
+        "playback2d.areaeffects",
+        "playback2d.vision",
+        "playback2d.markers",
+        "playback2d.bomb",
+        "playback2d.floorlabel",
+        "playback2d.annotations",
+        "hud.clock"
+      ],
+      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. The branch's target step (the sample's branch skips the peek step straight to 'all'): every token holds the position it inherited from the smoke step, since none of A, B, C or O1 has a second keyframe on this path. hud.clock at 1:00."
+    },
+    {
+      "name": "strat-mirage-exec-mid-720p",
+      "scene": "scenes/strat-mirage-exec-mid-720p.scene.json",
+      "size": {
+        "width": 1280,
+        "height": 720
+      },
+      "map": "de_mirage",
+      "map_version": "9e86faf4",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8,
+        "advance_p99_ms": 2,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.trails",
+        "playback2d.areaeffects",
+        "playback2d.vision",
+        "playback2d.markers",
+        "playback2d.bomb",
+        "playback2d.floorlabel",
+        "playback2d.annotations",
+        "hud.clock"
+      ],
+      "notes": "PENDING for dv2d: same reason as strat-mirage-exec-mid (hud.clock). The same tick as strat-mirage-exec-mid, at the 720p export preset (Playback2DExportDialogViewModel.SizePresets) rather than the default GIF square, so a preset size is pinned somewhere in the corpus. Named without the '@1280x720' step-authoring.md §7 uses: GoldenCorpusEntry.GoldenPath already appends '@{width}x{height}' to the entry name, so that literal name would have written 'strat-mirage-exec-mid@1280x720@1280x720.png'."
+    },
+    {
+      "name": "strat-mirage-exec-mid",
+      "scene": "scenes/strat-mirage-exec-mid.scene.json",
+      "size": {
+        "width": 640,
+        "height": 640
+      },
+      "map": "de_mirage",
+      "map_version": "9e86faf4",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8,
+        "advance_p99_ms": 2,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.trails",
+        "playback2d.areaeffects",
+        "playback2d.vision",
+        "playback2d.markers",
+        "playback2d.bomb",
+        "playback2d.floorlabel",
+        "playback2d.annotations",
+        "hud.clock"
+      ],
+      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. Between the molotov and peek steps: A linearly interpolating toward its peek keyframe (past the molotov step's 2.5 s hold, about a fifth of the way to the peek position), B, C and O1 each held at their one keyframe, the smoke step's area effect still up (it expires at tick 2752), the molotov step's added arrow at full opacity and the peek step's text not yet fading in. Not the literal midpoint of the two steps' ticks (2848): see the class remarks for why that tick shows neither the smoke disc nor A in motion."
     }
   ]
 }
