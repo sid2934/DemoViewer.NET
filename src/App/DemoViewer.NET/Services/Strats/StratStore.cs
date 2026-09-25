@@ -226,6 +226,10 @@ public sealed class StratStore
             committed.Owner = committed.Owner.Clone();
             committed.Map = committed.Map.ToLowerInvariant();
 
+            // A commit that brings no words (the session's idle, deactivate and shutdown commits) gets them from
+            // its ops, so every line in the log reads as something in the history pane.
+            summary ??= known is null ? "created" : PhraseSummary(committed, ops);
+
             HistoryEntry entry = new()
             {
                 Revision = committed.Revision,
@@ -259,6 +263,21 @@ public sealed class StratStore
 
         RaiseChanged(document.Id);
         return new StratSaveResult(true, null, document.Revision, issues);
+    }
+
+    // The owner's callouts over the embedded list: display needs only the primary aliases, and the store has no
+    // zones to hand. Phrasing is a nicety, so a failure leaves the summary empty rather than failing the commit.
+    private string? PhraseSummary(StratDocument committed, IReadOnlyList<PatchOp> ops)
+    {
+        try
+        {
+            CalloutResolver callouts = CalloutResolver.For(committed.Map, null, LoadCallouts(committed.Owner, committed.Map));
+            return StratDiffPhrasing.SummaryAfter(committed, ops, callouts);
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException or JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>A status change as a one-op commit. False when the strat is absent or the commit failed.</summary>
