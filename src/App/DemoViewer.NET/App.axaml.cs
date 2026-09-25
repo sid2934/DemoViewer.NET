@@ -20,6 +20,7 @@ using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
@@ -863,6 +864,34 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
+        // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
+        // it wrote in the same pass (overview correction 19). Proposals go to cache/suggestions/ beside
+        // demos/, verdicts to the Tag Store under the tags root (correction 2); the learned site regions
+        // come from <config>/suggested-tags/. The library sweep is its own opt-in, off by default
+        // (correction 20); the open demo, resolved at call time, is always built. Null roots (the
+        // browser) keep all of it for the session.
+        services.AddSingleton(sp => new ProposalStore(AppPaths.DemoCacheDir, sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(_ => new SiteRegionStore(AppPaths.SuggestedTagsDirectory));
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            return new SuggestedTagsService(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<ProposalStore>(),
+                sp.GetRequiredService<TagStore>(),
+                sp.GetRequiredService<SiteRegionStore>(),
+                () => DetectorProfile.Default,
+                () => features?.IsEnabled(SuggestedTagsService.FeatureId) ?? true,
+                () => monitor?.CurrentValue.Playback2D.SuggestedTagsBackground ?? false,
+                sp.GetRequiredService<RoundIndexStore>(),
+                sp.GetRequiredService<RoundIndexPlaceSources>(),
+                sp.GetRequiredService<IZonePlaceResolverSource>(),
+                map => sp.GetRequiredService<ISituationIndex>().Places(map),
+                () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
+                action => Dispatcher.UIThread.Post(action));
+        });
+
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
         // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
         // no directory and offers the built-in alone.
@@ -931,18 +960,21 @@ public class App : Application
                 sp.GetRequiredService<HighlightScanService>();
             RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
             RoundIndexEvaluator roundIndex = sp.GetRequiredService<RoundIndexEvaluator>();
+            SuggestedTagsService suggestedTags = sp.GetRequiredService<SuggestedTagsService>();
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights, roundFacts, roundIndex],
+                [library, highlights, roundFacts, roundIndex, suggestedTags],
                 sp.GetRequiredService<IDemoProcessingQueue>(),
                 () => library.Tier2Backlog()
                     .Concat(highlights.PendingPaths())
                     .Concat(roundFacts.PendingPaths())
                     .Concat(roundIndex.PendingPaths())
+                    .Concat(suggestedTags.PendingPaths())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList());
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
             roundIndex.Coordinator = coordinator;
+            suggestedTags.Coordinator = coordinator;
             return coordinator;
         });
 

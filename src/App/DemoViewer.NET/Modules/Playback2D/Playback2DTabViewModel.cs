@@ -19,6 +19,7 @@ using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -42,6 +43,7 @@ using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Zones;
+using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -132,6 +134,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // the 2D tab. One session per tab: the store's CheckOut is single-writer.
     private readonly TagSession _tagSession;
     private readonly TagTrack _tagTrack;
+
+    // Suggested Tags' pending proposals on the tag lane and the queue that reviews them, docked under the
+    // palette (suggested-tags.md §3.6). The queue owns the set; the track mirrors its pending proposals.
+    private readonly ProposalTrack _proposalTrack = new();
 
     // Cached round facts, the winner tint's source on a Valve demo (which carries no round_end). Resolved
     // ambiently like the settings: a headless test builds this with no container and gets null, and the
@@ -379,6 +385,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         TagPalette.SelectPalette(Settings()?.Current.Playback2D.TagPaletteId);
         TagPalette.PaletteChosen += SaveTagPaletteSetting;
         _tagTrack.CodeColour = code => TagPalette.Palette.ColourOf(code);
+
+        // The Suggested track sits on the tag lane after the tags, so an accepted proposal moves from
+        // one band to the other in place. Its three confidence steps take theme tokens, never literals.
+        _proposalTrack.StepColour = ProposalStepColour;
+        Timeline.RegisterTrack(_proposalTrack, TimelineBandRow.Lane);
+        SuggestionQueue = new SuggestionQueueViewModel(TryResolve<SuggestedTagsService>(), _proposalTrack,
+            tick => _context?.RequestSeekToTick(tick), () => _context?.TickRate ?? 64,
+            static action => Dispatcher.UIThread.Post(action),
+            () => Settings()?.Current.Playback2D.SuggestedTagsBackground ?? false,
+            SaveSuggestedTagsBackground);
 
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
@@ -637,6 +653,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         TagPalette.Finish();
         TagPalette.Dispose();
         _tagTrack.Dispose();
+        SuggestionQueue.Dispose();
         _tagSession.Dispose(); // detaches, which flushes
 
         // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
@@ -1342,6 +1359,49 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public bool TryHandleTagPaletteKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
         IsTagPaletteFocused && TagPalette.TryHandleKey(key, modifiers);
 
+    /// <summary>The Suggested Tags queue docked under the palette. Always built; <see cref="IsSuggestedTagsEnabled" /> decides whether it shows.</summary>
+    public SuggestionQueueViewModel SuggestionQueue { get; }
+
+    /// <summary>Whether <c>playback2d.suggestedtags</c> is on for this user. Ungated (true) without a feature source.</summary>
+    public bool IsSuggestedTagsEnabled => _features?.IsEnabled(SuggestedTagsService.FeatureId) ?? true;
+
+    /// <summary>
+    ///     The queue's turn at a key, taken by the View after the palette's and BEFORE the tab's own keymap:
+    ///     the keymap's <see cref="Playback2DBindingScope.WhenSuggestionSelected" /> rows, which only exist
+    ///     while a proposal is selected. That is how J and K walk the queue then and the Situations result
+    ///     set otherwise. False when nothing is selected or no row there matches.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers held.</param>
+    public bool TryHandleSuggestionKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
+        IsSuggestedTagsEnabled && SuggestionQueue.HasSelection
+                               && Keymap.TryResolveInScope(Playback2DBindingScope.WhenSuggestionSelected, key, modifiers,
+                                   out Playback2DAction action)
+                               && SuggestionQueue.Execute(action);
+
+    // The queue shows the demo the tag session holds, or nothing while the gate is off.
+    private void AttachSuggestionsTo(string? demoPath, string? sha256) =>
+        SuggestionQueue.Attach(IsSuggestedTagsEnabled ? demoPath : null, sha256);
+
+    // The Suggested track's steps as theme tokens at the lane's wash alpha: the track hands back ARGB and
+    // never names a colour. Off the UI thread (a test's layout) the track's own washes stand.
+    private static uint? ProposalStepColour(ConfidenceStep step)
+    {
+        if (Application.Current is not { } app || !Dispatcher.UIThread.CheckAccess())
+        {
+            return null;
+        }
+
+        (string key, uint fallback, byte alpha) = step switch
+        {
+            ConfidenceStep.High => ("Pb2dPositive", 0xFF5AB05Au, (byte)0x80),
+            ConfidenceStep.Medium => ("Pb2dBomb", 0xFFE08040u, (byte)0x60),
+            _ => ("Pb2dTextDim", 0xFFA0A8B0u, (byte)0x40)
+        };
+        Color colour = ThemeColors.Get(key, app.ActualThemeVariant, Color.FromUInt32(fallback));
+        return Color.FromArgb(alpha, colour.R, colour.G, colour.B).ToUInt32();
+    }
+
     /// <summary>
     ///     A left click on the map while the palette has focus (Click To Tag Position): the point, on the
     ///     clicked pane's floor at the playhead, goes on the tag being made or the last one written. The
@@ -1396,6 +1456,18 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
+    private static void SaveSuggestedTagsBackground(bool on)
+    {
+        try
+        {
+            Settings()?.Write(s => s.Playback2D.SuggestedTagsBackground = on);
+        }
+        catch (Exception)
+        {
+            // A read-only config directory keeps the sweep's state for the session.
+        }
+    }
+
     // Binds the tag session to whatever demo the context is on. Fire-and-forget like the annotations:
     // the hash may have to be computed off the UI thread (a demo Content Identity has not reached), and
     // an activation must not wait on it. Re-activation on the demo already attached keeps the in-memory
@@ -1425,6 +1497,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
 
         await _tagSession.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
+
+        // The queue follows the tags: same demo, same hash, which keys its verdicts before the library
+        // has hashed the file.
+        AttachSuggestionsTo(demoPath, demo.Sha256);
     }
 
     private static string[] BuildMyWeaponsPaths()
@@ -1834,6 +1910,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             case Playback2DAction.TagLabelGroupNext:
                 return IsTagPaletteFocused && TagPalette.Execute(action);
 
+            // The queue's six: inert without a selection. J and K arrive through TryHandleSuggestionKey
+            // while one is selected, since outside that scope they walk the Situations result set.
+            case Playback2DAction.SuggestionNext:
+            case Playback2DAction.SuggestionPrev:
+            case Playback2DAction.SuggestionAccept:
+            case Playback2DAction.SuggestionReject:
+            case Playback2DAction.SuggestionEdit:
+            case Playback2DAction.SuggestionAcceptAll:
+                return IsSuggestedTagsEnabled && SuggestionQueue.Execute(action);
+
             default:
                 return false;
         }
@@ -1965,6 +2051,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
 
         OnPropertyChanged(nameof(IsTagPaletteFocused));
+
+        // Gated off, the queue lets go of the demo, which empties the Suggested track and drops the
+        // selection that held J and K; gated back on, it shows the open demo again.
+        OnPropertyChanged(nameof(IsSuggestedTagsEnabled));
+        AttachSuggestionsTo(_tagSession.DemoPath, _tagSession.Document?.Demo.Sha256);
 
         // Same three inputs as the line below it: the gate, the context, and whether that context has a
         // demo. The export host is wired once at composition, before any tab is activated, so activation
@@ -2253,6 +2344,18 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // happens, so the pick is also on screen. Outside Label Mode a tag band only seeks, as before.
     private void OnTimelineBandPressed(TimelineBandViewModel band)
     {
+        // A Suggested band picks its proposal for the queue, which is how the mouse starts a review; a
+        // second press on a merged band walks to its next member.
+        if (band.TrackId == ProposalTrack.TrackId)
+        {
+            if (IsSuggestedTagsEnabled && _timelineData is not null)
+            {
+                SuggestionQueue.SelectFromTrack(_proposalTrack.ProposalsInRun(_timelineData, band.StartFrameIndex));
+            }
+
+            return;
+        }
+
         if (band.TrackId != TagTrack.TrackId || !IsTagPaletteEnabled || !TagPalette.IsLabelMode
             || _timelineData is null)
         {

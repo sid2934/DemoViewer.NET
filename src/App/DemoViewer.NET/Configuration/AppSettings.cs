@@ -689,4 +689,12 @@ public sealed class Playback2DSettings
     ///     falls back to the built-in <c>cs2-default</c> rather than to nothing.
     /// </summary>
     public string TagPaletteId { get; set; } = "cs2-default";
+
+    /// <summary>
+    ///     Whether Suggested Tags sweeps the whole library in the background. Off by default, the Highlights
+    ///     scan's rule and the integrator's recommendation for this evaluator (overview correction 20): the
+    ///     open demo is always evaluated on the parse its open paid for, and the queue's Detect button runs
+    ///     any demo on request.
+    /// </summary>
+    public bool SuggestedTagsBackground { get; set; }
 }
