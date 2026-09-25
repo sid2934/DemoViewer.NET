@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "map": "de_ancient",
+  "source": "env_cs_place",
+  "names": [
+    "Alley",
+    "BombsiteA",
+    "BombsiteB",
+    "CTSpawn",
+    "House",
+    "MainHall",
+    "Middle",
+    "Outside",
+    "Ramp",
+    "Ruins",
+    "SideEntrance",
+    "SideHall",
+    "TSideLower",
+    "TSideUpper",
+    "TSpawn",
+    "TopofMid",
+    "Tunnel",
+    "Water"
+  ]
+}

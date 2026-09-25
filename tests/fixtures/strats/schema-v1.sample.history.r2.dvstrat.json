@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "0b7e4a21-9c3d-4f58-b6a2-e1d0c9b8a7f6",
+  "owner": {
+    "kind": "team",
+    "teamId": "3f2a9c1e-5b7d-4e2f-8a61-0c9d4b3e2f10"
+  },
+  "name": "A exec",
+  "map": "de_mirage",
+  "side": "T",
+  "type": "execute",
+  "targetSite": "A",
+  "economy": "full",
+  "status": "Theory",
+  "revision": 2,
+  "createdUtc": "2026-09-23T14:02:11Z",
+  "modifiedUtc": "2026-09-23T14:03:11Z",
+  "tags": [],
+  "clock": {
+    "kind": "round",
+    "roundSeconds": 115
+  },
+  "slots": [
+    {
+      "slot": "A"
+    },
+    {
+      "slot": "B"
+    },
+    {
+      "slot": "C"
+    },
+    {
+      "slot": "D"
+    },
+    {
+      "slot": "E"
+    }
+  ],
+  "steps": [
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000001",
+      "atSeconds": 90,
+      "actor": "B",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "note": "stairs first",
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000002",
+      "atSeconds": 76,
+      "actor": "C",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "utility": {
+        "kind": "molotov",
+        "landing": {
+          "place": "Jungle"
+        }
+      },
+      "positions": [],
+      "strokes": []
+    }
+  ],
+  "branches": []
+}
