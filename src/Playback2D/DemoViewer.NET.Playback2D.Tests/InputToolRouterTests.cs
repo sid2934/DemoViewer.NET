@@ -28,20 +28,12 @@ public class InputToolRouterTests
     }
 
     /// <summary>
-    ///     The keymap's tool scope keys off this flag, so Space holds to pan and Esc cancels under the
-    ///     shape and text tools exactly as under the pen (step-authoring.md §3.2). Pan/zoom and the
-    ///     Situations tab's query token are not annotation tools.
+    ///     The keymap's tool scope keys off this flag, so Space holds to pan and Esc cancels under every
+    ///     authoring tool (step-authoring.md §3.7): the pen, the shapes, text, the token tool, anything but
+    ///     pan/zoom. <see cref="ToolKinds.IsAnnotationTool" /> stays the narrower "does it write ink".
     /// </summary>
     [Test]
-    [Arguments(ToolKind.Draw, true)]
-    [Arguments(ToolKind.Erase, true)]
-    [Arguments(ToolKind.Line, true)]
-    [Arguments(ToolKind.Arrow, true)]
-    [Arguments(ToolKind.Rect, true)]
-    [Arguments(ToolKind.Ellipse, true)]
-    [Arguments(ToolKind.Text, true)]
-    [Arguments(ToolKind.PanZoom, false)]
-    public async Task IsDrawingToolActive_ForEveryAnnotationTool(ToolKind kind, bool expected)
+    public async Task IsDrawingToolActive_ForEveryKindButPanZoom()
     {
         (InputToolRouter router, FakeToolServices _, PaneSet _) = Build();
         router.Register(new ShapeTool(ToolKind.Line));
@@ -49,11 +41,21 @@ public class InputToolRouterTests
         router.Register(new ShapeTool(ToolKind.Rect));
         router.Register(new ShapeTool(ToolKind.Ellipse));
         router.Register(new TextTool());
+        router.Register(new TokenTool());
+        router.Register(new InertTool(ToolKind.QueryToken));
 
-        router.SetActive(kind);
+        List<string> wrong = [];
+        foreach (ToolKind kind in Enum.GetValues<ToolKind>())
+        {
+            router.SetActive(kind);
+            if (router.ActiveKind != kind || router.IsDrawingToolActive != (kind != ToolKind.PanZoom))
+            {
+                wrong.Add(kind.ToString());
+            }
+        }
 
-        await Assert.That(router.ActiveKind).IsEqualTo(kind);
-        await Assert.That(router.IsDrawingToolActive).IsEqualTo(expected);
+        await Assert.That(wrong).IsEmpty();
+        await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.Token)).IsFalse();
         await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.QueryToken)).IsFalse();
     }
 
@@ -532,5 +534,25 @@ public class InputToolRouterTests
         router.Register(new DrawTool());
         router.Register(new EraseTool());
         return (router, services, panes);
+    }
+
+    // Stands in for a tool that lives outside Core (the query canvas's), so every kind can be selected.
+    private sealed class InertTool(ToolKind kind) : IPointerTool
+    {
+        public ToolKind Kind => kind;
+
+        public bool OnPressed(in ToolPointerEvent e, IToolServices s) => false;
+
+        public void OnMoved(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnReleased(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnCancelled(IToolServices s)
+        {
+        }
     }
 }

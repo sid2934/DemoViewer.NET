@@ -80,11 +80,13 @@ public sealed class InputToolRouter
     public IPointerTool? GestureTool { get; private set; }
 
     /// <summary>
-    ///     True while a DRAWING tool is selected: what the app's keymap passes as its <c>toolActive</c>
-    ///     flag, so the tool-scoped Space / Esc bindings shadow the transport ones only when they should.
-    ///     Every annotation tool counts, the shape and text tools included.
+    ///     True while any tool but pan/zoom is selected: what the app's keymap passes as its
+    ///     <c>toolActive</c> flag, so the tool-scoped Space / Esc bindings shadow the transport ones under
+    ///     every authoring tool (step-authoring.md §3.7). The token tool drags as much as the pen does, and
+    ///     Esc has to cancel that drag rather than stop playback. Wider than
+    ///     <see cref="ToolKinds.IsAnnotationTool" />, which still answers "does this tool write ink".
     /// </summary>
-    public bool IsDrawingToolActive => ToolKinds.IsAnnotationTool(ActiveKind);
+    public bool IsDrawingToolActive => ActiveKind != ToolKind.PanZoom;
 
     // No ActiveToolChanged event: the selection round-trips through AnnotationsPanelViewModel's own
     // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives
