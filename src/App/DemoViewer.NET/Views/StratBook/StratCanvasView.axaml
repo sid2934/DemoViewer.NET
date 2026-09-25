@@ -1,0 +1,118 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.Modules.StratBook.Canvas"
+             xmlns:pb="using:DemoViewer.NET.Modules.Playback2D"
+             xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
+             x:Class="DemoViewer.NET.Views.StratBook.StratCanvasView"
+             x:DataType="vm:StratCanvasViewModel"
+             Focusable="True">
+
+    <!--
+      THE STEP AUTHORING CANVAS (step-authoring.md §3.10): the open strat on the 2D scene with no demo behind
+      it. The tool row, the step transport and the path picker on top; the scene host in the middle, bound to
+      the canvas view-model as its frame host and token editor; the scrubber at the bottom, one marker per
+      step and one per stroke.
+
+      Keys go through the shared Playback2D keymap (with the user's overrides) while the canvas has focus:
+      V token, D draw, X erase, A T L R O the shapes, Space play, [ ] steps, Shift+N add a step, Ctrl+D
+      duplicate it, Ctrl+Delete delete it, Ctrl+X clear its strokes, Ctrl+Z and Ctrl+Shift+Z the strat's
+      one history.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words and toggles, never tint.
+    -->
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- Tools. The same glyphs as the 2D tab's annotation toolbar; the token tool is this canvas's own. -->
+        <WrapPanel Grid.Row="0" Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="0 0 0 6">
+            <ToggleButton Padding="8,2" Content="✋"
+                          IsChecked="{Binding Annotations.IsPanZoomSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectPanZoomCommand}"
+                          ToolTip.Tip="Pan / zoom" />
+            <ToggleButton Padding="8,2" Content="◉"
+                          IsChecked="{Binding IsTokenToolSelected, Mode=OneWay}"
+                          Command="{Binding SelectTokenToolCommand}"
+                          ToolTip.Tip="{Binding TokenToolTip}" />
+            <ToggleButton Padding="8,2" Content="✎"
+                          IsChecked="{Binding Annotations.IsDrawSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectDrawCommand}"
+                          ToolTip.Tip="{Binding Annotations.DrawToolTip}" />
+            <ToggleButton Padding="8,2" Content="⌫"
+                          IsChecked="{Binding Annotations.IsEraseSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectEraseCommand}"
+                          ToolTip.Tip="{Binding Annotations.EraseToolTip}" />
+            <ToggleButton Padding="8,2" Content="➚"
+                          IsChecked="{Binding Annotations.IsArrowSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectArrowCommand}"
+                          ToolTip.Tip="{Binding Annotations.ArrowToolTip}" />
+            <ToggleButton Padding="8,2" Content="T"
+                          IsChecked="{Binding Annotations.IsTextSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectTextCommand}"
+                          ToolTip.Tip="{Binding Annotations.TextToolTip}" />
+            <ToggleButton Padding="8,2" Content="╱"
+                          IsChecked="{Binding Annotations.IsLineSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectLineCommand}"
+                          ToolTip.Tip="{Binding Annotations.LineToolTip}" />
+            <ToggleButton Padding="8,2" Content="▭"
+                          IsChecked="{Binding Annotations.IsRectSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectRectCommand}"
+                          ToolTip.Tip="{Binding Annotations.RectToolTip}" />
+            <ToggleButton Padding="8,2" Content="◯"
+                          IsChecked="{Binding Annotations.IsEllipseSelected, Mode=OneWay}"
+                          Command="{Binding Annotations.SelectEllipseCommand}"
+                          ToolTip.Tip="{Binding Annotations.EllipseToolTip}" />
+            <Button Content="Place tokens" Classes="ghost" FontSize="11" Padding="8 3"
+                    Command="{Binding PlaceTokensCommand}"
+                    ToolTip.Tip="Put every token the strat has not placed yet on the map at the active step, to drag from there" />
+            <Button Content="Fit" Classes="ghost" FontSize="11" Padding="8 3" Click="OnFitClick"
+                    ToolTip.Tip="Frame the whole map" />
+        </WrapPanel>
+
+        <!-- The step transport and the path. -->
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="0 0 0 6">
+            <Button Content="⏮" Classes="ghost" Padding="8 3" Command="{Binding PrevStepCommand}" ToolTip.Tip="Previous step ([)" />
+            <Button Content="{Binding PlayGlyph}" Classes="ghost" Padding="8 3" Command="{Binding TogglePlayCommand}"
+                    ToolTip.Tip="Play / pause (Space)" />
+            <Button Content="⏭" Classes="ghost" Padding="8 3" Command="{Binding NextStepCommand}" ToolTip.Tip="Next step (])" />
+            <TextBlock Text="{Binding ClockText}" FontSize="12" VerticalAlignment="Center" MinWidth="120"
+                       Foreground="{DynamicResource TextValue}" />
+            <TextBlock Text="{Binding SpeedText}" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMid}" ToolTip.Tip="Speed (↑ / ↓)" />
+            <Button Content="Add step" Classes="ghost" FontSize="11" Padding="8 3" Command="{Binding AddStepCommand}"
+                    ToolTip.Tip="Insert a step after the active one at the playhead's time (Shift+N)" />
+            <Button Content="Duplicate" Classes="ghost" FontSize="11" Padding="8 3" Command="{Binding DuplicateStepCommand}"
+                    ToolTip.Tip="Copy the active step's positions and strokes into a new step 5 s later (Ctrl+D)" />
+            <Button Content="Delete step" Classes="ghost" FontSize="11" Padding="8 3" Command="{Binding DeleteStepCommand}"
+                    ToolTip.Tip="Delete the active step and the branches that name it (Ctrl+Delete)" />
+            <ComboBox ItemsSource="{Binding PathOptions}" SelectedItem="{Binding SelectedPath}" FontSize="11"
+                      MinWidth="160" IsVisible="{Binding HasBranches}"
+                      ToolTip.Tip="Which path to play: the main line, or through a branch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StratPathOption">
+                        <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Text="{Binding StatusLine}" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" />
+        </WrapPanel>
+
+        <!-- The scene. The host finds the canvas through its DataContext, which is this view's. -->
+        <Border Grid.Row="2" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" ClipToBounds="True">
+            <Panel>
+                <pb:Scene2DHost x:Name="Host" />
+
+                <!-- The text tool's editor, as on the 2D tab: shown over the label being placed, Enter
+                     commits, Esc cancels, losing focus commits. -->
+                <Canvas x:Name="TextEditorLayer">
+                    <TextBox x:Name="AnnotationTextEditor" IsVisible="False" MinWidth="120"
+                             AcceptsReturn="False" Padding="4,1" MinHeight="0"
+                             Background="{DynamicResource Pb2dOverlayBg}"
+                             PlaceholderText="Label text, Enter to place" />
+                </Canvas>
+            </Panel>
+        </Border>
+
+        <tl:TimelineControl Grid.Row="3" DataContext="{Binding Timeline}" Margin="0 6 0 0" />
+    </Grid>
+</UserControl>
