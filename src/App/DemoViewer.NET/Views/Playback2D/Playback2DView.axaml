@@ -506,6 +506,22 @@
                 </Grid>
             </Border>
 
+            <!-- Create Strat From Round's review (step-authoring.md §3.9), opened from a round band's right-click
+                 menu. The export pane's place and shape; opening either closes the other. -->
+            <Border Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                    Width="360" Margin="0" BorderThickness="1,0,0,0"
+                    Background="{DynamicResource Pb2dPanelBg}"
+                    BorderBrush="{DynamicResource Pb2dGridSplitter}"
+                    IsVisible="{Binding CreateStratDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid RowDefinitions="*,Auto">
+                    <ScrollViewer Grid.Row="0">
+                        <ContentControl Content="{Binding CreateStratDialog}" />
+                    </ScrollViewer>
+                    <Button Grid.Row="1" Content="Close" Margin="12,0,12,12" HorizontalAlignment="Right"
+                            Command="{Binding CloseCreateStratCommand}" />
+                </Grid>
+            </Border>
+
             <!-- The playback timeline (feature-gated). The VM folds the gate AND has-demo into IsVisible;
                  the row is Auto-sized, so an off gate leaves no layout hole — the precedent the docked
                  toolbar's own Auto row above rests on. -->

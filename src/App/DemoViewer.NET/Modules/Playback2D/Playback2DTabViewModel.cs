@@ -8,10 +8,13 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.PlayerStats;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -42,9 +45,12 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Playback2D;
+using DemoViewer.NET.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -157,6 +163,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
     [ObservableProperty]
     private Playback2DExportDialogViewModel? _exportDialog;
+
+    /// <summary>
+    ///     Create Strat From Round's review pane (step-authoring.md §3.9), or null. It shares the export pane's
+    ///     place; opening one closes the other.
+    /// </summary>
+    [ObservableProperty]
+    private CreateStratDialogViewModel? _createStratDialog;
 
     // ── Video export ───────────────────────────────────────────────────────────
     // Everything reusable is in Pipeline/Core; what is here is the composition. The host arrives
@@ -401,6 +414,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
         Timeline.BandPressed += OnTimelineBandPressed;
+        Timeline.CreateStratRequested += OnCreateStratRequested;
 
         LoadLevelSettings();
         LevelStrip.SettingsChanged += SaveLevelSettings;
@@ -523,6 +537,19 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     any host that never mounted a surface at all.
     /// </summary>
     internal Func<CameraScript>? LiveCameraSource { get; set; }
+
+    /// <summary>
+    ///     The mounted surface's map levels, supplied by the View like <see cref="LiveCameraSource" />: a captured
+    ///     pawn's level key is its level's <c>ZMin</c> on these (step-authoring.md §3.9). Null under the legacy
+    ///     viewport, where the Z itself is quantized instead.
+    /// </summary>
+    internal Func<IReadOnlyList<MapLevel>>? CaptureLevelsSource { get; set; }
+
+    /// <summary>
+    ///     True when a round band can offer "Create strat from this round": the shell wired a capture host and the
+    ///     open demo's parse is there. Re-read from <see cref="RefreshGates" /> with the export's inputs.
+    /// </summary>
+    public bool CanCreateStrat => _context is ModuleContext { StratCaptureHost: { } host, HasDemo: true } && host.Demo() is not null;
 
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => CurrentFrame.Markers;
@@ -668,6 +695,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         ExportDialog?.Dispose();
         _exportJob?.Dispose();
         _exportJob = null;
+        Timeline.CreateStratRequested -= OnCreateStratRequested;
+        CloseCreateStrat();
     }
 
     public void OnActivated(IModuleContext context)
@@ -725,6 +754,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _annotationController.Flush();
         TagPalette.Leave(); // a tag still waiting for its labels is written, not dropped
         _tagSession.Flush();
+
+        // A review in progress is dropped with its walk: nothing was saved, and the tab may come back to
+        // another demo.
+        CloseCreateStrat();
 
         // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
         // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed
@@ -904,6 +937,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
+        CloseCreateStrat();
+
         if (_exportJob is null)
         {
             // The log sink is passed at BOTH levels on purpose: the runner's carries the chosen encoder
@@ -965,6 +1000,106 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             scene: ExportDialogScene.Demo);
 
         ExportDialog.StartRequested += CloseExport;
+    }
+
+    // ── Create Strat From Round ────────────────────────────────────────────────────
+
+    private void OnCreateStratRequested(TimelineBandViewModel band) => OpenCreateStrat(band.StartFrameIndex, band.EndFrameIndex);
+
+    /// <summary>
+    ///     Opens the review for the round a band covers (step-authoring.md §3.9): the round from
+    ///     <c>ClipRounds.Derive</c> that opens inside the band, so <c>origin.round</c> is <c>ClipRound.Number</c>
+    ///     (overview correction 12); our side and the book from Team Identity; the round's Round Facts row when the
+    ///     demo has rows, and nothing that needs one when it does not.
+    /// </summary>
+    /// <param name="startFrame">The band's first frame.</param>
+    /// <param name="endFrame">The band's last frame.</param>
+    internal void OpenCreateStrat(int startFrame, int endFrame)
+    {
+        if (_context is not ModuleContext { StratCaptureHost: { } host } context || host.Demo() is not { } demo
+                                                                                 || demo.Frames.Count == 0)
+        {
+            return;
+        }
+
+        int startTick = demo.Frames[Math.Clamp(startFrame, 0, demo.Frames.Count - 1)].ServerTick;
+        int endTick = demo.Frames[Math.Clamp(endFrame, 0, demo.Frames.Count - 1)].ServerTick;
+        IReadOnlyList<ClipRound> rounds = ClipRounds.Derive(demo);
+        int at = -1;
+        for (int i = 0; i < rounds.Count; i++)
+        {
+            // An event's tick and its frame's can differ by a tick, so the band's first frame is not an exact key.
+            if (rounds[i].StartTickFrameClock >= startTick - _tickRate && rounds[i].StartTickFrameClock <= endTick)
+            {
+                at = i;
+                break;
+            }
+        }
+
+        if (at < 0)
+        {
+            return;
+        }
+
+        ClipRound round = rounds[at];
+        int? windowEnd = at + 1 < rounds.Count ? rounds[at + 1].StartTickFrameClock : null;
+        string? path = context.DemoPath;
+        RoundFacts? facts = path is null ? null : _roundFacts?.RoundAt(path, round.StartTickFrameClock);
+        if (facts is not null && facts.Number != round.Number)
+        {
+            facts = null;
+        }
+
+        StratCaptureRequest request = BuildCaptureRequest(host, context, round, windowEnd, facts, demo.MapName);
+        CloseExport();
+        CloseCreateStrat();
+        CreateStratDialogViewModel dialog = new(request,
+            (progress, ct) => RoundCaptureWalker.Walk(demo, round.Number, round.StartTickFrameClock, windowEnd, facts?.EndTick,
+                progress, ct),
+            host.Store,
+            static action => Dispatcher.UIThread.Post(action));
+        dialog.Closed += CloseCreateStrat;
+        dialog.StratCreated += id => host.OpenStrat?.Invoke(id);
+        CreateStratDialog = dialog;
+    }
+
+    /// <summary>Closes the review; a walk still running is cancelled and nothing is saved.</summary>
+    [RelayCommand]
+    private void CloseCreateStrat()
+    {
+        if (CreateStratDialog is not { } dialog)
+        {
+            return;
+        }
+
+        CreateStratDialog = null;
+        dialog.Closed -= CloseCreateStrat;
+        dialog.Dispose();
+    }
+
+    // Our side's key and book from Team Identity: the side key of our end-of-demo side when the demo has one,
+    // else the me accounts; the team's book when that side is a known team, else the user's own.
+    private StratCaptureRequest BuildCaptureRequest(StratCaptureHost host, ModuleContext context, ClipRound round,
+        int? windowEnd, RoundFacts? facts, string? demoMap)
+    {
+        TeamAssignment? assignment = context.DemoPath is { } path ? host.Teams?.GetAssignment(path) : null;
+        SideAssignment? ours = assignment?.OurSide is { } side ? assignment.Side(side) : null;
+        IReadOnlyCollection<string> key = ours is { Key.Count: > 0 } ? ours.Key : host.Teams?.MyAccounts ?? [];
+
+        StratOwner owner = StratOwner.Me();
+        string ownerLabel = "me";
+        string? epoch = StratOwner.MeKind;
+        if (ours?.TeamId is { } teamId && host.Teams?.AllTeams.FirstOrDefault(t => t.Id == teamId) is { } team)
+        {
+            owner = StratOwner.Team(team.Id);
+            ownerLabel = DisplayText.Sanitize(team.Name) + (team.IsUs ? " (us)" : "");
+            epoch = ours.RosterId;
+        }
+
+        Func<double, double> levels = StratFromRound.LevelKeys(CaptureLevelsSource?.Invoke());
+        string? fileName = context.DemoPath is { } demoPath ? Path.GetFileName(demoPath) : null;
+        return new StratCaptureRequest((context.MapName ?? demoMap ?? "").ToLowerInvariant(), round.Number, round.StartTickFrameClock,
+            windowEnd, context.DemoSha256, fileName, facts, key, owner, ownerLabel, epoch, levels);
     }
 
     // Called from the export's pool thread (and from inside ffmpeg's stderr pump). AppendLog owns the
@@ -2092,6 +2227,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // demo. The export host is wired once at composition, before any tab is activated, so activation
         // is the last moment it can change.
         OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanCreateStrat));
+        Timeline.CanCreateStrat = CanCreateStrat;
 
         // The button's replacement text has the same three inputs, so it is recomputed in the same beat:
         // a note that says "open a demo first" after one was opened is worse than no note.
@@ -2410,6 +2547,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // is the state-restoration parity the Open-file button and the library browser must share.
     private void OnDemoReset()
     {
+        // A review walks the demo that was open; another one has replaced it.
+        CloseCreateStrat();
         ResyncToCurrentDemo(true);
 
         // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one

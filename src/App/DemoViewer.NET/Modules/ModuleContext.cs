@@ -111,6 +111,13 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// </summary>
     public StratExportHost? StratExportHost { get; private set; }
 
+    /// <summary>
+    ///     Create Strat From Round's host, or null when this build has none (tests, designer). Not on
+    ///     <see cref="IModuleContext" /> for <see cref="ExportHost" />'s reason: the parse and the strat store are
+    ///     first-party capabilities the shell hands one tab.
+    /// </summary>
+    public StratCaptureHost? StratCaptureHost { get; private set; }
+
     /// <inheritdoc />
     public ParsedDemo? CurrentDemo { get; private set; }
 
@@ -291,6 +298,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <summary>Wires the Strat Book's export host once at composition, beside <see cref="SetExportHost" />.</summary>
     /// <param name="host">The host, or null for a build with no export.</param>
     public void SetStratExportHost(StratExportHost? host) => StratExportHost = host;
+
+    /// <summary>Wires Create Strat From Round's host once at composition, beside <see cref="SetExportHost" />.</summary>
+    /// <param name="host">The host, or null for a build with no capture.</param>
+    public void SetStratCaptureHost(StratCaptureHost? host) => StratCaptureHost = host;
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The
