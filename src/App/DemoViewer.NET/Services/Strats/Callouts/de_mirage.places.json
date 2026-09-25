@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "map": "de_mirage",
+  "source": "env_cs_place",
+  "names": [
+    "Apartments",
+    "BackAlley",
+    "BombsiteA",
+    "BombsiteB",
+    "CTSpawn",
+    "Catwalk",
+    "Connector",
+    "House",
+    "Jungle",
+    "Ladder",
+    "Middle",
+    "PalaceAlley",
+    "PalaceInterior",
+    "Scaffolding",
+    "Shop",
+    "SideAlley",
+    "SnipersNest",
+    "Stairs",
+    "TRamp",
+    "TSpawn",
+    "TopofMid",
+    "Truck",
+    "Underpass"
+  ]
+}

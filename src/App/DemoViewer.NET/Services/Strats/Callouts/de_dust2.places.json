@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "map": "de_dust2",
+  "source": "env_cs_place",
+  "names": [
+    "ARamp",
+    "BDoors",
+    "BombsiteA",
+    "BombsiteB",
+    "CTSpawn",
+    "Catwalk",
+    "ExtendedA",
+    "Hole",
+    "LongA",
+    "LongDoors",
+    "LowerTunnel",
+    "MidDoors",
+    "Middle",
+    "OutsideLong",
+    "OutsideTunnel",
+    "Pit",
+    "ShortStairs",
+    "Side",
+    "TRamp",
+    "TSpawn",
+    "TopofMid",
+    "TunnelStairs",
+    "UnderA",
+    "UpperTunnel"
+  ]
+}

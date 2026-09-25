@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "map": "de_overpass",
+  "source": "env_cs_place",
+  "names": [
+    "Alley",
+    "BackofA",
+    "BombsiteA",
+    "BombsiteB",
+    "Bridge",
+    "Canal",
+    "Connector",
+    "Construction",
+    "Fountain",
+    "Lobby",
+    "LowerPark",
+    "Pipe",
+    "Playground",
+    "Restroom",
+    "SideAlley",
+    "SnipersNest",
+    "Stairs",
+    "StorageRoom",
+    "TSpawn",
+    "TStairs",
+    "Tunnels",
+    "UnderA",
+    "UpperPark",
+    "Walkway",
+    "Water"
+  ]
+}

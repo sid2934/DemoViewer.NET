@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "map": "de_vertigo",
+  "source": "env_cs_place",
+  "names": [
+    "APlatform",
+    "ARamp",
+    "BPlatform",
+    "BackDoor",
+    "BackofA",
+    "BackofB",
+    "BombsiteA",
+    "BombsiteB",
+    "Bridge",
+    "CTSpawn",
+    "Connector",
+    "Crane",
+    "Elevator",
+    "LadderBottom",
+    "LadderTop",
+    "Mid",
+    "Pit",
+    "Scaffolding",
+    "Side",
+    "TCorridorUp",
+    "TSpawn",
+    "TopofMid",
+    "Tunnels"
+  ]
+}
