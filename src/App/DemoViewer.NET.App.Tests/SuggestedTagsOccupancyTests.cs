@@ -16,9 +16,10 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The input layer (suggested-tags.md §9 step 1) over synthetic samples and synthetic Round Facts
-///     rows: windows, sides and alive from the rows (integrator correction 11), the first sample per
-///     (slot, second), the empty place the wire delivers, the bomb site from the fact, the index source
-///     agreeing with the walk, the detonation events, the cloud, and the resolver's precedence.
+///     rows: windows from the rows, alive and side from the sample's own fields (CS2DemoKit #58, the
+///     row kept only as a cross-check), the first sample per (slot, second), the empty place the sample
+///     carries for unplaced, the bomb site from the fact, the index source agreeing with the walk, the
+///     detonation events, the cloud, and the resolver's precedence.
 /// </summary>
 public class SuggestedTagsOccupancyTests
 {
@@ -68,7 +69,9 @@ public class SuggestedTagsOccupancyTests
         [
             .. Everyone(1000, "CTSpawn", "TSpawn"),
             .. Everyone(1064, "CTSpawn", "TSpawn"),
-            .. Everyone(1128, "CTSpawn", "TSpawn"),
+            Sample(1128, 6, "TSpawn", alive: false), // slot 6 reads dead on its own sample from 1100 on
+            .. CtSlots.Select(s => Sample(1128, s, "CTSpawn")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1128, s, "TSpawn")),
             .. Everyone(2000, "CTSpawn", "TSpawn")
         ];
 
@@ -86,6 +89,56 @@ public class SuggestedTagsOccupancyTests
             await Assert.That(second.CountsAt(3, 0)["TSpawn"]).IsEqualTo(5).Because("the old T slots stand where they stood, now on CT");
             await Assert.That(second.AliveCount(2, 0)).IsEqualTo(5).Because("slot 6's death was last round's");
         }
+    }
+
+    [Test]
+    public async Task ATeamDisagreement_IsStillCounted_AndTalliedRatherThanDropped()
+    {
+        // Slot 6 is seated T by the row but its sample reads CT (CS2DemoKit #58 is the gate now, not
+        // the row's Slots): admission follows the sample (team 2 or 3, alive), so the slot is not
+        // dropped just because it disagrees; the per-slot form still groups by the row's own roster
+        // (RoundOccupancy.FromSlots's contract), and the disagreement itself is tallied, not silenced.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1128));
+        List<PositionSample> samples =
+        [
+            .. CtSlots.Select(s => Sample(1000, s, "CTSpawn")),
+            .. TSlots.Select(s => Sample(1000, s, "TSpawn")),
+            Sample(1064, 6, "CTSpawn", team: 3),
+            .. CtSlots.Select(s => Sample(1064, s, "CTSpawn")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "TSpawn"))
+        ];
+
+        OccupancyBuild build = RoundOccupancyBuilder.FromWalk(Demo(), facts, samples: samples);
+        RoundOccupancy round = build.Rounds.Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(round.CountsAt(2, 1)["CTSpawn"]).IsEqualTo(1)
+                .Because("slot 6 is still the row's T-seated slot; its sampled place is not lost");
+            await Assert.That(round.CountsAt(2, 1).GetValueOrDefault("TSpawn")).IsEqualTo(4);
+            await Assert.That(build.Disagreements).IsNotEmpty();
+            await Assert.That(build.Disagreements.Single().Round).IsEqualTo(1);
+            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task ADeadSample_IsExcluded_EvenWhenRoundFactsRecordsNoKill()
+    {
+        // A disconnect, or a kill the row missed: the sample's own IsAlive still drops the slot.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1128));
+        List<PositionSample> samples =
+        [
+            .. CtSlots.Select(s => Sample(1000, s, "CTSpawn")),
+            .. TSlots.Select(s => Sample(1000, s, "TSpawn")),
+            Sample(1064, 6, "TSpawn", alive: false),
+            .. CtSlots.Select(s => Sample(1064, s, "CTSpawn")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "TSpawn"))
+        ];
+
+        RoundOccupancy round = RoundOccupancyBuilder.FromWalk(Demo(), facts, samples: samples).Rounds.Single();
+
+        await Assert.That(round.AliveCount(2, 1)).IsEqualTo(4).Because("slot 6 reads dead on its own sample");
     }
 
     [Test]

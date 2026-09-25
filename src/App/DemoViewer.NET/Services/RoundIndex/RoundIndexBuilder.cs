@@ -13,8 +13,10 @@ namespace DemoViewer.NET.Services.RoundIndex;
 /// <summary>
 ///     Folds one demo's position walk into its index document and its positions file. Pure: no I/O,
 ///     no cache, no UI. The walk stays engine-owned (<see cref="PositionSampler.Walk" />) and yields
-///     every pawn with a controller, dead or alive, so alive is decided from Round Facts <c>Kills</c>
-///     and side from <c>Slots</c>: the engine sample carries neither.
+///     every pawn with a controller, dead or alive, with its own <see cref="PositionSample.IsAlive" />
+///     and <see cref="PositionSample.Team" /> (CS2DemoKit #58): those two fields are the gate now.
+///     Round Facts' <c>Kills</c> and <c>Slots</c> are kept only as a cross-check, folded into
+///     <see cref="RoundIndexBuild.Disagreements" /> when a slot's sample disagrees with its row.
 ///     <para>
 ///         Sampling: from each live round's freeze end, one row every cadence step while the tick is
 ///         below the round's end. Freeze time is spawns and the post-round win panel carries no situation
@@ -76,7 +78,7 @@ public static class RoundIndexBuilder
         ArgumentNullException.ThrowIfNull(source);
 
         int cadenceTicks = options.CadenceTicks(demo.TickRate);
-        int lastFrameTick = demo.Frames.Count > 0 ? demo.Frames[^1].ServerTick : 0;
+        int lastFrameTick = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
         List<RoundWindow> windows = Windows(facts, lastFrameTick);
         string fingerprint = RoundIndexFingerprint.Compose(options, source);
 
@@ -104,6 +106,7 @@ public static class RoundIndexBuilder
         int current = 0;
         OpenRow? row = null;
         Dictionary<int, string> previousPlaces = [];
+        RoundIndexDisagreementTally tally = new();
 
         foreach (PositionSample sample in samples)
         {
@@ -111,7 +114,7 @@ public static class RoundIndexBuilder
             // walk is in frame order, so a round left behind is never revisited.
             while (current < windows.Count && sample.Tick >= windows[current].EndTick)
             {
-                CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table);
+                CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table, tally);
                 previousPlaces.Clear();
                 current++;
             }
@@ -135,7 +138,7 @@ public static class RoundIndexBuilder
 
             if (row is null || sample.Tick >= row.NextDueTick)
             {
-                CloseRow(ref row, window, source, places, transitions, previousPlaces, table);
+                CloseRow(ref row, window, source, places, transitions, previousPlaces, table, tally);
                 int step = (sample.Tick - window.FreezeEndTick) / cadenceTicks;
                 row = new OpenRow(step, sample.Tick, window.FreezeEndTick + (step + 1) * cadenceTicks);
                 row.Samples[sample.PlayerSlot] = sample;
@@ -144,7 +147,7 @@ public static class RoundIndexBuilder
 
         if (current < windows.Count)
         {
-            CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table);
+            CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table, tally);
         }
 
         document.Places = places;
@@ -156,13 +159,15 @@ public static class RoundIndexBuilder
                 .ThenBy(t => t.Key.B, StringComparer.Ordinal)
                 .Select(t => new PlaceTransition(t.Key.A, t.Key.B, t.Value))
         ];
-        return new RoundIndexBuild(document, positions);
+        return new RoundIndexBuild(document, positions, tally.ToDisagreements());
     }
 
     /// <summary>
     ///     The sampled windows: every live round from its freeze end to its end. The end is the round's
     ///     <c>EndTick</c>, else the next round's freeze end (the record carries no freeze begin), else
-    ///     one past the last frame.
+    ///     one past the last frame. Each window's <c>SideBySlot</c>/<c>DeathTickBySlot</c> are Round
+    ///     Facts' seating and kills, kept only so <see cref="CloseRow" /> can cross-check them against
+    ///     the sample's own <c>Team</c>/<c>IsAlive</c>, never to gate on.
     /// </summary>
     private static List<RoundWindow> Windows(RoundFactsRows facts, int lastFrameTick)
     {
@@ -226,7 +231,9 @@ public static class RoundIndexBuilder
     }
 
     // Encodes the open row's tokens, appends it to the round's runs, keeps its alive tuples for the
-    // positions file and accumulates the summaries.
+    // positions file and accumulates the summaries. Alive and side come from the sample itself
+    // (CS2DemoKit #58); the window's facts-derived SideBySlot/DeathTickBySlot are only a cross-check now,
+    // tallied rather than trusted.
     private static void CloseRow(
         ref OpenRow? row,
         RoundWindow window,
@@ -234,7 +241,8 @@ public static class RoundIndexBuilder
         Dictionary<string, PlaceSampleSummary> places,
         Dictionary<(string A, string B), int> transitions,
         Dictionary<int, string> previousPlaces,
-        PlaceTable table)
+        PlaceTable table,
+        RoundIndexDisagreementTally tally)
     {
         if (row is not { } open)
         {
@@ -249,16 +257,31 @@ public static class RoundIndexBuilder
         Dictionary<int, string> currentPlaces = [];
         foreach ((int slot, PositionSample sample) in open.Samples)
         {
-            if (!window.SideBySlot.TryGetValue(slot, out int side))
+            bool factsSeated = window.SideBySlot.TryGetValue(slot, out int factsSide);
+            bool factsDead = window.DeathTickBySlot.TryGetValue(slot, out int deathTick) && deathTick <= open.Tick;
+
+            if (!sample.IsAlive || sample.Team is not (2 or 3))
             {
-                continue; // a spectator, or a slot Round Facts did not seat
+                if (sample.IsAlive && factsSeated && !factsDead)
+                {
+                    // The sample counts a live pawn on neither playing side; the row's facts disagree.
+                    tally.Record(window.Round.Number, sideMismatch: true, aliveMismatch: false);
+                }
+
+                continue; // dead, or not seated on a playing side
             }
 
-            if (window.DeathTickBySlot.TryGetValue(slot, out int deathTick) && deathTick <= open.Tick)
+            if (factsSeated && factsSide != sample.Team)
             {
-                continue; // dead from the kill tick on
+                tally.Record(window.Round.Number, sideMismatch: true, aliveMismatch: false);
             }
 
+            if (factsDead)
+            {
+                tally.Record(window.Round.Number, sideMismatch: false, aliveMismatch: true);
+            }
+
+            int side = sample.Team;
             string? place = source.PlaceFor(in sample);
             (side == 3 ? ct : t).Add(place);
             tuples.Add(new RoundPosition(slot,
@@ -266,7 +289,7 @@ public static class RoundIndexBuilder
                 RoundIndexBuild.Quantize(sample.Position.Y),
                 RoundIndexBuild.Quantize(sample.Position.Z),
                 table.IdOf(place)));
-            if (place is null)
+            if (string.IsNullOrEmpty(place))
             {
                 continue;
             }
