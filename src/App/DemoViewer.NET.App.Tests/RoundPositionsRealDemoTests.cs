@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
+using DemoViewer.NET.ViewModels.Situations;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -20,17 +21,15 @@ namespace DemoViewer.NET.AppTests;
 ///     The positions file against a real Valve matchmaking demo. The consistency property the note
 ///     names: for every round and step, the token encoded from the positions file's tuples equals the
 ///     token the sidecar stored at that step. Rounds come from the clip authority and sides from the
-///     tier-2 roster, as <see cref="RoundIndexRealDemoTests" /> does, since the engine writes no Round
-///     Facts rows until CS2DemoKit #54; the alive rule is then a no-op on both sides and the property
-///     holds regardless. The forty-thumbnail budget is measured here too, from the same file.
+///     tier-2 roster, as <see cref="RoundIndexRealDemoTests" /> does, so the alive rule is a no-op on
+///     both sides and the property holds regardless. The forty-thumbnail budget is measured here too,
+///     from the same file. A separate test checks a card's score, buys and end reason against the
+///     production Round Facts rows for the same demo.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class RoundPositionsRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: a card's score, buys and end reason come from Round Facts rows, and the engine row source writes none yet";
-
     private static RoundFactsRows SyntheticRows(ParsedDemo parsed)
     {
         (List<CachedPlayerInfo> players, _) = DemoLibraryService.ProjectTier2(parsed);
@@ -145,7 +144,59 @@ public class RoundPositionsRealDemoTests
         }
     }
 
+    /// <summary>
+    ///     A Result Card built over one hit per live round: the score, both buy types and the end
+    ///     reason all come from the production Round Facts row for that round, not a placeholder.
+    /// </summary>
     [Test]
-    [Skip(WaitingOnEngine)]
-    public Task ACard_ReadsScoreBuysAndEndReason_FromTheRealRows() => Task.CompletedTask;
+    public async Task ACard_ReadsScoreBuysAndEndReason_FromTheRealRows()
+    {
+        string path = DemoTestHelper.RequireDemo();
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        if (ClipRounds.Derive(parsed).Count == 0)
+        {
+            throw new SkipTestException("demo carries no rounds");
+        }
+
+        DemoCacheStore store = new(null);
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = path,
+            Map = parsed.MapName,
+            TickRate = parsed.TickRate,
+            Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
+        });
+        RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
+        facts.OnParsedOpportunistically(path, parsed);
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("the evaluator wrote no rows");
+
+        List<SituationHit> hits =
+        [
+            .. rows.Rounds.Select(r => new SituationHit(path, DemoCacheStore.StableKey(path), null, parsed.MapName ?? "",
+                r.Number, r.FreezeEndTick, r.FreezeEndTick, r.FreezeEndTick, 1))
+        ];
+
+        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
+        // Only the facts matter here, so the renderer and the decoder are stubs, the same convention
+        // ResultCardTests' Harness uses: no bundle load, no bitmap decode.
+        ResultCardsViewModel vm = new(store, sidecars, sources, () => null, renderer: () => new SituationThumbnailRenderer(_ => null),
+            post: action => action(), decode: _ => null);
+        vm.Load(hits);
+        await vm.BatchTask;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Cards.Count).IsEqualTo(rows.Rounds.Count);
+            foreach ((ResultCardViewModel card, RoundFacts row) in vm.Cards.Zip(rows.Rounds))
+            {
+                await Assert.That(card.ScoreText).IsEqualTo($"CT {row.Ct.ScoreBefore} : {row.T.ScoreBefore} T");
+                await Assert.That(card.CtBuyText).IsEqualTo(RoundFactsValues.LowerCamel(row.Ct.BuyType));
+                await Assert.That(card.TBuyText).IsEqualTo(RoundFactsValues.LowerCamel(row.T.BuyType));
+                await Assert.That(card.EndReasonText).IsEqualTo(ResultCardViewModel.EndReasonLabel(row.EndReason));
+            }
+
+            await Assert.That(vm.Cards.Any(c => c.CtBuyText != ResultCardViewModel.NoData)).IsTrue();
+        }
+    }
 }

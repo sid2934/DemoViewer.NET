@@ -14,18 +14,14 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Free Labels From Round Facts on a real Valve matchmaking demo: a tag made in every live round carries
-///     that round's facts. It needs rows, and rows need CS2DemoKit #54 (see
-///     <see cref="RoundFactsRealDemoTests" />), so it is skipped with that reason until the pin bumps; the
-///     body runs the production evaluator and the production refresher against the parse.
+///     that round's facts. The body runs the production evaluator and the production refresher against the
+///     parse, over the shipped engine ruleset (see <see cref="RoundFactsRealDemoTests" />).
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class TagFactsRealDemoTests
 {
-    private const string WaitingOnEngine = "waiting on CS2DemoKit #54";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task ATagInEveryLiveRound_CarriesThatRoundsFacts()
     {
         string path = DemoTestHelper.RequireDemo();

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events until CS2DemoKit #54 ships Round Facts rows. Recapture with ST_GOLDEN_UPDATE=1.",
+  "note": "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. Rows are synthesised from the demo's own events on purpose, so the fixture is pinned to them; a real-demo test recaptures the same round from the engine's own Round Facts rows and holds it to this same file. Recapture with ST_GOLDEN_UPDATE=1.",
   "demo": "match730_003752202995232669993_0995639494_129.dem",
   "map": "de_inferno",
   "tickRate": 64,

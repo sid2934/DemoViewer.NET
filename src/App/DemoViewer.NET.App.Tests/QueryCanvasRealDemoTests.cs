@@ -15,18 +15,13 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The Query Canvas done bar over a real Valve matchmaking demo: tokens dropped on the index's own
 ///     place centroids encode to a token the index stored for that demo. The index joins alive and
-///     side against Round Facts rows, and the engine row source writes none until CS2DemoKit #54, so
-///     the test is written against the record and skipped with that reason.
+///     side against the production Round Facts rows.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class QueryCanvasRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the index joins alive and side against Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task TokensDroppedOnTheIndexCentroids_EncodeToATokenTheIndexStored()
     {
         string path = DemoTestHelper.RequireDemo();

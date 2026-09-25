@@ -19,8 +19,8 @@ namespace DemoViewer.NET.AppTests;
 ///     (the tick-anchored ones narrowing the hit's window), our side through the us team, the opponent,
 ///     date and source fields narrowing the demo set, the rail writing the draft, the count equalling
 ///     the result set on a fixture, the stated empty result, and the counter's debounce and
-///     cancellation. Rows come from a fake source: the engine row source writes none until CS2DemoKit
-///     #54, and the real-demo variant is skipped with that reason.
+///     cancellation. Rows come from a fake source here for speed and isolation; the real-demo variant
+///     in <see cref="SearchFiltersRealDemoTests" /> runs the same checks over the shipped engine ruleset.
 /// </summary>
 [NotInParallel]
 public class SearchFiltersTests
