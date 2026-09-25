@@ -44,6 +44,15 @@ public sealed class StratStore
     /// <summary>Where <see cref="Delete" /> moves a strat's files, inside its map folder (decision 10).</summary>
     public const string TrashFolderName = ".trash";
 
+    /// <summary>
+    ///     The extension-bag field an autosaved working copy carries (§3.12): the file holds edits not yet
+    ///     committed, at the previous revision, and the next session re-opens them uncommitted.
+    /// </summary>
+    public const string PendingField = "pending";
+
+    // Which session holds each strat: the single writer while the Strat Book has it open. Under _gate.
+    private readonly Dictionary<Guid, StratSession> _checkedOut = [];
+
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, StratIndexEntry> _index = [];
 
@@ -210,7 +219,8 @@ public sealed class StratStore
             }
 
             DateTime now = _utcNow();
-            StratDocument committed = document.Clone();
+            // A committed file never carries the working-copy marker, whoever saved it.
+            StratDocument committed = WithPending(document, false);
             committed.Revision = (known?.Revision ?? 0) + 1;
             committed.ModifiedUtc = now;
             committed.Owner = committed.Owner.Clone();
@@ -256,22 +266,35 @@ public sealed class StratStore
     /// <param name="status">The new status.</param>
     public bool SetStatus(Guid id, StratStatus status)
     {
+        // While the Strat Book has the strat open its session is the single writer: the change becomes one of
+        // its edits, undoable and committed by its rule, the TagStore.Update routing.
+        if (SessionFor(id) is { } holder)
+        {
+            _post(() => holder.SetStatus(status));
+            return true;
+        }
+
         lock (_rmwGate)
         {
-            if (TryLoad(id) is not { } document)
+            if (TryLoad(id) is not { } loaded)
             {
                 return false;
             }
 
             string value = status.ToString();
-            if (string.Equals(document.Status, value, StringComparison.Ordinal))
+            if (string.Equals(loaded.Status, value, StringComparison.Ordinal))
             {
                 return true;
             }
 
+            // A working copy nobody has open: its edits go into this commit with the status, or the file would
+            // hold them unmarked with no line in the log.
+            List<PatchOp> ops = [.. PendingOps(loaded)];
+            StratDocument document = WithPending(loaded, false);
             PatchOp op = PatchOp.ReplaceOp("/status", JsonValue.Create(document.Status), JsonValue.Create(value));
             document.Status = value;
-            return Save(document, [op], $"status {op.From} → {value}").Saved;
+            ops.Add(op);
+            return Save(document, ops, $"status {op.From} → {value}").Saved;
         }
     }
 
@@ -334,6 +357,151 @@ public sealed class StratStore
 
         RaiseChanged(id);
         return true;
+    }
+
+    /// <summary>
+    ///     Writes a session's working copy over a committed strat without committing it (§3.12): no history line,
+    ///     no revision bump, no validation refusal, because a strat mid-edit may be briefly invalid and a crash
+    ///     must still find the edits. <paramref name="pending" /> stamps <see cref="PendingField" />; false writes
+    ///     the committed state back without it. False when the strat was never committed or the write failed.
+    /// </summary>
+    /// <param name="document">The session's document, at its last committed revision.</param>
+    /// <param name="pending">Whether it holds edits the log does not have yet.</param>
+    public bool WriteWorkingCopy(StratDocument document, bool pending)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (FolderProblem(document) is not null)
+        {
+            return false;
+        }
+
+        lock (_rmwGate)
+        {
+            StratIndexEntry? known;
+            string? path;
+            lock (_gate)
+            {
+                known = _index.GetValueOrDefault(document.Id);
+                path = _paths.GetValueOrDefault(document.Id);
+            }
+
+            if (known is null)
+            {
+                return false;
+            }
+
+            // The committed file's own place: an owner or map edit moves the strat at commit, with its log.
+            StratDocument copy = WithPending(document, pending);
+            copy.Revision = known.Revision;
+            if (!WriteStrat(copy, _root is null ? null : path ?? StratPath(copy)))
+            {
+                return false;
+            }
+        }
+
+        RaiseChanged(document.Id);
+        return true;
+    }
+
+    /// <summary>Whether a strat file is an autosaved working copy with uncommitted edits.</summary>
+    /// <param name="document">A loaded strat.</param>
+    public static bool IsPending(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return document.Extra?.TryGetValue(PendingField, out JsonElement value) == true && value.ValueKind == JsonValueKind.True;
+    }
+
+    /// <summary>
+    ///     The uncommitted edits in a working copy, as ops from its committed revision (rebuilt from the log) to
+    ///     the file, <c>from</c> filled. Empty for a committed file. A log that cannot rebuild the revision gives
+    ///     one whole-document replace, so the edits still reach the next commit.
+    /// </summary>
+    /// <param name="document">A loaded strat.</param>
+    public IReadOnlyList<PatchOp> PendingOps(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (!IsPending(document))
+        {
+            return [];
+        }
+
+        StratDocument working = WithPending(document, false);
+        StratDocument? committed;
+        try
+        {
+            committed = Materialize(document.Id, document.Revision);
+        }
+        catch (Exception e) when (e is InvalidOperationException or JsonException)
+        {
+            committed = null;
+        }
+
+        JsonNode after = StratHistory.ToNode(working);
+        if (committed is null)
+        {
+            return [PatchOp.ReplaceOp("", null, after)];
+        }
+
+        // Revision and modifiedUtc are the entry's, never an op's (StratHistory's rule).
+        committed.ModifiedUtc = working.ModifiedUtc;
+        return StratHistory.Diff(StratHistory.ToNode(committed), after);
+    }
+
+    /// <summary>A copy with the <see cref="PendingField" /> marker set or cleared; the input is not touched.</summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="pending">Whether to mark it.</param>
+    public static StratDocument WithPending(StratDocument document, bool pending)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        StratDocument copy = document.Clone();
+        copy.Extra?.Remove(PendingField);
+        if (pending)
+        {
+            copy.Extra ??= [];
+            using JsonDocument marker = JsonDocument.Parse("true");
+            copy.Extra[PendingField] = marker.RootElement.Clone();
+        }
+        else if (copy.Extra is { Count: 0 })
+        {
+            copy.Extra = null;
+        }
+
+        return copy;
+    }
+
+    /// <summary>
+    ///     Makes a session the single writer for a strat until the returned handle is disposed (§3.11). Exclusive
+    ///     per process: a second session on the same strat is a programming error.
+    /// </summary>
+    /// <param name="id">The strat's id.</param>
+    /// <param name="session">The session taking it.</param>
+    public IDisposable CheckOut(Guid id, StratSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        lock (_gate)
+        {
+            if (_checkedOut.TryGetValue(id, out StratSession? holder) && !ReferenceEquals(holder, session))
+            {
+                throw new InvalidOperationException($"strat {id} is already checked out by another session");
+            }
+
+            _checkedOut[id] = session;
+        }
+
+        return new CheckOutScope(this, id, session);
+    }
+
+    /// <summary>
+    ///     The session holding a strat, or null. A writer outside the Strat Book (Create Strat From Round, an
+    ///     import) applies its ops through it while it is there instead of saving past it.
+    /// </summary>
+    /// <param name="id">The strat's id.</param>
+    public StratSession? SessionFor(Guid id)
+    {
+        lock (_gate)
+        {
+            return _checkedOut.GetValueOrDefault(id);
+        }
     }
 
     /// <summary>A strat's log in file order. A torn last line (a crash mid-append) is skipped.</summary>
@@ -520,6 +688,27 @@ public sealed class StratStore
         IReadOnlyList<HistoryEntry> log = History(document.Id);
         if (log.Count == 0 || log[^1].Revision <= document.Revision)
         {
+            return document;
+        }
+
+        // A working copy behind its log: a commit's line landed and its strat write did not, after an autosave
+        // had put uncommitted edits in the file. Those edits are the commit's, so the log's state wins; replaying
+        // its ops over the working copy could apply an array insert twice.
+        if (IsPending(document))
+        {
+            try
+            {
+                if (StratHistory.Materialize(log, log[^1].Revision) is { } committed)
+                {
+                    WriteStrat(committed, path);
+                    return committed;
+                }
+            }
+            catch (Exception e) when (e is InvalidOperationException or JsonException)
+            {
+                // The file as it is; it still opens.
+            }
+
             return document;
         }
 
@@ -1039,6 +1228,30 @@ public sealed class StratStore
     }
 
     private void RaiseChanged(Guid? id) => _post(() => Changed?.Invoke(id));
+
+    private void Release(Guid id, StratSession session)
+    {
+        lock (_gate)
+        {
+            if (_checkedOut.TryGetValue(id, out StratSession? holder) && ReferenceEquals(holder, session))
+            {
+                _checkedOut.Remove(id);
+            }
+        }
+    }
+
+    private sealed class CheckOutScope(StratStore store, Guid id, StratSession session) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                store.Release(id, session);
+            }
+        }
+    }
 }
 
 /// <summary>The outcome of a load: the strat after reconciliation, or why there is none.</summary>
