@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     rewritten wholesale from the round holding <c>fromTick</c> with the human labels untouched byte for
 ///     byte, a start in no round kept and marked stale, the refresh reaching a sidecar on disk and an open
 ///     session alike without an undo entry, and a fresh instance carrying its facts from the moment it is
-///     made. Real demos have no rows until CS2DemoKit #54; the real-demo variant is in
+///     made. Synthetic rows keep this suite fast and isolated; the real-demo variant is in
 ///     <see cref="TagFactsRealDemoTests" />.
 /// </summary>
 [NotInParallel]

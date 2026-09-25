@@ -15,19 +15,13 @@ namespace DemoViewer.NET.AppTests;
 ///     Search Filters And Live Count against a real Valve matchmaking demo: a fact filter narrows the
 ///     index's hits, and the count equals the result set and the live counter's answer, the way
 ///     round-index.md §3.11 asks for it "on a fixture and on a real demo". The filter reads Round Facts
-///     rows, which need the engine surfaces filed as CS2DemoKit #54; until that release is pinned the
-///     engine row source writes nothing, so the test is skipped with that reason rather than asserting
-///     against an empty join. The body is written against the production evaluators.
+///     rows through the production evaluators, joined against the shipped engine ruleset.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class SearchFiltersRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the fact filters join Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task AFactFilter_NarrowsTheRealHits_AndTheCountEqualsTheResultSet()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -84,14 +78,24 @@ public class SearchFiltersRealDemoTests
         IReadOnlyList<SituationHit> fullAndLate = index.Query(ctFullLate);
         RoundFactsRows rows = factsSource.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
+        // A plant is only visible to the index at a sampled step at or after it, and a round can be
+        // decided before the next step comes: round 6 of the de_nuke replay plants at 35595 and is
+        // won at 35605, while the next step would sit at 35617. So the rounds the filter can find
+        // are the planted ones with a sampled step on or after the plant, not every planted round.
+        RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
+        int sampledAfterPlant = rows.Rounds.Count(r => r.IsLive && r.PlantTick is { } plant
+                                                       && document.Rounds.SingleOrDefault(d => d.Number == r.Number) is { } indexed
+                                                       && document.ExpandRows(indexed).Any(row => row.Tick >= plant));
+
         using (Assert.Multiple())
         {
             await Assert.That(index.Count(all)).IsEqualTo(everyRound.Count);
             await Assert.That(index.Count(postPlant)).IsEqualTo(planted.Count);
             await Assert.That(index.Count(ctFullLate)).IsEqualTo(fullAndLate.Count);
             await Assert.That(counted.Select(c => c.Count)).IsEquivalentTo([planted.Count]).Because("the live counter runs the same path");
-            await Assert.That(planted.Count).IsEqualTo(rows.Rounds.Count(r => r.IsLive && r.PlantTick is not null))
-                .Because("every planted round has a sampled tick after its plant");
+            await Assert.That(planted.Count).IsEqualTo(sampledAfterPlant)
+                .Because("every planted round with a sampled step after its plant is a post-plant hit");
+            await Assert.That(planted.Count).IsLessThan(everyRound.Count).Because("post-plant narrows the hits");
             foreach (SituationHit hit in planted)
             {
                 RoundFacts round = rows.Rounds.Single(r => r.Number == hit.RoundNumber);

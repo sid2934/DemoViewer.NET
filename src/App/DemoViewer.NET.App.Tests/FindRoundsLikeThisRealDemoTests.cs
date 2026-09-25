@@ -18,19 +18,13 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The Find Rounds Like This round-trip over a real Valve matchmaking demo (round-index design §7):
 ///     the 2D scene's alive players at a sampled tick encode to the token the index stored for that
-///     (round, step). The index joins alive and side against Round Facts rows, and the engine row
-///     source writes none until CS2DemoKit #54, so the test is written against the record and skipped
-///     with that reason.
+///     (round, step). The index joins alive and side against the production Round Facts rows.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class FindRoundsLikeThisRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the index joins alive and side against Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task TheSceneAtASampledTick_EncodesToTheTokenTheIndexStored()
     {
         string path = DemoTestHelper.RequireDemo();
