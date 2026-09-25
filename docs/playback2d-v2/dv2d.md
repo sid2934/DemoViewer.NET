@@ -180,6 +180,16 @@ CI log rather than trusted.
 Entries marked `"pending": true` in the manifest are **skipped**, not failed. That is what lets a
 later phase register the fixture it will author before it can render it.
 
+**The four `strat-mirage-exec-*` entries are pending for a different reason than a missing input**:
+they are the Strat Book canvas's goldens (step-authoring.md §7), captured and gated entirely by the
+App suite's `StratGoldenCaptureTests`, which projects a strat through `StratSceneProjection` and plays
+it back through `StratFrameSource` — a reader `dv2d` does not have and does not need, since the strat
+JSON reader stays in the App (decision 6). Each entry's `layers` names `hud.clock`, and every one of
+`render`/`golden`/`bench` refuses every `hud.*` id outright (the row above this section), so `dv2d
+golden verify` could never judge these four even with a `.dvstrat.json` reader. They are listed here
+only so `dv2d fixture list` and a reviewer scanning the corpus see them; nothing about them is waiting
+on a later phase.
+
 ### `dv2d bench`
 
 ```
