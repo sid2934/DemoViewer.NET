@@ -23,6 +23,12 @@
         <EmbeddedResource Include="Services\Tags\Palettes\*.tagpalette.json"/>
     </ItemGroup>
 
+    <!-- The canonical place names per shipped map (strat-model.md §3.7), embedded so a fresh install can
+         resolve callouts before any zones load. CanonicalPlaces reads them by manifest name. -->
+    <ItemGroup>
+        <EmbeddedResource Include="Services\Strats\Callouts\*.places.json"/>
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Avalonia"/>
         <PackageReference Include="Avalonia.Controls.ColorPicker"/>

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "map": "de_train",
+  "source": "env_cs_place",
+  "names": [
+    "Alley",
+    "BackofB",
+    "BombsiteA",
+    "BombsiteB",
+    "CTSpawn",
+    "Connector",
+    "Dumpster",
+    "ElectricalBox",
+    "Entrance",
+    "Ivy",
+    "LongDog",
+    "TMain",
+    "TSideUpper",
+    "TSpawn",
+    "TStairs",
+    "Tunnels"
+  ]
+}
