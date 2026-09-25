@@ -686,6 +686,9 @@ public sealed class QueryCanvasHost : Control, IDisposable
         {
         }
 
+        // The query canvas's tokens are its own QueryTokenTool's; the strat token editor never exists here.
+        public ITokenEditor? Tokens => null;
+
         public void RequestRender() => host.RequestToolRender();
     }
 }
