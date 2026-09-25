@@ -78,7 +78,7 @@ public sealed class SuggestedTagsTuningService
     public TuningReport BuildStoredReport()
     {
         List<ProposalEntry> verdictEntries = [];
-        Dictionary<string, List<TagProposal>> firedByDetector = new(StringComparer.Ordinal);
+        Dictionary<string, List<FiredProposal>> firedByDetector = new(StringComparer.Ordinal);
         List<string> scoredPaths = [];
         int demosWithVerdicts = 0;
 
@@ -91,7 +91,7 @@ public sealed class SuggestedTagsTuningService
             }
 
             scoredPaths.Add(entry.Path);
-            AddFired(firedByDetector, set.Entries.Select(e => e.Proposal));
+            AddFired(firedByDetector, DemoKey(entry.Path, entry.Sha256), set.Entries.Select(e => e.Proposal));
             if (set.Entries.Any(e => e.Verdict is not null))
             {
                 demosWithVerdicts++;
@@ -125,7 +125,7 @@ public sealed class SuggestedTagsTuningService
         ArgumentNullException.ThrowIfNull(demoPaths);
         return Task.Run(() =>
         {
-            Dictionary<string, List<TagProposal>> firedByDetector = new(StringComparer.Ordinal);
+            Dictionary<string, List<FiredProposal>> firedByDetector = new(StringComparer.Ordinal);
             List<string> scoredPaths = [];
             foreach (string path in demoPaths)
             {
@@ -139,12 +139,12 @@ public sealed class SuggestedTagsTuningService
                 SiteRegions regions = SiteRegions.Compose(cached.Map, null, cached.Table, candidate);
                 IReadOnlyList<TagProposal> proposals = ProposalDetection.Detect(
                     cached.Map, cached.Inputs.TickRate, regions, cached.Inputs.Events, cached.Inputs.Rounds, candidate);
-                AddFired(firedByDetector, proposals);
+                AddFired(firedByDetector, DemoKey(path, _demoCache.TryGetIndex(path)?.Sha256), proposals);
             }
 
             (IReadOnlyDictionary<string, IReadOnlyList<HandTagWindow>> handTags, int demosWithHandTags) =
                 CollectHandTags(scoredPaths);
-            IReadOnlyDictionary<string, IReadOnlyList<TagProposal>> byDetector = ToReadOnly(firedByDetector);
+            IReadOnlyDictionary<string, IReadOnlyList<FiredProposal>> byDetector = ToReadOnly(firedByDetector);
             List<DetectorTuningRow> rows =
             [
                 .. baseline.Rows.Select(row =>
@@ -250,7 +250,10 @@ public sealed class SuggestedTagsTuningService
                     byCode[instance.Code] = list = [];
                 }
 
-                list.Add(new HandTagWindow(round, instance.FromTick, instance.ToTick));
+                string? site = instance.Labels.FirstOrDefault(l =>
+                    string.Equals(l.Group, "site", StringComparison.OrdinalIgnoreCase))?.Value;
+                list.Add(new HandTagWindow(DemoKey(null, document.Demo.Sha256), round, instance.FromTick,
+                    instance.ToTick, string.IsNullOrEmpty(site) ? null : site));
                 any = true;
             }
 
@@ -264,22 +267,29 @@ public sealed class SuggestedTagsTuningService
             demosWithHandTags);
     }
 
-    private static void AddFired(Dictionary<string, List<TagProposal>> byDetector, IEnumerable<TagProposal> proposals)
+    // Proposals and hand tags meet on the demo's hash, the one identity both stores share (the Tag Store
+    // matches documents on it alone). A demo with no hash yet falls back to its path, which no hand tag
+    // can carry, so its proposals score as unmatched rather than borrowing another demo's tags.
+    private static string DemoKey(string? path, string? sha256) =>
+        sha256 is { Length: > 0 } ? sha256.ToLowerInvariant() : "path:" + path;
+
+    private static void AddFired(
+        Dictionary<string, List<FiredProposal>> byDetector, string demo, IEnumerable<TagProposal> proposals)
     {
         foreach (TagProposal proposal in proposals)
         {
-            if (!byDetector.TryGetValue(proposal.Detector, out List<TagProposal>? list))
+            if (!byDetector.TryGetValue(proposal.Detector, out List<FiredProposal>? list))
             {
                 byDetector[proposal.Detector] = list = [];
             }
 
-            list.Add(proposal);
+            list.Add(new FiredProposal(demo, proposal));
         }
     }
 
-    private static Dictionary<string, IReadOnlyList<TagProposal>> ToReadOnly(
-        Dictionary<string, List<TagProposal>> byDetector) =>
-        byDetector.ToDictionary(kv => kv.Key, IReadOnlyList<TagProposal> (kv) => kv.Value, StringComparer.Ordinal);
+    private static Dictionary<string, IReadOnlyList<FiredProposal>> ToReadOnly(
+        Dictionary<string, List<FiredProposal>> byDetector) =>
+        byDetector.ToDictionary(kv => kv.Key, IReadOnlyList<FiredProposal> (kv) => kv.Value, StringComparer.Ordinal);
 
     // The profile-independent half of one demo's build, held for the session so a parameter sweep only
     // parses once (class doc). Map and the site region table travel with it because regions are the one

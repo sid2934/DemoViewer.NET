@@ -128,7 +128,8 @@ public class SuggestedTagsTuningViewModelTests
             {
                 Id = Guid.NewGuid(), Code = execute.Code, Round = execute.Round,
                 FromTick = execute.FromTick, ToTick = execute.ToTick,
-                Source = TagSources.Human, CreatedUtc = Now, ModifiedUtc = Now
+                Source = TagSources.Human, CreatedUtc = Now, ModifiedUtc = Now,
+                Labels = [new TagLabel("site", execute.Labels["site"])] // a site-bearing code only matches on its site
             });
 
         SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, _ => Parse());
