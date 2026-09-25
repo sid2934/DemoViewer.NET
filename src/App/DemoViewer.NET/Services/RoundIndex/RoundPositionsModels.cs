@@ -153,7 +153,7 @@ public sealed class RoundPositionsRound
     /// <summary>Frame clock. Step 0 is sampled here.</summary>
     public int FreezeEndTick { get; set; }
 
-    /// <summary>Slots on the CT side this round, from Round Facts; every other seated slot is T.</summary>
+    /// <summary>Slots whose sample was CT this round (CS2DemoKit #58 <c>Team</c>); every other tuple is T.</summary>
     public int[] Ct { get; set; } = [];
 
     /// <summary>

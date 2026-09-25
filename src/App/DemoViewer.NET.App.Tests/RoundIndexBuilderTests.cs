@@ -160,13 +160,14 @@ public class RoundIndexBuilderTests
     [Test]
     public async Task ATeamDisagreement_UsesTheSamplesTeam_AndTalliesIt()
     {
-        // Slot 6 is seated T by the row but the sample reads CT: the sample wins the count, and the
-        // disagreement is tallied rather than silently corrected or trusted.
+        // Slot 6 is seated T by the row but its samples read CT all round: the sample wins the count,
+        // and the disagreement is tallied, once per row, rather than silently corrected or trusted.
         RoundFactsRows facts = Facts(Round(1, 1000, 1200));
         List<PositionSample> samples =
         [
             .. CtSlots.Select(s => Sample(1000, s, "Outside")),
-            .. TSlots.Select(s => Sample(1000, s, "Ramp")),
+            Sample(1000, 6, "Outside", team: 3),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1000, s, "Ramp")),
             Sample(1064, 6, "Outside", team: 3),
             .. CtSlots.Select(s => Sample(1064, s, "Outside")),
             .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "Ramp"))
@@ -182,7 +183,46 @@ public class RoundIndexBuilderTests
             await Assert.That(rows[1].T).IsEqualTo("Ramp:4");
             await Assert.That(build.Disagreements).IsNotEmpty();
             await Assert.That(build.Disagreements.Single().Round).IsEqualTo(1);
-            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(1);
+            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task APositionsRoundsCt_ComesFromTheSamplesTeam_NotTheRowsSeating()
+    {
+        // A match-wide roster seats every slot on its final side, so a first-half row has the two sides
+        // swapped. The token buckets by the sample's Team; the positions file's Ct must split the same
+        // tuples the same way, or a thumbnail colours every dot against the token it matched.
+        // The last row is a halftime swap inside the window: every Team flips, and each slot keeps the
+        // side its first sample gave it for the round, so the file's one Ct list still splits that row.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1200, ctSlots: TSlots, tSlots: CtSlots));
+        List<PositionSample> samples =
+        [
+            .. Everyone(1000, "Outside", "Ramp"),
+            .. Everyone(1064, "Outside", "Ramp"),
+            .. CtSlots.Select(s => Sample(1128, s, "Outside", team: 2)),
+            .. TSlots.Select(s => Sample(1128, s, "Ramp", team: 3))
+        ];
+
+        RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(Demo(), facts, RoundIndexOptions.Default,
+            PawnPlaceSource.Instance, samples);
+        RoundPositionsRound round = build.Positions.Rounds.Single();
+        HashSet<int> ct = [.. round.Ct];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(round.Ct).IsEquivalentTo(CtSlots).Because("the sample's Team, not the row's seat");
+            foreach (RoundIndexRow row in build.Index.ExpandRows(build.Index.Rounds[0]))
+            {
+                IReadOnlyList<RoundPosition> tuples = round.At(row.Step);
+                await Assert.That(PlaceCountToken.EncodePlaces(tuples.Where(p => ct.Contains(p.Slot))
+                    .Select(p => build.Positions.PlaceOf(p.PlaceId)))).IsEqualTo(row.Ct);
+                await Assert.That(PlaceCountToken.EncodePlaces(tuples.Where(p => !ct.Contains(p.Slot))
+                    .Select(p => build.Positions.PlaceOf(p.PlaceId)))).IsEqualTo(row.T);
+            }
+
+            await Assert.That(build.Index.ExpandRows(build.Index.Rounds[0]).Last().Ct).IsEqualTo("Outside:5");
+            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(30);
         }
     }
 
