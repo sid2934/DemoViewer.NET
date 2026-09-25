@@ -133,6 +133,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // Record Panel above, so the two never disagree about what "run" or "won" means.
         HistoryPanel = new StratHistoryPanelViewModel(store, recordEvidence, recordTags, _calloutResolvers, _post);
 
+        // Role View And LAN Print (plan.md §3, strat-model.md §3.14): one slot's parts on screen and the
+        // button that prints all five as one HTML page. Print has nothing to write to on the browser head.
+        RoleView = new StratRoleViewPanelViewModel(IsBrowser);
+
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document);
@@ -184,6 +188,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>Strat Version History over the open strat (strat-model.md §3.8).</summary>
     public StratHistoryPanelViewModel HistoryPanel { get; }
+
+    /// <summary>Role View And LAN Print over the open strat (strat-model.md §3.14).</summary>
+    public StratRoleViewPanelViewModel RoleView { get; }
 
     /// <summary>Every book: <c>me</c>, then each visible team.</summary>
     public ObservableCollection<StratOwnerOption> Owners { get; } = [];
@@ -626,6 +633,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Editor.Project();
         RecordPanel.Configure(Session.Document);
         HistoryPanel.Configure(Session.Document);
+        RoleView.Configure(Session.Document,
+            Session.Document is { } doc ? _calloutResolvers.For(doc.Owner, doc.Map) : null,
+            RosterFromEditor(), id => _store.Load(id).Document);
         OnPropertyChanged(nameof(HasOpenStrat));
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
@@ -792,6 +802,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Editor.Configure(places, PinsFor(document.Owner), targets);
         Canvas.SetCallouts(places);
     }
+
+    // Role View's roster, strat-pin level only (§3.5): a slot the editor shows pinned to a real person,
+    // not "book default" (that resolves no further here, so the sheet prints the blank line to write on,
+    // same as an unpinned slot).
+    private Dictionary<string, string?> RosterFromEditor() =>
+        Editor.Slots.Where(s => s.Pin?.SteamId is not null)
+            .ToDictionary(s => s.Letter, s => (string?)s.Pin!.Label);
 
     // The latest roster's members for a team, by last-seen name; the confirmed me accounts for the me book.
     private List<StratPinOption> PinsFor(StratOwner owner)

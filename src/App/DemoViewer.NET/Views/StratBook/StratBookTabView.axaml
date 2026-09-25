@@ -22,6 +22,18 @@
         <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
     </UserControl.KeyBindings>
 
+    <UserControl.Styles>
+        <!-- Role View's context lines (strat-model.md §3.14): another slot's step kept for context,
+             greyed the way the printed page's ".context" class is. -->
+        <Style Selector="TextBlock.roleLine">
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="TextBlock.roleLine.roleLineContext">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontStyle" Value="Italic" />
+        </Style>
+    </UserControl.Styles>
+
     <UserControl.Resources>
         <!-- One row of the Strat Record Panel (strat-model.md §3.6): a scope's run/won/lost/aborted/unknown
              counts, each a button when its clips are nonempty, and the win rate. Shared by the total row
@@ -442,6 +454,54 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
+                            <!-- Role View And LAN Print (strat-model.md §3.14): one slot's parts on
+                                 screen, picked here, and a button that prints all five as one HTML page
+                                 opened in the system browser. Reads the tab's RoleView, not the editor. -->
+                            <StackPanel Spacing="6"
+                                        DataContext="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).RoleView}"
+                                        x:DataType="vm:StratRoleViewPanelViewModel">
+                                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="Role View" Classes="col-label"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:StratRoleViewPanelViewModel.Slots}"
+                                              SelectedItem="{Binding SelectedSlot}" FontSize="11" IsVisible="{Binding HasStrat}" />
+                                    <Button Grid.Column="3" Content="Print role sheets" Classes="ghost" FontSize="11" Padding="8 3"
+                                            Command="{Binding PrintCommand}" IsVisible="{Binding !IsBrowser}"
+                                            ToolTip.Tip="Writes one HTML page per slot and opens it in the system browser" />
+                                </Grid>
+                                <TextBlock Text="open a strat to see its role sheets" FontSize="11"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasStrat}" />
+                                <StackPanel Spacing="4" IsVisible="{Binding HasStrat}">
+                                    <TextBlock Text="{Binding SlotLine}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextValue}" />
+                                    <TextBlock Text="{Binding MetaLine}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                    <TextBlock Text="{Binding TriggerLine}" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasTriggerLine}" />
+                                    <ItemsControl ItemsSource="{Binding Lines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RoleViewLineRow">
+                                                <TextBlock Classes="roleLine" Classes.roleLineContext="{Binding IsContext}"
+                                                           FontSize="11" TextWrapping="Wrap" Margin="0 2 0 0">
+                                                    <Run Text="{Binding AtText}" /><Run Text=" · " /><Run Text="{Binding Text}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding Branches}" IsVisible="{Binding HasBranches}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextMid}" Margin="8 2 0 0" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding StatusFooter}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding PrintUnavailableNote}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasPrintUnavailableNote}" />
                                 <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextMid}"
                                            IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
