@@ -24,8 +24,9 @@ public interface IRoundFactsRowSource
 /// </summary>
 /// <param name="Rows">Every row, keyed by column name. Values are scalars or lists of scalars.</param>
 /// <param name="UnavailableColumns">
-///     Known columns the engine did not provide (a partial CS2DemoKit #54). A row's null in one of
-///     these means "not provided", not "the demo did not say".
+///     Known columns the ruleset does not emit (a user override that dropped one, or a column the rules
+///     language cannot express). A row's null in one of these means "not provided", not "the demo did
+///     not say".
 /// </param>
 /// <param name="Parameters">The ruleset's <c>params:</c> values, keyed as the YAML spells them.</param>
 /// <param name="Diagnostics">What the source wants a log line for.</param>
