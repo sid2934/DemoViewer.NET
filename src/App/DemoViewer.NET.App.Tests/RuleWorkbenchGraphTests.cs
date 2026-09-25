@@ -54,7 +54,15 @@ public class RuleWorkbenchGraphTests
         // whose source or destination misses the node map on a bare `if`, with nothing counting it
         // (RuleGraphSkeleton.cs:76-83, one of the sites docs/rule-graph/design.md 1.1 tabulates).
         // Equality here is that property, and unlike the node count it can fail.
-        await Assert.That(skeleton.Edges.Count).IsEqualTo(build.Edges.Count)
+        //
+        // Since 0.13, build.Edges also carries rows drawn to ExternalStateNode stand-ins
+        // (player_context, entity_state), which the engine keeps out of build.Nodes by design
+        // (BuildResult.ExternalNodes). The skeleton draws build.Nodes only, as it did on 0.12 when
+        // those rows did not exist, so they are the one kind of row it leaves out; any other row
+        // missing is still the silent loss this guards.
+        int graphRows = build.Edges.Count(e => e.Source is not ExternalStateNode
+                                               && e.Destination is not ExternalStateNode);
+        await Assert.That(skeleton.Edges.Count).IsEqualTo(graphRows)
             .Because("an edge whose endpoint misses the node map is dropped silently, and a node the "
                      + "conversion fails to map takes its edges down with it");
 

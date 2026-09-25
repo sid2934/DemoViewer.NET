@@ -101,9 +101,14 @@ internal static class RoundIndexTestData
         VictimSide = Array.IndexOf(CtSlots, victimSlot) >= 0 ? 3 : 2
     };
 
+    // Team follows the seat unless a test says otherwise, so a sample agrees with the round the
+    // test built; a slot on neither side reads team 0, as a spectator would.
     internal static PositionSample Sample(int tick, int slot, string? place, float x = 0, float y = 0, float z = 0,
-        int frame = 0) =>
-        new(frame, tick, slot, new Vector3(x, y, z), place);
+        int frame = 0, int? team = null, bool alive = true) =>
+        new(frame, tick, slot, new Vector3(x, y, z), place, team ?? SideOf(slot), alive);
+
+    private static int SideOf(int slot) =>
+        Array.IndexOf(CtSlots, slot) >= 0 ? 3 : Array.IndexOf(TSlots, slot) >= 0 ? 2 : 0;
 
     /// <summary>Every seated slot at one tick, the CT side in <paramref name="ctPlace" /> and the T side in <paramref name="tPlace" />.</summary>
     internal static IEnumerable<PositionSample> Everyone(int tick, string ctPlace, string tPlace, int frame = 0)

@@ -498,7 +498,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
                 provenance.MessagesConsumed,
                 run.Build.Nodes.Count,
                 run.Build.Edges.Count,
-                run.Build.Chains.Count,
                 run.MaterializedPlayers.Count,
                 run.Timeline.Events.Count,
                 new GcReport(
@@ -626,7 +625,7 @@ static BenchOutcome RunRetained(string demoPath, IReadOnlyList<RulesetDoc> rules
     // every rule in a `for: each_player` ruleset lives on a template this count never includes, so
     // presenting it as the graph size understated a real corpus by a factor of about sixty. The
     // materialized figure is printed with the evaluation below, which is the first point it exists.
-    Console.WriteLine($"Build:  {buildElapsed.TotalMilliseconds,8:F1} ms  |  {build.Nodes.Count} scaffolding nodes, {build.Edges.Count} edges, {build.Chains.Count} chains");
+    Console.WriteLine($"Build:  {buildElapsed.TotalMilliseconds,8:F1} ms  |  {build.Nodes.Count} scaffolding nodes, {build.Edges.Count} edges");
 
     // ── Evaluate ───────────────────────────────────────────────────────────
     GC.Collect(2, GCCollectionMode.Forced, true, true);
@@ -704,7 +703,7 @@ static BenchOutcome RunForward(string demoPath, IReadOnlyList<RulesetDoc> rulese
     long allocAllBytes = GC.GetTotalAllocatedBytes(true) - allocAllBefore;
     GcCounts gcAfter = GcCounts.Now();
     Console.WriteLine($"Run:    {runElapsed.TotalMilliseconds,8:F1} ms  |  {run.Provenance.FramesConsumed} frames, {run.Provenance.MessagesConsumed} messages, {run.Demo.Players.Count} players");
-    Console.WriteLine($"Build:  {run.Build.Nodes.Count} scaffolding nodes, {run.Build.Edges.Count} edges, {run.Build.Chains.Count} chains  |  {run.MaterializedPlayers.Count} materialized players");
+    Console.WriteLine($"Build:  {run.Build.Nodes.Count} scaffolding nodes, {run.Build.Edges.Count} edges  |  {run.MaterializedPlayers.Count} materialized players");
     PrintGraphSize(run);
 
     return new BenchOutcome(run, null, sha256, null, null,
@@ -1611,7 +1610,6 @@ internal sealed record ReportPerformance(
     int MessageCount,
     int NodeCount,
     int EdgeCount,
-    int ChainCount,
     int MaterializedPlayers,
     int TimelineEvents,
     GcReport Gc,
