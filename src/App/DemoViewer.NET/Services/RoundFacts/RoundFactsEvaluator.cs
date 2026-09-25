@@ -23,9 +23,9 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     </para>
 ///     <para>
 ///         Nothing here is gated by a setting: the rows ride tier 2, and wherever a parse runs this
-///         runs. While the engine surfaces are outstanding (CS2DemoKit #54) the ruleset is absent from
-///         the effective set, the identity answers null, and this evaluator wants nothing and writes
-///         nothing.
+///         runs. A user who disables the ruleset (a same-id override with <c>enabled: false</c>) removes
+///         it from the effective set; the identity then answers null, and this evaluator wants nothing
+///         and writes nothing.
 ///     </para>
 /// </summary>
 public sealed class RoundFactsEvaluator : IDemoEvaluator
@@ -44,7 +44,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private readonly Action<Action> _post;
     private readonly IRoundFactsRowSource _rows;
 
-    private int _reportedWaiting;
+    private int _reportedAbsent;
 
     /// <param name="demoCache">The unified demo cache: the rows live in its Analysis tier.</param>
     /// <param name="rows">The engine seam that evaluates the ruleset on a held parse.</param>
@@ -125,10 +125,10 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             string? fingerprint = TryFingerprint(parsed.TickRate);
             if (fingerprint is null)
             {
-                // No ruleset to run. Said once per process: every tier-2 pass lands here until #54.
-                if (Interlocked.Exchange(ref _reportedWaiting, 1) == 0)
+                // No ruleset to run. Said once per process: with the ruleset disabled every tier-2 pass lands here.
+                if (Interlocked.Exchange(ref _reportedAbsent, 1) == 0)
                 {
-                    RoundFactsLog.RulesetAbsent(Log, EngineRoundFactsRowSource.WaitingDiagnostic);
+                    RoundFactsLog.RulesetAbsent(Log, EngineRoundFactsRowSource.NoRulesetDiagnostic);
                 }
 
                 return;

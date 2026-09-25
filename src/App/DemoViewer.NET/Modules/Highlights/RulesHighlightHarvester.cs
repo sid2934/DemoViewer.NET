@@ -6,6 +6,7 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -99,7 +100,7 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
     {
         HighlightConfigFingerprint.Result result =
-            HighlightConfigFingerprint.Compute(Rules.Rulesets, tickRate, GotvProfileId);
+            HighlightConfigFingerprint.Compute(RoundFactsFingerprint.WithoutRoundFacts(Rules.Rulesets), tickRate, GotvProfileId);
         return (result.Fingerprint, result.HighlightHashes);
     }
 
@@ -107,7 +108,7 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     public AnalysisRun RunBareAnalysis(ParsedDemo demo)
     {
         RuleConfigLoadResult rules = Rules;
-        BuildResult build = DemoAnalysis.Build(demo, rules.Rulesets);
+        BuildResult build = DemoAnalysis.Build(demo, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets));
         RulesetExclusionReport.Report(HarvestLog, build);
         return DemoAnalysis.Evaluate(
             demo,
@@ -122,7 +123,7 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     public AnalysisRun RunFullAnalysis(ParsedDemo demo)
     {
         RuleConfigLoadResult rules = Rules;
-        BuildResult build = DemoAnalysis.Build(demo, rules.Rulesets);
+        BuildResult build = DemoAnalysis.Build(demo, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets));
         RulesetExclusionReport.Report(HarvestLog, build);
         return DemoAnalysis.Evaluate(
             demo,
