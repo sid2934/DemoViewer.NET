@@ -196,6 +196,21 @@ public static class AppPaths
     }
 
     /// <summary>
+    ///     Suggested Tags' user directory: <c>&lt;config&gt;/suggested-tags/</c>, holding the parameter
+    ///     profile and one learned <c>site-regions.&lt;map&gt;.json</c> per map (suggested-tags.md §3.2,
+    ///     §3.7). A team shares the folder the way it shares a palette. A PURE path: the store creates it
+    ///     on its first write. <c>null</c> on WASM, where the tables live for the session only.
+    /// </summary>
+    public static string? SuggestedTagsDirectory
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "suggested-tags");
+        }
+    }
+
+    /// <summary>
     ///     Directory for the unified diagnostics rolling log files: <c>&lt;config&gt;/logs/</c>. A stable,
     ///     discoverable location under the app-data root (NOT the OS temp dir, which is too ephemeral for
     ///     "attach recent logs to a user-reported issue"). A PURE path: no directory creation, so getter
