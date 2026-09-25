@@ -4,12 +4,27 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia;
+using Avalonia.Threading;
+using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Playback2D.Pipeline.Frames;
+using DemoViewer.NET.Services.Dependencies;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
 
@@ -45,6 +60,16 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     private IModuleContext? _context;
     private bool _disposed;
+
+    // Built on the first Export and kept: its chip is mounted once, and a finished export's result stays on it.
+    private ExportJobService? _exportJob;
+
+    // The shell's feature projection, captured at activation so deactivation unsubscribes the same instance.
+    private IModuleFeatureGate? _features;
+
+    /// <summary>The open export pane, or null. Non-null is what the view binds the pane's visibility to.</summary>
+    [ObservableProperty]
+    private Playback2DExportDialogViewModel? _exportDialog;
     private bool _refreshing;
 
     // What the callouts editor was last pointed at, so a RefreshList that changed nothing about the
@@ -99,6 +124,21 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         RefreshOwners();
     }
 
+    /// <summary>The Strat Export feature id (step-authoring.md §3.10). A persisted key; desktop only.</summary>
+    public const string ExportFeatureId = "stratbook.export";
+
+    /// <summary>
+    ///     The sizes the strat export offers: the 640 square first (O-29), then the 2D tab's presets. Square
+    ///     because a radar is, so the map fills the frame and §6's text arithmetic at 640 px holds.
+    /// </summary>
+    public static IReadOnlyList<ExportSizeOption> ExportSizes { get; } =
+    [
+        new(string.Create(CultureInfo.InvariantCulture,
+            $"GIF square ({StratExportJob.DefaultWidth}×{StratExportJob.DefaultHeight})"),
+            StratExportJob.DefaultWidth, StratExportJob.DefaultHeight),
+        .. Playback2DExportDialogViewModel.SizePresets
+    ];
+
     /// <summary>The line the tab shows on the browser host.</summary>
     public static string BrowserNote => "session only: this browser tab forgets strats when it reloads";
 
@@ -137,6 +177,32 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     public string StatusLine => Session.StatusText;
 
+    /// <summary>
+    ///     True when the open strat can be exported: the feature is on, the shell wired a host (a desktop build),
+    ///     and a strat is open. Re-raised wherever one of the three changes.
+    /// </summary>
+    public bool CanExport =>
+        _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
+        _context is ModuleContext { StratExportHost: not null } &&
+        HasOpenStrat;
+
+    /// <summary>
+    ///     What the Export button's slot says when the button cannot exist: on the browser, where there is no file
+    ///     to write and no ffmpeg to drive. Empty everywhere else, including when the user switched the feature off.
+    /// </summary>
+    public string ExportUnavailableNote => IsBrowser ? "Export strat: unavailable in the browser" : "";
+
+    /// <summary>Whether <see cref="ExportUnavailableNote" /> has something to say.</summary>
+    public bool HasExportUnavailableNote => ExportUnavailableNote.Length > 0;
+
+    /// <summary>The export's chip, or null before the first Export. Internal so a test reaches it as the shell does.</summary>
+    internal Playback2DExportStatusViewModel? ExportStatus { get; private set; }
+
+    /// <summary>
+    ///     Makes the export job. The production job when unset; a test swaps in one with a fixed ffmpeg answer.
+    /// </summary>
+    internal Func<StratExportHost, StratExportJob>? ExportJobFactory { get; set; }
+
     /// <inheritdoc />
     public void OnActivated(IModuleContext context)
     {
@@ -148,6 +214,19 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         _context = context;
         _context.DemoReset += OnDemoReset;
+
+        if (_features is not null)
+        {
+            _features.Changed -= OnFeaturesChanged;
+        }
+
+        _features = context.Features;
+        if (_features is not null)
+        {
+            _features.Changed += OnFeaturesChanged;
+        }
+
+        RaiseExportState();
 
         // The open demo's map is the likely one to author for; a filter the user chose is kept.
         if (SelectedMap == AllMaps && !string.IsNullOrEmpty(context.MapName))
@@ -170,8 +249,15 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             _context = null;
         }
 
+        if (_features is not null)
+        {
+            _features.Changed -= OnFeaturesChanged;
+            _features = null;
+        }
+
         Canvas.Transport.Pause();
         Session.Commit();
+        RaiseExportState();
     }
 
     /// <summary>
@@ -203,6 +289,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             _teams.Changed -= RefreshOwners;
         }
 
+        if (_features is not null)
+        {
+            _features.Changed -= OnFeaturesChanged;
+        }
+
+        CloseExport();
+        ExportStatus?.Dispose();
+        _exportJob?.Dispose();
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
         Canvas.Dispose();
@@ -210,6 +304,140 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     }
 
     // ── Actions ──────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Opens the export pane over the open strat (step-authoring.md §3.6): GIF at 20 fps, 640 square, the first
+    ///     step to the last plus 2 s. The job is the 2D export's service over a <see cref="StratExportJob" />, so
+    ///     the gate, the interlocks, the chip and cancel are the same ones.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private void OpenExport()
+    {
+        if (!CanExport || _context is not ModuleContext { StratExportHost: { } host }
+                       || Canvas.Projection is not { } projection || Session.Document is not { } document)
+        {
+            return;
+        }
+
+        if (_exportJob is null)
+        {
+            // Every seam named, the 2D tab's rule: an omitted optional is invisible at the call site.
+            StratExportJob job = ExportJobFactory?.Invoke(host) ?? new StratExportJob(
+                Canvas.MapLoader,
+                surfaces: RenderSurfaceProviderFactory.CreateCpu,
+                managedFfmpegDirectory: static () => FfmpegDependency.ManagedDirectory,
+                log: AppendExportLog,
+                encoderProbe: EncoderProbeCache.Shared,
+                locateFfmpeg: null);
+            _exportJob = new ExportJobService(job, host.Gate, host.IsLiveSyncBusy, host.IsReelRunning,
+                AppendExportLog);
+            ExportStatus = new Playback2DExportStatusViewModel(_exportJob, host.OpenExportFolder);
+            host.MountStatusChip?.Invoke(ExportStatus);
+        }
+
+        // The strat's own defaults, not the 2D tab's saved ones: a strat is shared as a short GIF (O-29), and
+        // choosing here must not rewrite what the 2D tab opens with. Only the folder is shared.
+        Playback2DSettings saved = host.Settings().Playback2D;
+        Playback2DSettings seed = new()
+        {
+            ExportFormatId = ExportFormats.Gif,
+            ExportFps = StratExportJob.DefaultFps,
+            ExportWidth = StratExportJob.DefaultWidth,
+            ExportHeight = StratExportJob.DefaultHeight,
+            ExportOutputDirectory = saved.ExportOutputDirectory,
+            ExportIncludeHud = true,
+            ExportIncludeHudClock = true,
+            ExportIncludeAnnotations = true,
+            ExportIncludeVision = false,
+            ExportQuality = saved.ExportQuality,
+            ExportEncoder = EncoderLadder.Auto
+        };
+
+        CloseExport();
+        ExportDialog = new Playback2DExportDialogViewModel(
+            StratExportJob.Ranges(projection),
+            seed,
+            _exportJob,
+
+            // An empty fixed script: the session's first-frame fit frames the map's bounds, which is the
+            // strat's camera (§3.6). There is no live pan to mirror.
+            captureLiveCamera: null,
+            outputFrameCount: StratFrameSource.OutputFrameCount,
+            ffmpegLocator: static () => FfmpegLocator.Locate(FfmpegDependency.ManagedDirectory),
+            isLiveSyncSessionActive: host.IsLiveSyncBusy,
+
+            // The folder is written at Start below; the rest are the strat's constants, never the user's 2D ones.
+            persistDefaults: null,
+            fileExists: null,
+            captureInk: CaptureExport,
+            acquireFfmpeg: Playback2DExportDialogViewModel.ProductionAcquisition(FfmpegDependency.ManagedDirectory),
+            capturePalette: CaptureExportPalette,
+            scene: new ExportDialogScene("Export strat", ExportFileStem(document.Name), ExportSizes,
+                StratExportJob.LayerIds));
+
+        ExportDialog.StartRequested += OnExportStarted;
+    }
+
+    /// <summary>Closes the export pane. A started export keeps running; its progress is on the chip.</summary>
+    [RelayCommand]
+    private void CloseExport()
+    {
+        if (ExportDialog is { } dialog)
+        {
+            dialog.StartRequested -= OnExportStarted;
+            dialog.Dispose();
+        }
+
+        ExportDialog = null;
+    }
+
+    private void OnExportStarted()
+    {
+        if (ExportDialog is { } dialog && _context is ModuleContext { StratExportHost: { } host }
+                                       && Path.GetDirectoryName(dialog.OutputPath) is { Length: > 0 } folder)
+        {
+            host.PersistSettings(settings => settings.Playback2D.ExportOutputDirectory = folder);
+        }
+
+        CloseExport();
+    }
+
+    // At Start, on the UI thread: the canvas's tracks and ink as they are now, keyed onto the ink session the
+    // request carries. Null with no strat open, which the job refuses.
+    private AnnotationSession? CaptureExport() =>
+        Canvas.CaptureForExport() is { } capture ? StratExportJob.Register(capture) : null;
+
+    // Resolved at Start for the 2D export's reason: the theme is only readable on the UI thread.
+    private static ScenePalette CaptureExportPalette() =>
+        Dispatcher.UIThread.CheckAccess()
+            ? ScenePaletteFactory.Build(Application.Current?.ActualThemeVariant)
+            : ScenePalette.Dark;
+
+    // From the export's pool thread and ffmpeg's stderr pump; the chip marshals.
+    private void AppendExportLog(string line) => ExportStatus?.AppendLog(line);
+
+    private void OnFeaturesChanged()
+    {
+        RaiseExportState();
+        if (!CanExport)
+        {
+            CloseExport();
+        }
+    }
+
+    private void RaiseExportState()
+    {
+        OnPropertyChanged(nameof(CanExport));
+        OpenExportCommand.NotifyCanExecuteChanged();
+    }
+
+    // The strat's name as a file name: characters no file system takes become '-', and an unnamed strat is "strat".
+    internal static string ExportFileStem(string? name)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string stem = new((name ?? "").Trim().Select(c => invalid.Contains(c) ? '-' : c).ToArray());
+        return stem.Length == 0 ? "strat" : stem;
+    }
 
     /// <summary>
     ///     A new strat in the selected book, on the filtered map (else the open demo's), on the filtered side (else
@@ -340,6 +568,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(HasPending));
         OnPropertyChanged(nameof(StatusLine));
+        RaiseExportState();
     }
 
     // The open strat's own working-copy writes land here every half second while it is edited; they change

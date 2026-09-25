@@ -261,6 +261,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // factory, so a field initializer would cache a NullLogger. First use is a demo load, after wiring.
     private ILogger? _diagLog;
     private bool _exportChipDismissed;
+    private bool _stratExportChipDismissed;
 
     /// <summary>
     ///     The active first-run wizard when shown as an in-app OVERLAY (P2b: the WASM host has no OS
@@ -1573,6 +1574,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The 2D export chip's mapper, or null until an export has been opened. For tests.</summary>
     internal Playback2DExportStatusViewModel? Playback2DExportStatus { get; private set; }
 
+    /// <summary>The Strat Book export chip's mapper, or null until a strat export has been opened. For tests.</summary>
+    internal Playback2DExportStatusViewModel? StratExportStatus { get; private set; }
+
     /// <summary>
     ///     Main-window geometry for the NEXT snapshot. Written by the desktop host (which tracks the
     ///     window's last-Normal bounds, the VM deliberately has no <c>Window</c> reference) and read
@@ -2239,6 +2243,34 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReconcileExportChip();
     }
 
+    /// <summary>
+    ///     Mounts the Strat Book's export chip beside the 2D one. A slot of its own rather than the 2D slot: the
+    ///     two tabs build their jobs independently and either can run while the other's result is still showing,
+    ///     so sharing one slot would unmount whichever attached first for good.
+    /// </summary>
+    /// <param name="status">The mapper the Strat Book built over its job service.</param>
+    internal void AttachStratExportStatus(Playback2DExportStatusViewModel status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        if (ReferenceEquals(StratExportStatus, status))
+        {
+            return;
+        }
+
+        if (StratExportStatus is { } previous)
+        {
+            previous.DismissRequested -= OnExportDismissRequested;
+            previous.PropertyChanged -= OnExportStatusPropertyChanged;
+            Chips.Remove(previous.Chip);
+        }
+
+        StratExportStatus = status;
+        _stratExportChipDismissed = false;
+        status.DismissRequested += OnExportDismissRequested;
+        status.PropertyChanged += OnExportStatusPropertyChanged;
+        ReconcileExportChip();
+    }
+
     private void OnExportStatusPropertyChanged(object? sender,
         PropertyChangedEventArgs e)
     {
@@ -2254,12 +2286,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _exportChipDismissed = false;
         }
 
+        if (StratExportStatus is { IsRunning: true })
+        {
+            _stratExportChipDismissed = false;
+        }
+
         ReconcileExportChip();
     }
 
     private void OnExportDismissRequested(object? sender, EventArgs e)
     {
-        _exportChipDismissed = true;
+        if (ReferenceEquals(sender, StratExportStatus))
+        {
+            _stratExportChipDismissed = true;
+        }
+        else
+        {
+            _exportChipDismissed = true;
+        }
+
         ReconcileExportChip();
     }
 
@@ -2267,12 +2312,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // to the strip: the tab attaches it on the first Export, which is long before the first Start.
     private void ReconcileExportChip()
     {
-        if (Playback2DExportStatus is not { } status)
+        ReconcileExportChip(Playback2DExportStatus, _exportChipDismissed);
+        ReconcileExportChip(StratExportStatus, _stratExportChipDismissed);
+    }
+
+    private void ReconcileExportChip(Playback2DExportStatusViewModel? mounted, bool dismissed)
+    {
+        if (mounted is not { } status)
         {
             return;
         }
 
-        bool shouldShow = status.IsRunning || !status.IsIdle && !_exportChipDismissed;
+        bool shouldShow = status.IsRunning || !status.IsIdle && !dismissed;
         bool present = Chips.Contains(status.Chip);
         if (shouldShow && !present)
         {
