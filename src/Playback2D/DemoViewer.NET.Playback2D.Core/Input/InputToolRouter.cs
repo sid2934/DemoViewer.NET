@@ -82,8 +82,9 @@ public sealed class InputToolRouter
     /// <summary>
     ///     True while a DRAWING tool is selected: what the app's keymap passes as its <c>toolActive</c>
     ///     flag, so the tool-scoped Space / Esc bindings shadow the transport ones only when they should.
+    ///     Every annotation tool counts, the shape and text tools included.
     /// </summary>
-    public bool IsDrawingToolActive => ActiveKind is ToolKind.Draw or ToolKind.Erase;
+    public bool IsDrawingToolActive => ToolKinds.IsAnnotationTool(ActiveKind);
 
     // No ActiveToolChanged event: the selection round-trips through AnnotationsPanelViewModel's own
     // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives

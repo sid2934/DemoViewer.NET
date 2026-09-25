@@ -1,10 +1,13 @@
 #region
 
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
 
@@ -28,6 +31,12 @@ public partial class Playback2DView : UserControl
     private readonly TextBlock? _modeLabel;
     private readonly MenuFlyout? _modeMenuFlyout;
     private readonly IPlayback2DSurface? _surface;
+    private readonly Canvas? _textEditorLayer;
+    private readonly TextBox? _textEditor;
+
+    // True between the surface asking for a label's text and the editor handing it back. Cleared FIRST
+    // on the way out, because hiding the box moves focus, and losing focus is itself a commit.
+    private bool _editingText;
 
     // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
     // draw?" question below asks THIS rather than `_surface is Scene2DHost`, so the tool entry points and
@@ -58,6 +67,15 @@ public partial class Playback2DView : UserControl
         if (this.FindControl<ContentControl>("ViewportHost") is { } slot)
         {
             slot.Content = surface;
+        }
+
+        _textEditorLayer = this.FindControl<Canvas>("TextEditorLayer");
+        _textEditor = this.FindControl<TextBox>("AnnotationTextEditor");
+        if (_toolSurface is not null && _textEditor is not null)
+        {
+            _toolSurface.TextEditRequested += OnTextEditRequested;
+            _textEditor.KeyDown += OnTextEditorKeyDown;
+            _textEditor.LostFocus += OnTextEditorLostFocus;
         }
 
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
@@ -199,10 +217,92 @@ public partial class Playback2DView : UserControl
 
     private void OnSurfacePointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // A press anywhere but the editor places what was typed BEFORE the surface sees the press, so a
+        // second label or a stroke never has to share the text tool's open undo mark.
+        if (_editingText && !IsInsideTextEditor(e.Source))
+        {
+            CommitTextEdit(_textEditor?.Text);
+        }
+
+        if (_editingText)
+        {
+            return;
+        }
+
         if (!IsFocused)
         {
             Focus();
         }
+    }
+
+    private bool IsInsideTextEditor(object? source) =>
+        _textEditor is not null && source is Visual visual
+                                && (ReferenceEquals(visual, _textEditor) || _textEditor.IsVisualAncestorOf(visual));
+
+    // The surface placed a label: open the editor over it, sized to the label's em at this zoom so what is
+    // typed reads roughly the size it will draw. Focus is POSTED: the press that placed the label is still
+    // being routed, and focus handed over inside it can be taken straight back by the click itself.
+    private void OnTextEditRequested(Point hostPoint, double emPixels)
+    {
+        if (_textEditor is null || _textEditorLayer is null || _toolSurface is not Visual surface)
+        {
+            _toolSurface?.CompleteTextEdit(null);
+            return;
+        }
+
+        Point at = surface.TranslatePoint(hostPoint, _textEditorLayer) ?? hostPoint;
+        Canvas.SetLeft(_textEditor, at.X);
+        Canvas.SetTop(_textEditor, at.Y);
+        _textEditor.FontSize = Math.Clamp(emPixels, 10, 48);
+        _textEditor.Text = "";
+        _textEditor.IsVisible = true;
+        _editingText = true;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_editingText)
+            {
+                _textEditor.Focus();
+            }
+        }, DispatcherPriority.Input);
+    }
+
+    private void OnTextEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Enter:
+                CommitTextEdit(_textEditor?.Text);
+                e.Handled = true;
+                break;
+
+            case Key.Escape:
+                CommitTextEdit(null);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnTextEditorLostFocus(object? sender, RoutedEventArgs e) => CommitTextEdit(_textEditor?.Text);
+
+    private void CommitTextEdit(string? text)
+    {
+        if (!_editingText)
+        {
+            return;
+        }
+
+        _editingText = false;
+        if (_textEditor is not null)
+        {
+            _textEditor.IsVisible = false;
+            _textEditor.Text = "";
+        }
+
+        _toolSurface?.CompleteTextEdit(text);
+
+        // Back to the surface, so the keymap works again without a click.
+        Focus();
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

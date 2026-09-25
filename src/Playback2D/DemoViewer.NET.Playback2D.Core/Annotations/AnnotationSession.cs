@@ -64,6 +64,12 @@ public sealed class WetStroke
     public SpaceRef Space { get; private set; } = new SpaceRef.World(0);
 
     /// <summary>
+    ///     What the in-flight gesture will commit. A shape tool rubber-bands its two points through this
+    ///     same stroke, and the ink layer draws the wet preview with the geometry the kind will have.
+    /// </summary>
+    public AnnotationKind Kind { get; private set; } = AnnotationKind.Freehand;
+
+    /// <summary>
     ///     The level whose pane the gesture began on. The wet stroke is drawn ONLY there, so a drag that
     ///     wanders into the next band does not ghost onto a floor it was never drawn on.
     /// </summary>
@@ -87,13 +93,15 @@ public sealed class WetStroke
     ///     The monotonic authoring clock at the first sample. Every offset is re-based here, so the
     ///     committed table starts at 0 whatever the clock's arbitrary origin happens to be.
     /// </param>
+    /// <param name="kind">What the gesture will commit; <see cref="AnnotationKind.Freehand" /> for the pen.</param>
     public void Begin(in AnnotationStyle style, SpaceRef space, MapLevelId? paneLevelId, InkPoint first,
-        bool recordCadence = false, long atMs = 0)
+        bool recordCadence = false, long atMs = 0, AnnotationKind kind = AnnotationKind.Freehand)
     {
         ArgumentNullException.ThrowIfNull(space);
 
         _points.Clear();
         _points.Add(first);
+        Kind = kind;
         Style = style;
         Space = space;
         PaneLevelId = paneLevelId;
@@ -155,6 +163,30 @@ public sealed class WetStroke
     }
 
     /// <summary>
+    ///     Replaces the newest sample, or appends one when only the first exists. The rubber band: a shape
+    ///     is exactly two points, and its second one follows the pointer rather than accumulating.
+    /// </summary>
+    /// <param name="point">The new last sample.</param>
+    public void ReplaceLast(InkPoint point)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        if (_points.Count < 2)
+        {
+            _points.Add(point);
+        }
+        else
+        {
+            _points[^1] = point;
+        }
+
+        Version++;
+    }
+
+    /// <summary>
     ///     The cadence accumulated since <see cref="Begin" />, as the committed element's
     ///     <see cref="StrokeTiming" />. <see cref="StrokeTiming.Instant" /> when this stroke was not
     ///     recording one, or ended before a second boundary existed (a tap is a dot).
@@ -201,6 +233,7 @@ public sealed class WetStroke
         _marks?.Clear();
         IsRecordingCadence = false;
         IsActive = false;
+        Kind = AnnotationKind.Freehand;
         PaneLevelId = null;
         Version++;
     }

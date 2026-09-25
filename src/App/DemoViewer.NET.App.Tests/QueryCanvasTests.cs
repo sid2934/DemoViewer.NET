@@ -447,6 +447,10 @@ public class QueryCanvasTests
                 return false;
             }
 
+            public void RequestTextEdit(Guid elementId)
+            {
+            }
+
             public void RequestRender()
             {
             }

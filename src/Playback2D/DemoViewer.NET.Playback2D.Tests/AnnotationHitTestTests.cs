@@ -81,25 +81,81 @@ public class AnnotationHitTestTests
     }
 
     [Test]
-    public async Task NonFreehandKind_Throws()
+    [Arguments(AnnotationKind.Line)]
+    [Arguments(AnnotationKind.Arrow)]
+    public async Task LineAndArrow_HitAlongTheSegment_NotBesideIt(AnnotationKind kind)
     {
-        AnnotationElement arrow = new(Guid.NewGuid(), AnnotationKind.Arrow, AnnotationStyle.Default,
-            new SpaceRef.World(0), TimeEnvelope.Static, [new InkPoint(0, 0, 0.5f)], null);
+        AnnotationElement shape = Shape(kind, 0, 0, 200, 0);
 
-        NotSupportedException? thrown = null;
-        try
-        {
-            AnnotationHitTester.HitTest(arrow, 0, 0, 4);
-        }
-        catch (NotSupportedException e)
-        {
-            thrown = e;
-        }
-
-        await Assert.That(thrown).IsNotNull()
-            .Because("a silent 'no hit' for a shape kind nobody implemented is an eraser that " +
-                     "mysteriously refuses to erase");
+        await Assert.That(AnnotationHitTester.HitTest(shape, 100, 6, 4)).IsTrue()
+            .Because("6 is inside half the 6-unit width plus the 4-unit eraser radius");
+        await Assert.That(AnnotationHitTester.HitTest(shape, 100, 20, 4)).IsFalse();
+        await Assert.That(AnnotationHitTester.HitTest(shape, 260, 0, 4)).IsFalse();
     }
+
+    [Test]
+    public async Task Rect_HitsItsEdges_NotItsInterior()
+    {
+        AnnotationElement rect = Shape(AnnotationKind.Rect, 0, 0, 200, 100);
+
+        await Assert.That(AnnotationHitTester.HitTest(rect, 100, 2, 4)).IsTrue();
+        await Assert.That(AnnotationHitTester.HitTest(rect, 198, 50, 4)).IsTrue();
+        await Assert.That(AnnotationHitTester.HitTest(rect, 100, 50, 4)).IsFalse()
+            .Because("a rectangle has no ink in its middle, and its stored corners are its diagonal");
+        await Assert.That(AnnotationHitTester.HitTest(rect, 300, 50, 4)).IsFalse();
+    }
+
+    [Test]
+    public async Task Ellipse_HitsItsOutline_NotItsCentreOrCorners()
+    {
+        AnnotationElement ellipse = Shape(AnnotationKind.Ellipse, -100, -50, 100, 50);
+
+        await Assert.That(AnnotationHitTester.HitTest(ellipse, 100, 0, 4)).IsTrue();
+        await Assert.That(AnnotationHitTester.HitTest(ellipse, 0, 52, 4)).IsTrue();
+        await Assert.That(AnnotationHitTester.HitTest(ellipse, 0, 0, 4)).IsFalse();
+        await Assert.That(AnnotationHitTester.HitTest(ellipse, 98, 48, 4)).IsFalse()
+            .Because("the bounding box's corner is well outside the inscribed ellipse");
+    }
+
+    [Test]
+    public async Task FlatEllipse_IsHitAlongItsLine()
+    {
+        AnnotationElement flat = Shape(AnnotationKind.Ellipse, 0, 0, 200, 0);
+
+        await Assert.That(AnnotationHitTester.HitTest(flat, 100, 3, 4)).IsTrue();
+        await Assert.That(AnnotationHitTester.HitTest(flat, 100, 40, 4)).IsFalse();
+    }
+
+    [Test]
+    public async Task Text_HitsItsLineBox_BelowAndRightOfTheAnchor()
+    {
+        AnnotationElement label = Label("A short", 0, 0);
+        float em = AnnotationText.WorldSize(label.Style.WidthWorld);
+
+        await Assert.That(AnnotationHitTester.HitTest(label, em, -em / 2, 0)).IsTrue()
+            .Because("the text hangs below its anchor, which is lower world Y");
+        await Assert.That(AnnotationHitTester.HitTest(label, em, em * 2, 4)).IsFalse();
+        await Assert.That(AnnotationHitTester.HitTest(label, -em * 2, -em / 2, 4)).IsFalse();
+        await Assert.That(AnnotationHitTester.HitTest(label, -em * 2, -em / 2, em * 3)).IsTrue()
+            .Because("the box is inflated by the eraser radius");
+    }
+
+    [Test]
+    public async Task EmptyText_IsHitAtItsAnchor()
+    {
+        AnnotationElement label = Label("", 50, 50);
+
+        await Assert.That(AnnotationHitTester.HitTest(label, 52, 50, 4)).IsTrue();
+        await Assert.That(AnnotationHitTester.HitTest(label, 150, 50, 4)).IsFalse();
+    }
+
+    private static AnnotationElement Shape(AnnotationKind kind, float x0, float y0, float x1, float y1) =>
+        new(Guid.NewGuid(), kind, AnnotationStyle.Default, new SpaceRef.World(0), TimeEnvelope.Static,
+            [new InkPoint(x0, y0, 0.5f), new InkPoint(x1, y1, 0.5f)], null);
+
+    private static AnnotationElement Label(string text, float x, float y) =>
+        new(Guid.NewGuid(), AnnotationKind.Text, AnnotationStyle.Default, new SpaceRef.World(0),
+            TimeEnvelope.Static, [new InkPoint(x, y, 0.5f)], text);
 
     private static AnnotationElement Line(float width) =>
         new(Guid.NewGuid(), AnnotationKind.Freehand,

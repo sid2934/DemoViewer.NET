@@ -194,5 +194,8 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     }
 
     /// <inheritdoc />
+    public void RequestTextEdit(Guid elementId) => host.RequestTextEdit(elementId);
+
+    /// <inheritdoc />
     public void RequestRender() => host.RequestToolRender();
 }

@@ -98,6 +98,26 @@ public class Playback2DKeymapTests
         await Assert.That(bail).IsEqualTo(Playback2DAction.CancelGesture);
     }
 
+    /// <summary>
+    ///     Shape Tools' rows (step-authoring.md §3.7): bare A, T, L, R and O in the Always scope, next to
+    ///     D and X. With a tool active they still resolve, so switching from one tool to another is one
+    ///     key; the tool scope shadows only Space and Esc.
+    /// </summary>
+    [Test]
+    [Arguments(Key.A, Playback2DAction.ToolArrow)]
+    [Arguments(Key.T, Playback2DAction.ToolText)]
+    [Arguments(Key.L, Playback2DAction.ToolLine)]
+    [Arguments(Key.R, Playback2DAction.ToolRect)]
+    [Arguments(Key.O, Playback2DAction.ToolEllipse)]
+    public async Task TryResolve_ShapeToolGestures_AreBoundByShapeTools(Key key, Playback2DAction expected)
+    {
+        await Assert.That(Resolve(key, KeyModifiers.None)).IsEqualTo(expected);
+        await Assert.That(Playback2DKeymap.TryResolve(key, KeyModifiers.None, true,
+            out Playback2DAction whileDrawing)).IsTrue();
+        await Assert.That(whileDrawing).IsEqualTo(expected);
+        await Assert.That(Playback2DKeymap.GestureText(expected)).IsEqualTo(key.ToString());
+    }
+
     [Test]
     public async Task TryResolve_UnboundKey_ReturnsFalse()
     {

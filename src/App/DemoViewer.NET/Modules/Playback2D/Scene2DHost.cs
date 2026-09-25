@@ -65,6 +65,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // would drop a live gesture.
     private readonly SceneHostToolServices _toolServices;
 
+    // Held by reference because the text tool's gesture outlives the pointer: the press opens it, and
+    // the view's editor closes it through CompleteTextEdit long after the router has let go.
+    private readonly TextTool _textTool = new();
+
+    // Where the last press landed, in host space: the pane a text label was placed in, so the editor
+    // can be put over the label's anchor through the same camera that drew it.
+    private Point _lastPress;
+
     private LoadedMapAsset? _boundAsset;
     private AnnotationSession? _boundSession;
 
@@ -108,6 +116,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         Router = new InputToolRouter(_toolServices, new PanZoomTool());
         Router.Register(new DrawTool());
         Router.Register(new EraseTool());
+        Router.Register(new ShapeTool(ToolKind.Line));
+        Router.Register(new ShapeTool(ToolKind.Arrow));
+        Router.Register(new ShapeTool(ToolKind.Rect));
+        Router.Register(new ShapeTool(ToolKind.Ellipse));
+        Router.Register(_textTool);
 
         BuildScene();
     }
@@ -187,6 +200,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     void IAnnotationSurface.SetSpacePanHeld(bool held) => SetSpacePanHeld(held);
 
     void IAnnotationSurface.CancelActiveGesture() => CancelActiveGesture();
+
+    /// <inheritdoc />
+    public event Action<Point, double>? TextEditRequested;
+
+    void IAnnotationSurface.CompleteTextEdit(string? text) => CompleteTextEdit(text);
 
     /// <summary>
     ///     Releases the compositor, its layers and the fallback bitmap. Also runs on detach: a tab's
@@ -331,9 +349,54 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         InvalidateVisual();
     }
 
-    /// <summary>Selects the active pointer tool.</summary>
+    /// <summary>
+    ///     Selects the active pointer tool. A label still being typed is closed first with what it holds:
+    ///     the editor commits on losing focus, so by the time a toolbar click lands here there is normally
+    ///     nothing left to close.
+    /// </summary>
     /// <param name="kind">The tool.</param>
-    internal void SetActiveTool(ToolKind kind) => Router.SetActive(kind);
+    internal void SetActiveTool(ToolKind kind)
+    {
+        _textTool.CompleteEdit(_toolServices, null);
+        Router.SetActive(kind);
+    }
+
+    /// <summary>
+    ///     The text tool placed a label: tell the view where to put the editor. The anchor goes through
+    ///     the pane the press landed in and the same draw offset the ink layer applies, so a label on a
+    ///     tracked player opens its editor on the player.
+    /// </summary>
+    /// <param name="elementId">The label being typed.</param>
+    internal void RequestTextEdit(Guid elementId)
+    {
+        Point at = _lastPress;
+        double emPixels = 14;
+
+        LevelPane? pane = _panes.PaneAt((float)_lastPress.X, (float)_lastPress.Y);
+        if (pane is not null
+            && _toolServices.Session.Document.TryGet(elementId, out AnnotationElement element)
+            && element.Points.Count > 0
+            && _toolServices.TryResolveDrawOffset(pane, element, out float offsetX, out float offsetY))
+        {
+            InkPoint anchor = element.Points[0];
+            SKPoint screen = _toolServices.WorldToScreen(pane,
+                new SKPoint(anchor.X + offsetX, anchor.Y + offsetY));
+            at = new Point(screen.X, screen.Y);
+            emPixels = AnnotationText.WorldSize(element.Style.WidthWorld) / _toolServices.WorldUnitsPerPixel(pane);
+        }
+
+        TextEditRequested?.Invoke(at, emPixels);
+    }
+
+    /// <summary>The editor's result: the typed string, or null to cancel.</summary>
+    /// <param name="text">The typed string, or null.</param>
+    internal void CompleteTextEdit(string? text)
+    {
+        if (_textTool.CompleteEdit(_toolServices, text))
+        {
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>
     ///     Builds the text cache, the seven layers and the compositor over them.
@@ -475,6 +538,10 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     {
         base.OnDetachedFromVisualTree(e);
         ActualThemeVariantChanged -= OnThemeVariantChanged;
+
+        // A tab switch destroys the view and its editor with it, so an open label is closed here with
+        // what it holds rather than left holding the document's undo mark.
+        _textTool.CompleteEdit(_toolServices, null);
         AttachVm(null);
         _frameLoopArmed = false;
         _havePrevFrameTime = false;
@@ -516,6 +583,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         // next gesture the way a bind-time or frame-time mirror would while the tab sits paused.
         Router.SecondaryTool = _boundSession?.SecondaryTool;
 
+        _lastPress = e.GetPosition(this);
         ToolPointerEvent sample = Translate(e, false);
         if (TryTagPosition(in sample))
         {

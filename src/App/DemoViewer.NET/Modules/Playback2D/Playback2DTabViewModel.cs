@@ -1850,6 +1850,30 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                     : ToolKind.Erase);
                 return true;
 
+            case Playback2DAction.ToolLine:
+            case Playback2DAction.ToolArrow:
+            case Playback2DAction.ToolRect:
+            case Playback2DAction.ToolEllipse:
+            case Playback2DAction.ToolText:
+            {
+                if (!IsAnnotationsEnabled)
+                {
+                    return false;
+                }
+
+                ToolKind shape = action switch
+                {
+                    Playback2DAction.ToolLine => ToolKind.Line,
+                    Playback2DAction.ToolArrow => ToolKind.Arrow,
+                    Playback2DAction.ToolRect => ToolKind.Rect,
+                    Playback2DAction.ToolEllipse => ToolKind.Ellipse,
+                    _ => ToolKind.Text
+                };
+
+                Annotations.SelectTool(Annotations.ActiveTool == shape ? ToolKind.PanZoom : shape);
+                return true;
+            }
+
             // One history per document kind, resolved by focus (tag-store.md §3.9): while the palette has
             // the keyboard, undo and redo are the tags'.
             case Playback2DAction.Undo when IsTagPaletteFocused:

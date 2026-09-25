@@ -274,7 +274,8 @@ parsed; when a hotkey is an app-wide shortcut, a key the browser keeps for itsel
 palette's own keys (Esc, and the note, sticky-reset, Label Mode and next-group chords); when two buttons of one panel share a
 hotkey; when a group is one of the fact names or the reserved strat groups above; or when a `then` names
 no labels panel or loops. A hotkey that shadows a 2D Playback key while the palette has focus (`F`
-follow, `Q`/`E` rounds, `Ctrl+Z`) loads with a warning naming the key. A user palette may not reuse a
+follow, `Q`/`E` rounds, `Ctrl+Z`, and the shape tool keys `A`/`T`/`L`/`R`/`O`) loads with a warning naming
+the key; the built-in palette's `A` and `L` labels warn this way, by design. A user palette may not reuse a
 built-in id. DemoViewer never writes palettes; edit the file and press the palette's reload button.
 
 ## Querying

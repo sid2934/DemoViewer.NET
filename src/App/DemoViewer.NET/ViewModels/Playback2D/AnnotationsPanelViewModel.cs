@@ -363,7 +363,7 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     public bool IsHoldEnvelope => Visibility is EnvelopeMode.Fade or EnvelopeMode.RealTime;
 
     /// <summary>True while a drawing tool owns the surface: what shadows Space and Esc in the keymap.</summary>
-    public bool IsDrawingToolActive => ActiveTool is ToolKind.Draw or ToolKind.Erase;
+    public bool IsDrawingToolActive => ToolKinds.IsAnnotationTool(ActiveTool);
 
     /// <summary>True when the pan/zoom tool is selected. Toolbar toggle state.</summary>
     public bool IsPanZoomSelected => ActiveTool == ToolKind.PanZoom;
@@ -373,6 +373,21 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>True when the erase tool is selected.</summary>
     public bool IsEraseSelected => ActiveTool == ToolKind.Erase;
+
+    /// <summary>True when the line tool is selected.</summary>
+    public bool IsLineSelected => ActiveTool == ToolKind.Line;
+
+    /// <summary>True when the arrow tool is selected.</summary>
+    public bool IsArrowSelected => ActiveTool == ToolKind.Arrow;
+
+    /// <summary>True when the rectangle tool is selected.</summary>
+    public bool IsRectSelected => ActiveTool == ToolKind.Rect;
+
+    /// <summary>True when the ellipse tool is selected.</summary>
+    public bool IsEllipseSelected => ActiveTool == ToolKind.Ellipse;
+
+    /// <summary>True when the text tool is selected.</summary>
+    public bool IsTextSelected => ActiveTool == ToolKind.Text;
 
     /// <summary>Whether undo is available.</summary>
     public bool CanUndo => UndoDepth > 0;
@@ -388,6 +403,22 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     /// <summary>Erase-tool tooltip, naming the live erase gesture.</summary>
     public string EraseToolTip =>
         $"Erase whole strokes{Gesture(Playback2DAction.ToolErase)} — middle- or Ctrl-drag to pan";
+
+    /// <summary>Line-tool tooltip, naming the live gesture.</summary>
+    public string LineToolTip => $"Line{Gesture(Playback2DAction.ToolLine)}, Shift snaps to 45°";
+
+    /// <summary>Arrow-tool tooltip, naming the live gesture.</summary>
+    public string ArrowToolTip => $"Arrow{Gesture(Playback2DAction.ToolArrow)}, Shift snaps to 45°";
+
+    /// <summary>Rectangle-tool tooltip, naming the live gesture.</summary>
+    public string RectToolTip => $"Rectangle{Gesture(Playback2DAction.ToolRect)}, Shift draws a square";
+
+    /// <summary>Ellipse-tool tooltip, naming the live gesture.</summary>
+    public string EllipseToolTip => $"Ellipse{Gesture(Playback2DAction.ToolEllipse)}, Shift draws a circle";
+
+    /// <summary>Text-tool tooltip, naming the live gesture.</summary>
+    public string TextToolTip =>
+        $"Text label{Gesture(Playback2DAction.ToolText)}: click to place, type, Enter to keep, Esc to drop";
 
     /// <summary>Undo tooltip, naming the live undo gesture.</summary>
     public string UndoToolTip => $"Undo{Gesture(Playback2DAction.Undo)}";
@@ -471,6 +502,11 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         _keymap = keymap;
         OnPropertyChanged(nameof(DrawToolTip));
         OnPropertyChanged(nameof(EraseToolTip));
+        OnPropertyChanged(nameof(LineToolTip));
+        OnPropertyChanged(nameof(ArrowToolTip));
+        OnPropertyChanged(nameof(RectToolTip));
+        OnPropertyChanged(nameof(EllipseToolTip));
+        OnPropertyChanged(nameof(TextToolTip));
         OnPropertyChanged(nameof(UndoToolTip));
         OnPropertyChanged(nameof(RedoToolTip));
         OnPropertyChanged(nameof(ClearAllToolTip));
@@ -499,6 +535,21 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     [RelayCommand]
     private void SelectErase() => SelectTool(ToolKind.Erase);
+
+    [RelayCommand]
+    private void SelectLine() => SelectTool(ToolKind.Line);
+
+    [RelayCommand]
+    private void SelectArrow() => SelectTool(ToolKind.Arrow);
+
+    [RelayCommand]
+    private void SelectRect() => SelectTool(ToolKind.Rect);
+
+    [RelayCommand]
+    private void SelectEllipse() => SelectTool(ToolKind.Ellipse);
+
+    [RelayCommand]
+    private void SelectText() => SelectTool(ToolKind.Text);
 
     /// <summary>
     ///     Paints a recent colour back onto the PRIMARY pen. The secondary keeps its own picker: a
@@ -599,6 +650,11 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         OnPropertyChanged(nameof(IsPanZoomSelected));
         OnPropertyChanged(nameof(IsDrawSelected));
         OnPropertyChanged(nameof(IsEraseSelected));
+        OnPropertyChanged(nameof(IsLineSelected));
+        OnPropertyChanged(nameof(IsArrowSelected));
+        OnPropertyChanged(nameof(IsRectSelected));
+        OnPropertyChanged(nameof(IsEllipseSelected));
+        OnPropertyChanged(nameof(IsTextSelected));
 
         if (_applyingFromSession)
         {
