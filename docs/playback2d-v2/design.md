@@ -682,6 +682,10 @@ Ctrl+G the next label group), and the palette file's button hotkeys fire (docs/t
 While it has focus a left click on the map puts a point on the tag being made (else the last one
 written), and a second click on the same tag makes a movement; Space, Ctrl and the middle button
 still pan.
+The Suggested Tags queue docks under the palette: once a proposal is selected (a row, a band on the
+Suggested track, or the queue's Review button) J/K walk the queue instead of the situation results, Y
+accepts, N rejects, Enter opens the editor and Ctrl+Y accepts everything the queue's filter shows after
+a confirm. With nothing selected the six keys do nothing of theirs.
 All playback mutations route through `PlaybackController` commands / capability-gated
 `IModuleContext.Request*`, the exact surfaces `SyncStateObserver` observes; a parallel path would
 silently bypass LiveSync. Must not collide with shell bindings (Ctrl+1..9, Ctrl+P/O/B/W).

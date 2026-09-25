@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class Playback2DFeatureCatalogTests
 {
-    /// <summary>The ids, in the order registry §3.10 fixes for the contiguous catalog block, then the tag palette.</summary>
+    /// <summary>The ids, in the order registry §3.10 fixes for the contiguous catalog block, then the tagging rows.</summary>
     internal static readonly string[] Ids =
     [
         "playback2d.annotations",
@@ -33,7 +33,8 @@ public class Playback2DFeatureCatalogTests
         "playback2d.levels.auto",
         "playback2d.follow",
         "playback2d.export",
-        "playback2d.tagger"
+        "playback2d.tagger",
+        "playback2d.suggestedtags"
     ];
 
     [Test]

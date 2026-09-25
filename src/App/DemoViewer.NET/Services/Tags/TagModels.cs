@@ -324,6 +324,68 @@ public sealed class TagIndexFile
     public List<TagIndexEntry> Entries { get; set; } = [];
 }
 
+/// <summary>The spellings of <see cref="SuggestionVerdict.Verdict" />.</summary>
+public static class SuggestionVerdicts
+{
+    /// <summary>Accepted as proposed.</summary>
+    public const string Accepted = "accepted";
+
+    /// <summary>Accepted after the tagger moved a boundary or changed a label.</summary>
+    public const string Edited = "edited";
+
+    /// <summary>Rejected: never offered again, across tuning passes.</summary>
+    public const string Rejected = "rejected";
+}
+
+/// <summary>
+///     One demo's Suggested Tags verdicts, <c>&lt;config&gt;/tags/verdicts/&lt;sha256&gt;.verdicts.json</c>
+///     (suggested-tags.md §3.4, moved under the tags root by overview correction 2). User truth: append
+///     only and never rebuilt, so a tuning pass that rebuilds every proposal cannot lose a rejection.
+/// </summary>
+public sealed class SuggestionVerdictDocument
+{
+    /// <summary>Advisory, like the tag sidecar's.</summary>
+    public int SchemaVersion { get; set; } = TagStore.VerdictsSchemaVersion;
+
+    /// <summary>Which demo. The file is named by <see cref="TagDemoHeader.Sha256" />.</summary>
+    public TagDemoHeader Demo { get; set; } = new();
+
+    /// <summary>Verdicts by proposal identity key.</summary>
+    public Dictionary<string, SuggestionVerdict> Verdicts { get; set; } = [];
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>
+///     What the tagger said about one proposal: the design's three fields, plus what the identity re-match
+///     needs when a re-parse renumbers rounds (the detector, the side, the trigger tick, and the frame
+///     count of the parse the proposal was made on).
+/// </summary>
+public sealed class SuggestionVerdict
+{
+    /// <summary>One of <see cref="SuggestionVerdicts" />. A string so an unknown value survives.</summary>
+    public string Verdict { get; set; } = SuggestionVerdicts.Rejected;
+
+    /// <summary>The instance an accept wrote; null for a rejection.</summary>
+    public Guid? TagInstanceId { get; set; }
+
+    public DateTime At { get; set; }
+
+    public string Detector { get; set; } = "";
+
+    public int Side { get; set; }
+
+    /// <summary>Frame clock.</summary>
+    public int TriggerTick { get; set; }
+
+    /// <summary>The frame count of the parse the proposal was made on; 0 when unknown.</summary>
+    public int FrameCount { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
 /// <summary>
 ///     Source-generated, like the annotation sidecar's context: the browser head cannot trim a
 ///     reflection-based serializer, and wasm-matrix.md asks that new stores not add to that bill.
@@ -335,4 +397,5 @@ public sealed class TagIndexFile
     NewLine = "\n")]
 [JsonSerializable(typeof(TagDocument))]
 [JsonSerializable(typeof(TagIndexFile))]
+[JsonSerializable(typeof(SuggestionVerdictDocument))]
 public sealed partial class TagJsonContext : JsonSerializerContext;

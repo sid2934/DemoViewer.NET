@@ -17,6 +17,7 @@ compatibility the same way.
 |---|---|---|
 | One document per tagged demo | `<app config root>/tags/demos/<sha256 of the demo>.dvtag.json` | Nowhere. Tags are session-only and the tagger says so. |
 | The index | `<app config root>/tags/index.json` | Nowhere. |
+| Suggested Tags verdicts, one per demo with any | `<app config root>/tags/verdicts/<sha256 of the demo>.verdicts.json` | Nowhere. Session-only, like the tags. |
 
 Unlike annotations, a tag file is **never** written beside the demo, even when that folder is
 writable. The Matrix reads every tagged demo from one directory, and most demos sit in Steam's
@@ -89,7 +90,10 @@ A document is written whole and atomically (a temp file in `demos/`, then a repl
   file. `import` is reserved for a future importer and nothing writes it today. The field is a string,
   so a value this build does not know survives a round trip.
 * **`provenance`** is present only on `suggested` instances: whatever the detector recorded (detector
-  name, proposal id, confidence and so on). Opaque to DemoViewer and preserved as written.
+  name, proposal id, confidence and so on). Opaque to DemoViewer and preserved as written. DemoViewer
+  writes `{ "source": "suggested-tags", "detector", "proposalId", "confidence",
+  "detectorSetFingerprint", "edited" }`, where `edited` is true when the tagger changed the window or
+  the labels before accepting. An accepted proposal also carries a `side` label (`T` or `CT`).
 * **`labels` and `facts` are two namespaces with one shape.** `labels` is what a person said. `facts`
   is what the parser derived from the demo, and belongs to the refresh pass: a re-parse or a newer Round
   Facts schema rewrites the whole `facts` array without reading `labels`, and the tagging UI never
@@ -189,6 +193,30 @@ The index is **derived**: one small row per document so a cross-demo reader can 
 cannot match before opening them. DemoViewer rebuilds it from `demos/` when it is missing or corrupt
 and reconciles it against the directory at startup, so deleting it is always safe. A third party that
 writes a document need not touch the index.
+
+## Suggested Tags verdicts (`verdicts/<sha256>.verdicts.json`)
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "demo": { "sha256": "..." },
+  "verdicts": {
+    "exec|r12|T|BombsiteA|s=20": { "verdict": "accepted", "tagInstanceId": "…", "at": "2026-09-24T…",
+                                   "detector": "execute", "side": 2, "triggerTick": 41344, "frameCount": 154869 },
+    "exec|r14|T|BombsiteB|s=45": { "verdict": "rejected", "at": "…", "detector": "execute", "side": 2,
+                                   "triggerTick": 52610, "frameCount": 154869 }
+  }
+}
+```
+
+What a person said about each proposal, keyed by the proposal's identity key. `verdict` is `accepted`,
+`edited` (accepted after a change) or `rejected`. The file is user truth, which is why it lives here and
+not in the cache beside the proposals: it is append only, a key keeps its first verdict, and nothing
+rebuilds it, so retuning the detectors never offers a rejected proposal again. `detector`, `side`,
+`triggerTick` and `frameCount` are there for a re-parse that renumbers rounds: a verdict given on a parse
+with another frame count is matched to the proposal of the same detector and side whose trigger is
+nearest, within 5 seconds. A file that cannot be read is never overwritten, and nothing is offered for
+its demo until it is fixed or removed.
 
 ## Palettes (`.tagpalette.json`)
 
