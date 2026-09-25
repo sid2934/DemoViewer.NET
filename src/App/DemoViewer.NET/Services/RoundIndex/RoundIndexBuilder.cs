@@ -167,7 +167,9 @@ public static class RoundIndexBuilder
     ///     <c>EndTick</c>, else the next round's freeze end (the record carries no freeze begin), else
     ///     one past the last frame. Each window's <c>SideBySlot</c>/<c>DeathTickBySlot</c> are Round
     ///     Facts' seating and kills, kept only so <see cref="CloseRow" /> can cross-check them against
-    ///     the sample's own <c>Team</c>/<c>IsAlive</c>, never to gate on.
+    ///     the sample's own <c>Team</c>/<c>IsAlive</c>, never to gate on. The positions round's
+    ///     <c>Ct</c> starts empty for the same reason: <see cref="CloseRow" /> fills it from the samples
+    ///     the tokens were bucketed by, so a thumbnail's split can never disagree with the token.
     /// </summary>
     private static List<RoundWindow> Windows(RoundFactsRows facts, int lastFrameTick)
     {
@@ -220,8 +222,7 @@ public static class RoundIndexBuilder
                 new RoundPositionsRound
                 {
                     Number = round.Number,
-                    FreezeEndTick = round.FreezeEndTick,
-                    Ct = [.. sideBySlot.Where(s => s.Value == 3).Select(s => s.Key).Order()]
+                    FreezeEndTick = round.FreezeEndTick
                 },
                 sideBySlot,
                 deathTickBySlot));
@@ -271,7 +272,7 @@ public static class RoundIndexBuilder
                 continue; // dead, or not seated on a playing side
             }
 
-            if (factsSeated && factsSide != sample.Team)
+            if (factsSeated && factsSide != window.SideBySample.GetValueOrDefault(slot, sample.Team))
             {
                 tally.Record(window.Round.Number, sideMismatch: true, aliveMismatch: false);
             }
@@ -281,7 +282,20 @@ public static class RoundIndexBuilder
                 tally.Record(window.Round.Number, sideMismatch: false, aliveMismatch: true);
             }
 
-            int side = sample.Team;
+            // A slot's side is fixed by its first live sample in the window and holds for the round, the
+            // way the row's seating used to: the positions file keeps one CT list per round, and a window
+            // with no EndTick runs on into the win panel, where a halftime swap flips every Team. Token
+            // and Ct read this one side, so a thumbnail can never split the dots against the token.
+            if (!window.SideBySample.TryGetValue(slot, out int side))
+            {
+                side = sample.Team;
+                window.SideBySample[slot] = side;
+                if (side == 3)
+                {
+                    window.Positions.Ct = [.. window.Positions.Ct.Append(slot).Order()];
+                }
+            }
+
             string? place = source.PlaceFor(in sample);
             (side == 3 ? ct : t).Add(place);
             tuples.Add(new RoundPosition(slot,
@@ -382,6 +396,9 @@ public static class RoundIndexBuilder
         Dictionary<int, int> SideBySlot,
         Dictionary<int, int> DeathTickBySlot)
     {
+        /// <summary>Each slot's side from its first live sample in the window; the side the tokens and <c>Ct</c> read.</summary>
+        public Dictionary<int, int> SideBySample { get; } = [];
+
         public int FreezeEndTick => Round.FreezeEndTick;
 
         public int EndTick => Round.EndTick;
