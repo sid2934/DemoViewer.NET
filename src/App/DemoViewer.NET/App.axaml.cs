@@ -781,11 +781,13 @@ public class App : Application
 
         // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
         // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
-        // round_facts ruleset's own fingerprint, and the read API over those rows. The engine row source
-        // is the parked seam: until CS2DemoKit #54 ships the surfaces the ruleset reads, the effective
-        // rules carry no round_facts, the identity answers null, and the evaluator writes nothing.
-        services.AddSingleton<IRoundFactsRulesetIdentity, RulesRoundFactsRulesetIdentity>();
-        services.AddSingleton<IRoundFactsRowSource, EngineRoundFactsRowSource>();
+        // round_facts ruleset's own fingerprint, and the read API over those rows. The row source and the
+        // identity share one read of the rules directories, so the rows are always stored under the
+        // fingerprint of the doc that produced them.
+        services.AddSingleton<RulesRoundFactsRulesetIdentity>();
+        services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
+        services.AddSingleton<IRoundFactsRowSource>(sp =>
+            new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
         services.AddSingleton(sp => new RoundFactsEvaluator(
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IRoundFactsRowSource>(),

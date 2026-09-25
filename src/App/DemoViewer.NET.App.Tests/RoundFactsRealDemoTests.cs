@@ -12,20 +12,14 @@ using DemoViewer.NET.TestSupport;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Round facts against a real Valve matchmaking demo, as the design's §7 lists them. Every one of
-///     these needs rows, and rows need the engine surfaces filed as CS2DemoKit #54 (a team subject on
-///     the forward path, game-rules providers, a real round end, frame-clock ticks, team money, plant
-///     site). Until that release is pinned and <c>rules/round_facts.rules.yaml</c> ships, the engine row
-///     source writes nothing, so each test is skipped with that reason rather than failing or asserting
-///     against nothing. Remove the skips when the pin bumps; the bodies are written against the record.
+///     Round facts against a real Valve matchmaking demo, as the design's §7 lists them, through the
+///     production wiring: the shipped <c>rules/round_facts.rules.yaml</c> evaluated by the engine row
+///     source and projected by the evaluator.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class RoundFactsRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the round_facts ruleset needs engine surfaces the pinned release lacks, so no rows are written yet";
-
     private static ParsedDemo Parse()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -44,7 +38,6 @@ public class RoundFactsRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task FreezeEndTicks_AgreeWithTheRoundAuthority_ForEveryRound()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -65,8 +58,7 @@ public class RoundFactsRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
-    public async Task EveryLiveRound_HasAnEnd_AWinner_AReason_AndTheOfficialEndSevenSecondsLater()
+    public async Task EveryLiveRound_HasAnEnd_AWinner_AReason_AndTheOfficialEndAfterTheWinPanel()
     {
         string path = DemoTestHelper.RequireDemo();
         ParsedDemo parsed = Parse();
@@ -78,6 +70,10 @@ public class RoundFactsRealDemoTests
                 .Select(e => e.GameTick)
         ];
 
+        // The close follows the decision by the 7 s win panel, or 8.5 s at the end of a half, when the
+        // break is waited out first; either can land a tick off. The match's last round has no
+        // round_officially_ended at all: it closes on cs_win_panel_match.
+        double[] panels = [7.0, 8.5];
         using (Assert.Multiple())
         {
             foreach (RoundFacts round in rows.Rounds.Where(r => r.IsLive))
@@ -86,15 +82,19 @@ public class RoundFactsRealDemoTests
                 await Assert.That(round.EndSource).IsEqualTo(RoundEndSource.WinStatus);
                 await Assert.That(round.WinnerSide is 2 or 3).IsTrue();
                 await Assert.That(round.EndReason).IsNotEqualTo(RoundEndReason.Unknown);
-                int expected = round.EndTick!.Value + 7 * parsed.TickRate;
-                await Assert.That(officiallyEnded.Any(t => Math.Abs(t - expected) <= 1)).IsTrue()
-                    .Because($"round {round.Number}: the win panel is 7 s after the decision");
+                int decided = round.EndTick!.Value;
+                if (!officiallyEnded.Any(t => t > decided))
+                {
+                    continue;
+                }
+
+                await Assert.That(officiallyEnded.Any(t => panels.Any(s => Math.Abs(t - (decided + s * parsed.TickRate)) <= 1))).IsTrue()
+                    .Because($"round {round.Number}: the close is 7 s or 8.5 s after the decision");
             }
         }
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task EveryPlantedRound_HasASite_AndThePlantTickIsTheEventsGameTick()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -119,7 +119,6 @@ public class RoundFactsRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task AliveCounts_StartAtTheFreezeEndCount_AndNeverRise()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -144,7 +143,6 @@ public class RoundFactsRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task ScoreBefore_FollowsTheWinner_AndEndsAtTheLibrarysFinalScore()
     {
         string path = DemoTestHelper.RequireDemo();
@@ -176,10 +174,11 @@ public class RoundFactsRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task TheWorkedChecks_HoldAtTheDefaults()
     {
-        // Dust2 build 10896: round 2 CT eco / T semi, round 3 CT semi / T full, round 5 T eco.
+        // Dust2 build 10896: round 2 CT eco / T semi, round 3 CT force / T full, round 5 T eco. The design's
+        // worked check had round 3 CT as semi from equipment alone; the money read makes it force: the CT
+        // side lost round 2 and holds $600 across five players at freeze end, under the $2,000 line.
         string path = DemoTestHelper.RequireDemo("match730_003844252717140672725_0377894676_389.dem");
         ParsedDemo parsed = DemoParser.Parse(File.ReadAllBytes(path).AsMemory());
         RoundFactsRows rows = RowsFor(parsed, path);
@@ -189,7 +188,8 @@ public class RoundFactsRealDemoTests
         {
             await Assert.That(Round(2).Ct.BuyType).IsEqualTo(BuyType.Eco);
             await Assert.That(Round(2).T.BuyType).IsEqualTo(BuyType.Semi);
-            await Assert.That(Round(3).Ct.BuyType).IsEqualTo(BuyType.Semi);
+            await Assert.That(Round(3).Ct.BuyType).IsEqualTo(BuyType.Force);
+            await Assert.That(Round(3).Ct.MoneyAtFreezeEnd).IsEqualTo(600);
             await Assert.That(Round(3).T.BuyType).IsEqualTo(BuyType.Full);
             await Assert.That(Round(5).T.BuyType).IsEqualTo(BuyType.Eco);
             await Assert.That(Round(5).T.EquipmentFreezeEnd).IsEqualTo(5000);

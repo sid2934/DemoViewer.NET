@@ -21,6 +21,7 @@ using DemoViewer.NET.Controls;
 using DemoViewer.NET.Debugging;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
 using Microsoft.Extensions.Logging;
@@ -1267,7 +1268,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules);
+        // Round facts run on their own at index time; evaluating them here too would only cost time.
+        return (DemoAnalysis.Build(demo, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets), options), rules);
     }
 
     /// <summary>

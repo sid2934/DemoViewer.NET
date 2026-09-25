@@ -25,6 +25,18 @@ public static class RoundFactsFingerprint
     /// <summary>The ruleset id the evaluator looks for in the effective set.</summary>
     public const string RulesetId = "round_facts";
 
+    /// <summary>
+    ///     The rulesets minus <c>round_facts</c>, for the hosts that load the whole rules directory (the
+    ///     highlight scan, Stats). Round facts are evaluated on their own by <see cref="EngineRoundFactsRowSource" />;
+    ///     inside those hosts the ruleset would add a second evaluation of the same thing to every scan,
+    ///     put a per-side table in the Stats extras, and move the highlight fingerprint, which re-scans
+    ///     the whole library whenever a buy threshold is edited.
+    /// </summary>
+    public static IReadOnlyList<RulesetDoc> WithoutRoundFacts(IReadOnlyList<RulesetDoc> rulesets) =>
+    [
+        .. rulesets.Where(r => !string.Equals(r.Id, RulesetId, StringComparison.Ordinal))
+    ];
+
     /// <summary>Folds the payload schema into a ruleset identity hash.</summary>
     /// <param name="schema">The <see cref="RoundFactsRows.Schema" /> the rows would be written at.</param>
     /// <param name="rulesetIdentity">The engine's resolved-identity hash of the one ruleset.</param>
@@ -52,8 +64,8 @@ public interface IRoundFactsRulesetIdentity
 
 /// <summary>
 ///     The real identity: the same shipped-plus-user overlay the highlight harvester loads, restricted
-///     to the one ruleset and hashed by the engine's own fingerprint replay. Until CS2DemoKit #54 ships
-///     the ruleset, the effective set has no <c>round_facts</c> and this answers null.
+///     to the one ruleset and hashed by the engine's own fingerprint replay. A user override with
+///     <c>enabled: false</c> drops the ruleset from the effective set, and this answers null.
 /// </summary>
 public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
 {
@@ -85,11 +97,18 @@ public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
         }
     }
 
+    /// <summary>
+    ///     The effective <c>round_facts</c> ruleset (a user's same-id override replaces the shipped one), or
+    ///     null when there is none enabled. The row source evaluates exactly this doc, so the rows and the
+    ///     fingerprint they are stored under always come from the same read.
+    /// </summary>
+    public RulesetDoc? EffectiveDoc() => Rules.Rulesets.FirstOrDefault(r =>
+        r.Enabled && string.Equals(r.Id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal));
+
     /// <inheritdoc />
     public string? Fingerprint(int tickRate)
     {
-        RulesetDoc? doc = Rules.Rulesets.FirstOrDefault(r =>
-            r.Enabled && string.Equals(r.Id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal));
+        RulesetDoc? doc = EffectiveDoc();
         if (doc is null)
         {
             return null;

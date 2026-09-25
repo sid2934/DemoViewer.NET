@@ -1,0 +1,195 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Round Facts: one row per round per side, the vocabulary every Strat Room feature filters on. The
+# app evaluates this ruleset on its own, once per library parse, through EngineRoundFactsRowSource,
+# and reads the round_facts table below. Every column label is a RoundFactsColumns name in
+# src/App/DemoViewer.NET/Services/RoundFacts/IRoundFactsRowSource.cs; a column added under any other
+# label lands in the record's Extra and reaches tags and filters without an app change.
+#
+# This is app content like the highlights_* files, not a package mirror: the engine's
+# examples/round_facts.rules.yaml is an example the package does not ship, with other labels and
+# fewer columns. The whole-directory hosts (the highlight scan, Stats) leave it out by id, so it
+# costs them nothing and does not move their fingerprints.
+#
+# Customise it the way every shipped ruleset is customised: copy it to the user rules directory,
+# keep the ruleset id, and edit it there. A changed param re-classifies every demo's rows in the
+# background; `enabled: false` there turns Round Facts off.
+#
+# Every tick is on the frame clock (event.frame_tick). A tick column of a thing that did not happen
+# that round reads 0, which the row source turns into null; a string capture with nothing to read
+# comes out null. round_decided carries the server's verdict on the frame the round is decided;
+# round_ended is the close, 448 ticks later (544 at the end of a half, cs_win_panel_match on the
+# match's last round).
+ruleset: round_facts
+title: Round Facts
+summary: One row per round per side; the vocabulary every Strat Room feature filters on.
+for: each_team
+
+# The buy classifier's thresholds: HLTV's bands at five players by default, scaled per player so a
+# 4v5 classifies sensibly. The app's BuyTypeClassifier takes them from here, because the rules
+# language has no string-valued compute to name the class itself.
+params:
+  eco_max_per_player:         { type: int, default: 1000,  min: 0, max: 16000 }   # HLTV "full eco" 0-5k at five players
+  full_min_per_player_ct:     { type: int, default: 4000,  min: 0, max: 16000 }   # HLTV "full buy" 20k+ at five players
+  full_min_per_player_t:      { type: int, default: 4000,  min: 0, max: 16000 }   # set 4500 / 4000 for CS Demo Manager's split
+  force_money_max_per_player: { type: int, default: 400,   min: 0, max: 16000 }   # CS Demo Manager's force rule
+  money_sane_max:             { type: int, default: 16000, min: 0, max: 65535 }   # the reliability guard, per player
+  regulation_rounds:          { type: int, default: 24,    min: 2, max: 60 }      # MR12; set 30 for an MR15 league
+
+stats:
+  # Round-level: the same on both rows of a round. The projection warns when the pair disagrees.
+  freeze_end_tick:
+    capture: event.frame_tick
+    on: raw.round_freeze_end
+    per: round
+  end_tick:
+    capture: event.frame_tick
+    on: round_decided
+    per: round
+  officially_ended_tick:
+    capture: event.frame_tick
+    on: round_ended
+    per: round
+  end_reason:
+    capture: event.Reason
+    on: round_decided
+    per: round
+  winner_side:
+    capture: event.Winner
+    on: round_decided
+    per: round
+  # Rounds decided before this one; the record adds one.
+  match_round:
+    capture: match.total_rounds_played
+    on: raw.round_freeze_end
+    per: round
+  game_phase:
+    capture: match.game_phase
+    on: raw.round_freeze_end
+    per: round
+  round_time:
+    capture: match.round_time
+    on: raw.round_freeze_end
+    per: round
+  plant_tick:
+    capture: event.frame_tick
+    on: bomb_planted
+    per: round
+  # round.bomb.site is held from the plant to the next freeze end, so the close still reads it.
+  plant_site:
+    capture: round.bomb.site
+    on: round_ended
+    per: round
+  plant_site_entity:
+    capture: event.Site
+    on: bomb_planted
+    per: round
+  planter_slot:
+    capture: event.UserId
+    on: bomb_planted
+    per: round
+  defuse_tick:
+    capture: event.frame_tick
+    on: bomb_defused
+    per: round
+  explode_tick:
+    capture: event.frame_tick
+    on: raw.bomb_exploded
+    per: round
+  first_contact_tick:
+    capture: event.frame_tick
+    on: damage_dealt
+    match: { actor: any, enemy: true }
+    keep: first
+    per: round
+  opening_kill_tick:
+    capture: event.frame_tick
+    on: kill
+    match: { actor: any, enemy: true }
+    keep: first
+    per: round
+
+  # Side-level: the side's own numbers at the freeze-end sample, after the freeze-time buys.
+  players:
+    capture: round.team.players
+    on: raw.round_freeze_end
+    per: round
+  equipment:
+    capture: round.team.equipment
+    on: raw.round_freeze_end
+    per: round
+  money:
+    capture: round.team.money
+    on: raw.round_freeze_end
+    per: round
+  # The guard reads the sum: the language has no per-account minimum or maximum.
+  money_reliable:
+    flag:
+      when: "money >= 0 and money <= params.money_sane_max * players"
+    per: round
+
+  # The death timeline: five lists sharing one index. Every death counts (death with actor: any, so a
+  # suicide or a fall is in it), and the alive counts are after that death, as this row's side sees them.
+  kill_ticks:
+    capture: event.frame_tick
+    on: death
+    match: { actor: any }
+    keep: list
+    per: round
+  kill_victim_slot:
+    capture: event.UserId
+    on: death
+    match: { actor: any }
+    keep: list
+    per: round
+  kill_attacker_slot:
+    capture: event.Attacker
+    on: death
+    match: { actor: any }
+    keep: list
+    per: round
+  kill_team_alive:
+    capture: round.team.alive
+    on: death
+    match: { actor: any }
+    keep: list
+    per: round
+  kill_enemy_alive:
+    capture: round.enemies.alive
+    on: death
+    match: { actor: any }
+    keep: list
+    per: round
+
+show:
+  tables:
+    # A team_round table carries round_number, side and slots (the side's slots at freeze end) as
+    # dimensions, so none of them is a stat here.
+    round_facts:
+      per: team_round
+      columns:
+        - { stat: freeze_end_tick,       label: freeze_end_tick }
+        - { stat: end_tick,              label: end_tick }
+        - { stat: officially_ended_tick, label: officially_ended_tick }
+        - { stat: end_reason,            label: end_reason }
+        - { stat: winner_side,           label: winner_side }
+        - { stat: match_round,           label: match_round }
+        - { stat: game_phase,            label: game_phase }
+        - { stat: round_time,            label: round_time }
+        - { stat: plant_tick,            label: plant_tick }
+        - { stat: plant_site,            label: plant_site }
+        - { stat: plant_site_entity,     label: plant_site_entity }
+        - { stat: planter_slot,          label: planter_slot }
+        - { stat: defuse_tick,           label: defuse_tick }
+        - { stat: explode_tick,          label: explode_tick }
+        - { stat: first_contact_tick,    label: first_contact_tick }
+        - { stat: opening_kill_tick,     label: opening_kill_tick }
+        - { stat: players,               label: players }
+        - { stat: equipment,             label: equipment }
+        - { stat: money,                 label: money }
+        - { stat: money_reliable,        label: money_reliable }
+        - { stat: kill_ticks,            label: kill_ticks }
+        - { stat: kill_victim_slot,      label: kill_victim_slot }
+        - { stat: kill_attacker_slot,    label: kill_attacker_slot }
+        - { stat: kill_team_alive,       label: kill_team_alive }
+        - { stat: kill_enemy_alive,      label: kill_enemy_alive }
