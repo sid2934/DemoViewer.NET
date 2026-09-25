@@ -339,7 +339,7 @@ public sealed class DetectorProfile
 /// <summary>
 ///     The profile on disk: <c>&lt;config&gt;/suggested-tags/profile.json</c>, beside the learned site
 ///     region tables (suggested-tags.md §3.7). "The shipped default is embedded and written out on
-///     first run, the way themes are" — <see cref="Current" /> is that first read, and it writes the
+///     first run, the way themes are": <see cref="Current" /> is that first read, and it writes the
 ///     shipped profile back out the first time there is nothing to read. A null directory (the
 ///     browser, tests) keeps the profile in memory only, per §3.8: no tuning view there, and the
 ///     embedded default is what every build runs with.

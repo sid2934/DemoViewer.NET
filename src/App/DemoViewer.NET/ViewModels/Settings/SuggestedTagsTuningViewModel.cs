@@ -91,7 +91,7 @@ public sealed partial class TuningParameterRow : ObservableObject
 
 /// <summary>
 ///     Backs the Settings tuning section (suggested-tags.md §3.7, step 6): the stored verdict table,
-///     every detector's tunable numbers, and the "preview then save" flow — a parameter edit only takes
+///     every detector's tunable numbers, and the "preview then save" flow: a parameter edit only takes
 ///     effect in the table after <see cref="PreviewCommand" /> re-runs detection in memory, and only
 ///     reaches <c>profile.json</c> after <see cref="SaveCommand" />.
 ///     <para>
@@ -178,7 +178,7 @@ public sealed partial class SuggestedTagsTuningViewModel : ObservableObject
 
             ApplyReport(report);
             StatusText = report.DemosWithHandTags == 0
-                ? "Previewed — no hand-tagged demos to score recall or precision against yet."
+                ? "Previewed. No hand-tagged demos to score recall or precision against yet."
                 : $"Previewed over {report.DemosWithHandTags} hand-tagged demo(s).";
         }
         catch (OperationCanceledException)

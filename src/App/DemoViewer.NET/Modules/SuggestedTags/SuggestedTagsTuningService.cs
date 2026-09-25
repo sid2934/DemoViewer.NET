@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 ///         the profile (only its site-region overrides and its detector thresholds do), so the first
 ///         preview of a session parses each scored demo once
 ///         (<see cref="SuggestedTagsService.BuildDetectionInputs" />) and every later parameter tweak
-///         only re-runs <see cref="ProposalDetection.Detect" /> over what is already held — the "in
+///         only re-runs <see cref="ProposalDetection.Detect" /> over what is already held: the "in
 ///         memory" the design asks for. The made/accepted/edited/rejected counts are history and are
 ///         never recomputed by a preview; only recall and precision move.
 ///     </para>
@@ -108,7 +108,7 @@ public sealed class SuggestedTagsTuningService
     /// <summary>
     ///     Re-runs detection under <paramref name="candidate" /> over <paramref name="demoPaths" /> and
     ///     returns <paramref name="baseline" /> with only <see cref="DetectorTuningRow.Recall" /> and
-    ///     <see cref="DetectorTuningRow.Precision" /> replaced — the two numbers the design says a
+    ///     <see cref="DetectorTuningRow.Precision" /> replaced: the two numbers the design says a
     ///     parameter change updates before it is saved. Runs off the calling thread; a demo that fails to
     ///     parse or has no Round Facts rows is skipped, the way the evaluator skips it.
     /// </summary>

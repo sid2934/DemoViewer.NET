@@ -322,7 +322,7 @@
                             <Border Classes="card" Margin="12,10">
                                 <StackPanel Spacing="12" DataContext="{Binding SuggestedTagsTuning}">
                                     <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                               Text="Made, accepted, edited and rejected are what your verdicts already say. Recall and precision score fired proposals against your own hand tags of the same code, and move only after Preview re-runs the detectors — nothing here writes to profile.json until Save." />
+                                               Text="Made, accepted, edited and rejected are what your verdicts already say. Recall and precision score fired proposals against your own hand tags of the same code, and move only after Preview re-runs the detectors; nothing here writes to profile.json until Save." />
                                     <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap"
                                                Text="{Binding StatusText}" />
 
