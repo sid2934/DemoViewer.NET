@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
@@ -332,5 +333,161 @@ public sealed class DetectorProfile
             }
         };
         return new DetectorProfile("team-default", [.. ProposalDetection.All.Select(d => d.Id)], values, overrides);
+    }
+}
+
+/// <summary>
+///     The profile on disk: <c>&lt;config&gt;/suggested-tags/profile.json</c>, beside the learned site
+///     region tables (suggested-tags.md §3.7). "The shipped default is embedded and written out on
+///     first run, the way themes are" — <see cref="Current" /> is that first read, and it writes the
+///     shipped profile back out the first time there is nothing to read. A null directory (the
+///     browser, tests) keeps the profile in memory only, per §3.8: no tuning view there, and the
+///     embedded default is what every build runs with.
+/// </summary>
+public sealed class ProfileStore
+{
+    private const string FileName = "profile.json";
+
+    private readonly string? _directory;
+    private readonly Lock _gate = new();
+    private DetectorProfile? _current;
+    private string? _memory;
+
+    /// <param name="directory">The suggested-tags config directory, or null for a session-only store.</param>
+    public ProfileStore(string? directory)
+    {
+        _directory = directory;
+    }
+
+    /// <summary>Whether a save outlives the process.</summary>
+    public bool IsPersistent => _directory is not null;
+
+    /// <summary>
+    ///     The profile in force: read once, cached, and reread only after a <see cref="Save" />. The
+    ///     first call writes the shipped default to disk when nothing is there yet, so the file a team
+    ///     finds under the config directory is never empty.
+    /// </summary>
+    public DetectorProfile Current
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _current ??= LoadOrSeed();
+            }
+        }
+    }
+
+    /// <summary>A profile a tuning save has not yet reached the caller's <see cref="Current" /> read from.</summary>
+    public event Action? Changed;
+
+    /// <summary>
+    ///     Persists <paramref name="profile" /> as the current one: the tuning view's "Save" (suggested-tags.md
+    ///     §3.7), after a candidate has been previewed. Changing a value changes the detector-set
+    ///     fingerprint, which is what marks every demo's proposals stale for the evaluator to rebuild.
+    /// </summary>
+    /// <param name="profile">The profile to keep.</param>
+    public void Save(DetectorProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        string json = profile.ToJson();
+        lock (_gate)
+        {
+            if (_directory is null)
+            {
+                _memory = json;
+            }
+            else
+            {
+                Directory.CreateDirectory(_directory);
+                DemoCacheStore.WriteAtomic(Path.Combine(_directory, FileName), json + "\n");
+            }
+
+            _current = profile;
+        }
+
+        Changed?.Invoke();
+    }
+
+    /// <summary>Forgets the cached profile, so the next <see cref="Current" /> rereads the file.</summary>
+    public void Reload()
+    {
+        lock (_gate)
+        {
+            _current = null;
+        }
+    }
+
+    private DetectorProfile LoadOrSeed()
+    {
+        string? json = TryRead();
+        if (json is null)
+        {
+            // Nothing there yet: seed the file with the shipped default, the way EnsureThemesDirectory's
+            // callers give a user somewhere to look and something already in it.
+            DetectorProfile shipped = DetectorProfile.Default;
+            WriteRaw(shipped.ToJson());
+            return shipped;
+        }
+
+        try
+        {
+            return DetectorProfile.Parse(json);
+        }
+        catch (FormatException)
+        {
+            return DetectorProfile.Default; // a hand-edited file that no longer parses: run on the shipped numbers
+        }
+    }
+
+    private string? TryRead()
+    {
+        lock (_gate)
+        {
+            if (_directory is null)
+            {
+                return _memory;
+            }
+        }
+
+        string path = Path.Combine(_directory!, FileName);
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private void WriteRaw(string json)
+    {
+        lock (_gate)
+        {
+            if (_directory is null)
+            {
+                _memory = json;
+                return;
+            }
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_directory);
+            DemoCacheStore.WriteAtomic(Path.Combine(_directory, FileName), json + "\n");
+        }
+        catch (IOException)
+        {
+            // Best-effort seed; the in-memory default still stands for this session.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Best-effort seed; the in-memory default still stands for this session.
+        }
     }
 }

@@ -90,6 +90,9 @@
                             Tag="SectionUpdates" Click="OnJumpChipClick" />
                     <Button Classes="chip" Content="2D Controls" Margin="0,2,6,2" FontSize="11" Padding="8,3"
                             Tag="SectionPlayback2DKeys" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Suggested Tags" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionSuggestedTagsTuning" Click="OnJumpChipClick"
+                            IsVisible="{Binding SuggestedTagsTuning.CanManageTuning}" />
                     <Button Classes="chip" Content="Features" Margin="0,2,6,2" FontSize="11" Padding="8,3"
                             Tag="SectionFeatures" Click="OnJumpChipClick" />
                     <Button Classes="chip" Content="Live Sync" Margin="0,2,6,2" FontSize="11" Padding="8,3"
@@ -304,6 +307,90 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Suggested Tags tuning (suggested-tags.md §3.7, step 6): verdict counts a team
+                     has already recorded, a live edit of every detector's parameters, "Preview" for an
+                     in-memory re-run's recall/precision, and "Save" for the profile file. Hidden entirely
+                     when CanManageTuning is false (the browser: §3.8 says no tuning view there). -->
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionSuggestedTagsTuning}">
+                            <Border Classes="sectionHeader" x:Name="SectionSuggestedTagsTuning">
+                                <TextBlock Classes="sectionLabel" Text="SUGGESTED TAGS TUNING" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12" DataContext="{Binding SuggestedTagsTuning}">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Made, accepted, edited and rejected are what your verdicts already say. Recall and precision score fired proposals against your own hand tags of the same code, and move only after Preview re-runs the detectors — nothing here writes to profile.json until Save." />
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap"
+                                               Text="{Binding StatusText}" />
+
+                                    <ItemsControl ItemsSource="{Binding DetectorRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="settings:TuningDetectorRow">
+                                                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,3">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Detector}" MinWidth="70"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                                    <TextBlock Grid.Column="1" MinWidth="70" FontSize="11"
+                                                               Foreground="{DynamicResource TextDim}"
+                                                               Text="{Binding Made, StringFormat='made {0}'}" />
+                                                    <TextBlock Grid.Column="2" MinWidth="80" FontSize="11"
+                                                               Foreground="{DynamicResource TextDim}"
+                                                               Text="{Binding Accepted, StringFormat='accepted {0}'}" />
+                                                    <TextBlock Grid.Column="3" MinWidth="70" FontSize="11"
+                                                               Foreground="{DynamicResource TextDim}"
+                                                               Text="{Binding Edited, StringFormat='edited {0}'}" />
+                                                    <TextBlock Grid.Column="4" MinWidth="80" FontSize="11"
+                                                               Foreground="{DynamicResource TextDim}"
+                                                               Text="{Binding Rejected, StringFormat='rejected {0}'}" />
+                                                    <TextBlock Grid.Column="5" MinWidth="90" FontSize="11"
+                                                               Foreground="{DynamicResource TextValue}"
+                                                               Text="{Binding RecallText, StringFormat='recall {0}'}" />
+                                                    <TextBlock Grid.Column="6" MinWidth="100" FontSize="11"
+                                                               Foreground="{DynamicResource TextValue}"
+                                                               Text="{Binding PrecisionText, StringFormat='precision {0}'}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4" Padding="8,8">
+                                        <ItemsControl ItemsSource="{Binding ParameterRows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="settings:TuningParameterRow">
+                                                    <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                                                   Foreground="{DynamicResource TextValue}" FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   ToolTip.Tip="{Binding Meaning}" />
+                                                        <NumericUpDown Grid.Column="1" Width="120" FontSize="11"
+                                                                       Value="{Binding Value, Mode=TwoWay}"
+                                                                       Increment="0.5" FormatString="0.##" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*">
+                                        <Button Grid.Column="0" Content="Preview" Classes="ghost" Padding="10,4"
+                                                Command="{Binding PreviewCommand}"
+                                                ToolTip.Tip="Re-run the detectors over every scored demo with these numbers, in memory. Updates recall and precision only." />
+                                        <Button Grid.Column="1" Content="Save" Classes="primary" Padding="10,4"
+                                                Margin="8,0,0,0" Command="{Binding SaveCommand}"
+                                                ToolTip.Tip="Write these numbers to profile.json. Marks every demo's proposals stale for the background evaluator to rebuild." />
+                                        <Button Grid.Column="2" Content="Reset to shipped" Classes="ghost" Padding="10,4"
+                                                Margin="8,0,0,0" Command="{Binding ResetToShippedCommand}" />
+                                        <Button Grid.Column="3" Content="Refresh" Classes="ghost" Padding="10,4"
+                                                Margin="8,0,0,0" Command="{Binding RefreshCommand}"
+                                                ToolTip.Tip="Reload the stored verdict counts." />
+                                    </Grid>
+
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="9"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding ProfileFolderPath, StringFormat='Profile file: {0}'}"
+                                               IsVisible="{Binding ProfileFolderPath, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
