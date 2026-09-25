@@ -1,6 +1,7 @@
 #region
 
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -206,10 +207,54 @@ internal sealed class RoundPositionConverter : JsonConverter<RoundPosition>
 /// <summary>The one build that yields both files, so they can never disagree on a row.</summary>
 /// <param name="Index">The <c>.dvri.json</c> document.</param>
 /// <param name="Positions">The <c>.dvrp.json.gz</c> document, carrying the same fingerprint.</param>
-public sealed record RoundIndexBuild(RoundIndexDocument Index, RoundPositionsDocument Positions)
+/// <param name="Disagreements">
+///     Per round, how often a sample's own <c>IsAlive</c>/<c>Team</c> disagreed with Round Facts'
+///     <c>Slots</c>/<c>Kills</c> (CS2DemoKit #58 cross-check). The sample always won; this is
+///     diagnostic only. Empty on every demo measured so far.
+/// </param>
+public sealed record RoundIndexBuild(
+    RoundIndexDocument Index,
+    RoundPositionsDocument Positions,
+    IReadOnlyList<RoundIndexDisagreement> Disagreements)
 {
     /// <summary>World units rounded to the integer a tuple stores; a marker at thumbnail size is thirty units wide.</summary>
     /// <param name="value">A world coordinate.</param>
     public static int Quantize(float value) =>
         (int)Math.Round(value, MidpointRounding.AwayFromZero);
+}
+
+/// <summary>One round's disagreement count between a sample's own fields and Round Facts, see <see cref="RoundIndexBuild.Disagreements" />.</summary>
+/// <param name="Round">The round number.</param>
+/// <param name="SideMismatches">Slots where the sample's <c>Team</c> disagreed with the row's seated side.</param>
+/// <param name="AliveMismatches">Slots the row's <c>Kills</c> call dead where the sample's <c>IsAlive</c> is true.</param>
+public sealed record RoundIndexDisagreement(int Round, int SideMismatches, int AliveMismatches);
+
+/// <summary>
+///     Counts, per round, how often a walk sample's own <c>IsAlive</c>/<c>Team</c> disagreed with the
+///     Round Facts row it was cross-checked against (CS2DemoKit #58). Shared by
+///     <c>RoundIndexBuilder</c> and <c>RoundOccupancyBuilder</c>, the two walks that still hold the
+///     facts-derived roster beside the sample. Not a gate: the sample always wins.
+/// </summary>
+public sealed class RoundIndexDisagreementTally
+{
+    private readonly Dictionary<int, (int Side, int Alive)> _byRound = [];
+
+    /// <summary>Adds one slot's disagreement, if any, to its round's counts.</summary>
+    /// <param name="round">The round number.</param>
+    /// <param name="sideMismatch">The sample's <c>Team</c> disagreed with the row's seated side.</param>
+    /// <param name="aliveMismatch">The row's <c>Kills</c> call the slot dead where the sample is alive.</param>
+    public void Record(int round, bool sideMismatch, bool aliveMismatch)
+    {
+        if (!sideMismatch && !aliveMismatch)
+        {
+            return;
+        }
+
+        (int Side, int Alive) counts = _byRound.GetValueOrDefault(round);
+        _byRound[round] = (counts.Side + (sideMismatch ? 1 : 0), counts.Alive + (aliveMismatch ? 1 : 0));
+    }
+
+    /// <summary>The tallied rounds, in round order; empty when nothing disagreed.</summary>
+    public IReadOnlyList<RoundIndexDisagreement> ToDisagreements() =>
+        [.. _byRound.OrderBy(kv => kv.Key).Select(kv => new RoundIndexDisagreement(kv.Key, kv.Value.Side, kv.Value.Alive))];
 }

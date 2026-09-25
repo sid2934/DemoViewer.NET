@@ -202,7 +202,7 @@ public static class RoundCaptureWalker
 
             progress?.Report(lastFrame > firstFrame ? (double)(cursor - firstFrame) / (lastFrame - firstFrame) : 1);
             snapshot.Refresh(tracker);
-            List<CapturedPawn> pawns = ReadPawns(snapshot);
+            List<CapturedPawn> pawns = ReadPawns(tracker, snapshot);
             moments.Add(stop.Trigger switch
             {
                 CaptureTrigger.Utility or CaptureTrigger.Plant => Resolve(stop, tracker, pawns),
@@ -358,15 +358,17 @@ public static class RoundCaptureWalker
         return found;
     }
 
-    private static List<CapturedPawn> ReadPawns(TrackerSceneSnapshot snapshot)
+    private static List<CapturedPawn> ReadPawns(EntityTracker tracker, TrackerSceneSnapshot snapshot)
     {
         List<CapturedPawn> pawns = [];
         foreach (IPlayerState player in snapshot.Players)
         {
             // Through the controller's live pawn only: SceneFrameBuilder.BuildMarkers' join, which is what keeps
-            // the orphaned pawns the design measured out of every keyframe.
+            // the orphaned pawns the design measured out of every keyframe. Alive is the engine's own rule,
+            // re-read off the tracker rather than kept as a local copy (#58).
             if (!player.HasLivePawn || player.Pawn is not { } pawn || player.WorldPosition is not { } world
-                || player.Team is not (2 or 3) || !IsAlive(pawn))
+                || player.Team is not (2 or 3)
+                || PawnLookup.ResolvePawn(tracker, player.Slot) is not { } resolved || !PawnLookup.IsAlive(resolved))
             {
                 continue;
             }
@@ -380,10 +382,6 @@ public static class RoundCaptureWalker
 
         return pawns;
     }
-
-    // Life state 0 is alive; GOTV keeps a dead player's pawn and its last position for the rest of the round.
-    private static bool IsAlive(IReadOnlyEntity pawn) =>
-        (!pawn.TryGet("m_lifeState", out int life) || life == 0) && (!pawn.TryGet("m_iHealth", out int health) || health > 0);
 
     private static bool RoundDecided(EntityTracker tracker)
     {
