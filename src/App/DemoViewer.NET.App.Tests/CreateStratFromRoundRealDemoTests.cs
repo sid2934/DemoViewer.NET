@@ -16,15 +16,13 @@ namespace DemoViewer.NET.AppTests;
 ///     Create Strat From Round on the two build-10896 replays step-authoring.md §3.9 measured, read in place from the
 ///     <c>DEMO_PATH</c> folder; the tour sample is never used. The plan's criterion is that a strat made this way
 ///     needs no manual re-entry to be playable: it validates, saves, projects to ten token tracks and utility, and
-///     every step's time maps back to the tick it was captured at. Round Facts rows do not exist on real demos yet,
-///     so the capture runs without them; the variant that reads the engine's rows is written and skipped.
+///     every step's time maps back to the tick it was captured at. A third variant checks that the buy type and
+///     round length come from the engine's Round Facts row instead of the walk.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class CreateStratFromRoundRealDemoTests
 {
-    private const string WaitingOnEngine = "waiting on CS2DemoKit #54";
-
     /// <summary>The design's two rounds and the detonations it counted in each (§3.9's table).</summary>
     internal static readonly (string Map, string Demo, int Round, int Detonations)[] Measured =
     [
@@ -122,12 +120,9 @@ public class CreateStratFromRoundRealDemoTests
     }
 
     [Test]
-    [Skip(WaitingOnEngine)]
     [MethodDataSource(nameof(Rounds))]
     public async Task WithRoundFactsRows_TheEconomyTargetAndRoundLengthComeFromTheRow(int index)
     {
-        // The engine row source is a stub until CS2DemoKit #54; with rows the capture reads the buy type, the plant
-        // site and the round time from the row rather than from the walk. Written so it runs the day rows land.
         (string map, string demo, int round, _) = Measured[index];
         (ParsedDemo parsed, ClipRound clip, RoundCapture capture) = Capture(demo, round);
         RoundFactsRows rows = RoundFactsProjection.Project(ClipRounds.Derive(parsed), new EngineRoundFactsRowSource().Rows(parsed));

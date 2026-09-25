@@ -15,19 +15,13 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Watched Situations over a real Valve matchmaking demo: a watch on a run the demo's own index
 ///     stored counts that demo as new once its stamp is past the watermark, on the hook and after a
-///     restart alike. The index joins alive and side against Round Facts rows, and the engine row
-///     source writes none until CS2DemoKit #54, so the test is written against the record and skipped
-///     with that reason.
+///     restart alike. The index joins alive and side against the production Round Facts rows.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class WatchedSituationsRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the index joins alive and side against Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task AWatchOnARunTheDemoStored_CountsTheDemoAsNew_OnTheHookAndAfterARestart()
     {
         string path = DemoTestHelper.RequireDemo();

@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Synthetic inputs for the Suggested Tags review tests: two live rounds on the detector tests' made-up
 ///     map, a walk with an execute in the first and a default in the second (see <see cref="Walk" />),
 ///     Round Facts rows seated by hand, and a harness wiring the service over in-memory stores. No demo
-///     file anywhere; the real-demo variant is its own class and waits on CS2DemoKit #54.
+///     file anywhere; the real-demo variant is its own class, <see cref="SuggestedTagsReviewRealDemoTests" />.
 /// </summary>
 internal sealed class SuggestedTagsReviewHarness : IDisposable
 {

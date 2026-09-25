@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Demo Provenance Labels against a real replay: the tier-2 record carries the classifier's verdict
 ///     by name, and with one account of the replay as me the heuristic reads the demo the way its header
 ///     says (matchmaking for a Valve GOTV recording, scrim otherwise), while nobody-of-ours leaves it
-///     unlabeled. Needs no Round Facts rows, so nothing here waits on CS2DemoKit #54.
+///     unlabeled. Needs no Round Facts rows.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]

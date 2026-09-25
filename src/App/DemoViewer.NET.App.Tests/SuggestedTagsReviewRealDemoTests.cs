@@ -15,18 +15,13 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The review loop over a real Valve replay, read in place from the <c>DEMO_PATH</c> folder: Round Facts
 ///     from the engine's rows, the evaluator building the proposals, and one accept and one reject landing
-///     in the Tag Store. Written against the record and skipped until CS2DemoKit #54 lets the engine write
-///     rows; the synthetic suite covers the same path meanwhile. The tour sample is never used.
+///     in the Tag Store. The synthetic suite covers the same path too. The tour sample is never used.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class SuggestedTagsReviewRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the evaluator needs Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task OnAMeasuredDemo_TheEvaluatorBuilds_AndAVerdictLandsInTheTagStore()
     {
         string? folder = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
