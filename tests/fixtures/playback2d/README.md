@@ -115,8 +115,10 @@ captures used to be named `duel-mirage-b` and `fitmap-mirage-eco` (the names of 
 `annotations/<name>.dvann.json` is picked up **by convention**, not by a manifest field: if a sidecar
 exists beside the corpus under that name, `golden` and `bench` load it through the production
 `AnnotationStore` and register `playback2d.annotations` (the entry must also name the id in its
-`layers` array). One entry uses it (`annotated-mirage-b`) and it is the only golden anywhere that
-covers burned-in ink. `dv2d render --ink <path>` is the same thing for a one-off.
+`layers` array). Two entries use it: `annotated-mirage-b`, freehand ink on both halves of the layer's
+cache split, and `annotated-shapes-mirage-b`, one element of every kind (Freehand, Line, Arrow, Rect,
+Ellipse, Text) from Shape Tools. They are the only goldens anywhere that cover burned-in ink.
+`dv2d render --ink <path>` is the same thing for a one-off.
 
 Note on tolerance. Entries default to `GoldenTolerance.DefaultPerceptual`: CPU rasterisation of
 anti-aliased edges can differ by a least-significant bit between SIMD paths, and headless Skia text

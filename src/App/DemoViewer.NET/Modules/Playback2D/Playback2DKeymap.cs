@@ -61,7 +61,15 @@ public enum Playback2DAction
     SuggestionAccept,
     SuggestionReject,
     SuggestionEdit,
-    SuggestionAcceptAll
+    SuggestionAcceptAll,
+
+    // Bound by Shape Tools (Strat Room, step-authoring.md §3.7): the annotation toolbar's shape and
+    // text tools.
+    ToolLine,
+    ToolArrow,
+    ToolRect,
+    ToolEllipse,
+    ToolText
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -452,6 +460,21 @@ public static class Playback2DKeymap
             "Suggested tags: edit the selected proposal before accepting it", false),
         new(Playback2DAction.SuggestionAcceptAll, Key.Y, KeyModifiers.Control, Playback2DBindingScope.Always,
             "Suggested tags: accept every pending proposal the queue's filter shows, after a confirm", false),
+
+        // ── Shape Tools (step-authoring.md §3.7). Bare letters in the Always scope like D and X, each
+        //    pressed again to go back to pan. None collides with the shipped rows, the shell list or the
+        //    browser list, and the Tag Palette's own letters are palette-scoped, so a palette's "A" is a
+        //    site while it has focus and the Arrow tool otherwise (overview correction 21).
+        new(Playback2DAction.ToolArrow, Key.A, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Arrow tool (press again for pan)", false),
+        new(Playback2DAction.ToolText, Key.T, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Text tool (press again for pan)", false),
+        new(Playback2DAction.ToolLine, Key.L, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Line tool (press again for pan)", false),
+        new(Playback2DAction.ToolRect, Key.R, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Rectangle tool (press again for pan)", false),
+        new(Playback2DAction.ToolEllipse, Key.O, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Ellipse tool (press again for pan)", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,

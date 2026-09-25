@@ -159,6 +159,11 @@ internal sealed class FakeToolServices : IToolServices
         }
     }
 
+    /// <summary>Every element the text tool asked the host to open an editor over, oldest first.</summary>
+    public List<Guid> TextEditRequests { get; } = [];
+
+    public void RequestTextEdit(Guid elementId) => TextEditRequests.Add(elementId);
+
     public void RequestRender() => RenderRequests++;
 
     /// <summary>Advances the authoring clock and returns the new reading.</summary>

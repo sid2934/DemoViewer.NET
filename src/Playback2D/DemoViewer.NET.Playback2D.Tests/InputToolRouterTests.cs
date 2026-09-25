@@ -28,6 +28,54 @@ public class InputToolRouterTests
     }
 
     /// <summary>
+    ///     The keymap's tool scope keys off this flag, so Space holds to pan and Esc cancels under the
+    ///     shape and text tools exactly as under the pen (step-authoring.md §3.2). Pan/zoom and the
+    ///     Situations tab's query token are not annotation tools.
+    /// </summary>
+    [Test]
+    [Arguments(ToolKind.Draw, true)]
+    [Arguments(ToolKind.Erase, true)]
+    [Arguments(ToolKind.Line, true)]
+    [Arguments(ToolKind.Arrow, true)]
+    [Arguments(ToolKind.Rect, true)]
+    [Arguments(ToolKind.Ellipse, true)]
+    [Arguments(ToolKind.Text, true)]
+    [Arguments(ToolKind.PanZoom, false)]
+    public async Task IsDrawingToolActive_ForEveryAnnotationTool(ToolKind kind, bool expected)
+    {
+        (InputToolRouter router, FakeToolServices _, PaneSet _) = Build();
+        router.Register(new ShapeTool(ToolKind.Line));
+        router.Register(new ShapeTool(ToolKind.Arrow));
+        router.Register(new ShapeTool(ToolKind.Rect));
+        router.Register(new ShapeTool(ToolKind.Ellipse));
+        router.Register(new TextTool());
+
+        router.SetActive(kind);
+
+        await Assert.That(router.ActiveKind).IsEqualTo(kind);
+        await Assert.That(router.IsDrawingToolActive).IsEqualTo(expected);
+        await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.QueryToken)).IsFalse();
+    }
+
+    [Test]
+    public async Task AShapeGesture_ThroughTheRouter_CommitsOneShape()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.Register(new ShapeTool(ToolKind.Rect));
+        router.SetActive(ToolKind.Rect);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        router.OnMoved(Sample(pane, new SKPoint(260, 140)));
+        router.OnReleased(Sample(pane, new SKPoint(300, 160)));
+
+        await Assert.That(services.Session.Document.Elements.Count).IsEqualTo(1);
+        await Assert.That(services.Session.Document.Elements[0].Kind).IsEqualTo(AnnotationKind.Rect);
+        await Assert.That(services.Session.Document.Elements[0].Points.Count).IsEqualTo(2);
+    }
+
+    /// <summary>
     ///     The invariant the pre-v2 viewport encodes by capturing <c>_dragSlice</c> at press: a drag that
     ///     wanders into another band keeps panning the band it began on, or a fast diagonal drag would
     ///     yank two floors at once.

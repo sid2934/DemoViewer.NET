@@ -220,6 +220,115 @@ public class AnnotationLayerTests
             .Because("a quarter of the way into the ramp only a quarter of the stroke has been drawn");
     }
 
+    /// <summary>
+    ///     Step-authoring.md §3.2: every kind goes through one geometry path, so a Static shape is cached
+    ///     in the dry picture and a time-anchored one is prepared per frame, and both draw ink.
+    /// </summary>
+    [Test]
+    [Arguments(AnnotationKind.Line)]
+    [Arguments(AnnotationKind.Arrow)]
+    [Arguments(AnnotationKind.Rect)]
+    [Arguments(AnnotationKind.Ellipse)]
+    [Arguments(AnnotationKind.Text)]
+    public async Task EveryKind_DrawsInk_CachedWhenStatic_AndAnimatedWhenAnchored(AnnotationKind kind)
+    {
+        AnnotationDocument staticDoc = new();
+        using AnnotationLayer staticLayer = new(new AnnotationSession(staticDoc));
+        staticDoc.Apply(new DocDelta.Add(Shape(kind, TimeEnvelope.Static), 0));
+
+        int dry = Ink(staticLayer, Scene2DFrame.Empty);
+        await Assert.That(dry).IsGreaterThan(0);
+        await Assert.That(staticLayer.DryPictureCount).IsEqualTo(1);
+        await Assert.That(staticLayer.PreparedCount).IsEqualTo(0);
+
+        AnnotationDocument timedDoc = new();
+        using AnnotationLayer timedLayer = new(new AnnotationSession(timedDoc));
+        timedDoc.Apply(new DocDelta.Add(Shape(kind, new TimeEnvelope(100, 200, 10, 10)), 0));
+
+        await Assert.That(Ink(timedLayer, Scene2DFrame.Empty, tick: 50)).IsEqualTo(0);
+        int live = Ink(timedLayer, Scene2DFrame.Empty, tick: 150);
+        await Assert.That(timedLayer.PreparedCount).IsEqualTo(1);
+        await Assert.That(live).IsEqualTo(dry)
+            .Because("the cached and the animated path are one geometry, so at full opacity they agree");
+    }
+
+    [Test]
+    [Arguments(AnnotationKind.Rect)]
+    [Arguments(AnnotationKind.Ellipse)]
+    public async Task RectAndEllipse_AreStroked_NotFilled(AnnotationKind kind)
+    {
+        AnnotationDocument doc = new();
+        using AnnotationLayer layer = new(new AnnotationSession(doc));
+        doc.Apply(new DocDelta.Add(Shape(kind, TimeEnvelope.Static), 0));
+
+        SKColor[] pixels = RenderPixels(layer, Scene2DFrame.Empty);
+
+        // World (0, 0) is the middle of the 200 px surface, and the middle of the -300..300 box.
+        await Assert.That(IsBackground(pixels[100 * _size.Width + 100])).IsTrue();
+        await Assert.That(InkPixels(pixels)).IsGreaterThan(0);
+    }
+
+    [Test]
+    public async Task Arrow_HasAHead_ThatALineDoesNot()
+    {
+        AnnotationDocument lineDoc = new();
+        using AnnotationLayer lineLayer = new(new AnnotationSession(lineDoc));
+        lineDoc.Apply(new DocDelta.Add(Shape(AnnotationKind.Line, TimeEnvelope.Static), 0));
+
+        AnnotationDocument arrowDoc = new();
+        using AnnotationLayer arrowLayer = new(new AnnotationSession(arrowDoc));
+        arrowDoc.Apply(new DocDelta.Add(Shape(AnnotationKind.Arrow, TimeEnvelope.Static), 0));
+
+        await Assert.That(Ink(arrowLayer, Scene2DFrame.Empty))
+            .IsGreaterThan(Ink(lineLayer, Scene2DFrame.Empty));
+    }
+
+    [Test]
+    public async Task Text_ZoomsWithTheWidth_AndAnEmptyLabelDrawsNothing()
+    {
+        int Label(string text, float width)
+        {
+            AnnotationDocument doc = new();
+            using AnnotationLayer layer = new(new AnnotationSession(doc));
+            AnnotationElement element = new(Guid.NewGuid(), AnnotationKind.Text,
+                AnnotationStyle.Default with
+                {
+                    WidthWorld = width
+                },
+                new SpaceRef.World(0), TimeEnvelope.Static, [new InkPoint(-400, 400, 0.5f)], text);
+            doc.Apply(new DocDelta.Add(element, 0));
+            return Ink(layer, Scene2DFrame.Empty);
+        }
+
+        int small = Label("B", 6);
+        int large = Label("B", 18);
+
+        await Assert.That(small).IsGreaterThan(0);
+        await Assert.That(large).IsGreaterThan(small * 4)
+            .Because("text is 6 x width world units, so three times the width is nine times the area");
+        await Assert.That(Label("", 12)).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task WetShape_PreviewsTheShapeGeometry()
+    {
+        AnnotationDocument doc = new();
+        AnnotationSession session = new(doc);
+        using AnnotationLayer layer = new(session);
+
+        session.Wet.Begin(AnnotationStyle.Default with
+        {
+            WidthWorld = 20
+        }, new SpaceRef.World(0), null, new InkPoint(-300, -300, 0.5f), kind: AnnotationKind.Rect);
+        session.Wet.ReplaceLast(new InkPoint(300, 300, 0.5f));
+
+        SKColor[] pixels = RenderPixels(layer, Scene2DFrame.Empty);
+
+        await Assert.That(InkPixels(pixels)).IsGreaterThan(0);
+        await Assert.That(IsBackground(pixels[100 * _size.Width + 100])).IsTrue()
+            .Because("the preview is the rectangle's edges, not a freehand stroke along its diagonal");
+    }
+
     [Test]
     public async Task WetStroke_DrawsOnlyInOriginPane()
     {
@@ -420,6 +529,26 @@ public class AnnotationLayerTests
             Levels = space
         };
     }
+
+    private static bool IsBackground(SKColor p)
+    {
+        SKColor background = ScenePalette.Dark.Background;
+        return p.Red == background.Red && p.Green == background.Green && p.Blue == background.Blue;
+    }
+
+    // A shape across the middle of the view, wide enough to cover several pixels at 5 world units per
+    // pixel; text is a short label anchored there.
+    private static AnnotationElement Shape(AnnotationKind kind, TimeEnvelope time) =>
+        new(Guid.NewGuid(), kind,
+            AnnotationStyle.Default with
+            {
+                WidthWorld = 20
+            },
+            new SpaceRef.World(0), time,
+            kind == AnnotationKind.Text
+                ? [new InkPoint(-300, 100, 0.5f)]
+                : [new InkPoint(-300, -300, 0.5f), new InkPoint(300, 300, 0.5f)],
+            kind == AnnotationKind.Text ? "A long" : null);
 
     private static int InkPixels(SKColor[] pixels)
     {

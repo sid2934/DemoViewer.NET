@@ -681,6 +681,11 @@ public sealed class QueryCanvasHost : Control, IDisposable
             return false;
         }
 
+        // No text tool is registered on the query canvas, so nothing ever asks.
+        public void RequestTextEdit(Guid elementId)
+        {
+        }
+
         public void RequestRender() => host.RequestToolRender();
     }
 }

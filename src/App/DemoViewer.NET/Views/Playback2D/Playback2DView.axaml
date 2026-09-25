@@ -225,6 +225,17 @@
                  satisfy IPlayback2DSurface, so everything below drives either one. -->
             <ContentControl Grid.Row="1" x:Name="ViewportHost" />
 
+            <!-- The text tool's editor (step-authoring.md §3.2). Hidden until the surface places a label,
+                 then put over the label's anchor in the surface's own coordinates. Enter commits, Esc
+                 cancels, and losing focus commits, so a click anywhere else keeps what was typed. The
+                 canvas has no background, so it takes no pointer input except on the box itself. -->
+            <Canvas Grid.Row="1" x:Name="TextEditorLayer">
+                <TextBox x:Name="AnnotationTextEditor" IsVisible="False" MinWidth="120"
+                         AcceptsReturn="False" Padding="4,1" MinHeight="0"
+                         Background="{DynamicResource Pb2dOverlayBg}"
+                         PlaceholderText="Label text, Enter to place" />
+            </Canvas>
+
             <!-- The collapsed toolbar's only trace: a 26x17 chevron in the canvas's top-left corner,
                  mounted BY the collapsed state rather than by the toolbar it restores — which is what
                  makes a persisted "collapsed" impossible to get stuck in. (The shell's own rule for the
