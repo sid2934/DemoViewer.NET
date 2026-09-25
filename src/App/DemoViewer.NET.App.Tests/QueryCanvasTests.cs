@@ -451,6 +451,8 @@ public class QueryCanvasTests
             {
             }
 
+            public ITokenEditor? Tokens => null;
+
             public void RequestRender()
             {
             }

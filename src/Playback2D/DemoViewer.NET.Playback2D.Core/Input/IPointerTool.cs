@@ -39,7 +39,14 @@ public enum ToolKind
     Ellipse,
 
     /// <summary>A text label placed at the press point and typed into the host's editor.</summary>
-    Text
+    Text,
+
+    /// <summary>
+    ///     The strat canvas's token tool: drags a token, or turns it by its heading stub. Registered on every
+    ///     host but does nothing without an <see cref="IToolServices.Tokens" /> editor, so on the 2D Playback
+    ///     tab a press with it falls through unhandled.
+    /// </summary>
+    Token
 }
 
 /// <summary>What each <see cref="ToolKind" /> means to the annotation document.</summary>
@@ -269,6 +276,12 @@ public interface IToolServices
     /// </summary>
     /// <param name="elementId">The text element being edited.</param>
     void RequestTextEdit(Guid elementId);
+
+    /// <summary>
+    ///     The strat canvas's token editor, or null on a host with no tokens (the 2D Playback tab, the query
+    ///     canvas). Null is what makes <see cref="TokenTool" /> a no-op there.
+    /// </summary>
+    ITokenEditor? Tokens { get; }
 
     /// <summary>Asks the host to repaint. Coalesced by the host; safe to call per sample.</summary>
     void RequestRender();
