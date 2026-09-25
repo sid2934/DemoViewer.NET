@@ -1014,11 +1014,26 @@ public class App : Application
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
         services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
-        services.AddSingleton(sp => new StratBookTabViewModel(
-            sp.GetRequiredService<StratStore>(),
-            sp.GetRequiredService<TeamIdentityService>(),
-            action => Dispatcher.UIThread.Post(action),
-            calloutResolvers: sp.GetRequiredService<CalloutResolverSource>()));
+        // Strat Record Panel (strat-model.md §3.6): the evidence rule over the Tag Store and Demo
+        // Provenance Labels, one instance so the panel's live rebuild and any other future reader of a
+        // strat's record agree on what "run / won / aborted" means.
+        services.AddSingleton(sp => new StratEvidenceService(
+            sp.GetRequiredService<TagStore>(),
+            sp.GetRequiredService<IDemoProvenanceSource>()));
+        services.AddSingleton(sp =>
+        {
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            return new StratBookTabViewModel(
+                sp.GetRequiredService<StratStore>(),
+                sp.GetRequiredService<TeamIdentityService>(),
+                action => Dispatcher.UIThread.Post(action),
+                calloutResolvers: sp.GetRequiredService<CalloutResolverSource>(),
+                tags: sp.GetRequiredService<TagStore>(),
+                evidence: sp.GetRequiredService<StratEvidenceService>(),
+                review: sp.GetRequiredService<ReviewQueue>(),
+                indexBySha: cache.TryGetIndexBySha256,
+                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false);
+        });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
         // Like This, so the set the keys walk is the set the tab shows.
