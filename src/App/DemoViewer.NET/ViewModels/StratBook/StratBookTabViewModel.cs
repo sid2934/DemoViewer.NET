@@ -470,6 +470,36 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         SelectedStrat = Strats.FirstOrDefault(r => r.Id == created.Id);
     }
 
+    /// <summary>
+    ///     Opens a strat by id with its book and map as the filters, the way Create Strat From Round lands the user
+    ///     on what it just made. A strat the index does not know, or whose book is not offered, is left alone.
+    /// </summary>
+    /// <param name="id">The strat.</param>
+    public void OpenStrat(Guid id)
+    {
+        if (_store.Index.FirstOrDefault(e => e.Id == id) is not { } entry
+            || Owners.FirstOrDefault(o => o.Owner.Equals(entry.Owner)) is not { } owner)
+        {
+            return;
+        }
+
+        _refreshing = true;
+        try
+        {
+            SelectedOwner = owner;
+            RefreshMaps(entry.Map);
+            SelectedMap = entry.Map;
+            SelectedSide = AllSides;
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+
+        RefreshList();
+        SelectedStrat = Strats.FirstOrDefault(r => r.Id == id);
+    }
+
     /// <summary>Moves the selected strat to its folder's <c>.trash/</c> (decision 10), committing its edits first.</summary>
     [RelayCommand]
     private void DeleteStrat()
