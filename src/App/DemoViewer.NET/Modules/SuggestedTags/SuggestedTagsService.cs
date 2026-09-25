@@ -564,38 +564,13 @@ public sealed class SuggestedTagsService : IDemoEvaluator
                 return; // a queued request the open's fan-out already satisfied
             }
 
-            SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
-            int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
             ClockIdentity clock = FrameClock.IdentityFor(parsed);
-
-            // The index when it is current for this map, else the walk: both give the same rows
-            // (correction 11), and only the walk leaves a cloud behind for detonation placement.
-            IReadOnlyList<RoundOccupancy> rounds;
-            DetonationCloud? cloud = null;
-            string source;
-            if (_index is not null && _indexSources is not null
-                                   && record.IsRoundIndexCurrent(_indexSources.FingerprintFor(map))
-                                   && _index.TryRead(path) is { } indexDocument)
-            {
-                rounds = RoundOccupancyBuilder.FromIndex(indexDocument, facts, tickRate);
-                source = ProposalDocument.FromRoundIndex;
-            }
-            else
-            {
-                OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, facts, samples: _walk?.Invoke(parsed));
-                rounds = build.Rounds;
-                cloud = build.Cloud;
-                source = ProposalDocument.FromWalk;
-            }
-
-            DetonationPlaceResolver resolver = new(
-                string.IsNullOrEmpty(map) ? null : _zones.TryGet(map),
-                string.IsNullOrEmpty(map) ? null : _placesFor?.Invoke(map),
-                cloud);
-            List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed));
-            IReadOnlyList<TagProposal> proposals = ProposalDetection.Detect(map, tickRate, regions, events, rounds, profile);
+            DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record);
+            SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
+            IReadOnlyList<TagProposal> proposals =
+                ProposalDetection.Detect(map, inputs.TickRate, regions, inputs.Events, inputs.Rounds, profile);
             Dictionary<int, int> roundStarts = [];
-            foreach (RoundOccupancy round in rounds)
+            foreach (RoundOccupancy round in inputs.Rounds)
             {
                 roundStarts.TryAdd(round.Round, round.StartTick);
             }
@@ -617,7 +592,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
                     ComputedAtTicks = _utcNow().Ticks,
                     Regions = regions.Source
                 },
-                OccupancySource = source,
+                OccupancySource = inputs.Source,
                 Proposals = [.. proposals.Select(p => StoredProposal.From(p, roundStarts.GetValueOrDefault(p.Round)))]
             };
 
@@ -645,6 +620,60 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         {
             ClearForced(path);
         }
+    }
+
+    /// <summary>
+    ///     The profile-independent half of a build (suggested-tags.md §3.2): the tick rate, the rounds'
+    ///     occupancy and the placed events. Split out from the profile-dependent half (site regions,
+    ///     then <see cref="ProposalDetection.Detect" />) so the tuning view's in-memory re-run can hold
+    ///     one parse's occupancy and events and try many candidate profiles against them without
+    ///     re-parsing for each.
+    /// </summary>
+    /// <param name="TickRate">Ticks per second.</param>
+    /// <param name="Rounds">One occupancy per live round.</param>
+    /// <param name="Events">Every placed detonation of the demo, tick order.</param>
+    /// <param name="Source">"round-index" or "walk" (<see cref="ProposalDocument.FromRoundIndex" />/<see cref="ProposalDocument.FromWalk" />).</param>
+    internal readonly record struct DetectionInputs(
+        int TickRate, IReadOnlyList<RoundOccupancy> Rounds, IReadOnlyList<PlacedEvent> Events, string Source);
+
+    /// <summary>
+    ///     Builds a demo's occupancy and placed events: the index when it is current for the map, else
+    ///     the walk (correction 11, both give the same rows); only the walk leaves a cloud behind for
+    ///     detonation placement. Internal so the tuning view's re-run harness can reuse it.
+    /// </summary>
+    /// <param name="path">The demo's path (the index sidecar and the zone/place lookups key by it).</param>
+    /// <param name="map">The map, resolved.</param>
+    /// <param name="parsed">The held parse.</param>
+    /// <param name="facts">The demo's Round Facts rows.</param>
+    /// <param name="record">The demo's cache record, for the Round Index's freshness stamp.</param>
+    internal DetectionInputs BuildDetectionInputs(
+        string path, string map, ParsedDemo parsed, RoundFactsRows facts, DemoCacheRecord record)
+    {
+        int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
+        IReadOnlyList<RoundOccupancy> rounds;
+        DetonationCloud? cloud = null;
+        string source;
+        if (_index is not null && _indexSources is not null
+                               && record.IsRoundIndexCurrent(_indexSources.FingerprintFor(map))
+                               && _index.TryRead(path) is { } indexDocument)
+        {
+            rounds = RoundOccupancyBuilder.FromIndex(indexDocument, facts, tickRate);
+            source = ProposalDocument.FromRoundIndex;
+        }
+        else
+        {
+            OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, facts, samples: _walk?.Invoke(parsed));
+            rounds = build.Rounds;
+            cloud = build.Cloud;
+            source = ProposalDocument.FromWalk;
+        }
+
+        DetonationPlaceResolver resolver = new(
+            string.IsNullOrEmpty(map) ? null : _zones.TryGet(map),
+            string.IsNullOrEmpty(map) ? null : _placesFor?.Invoke(map),
+            cloud);
+        List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed));
+        return new DetectionInputs(tickRate, rounds, events, source);
     }
 
     private bool NeedsBuild(DemoCacheIndexEntry? entry) =>
