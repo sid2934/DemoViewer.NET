@@ -173,4 +173,44 @@ public class StratHistoryTests
             await Assert.That(store.Materialize(document.Id, 0)).IsNull();
         }
     }
+
+    [Test]
+    public async Task Diff_GivesOpsThatTurnOneStateIntoTheOther_WithFromFilled()
+    {
+        StratDocument before = Minimal();
+        StratDocument after = before.Clone();
+        after.Name = "A split";
+        after.Economy = "full";
+        after.Steps[1].AtSeconds = 76;
+        after.Steps.Add(Step(3, 60, "all", "move"));
+
+        List<PatchOp> ops = StratHistory.Diff(StratHistory.ToNode(before), StratHistory.ToNode(after));
+        StratDocument rebuilt = StratHistory.Apply(before, ops);
+        StratDocument undone = StratHistory.Apply(rebuilt, ops.AsEnumerable().Reverse().Select(o => o.Inverse()));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratStore.Serialize(rebuilt)).IsEqualTo(StratStore.Serialize(after));
+            await Assert.That(StratStore.Serialize(undone)).IsEqualTo(StratStore.Serialize(before));
+            await Assert.That(ops.Single(o => o.Path == "/name").From!.GetValue<string>()).IsEqualTo("A exec");
+            await Assert.That(ops.Single(o => o.Path == "/economy").Op).IsEqualTo(PatchOp.Add);
+            await Assert.That(ops.Single(o => o.Path == "/steps").Op).IsEqualTo(PatchOp.Replace)
+                .Because("an array whose length changed is replaced whole");
+            await Assert.That(StratHistory.Diff(StratHistory.ToNode(before), StratHistory.ToNode(before.Clone()))).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task ValueAt_ReadsAPointer_AndNullForNothing()
+    {
+        JsonNode root = StratHistory.ToNode(Minimal());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratHistory.ValueAt(root, "/steps/1/atSeconds")!.GetValue<double>()).IsEqualTo(82);
+            await Assert.That(StratHistory.ValueAt(root, "/steps/9/atSeconds")).IsNull();
+            await Assert.That(StratHistory.ValueAt(root, "/nothing")).IsNull();
+            await Assert.That(StratHistory.ValueAt(root, "")).IsSameReferenceAs(root);
+        }
+    }
 }

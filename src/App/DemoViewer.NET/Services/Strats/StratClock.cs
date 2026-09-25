@@ -100,4 +100,45 @@ public static class StratClock
 
         return atSeconds < 0 && tenths > 0 ? "+" + text : text;
     }
+
+    /// <summary>
+    ///     The inverse of <see cref="Format" /> for what a person types in the step table: <c>1:15</c>,
+    ///     <c>1:15.5</c>, <c>+0:05</c> for after the timer stopped, or plain seconds (<c>75</c>). False for anything
+    ///     else, including a seconds part of 60 or more.
+    /// </summary>
+    /// <param name="text">The typed time.</param>
+    /// <param name="atSeconds">Round clock remaining.</param>
+    public static bool TryParse(string? text, out double atSeconds)
+    {
+        atSeconds = 0;
+        string trimmed = text?.Trim() ?? "";
+        bool after = trimmed.StartsWith('+');
+        if (after)
+        {
+            trimmed = trimmed[1..];
+        }
+
+        int colon = trimmed.IndexOf(':', StringComparison.Ordinal);
+        double value;
+        if (colon < 0)
+        {
+            if (!double.TryParse(trimmed, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value))
+            {
+                return false;
+            }
+        }
+        else if (int.TryParse(trimmed[..colon], NumberStyles.None, CultureInfo.InvariantCulture, out int minutes)
+                 && double.TryParse(trimmed[(colon + 1)..], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double seconds)
+                 && seconds < 60)
+        {
+            value = minutes * 60 + seconds;
+        }
+        else
+        {
+            return false;
+        }
+
+        atSeconds = after ? -value : value;
+        return true;
+    }
 }

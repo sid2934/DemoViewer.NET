@@ -187,6 +187,99 @@ public static class StratHistory
     /// <summary>A pointer token for a member name, escaped per RFC 6901.</summary>
     public static string Escape(string token) =>
         token.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal);
+
+    /// <summary>
+    ///     The value a pointer names, or null when it names nothing: what an op displaces, read before it is
+    ///     applied so the session can fill <c>from</c> itself rather than trust the caller's.
+    /// </summary>
+    /// <param name="root">The tree.</param>
+    /// <param name="path">An RFC 6901 pointer; <c>""</c> is the root.</param>
+    public static JsonNode? ValueAt(JsonNode? root, string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+        {
+            return root;
+        }
+
+        JsonNode? node = root;
+        foreach (string token in ParsePointer(path))
+        {
+            node = node switch
+            {
+                JsonObject obj => obj[token],
+                JsonArray array => int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index < array.Count
+                    ? array[index]
+                    : null,
+                _ => null
+            };
+
+            if (node is null)
+            {
+                return null;
+            }
+        }
+
+        return node;
+    }
+
+    /// <summary>
+    ///     Ops that turn <paramref name="before" /> into <paramref name="after" />, <c>from</c> filled: members by
+    ///     name, arrays element by element while their lengths agree and whole otherwise. Used where only the two
+    ///     states are known, the uncommitted edits a crash left in a <c>pending</c> file.
+    /// </summary>
+    /// <param name="before">The tree before.</param>
+    /// <param name="after">The tree after.</param>
+    public static List<PatchOp> Diff(JsonNode? before, JsonNode? after)
+    {
+        List<PatchOp> ops = [];
+        DiffInto(before, after, "", ops);
+        return ops;
+    }
+
+    private static void DiffInto(JsonNode? before, JsonNode? after, string path, List<PatchOp> ops)
+    {
+        switch (before, after)
+        {
+            case (JsonObject a, JsonObject b):
+                foreach ((string key, JsonNode? value) in a)
+                {
+                    if (!b.ContainsKey(key))
+                    {
+                        ops.Add(PatchOp.RemoveOp(path + "/" + Escape(key), value?.DeepClone()));
+                    }
+                }
+
+                foreach ((string key, JsonNode? value) in b)
+                {
+                    string child = path + "/" + Escape(key);
+                    if (a.TryGetPropertyValue(key, out JsonNode? old))
+                    {
+                        DiffInto(old, value, child, ops);
+                    }
+                    else
+                    {
+                        ops.Add(PatchOp.AddOp(child, value?.DeepClone()));
+                    }
+                }
+
+                return;
+            case (JsonArray a, JsonArray b) when a.Count == b.Count:
+                for (int i = 0; i < a.Count; i++)
+                {
+                    DiffInto(a[i], b[i], path + "/" + i.ToString(CultureInfo.InvariantCulture), ops);
+                }
+
+                return;
+            default:
+                if (!JsonNode.DeepEquals(before, after))
+                {
+                    ops.Add(PatchOp.ReplaceOp(path, before?.DeepClone(), after?.DeepClone()));
+                }
+
+                return;
+        }
+    }
 }
 
 /// <summary>
