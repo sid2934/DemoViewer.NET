@@ -16,17 +16,29 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class SuggestedTagsTuningServiceTests
 {
-    private static TagInstance HumanTagFor(TagProposal proposal) => new()
+    // A tagger following §7.3 item 1 puts the site label on a site-bearing code, so the fixture does too.
+    private static TagInstance HumanTagFor(TagProposal proposal, string? site = null)
     {
-        Id = Guid.NewGuid(),
-        Code = proposal.Code,
-        Round = proposal.Round,
-        FromTick = proposal.FromTick,
-        ToTick = proposal.ToTick,
-        Source = TagSources.Human,
-        CreatedUtc = Now,
-        ModifiedUtc = Now
-    };
+        TagInstance instance = new()
+        {
+            Id = Guid.NewGuid(),
+            Code = proposal.Code,
+            Round = proposal.Round,
+            FromTick = proposal.FromTick,
+            ToTick = proposal.ToTick,
+            Source = TagSources.Human,
+            CreatedUtc = Now,
+            ModifiedUtc = Now
+        };
+        if ((site ?? proposal.Labels.GetValueOrDefault("site")) is { } label)
+        {
+            instance.Labels.Add(new TagLabel("site", label));
+        }
+
+        return instance;
+    }
+
+    private static readonly ClockIdentity Clock = new(ClockIdentity.DvFrameClock, 64, 2, 1, 20000);
 
     private static SuggestedTagsTuningService Tuning(SuggestedTagsReviewHarness h) =>
         new(h.Cache, h.Service, h.Tags, h.Regions, _ => Parse());
@@ -131,6 +143,56 @@ public class SuggestedTagsTuningServiceTests
             await Assert.That(row.Recall).IsEqualTo(0.0).Because("the candidate profile fires nothing for this code");
             await Assert.That(row.Precision).IsNull().Because("nothing fired: undefined, not 0%");
             await Assert.That(row.Accepted).IsEqualTo(1).Because("history is untouched by a preview");
+        }
+    }
+
+    [Test]
+    public async Task BuildStoredReport_NeverMatchesAProposalAgainstAnotherDemosHandTag()
+    {
+        using SuggestedTagsReviewHarness h = new();
+        h.Build(); // demo A: the execute fires in round 1
+
+        // Demo B: same rounds and the same walk, but a profile under which the execute never fires, so
+        // its only execute-coded evidence is a hand tag sitting exactly on A's execute window. Round
+        // numbers and ticks coincide across the two demos; only the demo identity tells them apart.
+        const string otherPath = "/d/other.dem";
+        string otherSha = new('b', 64);
+        h.Cache.Upsert(RoundIndexTestData.ParsedRecord(otherPath, SuggestedTagsTestData.Map, otherSha,
+            SuggestedTagsReviewHarness.Rows()));
+        h.Profile = h.Profile.With("execute", "minSecond", 100);
+        h.Service.Evaluate(otherPath, Parse());
+        h.Profile = DetectorProfile.Default;
+
+        TagProposal execute = h.Service.Load(DemoPath).Entries.Single(e => e.Proposal.Detector == "execute").Proposal;
+        await Assert.That(h.Service.Load(otherPath).Entries.Any(e => e.Proposal.Detector == "execute")).IsFalse();
+        h.Tags.Append(new DemoIdentity(otherSha, "other.dem", 10), Clock, HumanTagFor(execute));
+
+        TuningReport report = Tuning(h).BuildStoredReport();
+        DetectorTuningRow row = report.Rows.Single(r => r.Detector == "execute");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.Recall).IsEqualTo(0.0).Because("B's hand tag has no execute in B to match");
+            await Assert.That(row.Precision).IsEqualTo(0.0).Because("A's execute has no hand tag in A");
+        }
+    }
+
+    [Test]
+    public async Task BuildStoredReport_HandTagAtAnotherSite_DoesNotMatch()
+    {
+        using SuggestedTagsReviewHarness h = new();
+        h.Build();
+
+        TagProposal execute = h.Service.Load(DemoPath).Entries.Single(e => e.Proposal.Detector == "execute").Proposal;
+        await Assert.That(execute.Labels["site"]).IsEqualTo("BombsiteA");
+        h.Tags.Append(new DemoIdentity(Sha, "review.dem", 10), Clock, HumanTagFor(execute, "BombsiteB"));
+
+        DetectorTuningRow row = Tuning(h).BuildStoredReport().Rows.Single(r => r.Detector == "execute");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.Recall).IsEqualTo(0.0).Because("§7.3 item 3: code and site must both agree");
+            await Assert.That(row.Precision).IsEqualTo(0.0);
         }
     }
 }

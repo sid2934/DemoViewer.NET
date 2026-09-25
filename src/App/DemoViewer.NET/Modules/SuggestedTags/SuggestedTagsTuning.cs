@@ -7,14 +7,21 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     One hand-made tag the recall/precision score is measured against: a round, a window and the
-///     code it carries. Deliberately not a <see cref="TagInstance" /> reference: the score is pure over
-///     these three numbers, so a test can build one without a Tag Store.
+///     One hand-made tag the recall/precision score is measured against: the demo it belongs to, a
+///     round, a window and its site label. Deliberately not a <see cref="TagInstance" /> reference: the
+///     score is pure over these values, so a test can build one without a Tag Store.
 /// </summary>
+/// <param name="Demo">The demo's key (its lowercase SHA-256); round numbers and ticks only mean anything inside one demo.</param>
 /// <param name="Round">The round number.</param>
 /// <param name="FromTick">The instance's window start, frame clock.</param>
 /// <param name="ToTick">The instance's window end, frame clock.</param>
-public readonly record struct HandTagWindow(int Round, int FromTick, int ToTick);
+/// <param name="Site">The value of the instance's <c>site</c> label, or null when it carries none.</param>
+public readonly record struct HandTagWindow(string Demo, int Round, int FromTick, int ToTick, string? Site = null);
+
+/// <summary>A fired proposal and the demo it fired in, keyed the same way as <see cref="HandTagWindow.Demo" />.</summary>
+/// <param name="Demo">The demo's key.</param>
+/// <param name="Proposal">The proposal.</param>
+public readonly record struct FiredProposal(string Demo, TagProposal Proposal);
 
 /// <summary>
 ///     One detector's line in the tuning view (suggested-tags.md §3.7): what the verdicts over demos
@@ -70,7 +77,7 @@ public static class SuggestedTagsTuning
     /// <param name="demosWithHandTags">How many demos <paramref name="handTagsByCode" /> was drawn from.</param>
     public static TuningReport Build(
         IReadOnlyList<ProposalEntry> entries,
-        IReadOnlyDictionary<string, IReadOnlyList<TagProposal>> proposalsByDetector,
+        IReadOnlyDictionary<string, IReadOnlyList<FiredProposal>> proposalsByDetector,
         IReadOnlyDictionary<string, IReadOnlyList<HandTagWindow>> handTagsByCode,
         int demosWithVerdicts,
         int demosWithHandTags)
@@ -84,7 +91,7 @@ public static class SuggestedTagsTuning
         foreach (IProposalDetector detector in ProposalDetection.All)
         {
             VerdictCounts c = counts.GetValueOrDefault(detector.Id);
-            IReadOnlyList<TagProposal> fired = proposalsByDetector.GetValueOrDefault(detector.Id, []);
+            IReadOnlyList<FiredProposal> fired = proposalsByDetector.GetValueOrDefault(detector.Id, []);
             IReadOnlyList<HandTagWindow> hand = handTagsByCode.GetValueOrDefault(detector.Code, []);
             (double? recall, double? precision) = Score(fired, hand);
             rows.Add(new DetectorTuningRow(detector.Id, c.Made, c.Accepted, c.Edited, c.Rejected, c.Pending,
@@ -121,14 +128,15 @@ public static class SuggestedTagsTuning
 
     /// <summary>
     ///     Recall (matched hand tags / all hand tags) and precision (matched proposals / all fired), or
-    ///     null for either side with nothing to divide by. A hand tag and a proposal match on the same
-    ///     round and an overlap of at least <see cref="OverlapFraction" /> of the shorter window; the
-    ///     pairing is greedy by overlap size, largest first, each side used at most once.
+    ///     null for either side with nothing to divide by. A hand tag and a proposal match in the same
+    ///     demo and round, on the same site when the proposal names one (<see cref="SiteOf" />), and with
+    ///     an overlap of at least <see cref="OverlapFraction" /> of the shorter window; the pairing is
+    ///     greedy by overlap size, largest first, each side used at most once.
     /// </summary>
     /// <param name="fired">The detector's proposals across the scored demos.</param>
     /// <param name="hand">The hand-tagged windows of the same code across the same demos.</param>
     public static (double? Recall, double? Precision) Score(
-        IReadOnlyList<TagProposal> fired, IReadOnlyList<HandTagWindow> hand)
+        IReadOnlyList<FiredProposal> fired, IReadOnlyList<HandTagWindow> hand)
     {
         ArgumentNullException.ThrowIfNull(fired);
         ArgumentNullException.ThrowIfNull(hand);
@@ -142,15 +150,21 @@ public static class SuggestedTagsTuning
         List<(int Fired, int Hand, int Overlap)> candidates = [];
         for (int f = 0; f < fired.Count; f++)
         {
+            TagProposal p = fired[f].Proposal;
+            string? site = SiteOf(p);
             for (int h = 0; h < hand.Count; h++)
             {
-                if (fired[f].Round != hand[h].Round)
+                // The same round number in two demos is two different rounds, so the demo key is part
+                // of the match; a site-less code (default, opener) has nothing to compare there.
+                if (!string.Equals(fired[f].Demo, hand[h].Demo, StringComparison.Ordinal)
+                    || p.Round != hand[h].Round
+                    || (site is not null && !string.Equals(site, hand[h].Site, StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }
 
-                int overlap = Overlap(fired[f].FromTick, fired[f].ToTick, hand[h].FromTick, hand[h].ToTick);
-                int shorter = Math.Min(fired[f].ToTick - fired[f].FromTick, hand[h].ToTick - hand[h].FromTick);
+                int overlap = Overlap(p.FromTick, p.ToTick, hand[h].FromTick, hand[h].ToTick);
+                int shorter = Math.Min(p.ToTick - p.FromTick, hand[h].ToTick - hand[h].FromTick);
                 if (shorter > 0 && overlap >= shorter * OverlapFraction)
                 {
                     candidates.Add((f, h, overlap));
@@ -176,6 +190,20 @@ public static class SuggestedTagsTuning
         double recall = (double)matched / hand.Count;
         double? precision = fired.Count == 0 ? null : (double)matched / fired.Count;
         return (recall, precision);
+    }
+
+    /// <summary>
+    ///     The site a proposal claims, for the §7.3 item 3 "code and site agree" check: the <c>site</c>
+    ///     label (execute, retake), or for a fake the site being faked (<c>fake</c>; <c>real</c> is the
+    ///     execute's, which carries its own proposal). Null for the codes that name no site.
+    /// </summary>
+    /// <param name="proposal">The proposal.</param>
+    public static string? SiteOf(TagProposal proposal)
+    {
+        ArgumentNullException.ThrowIfNull(proposal);
+        return proposal.Labels.TryGetValue("site", out string? site) && site.Length > 0 ? site
+            : proposal.Labels.TryGetValue("fake", out string? fake) && fake.Length > 0 ? fake
+            : null;
     }
 
     private static int Overlap(int aFrom, int aTo, int bFrom, int bTo) =>
