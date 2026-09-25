@@ -164,6 +164,9 @@ internal sealed class FakeToolServices : IToolServices
 
     public void RequestTextEdit(Guid elementId) => TextEditRequests.Add(elementId);
 
+    /// <summary>The token editor the token tool drives; null, as on the 2D Playback tab, until a test sets it.</summary>
+    public ITokenEditor? Tokens { get; set; }
+
     public void RequestRender() => RenderRequests++;
 
     /// <summary>Advances the authoring clock and returns the new reading.</summary>
