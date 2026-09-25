@@ -16,19 +16,15 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Suggested Tags against the four Valve matchmaking replays the design measured (suggested-tags.md
-///     §7.2, §10), read in place from the <c>DEMO_PATH</c> folder; the tour sample is never used. Rows
-///     come from <see cref="SuggestedTagsRealDemoRows" /> until CS2DemoKit #54 lets the engine write
-///     them, so what runs today is the recapture of the pinned rounds, the walk agreeing with the
-///     index on a real demo, and the survey over every round; the same checks over the engine's own
-///     rows are written and skipped with that reason.
+///     §7.2, §10), read in place from the <c>DEMO_PATH</c> folder; the tour sample is never used. The
+///     pinned-round recapture, the walk-versus-index agreement and the every-round survey run against
+///     <see cref="SuggestedTagsRealDemoRows" />'s synthesised rows; two more tests run the same fold
+///     and index paths over the engine's own Round Facts rows.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class SuggestedTagsRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: occupancy joins windows, sides and alive against Round Facts rows, and the engine row source writes none yet";
-
     /// <summary>
     ///     The measured demos and the round pinned from each (one per map, §10), chosen so the four
     ///     together fire all five detectors: de_inferno 11 is an execute at B after a two-player fake at A
@@ -77,6 +73,29 @@ public class SuggestedTagsRealDemoTests
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         List<PositionSample> samples = [.. PositionSampler.Walk(parsed, RoundOccupancyBuilder.FrameStride)];
         RoundFactsRows rows = SuggestedTagsRealDemoRows.Synthesize(parsed, samples);
+        OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, rows, samples: samples);
+        SiteRegionTable table = SiteRegionLearner.Learn(parsed.MapName, [build.Rounds]);
+        List<PlacedEvent> events = new DetonationPlaceResolver(null, null, build.Cloud).Place(DetonationEvents.From(parsed));
+        return new Walked(parsed, rows, samples, build, table, events);
+    }
+
+    // Same walk, but the rows come from the shipped engine ruleset rather than the demo's own kill
+    // timeline. Used by the two tests that check the engine rows against the walk and the index.
+    private static Walked WalkFromEngineRows(string demo)
+    {
+        string path = Path.Combine(ReplaysFolder(), demo);
+        if (!File.Exists(path))
+        {
+            throw new SkipTestException($"{demo} is not in the replays folder");
+        }
+
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        DemoCacheStore store = new(null);
+        RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
+        facts.OnParsedOpportunistically(path, parsed);
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("the evaluator wrote no rows");
+
+        List<PositionSample> samples = [.. PositionSampler.Walk(parsed, RoundOccupancyBuilder.FrameStride)];
         OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, rows, samples: samples);
         SiteRegionTable table = SiteRegionLearner.Learn(parsed.MapName, [build.Rounds]);
         List<PlacedEvent> events = new DetonationPlaceResolver(null, null, build.Cloud).Place(DetonationEvents.From(parsed));
@@ -206,33 +225,54 @@ public class SuggestedTagsRealDemoTests
         }
     }
 
+    /// <summary>
+    ///     The engine's rows replace the demo's own synthesised ones for the round pinned from
+    ///     de_nuke (§10): the fold, the placed detonations and the detectors' proposals must still equal
+    ///     the committed fixture, the same property <see cref="ThePinnedRound_RecapturesToTheCommittedFixture" />
+    ///     checks over the synthesised rows.
+    /// </summary>
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task OverTheEngineRows_ThePinnedRounds_MatchTheCommittedFolds()
     {
-        // Written against the record: the engine's rows replace the synthesised ones, and the pinned
-        // rounds' folds must still equal the fixtures (the sides and kills are the same facts; only
-        // EndTick moves to the win-status transition, seven seconds earlier, which shortens the fold).
-        (string map, string demo, _) = Pinned[0];
-        string path = Path.Combine(ReplaysFolder(), demo);
-        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
-        DemoCacheStore store = new(null);
-        RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
+        (string map, string demo, int number) = Pinned[0];
+        string repo = DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("repo root not found");
+        string file = Path.Combine(SuggestedTagsGolden.FixtureDirectory(repo), $"{map}.json");
+        if (!File.Exists(file))
+        {
+            throw new SkipTestException($"missing {file}; capture it with ST_GOLDEN_UPDATE=1");
+        }
 
-        OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, rows);
-        await Assert.That(build.Rounds.Count).IsGreaterThan(0).Because(map);
+        Walked walked = WalkFromEngineRows(demo);
+        RoundOccupancy round = walked.Build.Rounds.Single(r => r.Round == number);
+        SuggestedTagsGolden golden = SuggestedTagsGolden.Capture(demo, map, walked.Parsed.TickRate, walked.Table, round,
+            walked.Events);
+        golden.Proposals = golden.Detect();
+
+        await Assert.That(golden.Serialize()).IsEqualTo(File.ReadAllText(file).Replace("\r\n", "\n", StringComparison.Ordinal))
+            .Because("the sides and kills are the same facts under either row source");
     }
 
+    /// <summary>
+    ///     With the engine's rows behind the index evaluator too, the index source must feed the per-side
+    ///     detectors the same proposals as the walk does, on the de_inferno replay §10 pins.
+    /// </summary>
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task OverTheEngineRows_TheIndexSource_FeedsTheSameProposalsAsTheWalk()
     {
-        // With real rows the index evaluator writes the .dvri.json the service will prefer; the per-side
-        // detectors must propose the same executes, defaults and fakes from it as from the walk.
-        string path = Path.Combine(ReplaysFolder(), Pinned[1].Demo);
-        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
-        await Assert.That(parsed.Frames.Count).IsGreaterThan(0);
+        (string map, string demo, _) = Pinned[1];
+        Walked walked = WalkFromEngineRows(demo);
+        RoundIndexDocument index = RoundIndexBuilder.Build(walked.Parsed, walked.Rows, RoundIndexOptions.Default,
+            PawnPlaceSource.Instance);
+        IReadOnlyList<RoundOccupancy> fromIndex = RoundOccupancyBuilder.FromIndex(index, walked.Rows, walked.Parsed.TickRate);
+
+        SiteRegions regions = SiteRegions.Compose(map, null, walked.Table, DetectorProfile.Default);
+        IReadOnlyList<TagProposal> fromWalk = ProposalDetection.Detect(map, walked.Parsed.TickRate, regions, walked.Events,
+            walked.Build.Rounds, DetectorProfile.Default);
+        IReadOnlyList<TagProposal> fromIndexed = ProposalDetection.Detect(map, walked.Parsed.TickRate, regions, walked.Events,
+            fromIndex, DetectorProfile.Default);
+
+        string Key(TagProposal p) => $"{p.Round}:{p.Detector}:{string.Join(',', p.Labels.Select(l => $"{l.Key}={l.Value}"))}";
+        await Assert.That(fromIndexed.Select(Key).OrderBy(k => k, StringComparer.Ordinal))
+            .IsEquivalentTo(fromWalk.Select(Key).OrderBy(k => k, StringComparer.Ordinal));
     }
 }

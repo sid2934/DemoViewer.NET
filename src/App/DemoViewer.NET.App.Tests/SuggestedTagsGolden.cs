@@ -42,7 +42,8 @@ internal sealed class SuggestedTagsGolden
     public string Note { get; set; } =
         "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, " +
         "gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. " +
-        "Rows are synthesised from the demo's own events until CS2DemoKit #54 ships Round Facts rows. Recapture with ST_GOLDEN_UPDATE=1.";
+        "Rows are synthesised from the demo's own events on purpose, so the fixture is pinned to them; a real-demo test " +
+        "recaptures the same round from the engine's own Round Facts rows and holds it to this same file. Recapture with ST_GOLDEN_UPDATE=1.";
 
     public string Demo { get; set; } = "";
 
@@ -210,10 +211,11 @@ internal sealed class SuggestedTagsGolden
 }
 
 /// <summary>
-///     Round Facts rows for a real replay, synthesised in the test from the demo's own events, because
-///     the engine row source writes none until CS2DemoKit #54 ships (the same stand-in
-///     <c>RoundIndexRealDemoTests</c> uses, carried further: this one also needs kills, per-round sides
-///     and the plant for the goldens to mean anything). Windows are the clip rounds ended at
+///     Round Facts rows for a real replay, synthesised in the test from the demo's own events (the same
+///     stand-in <c>RoundIndexRealDemoTests</c> uses, carried further: this one also needs kills,
+///     per-round sides and the plant for the goldens to mean anything). The committed fixtures are
+///     pinned against these rows on purpose, so a later engine-rows recapture is a separate test rather
+///     than a replacement of this one. Windows are the clip rounds ended at
 ///     <c>round_officially_ended</c>; sides follow <c>player_team</c> with the <c>OldTeam</c> rule for
 ///     the first half GOTV never announces; kills are <c>player_death</c>; the plant site is the planter's
 ///     place at the plant, which matched the site on 58 of 58 plants in the design's measurement.

@@ -17,18 +17,13 @@ namespace DemoViewer.NET.AppTests;
 ///     The tolerance slider over a real Valve matchmaking demo's index: a query placed from a run the
 ///     demo stored counts at least that demo's round at Exact, and the live count never falls as the
 ///     slider loosens through the empirical graph the one demo folds. The index joins alive and side
-///     against Round Facts rows, and the engine row source writes none until CS2DemoKit #54, so the
-///     test is written against the record and skipped with that reason.
+///     against the production Round Facts rows.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class ToleranceSliderRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the index joins alive and side against Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task ARunTheDemoStored_CountsMonotonically_AsTheSliderLoosens()
     {
         string path = DemoTestHelper.RequireDemo();

@@ -17,17 +17,14 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The Matrix over a real Valve matchmaking demo: a tag in every live round, stamped with its round's
 ///     facts by the production refresher, pivoted code by the T side's buy, and a cell's clips queued
-///     against the library path. The facts need rows, and rows need CS2DemoKit #54 (see
-///     <see cref="RoundFactsRealDemoTests" />), so it is skipped with that reason until the pin bumps.
+///     against the library path. The facts come from the shipped engine ruleset (see
+///     <see cref="RoundFactsRealDemoTests" />).
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class TagMatrixRealDemoTests
 {
-    private const string WaitingOnEngine = "waiting on CS2DemoKit #54";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task TheRealDemosTaggedRounds_PivotOnTheParsersBuy_AndACellQueuesItsClips()
     {
         string path = DemoTestHelper.RequireDemo();

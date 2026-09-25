@@ -1,10 +1,14 @@
 #region
 
+using CS2DemoKit.Analysis.Clips;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Situations;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
@@ -24,9 +28,6 @@ public class OverlayViewTests
 {
     private const string DemoA = "/d/a.dem";
     private const string DemoB = "/d/b.dem";
-
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: a real demo's hits need Round Facts rows for the index that yields them, and the engine row source writes none yet";
 
     private static SituationHit Hit(string path, int round, int freezeEnd, int first, int last) =>
         new(path, DemoCacheStore.StableKey(path), null, "de_nuke", round, freezeEnd, first, last, (last - first) / 64 + 1);
@@ -224,10 +225,73 @@ public class OverlayViewTests
         await Assert.That(watch.Elapsed).IsLessThan(TimeSpan.FromSeconds(2));
     }
 
+    /// <summary>
+    ///     Overlay all N against a real Valve matchmaking demo: one hit per live round spanning its
+    ///     whole sampled window, stacked from the production positions file the round-index evaluator
+    ///     wrote. No fixture; the round-index build and the overlay walk are both the shipped code.
+    /// </summary>
     [Test]
     [Category("RealDemo")]
-    [Skip(WaitingOnEngine)]
-    public Task OverlayAll_OverTheRealReplays_StacksEveryHitsSteps() => Task.CompletedTask;
+    [NotInParallel]
+    public async Task OverlayAll_OverTheRealReplays_StacksEveryHitsSteps()
+    {
+        string path = DemoTestHelper.RequireDemo();
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        if (ClipRounds.Derive(parsed).Count == 0)
+        {
+            throw new SkipTestException("demo carries no rounds");
+        }
+
+        DemoCacheStore store = new(null);
+        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = path,
+            Map = parsed.MapName,
+            Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
+        });
+        RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
+        facts.OnParsedOpportunistically(path, parsed);
+        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
+        evaluator.OnParsedOpportunistically(path, parsed);
+
+        RoundPositionsDocument positions = sidecars.TryReadPositions(path, sources.FingerprintFor(parsed.MapName!))
+            ?? throw new InvalidOperationException("the evaluator wrote no positions");
+
+        // One hit per round, spanning every step the walk actually sampled.
+        List<SituationHit> hits = [];
+        foreach (RoundPositionsRound round in positions.Rounds)
+        {
+            int first = round.Pos.FindIndex(p => p.Count > 0);
+            int last = round.Pos.FindLastIndex(p => p.Count > 0);
+            if (first < 0)
+            {
+                continue;
+            }
+
+            int firstTick = round.FreezeEndTick + first * positions.CadenceTicks;
+            int lastTick = round.FreezeEndTick + last * positions.CadenceTicks;
+            hits.Add(new SituationHit(path, DemoCacheStore.StableKey(path), null, parsed.MapName ?? "", round.Number,
+                round.FreezeEndTick, firstTick, lastTick, last - first + 1));
+        }
+
+        await Assert.That(hits.Count).IsGreaterThan(0).Because("a real demo has at least one live round with sampled steps");
+
+        using Harness h = new(store, sidecars, sources);
+        h.Vm.Load(hits);
+        await h.Vm.BatchTask;
+        h.Vm.OverlayAllCommand.Execute(null);
+        await h.Vm.OverlayTask;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.Vm.IsOverlayShown).IsTrue();
+            await Assert.That(h.Vm.Overlay.Count).IsGreaterThan(0);
+            await Assert.That(h.Vm.Overlay.StateCount).IsGreaterThan(0);
+            await Assert.That(h.Vm.OverlayLine).StartsWith($"{hits.Count} ");
+        }
+    }
 
     /// <summary>A UI-thread marshal a test can hold back, so a worker's answer can land after the set moved on.</summary>
     private sealed class HeldPost
@@ -261,11 +325,14 @@ public class OverlayViewTests
 
     private sealed class Harness : IDisposable
     {
-        public Harness()
+        private readonly bool _ownsSidecars;
+
+        public Harness(DemoCacheStore? cache = null, RoundIndexStore? sidecars = null, RoundIndexPlaceSources? sources = null)
         {
-            Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
-            Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
+            Cache = cache ?? new DemoCacheStore(null);
+            _ownsSidecars = sidecars is null;
+            Sidecars = sidecars ?? new RoundIndexStore(null, Cache);
+            Sources = sources ?? new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Vm = new ResultCardsViewModel(Cache, Sidecars, Sources, () => null, new SituationThumbnailCache(),
                 () => new SituationThumbnailRenderer(_ => null), Post.Run, _ => null, Canvas);
         }
@@ -277,6 +344,12 @@ public class OverlayViewTests
         public OverlayDocument Canvas { get; } = new();
         public HeldPost Post { get; } = new();
 
-        public void Dispose() => Sidecars.Dispose();
+        public void Dispose()
+        {
+            if (_ownsSidecars)
+            {
+                Sidecars.Dispose();
+            }
+        }
     }
 }

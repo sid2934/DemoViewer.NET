@@ -16,18 +16,15 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The Strat Record Panel's won/lost rule on a real Valve matchmaking demo: every live round tagged as a run of
 ///     a T-side strat, the facts refreshed from the production Round Facts evaluator, and each run's outcome read
-///     from the round's <c>winner</c> rather than the human label. It needs rows, and rows need CS2DemoKit #54, so
-///     it is skipped with that reason until the pin bumps; the synthetic variant is in
+///     from the round's <c>winner</c> rather than the human label. The rows come from the production Round
+///     Facts evaluator over the shipped engine ruleset; the synthetic variant is in
 ///     <see cref="StratEvidenceTests" />.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class StratEvidenceRealDemoTests
 {
-    private const string WaitingOnEngine = "waiting on CS2DemoKit #54";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task EveryTaggedRound_IsWonOrLost_ByTheRoundsWinner()
     {
         string path = DemoTestHelper.RequireDemo();

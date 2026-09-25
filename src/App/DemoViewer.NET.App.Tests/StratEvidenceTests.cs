@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 ///     three tag documents: run, won, lost, aborted and unknown counts; the <c>winner</c> fact beating the human
 ///     <c>outcome</c> label; the provenance and revision splits; the failure breakdown counting a repeated value
 ///     once; and the caution flag at seven runs and not at eight. The <c>winner</c> fact comes from Round Facts
-///     rows, which real demos lack until CS2DemoKit #54, so the facts here are synthetic and the real-demo variant
+///     rows; the facts here are synthetic for speed and isolation, and the real-demo variant
 ///     is <see cref="StratEvidenceRealDemoTests" />.
 /// </summary>
 public class StratEvidenceTests

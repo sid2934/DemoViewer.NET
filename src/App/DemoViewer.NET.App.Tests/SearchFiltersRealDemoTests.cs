@@ -15,19 +15,13 @@ namespace DemoViewer.NET.AppTests;
 ///     Search Filters And Live Count against a real Valve matchmaking demo: a fact filter narrows the
 ///     index's hits, and the count equals the result set and the live counter's answer, the way
 ///     round-index.md §3.11 asks for it "on a fixture and on a real demo". The filter reads Round Facts
-///     rows, which need the engine surfaces filed as CS2DemoKit #54; until that release is pinned the
-///     engine row source writes nothing, so the test is skipped with that reason rather than asserting
-///     against an empty join. The body is written against the production evaluators.
+///     rows through the production evaluators, joined against the shipped engine ruleset.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
 public class SearchFiltersRealDemoTests
 {
-    private const string WaitingOnEngine =
-        "waiting on CS2DemoKit #54: the fact filters join Round Facts rows, and the engine row source writes none yet";
-
     [Test]
-    [Skip(WaitingOnEngine)]
     public async Task AFactFilter_NarrowsTheRealHits_AndTheCountEqualsTheResultSet()
     {
         string path = DemoTestHelper.RequireDemo();
