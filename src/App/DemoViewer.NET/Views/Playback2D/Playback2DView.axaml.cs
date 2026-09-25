@@ -132,6 +132,7 @@ public partial class Playback2DView : UserControl
             _boundViewModel.Annotations.ToolSelected -= OnToolSelected;
             _boundViewModel.LevelStrip.Bind(null);
             _boundViewModel.LiveCameraSource = null;
+            _boundViewModel.CaptureLevelsSource = null;
         }
 
         _boundViewModel = DataContext as Playback2DTabViewModel;
@@ -163,6 +164,11 @@ public partial class Playback2DView : UserControl
             // dialog falls back to the per-level fit.
             _boundViewModel.LiveCameraSource =
                 _surface is Scene2DHost cameraHost ? cameraHost.CaptureCameraScript : null;
+
+            // Create Strat From Round keys a pawn's level on the panes this surface draws, for the same
+            // reason: only the View knows which surface is mounted.
+            _boundViewModel.CaptureLevelsSource =
+                _surface is Scene2DHost levelHost ? () => levelHost.Levels.Levels : null;
 
             // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
             // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The
