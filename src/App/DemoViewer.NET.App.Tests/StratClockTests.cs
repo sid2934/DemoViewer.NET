@@ -89,4 +89,31 @@ public class StratClockTests
             await Assert.That(StratClock.RoundSecondsFor(null, null)).IsEqualTo(115);
         }
     }
+
+    [Test]
+    public async Task TryParse_ReadsWhatTheStepTableAccepts()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratClock.TryParse("1:15", out double a) && a == 75).IsTrue();
+            await Assert.That(StratClock.TryParse(" 1:15.5 ", out double b) && b == 75.5).IsTrue();
+            await Assert.That(StratClock.TryParse("+0:05", out double c) && c == -5).IsTrue().Because("after the timer stopped");
+            await Assert.That(StratClock.TryParse("90", out double d) && d == 90).IsTrue();
+            await Assert.That(StratClock.TryParse("1:60", out _)).IsFalse();
+            await Assert.That(StratClock.TryParse("soon", out _)).IsFalse();
+            await Assert.That(StratClock.TryParse("", out _)).IsFalse();
+            await Assert.That(StratClock.TryParse(null, out _)).IsFalse();
+        }
+    }
+
+    [Test]
+    [Arguments(75.0)]
+    [Arguments(75.5)]
+    [Arguments(-5.0)]
+    [Arguments(0.0)]
+    public async Task TryParse_InvertsFormat(double atSeconds)
+    {
+        await Assert.That(StratClock.TryParse(StratClock.Format(atSeconds), out double parsed)).IsTrue();
+        await Assert.That(parsed).IsEqualTo(atSeconds);
+    }
 }

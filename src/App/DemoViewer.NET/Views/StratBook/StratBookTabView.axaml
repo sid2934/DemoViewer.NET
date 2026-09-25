@@ -1,0 +1,316 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
+             x:Class="DemoViewer.NET.Views.StratBook.StratBookTabView"
+             x:DataType="vm:StratBookTabViewModel">
+
+    <!--
+      THE STRAT BOOK TAB: the book selector (me plus every Team Identity team, us first), the map and side
+      filters and the strat list on the left; the open strat's editor on the right: metadata, the five slots,
+      the step table on the round clock and the branches, with the session's status line, save, undo and redo.
+
+      Text fields write on focus loss, so one field edit is one undo entry. Ctrl+Z and Ctrl+Shift+Z undo and
+      redo the strat while the tab has focus.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
+    </UserControl.KeyBindings>
+
+    <DockPanel Margin="16">
+
+        <!-- The book, the filters, and the browser note. -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{x:Static vm:StratBookTabViewModel.BrowserNote}" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+                <WrapPanel Orientation="Horizontal">
+                    <TextBlock Text="Book" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                    <ComboBox ItemsSource="{Binding Owners}" SelectedItem="{Binding SelectedOwner}"
+                              FontSize="12" MinWidth="180" Margin="0 0 16 4">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StratOwnerOption">
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="Map" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                    <ComboBox ItemsSource="{Binding MapOptions}" SelectedItem="{Binding SelectedMap}"
+                              FontSize="12" MinWidth="130" Margin="0 0 16 4" />
+                    <TextBlock Text="Side" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                    <ComboBox ItemsSource="{x:Static vm:StratBookTabViewModel.SideOptions}" SelectedItem="{Binding SelectedSide}"
+                              FontSize="12" MinWidth="100" Margin="0 0 16 4" />
+                    <Button Content="New strat" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                            Command="{Binding NewStratCommand}"
+                            ToolTip.Tip="A new strat in this book on the chosen map and side" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="280,12,*">
+
+            <!-- The strat list. -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Strats" Classes="col-label"
+                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" Margin="0 0 0 8" />
+                    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0 8 0 0">
+                        <TextBlock Text="{Binding ListLine}" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMid}" />
+                        <Button Content="Delete" Classes="ghost" FontSize="11" Padding="10 5"
+                                Command="{Binding DeleteStratCommand}"
+                                ToolTip.Tip="Moves the strat and its history to the book's .trash folder" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
+                             IsVisible="{Binding HasStrats}" Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StratListRow">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- The editor. -->
+            <Border Grid.Column="2"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 8">
+                        <TextBlock Grid.Column="0" Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasOpenStrat}">
+                            <Button Content="Undo" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Ctrl+Z" />
+                            <Button Content="Redo" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip.Tip="Ctrl+Shift+Z" />
+                            <Button Content="Save" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding SaveCommand}" IsEnabled="{Binding HasPending}"
+                                    ToolTip.Tip="Commit the edits as one history entry" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock DockPanel.Dock="Top" Text="select or create a strat" FontSize="11"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
+
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" IsVisible="{Binding HasDocument}"
+                                  DataContext="{Binding Editor}" x:DataType="vm:StratEditorViewModel">
+                        <StackPanel Spacing="10">
+
+                            <!-- Metadata. -->
+                            <Grid ColumnDefinitions="Auto,*,16,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="8" RowSpacing="6">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Name" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="4" FontSize="12"
+                                         Text="{Binding Name, UpdateSourceTrigger=LostFocus}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Map" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Map}" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Row="1" Grid.Column="3" Text="Clock" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding ClockLine}" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Side" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" FontSize="12" MinWidth="120"
+                                          ItemsSource="{x:Static vm:StratEditorViewModel.Sides}" SelectedItem="{Binding Side}" />
+                                <TextBlock Grid.Row="2" Grid.Column="3" Text="Type" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <ComboBox Grid.Row="2" Grid.Column="4" FontSize="12" MinWidth="120"
+                                          ItemsSource="{x:Static vm:StratEditorViewModel.Types}" SelectedItem="{Binding Type}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Target site" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <ComboBox Grid.Row="3" Grid.Column="1" FontSize="12" MinWidth="120"
+                                          ItemsSource="{x:Static vm:StratEditorViewModel.TargetSites}" SelectedItem="{Binding TargetSite}" />
+                                <TextBlock Grid.Row="3" Grid.Column="3" Text="Status" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <ComboBox Grid.Row="3" Grid.Column="4" FontSize="12" MinWidth="120"
+                                          ItemsSource="{x:Static vm:StratEditorViewModel.Statuses}" SelectedItem="{Binding Status}" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Economy" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <ComboBox Grid.Row="4" Grid.Column="1" FontSize="12" MinWidth="120"
+                                          ItemsSource="{x:Static vm:StratEditorViewModel.Economies}" SelectedItem="{Binding Economy}" />
+                                <TextBlock Grid.Row="4" Grid.Column="3" Text="Tempo" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <ComboBox Grid.Row="4" Grid.Column="4" FontSize="12" MinWidth="120"
+                                          ItemsSource="{x:Static vm:StratEditorViewModel.Tempos}" SelectedItem="{Binding Tempo}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Trigger" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBox Grid.Row="5" Grid.Column="1" FontSize="12" Watermark="on call at 1:15"
+                                         Text="{Binding TriggerText, UpdateSourceTrigger=LostFocus}" />
+                                <TextBlock Grid.Row="5" Grid.Column="3" Text="Tags" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBox Grid.Row="5" Grid.Column="4" FontSize="12" Watermark="comma separated"
+                                         Text="{Binding TagsText, UpdateSourceTrigger=LostFocus}" />
+                            </Grid>
+                            <TextBox Text="{Binding Notes, UpdateSourceTrigger=LostFocus}" FontSize="12" Watermark="notes"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48" />
+
+                            <!-- Slots. -->
+                            <TextBlock Text="Slots" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                            <ItemsControl ItemsSource="{Binding Slots}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratSlotRow">
+                                        <Grid ColumnDefinitions="60,160,Auto,200" ColumnSpacing="8" Margin="0 0 0 4">
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextValue}" />
+                                            <TextBox Grid.Column="1" FontSize="12" Watermark="role"
+                                                     Text="{Binding Role, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Grid.Column="2" Text="pinned to" FontSize="11" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextMid}" />
+                                            <ComboBox Grid.Column="3" FontSize="12" MinWidth="180"
+                                                      ItemsSource="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).PinOptions}"
+                                                      SelectedItem="{Binding Pin}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratPinOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Steps. -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Steps (round clock remaining, m:ss; +m:ss after the timer stopped)" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Add step" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding AddStepCommand}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="28,64,64,84,130,130,90,120,*,Auto" ColumnSpacing="6">
+                                <TextBlock Grid.Column="0" Text="#" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="1" Text="at" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="2" Text="actor" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="3" Text="verb" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="4" Text="from" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="5" Text="to" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="6" Text="utility" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="7" Text="lands at" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="8" Text="note" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Steps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratStepRow">
+                                        <Grid ColumnDefinitions="28,64,64,84,130,130,90,120,*,Auto" ColumnSpacing="6" Margin="0 0 0 4">
+                                            <TextBlock Grid.Column="0" Text="{Binding Number}" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextMid}" />
+                                            <TextBox Grid.Column="1" FontSize="12" Text="{Binding TimeText, UpdateSourceTrigger=LostFocus}" />
+                                            <ComboBox Grid.Column="2" FontSize="12" HorizontalAlignment="Stretch"
+                                                      ItemsSource="{x:Static vm:StratEditorViewModel.Actors}" SelectedItem="{Binding Actor}" />
+                                            <ComboBox Grid.Column="3" FontSize="12" HorizontalAlignment="Stretch"
+                                                      ItemsSource="{x:Static vm:StratEditorViewModel.Verbs}" SelectedItem="{Binding Verb}" />
+                                            <TextBox Grid.Column="4" FontSize="12" Watermark="place or callout"
+                                                     Text="{Binding FromText, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBox Grid.Column="5" FontSize="12" Watermark="place or callout"
+                                                     Text="{Binding ToText, UpdateSourceTrigger=LostFocus}" />
+                                            <ComboBox Grid.Column="6" FontSize="12" HorizontalAlignment="Stretch"
+                                                      ItemsSource="{x:Static vm:StratEditorViewModel.UtilityKinds}" SelectedItem="{Binding UtilityKind}" />
+                                            <TextBox Grid.Column="7" FontSize="12" Watermark="landing place" IsEnabled="{Binding HasUtility}"
+                                                     Text="{Binding LandingText, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBox Grid.Column="8" FontSize="12" Watermark="note"
+                                                     Text="{Binding Note, UpdateSourceTrigger=LostFocus}" />
+                                            <StackPanel Grid.Column="9" Orientation="Horizontal" Spacing="4">
+                                                <Button Content="↑" Classes="ghost" FontSize="11" Padding="6 3" ToolTip.Tip="Move up"
+                                                        Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepUpCommand}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Content="↓" Classes="ghost" FontSize="11" Padding="6 3" ToolTip.Tip="Move down"
+                                                        Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepDownCommand}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Content="Remove" Classes="ghost" FontSize="11" Padding="8 3"
+                                                        ToolTip.Tip="Removes the step and every branch that names it"
+                                                        Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).RemoveStepCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Branches. -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Branches" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Add branch" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding AddBranchCommand}"
+                                        ToolTip.Tip="After a step, if a condition holds, continue in this strat or another" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Branches}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratBranchRow">
+                                        <WrapPanel Orientation="Horizontal" Margin="0 0 0 6">
+                                            <TextBlock Text="after" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <ComboBox FontSize="12" MinWidth="150" Margin="0 0 8 4"
+                                                      ItemsSource="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).StepOptions}"
+                                                      SelectedItem="{Binding AfterStep}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratStepOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="if" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <TextBox FontSize="12" MinWidth="200" Margin="0 0 8 4" Watermark="contact at Connector before 1:05"
+                                                     Text="{Binding ConditionText, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Text="continue in" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <ComboBox FontSize="12" MinWidth="150" Margin="0 0 8 4"
+                                                      ItemsSource="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).TargetStrats}"
+                                                      SelectedItem="{Binding TargetStrat}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratTargetOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="at" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <ComboBox FontSize="12" MinWidth="150" Margin="0 0 8 4"
+                                                      ItemsSource="{Binding TargetStepOptions}" SelectedItem="{Binding TargetStep}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratStepOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBox FontSize="12" MinWidth="140" Margin="0 0 8 4" Watermark="note"
+                                                     Text="{Binding Note, UpdateSourceTrigger=LostFocus}" />
+                                            <Button Content="Remove" Classes="ghost" FontSize="11" Padding="8 3" Margin="0 0 0 4"
+                                                    Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).RemoveBranchCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </WrapPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- What the validator says. -->
+                            <StackPanel Spacing="2" IsVisible="{Binding HasIssues}">
+                                <TextBlock Text="Checks" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <ItemsControl ItemsSource="{Binding Issues}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+
+</UserControl>

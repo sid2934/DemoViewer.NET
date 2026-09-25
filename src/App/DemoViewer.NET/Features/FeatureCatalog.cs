@@ -96,6 +96,14 @@ public static class FeatureCatalog
             "Tag stretches of a round with your own codes and labels, then pivot them across every demo "
             + "in the Matrix.",
             null, null, false, Defaults(true, true, true)),
+        // The Strat Book tab: strats per book (a team or you) on the round clock, with slots, steps and
+        // branches. Default-visible like the Matrix, and on both hosts: the browser keeps strats for the
+        // session and says so. Only the id is a persisted key; the label is display text.
+        new(
+            "tab.stratbook", FeatureScope.Tab, "Strat Book",
+            "Write your team's strats on the round clock: five slots, the steps each one takes, and the "
+            + "branches when the plan changes.",
+            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",
