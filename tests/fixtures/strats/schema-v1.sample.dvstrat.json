@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "id": "6f1c0d2e-3a4b-4c5d-8e9f-a0b1c2d3e4f5",
+  "owner": {
+    "kind": "team",
+    "teamId": "3f2a9c1e-5b7d-4e2f-8a61-0c9d4b3e2f10"
+  },
+  "name": "A exec, double smoke",
+  "map": "de_mirage",
+  "side": "T",
+  "type": "execute",
+  "targetSite": "A",
+  "economy": "full",
+  "tempo": "slow",
+  "trigger": {
+    "text": "on call at 1:15",
+    "kind": "time",
+    "atSeconds": 75
+  },
+  "status": "Active",
+  "revision": 4,
+  "createdUtc": "2026-09-23T14:02:11Z",
+  "modifiedUtc": "2026-09-23T15:40:11Z",
+  "origin": {
+    "demoSha256": "ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12",
+    "round": 7,
+    "fileName": "match730_003842233788306292960_0260929275_408.dem"
+  },
+  "tags": [
+    "default-break",
+    "vs-aggressive-ct"
+  ],
+  "notes": "Stairs smoke first, CT smoke second, then jungle molly.",
+  "clock": {
+    "kind": "round",
+    "roundSeconds": 115
+  },
+  "canvas": {
+    "fadeInTicks": 8,
+    "fadeOutTicks": 16,
+    "showOpponents": true
+  },
+  "slots": [
+    {
+      "slot": "A",
+      "role": "entry"
+    },
+    {
+      "slot": "B",
+      "role": "support"
+    },
+    {
+      "slot": "C",
+      "role": "lurk",
+      "steamId": "76561198000000003"
+    },
+    {
+      "slot": "D",
+      "role": "awp"
+    },
+    {
+      "slot": "E",
+      "role": "igl"
+    }
+  ],
+  "steps": [
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000001",
+      "atSeconds": 90,
+      "actor": "B",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "utility": {
+        "kind": "smoke",
+        "landing": {
+          "place": "Stairs",
+          "x": -1024.5,
+          "y": -1616,
+          "levelMinZ": -256
+        }
+      },
+      "note": "throw on the 1:30 call, not before",
+      "positions": [
+        {
+          "slot": "A",
+          "x": 400,
+          "y": -1800,
+          "levelMinZ": -256,
+          "yawDegrees": 180
+        },
+        {
+          "slot": "B",
+          "x": 420,
+          "y": -1750,
+          "levelMinZ": -256,
+          "futurePosition": 3
+        },
+        {
+          "slot": "O1",
+          "x": -1300,
+          "y": -2100,
+          "levelMinZ": -256
+        }
+      ],
+      "strokes": [
+        {
+          "kind": "arrow",
+          "space": {
+            "kind": "world",
+            "levelMinZ": -256
+          },
+          "points": [
+            [
+              420,
+              -1750
+            ],
+            [
+              -900,
+              -1600
+            ]
+          ],
+          "color": "#FFC107",
+          "width": 3
+        }
+      ],
+      "interpolation": "linear",
+      "futureStep": "kept"
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000002",
+      "atSeconds": 76,
+      "actor": "C",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "utility": {
+        "kind": "molotov",
+        "lineupId": "e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b",
+        "landing": {
+          "place": "Jungle"
+        }
+      },
+      "positions": [
+        {
+          "slot": "C",
+          "x": 380,
+          "y": -1700,
+          "levelMinZ": -256
+        }
+      ],
+      "strokes": [],
+      "holdSeconds": 2.5,
+      "interpolation": "hold"
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000003",
+      "atSeconds": 65,
+      "actor": "A",
+      "verb": "peek",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "Connector"
+      },
+      "positions": [
+        {
+          "slot": "A",
+          "x": -600,
+          "y": -1400,
+          "levelMinZ": -256
+        }
+      ],
+      "strokes": [
+        {
+          "kind": "text",
+          "space": {
+            "kind": "world",
+            "levelMinZ": -256
+          },
+          "points": [
+            [
+              -600,
+              -1400
+            ]
+          ],
+          "text": "swing wide"
+        }
+      ]
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000004",
+      "atSeconds": 60,
+      "actor": "all",
+      "verb": "move",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "positions": [],
+      "strokes": []
+    }
+  ],
+  "branches": [
+    {
+      "id": "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f",
+      "afterStepId": "9a0b0000-0000-4000-8000-000000000002",
+      "condition": {
+        "text": "contact at Connector before 1:05"
+      },
+      "target": {
+        "stratId": "6f1c0d2e-3a4b-4c5d-8e9f-a0b1c2d3e4f5",
+        "stepId": "9a0b0000-0000-4000-8000-000000000004"
+      },
+      "note": "",
+      "futureBranch": false
+    }
+  ],
+  "futureRoot": {
+    "kept": true
+  }
+}

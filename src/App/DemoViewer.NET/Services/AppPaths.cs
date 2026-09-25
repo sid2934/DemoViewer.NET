@@ -165,6 +165,20 @@ public static class AppPaths
     }
 
     /// <summary>
+    ///     The Strat Book's root: <c>&lt;config&gt;/strats/</c>, holding <c>index.json</c> and one folder per book
+    ///     (strat-model.md §3.2). User truth under the config root, never under <c>cache/</c>. A PURE path; the
+    ///     store creates folders on its first write. Null on the browser host, where the store is in-memory.
+    /// </summary>
+    public static string? StratsDir
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "strats");
+        }
+    }
+
+    /// <summary>
     ///     The Round Tagger's store: <c>&lt;config&gt;/tags/</c>, holding <c>index.json</c> and one
     ///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per tagged demo (tag-store.md §3.1). User truth, so under
     ///     the config root beside the cache rather than in it. A PURE path: the store creates directories

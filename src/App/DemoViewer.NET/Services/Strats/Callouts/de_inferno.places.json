@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "map": "de_inferno",
+  "source": "env_cs_place",
+  "names": [
+    "Apartments",
+    "Arch",
+    "BackAlley",
+    "Balcony",
+    "Banana",
+    "BombsiteA",
+    "BombsiteB",
+    "Bridge",
+    "CTSpawn",
+    "Deck",
+    "Kitchen",
+    "Library",
+    "LowerMid",
+    "Middle",
+    "Pit",
+    "Quad",
+    "Ruins",
+    "SecondMid",
+    "TRamp",
+    "TSpawn",
+    "TopofMid",
+    "Underpass",
+    "Upstairs"
+  ]
+}
