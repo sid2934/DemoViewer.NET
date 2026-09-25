@@ -96,7 +96,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     private long _submissionId;
     private TextBlobCache _text;
     private VisionLayer _visionLayer;
-    private Playback2DTabViewModel? _vm;
+    private ISceneFrameHost? _vm;
     private ZoneOutlineLayer? _zoneLayer;
 
     /// <summary>Creates the host and registers the seven scene layers.</summary>
@@ -122,6 +122,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         Router.Register(new ShapeTool(ToolKind.Ellipse));
         Router.Register(_textTool);
 
+        // Inert on the 2D Playback tab, whose frame host has no token editor: a press falls through. It
+        // is registered here rather than by the strat view so a host re-bound between the two never has
+        // a selected tool the router silently turned into pan.
+        Router.Register(new TokenTool());
+
         BuildScene();
     }
 
@@ -130,6 +135,12 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
     /// <summary>The frame currently being shown. Read by the tool services; never retained.</summary>
     internal Scene2DFrame CurrentSceneFrame => _vm?.CurrentFrame ?? Scene2DFrame.Empty;
+
+    /// <summary>
+    ///     What the host is bound to: the 2D Playback tab, the strat canvas, or nothing. Read by the tool
+    ///     services for the token editor; never retained.
+    /// </summary>
+    internal ISceneFrameHost? FrameHost => _vm;
 
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
     internal AnnotationLayer? AnnotationLayerForTest { get; private set; }
@@ -513,7 +524,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
-        AttachVm(DataContext as Playback2DTabViewModel);
+        AttachVm(BoundFrameHost());
     }
 
     /// <inheritdoc />
@@ -530,7 +541,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         RefreshPalette();
         ActualThemeVariantChanged += OnThemeVariantChanged;
-        AttachVm(DataContext as Playback2DTabViewModel);
+        AttachVm(BoundFrameHost());
     }
 
     /// <inheritdoc />
@@ -1002,7 +1013,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         InvalidateVisual();
     }
 
-    private void AttachVm(Playback2DTabViewModel? vm)
+    // The one discovery site. Through DataContext rather than an explicit Bind: the harness sets it on
+    // the window and a re-attach re-reads it, and a second path to the same state would bypass both. A
+    // host placed under a DataContext that is not a frame host (the Strat Book tab's own view-model)
+    // binds nothing, which is why that view assigns the canvas to the host directly.
+    private ISceneFrameHost? BoundFrameHost() => DataContext as ISceneFrameHost;
+
+    private void AttachVm(ISceneFrameHost? vm)
     {
         if (ReferenceEquals(_vm, vm))
         {

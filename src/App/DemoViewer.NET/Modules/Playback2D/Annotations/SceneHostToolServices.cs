@@ -196,10 +196,10 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     /// <inheritdoc />
     public void RequestTextEdit(Guid elementId) => host.RequestTextEdit(elementId);
 
-    // The 2D Playback tab has no tokens, so the token tool falls through here. The strat canvas's
-    // rebind onto an ISceneFrameHost is what gives this a value (step-authoring.md §3.10).
+    // Read through the host at every use rather than captured: a tab activation re-binds the host to a
+    // different frame host, and the 2D Playback tab answers null, so the token tool falls through there.
     /// <inheritdoc />
-    public ITokenEditor? Tokens => null;
+    public ITokenEditor? Tokens => host.FrameHost?.TokenEditor;
 
     /// <inheritdoc />
     public void RequestRender() => host.RequestToolRender();
