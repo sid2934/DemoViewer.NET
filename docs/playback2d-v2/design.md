@@ -674,6 +674,10 @@ Declarative `Playback2DKeymap` (action → gesture table, conflict-checked at re
 future-rebindable), bound on the focusable host: Space play/pause, ←/→ step, ↑/↓ speed, Q/E round
 nav, F follow-cycle, D draw, E erase, A arrow, T text, L line, R rectangle, O ellipse (Shape Tools; each
 pressed again goes back to pan), Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity),
+V token tool, Shift+N add a step, Ctrl+D duplicate the step, Ctrl+Delete delete it and [ / ] previous
+and next step (Step Authoring; the same table drives the Strat Book canvas, where Ctrl+Z / Ctrl+Shift+Z
+walk the strat's one history and Ctrl+X clears the active step's strokes, and the 2D tab leaves these six
+unhandled),
 Ctrl+F find rounds like this (the Strat Room's Situation Search; plan D7 there, since F is taken),
 J/K next and previous situation result (walking the Situations tab's cards from inside playback).
 C focuses the Tag Palette; while it has focus its own scope wins over the tool and always scopes, so

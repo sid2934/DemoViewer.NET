@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
+             xmlns:sb="using:DemoViewer.NET.Views.StratBook"
+             xmlns:canvas="using:DemoViewer.NET.Modules.StratBook.Canvas"
              x:Class="DemoViewer.NET.Views.StratBook.StratBookTabView"
              x:DataType="vm:StratBookTabViewModel">
 
@@ -56,7 +58,7 @@
             </StackPanel>
         </Border>
 
-        <Grid ColumnDefinitions="280,12,*">
+        <Grid ColumnDefinitions="280,12,*,6,1.3*">
 
             <!-- The strat list, and below it the book's callout aliases for the selected map. -->
             <Grid Grid.Column="0" RowDefinitions="*,12,Auto">
@@ -368,6 +370,21 @@
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="3" Background="Transparent" Width="6" />
+
+            <!-- The Step Authoring canvas (step-authoring.md §3.10), beside the step table it plays. -->
+            <Border Grid.Column="4"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <Panel>
+                    <TextBlock Text="the canvas plays the open strat" FontSize="11"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
+                    <sb:StratCanvasView DataContext="{Binding Canvas}" x:DataType="canvas:StratCanvasViewModel"
+                                        IsVisible="{Binding HasDocument}" />
+                </Panel>
             </Border>
         </Grid>
     </DockPanel>
