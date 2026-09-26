@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -66,6 +67,47 @@ public class RoundIndexEvaluatorTests
         });
         await Assert.That(evaluator.Wants(Demo)).IsTrue();
         await Assert.That(evaluator.PendingPaths()).Contains(Demo);
+    }
+
+    [Test]
+    public async Task ARowClaimingFactsTheRecordLacks_IsRealigned_SoTheDemoIsNotRequeuedForever()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-ri-realign-{Guid.NewGuid():N}");
+        try
+        {
+            DemoCacheStore first = new(root);
+            first.Upsert(ParsedRecord(Demo, sha: "abc", facts: TwoRounds()));
+            first.UpdateExisting(Demo, r => r.RoundFactsFingerprint = "rf-A");
+            first.SaveIndex();
+
+            // A later write replaced the sidecar without the facts and index.json was never saved again:
+            // the state a restart found four real demos in, where the coordinator re-parsed them forever.
+            DemoCacheRecord stale = first.TryLoadRecord(Demo)!;
+            stale.RoundFacts = null;
+            stale.RoundFactsFingerprint = null;
+            await File.WriteAllTextAsync(first.SidecarPathFor(Demo)!, JsonSerializer.Serialize(stale));
+
+            DemoCacheStore cache = new(root);
+            RoundIndexEvaluator evaluator = new(cache, new RoundIndexStore(null, cache),
+                new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn), () => true, walk: _ => []);
+            await Assert.That(evaluator.Wants(Demo)).IsTrue().Because("the stale row claims Round Facts");
+
+            evaluator.Evaluate(Demo, Parse());
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(evaluator.Wants(Demo)).IsFalse();
+                await Assert.That(cache.TryGetIndex(Demo)!.RoundFactsSchema).IsEqualTo(0)
+                    .Because("the row now matches the sidecar, so Round Facts wants the demo again");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
     }
 
     [Test]
