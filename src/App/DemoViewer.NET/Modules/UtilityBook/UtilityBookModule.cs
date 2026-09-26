@@ -11,7 +11,8 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 /// <summary>
 ///     The Utility Book module: one Main-strip tab (<see cref="BrowserTabId" />, after the Strat Book) over
 ///     the <see cref="GrenadeIndex" />: every grenade in the indexed demos, clustered by where it landed,
-///     searchable by map, kind, landing place and side. Lineup Cards join this tab when they land.
+///     searchable by map, kind, landing place and side, each deduplicated throw position printed as a
+///     Lineup Card (plan.md §3, Phase 4).
 ///     <para>
 ///         <b>The ids are persisted keys.</b> The module id, <see cref="BrowserTabId" /> and
 ///         <see cref="TabFeatureId" /> key the user's per-tab session state and <c>Features:Overrides:{id}</c>;
