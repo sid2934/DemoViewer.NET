@@ -13,6 +13,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Dossier;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
@@ -42,6 +43,7 @@ using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
+using DemoViewer.NET.ViewModels.Dossier;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Review;
 using DemoViewer.NET.ViewModels.RoundTagger;
@@ -1118,6 +1120,16 @@ public class App : Application
             sp.GetRequiredService<GrenadeIndex>(),
             sp.GetRequiredService<ISituationPlayback>()));
 
+        // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
+        // config root (the browser) keeps entries in memory for the session.
+        services.AddSingleton(_ => new VetoHistoryStore(AppPaths.ConfigRoot));
+        // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
+        // Identity's own teams and the unified cache the Map Pool Record reads.
+        services.AddSingleton(sp => new DossierTabViewModel(
+            sp.GetRequiredService<TeamIdentityService>(),
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<VetoHistoryStore>()));
+
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
         // Queue and rendered on a background slot. Planned whenever the index changes; a null directory (the
         // browser) plans nothing.
@@ -1356,6 +1368,10 @@ public class App : Application
         // The Utility Book tab. Registered on both hosts: the browser indexes the open demo for the session
         // and says so. The VM is a container singleton resolved lazily on first activation.
         registry.Register(new UtilityBookModule(sp.GetRequiredService<UtilityBookTabViewModel>));
+
+        // The Opponent Dossier tab. Registered on both hosts: the browser keeps teams and veto entries
+        // for the session and both say so.
+        registry.Register(new DossierModule(sp.GetRequiredService<DossierTabViewModel>));
         return registry;
     }
 
