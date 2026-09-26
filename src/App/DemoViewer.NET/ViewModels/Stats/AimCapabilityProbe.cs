@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using CS2DemoKit.Parser.Models;
 
@@ -54,15 +55,6 @@ public static class AimCapabilityProbe
     ///     one player firing one burst, the floor at which a per-player rate stops being noise.
     /// </summary>
     public const double MinShotsPerRound = 5.0;
-
-    /// <summary>
-    ///     Frames sampled when measuring the sub-tick yield. A full matchmaking demo carries over 1.5
-    ///     million <c>svc_UserCmds</c> payloads, and decoding all of them to learn a ratio would cost
-    ///     more than the analysis this probe guards. The sample is strided evenly across the carrier
-    ///     frames so it spans the whole match rather than its opening. Pass 0 to <see cref="Scan" /> to
-    ///     decode every payload instead.
-    /// </summary>
-    public const int DefaultSubtickSampleFrames = 512;
 
     /// <summary>Signals carried as game events, paired with the wire name the probe counts.</summary>
     private static readonly (AimSignal Signal, string Wire)[] _gameEventSignals =
@@ -120,17 +112,20 @@ public static class AimCapabilityProbe
 
     /// <summary>
     ///     Probes one parsed demo. Reads only what the parse already produced (the event list and the
-    ///     per-frame sub-tick payload counts), so it costs one walk of the events plus a bounded decode
-    ///     of sub-tick payloads. No entity replay.
+    ///     per-frame sub-tick payload counts), so it costs one walk of the events plus a walk of every
+    ///     sub-tick payload through a <see cref="UserCmdReconstructor" />. No entity replay.
+    ///     <para>
+    ///         The sub-tick walk can no longer be strided across a sample of carrier frames the way it
+    ///         used to be: on a current (delta_data) demo, each payload decodes against the reconstructor's
+    ///         running checkpoint, so skipping frames breaks the very state a stride would skip past
+    ///         (player-input-refresh, #53). Expect roughly 2 to 2.5 s on a full match; callers keep this
+    ///         off the UI thread.
+    ///     </para>
     /// </summary>
     /// <param name="demo">The parsed demo to count.</param>
-    /// <param name="subtickSampleFrames">
-    ///     How many <c>svc_UserCmds</c>-carrying frames to decode when measuring the yield. 0 means all
-    ///     of them, which is exact and expensive. Defaults to <see cref="DefaultSubtickSampleFrames" />.
-    /// </param>
     /// <returns>What the demo contains, and what that permits.</returns>
     /// <exception cref="ArgumentNullException">If <paramref name="demo" /> is null.</exception>
-    public static AimCapabilityReport Scan(ParsedDemo demo, int subtickSampleFrames = DefaultSubtickSampleFrames)
+    public static AimCapabilityReport Scan(ParsedDemo demo)
     {
         ArgumentNullException.ThrowIfNull(demo);
 
@@ -167,7 +162,7 @@ public static class AimCapabilityProbe
         }
 
         RoundBoundaryObservation rounds = SegmentRounds(counts);
-        SubtickObservation subtick = MeasureSubtick(demo, subtickSampleFrames);
+        SubtickObservation subtick = MeasureSubtick(demo);
 
         Dictionary<AimSignal, SignalObservation> signals = [];
         foreach ((AimSignal signal, string wire) in _gameEventSignals)
@@ -285,10 +280,10 @@ public static class AimCapabilityProbe
         return null;
     }
 
-    private static SubtickObservation MeasureSubtick(ParsedDemo demo, int sampleFrames)
+    private static SubtickObservation MeasureSubtick(ParsedDemo demo)
     {
         int messageCount = 0;
-        List<DemoFrame> carriers = [];
+        int carrierFrames = 0;
         foreach (DemoFrame frame in demo.Frames)
         {
             int payloads = frame.UserCmdsPayloadCount;
@@ -298,33 +293,24 @@ public static class AimCapabilityProbe
             }
 
             messageCount += payloads;
-            carriers.Add(frame);
+            carrierFrames++;
         }
 
-        if (carriers.Count == 0)
+        if (carrierFrames == 0)
         {
-            return new SubtickObservation(0, 0, 0, 0, 0);
+            return new SubtickObservation(0, 0, 0, 0, default, 0);
         }
 
-        int target = sampleFrames <= 0 ? carriers.Count : Math.Min(sampleFrames, carriers.Count);
-        List<DemoFrame> sample = new(target);
-        double stride = (double)carriers.Count / target;
-        for (int i = 0; i < target; i++)
-        {
-            int index = Math.Min((int)(i * stride), carriers.Count - 1);
-            sample.Add(carriers[index]);
-        }
+        // One reconstructor over the whole demo, in frame order: a current (delta_data) demo's
+        // payloads decode against the reconstructor's running checkpoint, primed by every
+        // DEM_FullPacket it passes along the way, so this cannot be strided or run over carrier
+        // frames alone without dropping the very state those payloads depend on.
+        UserCmdReconstructor reconstructor = new();
+        int events = SubTickExtractor.Extract(demo.Frames, reconstructor).Count;
+        UserCmdReconstructionStats stats = reconstructor.Stats;
+        double yield = messageCount == 0 ? 0 : (double)events / messageCount;
 
-        int sampledMessages = 0;
-        foreach (DemoFrame frame in sample)
-        {
-            sampledMessages += frame.UserCmdsPayloadCount;
-        }
-
-        int sampledEvents = SubTickExtractor.Extract(sample).Count;
-        double yield = sampledMessages == 0 ? 0 : (double)sampledEvents / sampledMessages;
-
-        return new SubtickObservation(messageCount, carriers.Count, sampledMessages, sampledEvents, yield);
+        return new SubtickObservation(messageCount, carrierFrames, messageCount, events, stats, yield);
     }
 
     private static List<string> BuildDeclarationDrift(
@@ -628,7 +614,7 @@ public static class AimCapabilityProbe
                     CultureInfo.InvariantCulture,
                     $"svc_UserCmds carries {subtick.MessageCount} payloads but yields only " +
                     $"{subtick.YieldPerMessage:0.###} sub-tick events per payload ({subtick.SampledEvents} " +
-                    $"events from {subtick.SampledMessages} sampled payloads), below the " +
+                    $"events, {subtick.DeltaShare:P0} of commands reconstructed from a delta), below the " +
                     $"{MinSubtickYield:0.##} floor: the stream is present but mostly empty"));
         }
 
@@ -638,8 +624,8 @@ public static class AimCapabilityProbe
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"svc_UserCmds carries {subtick.MessageCount} payloads yielding " +
-                $"{subtick.YieldPerMessage:0.###} sub-tick events each ({subtick.SampledEvents} events from " +
-                $"{subtick.SampledMessages} sampled payloads)"));
+                $"{subtick.YieldPerMessage:0.###} sub-tick events each ({subtick.SampledEvents} events, " +
+                $"{subtick.DeltaShare:P0} of commands reconstructed from a delta)"));
     }
 
     private static MetricVerdict PerRoundVerdict(RoundBoundaryObservation rounds)
