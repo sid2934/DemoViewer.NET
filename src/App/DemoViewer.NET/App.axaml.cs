@@ -1126,7 +1126,8 @@ public class App : Application
         // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
         // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
-        // open their rounds in the Review Queue.
+        // open their rounds in the Review Queue. The Opening Tendencies join the Grenade Index to Round
+        // Facts and read the same positions files for the lurk.
         services.AddSingleton(sp =>
         {
             RoundIndexPlaceSources sources = sp.GetRequiredService<RoundIndexPlaceSources>();
@@ -1140,7 +1141,13 @@ public class App : Application
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 review: sp.GetRequiredService<ReviewQueue>(),
-                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false);
+                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
+                openings: new OpeningTendenciesService(
+                    sp.GetRequiredService<TeamIdentityService>(),
+                    sp.GetRequiredService<DemoCacheStore>(),
+                    sp.GetRequiredService<GrenadeIndex>(),
+                    sp.GetRequiredService<RoundIndexStore>(),
+                    sources.FingerprintFor));
         });
 
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review

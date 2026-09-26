@@ -9,8 +9,9 @@
       demo-derivable substitute for the veto model (plan.md F12). Left: the team list. Right: the
       selected team's sample size, its per-map record and side split, the decider record where a
       best-of series is inferable, the Setup Heatmaps By Buy (their CT positions per map and buy, fixed
-      and rotating places, each heatmap opening its rounds in Review), and the veto history the user
-      enters by hand.
+      and rotating places, each heatmap opening its rounds in Review), the Opening Tendencies (per map
+      and side: first utility and first contact as clock histograms, site split, entry by site and lurk
+      timing, every number opening its rounds in Review), and the veto history the user enters by hand.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
@@ -123,6 +124,210 @@
                                                     <Button Content="{Binding OpenLabel}" Classes="ghost" FontSize="11" Padding="10 5"
                                                             Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).OpenRoundsCommand}"
                                                             CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Opening Tendencies: per map and side, first utility and first contact as clock histograms;
+                             on T the site split, entry by site and lurk timing. Every number opens its rounds. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
+                                IsVisible="{Binding Openings.HasSection}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Opening Tendencies" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <TextBlock Text="{Binding Openings.Line}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Text="{Binding Openings.ReviewLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding Openings.ReviewLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <ItemsControl ItemsSource="{Binding Openings.Blocks}" IsVisible="{Binding Openings.HasBlocks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:OpeningBlockViewModel">
+                                            <Border Margin="0 0 0 10" Padding="10"
+                                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6">
+                                                <StackPanel Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding Map}" FontSize="12" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Text="{Binding SideLabel}" FontSize="12" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextCardHeader}" />
+                                                        <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                Content="{Binding RoundsLink.ToolTip}"
+                                                                Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                CommandParameter="{Binding RoundsLink}" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding UtilityNote}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                    <ItemsControl ItemsSource="{Binding UtilityClock}" IsVisible="{Binding HasUtility}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <!-- A histogram bar: the count over a bar over its clock label. -->
+                                                            <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                <Button Classes="ghost" Padding="2" Margin="0 0 2 0" MinWidth="44"
+                                                                        IsEnabled="{Binding CanOpen}" ToolTip.Tip="{Binding ToolTip}"
+                                                                        Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <StackPanel Spacing="2">
+                                                                        <TextBlock Text="{Binding CountText}" FontSize="10" HorizontalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TextValue}" />
+                                                                        <Panel Height="60">
+                                                                            <Border Width="20" Height="{Binding BarHeight}" VerticalAlignment="Bottom"
+                                                                                    Background="{DynamicResource AccentInteractive}" CornerRadius="2" />
+                                                                        </Panel>
+                                                                        <TextBlock Text="{Binding Label}" FontSize="9" HorizontalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TextMid}" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <ItemsControl ItemsSource="{Binding UtilityPlaces}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                <Button Classes="ghost" FontSize="11" Padding="6 2" Margin="0 0 4 4"
+                                                                        ToolTip.Tip="{Binding ToolTip}"
+                                                                        Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextMid}" />
+                                                                        <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextValue}" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <TextBlock Text="first contact" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                    <ItemsControl ItemsSource="{Binding ContactClock}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <!-- A histogram bar: the count over a bar over its clock label. -->
+                                                            <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                <Button Classes="ghost" Padding="2" Margin="0 0 2 0" MinWidth="44"
+                                                                        IsEnabled="{Binding CanOpen}" ToolTip.Tip="{Binding ToolTip}"
+                                                                        Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <StackPanel Spacing="2">
+                                                                        <TextBlock Text="{Binding CountText}" FontSize="10" HorizontalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TextValue}" />
+                                                                        <Panel Height="60">
+                                                                            <Border Width="20" Height="{Binding BarHeight}" VerticalAlignment="Bottom"
+                                                                                    Background="{DynamicResource AccentInteractive}" CornerRadius="2" />
+                                                                        </Panel>
+                                                                        <TextBlock Text="{Binding Label}" FontSize="9" HorizontalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TextMid}" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <StackPanel Spacing="6" IsVisible="{Binding IsT}">
+                                                        <TextBlock Text="site split" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding SiteSplit}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                    <Button Classes="ghost" FontSize="11" Padding="6 2" Margin="0 0 4 4"
+                                                                            ToolTip.Tip="{Binding ToolTip}"
+                                                                            Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                            <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextMid}" />
+                                                                            <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextValue}" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBlock Text="entry player by site" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding Entries}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                    <Button Classes="ghost" FontSize="11" Padding="6 2" Margin="0 0 4 4"
+                                                                            ToolTip.Tip="{Binding ToolTip}"
+                                                                            Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                            <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextMid}" />
+                                                                            <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextValue}" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBlock Text="{Binding LurkNote}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding LurkClock}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <!-- A histogram bar: the count over a bar over its clock label. -->
+                                                                <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                    <Button Classes="ghost" Padding="2" Margin="0 0 2 0" MinWidth="44"
+                                                                            IsEnabled="{Binding CanOpen}" ToolTip.Tip="{Binding ToolTip}"
+                                                                            Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Spacing="2">
+                                                                            <TextBlock Text="{Binding CountText}" FontSize="10" HorizontalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextValue}" />
+                                                                            <Panel Height="60">
+                                                                                <Border Width="20" Height="{Binding BarHeight}" VerticalAlignment="Bottom"
+                                                                                        Background="{DynamicResource AccentInteractive}" CornerRadius="2" />
+                                                                            </Panel>
+                                                                            <TextBlock Text="{Binding Label}" FontSize="9" HorizontalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextMid}" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <ItemsControl ItemsSource="{Binding Lurkers}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                    <Button Classes="ghost" FontSize="11" Padding="6 2" Margin="0 0 4 4"
+                                                                            ToolTip.Tip="{Binding ToolTip}"
+                                                                            Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Openings.OpenCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                            <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextMid}" />
+                                                                            <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextValue}" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
