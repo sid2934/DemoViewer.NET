@@ -2,10 +2,12 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using CS2OpenSchema.Events;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 
 #endregion
 
@@ -33,13 +35,18 @@ public static class DetonationEvents
     public const string Decoy = "decoy";
 
     /// <summary>
-    ///     Every smoke, flash, HE, inferno start and decoy start in tick order, unplaced and with no side;
+    ///     Every smoke, flash, HE, inferno start and decoy start in tick order, unplaced;
     ///     <see cref="ProposalDetection" /> seats them per round. <c>inferno_startburn</c> has no thrower
     ///     on the wire (21 to 27 percent of detonations on the measured demos), and <c>decoy_started</c>'s
-    ///     <c>UserId</c> is a pawn handle rather than a slot, so both come out with -1.
+    ///     <c>UserId</c> is a pawn handle rather than a slot, so both come out with -1 unless
+    ///     <paramref name="projectiles" /> names the projectile that caused them (#56, #59).
     /// </summary>
     /// <param name="demo">The held parse.</param>
-    public static List<PlacedEvent> From(ParsedDemo demo)
+    /// <param name="projectiles">
+    ///     The demo's <c>Removed</c> projectile samples, or null to skip the match and leave inferno and decoy
+    ///     unresolved as before.
+    /// </param>
+    public static List<PlacedEvent> From(ParsedDemo demo, IReadOnlyList<ProjectileSample>? projectiles = null)
     {
         ArgumentNullException.ThrowIfNull(demo);
         List<PlacedEvent> events = [];
@@ -50,8 +57,12 @@ public static class DetonationEvents
                 SmokeGrenadeDetonateEvent e => new PlacedEvent(fire.GameTick, Smoke, e.UserId, 0, new Vector3(e.X, e.Y, e.Z), null),
                 FlashbangDetonateEvent e => new PlacedEvent(fire.GameTick, Flash, e.UserId, 0, new Vector3(e.X, e.Y, e.Z), null),
                 HegrenadeDetonateEvent e => new PlacedEvent(fire.GameTick, He, e.UserId, 0, new Vector3(e.X, e.Y, e.Z), null),
-                InfernoStartburnEvent e => new PlacedEvent(fire.GameTick, Inferno, -1, 0, new Vector3(e.X, e.Y, e.Z), null),
-                DecoyStartedEvent e => new PlacedEvent(fire.GameTick, Decoy, -1, 0, new Vector3(e.X, e.Y, e.Z), null),
+                InfernoStartburnEvent e => new PlacedEvent(fire.GameTick, Inferno,
+                    ThrowerSlotNear(projectiles, GrenadeProjectileClasses.Molotov, fire.GameTick, new Vector3(e.X, e.Y, e.Z)),
+                    0, new Vector3(e.X, e.Y, e.Z), null),
+                DecoyStartedEvent e => new PlacedEvent(fire.GameTick, Decoy,
+                    ThrowerSlotNear(projectiles, GrenadeProjectileClasses.Decoy, fire.GameTick, new Vector3(e.X, e.Y, e.Z)),
+                    0, new Vector3(e.X, e.Y, e.Z), null),
                 _ => null
             };
             if (placed is not null)
@@ -63,6 +74,12 @@ public static class DetonationEvents
         events.Sort((a, b) => a.Tick.CompareTo(b.Tick));
         return events;
     }
+
+    // -1 with no projectiles offered or no match near the detonation; ProjectileThrowerMatch does the rest.
+    private static int ThrowerSlotNear(IReadOnlyList<ProjectileSample>? projectiles, string className, int tick, Vector3 position) =>
+        projectiles is not null && ProjectileThrowerMatch.Nearest(projectiles, className, tick, position) is { ThrowerSlot: >= 0 } sample
+            ? sample.ThrowerSlot
+            : -1;
 }
 
 /// <summary>

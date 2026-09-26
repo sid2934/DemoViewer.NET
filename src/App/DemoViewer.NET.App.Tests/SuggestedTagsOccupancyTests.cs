@@ -322,6 +322,34 @@ public class SuggestedTagsOccupancyTests
     }
 
     [Test]
+    public async Task DetonationEvents_ResolveInfernoAndDecoyThrower_FromAMatchingProjectile()
+    {
+        // Same fixture as above, plus a Removed sample for each: the molotov names slot 2, the decoy has
+        // nothing nearby and stays -1 (#56, #59).
+        ParsedDemo demo = SyntheticParsedDemo.Create(allGameEvents:
+        [
+            Fire("inferno_startburn", 300, new InfernoStartburnEvent { EntityId = 1, X = 1, Y = 2, Z = 3 }),
+            Fire("decoy_started", 400, new DecoyStartedEvent { EntityId = 5, UserId = 123456, X = 0, Y = 0, Z = 0 })
+        ]);
+        List<ProjectileSample> projectiles =
+        [
+            new(300, 300, 11, 1, GrenadeProjectileClasses.Molotov, ThrowerSlot: 2,
+                Position: new Vector3(1, 2, 3), InitialPosition: null, InitialVelocity: null, Bounces: 0, Created: false, Removed: true),
+            new(9000, 9000, 12, 1, GrenadeProjectileClasses.Decoy, ThrowerSlot: 5,
+                Position: new Vector3(4000, 4000, 0), InitialPosition: null, InitialVelocity: null, Bounces: 0, Created: false, Removed: true)
+        ];
+
+        List<PlacedEvent> events = DetonationEvents.From(demo, projectiles);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(events.Single(e => e.Kind == DetonationEvents.Inferno).ThrowerSlot).IsEqualTo(2);
+            await Assert.That(events.Single(e => e.Kind == DetonationEvents.Decoy).ThrowerSlot).IsEqualTo(-1)
+                .Because("the only decoy sample is nowhere near this detonation");
+        }
+    }
+
+    [Test]
     public async Task ThrowerSides_AreTheRoundsNotTheDemos()
     {
         RoundOccupancy round = SuggestedTagsTestData.Round();

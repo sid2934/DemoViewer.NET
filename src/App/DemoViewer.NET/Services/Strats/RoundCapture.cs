@@ -53,6 +53,10 @@ public readonly record struct CapturedPawn(
 /// <param name="ActorSlot">The thrower or planter's controller slot, or -1 when the wire does not name one.</param>
 /// <param name="ActorTeam">The actor's team, or 0 when it is unknown.</param>
 /// <param name="Position">Where the utility went off; zero for other triggers.</param>
+/// <param name="ThrowOrigin">
+///     The grenade's release point (<c>m_vInitialPosition</c>), when <see cref="ProjectileThrowerMatch" /> found the
+///     projectile behind this detonation; null when none matched, and the thrower's position at the stop stands in.
+/// </param>
 public sealed record CaptureMoment(
     int Tick,
     CaptureTrigger Trigger,
@@ -60,7 +64,8 @@ public sealed record CaptureMoment(
     string? UtilityKind = null,
     int ActorSlot = -1,
     int ActorTeam = 0,
-    Vector3 Position = default)
+    Vector3 Position = default,
+    Vector3? ThrowOrigin = null)
 {
     /// <summary>The live pawn in a slot at this tick, or null.</summary>
     /// <param name="playerSlot">A controller slot.</param>
@@ -103,6 +108,11 @@ public sealed record RoundCapture(int Round, int FreezeEndTick, int LiveEndTick,
 ///         <c>round_end</c>, so the end is the game rules' <c>m_iRoundWinStatus</c> turning non-zero, else
 ///         <c>round_officially_ended</c>, else the next freeze-end. Pawns respawn in the next round's buy time,
 ///         which is still inside this round's window, and a sweep there would pull every token back to spawn.
+///     </para>
+///     <para>
+///         A round with a utility stop also runs a bounded <see cref="ProjectileSampler" /> pass over the same
+///         window (#56, #59), so a fire or a decoy names its thrower from the projectile that caused it rather
+///         than the live entity join, and every throw names its release point for the strat's arrow.
 ///     </para>
 /// </summary>
 public static class RoundCaptureWalker
@@ -164,6 +174,13 @@ public static class RoundCaptureWalker
         int lastStopFrame = FrameAtOrAfter(frames, stops[^1].Tick);
         int lastFrame = Math.Max(firstFrame, lastStopFrame >= 0 ? lastStopFrame : frames.Count - 1);
 
+        // A second tracker pass over the same window (#56, #59): only when a utility stop needs a thrower or
+        // a release point, and bounded to this round rather than the whole demo (ProjectileSampler has no late
+        // start, so frames before firstFrame are unavoidable, but the tail past the round is skipped).
+        List<ProjectileSample> projectiles = stops.Any(s => s.Trigger == CaptureTrigger.Utility)
+            ? [.. ProjectileSampler.Walk(demo, frameStride: 8, maxFrames: lastFrame + 1).Where(s => s.Removed)]
+            : [];
+
         foreach (Stop stop in stops)
         {
             if (stop.Tick >= end)
@@ -205,7 +222,7 @@ public static class RoundCaptureWalker
             List<CapturedPawn> pawns = ReadPawns(tracker, snapshot);
             moments.Add(stop.Trigger switch
             {
-                CaptureTrigger.Utility or CaptureTrigger.Plant => Resolve(stop, tracker, pawns),
+                CaptureTrigger.Utility or CaptureTrigger.Plant => Resolve(stop, tracker, pawns, projectiles),
                 _ => new CaptureMoment(stop.Tick, stop.Trigger, pawns)
             });
         }
@@ -305,12 +322,23 @@ public static class RoundCaptureWalker
         return stops;
     }
 
-    // The actor's slot and team at the stop: the event's slot when it names one, else the inferno's owner or
-    // the decoy's pawn handle, joined to a slot through the live pawns.
-    private static CaptureMoment Resolve(Stop stop, EntityTracker tracker, List<CapturedPawn> pawns)
+    // The actor's slot and team at the stop: the projectile sampler's match first (#56, #59, survives the
+    // thrower's death), else the event's own slot, else the inferno's owner or the decoy's pawn handle joined
+    // to a slot through the live pawns. The same match also names the release point for the throw arrow.
+    private static CaptureMoment Resolve(Stop stop, EntityTracker tracker, List<CapturedPawn> pawns, IReadOnlyList<ProjectileSample> projectiles)
     {
         Source source = stop.Source!;
         int slot = source.Slot;
+
+        ProjectileSample? matched = ProjectileClassFor(source.Kind) is { } className
+            ? ProjectileThrowerMatch.Nearest(projectiles, className, stop.Tick, source.Position)
+            : null;
+
+        if (slot < 0 && matched is { ThrowerSlot: >= 0 } m)
+        {
+            slot = m.ThrowerSlot;
+        }
+
         if (slot < 0 && source.PawnHandle != -1)
         {
             slot = SlotOfPawnIndex(tracker, PawnLookup.IndexOf((uint)source.PawnHandle));
@@ -337,8 +365,19 @@ public static class RoundCaptureWalker
             team = CoerceInt(controller["m_iTeamNum"]);
         }
 
-        return new CaptureMoment(stop.Tick, stop.Trigger, pawns, source.Kind, slot, team, source.Position);
+        return new CaptureMoment(stop.Tick, stop.Trigger, pawns, source.Kind, slot, team, source.Position, matched?.InitialPosition);
     }
+
+    // The strat's utility spelling (Source.Kind) to the projectile class it flies as, or null for a plant.
+    private static string? ProjectileClassFor(string? kind) => kind switch
+    {
+        "smoke" => GrenadeProjectileClasses.Smoke,
+        "flash" => GrenadeProjectileClasses.Flashbang,
+        "he" => GrenadeProjectileClasses.HEGrenade,
+        "molotov" => GrenadeProjectileClasses.Molotov,
+        "decoy" => GrenadeProjectileClasses.Decoy,
+        _ => null
+    };
 
     private static int SlotOfPawnIndex(EntityTracker tracker, int pawnIndex)
     {

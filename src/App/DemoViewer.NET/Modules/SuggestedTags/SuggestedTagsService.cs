@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Tags;
 using Microsoft.Extensions.Logging;
 
@@ -676,7 +677,11 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             string.IsNullOrEmpty(map) ? null : _zones.TryGet(map),
             string.IsNullOrEmpty(map) ? null : _placesFor?.Invoke(map),
             cloud);
-        List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed));
+
+        // Names a thrower for the 21 to 27 percent of inferno and decoy detonations the wire leaves unresolved
+        // (#56, #59); one bounded pass, since Removed samples are yielded on their own frame at any stride.
+        List<ProjectileSample> projectiles = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed)];
+        List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed, projectiles));
         return new DetectionInputs(tickRate, rounds, events, source);
     }
 
