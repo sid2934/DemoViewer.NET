@@ -498,7 +498,8 @@ public sealed class GrenadeIndex : IDisposable
     {
         if (GrenadeSidecar.TryReadRows(_demoCache, entry.Path) is not { } document)
         {
-            GrenadeIndexLog.RowsIgnored(Log, Path.GetFileName(entry.Path));
+            string fileName = Path.GetFileName(entry.Path);
+            GrenadeIndexLog.RowsIgnored(Log, fileName);
             return false;
         }
 
