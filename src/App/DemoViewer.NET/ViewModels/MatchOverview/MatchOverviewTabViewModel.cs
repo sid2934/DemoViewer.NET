@@ -487,6 +487,33 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         && _computeFullStats is not null
         && SubjectKey is not null;
 
+    // ── Grenade walk ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Walks a demo's grenades at user priority, by path: the chip row's "Index grenades"
+    ///     (grenade-walk.md §3.11). Set by the composition root on the desktop host; null (the browser, tests)
+    ///     leaves the action absent rather than inert.
+    /// </summary>
+    public Action<string>? IndexGrenades { get; set; }
+
+    /// <summary>Whether a demo's grenades are walked and current, by path. Null reads as "not walked".</summary>
+    public Func<string, bool>? AreGrenadesIndexed { get; set; }
+
+    // The subject the action was last pressed for: the button steps aside until the record changes or
+    // the page moves to another demo, so a second press does not read as "nothing happened".
+    private string? _grenadesRequestedFor;
+
+    /// <summary>
+    ///     Gates the "Index grenades" chip. A cached page only, the <see cref="HasHighlightsAction" /> rule:
+    ///     a live page's demo is walked on the parse its open paid for, so the button would queue a second one.
+    /// </summary>
+    public bool HasIndexGrenadesAction =>
+        IndexGrenades is not null
+        && Mode == OverviewMode.Cached
+        && SubjectKey is { } key
+        && !string.Equals(_grenadesRequestedFor, key, StringComparison.OrdinalIgnoreCase)
+        && !(AreGrenadesIndexed?.Invoke(key) ?? false);
+
     /// <summary>Chip text: the state, in words. Colour is the redundant cue; this is the primary carrier.</summary>
     public string CompletenessLabel => Completeness switch
     {
@@ -1524,6 +1551,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
     private void RaiseCompletenessChanged()
     {
+        OnPropertyChanged(nameof(HasIndexGrenadesAction));
         OnPropertyChanged(nameof(CompletenessLabel));
         OnPropertyChanged(nameof(CompletenessActionLabel));
         OnPropertyChanged(nameof(HasCompletenessAction));
@@ -1552,6 +1580,21 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         if (SubjectKey is { } key)
         {
             _computeFullStats?.Invoke(key);
+        }
+    }
+
+    /// <summary>
+    ///     Queues this demo's grenade walk at user priority. Like <see cref="ComputeFullStats" />, it never
+    ///     opens the demo; the record change it ends in re-renders the page and hides the button.
+    /// </summary>
+    [RelayCommand]
+    private void RequestGrenadeIndex()
+    {
+        if (SubjectKey is { } key && IndexGrenades is { } index)
+        {
+            index(key);
+            _grenadesRequestedFor = key;
+            OnPropertyChanged(nameof(HasIndexGrenadesAction));
         }
     }
 

@@ -377,6 +377,11 @@
                                             Command="{Binding ComputeFullStatsCommand}"
                                             FontSize="11" Padding="12 4" Margin="0 2 8 2"
                                             ToolTip.Tip="Queue this demo for a full analysis pass — it runs in the background and never opens the demo" />
+                                    <Button Classes="chip" Content="Index grenades"
+                                            IsVisible="{Binding HasIndexGrenadesAction}"
+                                            Command="{Binding RequestGrenadeIndexCommand}"
+                                            FontSize="11" Padding="12 4" Margin="0 2 8 2"
+                                            ToolTip.Tip="Queue this demo's grenade walk: every throw with its lineup and landing point. It runs in the background and never opens the demo" />
                                     <Button Classes="primary" Content="Open this demo"
                                             IsVisible="{Binding IsCached}"
                                             IsEnabled="{Binding CanOpenDemo}"

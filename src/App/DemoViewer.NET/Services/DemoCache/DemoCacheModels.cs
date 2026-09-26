@@ -221,6 +221,9 @@ public sealed class DemoCacheRecord
     /// <summary>The <c>.dvri.json</c> sidecar shape. Folded into <see cref="RoundIndexFingerprint" />, so a bump re-indexes alone.</summary>
     public const int RoundIndexSchema = 1;
 
+    /// <summary>The <c>.grenades.json</c> sibling's shape. A bump re-walks every demo's grenades and nothing else.</summary>
+    public const int GrenadeSchema = 1;
+
     // ── T0 identity ──────────────────────────────────────────────────────────
     public string Path { get; set; } = "";
 
@@ -337,6 +340,26 @@ public sealed class DemoCacheRecord
     /// <summary>Proposals with no verdict yet, 0 when there are none or no file.</summary>
     public int SuggestionCount { get; set; }
 
+    // ── Grenade walk ─────────────────────────────────────────────────────────
+    // The rows live in the .grenades.json and .grenades.paths.json siblings of this sidecar
+    // (grenade-walk.md §3.9); only the stamp rides the record. A stamp beside the tiers rather than a
+    // tier: the walk depends on the parse, not on the analysis run, so a rules change must not
+    // invalidate it.
+
+    /// <summary>When the siblings were last written, at which schema. Never written = no rows.</summary>
+    public TierStamp Grenades { get; set; } = new();
+
+    public DemoAnalysisState GrenadeState { get; set; } = DemoAnalysisState.Pending;
+
+    /// <summary>Rows in the siblings; 0 when absent.</summary>
+    public int GrenadeCount { get; set; }
+
+    /// <summary>The walker version the rows were made by; another version re-walks.</summary>
+    public string? GrenadeWalker { get; set; }
+
+    /// <summary>Share of the demo's commands that decoded when it was walked (the jump-throw source's reach).</summary>
+    public double GrenadeInputCoverage { get; set; }
+
     /// <summary>The highest tier actually present.</summary>
     [JsonIgnore]
     public DemoCacheTier Tier =>
@@ -428,6 +451,21 @@ public sealed class DemoCacheRecord
     public bool NeedsRoundIndex(string currentFingerprint) =>
         RoundIndexState != RoundIndexState.Failed && !IsRoundIndexCurrent(currentFingerprint);
 
+    /// <summary>Are the grenade siblings current under <paramref name="walkerVersion" />?</summary>
+    /// <param name="walkerVersion">The walker version in force.</param>
+    public bool IsGrenadesCurrent(string walkerVersion) =>
+        Grenades.Schema == GrenadeSchema
+        && GrenadeState == DemoAnalysisState.Indexed
+        && string.Equals(GrenadeWalker, walkerVersion, StringComparison.Ordinal);
+
+    /// <summary>
+    ///     Does this demo want the grenade walk? Failed is excluded like the other evaluators: retry is an
+    ///     explicit user action.
+    /// </summary>
+    /// <param name="walkerVersion">The walker version in force.</param>
+    public bool NeedsGrenades(string walkerVersion) =>
+        GrenadeState != DemoAnalysisState.Failed && !IsGrenadesCurrent(walkerVersion);
+
     /// <summary>
     ///     Does this record still describe the file on disk? Size + mtime, exactly as the library cache keys
     ///     freshness today: cheap, and a content hash is not affordable per reconcile pass.
@@ -478,7 +516,11 @@ public sealed class DemoCacheRecord
         RoundIndexFingerprint = RoundIndexFingerprint,
         RoundIndexRowCount = RoundIndexRowCount,
         SuggestionsFingerprint = SuggestionsFingerprint,
-        SuggestionCount = SuggestionCount
+        SuggestionCount = SuggestionCount,
+        GrenadeSchema = Grenades.Schema,
+        GrenadeState = GrenadeState,
+        GrenadeCount = GrenadeCount,
+        GrenadeWalker = GrenadeWalker
     };
 }
 
@@ -567,6 +609,18 @@ public sealed class DemoCacheIndexEntry
     /// </summary>
     public int SuggestionCount { get; set; }
 
+    // The grenade stamp, mirrored like HighlightCount so the evaluator's backlog and the Grenade Index
+    // decide which siblings to open without opening them.
+
+    /// <summary>Schema of the demo's <c>.grenades.json</c>, 0 when it has never been written.</summary>
+    public int GrenadeSchema { get; set; }
+
+    public DemoAnalysisState GrenadeState { get; set; } = DemoAnalysisState.Pending;
+
+    public int GrenadeCount { get; set; }
+
+    public string? GrenadeWalker { get; set; }
+
     [JsonIgnore]
     public DemoCacheTier Tier =>
         AnalysisSchema > 0 ? DemoCacheTier.Analysis
@@ -608,6 +662,18 @@ public sealed class DemoCacheIndexEntry
     /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
     public bool NeedsRoundIndex(string currentFingerprint) =>
         RoundIndexState != RoundIndexState.Failed && !IsRoundIndexCurrent(currentFingerprint);
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.IsGrenadesCurrent" />: same rule, no sidecar read.</summary>
+    /// <param name="walkerVersion">The walker version in force.</param>
+    public bool IsGrenadesCurrent(string walkerVersion) =>
+        GrenadeSchema == DemoCacheRecord.GrenadeSchema
+        && GrenadeState == DemoAnalysisState.Indexed
+        && string.Equals(GrenadeWalker, walkerVersion, StringComparison.Ordinal);
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.NeedsGrenades" />: same rule, no sidecar read.</summary>
+    /// <param name="walkerVersion">The walker version in force.</param>
+    public bool NeedsGrenades(string walkerVersion) =>
+        GrenadeState != DemoAnalysisState.Failed && !IsGrenadesCurrent(walkerVersion);
 
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;

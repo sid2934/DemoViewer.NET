@@ -64,6 +64,9 @@ public sealed class DemoCacheStore
     /// </summary>
     private readonly Dictionary<string, string> _memoryRecords = new(StringComparer.OrdinalIgnoreCase);
 
+    // Sibling files held in memory when there is no cache root, keyed by stable key plus suffix. Under _gate.
+    private readonly Dictionary<string, string> _memorySiblings = new(StringComparer.Ordinal);
+
     private readonly Action<Action> _post;
 
     /// <summary>
@@ -458,6 +461,10 @@ public sealed class DemoCacheStore
     public static void StampRoundIndex(DemoCacheRecord record) =>
         Stamp(record.RoundIndex, DemoCacheRecord.RoundIndexSchema);
 
+    /// <summary>Stamps the grenade siblings as written now.</summary>
+    public static void StampGrenades(DemoCacheRecord record) =>
+        Stamp(record.Grenades, DemoCacheRecord.GrenadeSchema);
+
     private static void Stamp(TierStamp stamp, int schema)
     {
         stamp.Schema = schema;
@@ -555,6 +562,69 @@ public sealed class DemoCacheStore
         return dir is null ? null : Path.Combine(dir, $"{StableKey(demoPath)}.json");
     }
 
+    /// <summary>
+    ///     A sibling file of a demo's sidecar: <c>demos/&lt;StableKey&gt;&lt;suffix&gt;</c>, e.g. the grenade
+    ///     walk's <c>.grenades.json</c>. For a payload too large to ride the record, which Match Overview
+    ///     re-reads on every property touch, yet owned by the same demo, so it goes when the demo goes.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">Starts with a dot, names a file, and is not <c>.json</c> itself.</param>
+    public string? SiblingPathFor(string demoPath, string suffix)
+    {
+        ValidateSuffix(suffix);
+        string? dir = SidecarDir;
+        return dir is null ? null : Path.Combine(dir, StableKey(demoPath) + suffix);
+    }
+
+    /// <summary>
+    ///     Writes a sibling atomically, or into memory when there is no cache root. Unlike the record write
+    ///     this throws on an I/O failure: the caller stamps the record only after its siblings landed, so
+    ///     the failure has to reach it.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
+    /// <param name="content">The whole file.</param>
+    public void WriteSibling(string demoPath, string suffix, string content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        string? file = SiblingPathFor(demoPath, suffix);
+        if (file is null)
+        {
+            lock (_gate)
+            {
+                _memorySiblings[StableKey(demoPath) + suffix] = content;
+            }
+
+            return;
+        }
+
+        WriteAtomic(file, content);
+    }
+
+    /// <summary>A sibling's text, or null when it is missing or unreadable (the cache's "not cached").</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
+    public string? TryReadSibling(string demoPath, string suffix)
+    {
+        string? file = SiblingPathFor(demoPath, suffix);
+        if (file is null)
+        {
+            lock (_gate)
+            {
+                return _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix);
+            }
+        }
+
+        try
+        {
+            return File.Exists(file) ? File.ReadAllText(file) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>A stable, filesystem-safe key for a demo path. See <see cref="SidecarPathFor" />.</summary>
     public static string StableKey(string demoPath)
     {
@@ -588,11 +658,16 @@ public sealed class DemoCacheStore
     private void DeleteSidecar(string path)
     {
         string? file = SidecarPathFor(path);
+        string key = StableKey(path);
         if (file is null)
         {
             lock (_gate)
             {
                 _memoryRecords.Remove(path);
+                foreach (string sibling in _memorySiblings.Keys.Where(k => k.StartsWith(key + ".", StringComparison.Ordinal)).ToList())
+                {
+                    _memorySiblings.Remove(sibling);
+                }
             }
 
             return;
@@ -601,10 +676,30 @@ public sealed class DemoCacheStore
         try
         {
             File.Delete(file);
+
+            // The siblings share the key and a dot, so one pattern finds every one of them and nothing else.
+            string dir = Path.GetDirectoryName(file)!;
+            if (Directory.Exists(dir))
+            {
+                foreach (string sibling in Directory.EnumerateFiles(dir, key + ".*"))
+                {
+                    File.Delete(sibling);
+                }
+            }
         }
         catch (Exception)
         {
             // Best effort: an orphaned sidecar is harmless, it is simply never read again.
+        }
+    }
+
+    private static void ValidateSuffix(string suffix)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(suffix);
+        if (suffix[0] != '.' || string.Equals(suffix, ".json", StringComparison.OrdinalIgnoreCase)
+                             || suffix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException($"'{suffix}' is not a sibling suffix", nameof(suffix));
         }
     }
 

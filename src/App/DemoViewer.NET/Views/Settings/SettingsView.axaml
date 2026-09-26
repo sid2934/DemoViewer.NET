@@ -885,6 +885,21 @@
                                                       IsChecked="{Binding HighlightsBackgroundScan, Mode=TwoWay}" />
                                     </Grid>
 
+                                    <!-- Background grenade walk opt-in, the same shape and the same default -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Walk library grenades in the background"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="About 2 s per demo. Off = the open demo's grenades, and any demo from Match Overview."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding GrenadesBackgroundIndex, Mode=TwoWay}" />
+                                    </Grid>
+
                                     <Rectangle Classes="divider" Height="1" Margin="0,2" />
 
                                     <TextBlock Text="REEL DEFAULTS" Classes="col-label" />
