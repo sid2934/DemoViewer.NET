@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Dossier"
+             x:Class="DemoViewer.NET.Views.Dossier.DossierTabView"
+             x:DataType="vm:DossierTabViewModel">
+
+    <!--
+      THE OPPONENT DOSSIER: a team picker over Team Identity and, today, the Map Pool Record — the
+      demo-derivable substitute for the veto model (plan.md F12). Left: the team list. Right: the
+      selected team's sample size, its per-map record and side split, the decider record where a
+      best-of series is inferable, and the veto history the user enters by hand.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <Grid Margin="16" ColumnDefinitions="240,12,*">
+
+        <!-- The team list. -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Teams" Classes="col-label"
+                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" Margin="0 0 0 8" />
+                <TextBlock Text="no teams yet: Team Identity has not found one" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasTeams}" />
+                <ListBox ItemsSource="{Binding Teams}" SelectedItem="{Binding SelectedTeam}"
+                         IsVisible="{Binding HasTeams}" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DossierTeamRow">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Text="us" FontSize="10" IsVisible="{Binding IsUs}"
+                                           Foreground="{DynamicResource TextCardHeader}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- The selected team's Dossier. -->
+        <Border Grid.Column="2"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="select a team" FontSize="11" Foreground="{DynamicResource TextMid}"
+                               IsVisible="{Binding !HasSelection}" />
+
+                    <StackPanel Spacing="12" IsVisible="{Binding HasSelection}">
+                        <TextBlock Text="Map Pool Record" Classes="col-label"
+                                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                        <TextBlock Text="{Binding SampleSizeLine}" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextValue}" />
+                        <TextBlock Text="{Binding DeciderLine}" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextValue}" IsVisible="{Binding HasDeciderData}" />
+
+                        <TextBlock Text="no map has been played yet in an indexed demo" FontSize="11"
+                                   Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasMaps}" />
+                        <ItemsControl ItemsSource="{Binding Maps}" IsVisible="{Binding HasMaps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MapPoolRowViewModel">
+                                    <Grid ColumnDefinitions="120,80,*,60,180" ColumnSpacing="10"
+                                          Margin="0 0 0 6">
+                                        <TextBlock Grid.Column="0" Text="{Binding Map}" FontSize="12"
+                                                   Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding PlayedLabel}" FontSize="11"
+                                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding RecordLabel}" FontSize="11"
+                                                   Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="{Binding WinRateLabel}" FontSize="11"
+                                                   Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="4" Text="{Binding SideLabel}" FontSize="11"
+                                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Veto history: optional, user-entered, filed under the selected team. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Veto history (manual entry)" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <TextBlock Text="session only: this browser tab forgets veto entries when it reloads"
+                                           FontSize="11" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding VetoesAreSessionOnly}" />
+                                <TextBlock Text="no veto steps recorded for this team yet" FontSize="11"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasVetoes}" />
+                                <ItemsControl ItemsSource="{Binding Vetoes}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:VetoRowViewModel">
+                                            <Grid ColumnDefinitions="30,120,60,60,*,Auto" ColumnSpacing="8" Margin="0 0 0 4">
+                                                <TextBlock Grid.Column="0" Text="{Binding Order}" FontSize="11"
+                                                           Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Map}" FontSize="11"
+                                                           Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding ActionLabel}" FontSize="11"
+                                                           Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{Binding ByLabel}" FontSize="11"
+                                                           Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4" Text="{Binding Note}" FontSize="11"
+                                                           Foreground="{DynamicResource TextMid}" TextTrimming="CharacterEllipsis" />
+                                                <Button Grid.Column="5" Content="Remove" Classes="ghost" FontSize="10" Padding="8 3"
+                                                        Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).RemoveVetoCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Grid ColumnDefinitions="120,90,Auto,*,Auto" ColumnSpacing="8">
+                                    <TextBox Grid.Column="0" Text="{Binding NewVetoMap}" FontSize="12" Watermark="map" />
+                                    <ComboBox Grid.Column="1" FontSize="12"
+                                              ItemsSource="{x:Static vm:DossierTabViewModel.VetoActionOptions}"
+                                              SelectedItem="{Binding NewVetoAction}" />
+                                    <CheckBox Grid.Column="2" Content="by them" IsChecked="{Binding NewVetoByOpponent}" FontSize="11" VerticalAlignment="Center" />
+                                    <Button Grid.Column="4" Content="Add" Classes="ghost" FontSize="11" Padding="10 5"
+                                            Command="{Binding AddVetoCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+
+</UserControl>
