@@ -342,7 +342,7 @@
       "x": 1335.6,
       "y": 373.4,
       "z": 191,
-      "place": "Alley"
+      "place": "BombsiteB"
     },
     {
       "tick": 144404,
@@ -360,7 +360,7 @@
       "x": -251.5,
       "y": -805.2,
       "z": 157.5,
-      "place": "TSideUpper"
+      "place": "Middle"
     },
     {
       "tick": 144478,
@@ -369,7 +369,7 @@
       "x": 1146.5,
       "y": 468.4,
       "z": 230,
-      "place": "Alley"
+      "place": "BombsiteB"
     },
     {
       "tick": 145131,
@@ -400,11 +400,11 @@
       "fromTick": 142586,
       "toTick": 144570,
       "triggerTick": 143802,
-      "confidence": 0.7,
+      "confidence": 0.8,
       "factors": {
         "count": 1,
         "touch": 1,
-        "utility": 0.7
+        "utility": 0.8
       },
       "labels": {
         "count": "5",
@@ -427,6 +427,11 @@
           "kind": "occupancy",
           "tick": 144058,
           "text": "T in BombsiteB"
+        },
+        {
+          "kind": "event",
+          "tick": 144120,
+          "text": "flash by slot 8 -> BombsiteB"
         }
       ]
     },
@@ -491,9 +496,9 @@
       "fromTick": 142198,
       "toTick": 144570,
       "triggerTick": 142454,
-      "confidence": 0.56,
+      "confidence": 0.64,
       "factors": {
-        "execute": 0.7,
+        "execute": 0.8,
         "fake": 0.8
       },
       "labels": {
