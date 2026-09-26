@@ -1127,7 +1127,8 @@ public class App : Application
         // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
         // open their rounds in the Review Queue. The Opening Tendencies join the Grenade Index to Round
-        // Facts and read the same positions files for the lurk.
+        // Facts and read the same positions files for the lurk; the Post-Plant And Retake read them for the
+        // plant spots, the holds and the retakes.
         services.AddSingleton(sp =>
         {
             RoundIndexPlaceSources sources = sp.GetRequiredService<RoundIndexPlaceSources>();
@@ -1146,6 +1147,11 @@ public class App : Application
                     sp.GetRequiredService<TeamIdentityService>(),
                     sp.GetRequiredService<DemoCacheStore>(),
                     sp.GetRequiredService<GrenadeIndex>(),
+                    sp.GetRequiredService<RoundIndexStore>(),
+                    sources.FingerprintFor),
+                postPlant: new PostPlantService(
+                    sp.GetRequiredService<TeamIdentityService>(),
+                    sp.GetRequiredService<DemoCacheStore>(),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor));
         });
