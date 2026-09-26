@@ -103,7 +103,7 @@ public class AppCompositionRootTests
     // The fan-out order is a contract (overview correction 19): an evaluator may read what the one before
     // it wrote in the same pass, so the round index, when it lands, goes after round facts and reads them.
     [Test]
-    public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTags()
+    public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenades()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
@@ -114,13 +114,18 @@ public class AppCompositionRootTests
                 {
                     "library", "highlights", Services.RoundFacts.RoundFactsEvaluator.EvaluatorId,
                     Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
-                    Modules.SuggestedTags.SuggestedTagsService.EvaluatorId
+                    Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
+                    Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId
                 });
             await Assert.That(coordinator.EvaluatorIds[2]).IsEqualTo("roundfacts");
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
             await Assert.That(coordinator.EvaluatorIds[3]).IsEqualTo("roundindex");
             // Suggested Tags reads the index written in the same pass, so it comes last.
             await Assert.That(coordinator.EvaluatorIds[4]).IsEqualTo("suggestedtags");
+            // The grenade walk reads nothing the others write; last so it never delays one that does.
+            await Assert.That(coordinator.EvaluatorIds[5]).IsEqualTo("grenades");
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
+                .IsSameReferenceAs(coordinator);
             await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Coordinator)
                 .IsSameReferenceAs(coordinator);
             await Assert.That(provider.GetRequiredService<Services.RoundFacts.IRoundFactsSource>()).IsNotNull();
