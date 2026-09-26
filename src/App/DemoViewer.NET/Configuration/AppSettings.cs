@@ -386,6 +386,12 @@ public sealed class GrenadesSettings
 
     /// <summary>Keep every n-th moved sample of a flight (D1); bounce vertices are always kept. Read at walk time.</summary>
     public int TrajectoryStride { get; set; } = 4;
+
+    /// <summary>
+    ///     Lineup Clip Render, default ON: every repeated throw position in the Grenade Index gets a GIF and its
+    ///     setpos line, queued in the Review Queue and rendered in the background. Read when the index changes.
+    /// </summary>
+    public bool RenderLineupClips { get; set; } = true;
 }
 
 /// <summary>Demo-library settings.</summary>
