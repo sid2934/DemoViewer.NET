@@ -69,6 +69,9 @@ public sealed class AppSettings
     /// <summary>The Situations module's settings: the round index sweep and its token source.</summary>
     public SituationsSettings Situations { get; set; } = new();
 
+    /// <summary>The grenade walk's settings: the library sweep and the trajectory stride.</summary>
+    public GrenadesSettings Grenades { get; set; } = new();
+
     /// <summary>
     ///     The app version (x.y.z) whose release notes the user has been shown, the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
@@ -366,6 +369,23 @@ public sealed class SituationsSettings
     /// </summary>
     public Services.RoundIndex.RoundIndexTokenSource TokenSource { get; set; } =
         Services.RoundIndex.RoundIndexTokenSource.Pawn;
+}
+
+/// <summary>
+///     The grenade walk's settings (grenade-walk.md §3.1). Desktop only, like the highlights scan opt-in
+///     beside it in Settings: the browser has no processing queue to sweep with.
+/// </summary>
+public sealed class GrenadesSettings
+{
+    /// <summary>
+    ///     Background library walk, default OFF (D4): about two and a half seconds per demo is half an hour
+    ///     over a 700-demo library. Off, the open demo is still walked on its own parse, and Match Overview
+    ///     walks any demo on request.
+    /// </summary>
+    public bool BackgroundIndex { get; set; }
+
+    /// <summary>Keep every n-th moved sample of a flight (D1); bounce vertices are always kept. Read at walk time.</summary>
+    public int TrajectoryStride { get; set; } = 4;
 }
 
 /// <summary>Demo-library settings.</summary>
