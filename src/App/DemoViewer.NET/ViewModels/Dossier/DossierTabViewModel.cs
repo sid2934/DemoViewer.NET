@@ -27,8 +27,9 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 ///     Setup Heatmaps By Buy: one heatmap per map and CT buy with its fixed and rotating places, each of
 ///     which sends its rounds to the Review Queue. The Opening Tendencies, a section VM of its own
 ///     (<see cref="OpeningTendenciesSectionViewModel" />) whose every number opens its rounds the same
-///     way. The later sections (post-plant, situational behaviour, the period diff, editing and export)
-///     are not built here.
+///     way. The Post-Plant And Retake (<see cref="PostPlantSectionViewModel" />): plant clusters,
+///     post-plant holds and retake grouping, every number opening its rounds too. The later sections
+///     (situational behaviour, the period diff, editing and export) are not built here.
 ///     <para>
 ///         <b>Heatmaps build on a worker.</b> They read every one of the team's positions files and
 ///         render one picture per heatmap, so the build runs off the UI thread and posts the rows first
@@ -92,6 +93,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="post">UI-thread marshal for the worker's results; the dispatcher when null.</param>
     /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
     /// <param name="openings">Builds the Opening Tendencies; null hides the section.</param>
+    /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
         SetupHeatmapService? heatmaps = null,
         ReviewQueue? review = null,
@@ -99,7 +101,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Func<SetupHeatmapRenderer>? renderer = null,
         Action<Action>? post = null,
         Func<byte[], Bitmap?>? decode = null,
-        OpeningTendenciesService? openings = null)
+        OpeningTendenciesService? openings = null,
+        PostPlantService? postPlant = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -115,6 +118,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         _decode = decode ?? DecodePng;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post);
+        PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post);
         _teams.Changed += Refresh;
         _vetoes.Changed += ProjectVetoes;
         Refresh();
@@ -149,6 +153,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     /// <summary>The selected team's Opening Tendencies.</summary>
     public OpeningTendenciesSectionViewModel Openings { get; }
+
+    /// <summary>The selected team's Post-Plant And Retake.</summary>
+    public PostPlantSectionViewModel PostPlant { get; }
 
     /// <summary>The running heatmap build; tests await it.</summary>
     internal Task HeatmapTask { get; private set; } = Task.CompletedTask;
@@ -185,6 +192,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         _disposed = true;
         Interlocked.Increment(ref _generation);
         Openings.Dispose();
+        PostPlant.Dispose();
         _teams.Changed -= Refresh;
         _vetoes.Changed -= ProjectVetoes;
     }
@@ -255,6 +263,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             ProjectVetoes();
             BuildHeatmaps();
             Openings.Load(null, "");
+            PostPlant.Load(null, "");
             return;
         }
 
@@ -278,6 +287,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         ProjectVetoes();
         BuildHeatmaps();
         Openings.Load(row.Id, row.Name);
+        PostPlant.Load(row.Id, row.Name);
     }
 
     /// <summary>The Review Queue clip for one of a heatmap's rounds: freeze end to the setup window's end plus the tail.</summary>
