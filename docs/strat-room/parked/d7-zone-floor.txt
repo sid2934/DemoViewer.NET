@@ -1,0 +1,3 @@
+hold
+
+D7 was decided "pooled" by the owner at 11:35 and has been APPLIED and merged as a82f6fa (2026-09-24 12:03). Nothing left to do; hooks must not act again.

@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=../../../rules/cs2demokit-rules.schema.json
+#
+# DRAFT, PARKED. This ruleset is written against the six engine surfaces filed as CS2DemoKit #54
+# (a team subject on the forward path, game-rules providers under entity.game.*, a real $round_end on
+# the GOTV profiles, event.frame_tick, round.team.money, enrich.round.plant_site). None of them is in
+# the pinned 0.12.0 release, so this file lives outside rules/: a shipped-tier ruleset that fails
+# validation throws at load, and this one would. When the pin bumps, the file moves to
+# rules/round_facts.rules.yaml byte-identical to the copy CS2DemoKit.Analysis ships (design §3.5),
+# and the app's EngineRoundFactsRowSource evaluates it on the forward path and reads the
+# round_facts table below. Column names are the contract RoundFactsColumns in
+# src/App/DemoViewer.NET/Services/RoundFacts/IRoundFactsRowSource.cs projects from.
+#
+# Where #54 delivers a surface under another name, this file changes; the record does not.
+ruleset: round_facts
+title: Round Facts
+summary: One row per round per side; the vocabulary every Strat Room feature filters on.
+for: each_team                       # #54 item 1
+
+params:
+  eco_max_per_player:         { type: int, default: 1000,  min: 0, max: 16000 }   # HLTV "full eco" 0-5k at five players
+  full_min_per_player_ct:     { type: int, default: 4000,  min: 0, max: 16000 }   # HLTV "full buy" 20k+ at five players
+  full_min_per_player_t:      { type: int, default: 4000,  min: 0, max: 16000 }   # set 4500 / 4000 for CS Demo Manager's split
+  force_money_max_per_player: { type: int, default: 400,   min: 0, max: 16000 }   # CS Demo Manager's force rule
+  money_sane_max:             { type: int, default: 16000, min: 0, max: 65535 }   # the reliability guard (build 10231, round 1)
+  regulation_rounds:          { type: int, default: 24,    min: 2, max: 60 }      # MR12; set 30 for an MR15 league
+
+define:
+  opening_kill:  { on: player_death, match: { enemy: true } }   # attacker and victim on different sides
+  first_contact: { on: player_hurt,  match: { enemy: true } }
+  enemy_death:   { on: player_death, match: { victim_enemy: true } }
+
+stats:
+  # Round-level: identical on both rows of a round. The projection warns when the pair disagrees.
+  freeze_end_tick:       { capture: event.frame_tick,               on: round_freeze_end,        per: round }   # #54 item 4
+  end_tick:              { capture: event.frame_tick,               on: $round_end,              per: round }   # #54 item 3
+  officially_ended_tick: { capture: event.frame_tick,               on: round_officially_ended,  per: round }   # the fallback end
+  end_reason:            { capture: entity.game.round_win_reason,   on: $round_end,              per: round }   # #54 item 2
+  winner_side:           { capture: entity.game.round_win_status,   on: $round_end,              per: round }
+  match_round:           { capture: entity.game.total_rounds_played, on: round_freeze_end,       per: round }   # the record adds one
+  game_phase:            { capture: entity.game.game_phase,         on: round_freeze_end,        per: round }
+  round_time:            { capture: entity.game.round_time,         on: round_freeze_end,        per: round }
+  plant_tick:            { capture: event.frame_tick,               on: bomb_planted,            per: round }
+  plant_site:            { capture: enrich.round.plant_site,        on: bomb_planted,            per: round }   # #54 item 6
+  plant_site_entity:     { capture: event.Site,                     on: bomb_planted,            per: round }
+  planter_slot:          { capture: event.UserId,                   on: bomb_planted,            per: round }
+  defuse_tick:           { capture: event.frame_tick,               on: bomb_defused,            per: round }
+  explode_tick:          { capture: event.frame_tick,               on: bomb_exploded,           per: round }
+  first_contact_tick:    { capture: event.frame_tick,               on: first_contact,           per: round, keep: first }
+  opening_kill_tick:     { capture: event.frame_tick,               on: opening_kill,            per: round, keep: first }
+
+  # Side-level: the subject's own numbers at the freeze-end sample.
+  slots:                 { capture: round.team.slots,               on: round_freeze_end,        per: round }   # #54 item 1
+  players:               { capture: round.team.players,             on: round_freeze_end,        per: round }
+  score_before:          { capture: round.team.score,               on: round_freeze_end,        per: round }
+  equipment:             { capture: round.team.equipment,           on: round_freeze_end,        per: round }
+  money:                 { capture: round.team.money,               on: round_freeze_end,        per: round }   # #54 item 5
+  money_reliable:        { compute: "round.team.money_min >= 0 and round.team.money_max <= params.money_sane_max" }
+  # The previous live round's winner, read from the team scope as a plain per-round value.
+  lost_previous:         { compute: "round.team.previous_winner_side != 0 and round.team.previous_winner_side != round.team.side" }
+
+  # The kill timeline: four lists sharing one index (tick i, victim side i, alive after i as this side
+  # sees it). The two slot lists are optional; the record fills -1 without them.
+  kill_ticks:            { capture: event.frame_tick,               on: player_death,            per: round, keep: list }
+  kill_victim_side:      { capture: victim.team,                    on: player_death,            per: round, keep: list }
+  kill_victim_slot:      { capture: victim.slot,                    on: player_death,            per: round, keep: list }
+  kill_attacker_slot:    { capture: attacker.slot,                  on: player_death,            per: round, keep: list }
+  kill_team_alive:       { capture: round.team.alive,               on: player_death,            per: round, keep: list }
+  kill_enemy_alive:      { capture: round.enemies.alive,            on: player_death,            per: round, keep: list }
+
+  # The design §3.2 rule, over the closed function set. BuyTypeClassifier in the app is the same rule;
+  # a row that carries this column wins, a row without it is classified app-side from the inputs above.
+  is_pistol:             { compute: "match_round + 1 <= params.regulation_rounds and (match_round + 1 == 1 or match_round + 1 == params.regulation_rounds / 2 + 1)" }
+  full_min:              { compute: "round.team.side == 3 and params.full_min_per_player_ct or params.full_min_per_player_t" }
+  buy_type:
+    compute: >-
+      is_pistol and 'pistol'
+      or equipment <= params.eco_max_per_player * players and 'eco'
+      or equipment >= full_min * players and 'full'
+      or lost_previous and money_reliable and money < params.force_money_max_per_player * players and 'force'
+      or 'semi'
+
+show:
+  tables:
+    round_facts:
+      per: team_round                # #54 item 1
+      columns:
+        - { stat: freeze_end_tick,       label: freeze_end_tick }
+        - { stat: end_tick,              label: end_tick }
+        - { stat: officially_ended_tick, label: officially_ended_tick }
+        - { stat: end_reason,            label: end_reason }
+        - { stat: winner_side,           label: winner_side }
+        - { stat: match_round,           label: match_round }
+        - { stat: game_phase,            label: game_phase }
+        - { stat: round_time,            label: round_time }
+        - { stat: plant_tick,            label: plant_tick }
+        - { stat: plant_site,            label: plant_site }
+        - { stat: plant_site_entity,     label: plant_site_entity }
+        - { stat: planter_slot,          label: planter_slot }
+        - { stat: defuse_tick,           label: defuse_tick }
+        - { stat: explode_tick,          label: explode_tick }
+        - { stat: first_contact_tick,    label: first_contact_tick }
+        - { stat: opening_kill_tick,     label: opening_kill_tick }
+        - { stat: slots,                 label: slots }
+        - { stat: players,               label: players }
+        - { stat: score_before,          label: score_before }
+        - { stat: equipment,             label: equipment }
+        - { stat: money,                 label: money }
+        - { stat: money_reliable,        label: money_reliable }
+        - { stat: buy_type,              label: buy_type }
+        - { stat: kill_ticks,            label: kill_ticks }
+        - { stat: kill_victim_side,      label: kill_victim_side }
+        - { stat: kill_victim_slot,      label: kill_victim_slot }
+        - { stat: kill_attacker_slot,    label: kill_attacker_slot }
+        - { stat: kill_team_alive,       label: kill_team_alive }
+        - { stat: kill_enemy_alive,      label: kill_enemy_alive }
+        # The parameter values travel with the rows so a row always says which thresholds produced it.
+        - { param: eco_max_per_player,         label: eco_max_per_player }
+        - { param: full_min_per_player_ct,     label: full_min_per_player_ct }
+        - { param: full_min_per_player_t,      label: full_min_per_player_t }
+        - { param: force_money_max_per_player, label: force_money_max_per_player }
+        - { param: money_sane_max,             label: money_sane_max }
+        - { param: regulation_rounds,          label: regulation_rounds }
