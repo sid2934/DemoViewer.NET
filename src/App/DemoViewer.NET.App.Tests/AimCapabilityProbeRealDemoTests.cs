@@ -161,6 +161,33 @@ public class AimCapabilityProbeRealDemoTests
         }
     }
 
+    /// <summary>
+    ///     A current (delta_data) demo, against the reconstructor wiring rather than the trimmed
+    ///     tour sample above: <c>UserCmdReconstructor</c> rebuilds <c>CSGOUserCmdPB</c> from
+    ///     <c>data</c> and <c>delta_data</c> alike, so <see cref="AimCapabilityProbe.Scan" /> should
+    ///     no longer read this demo's sub-tick stream as empty the way a cold
+    ///     <c>SubTickExtractor.Extract(frames)</c> (no reconstructor) still does on delta payloads
+    ///     with no baseline (player-input-refresh, #53).
+    /// </summary>
+    [Test]
+    public async Task Probe_OnACurrentReplay_FindsTheSubtickStreamPresentAndMostlyReconstructedFromDeltas()
+    {
+        string path = DemoTestHelper.RequireDemo();
+        AimCapabilityReport report = AimCapabilityProbe.Scan(DemoTestHelper.GetOrParse(path));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(report.Subtick.MessageCount).IsGreaterThan(0)
+                .Because("a current demo carries svc_UserCmds even when the tour sample does not");
+            await Assert.That(report.Subtick.YieldPerMessage).IsGreaterThanOrEqualTo(AimCapabilityProbe.MinSubtickYield)
+                .Because("without a reconstructor, delta_data has no baseline and decodes to near zero");
+            await Assert.That(report.Subtick.DeltaShare).IsGreaterThan(0.5)
+                .Because("current demos carry delta_data for the overwhelming majority of commands");
+            await Assert.That(report.Verdict(AimMetric.SubtickAimTiming).Support)
+                .IsEqualTo(MetricSupport.Supported);
+        }
+    }
+
     private static AimCapabilityReport ScanSample() =>
         AimCapabilityProbe.Scan(DemoTestHelper.GetOrParse(RequireSample()));
 

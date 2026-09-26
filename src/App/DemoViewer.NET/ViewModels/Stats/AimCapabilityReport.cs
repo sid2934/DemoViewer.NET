@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
@@ -153,8 +154,20 @@ public sealed record SignalObservation(
 /// </summary>
 /// <param name="MessageCount">Total <c>svc_UserCmds</c> payloads across every frame.</param>
 /// <param name="CarrierFrames">Frames carrying at least one payload.</param>
-/// <param name="SampledMessages">Payloads inside the sampled frames, the denominator of the yield.</param>
+/// <param name="SampledMessages">
+///     Payloads the yield was computed from, the denominator of <paramref name="YieldPerMessage" />.
+///     Equal to <paramref name="MessageCount" />: the walk is exact rather than sampled (see
+///     <paramref name="Stats" />), the name kept so a caller reading the ratio still finds its
+///     denominator here.
+/// </param>
 /// <param name="SampledEvents">Sub-tick events decoded out of those payloads.</param>
+/// <param name="Stats">
+///     Per-command outcome from the <c>UserCmdReconstructor</c> that walked the demo: how many
+///     commands rebuilt from a full baseline versus a delta against one, and how many could not be
+///     rebuilt at all (no baseline yet, out of order, or a decode failure). A current (build-10896+)
+///     demo ships almost entirely <c>Delta</c>; a pre-10896 one ships almost entirely <c>Full</c>
+///     because it never carries <c>delta_data</c> to begin with.
+/// </param>
 /// <param name="YieldPerMessage">
 ///     <paramref name="SampledEvents" /> divided by <paramref name="SampledMessages" />, or 0 when there
 ///     were no payloads to decode.
@@ -164,10 +177,21 @@ public sealed record SubtickObservation(
     int CarrierFrames,
     int SampledMessages,
     int SampledEvents,
+    UserCmdReconstructionStats Stats,
     double YieldPerMessage)
 {
     /// <summary>True when the demo carries any sub-tick input at all.</summary>
     public bool Present => MessageCount > 0;
+
+    /// <summary>
+    ///     Share of reconstructed commands that came from a delta rather than a full baseline, in
+    ///     [0, 1]. 0 when nothing reconstructed at all (an empty demo, or every command unreadable).
+    ///     Near 1 is the current-demo shape this item exists for; near 0 with <see cref="Present" />
+    ///     true is the pre-10896 shape, where every command already arrives self-contained.
+    /// </summary>
+    public double DeltaShare => Stats.Full + Stats.Delta > 0
+        ? (double)Stats.Delta / (Stats.Full + Stats.Delta)
+        : 0.0;
 }
 
 /// <summary>
