@@ -1,7 +1,10 @@
 #region
 
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundIndex;
@@ -65,11 +68,32 @@ public sealed record GrenadeQuery(
 /// <param name="Origin">The members' mean origin.</param>
 /// <param name="JumpThrow">Whether the members were jump-throws.</param>
 /// <param name="Throws">The members, oldest demo first, then by release tick.</param>
-public sealed record GrenadeLineup(WorldPoint Origin, bool JumpThrow, IReadOnlyList<IndexedGrenade> Throws)
+/// <param name="Id">
+///     A stable identity for this throw position (Lineup On A Strat Step, plan.md §3, Phase 4), computed by
+///     <see cref="GrenadeIndex.LineupId" /> over the map, kind, landing cell and rounded origin rather than
+///     any one member: the representative throw (oldest demo first) can change as an older demo is indexed
+///     later, but the position it names does not. This is the value Strat Model's <c>utility.lineupId</c>
+///     stores (strat-model.md §3.3.3): that design assumed the Utility Book would mint a persisted
+///     <c>Lineup.Id</c> row; there is none, so the deterministic key stands in for it (docs/strat-format.md).
+/// </param>
+public sealed record GrenadeLineup(WorldPoint Origin, bool JumpThrow, IReadOnlyList<IndexedGrenade> Throws, Guid Id)
 {
     /// <summary>Distinct demos among the members, by content where the hash is known.</summary>
     public int DemoCount => Throws.Select(t => t.Demo.Sha256 ?? t.Demo.StableKey).Distinct(StringComparer.Ordinal).Count();
 }
+
+/// <summary>
+///     What a Strat Book step or another consumer needs to show for a lineup without holding the whole
+///     cluster: its identity, its cluster's card title, and enough of the console line to be useful at a
+///     glance. Looked up by <see cref="GrenadeIndex.DescribeLineup" />.
+/// </summary>
+/// <param name="Id"><see cref="GrenadeLineup.Id" />.</param>
+/// <param name="Title">The cluster's card title (<see cref="LineupClipPlanner.Title" />'s wording).</param>
+/// <param name="Kind">What is thrown.</param>
+/// <param name="LandingPlace">The cluster's landing place, or null when none resolved.</param>
+/// <param name="ThrowCount">How many recorded throws stood at this position.</param>
+/// <param name="ConsoleText">The representative throw's <c>setpos</c>/<c>setang</c> line, or null when its release state was not read.</param>
+public sealed record LineupSummary(Guid Id, string Title, GrenadeKind Kind, string? LandingPlace, int ThrowCount, string? ConsoleText);
 
 /// <summary>
 ///     The grenades of one kind that landed in one coarse grid cell, their origins deduplicated into
@@ -319,7 +343,7 @@ public sealed class GrenadeIndex : IDisposable
         {
             List<GrenadeLineup> lineups =
             [
-                .. cell.GroupBy(g => (RoundedOrigin(g.Origin), g.Row.JumpThrow))
+                .. cell.GroupBy(g => (RoundedOrigin: RoundedOrigin(g.Origin), g.Row.JumpThrow))
                     .Select(group =>
                     {
                         List<IndexedGrenade> throws =
@@ -327,7 +351,8 @@ public sealed class GrenadeIndex : IDisposable
                             .. group.OrderBy(g => g.Demo.Path, StringComparer.OrdinalIgnoreCase)
                                 .ThenBy(g => g.Row.ReleaseTick)
                         ];
-                        return new GrenadeLineup(Mean(throws.Select(t => t.Origin)), group.Key.JumpThrow, throws);
+                        Guid id = LineupId(throws[0].Map, cell.Key.Kind, cell.Key.Cell, group.Key.RoundedOrigin, group.Key.JumpThrow);
+                        return new GrenadeLineup(Mean(throws.Select(t => t.Origin)), group.Key.JumpThrow, throws, id);
                     })
                     .OrderByDescending(l => l.Throws.Count)
                     .ThenBy(l => l.Origin.X).ThenBy(l => l.Origin.Y).ThenBy(l => l.Origin.Z)
@@ -384,6 +409,65 @@ public sealed class GrenadeIndex : IDisposable
         ((int)MathF.Round(point.X / OriginRounding, MidpointRounding.AwayFromZero),
             (int)MathF.Round(point.Y / OriginRounding, MidpointRounding.AwayFromZero),
             (int)MathF.Round(point.Z / OriginRounding, MidpointRounding.AwayFromZero));
+
+    /// <summary>
+    ///     <see cref="GrenadeLineup.Id" />: deterministic over the map, the kind, the landing cell and the
+    ///     rounded origin, so the same throw position gets the same id from every process and every reindex,
+    ///     with no row to persist. The first 16 bytes of a SHA-256 over the canonical string, the
+    ///     <see cref="LineupClipPlanner.FileStem" /> idiom, read back as a <see cref="Guid" />.
+    /// </summary>
+    /// <param name="map">The map, as the demo header spells it.</param>
+    /// <param name="kind">What is thrown.</param>
+    /// <param name="cell">The landing cell (<see cref="CellOf" />).</param>
+    /// <param name="roundedOrigin">The origin, rounded (<see cref="RoundedOrigin" />).</param>
+    /// <param name="jumpThrow">Whether the position is a jump-throw.</param>
+    public static Guid LineupId(string map, GrenadeKind kind, (int X, int Y, int Z) cell,
+        (int X, int Y, int Z) roundedOrigin, bool jumpThrow)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        string key = string.Create(CultureInfo.InvariantCulture,
+            $"{map.ToLowerInvariant()}|{kind}|{cell.X},{cell.Y},{cell.Z}|{roundedOrigin.X},{roundedOrigin.Y},{roundedOrigin.Z}|{jumpThrow}");
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+        return new Guid(hash.AsSpan(0, 16));
+    }
+
+    /// <summary>Every lineup on a map, across every kind unless <paramref name="kinds" /> narrows it, most thrown first.</summary>
+    /// <param name="map">The map, compared without case.</param>
+    /// <param name="kinds">The kinds to keep; null keeps all.</param>
+    public IReadOnlyList<LineupSummary> Lineups(string map, IReadOnlySet<GrenadeKind>? kinds = null)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        return
+        [
+            .. Query(new GrenadeQuery(map, kinds))
+                .SelectMany(c => c.Lineups.Select(l => Describe(c, l)))
+        ];
+    }
+
+    /// <summary>
+    ///     One lineup by <see cref="GrenadeLineup.Id" />, or null when the map has none matching (never
+    ///     indexed, or a reindex moved every throw off the position). <paramref name="map" /> is required:
+    ///     the id alone does not say which map it names.
+    /// </summary>
+    /// <param name="map">The map the lineup is on.</param>
+    /// <param name="lineupId"><see cref="GrenadeLineup.Id" />.</param>
+    public LineupSummary? DescribeLineup(string map, Guid lineupId)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        foreach (GrenadeCluster cluster in Query(new GrenadeQuery(map)))
+        {
+            if (cluster.Lineups.FirstOrDefault(l => l.Id == lineupId) is { } lineup)
+            {
+                return Describe(cluster, lineup);
+            }
+        }
+
+        return null;
+    }
+
+    private static LineupSummary Describe(GrenadeCluster cluster, GrenadeLineup lineup) =>
+        new(lineup.Id, LineupClipPlanner.Title(cluster), cluster.Kind, cluster.LandingPlace, lineup.Throws.Count,
+            GrenadeConsole.Format(lineup.Throws[0].Row));
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 

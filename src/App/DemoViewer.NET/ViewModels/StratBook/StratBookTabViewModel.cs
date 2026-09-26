@@ -13,6 +13,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -28,6 +29,7 @@ using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Playback2D;
+using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
 
 #endregion
 
@@ -57,6 +59,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     public const string AllSides = "all sides";
 
     private readonly CalloutResolverSource _calloutResolvers;
+    private readonly GrenadeIndex? _grenades;
     private readonly Action<Action> _post;
     private readonly StratStore _store;
     private readonly TeamIdentityService? _teams;
@@ -105,19 +108,26 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="review">Where the record panel's numbers send their clips; null says there is none on this host.</param>
     /// <param name="indexBySha">Hash to library row, for a clip's path (<see cref="DemoCacheStore.TryGetIndexBySha256" />).</param>
     /// <param name="selectTab">Shows a tab by id, for the Review tab after the record panel sends clips; null stays on the Strat Book.</param>
+    /// <param name="grenades">
+    ///     The Utility Book's Grenade Index (Lineup On A Strat Step): fills a step's lineup choices in the
+    ///     editor and resolves a lineup reference to its title in Role View and LAN Print; null offers only
+    ///     "none" and prints a raw id, the pre-item behaviour.
+    /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
-        Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null)
+        Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
+        GrenadeIndex? grenades = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
         _teams = teams;
         _post = post ?? (action => action());
         _calloutResolvers = calloutResolvers ?? new CalloutResolverSource(store);
+        _grenades = grenades;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Session = new StratSession(store, _post, () => IsBrowser, () => DateTime.UtcNow);
-        Editor = new StratEditorViewModel(Session);
+        Editor = new StratEditorViewModel(Session, _grenades is null ? null : LineupOptionsFor);
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
 
         // Strat Record Panel (plan.md §3, strat-model.md §3.6): run / won / aborted, split by Demo
@@ -635,7 +645,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         HistoryPanel.Configure(Session.Document);
         RoleView.Configure(Session.Document,
             Session.Document is { } doc ? _calloutResolvers.For(doc.Owner, doc.Map) : null,
-            RosterFromEditor(), id => _store.Load(id).Document);
+            RosterFromEditor(), id => _store.Load(id).Document, _grenades is null ? null : LineupTitle);
         OnPropertyChanged(nameof(HasOpenStrat));
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
@@ -809,6 +819,28 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private Dictionary<string, string?> RosterFromEditor() =>
         Editor.Slots.Where(s => s.Pin?.SteamId is not null)
             .ToDictionary(s => s.Letter, s => (string?)s.Pin!.Label);
+
+    // Lineup On A Strat Step: a step's utility kind narrows the Grenade Index query. "Molotov" in the strat
+    // vocabulary covers both the Grenade Index's Molotov and Incendiary kinds (grenade-walk.md §3.4 tells
+    // them apart; the Strat Model's closed utility kind list (§3.3.3) does not).
+    private static readonly Dictionary<string, IReadOnlySet<GrenadeKind>> GrenadeKindsByUtility = new(StringComparer.Ordinal)
+    {
+        ["smoke"] = new HashSet<GrenadeKind> { GrenadeKind.Smoke },
+        ["molotov"] = new HashSet<GrenadeKind> { GrenadeKind.Molotov, GrenadeKind.Incendiary },
+        ["he"] = new HashSet<GrenadeKind> { GrenadeKind.He },
+        ["flash"] = new HashSet<GrenadeKind> { GrenadeKind.Flash },
+        ["decoy"] = new HashSet<GrenadeKind> { GrenadeKind.Decoy }
+    };
+
+    private IReadOnlyList<StratLineupOption> LineupOptionsFor(string map, string utilityKind) =>
+        _grenades is null || !GrenadeKindsByUtility.TryGetValue(utilityKind, out IReadOnlySet<GrenadeKind>? kinds)
+            ? []
+            : [.. _grenades.Lineups(map, kinds).Select(l => new StratLineupOption(l.Id, l.Title))];
+
+    // Raw-id fallback (RoleSheet's own convention): the open strat's map picks the corpus to search, so a
+    // strat with no document open (nothing to resolve against) leaves the id as its own text.
+    private string? LineupTitle(Guid lineupId) =>
+        Session.Document is { } document ? _grenades?.DescribeLineup(document.Map, lineupId)?.Title : null;
 
     // The latest roster's members for a team, by last-seen name; the confirmed me accounts for the me book.
     private List<StratPinOption> PinsFor(StratOwner owner)

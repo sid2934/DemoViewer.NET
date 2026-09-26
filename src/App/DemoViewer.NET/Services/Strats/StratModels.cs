@@ -380,7 +380,14 @@ public sealed class StepPosition
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
-/// <summary>A grenade a step throws (§3.3.3). <see cref="LineupId" /> is the Utility Book's, opaque here.</summary>
+/// <summary>
+///     A grenade a step throws (§3.3.3). <see cref="LineupId" /> is opaque here by design: this model does
+///     not dereference it, only stores and round-trips it. Lineup On A Strat Step fills it from the Utility
+///     Book's <c>GrenadeLineup.Id</c>, a deterministic key over the map, kind, landing cell and rounded
+///     origin (not a persisted row: correction noted in docs/strat-format.md, since the design that reserved
+///     this field assumed a minted <c>Lineup.Id</c>), and resolves it back through
+///     <c>GrenadeIndex.DescribeLineup</c> for display on the step and in LAN Print.
+/// </summary>
 public sealed class UtilityRef
 {
     public string Kind { get; set; } = "smoke";

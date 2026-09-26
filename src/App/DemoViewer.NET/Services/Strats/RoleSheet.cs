@@ -17,13 +17,19 @@ public static class StratStepPhrasing
     /// <summary>
     ///     A step as one sentence fragment: <c>B throws smoke A ramp → A site (Stairs)</c> (§3.13's own
     ///     example). <c>all</c> reads as <c>All</c>; the utility kind sits between the verb and the places;
-    ///     a landing place prints in parens only when it differs from <c>to</c>. The step's note is not
-    ///     included here: the call sheet leaves prose out of its one-liner the way a history summary does,
-    ///     and the role sheet appends it itself because §3.14 asks for it there.
+    ///     a landing place prints in parens only when it differs from <c>to</c>; a lineup reference (Lineup
+    ///     On A Strat Step) prints last, as <c>[lineup: &lt;title&gt;]</c>. The step's note is not included
+    ///     here: the call sheet leaves prose out of its one-liner the way a history summary does, and the
+    ///     role sheet appends it itself because §3.14 asks for it there.
     /// </summary>
     /// <param name="step">The step.</param>
     /// <param name="callouts">The owner's callouts for the map; null prints canonical names split into words.</param>
-    public static string Phrase(StratStep step, CalloutResolver? callouts)
+    /// <param name="lineupTitle">
+    ///     Resolves a step's <c>utility.lineupId</c> to its card title (<c>GrenadeIndex.DescribeLineup</c>);
+    ///     null, or an id it cannot resolve, prints the raw id, the same fallback
+    ///     <see cref="StratBranchPhrasing.TargetText" /> uses for an unresolved branch target.
+    /// </param>
+    public static string Phrase(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null)
     {
         ArgumentNullException.ThrowIfNull(step);
         bool all = string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal);
@@ -62,6 +68,11 @@ public static class StratStepPhrasing
         if (landing is not null && !string.Equals(landing, step.To?.Place, StringComparison.Ordinal))
         {
             sentence.Append(" (").Append(StratDiffPhrasing.Place(landing, callouts)).Append(')');
+        }
+
+        if (step.Utility?.LineupId is { } lineupId)
+        {
+            sentence.Append(" [lineup: ").Append(lineupTitle?.Invoke(lineupId) ?? lineupId.ToString()).Append(']');
         }
 
         return sentence.ToString();
@@ -172,8 +183,10 @@ public sealed record RoleSheet(
     /// <param name="callouts">The owner's callouts for the map; null prints canonical names split into words.</param>
     /// <param name="roster">Slot letter to resolved player name, already picked by strat pin, book default or neither.</param>
     /// <param name="lookup">Resolves another strat referenced by a branch target; null leaves it as a raw id.</param>
+    /// <param name="lineupTitle">Resolves a step's lineup reference to its card title; null leaves it as a raw id (§3.13's phrasing).</param>
     public static RoleSheet Derive(StratDocument doc, string slot, CalloutResolver? callouts = null,
-        IReadOnlyDictionary<string, string?>? roster = null, Func<Guid, StratDocument?>? lookup = null)
+        IReadOnlyDictionary<string, string?>? roster = null, Func<Guid, StratDocument?>? lookup = null,
+        Func<Guid, string?>? lineupTitle = null)
     {
         ArgumentNullException.ThrowIfNull(doc);
         ArgumentNullException.ThrowIfNull(slot);
@@ -218,7 +231,7 @@ public sealed record RoleSheet(
                 continue;
             }
 
-            string text = StratStepPhrasing.Phrase(step, callouts);
+            string text = StratStepPhrasing.Phrase(step, callouts, lineupTitle);
             if (mine && step.Note is { Length: > 0 } note)
             {
                 text += " (" + note + ")";
