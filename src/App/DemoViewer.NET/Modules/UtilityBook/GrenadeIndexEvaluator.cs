@@ -274,4 +274,7 @@ internal static partial class GrenadeIndexLog
 
     [LoggerMessage(EventId = 4, Level = LogLevel.Information, Message = "grenade index loaded {demos} demos in {ms} ms")]
     public static partial void Loaded(ILogger logger, int demos, long ms);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "lineup clips: {line}")]
+    public static partial void LineupClip(ILogger logger, string line);
 }

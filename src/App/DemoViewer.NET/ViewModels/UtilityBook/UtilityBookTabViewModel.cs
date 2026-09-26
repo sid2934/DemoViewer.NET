@@ -137,10 +137,7 @@ public sealed class GrenadeClusterRow
     public IReadOnlyList<GrenadeLineupRow> Lineups { get; }
 
     /// <summary><c>Smoke into CTSpawn</c>, or the landing point when no zone placed it.</summary>
-    public string Title => Cluster.LandingPlace is { } place
-        ? $"{Cluster.Kind} into {place}"
-        : string.Create(CultureInfo.InvariantCulture,
-            $"{Cluster.Kind} at ({Cluster.Landing.X:0}, {Cluster.Landing.Y:0}, {Cluster.Landing.Z:0})");
+    public string Title => LineupClipPlanner.Title(Cluster);
 
     /// <summary><c>14 throws from 5 positions</c>.</summary>
     public string Summary
