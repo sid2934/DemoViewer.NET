@@ -31,7 +31,9 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 ///     post-plant holds and retake grouping, every number opening its rounds too. The Situational
 ///     Behaviour (<see cref="SituationalBehaviourSectionViewModel" />): pistol patterns and their
 ///     follow-up, anti-eco setups, man-advantage handling and save discipline, over Round Facts alone.
-///     The later sections (the period diff, editing and export) are not built here.
+///     The Period Diff: the team's last <see cref="WindowSize" /> demos against the
+///     <see cref="WindowSize" /> before those, roster to roster (<see cref="PeriodDiffService" />). The
+///     later sections (editing and export) are not built here.
 ///     <para>
 ///         <b>Heatmaps build on a worker.</b> They read every one of the team's positions files and
 ///         render one picture per heatmap, so the build runs off the UI thread and posts the rows first
@@ -83,6 +85,20 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     [ObservableProperty]
     private DossierTeamRow? _selectedTeam;
+
+    /// <summary>Demos per Period Diff period; one of <see cref="WindowSizeOptions" />.</summary>
+    [ObservableProperty]
+    private int _windowSize = PeriodDiffService.DefaultWindowSize;
+
+    [ObservableProperty]
+    private PeriodDiffRowViewModel? _periodDiffRecent;
+
+    [ObservableProperty]
+    private PeriodDiffRowViewModel? _periodDiffPrevious;
+
+    /// <summary>"same roster across both periods", "roster changed: r1 then r2", or why there is no diff yet.</summary>
+    [ObservableProperty]
+    private string _periodDiffNote = "";
 
     /// <param name="teams">Team Identity, for the team picker and the sides the record is built from.</param>
     /// <param name="demoCache">The cache a demo's map, score and side-round totals come from.</param>
@@ -171,6 +187,11 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <summary>The two veto step kinds, for the add-row picker.</summary>
     public static IReadOnlyList<VetoAction> VetoActionOptions { get; } = Enum.GetValues<VetoAction>();
 
+    /// <summary>The window sizes the Period Diff picker offers.</summary>
+    public static IReadOnlyList<int> WindowSizeOptions { get; } = [3, 5, 10, 20];
+
+    public bool HasPeriodDiff => PeriodDiffRecent is not null;
+
     /// <summary>"18 demos" — the section's own overall sample size, or the empty-state line.</summary>
     public string SampleSizeLine { get; private set; } = "";
 
@@ -212,6 +233,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Project();
         OnPropertyChanged(nameof(HasSelection));
     }
+
+    partial void OnWindowSizeChanged(int value) => ProjectPeriodDiff();
 
     [RelayCommand]
     private void AddVeto()
@@ -274,6 +297,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             Openings.Load(null, "");
             PostPlant.Load(null, "");
             Situational.Load(null, "");
+            ProjectPeriodDiff();
             return;
         }
 
@@ -299,6 +323,49 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Openings.Load(row.Id, row.Name);
         PostPlant.Load(row.Id, row.Name);
         Situational.Load(row.Id, row.Name);
+        ProjectPeriodDiff();
+    }
+
+    // Synchronous like the Map Pool Record: SidesOf is already in memory, so a window-size change
+    // (or a team change) re-derives without a worker.
+    private void ProjectPeriodDiff()
+    {
+        if (SelectedTeam is not { } row)
+        {
+            PeriodDiffRecent = null;
+            PeriodDiffPrevious = null;
+            PeriodDiffNote = "";
+            OnPropertyChanged(nameof(HasPeriodDiff));
+            return;
+        }
+
+        PeriodDiffSet set = PeriodDiffService.Build(_teams, _demoCache, row.Id, WindowSize);
+        PeriodDiffRecent = new PeriodDiffRowViewModel(set.Recent);
+        PeriodDiffPrevious = new PeriodDiffRowViewModel(set.Previous);
+        PeriodDiffNote = PeriodDiffNoteFor(set);
+        OnPropertyChanged(nameof(HasPeriodDiff));
+    }
+
+    /// <summary>The section's own summary line for a finished build.</summary>
+    /// <param name="set">The build.</param>
+    public static string PeriodDiffNoteFor(PeriodDiffSet set)
+    {
+        ArgumentNullException.ThrowIfNull(set);
+        if (!set.HasBothPeriods)
+        {
+            return set.TotalDemos == 0
+                ? "no demos yet: this team has no side assigned in any indexed demo"
+                : $"only {Plural(set.TotalDemos, "demo")} so far: not enough for two periods of {set.WindowSize}";
+        }
+
+        if (!set.RosterChanged)
+        {
+            return set.Recent.DominantRoster is null
+                ? "no roster resolved in either period"
+                : "same roster across both periods";
+        }
+
+        return $"roster changed: {set.Previous.DominantRoster!.Label} then {set.Recent.DominantRoster!.Label}";
     }
 
     /// <summary>The Review Queue clip for one of a heatmap's rounds: freeze end to the setup window's end plus the tail.</summary>
@@ -517,6 +584,50 @@ public sealed class MapPoolRowViewModel
     public string WinRateLabel { get; }
 
     public string SideLabel { get; }
+}
+
+/// <summary>One period (last or previous) of a Period Diff, worded for display.</summary>
+public sealed class PeriodDiffRowViewModel
+{
+    public PeriodDiffRowViewModel(PeriodDiffPeriod period)
+    {
+        ArgumentNullException.ThrowIfNull(period);
+        Label = period.Label;
+        CountLabel = period.Count == 1 ? "1 demo" : $"{period.Count} demos";
+        RecordLabel = period.Wins + period.Losses == 0
+            ? "no resolved score"
+            : $"{period.Wins}-{period.Losses}" + (period.Undetermined > 0 ? $" ({period.Undetermined} undetermined)" : "");
+        WinRateLabel = period.WinRate is { } wr
+            ? wr.ToString("P0", CultureInfo.InvariantCulture)
+            : "—";
+        SideLabel = period.HasRoundData
+            ? $"CT {period.CtRoundsWon}-{period.TRoundsWon} T ({period.CtRoundShare!.Value:P0} CT)"
+            : "no round data";
+        RosterLabel = period.DominantRoster is not { } roster
+            ? "no roster resolved"
+            : period.Rosters.Count > 1
+                ? $"{roster.Label} (+{period.Rosters.Count - 1} more)"
+                : roster.Label;
+        StandInLabel = period.StandInCount == 0 ? "" : $"{period.StandInCount} with a stand-in";
+    }
+
+    /// <summary>"last" or "previous".</summary>
+    public string Label { get; }
+
+    public string CountLabel { get; }
+
+    public string RecordLabel { get; }
+
+    public string WinRateLabel { get; }
+
+    public string SideLabel { get; }
+
+    /// <summary>The period's dominant roster, or the count of rosters it spans when more than one played it.</summary>
+    public string RosterLabel { get; }
+
+    public string StandInLabel { get; }
+
+    public bool HasStandIn => StandInLabel.Length > 0;
 }
 
 /// <summary>One user-entered veto step, worded for display.</summary>
