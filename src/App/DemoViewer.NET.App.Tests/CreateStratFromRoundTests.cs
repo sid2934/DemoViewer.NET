@@ -139,6 +139,22 @@ public class CreateStratFromRoundTests
     }
 
     [Test]
+    public async Task AThrowArrow_StartsAtTheThrowOrigin_WhenTheSamplerNamedOne()
+    {
+        // Same shape as the plain throw-arrow test, but the moment carries a release point (#56, #59) well
+        // away from where the thrower is standing at the detonation: the arrow starts there instead.
+        List<CapturedPawn> pawns = Everyone(s => s == 1 ? (100, 200) : (s * 1000, 0));
+        RoundCapture capture = Round(new CaptureMoment(At(12), CaptureTrigger.Utility, pawns, "flash", 1, 2,
+            new Vector3(900, 800, 300), ThrowOrigin: new Vector3(50, 60, 0)));
+
+        StratStep withOrigin = StratFromRound.Steps(capture, Options(capture))[1];
+        JsonArray points = withOrigin.Strokes.Single()["points"]!.AsArray();
+
+        await Assert.That(string.Join(",", points.Select(p => p!.GetValue<float>().ToString(CultureInfo.InvariantCulture))))
+            .IsEqualTo("50,60,0.5,900,800,0.5").Because("the release point, not the thrower's position at detonation");
+    }
+
+    [Test]
     public async Task TheSlotMap_TakesPins_ThenTheBookDefault_ThenControllerSlotOrder()
     {
         List<CapturedPawn> ours = [.. Everyone().Where(p => p.Team == 2)];
