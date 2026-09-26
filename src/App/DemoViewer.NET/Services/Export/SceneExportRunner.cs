@@ -95,13 +95,41 @@ public sealed class SceneExportRunner : IExportRunner
         // spends a minute seeking rather than after it spends ten encoding into a pipe (plan P2 D1).
         (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
+        IFrameSink sink = _encoding.BuildSink(request, request.Core, ffmpeg, encoder);
+        using IRenderSurfaceProvider surfaces = _surfaces();
+        await RenderSceneAsync(request, setup, sink, surfaces, progress, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Renders one demo range into a sink the caller built: the source, the HUD, the compositor and the
+    ///     session, everything <see cref="RunAsync" /> does after the encoder is chosen. Pack Export calls it
+    ///     once per clip with the pack's one sink behind a <c>PackSegmentSink</c>, so many clips from many
+    ///     demos land in one encode.
+    /// </summary>
+    /// <param name="request">The range and the output settings; <c>Core</c>'s frame range is re-stamped here.</param>
+    /// <param name="setup">The scene captured for this run.</param>
+    /// <param name="sink">Where frames go. <b>Disposed by the session</b>, as every export sink is.</param>
+    /// <param name="surfaces">The render surface provider. Owned by the caller.</param>
+    /// <param name="progress">Progress reports, or null.</param>
+    /// <param name="ct">Cancels the render.</param>
+    /// <param name="maxFrames">Renders at most this many frames from the start of the range, or all of it when null.</param>
+    internal static async Task RenderSceneAsync(Scene2DExportRequest request, ExportSceneSetup setup, IFrameSink sink,
+        IRenderSurfaceProvider surfaces, IProgress<ExportProgress>? progress, CancellationToken ct,
+        int? maxFrames = null)
+    {
         using TrackerFrameSource source = BuildSource(request, setup);
+        int last = Math.Max(0, source.FrameCount - 1);
+        if (maxFrames is int cap)
+        {
+            last = Math.Min(last, Math.Max(0, cap - 1));
+        }
+
         ExportRequest core = request.Core with
         {
             // Re-stamped from the source itself: the dialog sized the range with
             // TrackerFrameSource.OutputFrameCount, and this is the assertion that the two agree.
             StartFrame = 0,
-            EndFrame = Math.Max(0, source.FrameCount - 1)
+            EndFrame = last
         };
 
         // After BuildSource, because the HUD's clock reads the source's own last-built frame: the whole
@@ -109,7 +137,6 @@ public sealed class SceneExportRunner : IExportRunner
         IHudDataSource? hud = setup.Hud?.Invoke(source);
 
         using SceneCompositor compositor = BuildCompositor(core, setup, hud);
-        using IRenderSurfaceProvider surfaces = _surfaces();
 
         SceneExportSession session = new(compositor)
         {
@@ -119,7 +146,6 @@ public sealed class SceneExportRunner : IExportRunner
             RadarBinder = setup.MapAssets is null ? null : new MapRadarBinder(setup.MapAssets)
         };
 
-        IFrameSink sink = _encoding.BuildSink(request, core, ffmpeg, encoder);
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
     }
 
