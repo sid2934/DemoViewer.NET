@@ -146,10 +146,11 @@ public sealed record SignalObservation(
 /// <summary>
 ///     The sub-tick input stream, measured as a yield rather than a presence.
 ///     <para>
-///         Two Valve matchmaking demos eight months apart, same parser and same code path, carried
-///         1,324,574 and 1,540,561 <c>svc_UserCmds</c> payloads and yielded 0.026 versus 0.88 sub-tick
-///         events per payload: a 39x spread with both demos reporting the message as present. A consumer
-///         that checks presence alone reads the first as fully instrumented.
+///         Measured through the reconstructor over seven Valve matchmaking demos,
+///         1.08M to 1.78M <c>svc_UserCmds</c> payloads each, the yield sat between 0.024 and
+///         0.037 sub-tick events per payload whether the demo shipped every command Full (pre-switch)
+///         or 99.8% as <c>delta_data</c>. The 0.88 an earlier path measured on one demo does not
+///         reproduce. Presence still says nothing about how much of the stream decodes.
 ///     </para>
 /// </summary>
 /// <param name="MessageCount">Total <c>svc_UserCmds</c> payloads across every frame.</param>
