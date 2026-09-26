@@ -22,6 +22,7 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 /// <param name="Landing">Where it went off.</param>
 /// <param name="LandingPlace">The zone the landing point falls in, or null when the map has no zones or no zone holds it.</param>
 /// <param name="PlaceSource"><c>zones:&lt;zonesVersion&gt;</c> when the zones answered, else null.</param>
+/// <param name="TickRate">The demo's tick rate, from the rows sibling's frame-clock header; 64 when it read none.</param>
 public sealed record IndexedGrenade(
     DemoRef Demo,
     string Map,
@@ -29,12 +30,16 @@ public sealed record IndexedGrenade(
     WorldPoint Origin,
     WorldPoint Landing,
     string? LandingPlace,
-    string? PlaceSource)
+    string? PlaceSource,
+    int TickRate = 64)
 {
     public GrenadeKind Kind => Row.Kind;
 
     /// <summary>The demo's hash plus the row id, or the stable key plus the row id when the demo has no hash yet.</summary>
     public string Key => (Demo.Sha256 ?? Demo.StableKey) + "/" + Row.Id;
+
+    /// <summary><see cref="GrenadeRow.AirTimeTicks" /> at <see cref="TickRate" />: what a Lineup Card prints.</summary>
+    public float AirTimeSeconds => Row.AirTimeTicks / (float)Math.Max(1, TickRate);
 }
 
 /// <summary>
@@ -351,7 +356,8 @@ public sealed class GrenadeIndex : IDisposable
     /// <param name="map">The demo's map.</param>
     /// <param name="row">The walk's row.</param>
     /// <param name="zones">The map's zone resolver, or null when it has none.</param>
-    public static IndexedGrenade? From(DemoRef demo, string map, GrenadeRow row, IZonePlaceResolver? zones)
+    /// <param name="tickRate">The demo's tick rate; 64 when the caller has none.</param>
+    public static IndexedGrenade? From(DemoRef demo, string map, GrenadeRow row, IZonePlaceResolver? zones, int tickRate = 64)
     {
         ArgumentNullException.ThrowIfNull(demo);
         ArgumentNullException.ThrowIfNull(map);
@@ -362,7 +368,7 @@ public sealed class GrenadeIndex : IDisposable
         }
 
         (string? place, string? source) = Resolve(zones, landing);
-        return new IndexedGrenade(demo, map, row, origin, landing, place, source);
+        return new IndexedGrenade(demo, map, row, origin, landing, place, source, tickRate > 0 ? tickRate : 64);
     }
 
     /// <summary>The landing cell a point falls in.</summary>
@@ -415,10 +421,11 @@ public sealed class GrenadeIndex : IDisposable
         string map = entry.Map ?? "";
         DemoRef demo = DemoRef.From(entry);
         IZonePlaceResolver? zones = map.Length > 0 ? _zones.TryGet(map) : null;
+        int tickRate = document.Clock.TickRate > 0 ? document.Clock.TickRate : 64;
         List<IndexedGrenade> grenades = [];
         foreach (GrenadeRow row in document.Grenades)
         {
-            if (From(demo, map, row, zones) is { } grenade)
+            if (From(demo, map, row, zones, tickRate) is { } grenade)
             {
                 grenades.Add(grenade);
             }
