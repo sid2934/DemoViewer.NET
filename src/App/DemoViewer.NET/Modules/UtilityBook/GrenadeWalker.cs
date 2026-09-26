@@ -97,7 +97,7 @@ public sealed class GrenadeReads
 public static class GrenadeWalker
 {
     /// <summary>Bumped when a row's meaning changes; a demo walked under another version re-indexes.</summary>
-    public const string Version = "1";
+    public const string Version = "2";
 
     private const string ControllerClass = "CCSPlayerController";
     private const string PawnClass = "CCSPlayerPawn";
@@ -503,12 +503,13 @@ public static class GrenadeWalker
         }
 
         Vector3? eye = EntityReads.Vector(pawn, "m_angEyeAngles");
+        uint? flags = EntityReads.UInt(pawn, "m_fFlags");
         return new PawnRead(tick,
             PositionUtil.CellToWorld(pawn),
             eye?.X,
             eye?.Y,
-            EntityReads.UInt(pawn, "m_fFlags"),
-            EntityReads.Bool(pawn, "m_pMovementServices.m_bDucked"),
+            flags,
+            flags is { } f ? (f & GrenadeRules.DuckingFlag) != 0 : EntityReads.Bool(pawn, "m_pMovementServices.m_bDucked"),
             EntityReads.Bool(pawn, "m_bIsWalking"),
             EntityReads.Int(pawn, "m_iTeamNum") ?? 0,
             strength,
