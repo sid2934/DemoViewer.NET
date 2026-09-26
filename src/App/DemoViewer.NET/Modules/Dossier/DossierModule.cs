@@ -10,8 +10,9 @@ namespace DemoViewer.NET.Modules.Dossier;
 
 /// <summary>
 ///     The Opponent Dossier module: one Main-strip tab (<see cref="BrowserTabId" />, after the Utility
-///     Book) keyed by a Team Identity team, whose one built section today is the Map Pool Record — the
-///     demo-derivable substitute for the veto model (plan.md §3, Phase 5; F12).
+///     Book) keyed by a Team Identity team: the Map Pool Record (the demo-derivable substitute for the veto
+///     model), Setup Heatmaps By Buy, Opening Tendencies, Post-Plant And Retake, Situational Behaviour,
+///     Period Diff, and the editable long form with its one-pager export (plan.md §3, Phase 5; F12).
 ///     <para>
 ///         <b>The ids are persisted keys.</b> <see cref="BrowserTabId" /> and <see cref="TabFeatureId" />
 ///         key the user's per-tab session state and <c>Features:Overrides:{id}</c>; the header
