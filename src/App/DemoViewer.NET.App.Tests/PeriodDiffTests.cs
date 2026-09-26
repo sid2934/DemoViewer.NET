@@ -179,6 +179,46 @@ public class PeriodDiffTests
     }
 
     [Test]
+    public async Task AStandIn_IsCountedAtTierOne_AndNotAgainstAnExtendedCore()
+    {
+        DemoCacheStore cache = new(null);
+        TeamIdentityService teams = new(null, cache, run: _inline);
+        await teams.StartAsync();
+        using (cache.BeginBatch())
+        {
+            // Team A fixes its five on days 1 and 2, then plays day 3 with two stand-ins (tier 1).
+            cache.Upsert(Record("/d/a1.dem", 1, Ids(1, 2, 3, 4, 5), Ids(51, 52, 53, 54, 55), "de_nuke", 5, 13, 5, 13));
+            cache.Upsert(Record("/d/a2.dem", 2, Ids(1, 2, 3, 4, 5), Ids(56, 57, 58, 59, 60), "de_nuke", 5, 13, 5, 13));
+            cache.Upsert(Record("/d/a3.dem", 3, Ids(1, 2, 3, 30, 31), Ids(61, 62, 63, 64, 65), "de_nuke", 5, 13, 5, 13));
+            // Team B never repeats a five, so it only has an extended core; day 6 has a stand-in (tier 2).
+            cache.Upsert(Record("/d/b1.dem", 4, Ids(11, 12, 13, 14, 15), Ids(71, 72, 73, 74, 75), "de_nuke", 5, 13, 5, 13));
+            cache.Upsert(Record("/d/b2.dem", 5, Ids(11, 12, 13, 16, 17), Ids(76, 77, 78, 79, 80), "de_nuke", 5, 13, 5, 13));
+            cache.Upsert(Record("/d/b3.dem", 6, Ids(11, 12, 13, 14, 40), Ids(81, 82, 83, 84, 85), "de_nuke", 5, 13, 5, 13));
+        }
+
+        await teams.Idle;
+        SideAssignment tierOne = teams.GetAssignment("/d/a3.dem")!.T;
+        SideAssignment tierTwo = teams.GetAssignment("/d/b3.dem")!.T;
+        using (Assert.Multiple())
+        {
+            await Assert.That(tierOne.Tier).IsEqualTo(1);
+            await Assert.That(tierOne.StandIn).IsTrue();
+            await Assert.That(tierTwo.Tier).IsEqualTo(2);
+            await Assert.That(tierTwo.StandIn).IsTrue().Because("the stamp is stored at both tiers");
+        }
+
+        PeriodDiffSet a = PeriodDiffService.Build(teams, cache, tierOne.TeamId!.Value, windowSize: 3);
+        PeriodDiffSet b = PeriodDiffService.Build(teams, cache, tierTwo.TeamId!.Value, windowSize: 3);
+        using (Assert.Multiple())
+        {
+            await Assert.That(a.Recent.StandInCount).IsEqualTo(1);
+            await Assert.That(b.Recent.StandInCount).IsEqualTo(0)
+                .Because("with a stand-in has no referent until a five exists");
+            await Assert.That(b.Recent.Demos.Any(d => d.StandIn)).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task TheDossier_ShowsThePeriodDiffSection_AndThePickerRebuildsIt()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA) = await Library();

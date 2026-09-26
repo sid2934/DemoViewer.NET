@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Services.Teams;
 /// <param name="Side">2 = T, 3 = CT: the team's end-of-demo side.</param>
 /// <param name="RosterId">The roster Team Identity matched this side to, or null when the side never joined one.</param>
 /// <param name="RosterLabel">The roster's own label when the user set one, else <see cref="RosterId" />; "" without a roster.</param>
-/// <param name="StandIn">Overlap 3 or 4 with a member outside the roster's anchor (design §3.3).</param>
+/// <param name="StandIn">Overlap 3 or 4 with a member outside the roster's anchor (design §3.3), surfaced at tier 1 only.</param>
 /// <param name="Won">True/false when the final score resolves a winner; null on an equal or missing score.</param>
 /// <param name="CtRounds">Rounds won on the CT side, match-wide (F12: the grain <c>CtSideWins</c> is cached at).</param>
 /// <param name="TRounds">Rounds won on the T side, match-wide.</param>

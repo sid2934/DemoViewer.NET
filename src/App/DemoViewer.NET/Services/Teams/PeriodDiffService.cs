@@ -78,7 +78,7 @@ public static class PeriodDiffService
                 : team?.Rosters.FirstOrDefault(r => string.Equals(r.Id, rosterId, StringComparison.Ordinal))?.Label ?? rosterId;
 
             rows.Add(new PeriodDiffDemoRow(demo.Path, demo.Sha256, map, entry?.ModifiedTicks ?? 0, side,
-                rosterId, rosterLabel, sideAssignment.StandIn, won, ctRounds, tRounds));
+                rosterId, rosterLabel, sideAssignment.StandIn && sideAssignment.Tier == 1, won, ctRounds, tRounds));
         }
 
         PeriodDiffPeriod recent = BuildPeriod("last", [.. rows.Take(windowSize)]);
