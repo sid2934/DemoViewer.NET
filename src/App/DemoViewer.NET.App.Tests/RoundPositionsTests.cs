@@ -29,17 +29,18 @@ public class RoundPositionsTests
         Path.Combine(Path.GetTempPath(), $"dv-roundpositions-{Guid.NewGuid():N}");
 
     // Every seated slot at a distinct spot, CT on A and T on Ramp, with fractional coordinates so the
-    // rounding is visible.
-    private static IEnumerable<PositionSample> Placed(int tick)
+    // rounding is visible. deadSlots reads alive: false on its own sample (CS2DemoKit #58 is the gate,
+    // not a Round Facts kill), everyone else alive: true.
+    private static IEnumerable<PositionSample> Placed(int tick, HashSet<int>? deadSlots = null)
     {
         foreach (int slot in CtSlots)
         {
-            yield return Sample(tick, slot, "BombsiteA", 600.4f + slot, -400.6f, -416.2f);
+            yield return Sample(tick, slot, "BombsiteA", 600.4f + slot, -400.6f, -416.2f, alive: deadSlots?.Contains(slot) != true);
         }
 
         foreach (int slot in TSlots)
         {
-            yield return Sample(tick, slot, "Ramp", 1300.5f + slot, -1000f, -700f);
+            yield return Sample(tick, slot, "Ramp", 1300.5f + slot, -1000f, -700f, alive: deadSlots?.Contains(slot) != true);
         }
     }
 
@@ -50,7 +51,7 @@ public class RoundPositionsTests
         List<PositionSample> samples =
         [
             .. Placed(1000),
-            .. Placed(1064),
+            .. Placed(1064, deadSlots: new HashSet<int> { 3 }),
             Sample(1128, 6, null, 10.4f, 20.6f, 30f)
         ];
 
@@ -129,7 +130,7 @@ public class RoundPositionsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=1");
+            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=2");
             await Assert.That(current).EndsWith($";pos={RoundPositionsDocument.PositionSchema}");
             await Assert.That(record.IsRoundIndexCurrent(current)).IsFalse();
             await Assert.That(record.NeedsRoundIndex(current)).IsTrue()

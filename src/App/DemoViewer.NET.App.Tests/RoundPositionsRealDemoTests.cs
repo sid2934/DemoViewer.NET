@@ -20,9 +20,11 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The positions file against a real Valve matchmaking demo. The consistency property the note
 ///     names: for every round and step, the token encoded from the positions file's tuples equals the
-///     token the sidecar stored at that step. Rounds come from the clip authority and sides from the
-///     tier-2 roster, as <see cref="RoundIndexRealDemoTests" /> does, so the alive rule is a no-op on
-///     both sides and the property holds regardless. The forty-thumbnail budget is measured here too,
+///     token the sidecar stored at that step. Rounds come from the clip authority and a match-wide
+///     tier-2 roster, as <see cref="RoundIndexRealDemoTests" /> does; the roster is only the cross-check
+///     now, since both the token and the file's <c>Ct</c> take the side from the sample's own
+///     <c>Team</c> (CS2DemoKit #58), and a first half the final roster seats backwards is exactly the
+///     case that pins it. The forty-thumbnail budget is measured here too,
 ///     from the same file. A separate test checks a card's score, buys and end reason against the
 ///     production Round Facts rows for the same demo.
 /// </summary>

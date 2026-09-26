@@ -1,6 +1,7 @@
 #region
 
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -33,8 +34,14 @@ public sealed class RoundPositionsDocument
     ///     What a tuple means: integer world units, alive slots only, the last sample per slot at the
     ///     sampled tick. In the index fingerprint as <c>pos=</c>, so a change re-indexes rather than
     ///     reinterprets, and a sidecar written before positions existed carries no <c>pos=</c> and is stale.
+    ///     2: alive and <see cref="RoundPositionsRound.Ct" /> read from the sample's own <c>IsAlive</c>
+    ///     and <c>Team</c> (CS2DemoKit #58) and an empty place is unplaced. Both files are rebuilt, since
+    ///     the fingerprint is theirs together: a version 1 <c>.dvri.json</c> counted <c>""</c> as a place
+    ///     in its summaries and transitions and gated its tokens on the Round Facts kill tick. The
+    ///     sidecar's own <c>schemaVersion</c> stays 1, because its shape did not change and
+    ///     <c>SituationIndex</c> holds it equal to <c>DemoCacheRecord.RoundIndexSchema</c>.
     /// </summary>
-    public const int PositionSchema = 1;
+    public const int PositionSchema = 2;
 
     /// <summary>The serializer options: camel case and compact like the sidecar, tuples through their converter.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()
@@ -152,7 +159,7 @@ public sealed class RoundPositionsRound
     /// <summary>Frame clock. Step 0 is sampled here.</summary>
     public int FreezeEndTick { get; set; }
 
-    /// <summary>Slots on the CT side this round, from Round Facts; every other seated slot is T.</summary>
+    /// <summary>Slots whose sample was CT this round (CS2DemoKit #58 <c>Team</c>); every other tuple is T.</summary>
     public int[] Ct { get; set; } = [];
 
     /// <summary>
@@ -206,10 +213,54 @@ internal sealed class RoundPositionConverter : JsonConverter<RoundPosition>
 /// <summary>The one build that yields both files, so they can never disagree on a row.</summary>
 /// <param name="Index">The <c>.dvri.json</c> document.</param>
 /// <param name="Positions">The <c>.dvrp.json.gz</c> document, carrying the same fingerprint.</param>
-public sealed record RoundIndexBuild(RoundIndexDocument Index, RoundPositionsDocument Positions)
+/// <param name="Disagreements">
+///     Per round, how often a sample's own <c>IsAlive</c>/<c>Team</c> disagreed with Round Facts'
+///     <c>Slots</c>/<c>Kills</c> (CS2DemoKit #58 cross-check). The sample always won; this is
+///     diagnostic only.
+/// </param>
+public sealed record RoundIndexBuild(
+    RoundIndexDocument Index,
+    RoundPositionsDocument Positions,
+    IReadOnlyList<RoundIndexDisagreement> Disagreements)
 {
     /// <summary>World units rounded to the integer a tuple stores; a marker at thumbnail size is thirty units wide.</summary>
     /// <param name="value">A world coordinate.</param>
     public static int Quantize(float value) =>
         (int)Math.Round(value, MidpointRounding.AwayFromZero);
+}
+
+/// <summary>One round's disagreement count between a sample's own fields and Round Facts, see <see cref="RoundIndexBuild.Disagreements" />.</summary>
+/// <param name="Round">The round number.</param>
+/// <param name="SideMismatches">Slots where the sample's <c>Team</c> disagreed with the row's seated side.</param>
+/// <param name="AliveMismatches">Slots the row's <c>Kills</c> call dead where the sample's <c>IsAlive</c> is true.</param>
+public sealed record RoundIndexDisagreement(int Round, int SideMismatches, int AliveMismatches);
+
+/// <summary>
+///     Counts, per round, how often a walk sample's own <c>IsAlive</c>/<c>Team</c> disagreed with the
+///     Round Facts row it was cross-checked against (CS2DemoKit #58). Shared by
+///     <c>RoundIndexBuilder</c> and <c>RoundOccupancyBuilder</c>, the two walks that still hold the
+///     facts-derived roster beside the sample. Not a gate: the sample always wins.
+/// </summary>
+public sealed class RoundIndexDisagreementTally
+{
+    private readonly Dictionary<int, (int Side, int Alive)> _byRound = [];
+
+    /// <summary>Adds one slot's disagreement, if any, to its round's counts.</summary>
+    /// <param name="round">The round number.</param>
+    /// <param name="sideMismatch">The sample's <c>Team</c> disagreed with the row's seated side.</param>
+    /// <param name="aliveMismatch">The row's <c>Kills</c> call the slot dead where the sample is alive.</param>
+    public void Record(int round, bool sideMismatch, bool aliveMismatch)
+    {
+        if (!sideMismatch && !aliveMismatch)
+        {
+            return;
+        }
+
+        (int Side, int Alive) counts = _byRound.GetValueOrDefault(round);
+        _byRound[round] = (counts.Side + (sideMismatch ? 1 : 0), counts.Alive + (aliveMismatch ? 1 : 0));
+    }
+
+    /// <summary>The tallied rounds, in round order; empty when nothing disagreed.</summary>
+    public IReadOnlyList<RoundIndexDisagreement> ToDisagreements() =>
+        [.. _byRound.OrderBy(kv => kv.Key).Select(kv => new RoundIndexDisagreement(kv.Key, kv.Value.Side, kv.Value.Alive))];
 }

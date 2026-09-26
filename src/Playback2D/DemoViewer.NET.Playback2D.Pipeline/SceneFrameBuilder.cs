@@ -934,7 +934,9 @@ public sealed class SceneFrameBuilder
     private static float ReadFloat(IReadOnlyEntity? entity, string path, float fallback) =>
         entity is not null && entity.TryGet(path, out float v) ? v : fallback;
 
-    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant.
+    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant. Mirrors
+    // CS2DemoKit.Parser.EntityTracking.PawnLookup.IsAlive(EntityState), which this builder cannot call
+    // directly: it reads through the IReadOnlyEntity facade and holds no EntityState of its own.
     private static bool IsAlive(IReadOnlyEntity? pawn)
     {
         if (pawn is null)

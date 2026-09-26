@@ -39,7 +39,9 @@ public sealed class PawnPlaceSource : IPlaceSource
     public string? ZonesVersion => null;
 
     /// <inheritdoc />
-    public string? PlaceFor(in PositionSample sample) => sample.Place;
+    // Place is never null on the sample (CS2DemoKit #58): an unplaced pawn reads "". Normalized here
+    // so every consumer of this source sees the one null value for "unknown", never two spellings of it.
+    public string? PlaceFor(in PositionSample sample) => string.IsNullOrEmpty(sample.Place) ? null : sample.Place;
 }
 
 /// <summary>

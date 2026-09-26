@@ -12,14 +12,20 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 /// <summary>What one walk produced: the rounds and the sparse cloud detonations are placed against.</summary>
 /// <param name="Rounds">One occupancy per live round, in round order.</param>
 /// <param name="Cloud">Every 25th alive placed sample of the same walk.</param>
-public sealed record OccupancyBuild(IReadOnlyList<RoundOccupancy> Rounds, DetonationCloud Cloud);
+/// <param name="Disagreements">
+///     Per round, how often a sample's own <c>IsAlive</c>/<c>Team</c> disagreed with the Round Facts
+///     row it was cross-checked against (CS2DemoKit #58). The sample always won; diagnostic only.
+/// </param>
+public sealed record OccupancyBuild(
+    IReadOnlyList<RoundOccupancy> Rounds,
+    DetonationCloud Cloud,
+    IReadOnlyList<RoundIndexDisagreement> Disagreements);
 
 /// <summary>
-///     Who is on which side and when each of them died, read from one Round Facts row: the side
-///     resolver and the alive filter both sources share (integrator correction 11). The sample the
-///     walk yields carries neither, and GOTV keeps producing positions for a dead player's pawn for
-///     the rest of the round (166 of 169 dead slots on de_nuke, suggested-tags.md §2.1), so a slot is
-///     alive until its first kill tick and counts for the side its row seats it on.
+///     Who is on which side and when each of them died, read from one Round Facts row. Both sources
+///     used this as the gate before CS2DemoKit #58; the walk now gates on the sample's own
+///     <c>Team</c>/<c>IsAlive</c> instead, and this roster is kept only as the cross-check
+///     <see cref="OccupancyBuild.Disagreements" /> tallies against.
 /// </summary>
 public static class OccupancyRoster
 {
@@ -86,8 +92,9 @@ public static class OccupancyRoster
 ///     Builds <see cref="RoundOccupancy" /> for every live round of a demo, from either source the
 ///     design names (suggested-tags.md §3.2): the Round Index document already written for the demo,
 ///     decoded from its alive-only per-side tokens, or a position walk of the held parse when there is
-///     no index (the browser, or a demo the index has not reached). Both read windows, sides and alive
-///     from the same Round Facts rows, so for one demo they produce the same per-side counts.
+///     no index (the browser, or a demo the index has not reached). Both read their round windows from
+///     the same Round Facts rows and their alive and side from the sample's own fields (CS2DemoKit
+///     #58), so for one demo they produce the same per-side counts.
 ///     <para>
 ///         The walk runs at a frame stride of eight and keeps the first sample per (slot, second). A
 ///         stride does not save decode time (1.6 s at both 8 and 64 on the measured demos), and the
@@ -116,9 +123,10 @@ public static class RoundOccupancyBuilder
         ArgumentNullException.ThrowIfNull(facts);
         source ??= PawnPlaceSource.Instance;
         int tickRate = demo.TickRate > 0 ? demo.TickRate : 64;
-        int lastFrameTick = demo.Frames.Count > 0 ? demo.Frames[^1].ServerTick : 0;
+        int lastFrameTick = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
         List<Window> windows = Windows(facts, lastFrameTick, tickRate);
         DetonationCloud cloud = new();
+        RoundIndexDisagreementTally tally = new();
 
         samples ??= PositionSampler.Walk(demo, FrameStride);
         int current = 0;
@@ -137,25 +145,60 @@ public static class RoundOccupancyBuilder
             }
 
             Window window = windows[current];
-            if (sample.Tick < window.StartTick
-                || !window.Sides.ContainsKey(sample.PlayerSlot)
-                || (window.Deaths.TryGetValue(sample.PlayerSlot, out int death) && death <= sample.Tick))
+            if (sample.Tick < window.StartTick)
             {
                 continue;
             }
 
+            bool factsSeated = window.Sides.TryGetValue(sample.PlayerSlot, out int factsSide);
+            bool factsDead = window.Deaths.TryGetValue(sample.PlayerSlot, out int death) && death <= sample.Tick;
+
+            // Alive and a playing side come from the sample itself (CS2DemoKit #58); the row is only
+            // cross-checked, never the gate.
+            if (!sample.IsAlive || sample.Team is not (2 or 3))
+            {
+                if (sample.IsAlive && factsSeated && !factsDead)
+                {
+                    tally.Record(window.Number, sideMismatch: true, aliveMismatch: false);
+                }
+
+                continue;
+            }
+
             int second = (sample.Tick - window.StartTick) / tickRate;
-            string?[] seconds = window.Places[sample.PlayerSlot];
+            if (!window.Places.TryGetValue(sample.PlayerSlot, out string?[]? seconds))
+            {
+                // A slot's side is fixed by its first live sample in the window and holds for the
+                // round, RoundIndexBuilder's rule, so the walk and the index bucket one slot alike even
+                // where the row seats it elsewhere or not at all. A window with no EndTick runs on into
+                // the win panel, where a halftime swap would otherwise flip every Team mid-round.
+                window.SideBySample[sample.PlayerSlot] = sample.Team;
+                seconds = new string?[window.Seconds];
+                window.Places[sample.PlayerSlot] = seconds;
+            }
+
             if (second >= seconds.Length || seconds[second] is not null)
             {
                 continue; // the first sample of a second stands
             }
 
+            // Tallied once per kept (slot, second), as the index tallies once per slot per row, so a
+            // stride of eight does not multiply one disagreement.
+            if (!factsSeated || factsSide != window.SideBySample[sample.PlayerSlot])
+            {
+                tally.Record(window.Number, sideMismatch: true, aliveMismatch: false);
+            }
+
+            if (factsDead)
+            {
+                tally.Record(window.Number, sideMismatch: false, aliveMismatch: true);
+            }
+
             string? place = source.PlaceFor(in sample);
             if (string.IsNullOrEmpty(place))
             {
-                // The wire delivers "" where the engine doc promises null (0.18 to 0.75 percent of
-                // samples); both mean the same thing here.
+                // The sample's own Place is documented empty, never null, for an unplaced pawn
+                // (CS2DemoKit #58); both spellings mean the same thing here.
                 seconds[second] = RoundOccupancy.Unplaced;
                 continue;
             }
@@ -166,10 +209,10 @@ public static class RoundOccupancyBuilder
 
         List<RoundOccupancy> rounds =
         [
-            .. windows.Select(w => RoundOccupancy.FromSlots(w.Number, w.StartTick, w.EndTick, tickRate, w.Sides,
+            .. windows.Select(w => RoundOccupancy.FromSlots(w.Number, w.StartTick, w.EndTick, tickRate, w.Roster(),
                 w.Places, w.Bomb))
         ];
-        return new OccupancyBuild(rounds, cloud);
+        return new OccupancyBuild(rounds, cloud, tally.ToDisagreements());
     }
 
     /// <summary>
@@ -236,26 +279,39 @@ public static class RoundOccupancyBuilder
             }
 
             int seconds = (end - round.FreezeEndTick + tickRate - 1) / tickRate;
-            Dictionary<int, int> sides = OccupancyRoster.SideBySlot(round);
-            Dictionary<int, string?[]> places = [];
-            foreach (int slot in sides.Keys)
-            {
-                places[slot] = new string?[seconds];
-            }
-
-            windows.Add(new Window(round.Number, round.FreezeEndTick, end, sides, OccupancyRoster.DeathTickBySlot(round),
-                places, OccupancyRoster.Bomb(round)));
+            windows.Add(new Window(round.Number, round.FreezeEndTick, end, seconds, OccupancyRoster.SideBySlot(round),
+                OccupancyRoster.DeathTickBySlot(round), OccupancyRoster.Bomb(round)));
         }
 
         return windows;
     }
 
+    // Sides and Deaths are the row's seating and kills, kept only for the cross-check; Places and
+    // SideBySample fill from the samples.
     private sealed record Window(
         int Number,
         int StartTick,
         int EndTick,
+        int Seconds,
         Dictionary<int, int> Sides,
         Dictionary<int, int> Deaths,
-        Dictionary<int, string?[]> Places,
-        RoundBomb? Bomb);
+        RoundBomb? Bomb)
+    {
+        public Dictionary<int, string?[]> Places { get; } = [];
+
+        public Dictionary<int, int> SideBySample { get; } = [];
+
+        // The sampled side for every slot that had a live sample; the row's seat only for a slot that
+        // never did, which has no place to count and keeps SideOf answering for it (a thrower's side).
+        public Dictionary<int, int> Roster()
+        {
+            Dictionary<int, int> roster = new(Sides);
+            foreach ((int slot, int side) in SideBySample)
+            {
+                roster[slot] = side;
+            }
+
+            return roster;
+        }
+    }
 }

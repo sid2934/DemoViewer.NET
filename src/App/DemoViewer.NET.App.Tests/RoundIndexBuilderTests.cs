@@ -12,9 +12,10 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The builder over synthetic samples and synthetic Round Facts rows: rows only inside live
-///     windows, step arithmetic at 64 and 128 ticks, a death at the sampled tick removing the slot
-///     from that row on, runs tiling the steps, two frames on one tick folding into one row,
-///     spectators dropped, the place and transition sums, the clock header, and the zones source.
+///     windows, step arithmetic at 64 and 128 ticks, a dead or non-playing sample dropped by its own
+///     fields (CS2DemoKit #58), a disagreeing sample tallied but never silenced, runs tiling the steps,
+///     two frames on one tick folding into one row, spectators dropped, an empty place counted like a
+///     null one, the place and transition sums, the clock header, and the zones source.
 /// </summary>
 public class RoundIndexBuilderTests
 {
@@ -48,7 +49,7 @@ public class RoundIndexBuilderTests
             await Assert.That(document.Rounds[0].Runs[0]).IsEqualTo(new RoundIndexRun(0, 0, "CTSpawn:5", "TSpawn:5"));
             await Assert.That(document.Rounds[0].Runs[1]).IsEqualTo(new RoundIndexRun(1, 2, "Outside:5", "Ramp:5"));
             await Assert.That(document.Map).IsEqualTo("de_nuke");
-            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=1");
+            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=2");
         }
     }
 
@@ -88,13 +89,20 @@ public class RoundIndexBuilderTests
     [Test]
     public async Task ADeathAtTheSampledTick_RemovesTheSlotFromThatRowOn()
     {
+        // The row's own Kills stay only for the cross-check now; the gate is the sample's IsAlive, so
+        // the dead slots are marked dead on the samples too (CS2DemoKit #58).
         RoundFactsRows facts = Facts(Round(1, 1000, 1300, kills: [Kill(1064, 6), Kill(1100, 1)]));
         List<PositionSample> samples =
         [
             .. Everyone(1000, "Outside", "Ramp"),
             .. Everyone(1064, "Outside", "Ramp"),
+            Sample(1064, 6, null, alive: false),
             .. Everyone(1128, "Outside", "Ramp"),
-            .. Everyone(1192, "Outside", "Ramp")
+            Sample(1128, 6, null, alive: false),
+            Sample(1128, 1, null, alive: false),
+            .. Everyone(1192, "Outside", "Ramp"),
+            Sample(1192, 6, null, alive: false),
+            Sample(1192, 1, null, alive: false)
         ];
 
         RoundIndexDocument document = Build(Demo(), facts, samples);
@@ -109,6 +117,129 @@ public class RoundIndexBuilderTests
             await Assert.That(rows[3].Ct).IsEqualTo("Outside:4");
             await Assert.That(rows[3].T).IsEqualTo("Ramp:4");
         }
+    }
+
+    [Test]
+    public async Task ADeadSample_IsExcluded_EvenWhenRoundFactsRecordsNoKill()
+    {
+        // CS2DemoKit #58: IsAlive is the gate now, not the row's Kills. A dead sample with no matching
+        // kill (a disconnect, or a kill the row missed) still drops the slot.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1200));
+        List<PositionSample> samples =
+        [
+            .. Everyone(1000, "Outside", "Ramp"),
+            Sample(1064, 6, "Ramp", alive: false),
+            .. CtSlots.Select(s => Sample(1064, s, "Outside")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "Ramp"))
+        ];
+
+        RoundIndexDocument document = Build(Demo(), facts, samples);
+        List<RoundIndexRow> rows = [.. document.ExpandRows(document.Rounds[0])];
+
+        await Assert.That(rows[1].T).IsEqualTo("Ramp:4").Because("slot 6 reads dead on its own sample");
+    }
+
+    [Test]
+    public async Task ASampleWithNoLiveTeam_IsExcluded_LikeADeadOne()
+    {
+        RoundFactsRows facts = Facts(Round(1, 1000, 1200));
+        List<PositionSample> samples =
+        [
+            .. Everyone(1000, "Outside", "Ramp"),
+            Sample(1064, 6, "Ramp", team: 1), // GOTV/spectator team on the wire
+            .. CtSlots.Select(s => Sample(1064, s, "Outside")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "Ramp"))
+        ];
+
+        RoundIndexDocument document = Build(Demo(), facts, samples);
+        List<RoundIndexRow> rows = [.. document.ExpandRows(document.Rounds[0])];
+
+        await Assert.That(rows[1].T).IsEqualTo("Ramp:4").Because("team 1 is neither CT nor T");
+    }
+
+    [Test]
+    public async Task ATeamDisagreement_UsesTheSamplesTeam_AndTalliesIt()
+    {
+        // Slot 6 is seated T by the row but its samples read CT all round: the sample wins the count,
+        // and the disagreement is tallied, once per row, rather than silently corrected or trusted.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1200));
+        List<PositionSample> samples =
+        [
+            .. CtSlots.Select(s => Sample(1000, s, "Outside")),
+            Sample(1000, 6, "Outside", team: 3),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1000, s, "Ramp")),
+            Sample(1064, 6, "Outside", team: 3),
+            .. CtSlots.Select(s => Sample(1064, s, "Outside")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "Ramp"))
+        ];
+
+        RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(Demo(), facts, RoundIndexOptions.Default,
+            PawnPlaceSource.Instance, samples);
+        List<RoundIndexRow> rows = [.. build.Index.ExpandRows(build.Index.Rounds[0])];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rows[1].Ct).IsEqualTo("Outside:6").Because("the sample's Team, not the row's seat, decides the side");
+            await Assert.That(rows[1].T).IsEqualTo("Ramp:4");
+            await Assert.That(build.Disagreements).IsNotEmpty();
+            await Assert.That(build.Disagreements.Single().Round).IsEqualTo(1);
+            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task APositionsRoundsCt_ComesFromTheSamplesTeam_NotTheRowsSeating()
+    {
+        // A match-wide roster seats every slot on its final side, so a first-half row has the two sides
+        // swapped. The token buckets by the sample's Team; the positions file's Ct must split the same
+        // tuples the same way, or a thumbnail colours every dot against the token it matched.
+        // The last row is a halftime swap inside the window: every Team flips, and each slot keeps the
+        // side its first sample gave it for the round, so the file's one Ct list still splits that row.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1200, ctSlots: TSlots, tSlots: CtSlots));
+        List<PositionSample> samples =
+        [
+            .. Everyone(1000, "Outside", "Ramp"),
+            .. Everyone(1064, "Outside", "Ramp"),
+            .. CtSlots.Select(s => Sample(1128, s, "Outside", team: 2)),
+            .. TSlots.Select(s => Sample(1128, s, "Ramp", team: 3))
+        ];
+
+        RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(Demo(), facts, RoundIndexOptions.Default,
+            PawnPlaceSource.Instance, samples);
+        RoundPositionsRound round = build.Positions.Rounds.Single();
+        HashSet<int> ct = [.. round.Ct];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(round.Ct).IsEquivalentTo(CtSlots).Because("the sample's Team, not the row's seat");
+            foreach (RoundIndexRow row in build.Index.ExpandRows(build.Index.Rounds[0]))
+            {
+                IReadOnlyList<RoundPosition> tuples = round.At(row.Step);
+                await Assert.That(PlaceCountToken.EncodePlaces(tuples.Where(p => ct.Contains(p.Slot))
+                    .Select(p => build.Positions.PlaceOf(p.PlaceId)))).IsEqualTo(row.Ct);
+                await Assert.That(PlaceCountToken.EncodePlaces(tuples.Where(p => !ct.Contains(p.Slot))
+                    .Select(p => build.Positions.PlaceOf(p.PlaceId)))).IsEqualTo(row.T);
+            }
+
+            await Assert.That(build.Index.ExpandRows(build.Index.Rounds[0]).Last().Ct).IsEqualTo("Outside:5");
+            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(30);
+        }
+    }
+
+    [Test]
+    public async Task AnEmptyPlace_CountsAsUnplaced_LikeANullPlace()
+    {
+        RoundFactsRows facts = Facts(Round(1, 1000, 1100));
+        List<PositionSample> samples =
+        [
+            .. CtSlots.Select(s => Sample(1000, s, s == 1 ? "" : "Outside")),
+            .. TSlots.Select(s => Sample(1000, s, "Ramp"))
+        ];
+
+        RoundIndexDocument document = Build(Demo(), facts, samples);
+        RoundIndexRow row = document.ExpandRows(document.Rounds[0]).Single();
+
+        await Assert.That(row.Ct).IsEqualTo("?:1|Outside:4").Because("\"\" is the wire's unplaced, same as null");
     }
 
     [Test]
@@ -251,7 +382,7 @@ public class RoundIndexBuilderTests
         {
             await Assert.That(row.Ct).IsEqualTo("E-box:5").Because("the resolver's name, not the pawn's");
             await Assert.That(row.T).IsEqualTo("?:5").Because("a point the resolver does not place keeps the man-count");
-            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=zones;zv=zv-1;pos=1");
+            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=zones;zv=zv-1;pos=2");
         }
     }
 
