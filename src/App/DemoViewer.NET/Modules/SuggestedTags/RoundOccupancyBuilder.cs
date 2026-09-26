@@ -165,15 +165,26 @@ public static class RoundOccupancyBuilder
                 continue;
             }
 
+            int second = (sample.Tick - window.StartTick) / tickRate;
             if (!window.Places.TryGetValue(sample.PlayerSlot, out string?[]? seconds))
             {
-                // The row never seated this slot on a playing side; the per-slot table has no row for
-                // it to land in.
-                tally.Record(window.Number, sideMismatch: true, aliveMismatch: false);
-                continue;
+                // A slot's side is fixed by its first live sample in the window and holds for the
+                // round, RoundIndexBuilder's rule, so the walk and the index bucket one slot alike even
+                // where the row seats it elsewhere or not at all. A window with no EndTick runs on into
+                // the win panel, where a halftime swap would otherwise flip every Team mid-round.
+                window.SideBySample[sample.PlayerSlot] = sample.Team;
+                seconds = new string?[window.Seconds];
+                window.Places[sample.PlayerSlot] = seconds;
             }
 
-            if (factsSeated && factsSide != sample.Team)
+            if (second >= seconds.Length || seconds[second] is not null)
+            {
+                continue; // the first sample of a second stands
+            }
+
+            // Tallied once per kept (slot, second), as the index tallies once per slot per row, so a
+            // stride of eight does not multiply one disagreement.
+            if (!factsSeated || factsSide != window.SideBySample[sample.PlayerSlot])
             {
                 tally.Record(window.Number, sideMismatch: true, aliveMismatch: false);
             }
@@ -181,12 +192,6 @@ public static class RoundOccupancyBuilder
             if (factsDead)
             {
                 tally.Record(window.Number, sideMismatch: false, aliveMismatch: true);
-            }
-
-            int second = (sample.Tick - window.StartTick) / tickRate;
-            if (second >= seconds.Length || seconds[second] is not null)
-            {
-                continue; // the first sample of a second stands
             }
 
             string? place = source.PlaceFor(in sample);
@@ -204,7 +209,7 @@ public static class RoundOccupancyBuilder
 
         List<RoundOccupancy> rounds =
         [
-            .. windows.Select(w => RoundOccupancy.FromSlots(w.Number, w.StartTick, w.EndTick, tickRate, w.Sides,
+            .. windows.Select(w => RoundOccupancy.FromSlots(w.Number, w.StartTick, w.EndTick, tickRate, w.Roster(),
                 w.Places, w.Bomb))
         ];
         return new OccupancyBuild(rounds, cloud, tally.ToDisagreements());
@@ -274,26 +279,39 @@ public static class RoundOccupancyBuilder
             }
 
             int seconds = (end - round.FreezeEndTick + tickRate - 1) / tickRate;
-            Dictionary<int, int> sides = OccupancyRoster.SideBySlot(round);
-            Dictionary<int, string?[]> places = [];
-            foreach (int slot in sides.Keys)
-            {
-                places[slot] = new string?[seconds];
-            }
-
-            windows.Add(new Window(round.Number, round.FreezeEndTick, end, sides, OccupancyRoster.DeathTickBySlot(round),
-                places, OccupancyRoster.Bomb(round)));
+            windows.Add(new Window(round.Number, round.FreezeEndTick, end, seconds, OccupancyRoster.SideBySlot(round),
+                OccupancyRoster.DeathTickBySlot(round), OccupancyRoster.Bomb(round)));
         }
 
         return windows;
     }
 
+    // Sides and Deaths are the row's seating and kills, kept only for the cross-check; Places and
+    // SideBySample fill from the samples.
     private sealed record Window(
         int Number,
         int StartTick,
         int EndTick,
+        int Seconds,
         Dictionary<int, int> Sides,
         Dictionary<int, int> Deaths,
-        Dictionary<int, string?[]> Places,
-        RoundBomb? Bomb);
+        RoundBomb? Bomb)
+    {
+        public Dictionary<int, string?[]> Places { get; } = [];
+
+        public Dictionary<int, int> SideBySample { get; } = [];
+
+        // The sampled side for every slot that had a live sample; the row's seat only for a slot that
+        // never did, which has no place to count and keeps SideOf answering for it (a thrower's side).
+        public Dictionary<int, int> Roster()
+        {
+            Dictionary<int, int> roster = new(Sides);
+            foreach ((int slot, int side) in SideBySample)
+            {
+                roster[slot] = side;
+            }
+
+            return roster;
+        }
+    }
 }
