@@ -24,11 +24,13 @@ using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
+using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
@@ -892,9 +894,34 @@ public class App : Application
         services.AddSingleton(_ => new ReviewQueue(AppPaths.ConfigRoot));
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
-        services.AddSingleton(sp => new ReviewQueueTabViewModel(
-            sp.GetRequiredService<ReviewQueue>(),
-            () => sp.GetService<ISituationPlayback>()));
+        // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
+        // saved ink, one encode for the whole pack. It marks an export session on the heavy-job gate for its
+        // run, as a 2D export does; the browser has no ffmpeg and no files, so it gets no pack row.
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
+            Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
+            if (!OperatingSystem.IsBrowser())
+            {
+                ILogger log = DiagnosticsLog.CreateLogger(PackExportLog.Category);
+                exportPack = (plan, progress, ct) => Task.Run(async () =>
+                {
+                    using IDisposable session = await gate.EnterExportSessionAsync(ct).ConfigureAwait(false);
+                    using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
+                        log: line => PackExportLog.Line(log, line));
+                    PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
+                        log: line => PackExportLog.Line(log, line));
+                    return await exporter.ExportAsync(plan, progress, ct).ConfigureAwait(false);
+                }, ct);
+            }
+
+            return new ReviewQueueTabViewModel(
+                sp.GetRequiredService<ReviewQueue>(),
+                () => sp.GetService<ISituationPlayback>(),
+                exportPack: exportPack,
+                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory);
+        });
 
         // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
         // over one demo on the index's Indexed hook and over the library at the watermark on every
