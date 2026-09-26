@@ -304,7 +304,7 @@
                                 <Button Grid.Column="1" Content="Add step" Classes="ghost" FontSize="11" Padding="10 5"
                                         Command="{Binding AddStepCommand}" />
                             </Grid>
-                            <Grid ColumnDefinitions="28,64,64,84,130,130,90,120,*,Auto" ColumnSpacing="6">
+                            <Grid ColumnDefinitions="28,64,64,84,130,130,90,120,140,*,Auto" ColumnSpacing="6">
                                 <TextBlock Grid.Column="0" Text="#" FontSize="10" Foreground="{DynamicResource TextMid}" />
                                 <TextBlock Grid.Column="1" Text="at" FontSize="10" Foreground="{DynamicResource TextMid}" />
                                 <TextBlock Grid.Column="2" Text="actor" FontSize="10" Foreground="{DynamicResource TextMid}" />
@@ -313,12 +313,14 @@
                                 <TextBlock Grid.Column="5" Text="to" FontSize="10" Foreground="{DynamicResource TextMid}" />
                                 <TextBlock Grid.Column="6" Text="utility" FontSize="10" Foreground="{DynamicResource TextMid}" />
                                 <TextBlock Grid.Column="7" Text="lands at" FontSize="10" Foreground="{DynamicResource TextMid}" />
-                                <TextBlock Grid.Column="8" Text="note" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Grid.Column="8" Text="lineup" FontSize="10" Foreground="{DynamicResource TextMid}"
+                                           ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                <TextBlock Grid.Column="9" Text="note" FontSize="10" Foreground="{DynamicResource TextMid}" />
                             </Grid>
                             <ItemsControl ItemsSource="{Binding Steps}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:StratStepRow">
-                                        <Grid ColumnDefinitions="28,64,64,84,130,130,90,120,*,Auto" ColumnSpacing="6" Margin="0 0 0 4">
+                                        <Grid ColumnDefinitions="28,64,64,84,130,130,90,120,140,*,Auto" ColumnSpacing="6" Margin="0 0 0 4">
                                             <TextBlock Grid.Column="0" Text="{Binding Number}" FontSize="12" VerticalAlignment="Center"
                                                        Foreground="{DynamicResource TextMid}" />
                                             <TextBox Grid.Column="1" FontSize="12" Text="{Binding TimeText, UpdateSourceTrigger=LostFocus}" />
@@ -334,9 +336,12 @@
                                                       ItemsSource="{x:Static vm:StratEditorViewModel.UtilityKinds}" SelectedItem="{Binding UtilityKind}" />
                                             <TextBox Grid.Column="7" FontSize="12" Watermark="landing place" IsEnabled="{Binding HasUtility}"
                                                      Text="{Binding LandingText, UpdateSourceTrigger=LostFocus}" />
-                                            <TextBox Grid.Column="8" FontSize="12" Watermark="note"
+                                            <ComboBox Grid.Column="8" FontSize="12" HorizontalAlignment="Stretch" IsEnabled="{Binding HasUtility}"
+                                                      ItemsSource="{Binding LineupOptions}" SelectedItem="{Binding Lineup}"
+                                                      ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                            <TextBox Grid.Column="9" FontSize="12" Watermark="note"
                                                      Text="{Binding Note, UpdateSourceTrigger=LostFocus}" />
-                                            <StackPanel Grid.Column="9" Orientation="Horizontal" Spacing="4">
+                                            <StackPanel Grid.Column="10" Orientation="Horizontal" Spacing="4">
                                                 <Button Content="↑" Classes="ghost" FontSize="11" Padding="6 3" ToolTip.Tip="Move up"
                                                         Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepUpCommand}"
                                                         CommandParameter="{Binding}" />

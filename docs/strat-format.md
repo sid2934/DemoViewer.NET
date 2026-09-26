@@ -138,8 +138,20 @@ book: a display name is looked up at render time and a roster rename never touch
   word for one; `""` (what the pawn reports before its place is first networked) is treated as
   unresolved, the same as null.
 * **`utility`** is present only on a step that throws something: `kind` is `smoke | molotov | he |
-  flash | decoy`; `lineupId` is an opaque GUID the Utility Book's Lineup Cards fill in later; `landing`
+  flash | decoy`; `lineupId` is a GUID naming one Utility Book lineup (Lineup On A Strat Step); `landing`
   names where the grenade should land, as a place and (once Step Authoring writes it) a world point.
+
+  **`lineupId` (Lineup On A Strat Step).** This model does not dereference the id itself, only stores and
+  round-trips it; the value and the lookup are the Utility Book's. It is not a row a "Lineup Cards" table
+  minted (there is no such table): it is `GrenadeLineup.Id`, computed deterministically from the strat's
+  map, the utility `kind`, the throw's landing cell and its rounded origin, so the same throw position
+  gets the same id from every process and every reindex with nothing persisted. `GrenadeIndex.DescribeLineup(map,
+  id)` resolves it back to a card title, a throw count and the representative throw's console line; a
+  step whose id no longer resolves (every throw at that position left the corpus) still opens and still
+  shows the raw id rather than losing the reference, the same fallback a branch's unresolved target uses.
+  The Strat Editor's step row shows the resolved title as its lineup combo's selection; the call sheet and
+  the role sheets (LAN Print) both append `[lineup: <title>]` after a step's phrased line through the same
+  `StratStepPhrasing.Phrase` the two surfaces already share.
 * **`positions[]`**, **`strokes[]`**, **`holdSeconds`** and **`interpolation`** are Step Authoring's:
   this schema reserves their shape (a `{ slot, x, y, levelMinZ, yawDegrees? }` per token, and the
   `.dvann.json` element shape with the time fields left off, for `strokes[]`) so a document written before

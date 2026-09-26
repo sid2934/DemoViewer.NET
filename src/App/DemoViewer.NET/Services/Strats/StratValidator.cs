@@ -57,15 +57,19 @@ public static class StratValidator
     /// <param name="document">The strat.</param>
     /// <param name="places">The map's canonical places and the owner's aliases; null skips the place rules.</param>
     /// <param name="index">The store's index, for the branch-target rule; null skips it.</param>
+    /// <param name="lineupExists">
+    ///     Whether a lineup id resolves on the document's map (<c>GrenadeIndex.DescribeLineup</c> is not
+    ///     null); null keeps the pre-Lineup-On-A-Strat-Step wording ("there is no Utility Book index yet").
+    /// </param>
     public static IReadOnlyList<StratIssue> Validate(StratDocument document, CalloutResolver? places = null,
-        IReadOnlyList<StratIndexEntry>? index = null)
+        IReadOnlyList<StratIndexEntry>? index = null, Func<string, Guid, bool>? lineupExists = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         List<StratIssue> issues = [];
 
         ValidateHeader(document, issues);
         ValidateSlots(document, issues);
-        HashSet<Guid> stepIds = ValidateSteps(document, places, issues);
+        HashSet<Guid> stepIds = ValidateSteps(document, places, lineupExists, issues);
         ValidateBranches(document, stepIds, index, issues);
 
         if (document.Extra is { Count: > 0 } extra)
@@ -195,7 +199,8 @@ public static class StratValidator
         }
     }
 
-    private static HashSet<Guid> ValidateSteps(StratDocument document, CalloutResolver? places, List<StratIssue> issues)
+    private static HashSet<Guid> ValidateSteps(StratDocument document, CalloutResolver? places,
+        Func<string, Guid, bool>? lineupExists, List<StratIssue> issues)
     {
         HashSet<Guid> ids = [];
         double roundSeconds = document.Clock.RoundSeconds;
@@ -247,9 +252,16 @@ public static class StratValidator
                 }
 
                 CheckPlace(places, utility.Landing?.Place, pointer + "/utility/landing/place", document.Map, issues);
-                if (utility.LineupId is not null)
+                if (utility.LineupId is { } lineupId)
                 {
-                    issues.Add(Info(pointer + "/utility/lineupId", "lineup not checked: there is no Utility Book index yet"));
+                    if (lineupExists is null)
+                    {
+                        issues.Add(Info(pointer + "/utility/lineupId", "lineup not checked: there is no Utility Book index yet"));
+                    }
+                    else if (!lineupExists(document.Map, lineupId))
+                    {
+                        issues.Add(Warn(pointer + "/utility/lineupId", $"lineup {lineupId} was not found on {document.Map}"));
+                    }
                 }
             }
 
