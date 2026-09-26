@@ -6,6 +6,13 @@ using DemoViewer.NET.Playback2D.Core.Export;
 
 #endregion
 
+// Lives in Pipeline (namespace kept as DemoViewer.NET.Services.Export.Pack, so every App call site's
+// `using` still resolves) rather than in src/App: `dv2d pack` (Headless Packs, plan.md §3) needs the
+// same plan-then-stitch policy the app's Export pack row runs, and Pipeline is the one place both a
+// headless tool and the App can reach without the CLI ever referencing src/App/*. Only the plumbing
+// that touches App-only concerns (the heavy-job gate, the app-managed ffmpeg directory) stays behind
+// in DemoViewer.NET/Services/Export/Pack/PackClipRenderer.cs; dv2d supplies its own IPackClipRenderer
+// and IPackEncoder instead, the same split ExportCommand already draws against SceneExportRunner.
 namespace DemoViewer.NET.Services.Export.Pack;
 
 /// <summary>Renders one pack clip into a sink. The seam every Pack Export test replaces.</summary>
@@ -31,7 +38,7 @@ public interface IPackEncoder
     /// </summary>
     /// <param name="settings">The pack's settings.</param>
     /// <param name="ct">Cancels the probe.</param>
-    /// <exception cref="ExportRefusedException">The format cannot be written here.</exception>
+    /// <exception cref="ExportValidationException">The format cannot be written here.</exception>
     void Prepare(PackSettings settings, CancellationToken ct);
 
     /// <summary>A sink writing <paramref name="outputPath" /> with the prepared encoder.</summary>
@@ -101,18 +108,18 @@ public sealed class PackExporter
     /// <param name="plan">The pack.</param>
     /// <param name="progress">Where it is, or null.</param>
     /// <param name="ct">Cancels the pack; the half-written file does not survive.</param>
-    /// <exception cref="ExportRefusedException">The settings or the machine cannot write this pack.</exception>
+    /// <exception cref="ExportValidationException">The settings or the machine cannot write this pack.</exception>
     public async Task<PackResult> ExportAsync(PackPlan plan, IProgress<PackProgress>? progress, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (PackPlanner.Validate(plan.Settings) is { } problem)
         {
-            throw new ExportRefusedException(problem);
+            throw new ExportValidationException(problem);
         }
 
         if (plan.Clips.Count == 0)
         {
-            throw new ExportRefusedException("there is no clip in the queue that can be rendered");
+            throw new ExportValidationException("there is no clip in the queue that can be rendered");
         }
 
         _encoder.Prepare(plan.Settings, ct);
@@ -166,7 +173,7 @@ public sealed class PackExporter
 
             if (rendered == 0)
             {
-                throw new ExportRefusedException(
+                throw new ExportValidationException(
                     $"no clip could be rendered: {string.Join("; ", failed.Select(f => f.Reason))}");
             }
 
@@ -219,7 +226,7 @@ public sealed class PackExporter
 
         if (outputs.Count == 0)
         {
-            throw new ExportRefusedException(
+            throw new ExportValidationException(
                 $"no clip could be rendered: {string.Join("; ", failed.Select(f => f.Reason))}");
         }
 

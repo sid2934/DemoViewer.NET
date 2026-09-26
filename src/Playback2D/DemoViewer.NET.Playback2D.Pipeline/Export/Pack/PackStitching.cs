@@ -7,6 +7,9 @@ using SkiaSharp;
 
 #endregion
 
+// In Pipeline, namespace kept as DemoViewer.NET.Services.Export.Pack: see the note on PackExporter.cs.
+// PackSegmentSink and PackTitleCardRenderer stay internal; DemoViewer.NET.App.Tests reaches them
+// through this project's InternalsVisibleTo for its white-box Pack Export tests.
 namespace DemoViewer.NET.Services.Export.Pack;
 
 /// <summary>
