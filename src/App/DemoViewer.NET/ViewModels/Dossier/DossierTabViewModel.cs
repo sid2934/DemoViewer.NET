@@ -32,8 +32,9 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 ///     Behaviour (<see cref="SituationalBehaviourSectionViewModel" />): pistol patterns and their
 ///     follow-up, anti-eco setups, man-advantage handling and save discipline, over Round Facts alone.
 ///     The Period Diff: the team's last <see cref="WindowSize" /> demos against the
-///     <see cref="WindowSize" /> before those, roster to roster (<see cref="PeriodDiffService" />). The
-///     later sections (editing and export) are not built here.
+///     <see cref="WindowSize" /> before those, roster to roster (<see cref="PeriodDiffService" />). And
+///     Dossier Editing And Export (<see cref="DossierEditorViewModel" />): every section's numbers as
+///     findings, re-collected whenever a section lands, starred into the one-pager and exported.
 ///     <para>
 ///         <b>Heatmaps build on a worker.</b> They read every one of the team's positions files and
 ///         render one picture per heatmap, so the build runs off the UI thread and posts the rows first
@@ -113,6 +114,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="openings">Builds the Opening Tendencies; null hides the section.</param>
     /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
     /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
+    /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
+    /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
         SetupHeatmapService? heatmaps = null,
         ReviewQueue? review = null,
@@ -122,7 +125,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Func<byte[], Bitmap?>? decode = null,
         OpeningTendenciesService? openings = null,
         PostPlantService? postPlant = null,
-        SituationalBehaviourService? situational = null)
+        SituationalBehaviourService? situational = null,
+        DossierNotesStore? notes = null,
+        Func<string, string, string, string?>? export = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -140,6 +145,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post);
         PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post);
         Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post);
+        Editor = new DossierEditorViewModel(notes ?? new DossierNotesStore(null), IsBrowser, export);
+        Openings.PropertyChanged += OnSectionChanged;
+        PostPlant.PropertyChanged += OnSectionChanged;
+        Situational.PropertyChanged += OnSectionChanged;
         _teams.Changed += Refresh;
         _vetoes.Changed += ProjectVetoes;
         Refresh();
@@ -180,6 +189,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     /// <summary>The selected team's Situational Behaviour.</summary>
     public SituationalBehaviourSectionViewModel Situational { get; }
+
+    /// <summary>The selected team's findings, the long form, the one-pager and the export.</summary>
+    public DossierEditorViewModel Editor { get; }
 
     /// <summary>The running heatmap build; tests await it.</summary>
     internal Task HeatmapTask { get; private set; } = Task.CompletedTask;
@@ -223,6 +235,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Openings.Dispose();
         PostPlant.Dispose();
         Situational.Dispose();
+        Openings.PropertyChanged -= OnSectionChanged;
+        PostPlant.PropertyChanged -= OnSectionChanged;
+        Situational.PropertyChanged -= OnSectionChanged;
         _teams.Changed -= Refresh;
         _vetoes.Changed -= ProjectVetoes;
     }
@@ -234,7 +249,60 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         OnPropertyChanged(nameof(HasSelection));
     }
 
-    partial void OnWindowSizeChanged(int value) => ProjectPeriodDiff();
+    partial void OnWindowSizeChanged(int value)
+    {
+        ProjectPeriodDiff();
+        CollectFindings();
+    }
+
+    // A section's worker landed (or the section cleared): its numbers are the findings' source.
+    private void OnSectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OpeningTendenciesSectionViewModel.IsBuilding) && sender is ObservableObject section
+                                                                                     && !IsSectionBuilding(section))
+        {
+            CollectFindings();
+        }
+    }
+
+    private static bool IsSectionBuilding(ObservableObject section) => section switch
+    {
+        OpeningTendenciesSectionViewModel o => o.IsBuilding,
+        PostPlantSectionViewModel p => p.IsBuilding,
+        SituationalBehaviourSectionViewModel s => s.IsBuilding,
+        _ => false
+    };
+
+    /// <summary>
+    ///     Re-collects every section's lines into the editor, in the tab's own order: the Map Pool Record,
+    ///     the Setup Heatmaps, the Opening Tendencies, the Post-Plant And Retake, the Situational
+    ///     Behaviour, the Period Diff and the veto history.
+    /// </summary>
+    private void CollectFindings()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (SelectedTeam is not { } row)
+        {
+            Editor.Load(null, "", "", []);
+            return;
+        }
+
+        List<DossierFindingSource> sources =
+        [
+            .. DossierEditorViewModel.FromMapPool(Maps, DeciderLine),
+            .. DossierEditorViewModel.FromHeatmaps(Heatmaps),
+            .. DossierEditorViewModel.FromOpenings(Openings.Blocks),
+            .. DossierEditorViewModel.FromPostPlant(PostPlant.Blocks),
+            .. DossierEditorViewModel.FromSituational(Situational.Blocks),
+            .. DossierEditorViewModel.FromPeriodDiff(PeriodDiffRecent, PeriodDiffPrevious, PeriodDiffNote),
+            .. DossierEditorViewModel.FromVetoes(Vetoes)
+        ];
+        Editor.Load(row.Id, row.Name, SampleSizeLine, sources);
+    }
 
     [RelayCommand]
     private void AddVeto()
@@ -292,12 +360,13 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             OnPropertyChanged(nameof(SampleSizeLine));
             OnPropertyChanged(nameof(DeciderLine));
             OnPropertyChanged(nameof(HasDeciderData));
-            ProjectVetoes();
+            ProjectVetoes(collect: false);
             BuildHeatmaps();
             Openings.Load(null, "");
             PostPlant.Load(null, "");
             Situational.Load(null, "");
             ProjectPeriodDiff();
+            CollectFindings();
             return;
         }
 
@@ -318,12 +387,13 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         OnPropertyChanged(nameof(SampleSizeLine));
         OnPropertyChanged(nameof(DeciderLine));
         OnPropertyChanged(nameof(HasDeciderData));
-        ProjectVetoes();
+        ProjectVetoes(collect: false);
         BuildHeatmaps();
         Openings.Load(row.Id, row.Name);
         PostPlant.Load(row.Id, row.Name);
         Situational.Load(row.Id, row.Name);
         ProjectPeriodDiff();
+        CollectFindings();
     }
 
     // Synchronous like the Map Pool Record: SidesOf is already in memory, so a window-size change
@@ -483,6 +553,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
             OnPropertyChanged(nameof(HasHeatmaps));
             HeatmapLine = HeatmapLineFor(set);
+            CollectFindings();
         });
 
         using (SetupHeatmapRenderer renderer = _renderer())
@@ -531,7 +602,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         }
     }
 
-    private void ProjectVetoes()
+    private void ProjectVetoes() => ProjectVetoes(collect: true);
+
+    private void ProjectVetoes(bool collect)
     {
         Vetoes.Clear();
         if (SelectedTeam is { } row)
@@ -544,6 +617,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
         OnPropertyChanged(nameof(VetoesAreSessionOnly));
         OnPropertyChanged(nameof(HasVetoes));
+        if (collect)
+        {
+            CollectFindings();
+        }
     }
 }
 
