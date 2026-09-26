@@ -41,6 +41,9 @@ public static class ReviewSources
 
     /// <summary>A Lineup Card's throw, queued with its GIF by Lineup Clip Render.</summary>
     public const string Lineup = "lineup";
+
+    /// <summary>A round a Dossier section stacks, opened from that section (a Setup Heatmap's rounds).</summary>
+    public const string Dossier = "dossier";
 }
 
 /// <summary>

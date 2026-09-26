@@ -8,7 +8,9 @@
       THE OPPONENT DOSSIER: a team picker over Team Identity and, today, the Map Pool Record — the
       demo-derivable substitute for the veto model (plan.md F12). Left: the team list. Right: the
       selected team's sample size, its per-map record and side split, the decider record where a
-      best-of series is inferable, and the veto history the user enters by hand.
+      best-of series is inferable, the Setup Heatmaps By Buy (their CT positions per map and buy, fixed
+      and rotating places, each heatmap opening its rounds in Review), and the veto history the user
+      enters by hand.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
@@ -79,6 +81,55 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Setup Heatmaps By Buy: where they stand on CT, per map and buy; each opens its rounds. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
+                                IsVisible="{Binding HasHeatmapSection}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Setup Heatmaps By Buy (CT)" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <TextBlock Text="{Binding HeatmapLine}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Text="{Binding ReviewLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding ReviewLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <ItemsControl ItemsSource="{Binding Heatmaps}" IsVisible="{Binding HasHeatmaps}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SetupHeatmapViewModel">
+                                            <Border Width="340" Margin="0 0 10 10" Padding="10"
+                                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6">
+                                                <StackPanel Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding Map}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Text="{Binding BuyLabel}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextCardHeader}" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding RoundsLabel}" FontSize="11"
+                                                               Foreground="{DynamicResource TextMid}" />
+                                                    <Image Source="{Binding Image}" Width="320" Height="320"
+                                                           IsVisible="{Binding HasImage}" />
+                                                    <TextBlock Text="{Binding ImageNote}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasImageNote}" />
+                                                    <TextBlock Text="{Binding FixedLabel}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextValue}" />
+                                                    <TextBlock Text="{Binding RotatingLabel}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextMid}" />
+                                                    <Button Content="{Binding OpenLabel}" Classes="ghost" FontSize="11" Padding="10 5"
+                                                            Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).OpenRoundsCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Veto history: optional, user-entered, filed under the selected team. -->
                         <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0">

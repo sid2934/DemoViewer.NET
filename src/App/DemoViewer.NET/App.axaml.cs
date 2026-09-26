@@ -1124,11 +1124,24 @@ public class App : Application
         // config root (the browser) keeps entries in memory for the session.
         services.AddSingleton(_ => new VetoHistoryStore(AppPaths.ConfigRoot));
         // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
-        // Identity's own teams and the unified cache the Map Pool Record reads.
-        services.AddSingleton(sp => new DossierTabViewModel(
-            sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<VetoHistoryStore>()));
+        // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
+        // the round index's positions files under the same fingerprint the Situations tab trusts, and
+        // open their rounds in the Review Queue.
+        services.AddSingleton(sp =>
+        {
+            RoundIndexPlaceSources sources = sp.GetRequiredService<RoundIndexPlaceSources>();
+            return new DossierTabViewModel(
+                sp.GetRequiredService<TeamIdentityService>(),
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<VetoHistoryStore>(),
+                heatmaps: new SetupHeatmapService(
+                    sp.GetRequiredService<TeamIdentityService>(),
+                    sp.GetRequiredService<DemoCacheStore>(),
+                    sp.GetRequiredService<RoundIndexStore>(),
+                    sources.FingerprintFor),
+                review: sp.GetRequiredService<ReviewQueue>(),
+                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false);
+        });
 
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
         // Queue and rendered on a background slot. Planned whenever the index changes; a null directory (the
