@@ -31,4 +31,8 @@ internal static partial class RoundFactsLog
     [LoggerMessage(EventId = 5, Level = LogLevel.Warning,
         Message = "round_facts ruleset failed composition; cached rows are kept")]
     public static partial void CompositionFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning,
+        Message = "{fileName}: the round facts ruleset produced no rows; not retried until the next session or a ruleset change")]
+    public static partial void NoRows(ILogger logger, string fileName);
 }

@@ -111,7 +111,7 @@ public class RoundFactsEvaluatorTests
     }
 
     [Test]
-    public async Task ASourceWithNoRows_WritesNothing_AndTheDemoStillWantsRows()
+    public async Task ASourceWithNoRows_WritesNothing_AndIsNotRetriedThisSession()
     {
         DemoCacheStore store = StoreWithParsedDemo();
         CountingSource source = new(RoundFactsTable.Unavailable("round_facts: the ruleset produced no round_facts table"));
@@ -128,8 +128,13 @@ public class RoundFactsEvaluatorTests
             await Assert.That(record.RoundFacts).IsNull().Because("an empty payload would mark the demo current and hide that nothing ran");
             await Assert.That(record.RoundFactsFingerprint).IsNull();
             await Assert.That(updates).IsEqualTo(0);
-            await Assert.That(evaluator.Wants(Demo)).IsTrue()
-                .Because("the demo still wants rows; the source could not supply them this time");
+            await Assert.That(evaluator.Wants(Demo)).IsFalse()
+                .Because("retrying the same fingerprint would re-parse the demo forever (the live stall)");
+            await Assert.That(evaluator.PendingPaths()).DoesNotContain(Demo);
+            await Assert.That(new RoundFactsEvaluator(store, source, new FakeIdentity("rf-A")).Wants(Demo)).IsTrue()
+                .Because("the row is untouched, so the next session tries again");
+            await Assert.That(new RoundFactsEvaluator(store, source, new FakeIdentity("rf-B")).Wants(Demo)).IsTrue()
+                .Because("a ruleset change is a new fingerprint");
         }
     }
 
