@@ -265,6 +265,17 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
             if (record?.RoundFacts is not { } facts || facts.Schema != DemoCacheRecord.RoundFactsSchema)
             {
+                // The row said Round Facts was written (that is why Wants picked this demo) but the
+                // sidecar has none: index.json was saved before a later write replaced the record. Left
+                // alone, Wants stays true and the coordinator re-parses this demo forever. Re-project the
+                // row from the sidecar so it stops claiming facts and Round Facts re-wants the demo.
+                if (record is not null && _demoCache.TryGetIndex(path) is { RoundFactsSchema: > 0 })
+                {
+                    RoundIndexLog.RowClaimedMissingFacts(Log, fileName);
+                    _demoCache.UpdateExisting(path, _ => { });
+                    _demoCache.SaveIndex();
+                }
+
                 return; // no round windows to sample within; Round Facts has not written this demo yet
             }
 
