@@ -9,10 +9,11 @@ namespace DemoViewer.NET.Services.RoundIndex;
 
 /// <summary>
 ///     What decides whether a demo's index rows are current. Anything that changes what a row means is
-///     in it: the sidecar schema, the cadence, the token grammar, the Round Facts schema the alive and
-///     side joins read, the token source with the per-map zone version in the zones mode, and the
-///     positions file's tuple meaning. Anything joined at query time (buy thresholds, team identity) is
-///     not, so a Round Facts <c>params:</c> edit never re-indexes the library. A sidecar written before
+///     in it: the sidecar schema, the cadence, the token grammar, the Round Facts schema the round
+///     windows and the alive/side cross-check read, the token source with the per-map zone version in
+///     the zones mode, and the positions file's tuple meaning. Anything joined at query time (buy
+///     thresholds, team identity) is not, so a Round Facts <c>params:</c> edit never re-indexes the
+///     library. A sidecar written before
 ///     the positions file existed carries no <c>pos=</c> and is stale, which is what lets a Result Card
 ///     treat "never indexed" and "indexed before positions" as one state.
 /// </summary>

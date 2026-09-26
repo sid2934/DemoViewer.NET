@@ -666,6 +666,10 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             rounds = build.Rounds;
             cloud = build.Cloud;
             source = ProposalDocument.FromWalk;
+            foreach (RoundIndexDisagreement d in build.Disagreements)
+            {
+                SuggestedTagsLog.SampleDisagreedWithFacts(Log, Path.GetFileName(path), d.Round, d.SideMismatches, d.AliveMismatches);
+            }
         }
 
         DetonationPlaceResolver resolver = new(
@@ -749,4 +753,8 @@ internal static partial class SuggestedTagsLog
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "{fileName}: suggested tags were not built")]
     public static partial void BuildFailed(ILogger logger, string fileName, Exception exception);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning,
+        Message = "{fileName}: round {round} sample alive/team disagreed with round facts ({sideMismatches} side, {aliveMismatches} alive)")]
+    public static partial void SampleDisagreedWithFacts(ILogger logger, string fileName, int round, int sideMismatches, int aliveMismatches);
 }

@@ -265,7 +265,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
             if (record?.RoundFacts is not { } facts || facts.Schema != DemoCacheRecord.RoundFactsSchema)
             {
-                return; // nothing to join alive and side against; Round Facts has not written this demo yet
+                return; // no round windows to sample within; Round Facts has not written this demo yet
             }
 
             IPlaceSource source = _sources.SourceFor(parsed.MapName);
@@ -277,6 +277,11 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
 
             RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source,
                 _walk?.Invoke(parsed));
+            foreach (RoundIndexDisagreement d in build.Disagreements)
+            {
+                RoundIndexLog.SampleDisagreedWithFacts(Log, fileName, d.Round, d.SideMismatches, d.AliveMismatches);
+            }
+
             RoundIndexDocument document = build.Index;
             string stableKey = DemoCacheStore.StableKey(path);
             document.Demo = new RoundIndexDemo

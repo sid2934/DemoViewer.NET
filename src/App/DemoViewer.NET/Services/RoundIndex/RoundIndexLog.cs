@@ -26,4 +26,8 @@ internal static partial class RoundIndexLog
     [LoggerMessage(EventId = 3, Level = LogLevel.Information,
         Message = "situation index loaded: {demos} demos, {postings} postings, {orphans} orphan sidecars removed, {elapsedMs} ms")]
     public static partial void Loaded(ILogger logger, int demos, int postings, int orphans, long elapsedMs);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Warning,
+        Message = "{fileName}: round {round} sample alive/team disagreed with round facts ({sideMismatches} side, {aliveMismatches} alive)")]
+    public static partial void SampleDisagreedWithFacts(ILogger logger, string fileName, int round, int sideMismatches, int aliveMismatches);
 }

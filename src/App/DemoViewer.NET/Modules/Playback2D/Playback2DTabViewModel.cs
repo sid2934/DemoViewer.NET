@@ -3216,7 +3216,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private static float ReadFloat(IReadOnlyEntity? entity, string path, float fallback) =>
         entity is not null && entity.TryGet(path, out float v) ? v : fallback;
 
-    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant.
+    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant. Mirrors
+    // CS2DemoKit.Parser.EntityTracking.PawnLookup.IsAlive(EntityState), which this view-model cannot
+    // call directly: the markers it reads are copied-out scalars, not EntityState.
     private static bool IsAlive(IReadOnlyEntity? pawn)
     {
         if (pawn is null)
