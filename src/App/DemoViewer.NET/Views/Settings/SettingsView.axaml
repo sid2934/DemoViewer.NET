@@ -900,6 +900,21 @@
                                                       IsChecked="{Binding GrenadesBackgroundIndex, Mode=TwoWay}" />
                                     </Grid>
 
+                                    <!-- Lineup Clip Render: a GIF and its setpos line per repeated throw position -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Render lineup clips"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="A GIF of each lineup thrown more than once, beside its setpos line, queued in Review."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding GrenadesRenderLineupClips, Mode=TwoWay}" />
+                                    </Grid>
+
                                     <Rectangle Classes="divider" Height="1" Margin="0,2" />
 
                                     <TextBlock Text="REEL DEFAULTS" Classes="col-label" />

@@ -159,6 +159,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _grenadesBackgroundIndex;
 
+    /// <summary>Lineup Clip Render → <c>AppSettings.Grenades.RenderLineupClips</c> (default ON). Desktop only, beside the walk opt-in.</summary>
+    [ObservableProperty]
+    private bool _grenadesRenderLineupClips;
+
     // ── Idle mode: desktop only; suppressed on WASM like Background processing. ──
 
     /// <summary>Master enable for idle mode → <c>AppSettings.Idle.Enabled</c> (default ON). Live.</summary>
@@ -440,6 +444,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // Highlights section: seed from fields so construction trips no change-hooks.
         _highlightsBackgroundScan = current.Highlights.BackgroundScan;
         _grenadesBackgroundIndex = current.Grenades.BackgroundIndex;
+        _grenadesRenderLineupClips = current.Grenades.RenderLineupClips;
         _reelOutputFolder = current.Highlights.ReelOutputDirectory;
         _reelContainerFormat = current.Highlights.ReelContainerFormat;
         _reelFps = current.Highlights.ReelFps;
@@ -1217,6 +1222,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         Persist(s => s.Grenades.BackgroundIndex = value);
     }
 
+    partial void OnGrenadesRenderLineupClipsChanged(bool value)
+    {
+        if (_applyingExternal)
+        {
+            return;
+        }
+
+        Persist(s => s.Grenades.RenderLineupClips = value);
+    }
+
     partial void OnReelOutputFolderChanged(string? value)
     {
         if (_applyingExternal)
@@ -1769,6 +1784,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             // Highlights section.
             HighlightsBackgroundScan = settings.Highlights.BackgroundScan;
             GrenadesBackgroundIndex = settings.Grenades.BackgroundIndex;
+            GrenadesRenderLineupClips = settings.Grenades.RenderLineupClips;
             ReelOutputFolder = settings.Highlights.ReelOutputDirectory;
             ReelContainerFormat = settings.Highlights.ReelContainerFormat;
             ReelFps = settings.Highlights.ReelFps;
