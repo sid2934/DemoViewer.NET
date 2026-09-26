@@ -112,6 +112,15 @@ public static class FeatureCatalog
             "Every grenade in your indexed demos, grouped by where it landed: pick a map, a grenade and a "
             + "landing place to see every position it was thrown from.",
             null, null, false, Defaults(true, true, true)),
+        // The Opponent Dossier tab: the Map Pool Record and, later, the rest of the Dossier sections,
+        // keyed by a Team Identity team. Default-visible like the Strat Book and the Utility Book, and
+        // on both hosts: the browser keeps teams for the session and the Teams tab already says so. Only
+        // the id is a persisted key; the label is display text.
+        new(
+            "tab.dossier", FeatureScope.Tab, "Dossier",
+            "A scouting page per team: maps played, win rate, side wins and the decider record where "
+            + "it is inferable, plus a veto history you enter by hand.",
+            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",

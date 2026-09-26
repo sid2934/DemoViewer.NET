@@ -104,6 +104,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["tagger.matrix"] = "tab.tagger",
         ["stratbook.browser"] = "tab.stratbook",
         ["utilitybook.browser"] = "tab.utilitybook",
+        ["dossier.browser"] = "tab.dossier",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
         ["playback2d.viewport"] = "tab.playback2d",
