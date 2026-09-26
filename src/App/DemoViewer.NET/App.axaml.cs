@@ -23,6 +23,7 @@ using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Teams;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -188,6 +189,15 @@ public class App : Application
             // Match Overview's [ + ] stages into the Reels tray. A locator, not a reference: the
             // Reels tab is lazy, and staging must work before it has ever been opened.
             viewModel.ReelTrayLocator = services.GetRequiredService<HighlightsTabViewModel>;
+
+            // Match Overview's "Index grenades": the grenade walk forced at user priority. Desktop only: the
+            // browser head has no processing queue to run it on, and an absent action beats an inert one.
+            if (!OperatingSystem.IsBrowser())
+            {
+                GrenadeIndexEvaluator grenades = services.GetRequiredService<GrenadeIndexEvaluator>();
+                viewModel.MatchOverviewTab.IndexGrenades = grenades.Request;
+                viewModel.MatchOverviewTab.AreGrenadesIndexed = grenades.IsCurrent;
+            }
 
             // Session restore runs HERE, not in the shell ctor: it activates the persisted tab, and tab
             // activation may resolve the shell, which only works once the singleton above is cached (and now
@@ -1051,6 +1061,22 @@ public class App : Application
             sp.GetRequiredService<RoundIndexPlaceSources>(),
             tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
 
+        // The Grenade Walk (grenade-walk.md §3.8): every throw in a demo as one row, written as two siblings of
+        // the demo's cache record. An evaluator on the same fan-out, last because it reads nothing the others
+        // write. The library sweep is its own opt-in, off by default (D4); the open demo, resolved at call
+        // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
+        // rows in memory for the session.
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            return new GrenadeIndexEvaluator(
+                sp.GetRequiredService<DemoCacheStore>(),
+                () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
+                () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
+                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
+                action => Dispatcher.UIThread.Post(action));
+        });
+
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
         // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
@@ -1067,20 +1093,23 @@ public class App : Application
             RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
             RoundIndexEvaluator roundIndex = sp.GetRequiredService<RoundIndexEvaluator>();
             SuggestedTagsService suggestedTags = sp.GetRequiredService<SuggestedTagsService>();
+            GrenadeIndexEvaluator grenades = sp.GetRequiredService<GrenadeIndexEvaluator>();
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights, roundFacts, roundIndex, suggestedTags],
+                [library, highlights, roundFacts, roundIndex, suggestedTags, grenades],
                 sp.GetRequiredService<IDemoProcessingQueue>(),
                 () => library.Tier2Backlog()
                     .Concat(highlights.PendingPaths())
                     .Concat(roundFacts.PendingPaths())
                     .Concat(roundIndex.PendingPaths())
                     .Concat(suggestedTags.PendingPaths())
+                    .Concat(grenades.PendingPaths())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList());
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
             roundIndex.Coordinator = coordinator;
             suggestedTags.Coordinator = coordinator;
+            grenades.Coordinator = coordinator;
             return coordinator;
         });
 
