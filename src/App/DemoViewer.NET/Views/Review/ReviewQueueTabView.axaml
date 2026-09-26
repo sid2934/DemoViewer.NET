@@ -12,7 +12,8 @@
       opens a section and says how many clips it holds; a clip shows its number, the demo, its range on
       the demo's clock, where it came from, the note the sending surface wrote, and the one-line
       question the reviewer answers. Texts write through when the box loses focus. A click on Open
-      takes 2D playback to the clip's first tick.
+      takes 2D playback to the clip's first tick. The pack row under the actions exports the whole
+      queue as one video, sections as title cards (Pack Export); a host with no exporter hides it.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
@@ -64,6 +65,28 @@
                        Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasFileProblem}" />
             <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextMid}" />
+
+            <!-- Export pack: the whole queue as one video, sections as title cards. -->
+            <Border Classes="reviewCard" IsVisible="{Binding CanPack}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                        <ComboBox Grid.Column="0" ItemsSource="{Binding PackFormats}" FontSize="11"
+                                  SelectedItem="{Binding SelectedPackFormat}" IsEnabled="{Binding !IsPackRunning}"
+                                  ToolTip.Tip="mp4 plays on any phone; gif writes one file per clip into a folder" />
+                        <TextBox Grid.Column="1" Text="{Binding PackOutputPath, UpdateSourceTrigger=LostFocus}" FontSize="11"
+                                 IsEnabled="{Binding !IsPackRunning}" Watermark="Where the pack goes" />
+                        <Button Grid.Column="2" Content="Export pack" Classes="ghost" FontSize="11" Padding="10 5"
+                                Command="{Binding ExportPackCommand}"
+                                ToolTip.Tip="Render every queued clip into one video, each section's title card before its clips, each demo's saved annotations burned in" />
+                        <Button Grid.Column="3" Content="Cancel" Classes="ghost" FontSize="11" Padding="10 5"
+                                Command="{Binding CancelPackCommand}" IsVisible="{Binding IsPackRunning}" />
+                    </Grid>
+                    <TextBlock Text="{Binding PackSummary}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMid}" />
+                    <TextBlock Text="{Binding PackStatus}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextValue}" />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <Panel>

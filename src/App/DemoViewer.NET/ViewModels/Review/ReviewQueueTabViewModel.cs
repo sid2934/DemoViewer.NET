@@ -6,6 +6,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.Review;
 
 #endregion
@@ -29,6 +31,12 @@ namespace DemoViewer.NET.ViewModels.Review;
 ///         from the module context the tab was last activated with; with no demo open there is nothing
 ///         to pick and the action says so.
 ///     </para>
+///     <para>
+///         <b>Export pack</b> renders the whole queue as one video (Pack Export): the sections become
+///         title cards and the clips play in order from however many demos, each demo's saved ink burned
+///         in. The export is a delegate from the composition root; a host without one (the browser) hides
+///         the row.
+///     </para>
 /// </summary>
 public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
@@ -38,10 +46,33 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     /// <summary>How far either side of the playhead a manual pick reaches.</summary>
     public const int PickSeconds = 5;
 
+    private readonly Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? _exportPack;
+    private readonly Func<string, bool> _fileExists;
     private readonly Func<ISituationPlayback?> _playback;
     private readonly ReviewQueue _queue;
 
     private IModuleContext? _context;
+
+    /// <summary>A pack export is running.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportPackCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelPackCommand))]
+    private bool _isPackRunning;
+
+    private CancellationTokenSource? _packCts;
+
+    /// <summary>Where the pack goes; for GIF, the folder is this path without its extension.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportPackCommand))]
+    private string _packOutputPath;
+
+    /// <summary>What the pack export is doing, did, or why it did not start.</summary>
+    [ObservableProperty]
+    private string _packStatus = "";
+
+    /// <summary>The pack's format: one of <see cref="PackFormats" />.</summary>
+    [ObservableProperty]
+    private string _selectedPackFormat = ExportFormats.Mp4;
 
     /// <summary>The inline guard on Clear: armed by the button, never a modal.</summary>
     [ObservableProperty]
@@ -54,12 +85,23 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     /// <param name="queue">The shared queue.</param>
     /// <param name="playback">The seek seam a clip opens through; null on a host with no 2D tab.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    public ReviewQueueTabViewModel(ReviewQueue queue, Func<ISituationPlayback?>? playback = null, bool? isBrowser = null)
+    /// <param name="exportPack">Renders a planned pack off the UI thread; null hides Export pack.</param>
+    /// <param name="packDirectory">The folder a new pack's path starts in; the user's videos folder when null.</param>
+    /// <param name="fileExists">The existence probe for a clip's demo; <see cref="File.Exists" /> when null.</param>
+    public ReviewQueueTabViewModel(ReviewQueue queue, Func<ISituationPlayback?>? playback = null, bool? isBrowser = null,
+        Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null,
+        string? packDirectory = null, Func<string, bool>? fileExists = null)
     {
         ArgumentNullException.ThrowIfNull(queue);
         _queue = queue;
         _playback = playback ?? (() => null);
+        _exportPack = exportPack;
+        _fileExists = fileExists ?? File.Exists;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
+        string directory = string.IsNullOrWhiteSpace(packDirectory)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
+            : packDirectory;
+        _packOutputPath = Path.Combine(directory, DefaultPackName(DateTime.Now, ExportFormats.Mp4));
         _queue.Changed += Reconcile;
         Reconcile();
     }
@@ -90,6 +132,60 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
                 $"{Plural(clips.Count, "clip")} · {Plural(sections, "section")} · {Plural(demos, "demo")}");
         }
     }
+
+    /// <summary>The formats a pack can be written as. MP4 is the one every phone plays.</summary>
+    public IReadOnlyList<string> PackFormats { get; } = [ExportFormats.Mp4, ExportFormats.WebM, ExportFormats.Gif];
+
+    /// <summary>This host can export a pack.</summary>
+    public bool CanPack => _exportPack is not null;
+
+    /// <summary>
+    ///     "3 clips from 3 demos · 2 title cards · 1:12", then the clips that will be left out and the GIF
+    ///     clips cut at the frame cap; empty with nothing queued.
+    /// </summary>
+    public string PackSummary
+    {
+        get
+        {
+            if (_queue.ClipCount == 0)
+            {
+                return "";
+            }
+
+            PackPlan plan = PlanPack();
+            int cards = plan.Segments.Count(s => s is PackTitleCard);
+            int seconds = (int)Math.Round(plan.Seconds);
+            List<string> parts = [$"{Plural(plan.Clips.Count, "clip")} from {Plural(plan.DemoCount, "demo")}"];
+            if (cards > 0)
+            {
+                parts.Add(Plural(cards, "title card"));
+            }
+
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{seconds / 60}:{seconds % 60:D2}"));
+            if (plan.Skipped.Count > 0)
+            {
+                parts.Add($"{plan.Skipped.Count} left out ({string.Join(", ", plan.Skipped.Select(k => k.Reason).Distinct())})");
+            }
+
+            int trimmed = plan.Clips.Count(c => c.Trimmed);
+            if (trimmed > 0)
+            {
+                parts.Add($"{Plural(trimmed, "clip")} cut at the GIF frame cap");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>"review-pack-20260926-1412.mp4".</summary>
+    /// <param name="now">The moment the name stamps.</param>
+    /// <param name="formatId">The format, for the extension.</param>
+    public static string DefaultPackName(DateTime now, string formatId) =>
+        string.Create(CultureInfo.InvariantCulture, $"review-pack-{now:yyyyMMdd-HHmm}.{formatId}");
+
+    /// <summary>The pack the queue plans to right now, at the tab's format and path.</summary>
+    public PackPlan PlanPack() =>
+        PackPlanner.Plan(_queue.Entries, PackSettings.For(PackOutputPath, SelectedPackFormat), _fileExists);
 
     /// <summary>Why the queue file was not read, or null; while set the file is left alone.</summary>
     public string? FileProblem => _queue.FileProblem;
@@ -160,6 +256,79 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
                 break;
         }
     }
+
+    private bool CanExportPack() =>
+        _exportPack is not null && !IsPackRunning && _queue.ClipCount > 0 && !string.IsNullOrWhiteSpace(PackOutputPath);
+
+    /// <summary>Renders the queue as one pack; the status line follows it and names what was left out.</summary>
+    [RelayCommand(CanExecute = nameof(CanExportPack))]
+    private async Task ExportPack()
+    {
+        if (_exportPack is null)
+        {
+            return;
+        }
+
+        PackPlan plan = PlanPack();
+        if (PackPlanner.Validate(plan.Settings) is { } problem)
+        {
+            PackStatus = problem;
+            return;
+        }
+
+        if (plan.Clips.Count == 0)
+        {
+            PackStatus = "no queued clip can be rendered: " + string.Join(", ", plan.Skipped.Select(k => k.Reason).Distinct());
+            return;
+        }
+
+        using CancellationTokenSource cts = new();
+        _packCts = cts;
+        IsPackRunning = true;
+        PackStatus = "starting";
+        Progress<PackProgress> progress = new(p => PackStatus = string.Create(CultureInfo.InvariantCulture,
+            $"{p.Segment} of {p.SegmentCount}: {p.Label}"));
+        try
+        {
+            PackResult result = await _exportPack(plan, progress, cts.Token);
+            string where = plan.Settings.IsGif ? PackPlanner.GifFolder(plan.Settings.OutputPath) : plan.Settings.OutputPath;
+            List<string> leftOut = [.. plan.Skipped.Select(k => k.Reason).Concat(result.Failed.Select(f => f.Reason)).Distinct()];
+            string written = $"{Plural(result.ClipsRendered, "clip")} written to {where}";
+            PackStatus = leftOut.Count == 0
+                ? written
+                : $"{written}; left out: {string.Join("; ", leftOut)}";
+        }
+        catch (OperationCanceledException)
+        {
+            PackStatus = "pack export cancelled";
+        }
+        catch (Exception ex)
+        {
+            PackStatus = "pack export failed: " + ex.Message;
+        }
+        finally
+        {
+            _packCts = null;
+            IsPackRunning = false;
+        }
+    }
+
+    /// <summary>Stops the running pack; the half-written file is removed.</summary>
+    [RelayCommand(CanExecute = nameof(IsPackRunning))]
+    private void CancelPack() => _packCts?.Cancel();
+
+    // A new format moves the path's extension with it, so the name on screen is the file that is written.
+    partial void OnSelectedPackFormatChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(PackOutputPath))
+        {
+            PackOutputPath = Path.ChangeExtension(PackOutputPath, value);
+        }
+
+        OnPropertyChanged(nameof(PackSummary));
+    }
+
+    partial void OnPackOutputPathChanged(string value) => OnPropertyChanged(nameof(PackSummary));
 
     /// <summary>A new title card at the end.</summary>
     [RelayCommand]
@@ -259,7 +428,9 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
 
         OnPropertyChanged(nameof(HasRows));
         OnPropertyChanged(nameof(HeaderLine));
+        OnPropertyChanged(nameof(PackSummary));
         ClearCommand.NotifyCanExecuteChanged();
+        ExportPackCommand.NotifyCanExecuteChanged();
     }
 }
 
