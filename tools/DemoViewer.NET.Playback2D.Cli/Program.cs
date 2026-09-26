@@ -56,6 +56,14 @@ internal static class Program
                                            [--cpu | --gpu | --backend <name>] [--strict-backend]
                                            [--tolerance byte-exact|perceptual] [--diff-dir <dir>] [--json]
 
+                                  pack     --queue <review-queue.json>
+                                           [--out <file>] [--format webm|mp4|gif]   default mp4
+                                           [--fps N] [--size WxW]                   default 1080x1080/30
+                                           [--title-seconds N]                      default 2.5
+                                           [--encoder auto|software|<name>] [--quality draft|standard|best]
+                                           [--assets <dir>] [--no-radar]
+                                           [--ffmpeg-log] [--json] [--quiet]
+
                                   fixture  capture --demo <path> (--tick N | --frame N) --name <id>
                                                    [--corpus <dir>] [--size WxH] [--camera ...]
                                                    [--annotations <path>] [--layers ...] [--json]
@@ -127,6 +135,16 @@ internal static class Program
                                             GPU request into force-gpu, so a lane fails rather than silently
                                             measuring software rendering. dv2d reads no AppSettings (§7.7).
 
+                                pack        Headless Packs (plan.md §3): the Review Queue's plan-then-stitch
+                                            policy run over a review-queue.json file instead of the app's
+                                            Export pack row, so "every scrim from last night, tagged rounds
+                                            only, rendered by morning" is a scheduled command. The queue
+                                            decides which rounds are in it; dv2d filters nothing of its own.
+                                            A clip whose demo is missing or whose range is empty is left out
+                                            before anything renders; a clip that fails to render on its own
+                                            is left out and the rest of the pack continues. Full reference:
+                                            dv2d.md.
+
                                 exit codes: 0 ok · 1 usage · 2 missing input · 3 runtime failure
                                             4 GATE FAILURE (golden mismatch / budget exceeded) · 5 cancelled
                                             6 requested environment unavailable
@@ -134,7 +152,7 @@ internal static class Program
 
     /// <summary>The verbs the usage text lists, and the only ones <see cref="Main" /> dispatches.</summary>
     public static readonly IReadOnlyList<string> Verbs =
-        ["render", "export", "bench", "golden", "fixture", "probe"];
+        ["render", "export", "bench", "golden", "fixture", "probe", "pack"];
 
     /// <summary>The process entry point.</summary>
     /// <param name="args">The raw arguments.</param>
@@ -230,6 +248,7 @@ internal static class Program
         "fixture" => FixtureCommand.Run(args),
         "probe" => ProbeCommand.Run(args),
         "export" => ExportCommand.RunAsync(args, ct).GetAwaiter().GetResult(),
+        "pack" => PackCommand.RunAsync(args, ct).GetAwaiter().GetResult(),
         _ => throw new CliUsageException($"unknown command '{args.Verb}'.")
     };
 }

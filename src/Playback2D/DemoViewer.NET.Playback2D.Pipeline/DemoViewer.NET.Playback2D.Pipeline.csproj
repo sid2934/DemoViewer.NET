@@ -35,6 +35,10 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+        <!-- PackExportTests (App.Tests) white-box-tests PackSegmentSink and PackTitleCardRenderer,
+             internal here since Pack Export's plan-then-stitch logic (Export/Pack/*.cs) moved into
+             Pipeline for dv2d pack; see the note on PackExporter.cs. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
     </ItemGroup>
 
 </Project>
