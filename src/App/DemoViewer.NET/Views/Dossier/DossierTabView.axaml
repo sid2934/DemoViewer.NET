@@ -16,7 +16,9 @@
       number opening its rounds in Review), the Situational Behaviour (per map and side: pistol rounds
       and their bonus-round follow-up, rounds against a low-buy opponent, man-advantage rounds and
       whether they were closed out, and what the team bought after a loss, every number opening its
-      rounds in Review), and the veto history the user enters by hand.
+      rounds in Review), the Period Diff (the team's last N demos against the N before those: record,
+      side split and dominant roster per period, a picker for N, and the note when a roster boundary
+      sits between the two), and the veto history the user enters by hand.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
@@ -564,6 +566,51 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Period Diff: the team's last N demos against the N before those, roster to roster. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
+                                IsVisible="{Binding HasPeriodDiff}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Period Diff" Classes="col-label" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                    <TextBlock Text="demos per period" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMid}" />
+                                    <ComboBox FontSize="11" ItemsSource="{x:Static vm:DossierTabViewModel.WindowSizeOptions}"
+                                              SelectedItem="{Binding WindowSize}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding PeriodDiffNote}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10" IsVisible="{Binding PeriodDiffRecent, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <Border Grid.Column="0" Padding="10"
+                                            BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6">
+                                        <StackPanel Spacing="4" DataContext="{Binding PeriodDiffRecent}">
+                                            <TextBlock Text="last" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                                            <TextBlock Text="{Binding CountLabel}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding RecordLabel}" FontSize="11" Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding WinRateLabel}" FontSize="11" Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding SideLabel}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                            <TextBlock Text="{Binding RosterLabel}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                            <TextBlock Text="{Binding StandInLabel}" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                                       IsVisible="{Binding HasStandIn}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Padding="10"
+                                            BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6">
+                                        <StackPanel Spacing="4" DataContext="{Binding PeriodDiffPrevious}">
+                                            <TextBlock Text="previous" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                                            <TextBlock Text="{Binding CountLabel}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding RecordLabel}" FontSize="11" Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding WinRateLabel}" FontSize="11" Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding SideLabel}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                            <TextBlock Text="{Binding RosterLabel}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                            <TextBlock Text="{Binding StandInLabel}" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                                       IsVisible="{Binding HasStandIn}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
                             </StackPanel>
                         </Border>
 
