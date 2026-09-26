@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using CS2DemoKit.Parser.Models;
 using DemoViewer.NET.ViewModels.Common;
@@ -63,6 +64,12 @@ public sealed partial class ReplayTabViewModel : ObservableObject
 {
     // Cancellation source for in-flight card-build for the currently selected tick group.
     private CancellationTokenSource? _cardBuildCts;
+
+    // One reconstructor per loaded demo, reused (and Reset()) across tick-group selections rather
+    // than allocated per selection. On a current (delta_data) demo a tick group's own frames carry no
+    // baseline on their own, so this is primed from the nearest preceding DEM_FullPacket before each
+    // read (player-input-refresh, #53). Null before a demo is loaded, and after ResetForFileLoad.
+    private UserCmdReconstructor? _cmdReconstructor;
 
     [ObservableProperty]
     private bool _hasFrameGameEvents;
@@ -267,6 +274,7 @@ public sealed partial class ReplayTabViewModel : ObservableObject
     {
         _cardBuildCts?.Cancel();
         _cardBuildCts = null;
+        _cmdReconstructor = null;
         SubTickEvents.Clear();
         FrameGameEvents.Clear();
         TickViewFrames.Clear();
@@ -451,7 +459,7 @@ public sealed partial class ReplayTabViewModel : ObservableObject
         HasFrameGameEvents = FrameGameEvents.Count > 0;
 
         // Sub-tick events
-        List<SubTickEvent> events = SubTickExtractor.Extract(value.Frames);
+        List<SubTickEvent> events = ExtractSubTickEvents(value);
         foreach (SubTickEvent e in events)
         {
             SubTickEvents.Add(new SubTickEventViewModel(e));
@@ -468,4 +476,56 @@ public sealed partial class ReplayTabViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleTickView() => IsTickView = !IsTickView;
+
+    /// <summary>
+    ///     Sub-tick events for one tick group, primed for the current (delta_data) demos a cold
+    ///     <c>SubTickExtractor.Extract(group.Frames)</c> reads as near-empty (MissingBaseline): the
+    ///     group's own frames carry no baseline on their own.
+    ///     <para>
+    ///         Seeks back to the nearest preceding <c>DEM_FullPacket</c> and feeds every frame from
+    ///         there up to (but not including) the group's own frames through the shared
+    ///         <see cref="_cmdReconstructor" /> purely to prime its checkpoint, discarding whatever
+    ///         that priming read decodes to. The group's own frames are then read through the same,
+    ///         now-primed reconstructor, so only the group's events come back (player-input-refresh,
+    ///         #53). A demo with no full packet before the group (the pre-game group, or a demo that
+    ///         carries none at all) falls back to the old cold read.
+    ///     </para>
+    /// </summary>
+    private List<SubTickEvent> ExtractSubTickEvents(TickGroup group)
+    {
+        List<DemoFrame>? allFrames = FrameSource?.Invoke();
+        if (allFrames is null || allFrames.Count == 0)
+        {
+            return SubTickExtractor.Extract(group.Frames);
+        }
+
+        int fullPacketIndex = -1;
+        for (int i = Math.Min(group.StartFrameIndex, allFrames.Count - 1); i >= 0; i--)
+        {
+            if (allFrames[i].Command == "DEM_FullPacket")
+            {
+                fullPacketIndex = i;
+                break;
+            }
+        }
+
+        if (fullPacketIndex < 0)
+        {
+            return SubTickExtractor.Extract(group.Frames);
+        }
+
+        _cmdReconstructor ??= new UserCmdReconstructor();
+        _cmdReconstructor.Reset();
+
+        if (fullPacketIndex < group.StartFrameIndex)
+        {
+            // Priming-only pass: its return value is intentionally unused. The full packet itself
+            // primes rather than yields events by construction, so it costs nothing to include here.
+            SubTickExtractor.Extract(
+                allFrames.GetRange(fullPacketIndex, group.StartFrameIndex - fullPacketIndex),
+                _cmdReconstructor);
+        }
+
+        return SubTickExtractor.Extract(group.Frames, _cmdReconstructor);
+    }
 }
