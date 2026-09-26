@@ -1090,6 +1090,26 @@ public class App : Application
             sp.GetRequiredService<GrenadeIndex>(),
             sp.GetRequiredService<ISituationPlayback>()));
 
+        // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
+        // Queue and rendered on a background slot. Planned whenever the index changes; a null directory (the
+        // browser) plans nothing.
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            GrenadeIndex index = sp.GetRequiredService<GrenadeIndex>();
+            ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
+            LineupClipService clips = new(
+                () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
+                sp.GetRequiredService<ReviewQueue>(),
+                AppPaths.ConfigRoot is { } root ? Path.Combine(root, "lineup-clips") : null,
+                () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
+                new LineupClipRenderer(sp.GetRequiredService<HeavyJobGate>(),
+                    log: line => GrenadeIndexLog.LineupClip(log, line)),
+                log: line => GrenadeIndexLog.LineupClip(log, line));
+            index.Changed += () => clips.Plan();
+            return clips;
+        });
+
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
         // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
@@ -1162,6 +1182,8 @@ public class App : Application
         _ = provider.GetRequiredService<SituationIndex>().StartLoadAsync();
         // The grenade index's startup load: every current rows sibling, off the UI thread.
         _ = provider.GetRequiredService<GrenadeIndex>().StartLoadAsync();
+        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
+        provider.GetRequiredService<LineupClipService>();
         // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
         // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
         _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
