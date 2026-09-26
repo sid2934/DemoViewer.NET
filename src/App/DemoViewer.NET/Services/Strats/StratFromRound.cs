@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Numerics;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -432,13 +433,15 @@ public static class StratFromRound
         last[token] = new Keyed(pawn.X, pawn.Y, level);
     }
 
-    // The "draw throw arrows" ink: a world-space arrow from where the thrower stands at the step to the landing,
-    // on the thrower's floor, in the stored stroke shape the canvas reads back.
+    // The "draw throw arrows" ink: a world-space arrow from the grenade's real release point (#56, #59) when the
+    // sampler named one, else from where the thrower stands at the step, to the landing, on the thrower's floor,
+    // in the stored stroke shape the canvas reads back.
     private static JsonObject Arrow(CapturedPawn thrower, CaptureMoment moment, StratCaptureOptions options)
     {
+        Vector3 origin = moment.ThrowOrigin ?? new Vector3(thrower.X, thrower.Y, thrower.Z);
         AnnotationElement arrow = new(Guid.NewGuid(), AnnotationKind.Arrow, ArrowStyle,
             new SpaceRef.World(options.LevelMinZFor(thrower.Z)), TimeEnvelope.Static,
-            [new InkPoint(thrower.X, thrower.Y, 0.5f), new InkPoint(moment.Position.X, moment.Position.Y, 0.5f)], null);
+            [new InkPoint(origin.X, origin.Y, 0.5f), new InkPoint(moment.Position.X, moment.Position.Y, 0.5f)], null);
         return StratStrokes.ToJson(arrow);
     }
 
