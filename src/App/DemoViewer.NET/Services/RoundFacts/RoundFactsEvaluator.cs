@@ -46,6 +46,11 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
 
     private int _reportedAbsent;
 
+    // Demos whose engine run produced no rows under a fingerprint, this session only. Nothing is written
+    // (an empty payload would read as current), so without this the coordinator re-parses them forever.
+    private readonly HashSet<string> _noRows = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _noRowsGate = new();
+
     /// <param name="demoCache">The unified demo cache: the rows live in its Analysis tier.</param>
     /// <param name="rows">The engine seam that evaluates the ruleset on a held parse.</param>
     /// <param name="identity">The effective ruleset's fingerprint, or null when there is none.</param>
@@ -79,7 +84,8 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     public bool Wants(string path)
     {
         DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
-        return entry is { ParseSchema: > 0 } && entry.NeedsRoundFacts(TryFingerprint(BacklogTickRate));
+        string? fingerprint = TryFingerprint(BacklogTickRate);
+        return entry is { ParseSchema: > 0 } && entry.NeedsRoundFacts(fingerprint) && !TriedWithoutRows(path, fingerprint);
     }
 
     /// <inheritdoc />
@@ -111,7 +117,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
         return
         [
             .. _demoCache.Index
-                .Where(e => e.ParseSchema > 0 && e.NeedsRoundFacts(fingerprint))
+                .Where(e => e.ParseSchema > 0 && e.NeedsRoundFacts(fingerprint) && !TriedWithoutRows(e.Path, fingerprint))
                 .OrderByDescending(e => e.ModifiedTicks)
                 .Select(e => e.Path)
         ];
@@ -150,6 +156,12 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             // mark it current and hide that the engine never ran.
             if (table.Rows.Count == 0)
             {
+                lock (_noRowsGate)
+                {
+                    _noRows.Add(NoRowsKey(path, fingerprint));
+                }
+
+                RoundFactsLog.NoRows(Log, fileName);
                 return;
             }
 
@@ -175,6 +187,16 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             RoundFactsLog.WriteFailed(Log, fileName, ex);
         }
     }
+
+    private bool TriedWithoutRows(string path, string? fingerprint)
+    {
+        lock (_noRowsGate)
+        {
+            return _noRows.Contains(NoRowsKey(path, fingerprint));
+        }
+    }
+
+    private static string NoRowsKey(string path, string? fingerprint) => fingerprint + "|" + path;
 
     // A config that cannot load yields null, which reads as "nothing to run": one broken rule file must
     // never mark the whole library stale.
