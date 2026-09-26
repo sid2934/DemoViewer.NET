@@ -61,6 +61,13 @@ public static class GrenadeRules
     /// <summary><c>FL_ONGROUND</c> in <c>m_fFlags</c>.</summary>
     public const uint OnGroundFlag = 1;
 
+    /// <summary>
+    ///     <c>FL_DUCKING</c> in <c>m_fFlags</c>: the crouch read. <c>m_pMovementServices.m_bDucked</c> decodes on
+    ///     GOTV but stayed false on every pawn sample of a real demo, while this bit followed a full
+    ///     <c>m_flDuckAmount</c> on 58 of 59.
+    /// </summary>
+    public const uint DuckingFlag = 2;
+
     /// <summary><c>IN_JUMP</c> in <c>buttonstate1</c> and in a sub-tick move's <c>button</c>.</summary>
     public const ulong JumpButton = 1UL << 1;
 
