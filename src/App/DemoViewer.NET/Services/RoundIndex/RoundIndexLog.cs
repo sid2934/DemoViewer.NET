@@ -30,4 +30,8 @@ internal static partial class RoundIndexLog
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning,
         Message = "{fileName}: round {round} sample alive/team disagreed with round facts ({sideMismatches} side, {aliveMismatches} alive)")]
     public static partial void SampleDisagreedWithFacts(ILogger logger, string fileName, int round, int sideMismatches, int aliveMismatches);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Warning,
+        Message = "{fileName}: the index row claimed Round Facts the cache record does not carry; realigned the row so Round Facts runs again")]
+    public static partial void RowClaimedMissingFacts(ILogger logger, string fileName);
 }
