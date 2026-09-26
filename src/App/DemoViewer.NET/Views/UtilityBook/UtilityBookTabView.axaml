@@ -5,12 +5,14 @@
              x:DataType="vm:UtilityBookTabViewModel">
 
     <!--
-      THE UTILITY BOOK TAB: the Grenade Index.
+      THE UTILITY BOOK TAB: the Grenade Index and its Lineup Cards.
 
       Top: the status line (how many grenades from how many demos, or how to get some), the browser
       note, and the pickers: map, kind, landing place, side. Middle: one card per landing spot, most
-      thrown first, each listing its deduplicated throw positions with a Watch button that opens the
-      first throw in 2D Playback. Bottom: what a spot and a position mean.
+      thrown first, each listing its deduplicated throw positions as Lineup Cards: the CS2UTIL field
+      set (type, jump-throw flag, air time, movement), the landing point on the radar when this host
+      has the map's baked bundle, the setpos/setang line a card is copy-pasted from, and a Watch
+      button that opens the first throw in 2D Playback. Bottom: what a spot and a position mean.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
@@ -61,19 +63,66 @@
                                     </StackPanel>
                                     <ItemsControl ItemsSource="{Binding Lineups}">
                                         <ItemsControl.ItemTemplate>
+                                            <!-- One Lineup Card: the CS2UTIL field set over the group's representative
+                                                 throw, the landing point on the radar (or in words when this host has
+                                                 no bundle for the map), and the setpos/setang line to copy-paste. -->
                                             <DataTemplate x:DataType="vm:GrenadeLineupRow">
-                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 2">
-                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                                                        <TextBlock Text="{Binding OriginText}" FontSize="12" Classes="mono"
-                                                                   Foreground="{DynamicResource TextValue}" />
-                                                        <TextBlock Text="{Binding DetailText}" FontSize="11"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource TextMid}" />
-                                                    </StackPanel>
-                                                    <Button Grid.Column="1" Content="Watch" Classes="ghost" FontSize="11"
-                                                            Padding="8 3" Command="{Binding WatchCommand}"
-                                                            ToolTip.Tip="Open 2D playback two seconds before the first throw from here" />
-                                                </Grid>
+                                                <Border Background="{DynamicResource PanelBg}"
+                                                        BorderBrush="{DynamicResource BorderSubtle}"
+                                                        BorderThickness="1" CornerRadius="4" Padding="10 8" Margin="0 3">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                                        <Panel Grid.Column="0" Width="64" Height="64">
+                                                            <Image Source="{Binding Thumbnail}" Width="64" Height="64"
+                                                                   Stretch="Uniform" IsVisible="{Binding HasThumbnail}" />
+                                                            <TextBlock Text="{Binding LandingText}" FontSize="10"
+                                                                       TextWrapping="Wrap" TextAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       IsVisible="{Binding !HasThumbnail}"
+                                                                       Foreground="{DynamicResource TextMid}" />
+                                                        </Panel>
+
+                                                        <StackPanel Grid.Column="1" Spacing="4">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                                    <TextBlock Text="{Binding OriginText}" FontSize="12"
+                                                                               Classes="mono"
+                                                                               Foreground="{DynamicResource TextValue}" />
+                                                                    <TextBlock Text="{Binding DetailText}" FontSize="11"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="{DynamicResource TextMid}" />
+                                                                </StackPanel>
+                                                                <Button Grid.Column="1" Content="Watch" Classes="ghost"
+                                                                        FontSize="11" Padding="8 3"
+                                                                        Command="{Binding WatchCommand}"
+                                                                        ToolTip.Tip="Open 2D playback two seconds before the first throw from here" />
+                                                            </Grid>
+
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding TypeText}" FontSize="11"
+                                                                           Margin="0 0 10 0"
+                                                                           Foreground="{DynamicResource TextValue}" />
+                                                                <TextBlock Text="{Binding JumpThrowText}" FontSize="11"
+                                                                           Margin="0 0 10 0"
+                                                                           Foreground="{DynamicResource TextValue}" />
+                                                                <TextBlock Text="{Binding AirTimeText}" FontSize="11"
+                                                                           Margin="0 0 10 0"
+                                                                           Foreground="{DynamicResource TextValue}" />
+                                                                <TextBlock Text="{Binding MovementText}" FontSize="11"
+                                                                           Foreground="{DynamicResource TextValue}" />
+                                                            </WrapPanel>
+
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <TextBox Grid.Column="0" Text="{Binding ConsoleText}"
+                                                                         IsReadOnly="True" FontSize="11" Classes="mono"
+                                                                         Padding="6 4" />
+                                                                <Button Grid.Column="1" Content="Copy" Classes="ghost"
+                                                                        FontSize="11" Padding="8 3"
+                                                                        Click="OnCopyConsoleClick"
+                                                                        ToolTip.Tip="Copy the setpos/setang line" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>

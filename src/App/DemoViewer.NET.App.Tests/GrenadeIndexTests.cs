@@ -18,7 +18,8 @@ namespace DemoViewer.NET.AppTests;
 ///     bar ("every smoke that landed on Mirage CT in these nine demos" returns clustered origins), the
 ///     coarse landing grid, the origin dedup and the jump-throw split, a copied demo counted once, the stamp
 ///     rule, the no-zones fallback, a zones version change re-resolving, the evaluator's merge and a
-///     removal; then the Utility Book module's ids and the tab VM over the same index.
+///     removal; then the Utility Book module's ids, the tab VM over the same index, and its Lineup Cards
+///     (plan.md §3, Phase 4): the CS2UTIL field set and the setpos/setang console line's exact format.
 /// </summary>
 public class GrenadeIndexTests
 {
@@ -303,10 +304,12 @@ public class GrenadeIndexTests
     {
         using GrenadeIndex index = Loaded(Library());
         RecordingPlayback playback = new();
-        using UtilityBookTabViewModel vm = new(index, playback, isBrowser: false);
+        using UtilityBookTabViewModel vm = new(index, playback, isBrowser: false,
+            renderer: () => new GrenadeLineupThumbnailRenderer(_ => null), post: action => action(), decode: _ => null);
 
         vm.SelectedMap = Mirage;
         vm.SelectedPlace = "CTSpawn";
+        await vm.ThumbnailTask;
 
         using (Assert.Multiple())
         {
@@ -322,6 +325,52 @@ public class GrenadeIndexTests
 
         await vm.Clusters[0].Lineups[1].WatchCommand.ExecuteAsync(null);
         await Assert.That(playback.Seeks.Single()).IsEqualTo((DemoPath(1), 2000 - UtilityBookTabViewModel.WatchLeadTicks));
+    }
+
+    [Test]
+    public async Task LineupCards_PrintTheCS2UtilFieldSet_AndTheConsoleLineIsTheSetposSetangFormat()
+    {
+        DemoCacheStore cache = new(null);
+        GrenadeRow row = Row("a", GrenadeKind.Smoke, new Vector3(512, 288, -160), new Vector3(-1400, -1400, -170));
+        row.ReleaseEyePitch = -18.12f;
+        row.ReleaseEyeYaw = -15.3f;
+        row.Movement = MovementClass.Running;
+        row.AirTimeTicks = 115;
+        Indexed(cache, DemoPath(1), Mirage, "sha1", [row]);
+
+        using GrenadeIndex index = Loaded(cache);
+        using UtilityBookTabViewModel vm = new(index, isBrowser: false,
+            renderer: () => new GrenadeLineupThumbnailRenderer(_ => null), post: action => action(), decode: _ => null);
+        vm.SelectedMap = Mirage;
+        await vm.ThumbnailTask;
+
+        GrenadeLineupRow card = vm.Clusters.Single().Lineups.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(card.Map).IsEqualTo(Mirage);
+            await Assert.That(card.TypeText).IsEqualTo("Smoke");
+            await Assert.That(card.JumpThrowText).IsEqualTo("Standard throw");
+            await Assert.That(card.MovementText).IsEqualTo("Running");
+            await Assert.That(card.AirTimeText).IsEqualTo("1.8s air time").Because("115 ticks at the default 64 tick rate");
+            await Assert.That(card.ConsoleText).IsEqualTo("setpos 512.00 288.00 -160.00; setang -18.12 -15.30 0.00")
+                .Because("a card is copy-pasteable into a console at this exact shape");
+            await Assert.That(card.LandingText).IsEqualTo("at (-1400, -1400, -170)");
+            await Assert.That(card.HasThumbnail).IsFalse().Because("no baked bundle on this host");
+            await Assert.That(card.ThumbnailNote).IsEqualTo(GrenadeLineupRow.NoRadarNote);
+        }
+    }
+
+    [Test]
+    public async Task ALineupWithNoReleaseAngles_PrintsWhatGrenadeConsoleAsksFor()
+    {
+        using GrenadeIndex index = Loaded(Library());
+        using UtilityBookTabViewModel vm = new(index, isBrowser: false,
+            renderer: () => new GrenadeLineupThumbnailRenderer(_ => null), post: action => action(), decode: _ => null);
+        vm.SelectedMap = Mirage;
+        await vm.ThumbnailTask;
+
+        await Assert.That(vm.Clusters[0].Lineups[0].ConsoleText).IsEqualTo(GrenadeLineupRow.NoConsoleText)
+            .Because("the fixture rows never set release eye angles");
     }
 
     private sealed class SwitchableZones(IZonePlaceResolver current) : IZonePlaceResolverSource

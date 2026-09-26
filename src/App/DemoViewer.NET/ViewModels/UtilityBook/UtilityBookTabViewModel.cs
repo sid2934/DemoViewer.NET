@@ -2,6 +2,8 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
@@ -21,17 +23,67 @@ public sealed record UtilityBookOption<T>(string Label, T? Value) where T : stru
     public override string ToString() => Label;
 }
 
-/// <summary>One deduplicated throw position of a cluster, as the tab lists it.</summary>
-public sealed class GrenadeLineupRow
+/// <summary>
+///     One deduplicated throw position of a cluster: a Lineup Card (plan.md §3, Phase 4). Prints the
+///     CS2UTIL field set over the group's representative throw (oldest demo, then earliest release):
+///     map, type, jump-throw flag, air time, movement, the <c>setpos</c>/<c>setang</c> string, and the
+///     landing point, rendered on the radar when this host has the map's baked bundle and in words
+///     otherwise. <see cref="ConsoleText" /> is what a card is copy-pasted into a console from.
+/// </summary>
+public sealed partial class GrenadeLineupRow : ViewModelBase
 {
+    /// <summary>The card's note when its map has no baked bundle on this host.</summary>
+    public const string NoRadarNote = "no radar for this map";
+
+    /// <summary><see cref="GrenadeConsole.Format" />'s own words for a throw whose release state was not read.</summary>
+    public const string NoConsoleText = "release state unavailable";
+
+    [ObservableProperty]
+    private Bitmap? _thumbnail;
+
+    [ObservableProperty]
+    private string _thumbnailNote = "";
+
     public GrenadeLineupRow(GrenadeLineup lineup, IAsyncRelayCommand watch)
     {
         ArgumentNullException.ThrowIfNull(lineup);
+        ArgumentNullException.ThrowIfNull(watch);
         Lineup = lineup;
         WatchCommand = watch;
+        Representative = lineup.Throws[0];
     }
 
     public GrenadeLineup Lineup { get; }
+
+    /// <summary>The throw the card's fields are read from: the group's oldest demo, then earliest release.</summary>
+    public IndexedGrenade Representative { get; }
+
+    /// <summary>The map, as the demo header spells it.</summary>
+    public string Map => Representative.Map;
+
+    /// <summary>"Smoke", "Molotov" and so on: the CS2UTIL type field.</summary>
+    public string TypeText => Representative.Kind.ToString();
+
+    /// <summary>"Jump-throw" or "Standard throw": the CS2UTIL jump-throw flag.</summary>
+    public string JumpThrowText => Lineup.JumpThrow ? "Jump-throw" : "Standard throw";
+
+    /// <summary>"1.8s air time", from <see cref="IndexedGrenade.AirTimeSeconds" />.</summary>
+    public string AirTimeText => string.Create(CultureInfo.InvariantCulture,
+        $"{Representative.AirTimeSeconds:0.0}s air time");
+
+    /// <summary>"Running", "Walking", "Stationary" or "Unknown": the CS2UTIL movement word.</summary>
+    public string MovementText => Representative.Row.Movement.ToString();
+
+    /// <summary>
+    ///     The console line a card is copy-pasted from: <see cref="GrenadeConsole.Format" /> over
+    ///     <see cref="Representative" />, or <see cref="NoConsoleText" /> when the release state was not
+    ///     read (grenade-walk.md: never a confident wrong number).
+    /// </summary>
+    public string ConsoleText => GrenadeConsole.Format(Representative.Row) ?? NoConsoleText;
+
+    /// <summary>"at (x, y, z)": the exact landing point in words, the radar's fallback.</summary>
+    public string LandingText => string.Create(CultureInfo.InvariantCulture,
+        $"at ({Representative.Landing.X:0}, {Representative.Landing.Y:0}, {Representative.Landing.Z:0})");
 
     /// <summary><c>from (x, y, z)</c> at whole units.</summary>
     public string OriginText => string.Create(CultureInfo.InvariantCulture,
@@ -50,8 +102,24 @@ public sealed class GrenadeLineupRow
         }
     }
 
+    /// <summary>A picture is on the card.</summary>
+    public bool HasThumbnail => Thumbnail is not null;
+
+    /// <summary>The card has a note instead of a picture.</summary>
+    public bool HasThumbnailNote => ThumbnailNote.Length > 0;
+
     /// <summary>Opens the first throw's demo a moment before the release in 2D Playback.</summary>
     public IAsyncRelayCommand WatchCommand { get; }
+
+    /// <summary>Puts the rendered radar on the card, or the note that stands in for it. Called on the UI thread.</summary>
+    /// <param name="bitmap">The decoded picture, or null when this host has no bundle for the map.</param>
+    public void ApplyThumbnail(Bitmap? bitmap)
+    {
+        Thumbnail = bitmap;
+        ThumbnailNote = bitmap is null ? NoRadarNote : "";
+        OnPropertyChanged(nameof(HasThumbnail));
+        OnPropertyChanged(nameof(HasThumbnailNote));
+    }
 }
 
 /// <summary>One landing cluster, as the tab lists it.</summary>
@@ -105,9 +173,13 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     public const string BrowserNote =
         "In the browser, grenades are indexed for the open demo only and this tab forgets them when it reloads.";
 
+    private readonly Func<byte[], Bitmap?> _decode;
     private readonly GrenadeIndex _index;
     private readonly ISituationPlayback? _playback;
+    private readonly Action<Action> _post;
+    private readonly Func<GrenadeLineupThumbnailRenderer> _renderer;
     private bool _disposed;
+    private int _generation;
     private bool _refreshing;
 
     [ObservableProperty]
@@ -131,11 +203,19 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     /// <param name="index">The grenade index.</param>
     /// <param name="playback">Opens a throw in 2D Playback; null when the host has no shell.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null)
+    /// <param name="renderer">Builds a batch's landing-point radar renderer; the pipeline's bundle loader when null.</param>
+    /// <param name="post">UI-thread marshal for a rendered card; the dispatcher when null.</param>
+    /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
+    public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
+        Func<GrenadeLineupThumbnailRenderer>? renderer = null, Action<Action>? post = null,
+        Func<byte[], Bitmap?>? decode = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
+        _renderer = renderer ?? (() => new GrenadeLineupThumbnailRenderer());
+        _post = post ?? (action => Dispatcher.UIThread.Post(action));
+        _decode = decode ?? DecodePng;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Kinds =
         [
@@ -170,6 +250,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
     public bool HasClusters => Clusters.Count > 0;
 
+    /// <summary>The last landing-point render batch's worker, so a test can await it instead of polling the cards.</summary>
+    internal Task ThumbnailTask { get; private set; } = Task.CompletedTask;
+
     /// <inheritdoc />
     public void OnActivated(IModuleContext context) => Refresh();
 
@@ -187,6 +270,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         }
 
         _disposed = true;
+        Interlocked.Increment(ref _generation); // stops a straggling render worker from posting after this
         _index.Changed -= Refresh;
     }
 
@@ -223,18 +307,22 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             }
 
             Clusters.Clear();
+            List<GrenadeLineupRow> cards = [];
             if (CurrentQuery() is { } query)
             {
                 foreach (GrenadeCluster cluster in _index.Query(query))
                 {
-                    Clusters.Add(new GrenadeClusterRow(cluster,
+                    List<GrenadeLineupRow> lineups =
                     [
                         .. cluster.Lineups.Select(l => new GrenadeLineupRow(l,
                             new AsyncRelayCommand(() => WatchAsync(l.Throws[0]), () => _playback is not null)))
-                    ]));
+                    ];
+                    Clusters.Add(new GrenadeClusterRow(cluster, lineups));
+                    cards.AddRange(lineups);
                 }
             }
 
+            FillThumbnails(cards);
             OnPropertyChanged(nameof(HasClusters));
             StatusLine = StatusFor(_index.IsReady, _index.DemoCount, _index.GrenadeCount, SelectedMap is not null);
             int throws = Clusters.Sum(c => c.Cluster.ThrowCount);
@@ -278,6 +366,68 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         }
 
         await _playback.SeekAsync(grenade.Demo.Path, Math.Max(0, grenade.Row.ReleaseTick - WatchLeadTicks));
+    }
+
+    // Starts the batch that draws every visible card's landing-point radar, off the UI thread. A
+    // generation behind the latest Refresh posts nothing, so a fast filter change never lands a
+    // picture on a card an earlier query already replaced.
+    private void FillThumbnails(List<GrenadeLineupRow> cards)
+    {
+        int generation = Interlocked.Increment(ref _generation);
+        if (cards.Count == 0)
+        {
+            ThumbnailTask = Task.CompletedTask;
+            return;
+        }
+
+        ThumbnailTask = Task.Run(() => Fill(generation, cards));
+    }
+
+    private void Fill(int generation, List<GrenadeLineupRow> cards)
+    {
+        using GrenadeLineupThumbnailRenderer renderer = _renderer();
+        foreach (GrenadeLineupRow card in cards)
+        {
+            if (generation != Volatile.Read(ref _generation))
+            {
+                return;
+            }
+
+            byte[]? png = TryRender(renderer, card.Representative);
+            Bitmap? bitmap = png is null ? null : _decode(png);
+            _post(() =>
+            {
+                if (generation == Volatile.Read(ref _generation))
+                {
+                    card.ApplyThumbnail(bitmap);
+                }
+            });
+        }
+    }
+
+    private static byte[]? TryRender(GrenadeLineupThumbnailRenderer renderer, IndexedGrenade grenade)
+    {
+        try
+        {
+            return renderer.Render(grenade.Map, grenade.Landing, grenade.Row.ThrowerTeam);
+        }
+        catch (Exception)
+        {
+            return null; // a render that throws is a card with the landing point in words, never a dead one
+        }
+    }
+
+    private static Bitmap? DecodePng(byte[] png)
+    {
+        try
+        {
+            using MemoryStream stream = new(png);
+            return new Bitmap(stream);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     // Replaces a collection's contents only when they differ, so a bound picker keeps its selection.
