@@ -1045,7 +1045,8 @@ public class App : Application
                 evidence: sp.GetRequiredService<StratEvidenceService>(),
                 review: sp.GetRequiredService<ReviewQueue>(),
                 indexBySha: cache.TryGetIndexBySha256,
-                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false);
+                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
+                grenades: sp.GetRequiredService<GrenadeIndex>());
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds

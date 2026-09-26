@@ -35,6 +35,7 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
 
     private CalloutResolver? _callouts;
     private StratDocument? _document;
+    private Func<Guid, string?>? _lineupTitle;
     private Func<Guid, StratDocument?>? _lookup;
     private IReadOnlyDictionary<string, string?>? _roster;
 
@@ -106,13 +107,16 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
     /// <param name="callouts">The owner's callouts for the strat's map; null prints canonical names.</param>
     /// <param name="roster">Slot letter to resolved player name, strat-pin level only (§3.5); null for none.</param>
     /// <param name="lookup">Resolves a branch's target strat when it is not this one.</param>
+    /// <param name="lineupTitle">Resolves a step's lineup reference to its card title (Lineup On A Strat Step); null leaves it as a raw id.</param>
     public void Configure(StratDocument? document, CalloutResolver? callouts,
-        IReadOnlyDictionary<string, string?>? roster, Func<Guid, StratDocument?>? lookup)
+        IReadOnlyDictionary<string, string?>? roster, Func<Guid, StratDocument?>? lookup,
+        Func<Guid, string?>? lineupTitle = null)
     {
         _document = document;
         _callouts = callouts;
         _roster = roster;
         _lookup = lookup;
+        _lineupTitle = lineupTitle;
         OnPropertyChanged(nameof(HasStrat));
         PrintCommand.NotifyCanExecuteChanged();
         Rebuild();
@@ -130,7 +134,7 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
 
         List<RoleSheet> sheets =
         [
-            .. StratVocabulary.Slots.Select(slot => RoleSheet.Derive(document, slot, _callouts, _roster, _lookup))
+            .. StratVocabulary.Slots.Select(slot => RoleSheet.Derive(document, slot, _callouts, _roster, _lookup, _lineupTitle))
         ];
         string html = RoleSheetHtmlWriter.Html(document, sheets);
         string? path = _print(html, StratBookTabViewModel.ExportFileStem(document.Name) + "-roles");
@@ -154,7 +158,7 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
             return;
         }
 
-        RoleSheet sheet = RoleSheet.Derive(document, SelectedSlot, _callouts, _roster, _lookup);
+        RoleSheet sheet = RoleSheet.Derive(document, SelectedSlot, _callouts, _roster, _lookup, _lineupTitle);
         ApplyHeader(sheet.Header);
         foreach (RoleSheetLine line in sheet.Lines)
         {

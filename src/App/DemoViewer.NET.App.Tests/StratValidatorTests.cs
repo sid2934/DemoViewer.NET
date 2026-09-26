@@ -279,6 +279,23 @@ public class StratValidatorTests
     }
 
     [Test]
+    public async Task LineupExists_WarnsWhenTheResolverSaysNo_AndRaisesNothingWhenItSaysYes()
+    {
+        Guid lineupId = Guid.NewGuid();
+        StratDocument document = Minimal();
+        document.Steps[0].Utility = new UtilityRef { Kind = "smoke", LineupId = lineupId };
+
+        IReadOnlyList<StratIssue> found = StratValidator.Validate(document, lineupExists: (_, _) => true);
+        await Assert.That(found.Any(i => i.Field == "/steps/0/utility/lineupId")).IsFalse()
+            .Because("a resolver that finds the lineup raises nothing, the same as a clean field");
+
+        IReadOnlyList<StratIssue> missing = StratValidator.Validate(document, lineupExists: (_, _) => false);
+        StratIssue issue = missing.Single(i => i.Field == "/steps/0/utility/lineupId");
+        await Assert.That(issue.Severity).IsEqualTo(StratIssueSeverity.Warning);
+        await Assert.That(issue.Message).Contains(lineupId.ToString());
+    }
+
+    [Test]
     public async Task AMoveWithNoDestination_Warns()
     {
         StratDocument document = Minimal();

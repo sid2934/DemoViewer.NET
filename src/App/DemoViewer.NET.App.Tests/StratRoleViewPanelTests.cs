@@ -61,7 +61,7 @@ public class StratRoleViewPanelTests
             await Assert.That(vm.Lines.Select(Line)).IsEquivalentTo(
             [
                 "context: B throws smoke A ramp → A site (Stairs)",
-                "context: C throws molotov A ramp → A site (Jungle)",
+                "context: C throws molotov A ramp → A site (Jungle) [lineup: e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b]",
                 "own: A peeks A ramp → Connector",
                 "own: All move A ramp → A site"
             ]);

@@ -24,7 +24,9 @@ public static class StratTextExporter
     /// <param name="doc">The strat.</param>
     /// <param name="callouts">The owner's callouts for the map; null prints canonical names split into words.</param>
     /// <param name="lookup">Resolves a branch's target strat when it is not <paramref name="doc" /> itself; null leaves it as a raw id.</param>
-    public static string CallSheet(StratDocument doc, CalloutResolver? callouts = null, Func<Guid, StratDocument?>? lookup = null)
+    /// <param name="lineupTitle">Resolves a step's lineup reference to its card title; null leaves it as a raw id.</param>
+    public static string CallSheet(StratDocument doc, CalloutResolver? callouts = null, Func<Guid, StratDocument?>? lookup = null,
+        Func<Guid, string?>? lineupTitle = null)
     {
         ArgumentNullException.ThrowIfNull(doc);
         StringBuilder md = new();
@@ -63,7 +65,7 @@ public static class StratTextExporter
         foreach (StratStep step in doc.Steps)
         {
             md.Append("- **").Append(StratClock.Format(step.AtSeconds)).Append("** ")
-                .Append(StratStepPhrasing.Phrase(step, callouts)).Append('\n');
+                .Append(StratStepPhrasing.Phrase(step, callouts, lineupTitle)).Append('\n');
             if (!branchesAfter.TryGetValue(step.Id, out List<StratBranch>? branches))
             {
                 continue;

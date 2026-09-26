@@ -255,6 +255,46 @@ public class StratBookModuleTests
     }
 
     [Test]
+    public async Task AStepsLineupChoice_OffersTheLookupsOptions_AndWritesOrClearsTheUtilityLineupId()
+    {
+        StratStore store = new(null);
+        StratDocument document = Minimal();
+        store.Save(document, [], "created");
+        using StratSession session = new(store, null, () => false, () => Created)
+        {
+            AutoSaveDelay = TimeSpan.FromHours(1),
+            IdleCommitDelay = TimeSpan.FromHours(1)
+        };
+        session.Open(document.Id);
+
+        Guid smokeLineupId = Guid.NewGuid();
+        StratLineupOption smokeOption = new(smokeLineupId, "Smoke into CTSpawn");
+        StratEditorViewModel editor = new(session, (_, kind) => kind == "smoke" ? [smokeOption] : []);
+        session.Changed += editor.Project;
+        editor.Project();
+
+        StratStepRow row = editor.Steps[0];
+        await Assert.That(row.LineupOptions.Select(o => o.Label)).IsEquivalentTo([StratEditorViewModel.None])
+            .Because("no utility kind yet: the lookup is never asked");
+
+        row.UtilityKind = "smoke";
+        row = editor.Steps[0];
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.LineupOptions.Select(o => o.Label))
+                .IsEquivalentTo([StratEditorViewModel.None, "Smoke into CTSpawn"]);
+            await Assert.That(row.Lineup).IsEqualTo(StratLineupOption.None).Because("choosing a kind does not choose a lineup");
+        }
+
+        row.Lineup = smokeOption;
+        await Assert.That(session.Document!.Steps[0].Utility!.LineupId).IsEqualTo(smokeLineupId);
+
+        row = editor.Steps[0];
+        row.Lineup = StratLineupOption.None;
+        await Assert.That(session.Document!.Steps[0].Utility!.LineupId).IsNull();
+    }
+
+    [Test]
     public async Task RemovingAStep_RemovesTheBranchesThatNameIt_AsOneUndoEntry()
     {
         using StratBookTabViewModel vm = OpenNew(new StratStore(null));

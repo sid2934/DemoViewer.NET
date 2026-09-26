@@ -93,6 +93,15 @@ public class StratTextExporterTests
     }
 
     [Test]
+    public async Task ALineupReference_PrintsTheResolvedTitle_ViaTheSharedPhrasing()
+    {
+        string resolved = StratTextExporter.CallSheet(SchemaSample(), Callouts(),
+            lineupTitle: id => id == Guid.Parse("e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b") ? "Molotov into Jungle" : null);
+
+        await Assert.That(resolved).Contains("[lineup: Molotov into Jungle]");
+    }
+
+    [Test]
     public async Task TheNotes_PrintAfterTheSteps()
     {
         string sheet = StratTextExporter.CallSheet(SchemaSample(), Callouts());
