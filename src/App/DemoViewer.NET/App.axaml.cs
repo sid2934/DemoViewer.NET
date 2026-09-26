@@ -1123,6 +1123,9 @@ public class App : Application
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
         // config root (the browser) keeps entries in memory for the session.
         services.AddSingleton(_ => new VetoHistoryStore(AppPaths.ConfigRoot));
+        // Dossier Editing And Export: the user's stars, rewritten lines, notes and summary per team, beside
+        // the veto history; session-only on the browser the same way.
+        services.AddSingleton(_ => new DossierNotesStore(AppPaths.ConfigRoot));
         // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
         // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
@@ -1156,7 +1159,8 @@ public class App : Application
                     sources.FingerprintFor),
                 situational: new SituationalBehaviourService(
                     sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>()));
+                    sp.GetRequiredService<DemoCacheStore>()),
+                notes: sp.GetRequiredService<DossierNotesStore>());
         });
 
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
