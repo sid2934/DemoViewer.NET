@@ -34,6 +34,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <summary>What a combo box shows for a null vocabulary field.</summary>
     public const string None = "none";
 
+    private readonly Func<string, string, IReadOnlyList<StratLineupOption>>? _lineupLookup;
     private readonly StratSession _session;
     private CalloutResolver _places = new([]);
 
@@ -68,10 +69,15 @@ public sealed partial class StratEditorViewModel : ObservableObject
     private string _type = "default";
 
     /// <param name="session">The session the editor reads and writes.</param>
-    public StratEditorViewModel(StratSession session)
+    /// <param name="lineupLookup">
+    ///     Every Utility Book lineup for a map and a step's utility kind (Lineup On A Strat Step), used to fill
+    ///     a step's <see cref="StratStepRow.LineupOptions" />; null offers only "none", the pre-item behaviour.
+    /// </param>
+    public StratEditorViewModel(StratSession session, Func<string, string, IReadOnlyList<StratLineupOption>>? lineupLookup = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        _lineupLookup = lineupLookup;
     }
 
     public static IReadOnlyList<string> Sides { get; } = [StratVocabulary.SideT, StratVocabulary.SideCt];
@@ -178,6 +184,17 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <param name="text">What the user typed.</param>
     public string? ResolvePlace(string? text) =>
         string.IsNullOrWhiteSpace(text) ? null : _places.Resolve(text) ?? text.Trim();
+
+    /// <summary>
+    ///     The lineup choices a step's row offers for its utility kind (Lineup On A Strat Step): "none" first,
+    ///     then every Utility Book lineup <see cref="_lineupLookup" /> has for this strat's map and that kind.
+    ///     Empty (just "none") without a kind, or when the host wired no lookup.
+    /// </summary>
+    /// <param name="utilityKind">The step's utility kind, or <see cref="None" /> for no utility.</param>
+    internal IReadOnlyList<StratLineupOption> LineupOptionsFor(string utilityKind) =>
+        utilityKind == None || _lineupLookup is null
+            ? [StratLineupOption.None]
+            : [StratLineupOption.None, .. _lineupLookup(Map, utilityKind)];
 
     // ── Edits ────────────────────────────────────────────────────────────────────────────────────
 
@@ -527,6 +544,18 @@ public sealed record StratTargetOption(Guid Id, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>
+///     A Utility Book lineup a step's grenade can reference (Lineup On A Strat Step, strat-model.md §3.3.3):
+///     <see cref="Id" /> is <c>GrenadeLineup.Id</c>, written to <c>utility.lineupId</c>; <see cref="None" />
+///     clears the reference.
+/// </summary>
+public sealed record StratLineupOption(Guid? Id, string Label)
+{
+    public static StratLineupOption None { get; } = new(null, StratEditorViewModel.None);
+
+    public override string ToString() => Label;
+}
+
 /// <summary>One of the five slots: its role and the optional pin (§3.5).</summary>
 public sealed partial class StratSlotRow : ObservableObject
 {
@@ -590,6 +619,9 @@ public sealed partial class StratStepRow : ObservableObject
     private string _landingText = "";
 
     [ObservableProperty]
+    private StratLineupOption? _lineup = StratLineupOption.None;
+
+    [ObservableProperty]
     private string _note = "";
 
     [ObservableProperty]
@@ -616,6 +648,9 @@ public sealed partial class StratStepRow : ObservableObject
 
     public bool HasUtility => UtilityKind != StratEditorViewModel.None;
 
+    /// <summary>This row's lineup choices for its current utility kind: "none" first, then the owner's lookup.</summary>
+    public ObservableCollection<StratLineupOption> LineupOptions { get; } = [StratLineupOption.None];
+
     internal void Load(int index, StratStep step)
     {
         _index = index;
@@ -627,6 +662,23 @@ public sealed partial class StratStepRow : ObservableObject
         UtilityKind = step.Utility?.Kind ?? StratEditorViewModel.None;
         LandingText = _owner.DisplayPlace(step.Utility?.Landing?.Place);
         Note = step.Note ?? "";
+
+        IReadOnlyList<StratLineupOption> options = _owner.LineupOptionsFor(UtilityKind);
+        if (!LineupOptions.SequenceEqual(options))
+        {
+            LineupOptions.Clear();
+            foreach (StratLineupOption option in options)
+            {
+                LineupOptions.Add(option);
+            }
+        }
+
+        // An id the lookup no longer offers (a reindex moved the throw, or the host wired none) still shows
+        // as its raw id rather than silently reverting to "none": the file still carries the reference.
+        Lineup = step.Utility?.LineupId is { } lineupId
+            ? LineupOptions.FirstOrDefault(o => o.Id == lineupId) ?? new StratLineupOption(lineupId, lineupId.ToString())
+            : StratLineupOption.None;
+
         OnPropertyChanged(nameof(Number));
     }
 
@@ -700,6 +752,17 @@ public sealed partial class StratStepRow : ObservableObject
 
     private JsonObject? LandingNode(string text) =>
         _owner.ResolvePlace(text) is { } place ? new JsonObject { ["place"] = place } : null;
+
+    // Guarded the way the pin combo is (OnPinChanged above): replacing LineupOptions while a row is
+    // selected can push the combo's own selection to null as its items reset, which is not the user
+    // clearing the lineup, so a null value writes nothing rather than the row's own StratLineupOption.None.
+    partial void OnLineupChanged(StratLineupOption? value)
+    {
+        if (value is not null && UtilityKind != StratEditorViewModel.None)
+        {
+            _owner.Replace(Path("utility") + "/lineupId", value.Id is { } id ? JsonValue.Create(id) : null);
+        }
+    }
 
     partial void OnNoteChanged(string value) =>
         _owner.Replace(Path("note"), string.IsNullOrWhiteSpace(value) ? null : JsonValue.Create(value));

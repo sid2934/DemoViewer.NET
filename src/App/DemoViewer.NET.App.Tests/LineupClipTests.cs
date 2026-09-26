@@ -46,7 +46,7 @@ public class LineupClipTests
         new(new DemoRef(demo, DemoCacheStore.StableKey(demo), "sha-" + Path.GetFileNameWithoutExtension(demo)),
             Mirage, row, row.ReleasePosition ?? default, new WorldPoint(-1500, 800, 0), "CTSpawn", "zones:1");
 
-    private static GrenadeLineup Lineup(params IndexedGrenade[] throws) => new(throws[0].Origin, false, throws);
+    private static GrenadeLineup Lineup(params IndexedGrenade[] throws) => new(throws[0].Origin, false, throws, Guid.NewGuid());
 
     private static GrenadeCluster Cluster(params GrenadeLineup[] lineups) =>
         new(GrenadeKind.Smoke, (0, 0, 0), new WorldPoint(-1500, 800, 0), "CTSpawn", lineups);

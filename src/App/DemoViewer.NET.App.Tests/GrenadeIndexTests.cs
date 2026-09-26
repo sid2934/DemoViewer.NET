@@ -279,6 +279,72 @@ public class GrenadeIndexTests
     }
 
     [Test]
+    public async Task LineupId_IsStableAcrossAReindex_EvenWhenTheRepresentativeThrowChanges()
+    {
+        DemoCacheStore cache = Library();
+        using GrenadeIndex before = Loaded(cache);
+        GrenadeLineup lineupBefore = before.Query(SmokesIntoCt(NineDemos.ToHashSet()))
+            .Single(c => c.Cell == (-6, -6, -2)).Lineups[0];
+        Guid id = lineupBefore.Id;
+        string representativeBefore = lineupBefore.Throws[0].Demo.Path;
+
+        // A demo whose path sorts before every "mirage-N.dem" path, thrown from the same spot: the
+        // representative throw (Cluster's own ordering, oldest by path) changes; the identity does not.
+        Indexed(cache, "/d/aaa-earlier.dem", Mirage, "sha-earlier",
+            [Row("a", GrenadeKind.Smoke, new Vector3(512, 288, -160), new Vector3(-1400, -1400, -170))]);
+        using GrenadeIndex after = Loaded(cache);
+        GrenadeLineup lineupAfter = after.Query(SmokesIntoCt()).Single(c => c.Cell == (-6, -6, -2)).Lineups[0];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(lineupAfter.Id).IsEqualTo(id);
+            await Assert.That(lineupAfter.Throws[0].Demo.Path).IsEqualTo("/d/aaa-earlier.dem");
+            await Assert.That(lineupAfter.Throws[0].Demo.Path).IsNotEqualTo(representativeBefore);
+        }
+    }
+
+    [Test]
+    public async Task DescribeLineup_ResolvesTheCardAndConsoleText_NullWhenNotOnThatMap()
+    {
+        using GrenadeIndex index = Loaded(Library());
+        GrenadeLineup lineup = index.Query(SmokesIntoCt(NineDemos.ToHashSet()))
+            .Single(c => c.Cell == (-6, -6, -2)).Lineups[0];
+
+        LineupSummary? summary = index.DescribeLineup(Mirage, lineup.Id);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(summary).IsNotNull();
+            await Assert.That(summary!.Id).IsEqualTo(lineup.Id);
+            await Assert.That(summary.Kind).IsEqualTo(GrenadeKind.Smoke);
+            await Assert.That(summary.LandingPlace).IsEqualTo("CTSpawn");
+            await Assert.That(summary.Title).IsEqualTo("Smoke into CTSpawn");
+            await Assert.That(summary.ThrowCount).IsEqualTo(lineup.Throws.Count);
+            await Assert.That(summary.ConsoleText).IsNull().Because("these fixture rows carry no release eye angles");
+        }
+
+        await Assert.That(index.DescribeLineup(Mirage, Guid.NewGuid())).IsNull();
+        await Assert.That(index.DescribeLineup("de_inferno", lineup.Id)).IsNull().Because("the id names a Mirage position");
+    }
+
+    [Test]
+    public async Task Lineups_FiltersByKind_AndCoversEveryClusterOnTheMap()
+    {
+        using GrenadeIndex index = Loaded(Library());
+
+        IReadOnlyList<LineupSummary> smokes = index.Lineups(Mirage, new HashSet<GrenadeKind> { GrenadeKind.Smoke });
+        IReadOnlyList<LineupSummary> all = index.Lineups(Mirage);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(smokes.Count).IsGreaterThan(0);
+            await Assert.That(smokes.All(s => s.Kind == GrenadeKind.Smoke)).IsTrue();
+            await Assert.That(all.Any(s => s.Kind == GrenadeKind.Flash)).IsTrue().Because("unfiltered covers every kind on the map");
+            await Assert.That(smokes.Select(s => s.Id).Distinct().Count()).IsEqualTo(smokes.Count).Because("one id per throw position");
+        }
+    }
+
+    [Test]
     public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds()
     {
         UtilityBookModule module = new(() => throw new InvalidOperationException("never built here"));
