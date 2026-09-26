@@ -11,10 +11,30 @@
       best-of series is inferable, the Setup Heatmaps By Buy (their CT positions per map and buy, fixed
       and rotating places, each heatmap opening its rounds in Review), the Opening Tendencies (per map
       and side: first utility and first contact as clock histograms, site split, entry by site and lurk
-      timing, every number opening its rounds in Review), and the veto history the user enters by hand.
+      timing, every number opening its rounds in Review), the Post-Plant And Retake (per map and side:
+      man count at the plant and outcomes; plant clusters and holds on T, retake grouping on CT, every
+      number opening its rounds in Review), and the veto history the user enters by hand.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
+
+    <UserControl.Resources>
+        <!-- A Post-Plant And Retake number: its label and count, opening its rounds in Review. -->
+        <DataTemplate x:Key="PostPlantChip" x:DataType="vm:TendencyLinkViewModel">
+            <Button Classes="ghost" FontSize="11" Padding="6 2" Margin="0 0 4 4"
+                    ToolTip.Tip="{Binding ToolTip}"
+                    Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).PostPlant.OpenCommand}"
+                    CommandParameter="{Binding}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextMid}" />
+                    <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextValue}" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+        <ItemsPanelTemplate x:Key="PostPlantWrap">
+            <WrapPanel />
+        </ItemsPanelTemplate>
+    </UserControl.Resources>
 
     <Grid Margin="16" ColumnDefinitions="240,12,*">
 
@@ -327,6 +347,77 @@
                                                                 </DataTemplate>
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Post-Plant And Retake: per map and side, the rounds with a plant, the man count at the
+                             plant and the outcomes; on T the plant clusters and holds, on CT the retake grouping.
+                             Every number opens its rounds. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
+                                IsVisible="{Binding PostPlant.HasSection}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Post-Plant And Retake" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <TextBlock Text="{Binding PostPlant.Line}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Text="{Binding PostPlant.ReviewLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding PostPlant.ReviewLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <ItemsControl ItemsSource="{Binding PostPlant.Blocks}" IsVisible="{Binding PostPlant.HasBlocks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:PostPlantBlockViewModel">
+                                            <Border Margin="0 0 0 10" Padding="10"
+                                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6">
+                                                <StackPanel Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding Map}" FontSize="12" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Text="{Binding SideLabel}" FontSize="12" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextCardHeader}" />
+                                                        <TextBlock Text="{Binding PlantedText}" FontSize="11" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextMid}" />
+                                                        <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                Content="{Binding PlantedLink.CountText}" ToolTip.Tip="{Binding PlantedLink.ToolTip}"
+                                                                IsEnabled="{Binding PlantedLink.CanOpen}"
+                                                                Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).PostPlant.OpenCommand}"
+                                                                CommandParameter="{Binding PlantedLink}" />
+                                                        <TextBlock Text="of" FontSize="11" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextMid}" />
+                                                        <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                Content="{Binding RoundsLink.ToolTip}"
+                                                                Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).PostPlant.OpenCommand}"
+                                                                CommandParameter="{Binding RoundsLink}" />
+                                                    </StackPanel>
+                                                    <StackPanel Spacing="6" IsVisible="{Binding HasPlants}">
+                                                        <TextBlock Text="alive at the plant" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding ManCount}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
+                                                        <TextBlock Text="after the plant" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding Outcomes}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
+                                                        <TextBlock Text="{Binding PositionNote}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                    </StackPanel>
+                                                    <StackPanel Spacing="6" IsVisible="{Binding ShowsHolds}">
+                                                        <TextBlock Text="plant clusters" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding PlantClusters}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
+                                                        <TextBlock Text="post-plant hold" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding HoldShapes}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
+                                                        <TextBlock Text="held from" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding HoldPlaces}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
+                                                    </StackPanel>
+                                                    <StackPanel Spacing="6" IsVisible="{Binding ShowsRetakes}">
+                                                        <TextBlock Text="retake grouping" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding RetakeGroups}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>
