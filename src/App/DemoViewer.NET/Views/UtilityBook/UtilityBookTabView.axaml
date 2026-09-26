@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.UtilityBook"
+             x:Class="DemoViewer.NET.Views.UtilityBook.UtilityBookTabView"
+             x:DataType="vm:UtilityBookTabViewModel">
+
+    <!--
+      THE UTILITY BOOK TAB: the Grenade Index.
+
+      Top: the status line (how many grenades from how many demos, or how to get some), the browser
+      note, and the pickers: map, kind, landing place, side. Middle: one card per landing spot, most
+      thrown first, each listing its deduplicated throw positions with a Watch button that opens the
+      first throw in 2D Playback. Bottom: what a spot and a position mean.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <DockPanel Margin="16">
+
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding StatusLine}" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextValue}" />
+                <TextBlock Text="{x:Static vm:UtilityBookTabViewModel.BrowserNote}" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+                <WrapPanel Orientation="Horizontal">
+                    <ComboBox ItemsSource="{Binding Maps}" SelectedItem="{Binding SelectedMap}" MinWidth="140"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="Map" />
+                    <ComboBox ItemsSource="{Binding Kinds}" SelectedItem="{Binding SelectedKind}" MinWidth="120"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="What was thrown" />
+                    <ComboBox ItemsSource="{Binding Places}" SelectedItem="{Binding SelectedPlace}" MinWidth="140"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="Where it landed" />
+                    <ComboBox ItemsSource="{Binding Sides}" SelectedItem="{Binding SelectedSide}" MinWidth="110"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="The thrower's side" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding FooterLine}" FontSize="11" TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextMid}" Margin="0 12 0 0" />
+
+        <Panel>
+            <TextBlock Text="no grenades match these filters" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasClusters}" />
+            <ScrollViewer IsVisible="{Binding HasClusters}">
+                <ItemsControl ItemsSource="{Binding Clusters}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:GrenadeClusterRow">
+                            <Border Background="{DynamicResource CardBg}"
+                                    BorderBrush="{DynamicResource BorderSubtle}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 8">
+                                <StackPanel Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                        <TextBlock Text="{Binding Summary}" FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMid}" />
+                                    </StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Lineups}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:GrenadeLineupRow">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 2">
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding OriginText}" FontSize="12" Classes="mono"
+                                                                   Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Text="{Binding DetailText}" FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextMid}" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Content="Watch" Classes="ghost" FontSize="11"
+                                                            Padding="8 3" Command="{Binding WatchCommand}"
+                                                            ToolTip.Tip="Open 2D playback two seconds before the first throw from here" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Panel>
+    </DockPanel>
+</UserControl>

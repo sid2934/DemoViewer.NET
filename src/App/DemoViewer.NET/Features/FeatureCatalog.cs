@@ -104,6 +104,14 @@ public static class FeatureCatalog
             "Write your team's strats on the round clock: five slots, the steps each one takes, and the "
             + "branches when the plan changes.",
             null, null, false, Defaults(true, true, true)),
+        // The Utility Book tab: the Grenade Index, every indexed grenade clustered by where it landed.
+        // Default-visible like the Strat Book, and on both hosts: the browser indexes the open demo for the
+        // session and says so. Only the id is a persisted key; the label is display text.
+        new(
+            "tab.utilitybook", FeatureScope.Tab, "Utility Book",
+            "Every grenade in your indexed demos, grouped by where it landed: pick a map, a grenade and a "
+            + "landing place to see every position it was thrown from.",
+            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",
