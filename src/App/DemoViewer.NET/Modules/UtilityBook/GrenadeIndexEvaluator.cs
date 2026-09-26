@@ -267,4 +267,11 @@ internal static partial class GrenadeIndexLog
     [LoggerMessage(EventId = 2, Level = LogLevel.Information,
         Message = "{fileName}: {count} grenades walked, input coverage {coverage}")]
     public static partial void Walked(ILogger logger, string fileName, int count, double coverage);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning,
+        Message = "{fileName}: grenade rows ignored by the index (missing, unreadable or another demo's)")]
+    public static partial void RowsIgnored(ILogger logger, string fileName);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Information, Message = "grenade index loaded {demos} demos in {ms} ms")]
+    public static partial void Loaded(ILogger logger, int demos, long ms);
 }
