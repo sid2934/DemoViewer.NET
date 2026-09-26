@@ -216,7 +216,7 @@ internal sealed class RoundPositionConverter : JsonConverter<RoundPosition>
 /// <param name="Disagreements">
 ///     Per round, how often a sample's own <c>IsAlive</c>/<c>Team</c> disagreed with Round Facts'
 ///     <c>Slots</c>/<c>Kills</c> (CS2DemoKit #58 cross-check). The sample always won; this is
-///     diagnostic only. Empty on every demo measured so far.
+///     diagnostic only.
 /// </param>
 public sealed record RoundIndexBuild(
     RoundIndexDocument Index,

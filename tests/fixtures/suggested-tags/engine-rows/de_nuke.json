@@ -166,7 +166,7 @@
       "x": 275,
       "y": -1050.7,
       "z": -341,
-      "place": "Lobby"
+      "place": "Hut"
     },
     {
       "tick": 82071,
@@ -184,7 +184,7 @@
       "x": 810.2,
       "y": -523.5,
       "z": -240.8,
-      "place": "BombsiteA"
+      "place": "Rafters"
     },
     {
       "tick": 83005,
@@ -263,11 +263,6 @@
         "site": "BombsiteA"
       },
       "evidence": [
-        {
-          "kind": "event",
-          "tick": 82603,
-          "text": "he by slot 6 -> BombsiteA"
-        },
         {
           "kind": "occupancy",
           "tick": 82749,
