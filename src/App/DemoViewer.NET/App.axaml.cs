@@ -1128,7 +1128,7 @@ public class App : Application
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
         // open their rounds in the Review Queue. The Opening Tendencies join the Grenade Index to Round
         // Facts and read the same positions files for the lurk; the Post-Plant And Retake read them for the
-        // plant spots, the holds and the retakes.
+        // plant spots, the holds and the retakes. The Situational Behaviour reads Round Facts alone.
         services.AddSingleton(sp =>
         {
             RoundIndexPlaceSources sources = sp.GetRequiredService<RoundIndexPlaceSources>();
@@ -1153,7 +1153,10 @@ public class App : Application
                     sp.GetRequiredService<TeamIdentityService>(),
                     sp.GetRequiredService<DemoCacheStore>(),
                     sp.GetRequiredService<RoundIndexStore>(),
-                    sources.FingerprintFor));
+                    sources.FingerprintFor),
+                situational: new SituationalBehaviourService(
+                    sp.GetRequiredService<TeamIdentityService>(),
+                    sp.GetRequiredService<DemoCacheStore>()));
         });
 
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
