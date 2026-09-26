@@ -13,7 +13,10 @@
       and side: first utility and first contact as clock histograms, site split, entry by site and lurk
       timing, every number opening its rounds in Review), the Post-Plant And Retake (per map and side:
       man count at the plant and outcomes; plant clusters and holds on T, retake grouping on CT, every
-      number opening its rounds in Review), and the veto history the user enters by hand.
+      number opening its rounds in Review), the Situational Behaviour (per map and side: pistol rounds
+      and their bonus-round follow-up, rounds against a low-buy opponent, man-advantage rounds and
+      whether they were closed out, and what the team bought after a loss, every number opening its
+      rounds in Review), and the veto history the user enters by hand.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
@@ -34,6 +37,19 @@
         <ItemsPanelTemplate x:Key="PostPlantWrap">
             <WrapPanel />
         </ItemsPanelTemplate>
+
+        <!-- A Situational Behaviour number: its label and count, opening its rounds in Review. -->
+        <DataTemplate x:Key="SituationalChip" x:DataType="vm:TendencyLinkViewModel">
+            <Button Classes="ghost" FontSize="11" Padding="6 2" Margin="0 0 4 4"
+                    ToolTip.Tip="{Binding ToolTip}"
+                    Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                    CommandParameter="{Binding}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextMid}" />
+                    <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextValue}" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid Margin="16" ColumnDefinitions="240,12,*">
@@ -418,6 +434,130 @@
                                                         <TextBlock Text="retake grouping" FontSize="11" Foreground="{DynamicResource TextMid}" />
                                                         <ItemsControl ItemsSource="{Binding RetakeGroups}"
                                                                       ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource PostPlantChip}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Situational Behaviour: per map and side, the pistol rounds and their bonus-round
+                             follow-up, the rounds against a low-buy opponent, the rounds where the team held
+                             an alive-count edge and whether it closed them out, and what it bought after a
+                             loss. Every number opens its rounds. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
+                                IsVisible="{Binding Situational.HasSection}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Situational Behaviour" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <TextBlock Text="{Binding Situational.Line}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Text="{Binding Situational.ReviewLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding Situational.ReviewLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <ItemsControl ItemsSource="{Binding Situational.Blocks}" IsVisible="{Binding Situational.HasBlocks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SituationalBlockViewModel">
+                                            <Border Margin="0 0 0 10" Padding="10"
+                                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6">
+                                                <StackPanel Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding Map}" FontSize="12" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Text="{Binding SideLabel}" FontSize="12" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextCardHeader}" />
+                                                        <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                Content="{Binding RoundsLink.ToolTip}"
+                                                                Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                                                                CommandParameter="{Binding RoundsLink}" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Spacing="6" IsVisible="{Binding HasPistols}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="pistols" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                            <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                    Content="{Binding PistolLink.CountText}" ToolTip.Tip="{Binding PistolLink.ToolTip}"
+                                                                    Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                                                                    CommandParameter="{Binding PistolLink}" />
+                                                        </StackPanel>
+                                                        <ItemsControl ItemsSource="{Binding PistolOutcomes}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
+                                                        <TextBlock Text="into the bonus" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding PistolFollowUp}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Spacing="6" IsVisible="{Binding HasAntiEco}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="vs low buy" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                            <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                    Content="{Binding AntiEcoLink.CountText}" ToolTip.Tip="{Binding AntiEcoLink.ToolTip}"
+                                                                    Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                                                                    CommandParameter="{Binding AntiEcoLink}" />
+                                                        </StackPanel>
+                                                        <ItemsControl ItemsSource="{Binding AntiEcoBuyTypes}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
+                                                        <TextBlock Text="outcome" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding AntiEcoOutcomes}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
+                                                        <TextBlock Text="first contact" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding AntiEcoContactClock}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <!-- A histogram bar: the count over a bar over its clock label. -->
+                                                                <DataTemplate x:DataType="vm:TendencyLinkViewModel">
+                                                                    <Button Classes="ghost" Padding="2" Margin="0 0 2 0" MinWidth="44"
+                                                                            IsEnabled="{Binding CanOpen}" ToolTip.Tip="{Binding ToolTip}"
+                                                                            Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Spacing="2">
+                                                                            <TextBlock Text="{Binding CountText}" FontSize="10" HorizontalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextValue}" />
+                                                                            <Panel Height="60">
+                                                                                <Border Width="20" Height="{Binding BarHeight}" VerticalAlignment="Bottom"
+                                                                                        Background="{DynamicResource AccentInteractive}" CornerRadius="2" />
+                                                                            </Panel>
+                                                                            <TextBlock Text="{Binding Label}" FontSize="9" HorizontalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextMid}" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+
+                                                    <StackPanel Spacing="6" IsVisible="{Binding HasManAdvantage}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="man advantage" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                            <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                    Content="{Binding ManAdvantageLink.CountText}" ToolTip.Tip="{Binding ManAdvantageLink.ToolTip}"
+                                                                    Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                                                                    CommandParameter="{Binding ManAdvantageLink}" />
+                                                        </StackPanel>
+                                                        <ItemsControl ItemsSource="{Binding ManAdvantage}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
+                                                        <TextBlock Text="outcome" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        <ItemsControl ItemsSource="{Binding ManAdvantageOutcomes}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Spacing="6" IsVisible="{Binding HasLosses}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="save discipline, after" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                            <Button Classes="ghost" FontSize="11" Padding="6 2"
+                                                                    Content="{Binding RoundsLostLink.CountText}" ToolTip.Tip="{Binding RoundsLostLink.ToolTip}"
+                                                                    Command="{Binding $parent[UserControl].((vm:DossierTabViewModel)DataContext).Situational.OpenCommand}"
+                                                                    CommandParameter="{Binding RoundsLostLink}" />
+                                                            <TextBlock Text="losses" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                        </StackPanel>
+                                                        <ItemsControl ItemsSource="{Binding SaveDiscipline}"
+                                                                      ItemsPanel="{StaticResource PostPlantWrap}" ItemTemplate="{StaticResource SituationalChip}" />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>

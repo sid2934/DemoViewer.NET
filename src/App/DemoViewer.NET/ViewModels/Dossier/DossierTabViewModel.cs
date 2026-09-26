@@ -28,8 +28,10 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 ///     which sends its rounds to the Review Queue. The Opening Tendencies, a section VM of its own
 ///     (<see cref="OpeningTendenciesSectionViewModel" />) whose every number opens its rounds the same
 ///     way. The Post-Plant And Retake (<see cref="PostPlantSectionViewModel" />): plant clusters,
-///     post-plant holds and retake grouping, every number opening its rounds too. The later sections
-///     (situational behaviour, the period diff, editing and export) are not built here.
+///     post-plant holds and retake grouping, every number opening its rounds too. The Situational
+///     Behaviour (<see cref="SituationalBehaviourSectionViewModel" />): pistol patterns and their
+///     follow-up, anti-eco setups, man-advantage handling and save discipline, over Round Facts alone.
+///     The later sections (the period diff, editing and export) are not built here.
 ///     <para>
 ///         <b>Heatmaps build on a worker.</b> They read every one of the team's positions files and
 ///         render one picture per heatmap, so the build runs off the UI thread and posts the rows first
@@ -94,6 +96,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
     /// <param name="openings">Builds the Opening Tendencies; null hides the section.</param>
     /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
+    /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
         SetupHeatmapService? heatmaps = null,
         ReviewQueue? review = null,
@@ -102,7 +105,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Action<Action>? post = null,
         Func<byte[], Bitmap?>? decode = null,
         OpeningTendenciesService? openings = null,
-        PostPlantService? postPlant = null)
+        PostPlantService? postPlant = null,
+        SituationalBehaviourService? situational = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -119,6 +123,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post);
         PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post);
+        Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post);
         _teams.Changed += Refresh;
         _vetoes.Changed += ProjectVetoes;
         Refresh();
@@ -157,6 +162,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <summary>The selected team's Post-Plant And Retake.</summary>
     public PostPlantSectionViewModel PostPlant { get; }
 
+    /// <summary>The selected team's Situational Behaviour.</summary>
+    public SituationalBehaviourSectionViewModel Situational { get; }
+
     /// <summary>The running heatmap build; tests await it.</summary>
     internal Task HeatmapTask { get; private set; } = Task.CompletedTask;
 
@@ -193,6 +201,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Interlocked.Increment(ref _generation);
         Openings.Dispose();
         PostPlant.Dispose();
+        Situational.Dispose();
         _teams.Changed -= Refresh;
         _vetoes.Changed -= ProjectVetoes;
     }
@@ -264,6 +273,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             BuildHeatmaps();
             Openings.Load(null, "");
             PostPlant.Load(null, "");
+            Situational.Load(null, "");
             return;
         }
 
@@ -288,6 +298,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         BuildHeatmaps();
         Openings.Load(row.Id, row.Name);
         PostPlant.Load(row.Id, row.Name);
+        Situational.Load(row.Id, row.Name);
     }
 
     /// <summary>The Review Queue clip for one of a heatmap's rounds: freeze end to the setup window's end plus the tail.</summary>
