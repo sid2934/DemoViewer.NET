@@ -365,6 +365,82 @@ deletes the partial output.
 
 ---
 
+### `dv2d pack`
+
+Headless Packs (plan.md §3, Phase 4): a `review-queue.json` file becomes one video, so "every scrim
+from last night, tagged rounds only, rendered by morning" is a scheduled command rather than a click in
+the Review tab's Export pack row.
+
+```bash
+dv2d pack --queue nightly-queue.json --out packs/2026-09-26.mp4
+```
+
+"By morning" is a cron line, nothing more: `dv2d` reads no `AppSettings` and touches no config root, so
+the queue file is the whole input.
+
+```
+0 6 * * * cd /srv/demoviewer && scripts/dv2d.sh pack --queue nightly-queue.json \
+  --out "packs/$(date +\%F).mp4" --json >> logs/nightly-pack.jsonl 2>> logs/nightly-pack.log
+```
+
+`--queue` is the exact file the app's Review Queue reads and writes (`review-queue.json`, schema 1):
+an ordered list of clips (`demo`, `from`, `to`, a note) and section title cards, the same shape
+`ReviewQueueFile` deserializes either side of the App/CLI boundary. `dv2d pack` **filters nothing of
+its own**; which rounds are "tagged" is decided upstream, wherever the queue file was written (the
+Matrix, Result Cards, a hand-built file for a cron job) — the same posture `export` takes toward its
+`--from`/`--to` range.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--queue <path>` | required | The `review-queue.json` to render |
+| `--out <file>` | `dv2d-pack.<format>` | The pack's file for a video format; for `gif`, the **folder** the clips go in (the path without its extension) |
+| `--format` | `mp4` | `webm` · `mp4` · `gif` |
+| `--fps` | 30 (20 for gif) | Must be one the format supports: GIF is 10/20/25/50 |
+| `--size` | `1080x1080` (`480x480` for gif) | **Square only** — the radar frame is square, and a pack's clips all share one frame size |
+| `--title-seconds` | `2.5` | How long a section's title card holds, video formats only (GIF gets no cards; see below) |
+| `--encoder` | `auto` | Same ladder as `export`: see [Encoder ladder](#encoder-ladder) |
+| `--quality` | `standard` | `draft` · `standard` · `best` |
+| `--assets <dir>` / `--no-radar` | probed | Same resolution ladder as every other command |
+| `--ffmpeg-log` | off | Echo ffmpeg's stderr |
+| `--json` | off | One JSON object on stdout; every human line (including a left-out clip's warning) moves to stderr |
+
+`dv2d pack` is `PackPlanner` and `PackExporter` (`DemoViewer.NET.Services.Export.Pack`) — the **same**
+plan-then-stitch policy the app's Export pack row runs, not a second implementation of it. Only the
+clip renderer and the encoder are per-host: the app's own `PackClipRenderer`/`PackEncoder` need the
+heavy-job gate and an app-managed ffmpeg download this headless tool does not have, so `dv2d` supplies
+its own (`HeadlessPackClipRenderer`, `HeadlessPackEncoder`), built from the same Pipeline primitives
+`export` already assembles by hand (`TrackerFrameSource`, `SceneLayerCatalog.CreateSceneStack`,
+`SceneExportSession`). ffmpeg is PATH-only here too, same as `export`.
+
+**One video, or one GIF per clip.** For a video format, every clip renders into **one** encode: a
+section's title card is drawn once and held, then its clips follow, all through one `SceneExportSession`
+per clip feeding one sink — the same reasoning `export`'s single-timeline `moov` atom relies on, so the
+pack plays on a phone without edit-list seams. GIF instead writes one file per clip into a folder named
+after `--out` (its extension stripped), numbered in play order with its section folded into the file
+name, because a GIF's palette build caps it at 1800 frames and a whole pack in one GIF would blow that
+cap by its third clip.
+
+**Every demo's own ink is burned in, unconditionally** — Pack Export has no `--annotations` flag,
+because a pack spans demos the way `export`'s single range never does, and always drawing what each
+one has (or nothing, when it has none) is simpler than asking per clip. The palette is always dark;
+Pack Export has no `--palette` either, matching the app's own Export pack row, which offers neither.
+
+**Failure is per clip, not per pack.** A clip whose demo cannot be found on disk, or whose range is
+empty, is left out **before anything is rendered or opened** (`PackPlanner.Plan`'s own pass); a clip
+that fails to parse or render on its own is left out and the rest of the pack continues; a title card
+with every one of its clips left out gets no card, so a pack never shows a section heading over
+nothing. Only a failure in the shared encoder — ffmpeg gone, a full disk — ends the pack, the same way
+Ctrl+C does, and removes the half-written file. Both kinds of leaving-out are named in `--json`'s
+`left_out` (pre-render) and `failed` (post-render) arrays, and as `warning:` lines otherwise.
+
+`--size` refuses a non-square value (exit 1): the radar pane is square, and every clip in a pack must
+share one frame size, so there is no per-clip override the way there is nothing per-clip in `export`
+either. A `review-queue.json` at a schema newer than this build reads is refused (exit 3), the same
+refusal `ReviewQueue.Load` gives the app rather than risk misreading a newer file. A video format with
+no ffmpeg on `PATH` is exit 6, same as `export`; GIF still works through the ImageSharp floor.
+
+---
+
 ## Performance capture (`--perf`)
 
 `bench` and `export` accept **`--perf`** (alias `--profile`). It decomposes the frame into stages and
@@ -575,6 +651,16 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
    "actual":"artifacts/playback2d-goldens/duel-mirage-b.actual.png",
    "diff":"artifacts/playback2d-goldens/duel-mirage-b.diff.png"}]}
 
+// pack
+{"schema_version":1,"command":"pack","ok":true,"queue":"nightly-queue.json",
+ "out":["packs/2026-09-26.mp4"],"format":"mp4","width":1080,"height":1080,"fps":30,
+ "demos":3,"clips_planned":4,"clips_rendered":4,
+ "clips_left_out_before_render":1,"clips_failed_to_render":0,
+ "estimated_seconds":48.2,
+ "left_out":[{"demo":"/scrims/missing.dem","note":"gone","reason":"demo not found"}],
+ "failed":[],
+ "elapsed_ms":91234.5}
+
 // fixture verify / list / capture: same envelope, "command":"fixture" plus an "action"
 ```
 
@@ -655,6 +741,7 @@ These are phase boundaries, not bugs. Each is an honest failure rather than a si
 | `--layout single`, `--level` | exit 6: `MapSpace`/`StackedLayout` landed with B1, so `--layout stacked` is a real multi-pane render; the single-level policy is still B3's | B3 |
 | `--gpu` on macOS | always degrades to CPU (`macos-deferred`); ANGLE/EGL ships for Windows and Linux only | C2 Stage 1 |
 | `export --gpu` | exit 6: `SceneExportSession` awaits its sink between frames, so the loop resumes on whatever pool thread the continuation lands on, while `GpuSurfaceProvider` is bound to the thread that created its EGL context. `export`'s backend chain therefore ends at `force-cpu` rather than `auto`, exactly as `golden` does, so the default is never a refusal. Pinning the loop to one thread is the work, and it is the same work the ≥2× throughput number needs | C2 Stage 1 |
+| `pack --cpu`/`--gpu`/`--backend` | not offered at all, rather than accepted and forced to CPU: every clip renders on `RenderSurfaceProviderFactory.CreateCpu()`, matching the app's own Export pack row, which never offered a backend choice either. `export --gpu`'s exit 6 above is the reason there would be nothing else to pick | C2 Stage 1 |
 | The `render`/`golden`/`bench` layer set | **closed in D6.** All four commands build through `SceneLayerCatalog.CreateSceneStack`; the second table that held only `playback2d.debuggrid` is gone and the whole CPU corpus was re-baselined in the same commit. `playback2d.debuggrid` is no longer a registrable id | — |
 | The three `hud.*` ids under `render`/`golden`/`bench` | exit 1: a HUD is a function of a parsed match and a fixture carries no clock, scoreboard or kill timeline. `dv2d export --hud` is the command that can feed one | B4 |
 | A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only. That is `synthetic-empty`, and its golden is now that background rather than a skipped entry: whether an empty level set should get one whole-host pane is still open, and the day it is answered the golden moves and a reviewer sees it | B1, B3 |

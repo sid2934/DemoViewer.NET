@@ -294,7 +294,7 @@ public class PackExportTests
         FakeEncoder encoder = new();
         PackPlan plan = PackPlanner.Plan([Clip("/d/missing.dem", 0, 64)], Settings(), Exists);
 
-        await Assert.ThrowsAsync<ExportRefusedException>(
+        await Assert.ThrowsAsync<ExportValidationException>(
             async () => await new PackExporter(new FakeClips(1), encoder).ExportAsync(plan, null, CancellationToken.None));
         await Assert.That(encoder.Opened.Count).IsEqualTo(0);
         await Assert.That(encoder.Prepared).IsFalse();

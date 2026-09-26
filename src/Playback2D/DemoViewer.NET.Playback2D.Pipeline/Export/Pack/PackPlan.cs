@@ -14,6 +14,7 @@ using SkiaSharp;
 
 #endregion
 
+// In Pipeline, namespace kept as DemoViewer.NET.Services.Export.Pack: see the note on PackExporter.cs.
 namespace DemoViewer.NET.Services.Export.Pack;
 
 /// <summary>
