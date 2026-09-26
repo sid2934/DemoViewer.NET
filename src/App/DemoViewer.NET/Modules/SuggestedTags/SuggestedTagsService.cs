@@ -667,9 +667,10 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             rounds = build.Rounds;
             cloud = build.Cloud;
             source = ProposalDocument.FromWalk;
+            string fileName = Path.GetFileName(path);
             foreach (RoundIndexDisagreement d in build.Disagreements)
             {
-                SuggestedTagsLog.SampleDisagreedWithFacts(Log, Path.GetFileName(path), d.Round, d.SideMismatches, d.AliveMismatches);
+                SuggestedTagsLog.SampleDisagreedWithFacts(Log, fileName, d.Round, d.SideMismatches, d.AliveMismatches);
             }
         }
 

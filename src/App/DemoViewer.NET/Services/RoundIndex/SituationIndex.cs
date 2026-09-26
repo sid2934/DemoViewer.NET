@@ -257,13 +257,15 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
 
         if (document.SchemaVersion != DemoCacheRecord.RoundIndexSchema)
         {
-            RoundIndexLog.SidecarIgnored(Log, fileName, $"schema {document.SchemaVersion}");
+            string reason = $"schema {document.SchemaVersion}";
+            RoundIndexLog.SidecarIgnored(Log, fileName, reason);
             return null;
         }
 
         if (!string.Equals(document.Clock.Kind, ClockIdentity.DvFrameClock, StringComparison.Ordinal))
         {
-            RoundIndexLog.SidecarIgnored(Log, fileName, $"clock {document.Clock.Kind}");
+            string reason = $"clock {document.Clock.Kind}";
+            RoundIndexLog.SidecarIgnored(Log, fileName, reason);
             return null;
         }
 
