@@ -20,6 +20,11 @@
       side split and dominant roster per period, a picker for N, and the note when a roster boundary
       sits between the two), and the veto history the user enters by hand.
 
+      Dossier Editing And Export: the export bar at the top writes the one-pager (the starred findings,
+      the default) or the long form, as self-contained HTML or Markdown; the long form at the bottom is
+      the working document, every section's numbers as findings to star, rewrite, leave out or add to.
+      No rating, no grade, no win probability anywhere.
+
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
 
@@ -92,6 +97,26 @@
                                IsVisible="{Binding !HasSelection}" />
 
                     <StackPanel Spacing="12" IsVisible="{Binding HasSelection}">
+                        <!-- Export: the one-pager by default; the form, the file and a Markdown copy beside it. -->
+                        <StackPanel Spacing="6" DataContext="{Binding Editor}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{Binding ExportLabel}" Classes="primary" FontSize="11" Padding="10 5"
+                                        Command="{Binding ExportCommand}" IsVisible="{Binding !IsBrowser}" />
+                                <ComboBox FontSize="11" ItemsSource="{x:Static vm:DossierEditorViewModel.FormOptions}"
+                                          SelectedItem="{Binding SelectedFormOption}" ToolTip.Tip="one-pager: the starred findings. long form: every finding not left out." />
+                                <ComboBox FontSize="11" ItemsSource="{x:Static vm:DossierEditorViewModel.FormatOptions}"
+                                          SelectedItem="{Binding SelectedFormatOption}" IsVisible="{Binding !IsBrowser}" />
+                                <Button Content="Copy markdown" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Click="OnCopyMarkdownClick" />
+                                <TextBlock Text="{Binding CountsLine}" FontSize="11" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextMid}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ExportUnavailableNote}" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding HasExportUnavailableNote}" />
+                            <TextBlock Text="{Binding ExportLine}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMid}" />
+                        </StackPanel>
+
                         <TextBlock Text="Map Pool Record" Classes="col-label"
                                    Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
                         <TextBlock Text="{Binding SampleSizeLine}" FontSize="12" TextWrapping="Wrap"
@@ -653,6 +678,75 @@
                                     <CheckBox Grid.Column="2" Content="by them" IsChecked="{Binding NewVetoByOpponent}" FontSize="11" VerticalAlignment="Center" />
                                     <Button Grid.Column="4" Content="Add" Classes="ghost" FontSize="11" Padding="10 5"
                                             Command="{Binding AddVetoCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The long form: every section's numbers as findings, each starred for the one-pager,
+                             rewritten, reset or left out; the user's summary and notes beside them. -->
+                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
+                                DataContext="{Binding Editor}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Long form" Classes="col-label" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                    <TextBlock Text="{Binding CountsLine}" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMid}" />
+                                    <CheckBox Content="starred only" IsChecked="{Binding ShowStarredOnly}" FontSize="11" />
+                                    <Button Content="Bring back left-out lines" Classes="ghost" FontSize="10" Padding="8 3"
+                                            Command="{Binding RestoreHiddenCommand}" IsVisible="{Binding HasHidden}" />
+                                </StackPanel>
+                                <TextBlock Text="session only: this browser tab forgets stars, edits and notes when it reloads"
+                                           FontSize="11" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding NotesAreSessionOnly}" />
+                                <TextBox Text="{Binding Summary, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="12"
+                                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48"
+                                         Watermark="summary: your own read, printed at the top of both forms" />
+                                <TextBlock Text="{Binding EmptyLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasFindings}" />
+                                <ItemsControl ItemsSource="{Binding Findings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:DossierFindingViewModel">
+                                            <StackPanel Spacing="2" Margin="0 0 0 2">
+                                                <TextBlock Text="{Binding Section}" FontSize="11" Margin="0 6 0 2"
+                                                           Foreground="{DynamicResource TextCardHeader}" IsVisible="{Binding ShowsSectionHeader}" />
+                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                                    <Button Grid.Column="0" Content="{Binding StarGlyph}" Classes="ghost" FontSize="12" Padding="4 1"
+                                                            ToolTip.Tip="{Binding StarToolTip}" VerticalAlignment="Top"
+                                                            Command="{Binding $parent[ItemsControl].((vm:DossierEditorViewModel)DataContext).ToggleStarCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="11" TextWrapping="Wrap"
+                                                               VerticalAlignment="Center" Foreground="{DynamicResource TextValue}"
+                                                               IsVisible="{Binding !IsEditing}" />
+                                                    <TextBox Grid.Column="1" Text="{Binding EditText}" FontSize="11" TextWrapping="Wrap"
+                                                             IsVisible="{Binding IsEditing}" />
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+                                                        <TextBlock Text="edited" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsEdited}" />
+                                                        <Button Content="Edit" Classes="ghost" FontSize="10" Padding="8 3" IsVisible="{Binding !IsEditing}"
+                                                                Command="{Binding BeginEditCommand}" />
+                                                        <Button Content="Save" Classes="ghost" FontSize="10" Padding="8 3" IsVisible="{Binding IsEditing}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:DossierEditorViewModel)DataContext).CommitEditCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Content="Cancel" Classes="ghost" FontSize="10" Padding="8 3" IsVisible="{Binding IsEditing}"
+                                                                Command="{Binding CancelEditCommand}" />
+                                                        <Button Content="Reset" Classes="ghost" FontSize="10" Padding="8 3" IsVisible="{Binding IsEdited}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:DossierEditorViewModel)DataContext).ResetEditCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Content="{Binding RemoveLabel}" Classes="ghost" FontSize="10" Padding="8 3"
+                                                                Command="{Binding $parent[ItemsControl].((vm:DossierEditorViewModel)DataContext).RemoveCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBox Grid.Column="0" Text="{Binding NewNoteText}" FontSize="12" TextWrapping="Wrap"
+                                             Watermark="add a finding of your own" />
+                                    <Button Grid.Column="1" Content="Add" Classes="ghost" FontSize="11" Padding="10 5"
+                                            Command="{Binding AddNoteCommand}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
