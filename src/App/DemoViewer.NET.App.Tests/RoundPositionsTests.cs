@@ -130,7 +130,7 @@ public class RoundPositionsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=1");
+            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=2");
             await Assert.That(current).EndsWith($";pos={RoundPositionsDocument.PositionSchema}");
             await Assert.That(record.IsRoundIndexCurrent(current)).IsFalse();
             await Assert.That(record.NeedsRoundIndex(current)).IsTrue()

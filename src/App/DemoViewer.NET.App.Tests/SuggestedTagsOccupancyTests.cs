@@ -58,10 +58,10 @@ public class SuggestedTagsOccupancyTests
     }
 
     [Test]
-    public async Task AliveComesFromTheKills_AndSidesFromTheSlots()
+    public async Task AliveAndSides_FollowTheSample_AcrossAHalftimeSwap()
     {
-        // Round 2 swaps the sides, as the halftime does; slot 6 dies at 1100 in round 1 and keeps
-        // producing samples, as a GOTV pawn does.
+        // Round 2 swaps the sides, as the halftime does, and the samples' own Team swaps with it; slot
+        // 6 dies at 1100 in round 1 and keeps producing samples, as a GOTV pawn does.
         RoundFactsRows facts = Facts(
             Round(1, 1000, 1300, kills: Kill(1100, 6)),
             Round(2, 2000, 2300, ctSlots: TSlots, tSlots: CtSlots));
@@ -72,7 +72,8 @@ public class SuggestedTagsOccupancyTests
             Sample(1128, 6, "TSpawn", alive: false), // slot 6 reads dead on its own sample from 1100 on
             .. CtSlots.Select(s => Sample(1128, s, "CTSpawn")),
             .. TSlots.Where(s => s != 6).Select(s => Sample(1128, s, "TSpawn")),
-            .. Everyone(2000, "CTSpawn", "TSpawn")
+            .. TSlots.Select(s => Sample(2000, s, "TSpawn", team: 3)),
+            .. CtSlots.Select(s => Sample(2000, s, "CTSpawn", team: 2))
         ];
 
         OccupancyBuild build = RoundOccupancyBuilder.FromWalk(Demo(), facts, samples: samples);
@@ -85,26 +86,29 @@ public class SuggestedTagsOccupancyTests
             await Assert.That(first.AliveCount(2, 2)).IsEqualTo(4).Because("dead from the kill tick on");
             await Assert.That(first.IsAlive(6, 2)).IsFalse();
             await Assert.That(first.PlaceOf(6, 2)).IsNull();
-            await Assert.That(second.SideOf(6)).IsEqualTo(3).Because("the second round's row seats slot 6 on CT");
+            await Assert.That(second.SideOf(6)).IsEqualTo(3).Because("slot 6's second-round sample reads CT");
             await Assert.That(second.CountsAt(3, 0)["TSpawn"]).IsEqualTo(5).Because("the old T slots stand where they stood, now on CT");
             await Assert.That(second.AliveCount(2, 0)).IsEqualTo(5).Because("slot 6's death was last round's");
+            await Assert.That(build.Disagreements).IsEmpty().Because("the row's kill and seats agree with every sample");
         }
     }
 
     [Test]
     public async Task ATeamDisagreement_IsStillCounted_AndTalliedRatherThanDropped()
     {
-        // Slot 6 is seated T by the row but its sample reads CT (CS2DemoKit #58 is the gate now, not
-        // the row's Slots): admission follows the sample (team 2 or 3, alive), so the slot is not
-        // dropped just because it disagrees; the per-slot form still groups by the row's own roster
-        // (RoundOccupancy.FromSlots's contract), and the disagreement itself is tallied, not silenced.
+        // Slot 6 is seated T by the row but every sample of it reads CT (CS2DemoKit #58 is the gate
+        // now, not the row's Slots). The slot is not dropped for disagreeing: its side is fixed by its
+        // first live sample, RoundIndexBuilder's rule, so the walk counts it CT exactly as the index
+        // token does, and the row's T seat survives only as the cross-check, tallied once per kept
+        // second rather than silenced.
         RoundFactsRows facts = Facts(Round(1, 1000, 1128));
         List<PositionSample> samples =
         [
             .. CtSlots.Select(s => Sample(1000, s, "CTSpawn")),
-            .. TSlots.Select(s => Sample(1000, s, "TSpawn")),
-            Sample(1064, 6, "CTSpawn", team: 3),
+            Sample(1000, 6, "CTSpawn", team: 3),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1000, s, "TSpawn")),
             .. CtSlots.Select(s => Sample(1064, s, "CTSpawn")),
+            Sample(1064, 6, "CTSpawn", team: 3),
             .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "TSpawn"))
         ];
 
@@ -113,12 +117,70 @@ public class SuggestedTagsOccupancyTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(round.CountsAt(2, 1)["CTSpawn"]).IsEqualTo(1)
-                .Because("slot 6 is still the row's T-seated slot; its sampled place is not lost");
+            await Assert.That(round.SideOf(6)).IsEqualTo(3).Because("the first live sample reads CT");
+            await Assert.That(round.CountsAt(3, 1)["CTSpawn"]).IsEqualTo(6)
+                .Because("slot 6 counts on the side its sample reads, as the index token buckets it");
+            await Assert.That(round.CountsAt(2, 1).GetValueOrDefault("CTSpawn")).IsEqualTo(0);
             await Assert.That(round.CountsAt(2, 1).GetValueOrDefault("TSpawn")).IsEqualTo(4);
-            await Assert.That(build.Disagreements).IsNotEmpty();
+            await Assert.That(round.AliveCount(2, 1)).IsEqualTo(4);
             await Assert.That(build.Disagreements.Single().Round).IsEqualTo(1);
-            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(1);
+            await Assert.That(build.Disagreements.Single().SideMismatches).IsEqualTo(2)
+                .Because("one per kept second of the disagreeing slot");
+            await Assert.That(build.Disagreements.Single().AliveMismatches).IsEqualTo(0);
+        }
+    }
+
+    [Test]
+    public async Task ASideFlip_InsideTheWindow_KeepsTheFirstLiveSamplesSide()
+    {
+        // A window with no EndTick runs into the win panel, where a halftime swap flips every Team:
+        // the slot keeps the side of its first live sample for the round, as the index does.
+        RoundFactsRows facts = Facts(Round(1, 1000, 1128));
+        List<PositionSample> samples =
+        [
+            .. Everyone(1000, "CTSpawn", "TSpawn"),
+            .. CtSlots.Select(s => Sample(1064, s, "CTSpawn")),
+            Sample(1064, 6, "TSpawn", team: 3),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1064, s, "TSpawn"))
+        ];
+
+        OccupancyBuild build = RoundOccupancyBuilder.FromWalk(Demo(), facts, samples: samples);
+        RoundOccupancy round = build.Rounds.Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(round.SideOf(6)).IsEqualTo(2);
+            await Assert.That(round.CountsAt(2, 1)["TSpawn"]).IsEqualTo(5);
+            await Assert.That(build.Disagreements).IsEmpty()
+                .Because("the fixed side agrees with the row's seat");
+        }
+    }
+
+    [Test]
+    public async Task TheSampleAtTheKillTick_StillCountsAlive()
+    {
+        // The pawn's life state flips a frame after player_death, so the sample on the kill tick itself
+        // still reads alive. The row's kill tick used to drop it; the sample is the rule now, and this
+        // is the one place the real replays moved (the pinned goldens, re-pinned for it).
+        RoundFactsRows facts = Facts(Round(1, 1000, 1300, kills: Kill(1064, 6)));
+        List<PositionSample> samples =
+        [
+            .. Everyone(1000, "CTSpawn", "TSpawn"),
+            .. Everyone(1064, "CTSpawn", "TSpawn"),
+            Sample(1128, 6, "TSpawn", alive: false),
+            .. CtSlots.Select(s => Sample(1128, s, "CTSpawn")),
+            .. TSlots.Where(s => s != 6).Select(s => Sample(1128, s, "TSpawn"))
+        ];
+
+        OccupancyBuild build = RoundOccupancyBuilder.FromWalk(Demo(), facts, samples: samples);
+        RoundOccupancy round = build.Rounds.Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(round.AliveCount(2, 1)).IsEqualTo(5).Because("the kill-tick sample still reads alive");
+            await Assert.That(round.AliveCount(2, 2)).IsEqualTo(4);
+            await Assert.That(build.Disagreements.Single().AliveMismatches).IsEqualTo(1)
+                .Because("the row calls it dead from the kill tick on; tallied, not trusted");
         }
     }
 

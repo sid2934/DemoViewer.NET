@@ -34,8 +34,14 @@ public sealed class RoundPositionsDocument
     ///     What a tuple means: integer world units, alive slots only, the last sample per slot at the
     ///     sampled tick. In the index fingerprint as <c>pos=</c>, so a change re-indexes rather than
     ///     reinterprets, and a sidecar written before positions existed carries no <c>pos=</c> and is stale.
+    ///     2: alive and <see cref="RoundPositionsRound.Ct" /> read from the sample's own <c>IsAlive</c>
+    ///     and <c>Team</c> (CS2DemoKit #58) and an empty place is unplaced. Both files are rebuilt, since
+    ///     the fingerprint is theirs together: a version 1 <c>.dvri.json</c> counted <c>""</c> as a place
+    ///     in its summaries and transitions and gated its tokens on the Round Facts kill tick. The
+    ///     sidecar's own <c>schemaVersion</c> stays 1, because its shape did not change and
+    ///     <c>SituationIndex</c> holds it equal to <c>DemoCacheRecord.RoundIndexSchema</c>.
     /// </summary>
-    public const int PositionSchema = 1;
+    public const int PositionSchema = 2;
 
     /// <summary>The serializer options: camel case and compact like the sidecar, tuples through their converter.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()

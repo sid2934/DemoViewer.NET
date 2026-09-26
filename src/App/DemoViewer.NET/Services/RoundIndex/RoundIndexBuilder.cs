@@ -272,7 +272,7 @@ public static class RoundIndexBuilder
                 continue; // dead, or not seated on a playing side
             }
 
-            if (factsSeated && factsSide != window.SideBySample.GetValueOrDefault(slot, sample.Team))
+            if (!factsSeated || factsSide != window.SideBySample.GetValueOrDefault(slot, sample.Team))
             {
                 tally.Record(window.Round.Number, sideMismatch: true, aliveMismatch: false);
             }
