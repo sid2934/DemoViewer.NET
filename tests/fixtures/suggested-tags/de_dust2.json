@@ -183,7 +183,7 @@
       "x": 1256,
       "y": 1172.9,
       "z": 2,
-      "place": "LongA"
+      "place": "LongDoors"
     },
     {
       "tick": 117785,
@@ -384,7 +384,7 @@
       ]
     },
     {
-      "id": "opener|r20|T|BombsiteA|s=10",
+      "id": "opener|r20|T|s=10",
       "detector": "opener",
       "code": "opener",
       "round": 20,
@@ -392,24 +392,23 @@
       "fromTick": 117443,
       "toTick": 118240,
       "triggerTick": 117763,
-      "confidence": 0.8,
+      "confidence": 0.6,
       "factors": {
         "base": 0.5,
         "count": 0,
         "early": 0.1,
-        "region": 0.2
+        "region": 0
       },
       "labels": {
         "count": "3",
         "kinds": "flash,smoke",
-        "region": "BombsiteA",
         "side": "T"
       },
       "evidence": [
         {
           "kind": "event",
           "tick": 117763,
-          "text": "smoke by slot 0 -> LongA"
+          "text": "smoke by slot 0 -> LongDoors"
         },
         {
           "kind": "event",
@@ -420,11 +419,6 @@
           "kind": "event",
           "tick": 117856,
           "text": "flash by slot 3 -> unplaced"
-        },
-        {
-          "kind": "event",
-          "tick": 117856,
-          "text": "all 1 placed detonations in BombsiteA+ARamp+LongA"
         }
       ]
     }
