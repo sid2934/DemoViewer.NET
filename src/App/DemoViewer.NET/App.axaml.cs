@@ -49,6 +49,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Situations;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.ViewModels.Teams;
+using DemoViewer.NET.ViewModels.UtilityBook;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.RuleWorkbench;
 using Microsoft.Extensions.DependencyInjection;
@@ -1077,6 +1078,18 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
+        // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the
+        // origins deduplicated, the landing place through the same zone resolver source the round index
+        // uses. It loads once at startup off the UI thread and merges each demo as the evaluator writes it.
+        services.AddSingleton(sp => new GrenadeIndex(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<IZonePlaceResolverSource>(),
+            sp.GetRequiredService<GrenadeIndexEvaluator>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp => new UtilityBookTabViewModel(
+            sp.GetRequiredService<GrenadeIndex>(),
+            sp.GetRequiredService<ISituationPlayback>()));
+
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
         // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
@@ -1147,6 +1160,8 @@ public class App : Application
         // The situation index's startup load: every current sidecar, off the UI thread (2 ms per demo
         // measured). Queries before it finishes answer empty with IsReady false and the strip says so.
         _ = provider.GetRequiredService<SituationIndex>().StartLoadAsync();
+        // The grenade index's startup load: every current rows sibling, off the UI thread.
+        _ = provider.GetRequiredService<GrenadeIndex>().StartLoadAsync();
         // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
         // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
         _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
@@ -1287,6 +1302,10 @@ public class App : Application
 
         // The Strat Book tab. Registered on both hosts: the browser keeps strats for the session and says so.
         registry.Register(new StratBookModule(sp.GetRequiredService<StratBookTabViewModel>));
+
+        // The Utility Book tab. Registered on both hosts: the browser indexes the open demo for the session
+        // and says so. The VM is a container singleton resolved lazily on first activation.
+        registry.Register(new UtilityBookModule(sp.GetRequiredService<UtilityBookTabViewModel>));
         return registry;
     }
 
