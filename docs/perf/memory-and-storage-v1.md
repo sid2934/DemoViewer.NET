@@ -233,3 +233,27 @@ Commands (from `src/App/DemoViewer.NET.App.Tests`, after `dotnet build -c Debug`
 
 Never point `MEM_PROBE_CONFIG` at the live config: `Measure` sweeps orphan sidecars and TeamIdentity
 rewrites its files.
+
+## 6. Status (2026-09-27)
+
+Built and merged into `feature/strat-book`, each on its own branch with a review pass:
+
+- `feature/strat-book-perf-queue`: L4/Q4 (history no longer roots parsed demos), Q9 (queue parses settled
+  files through a memory map, `ReadAllBytes` for anything written in the last 60 s), L1/Q1 as an explicit
+  compaction when the queue drains, throttled to once per 30 s with a deferred run, inside a background
+  gate slot. No GC knob changed.
+- `feature/strat-book-perf-clips`: L2/Q2 (clip stems by lineup id, renames instead of re-renders, orphan
+  sweep after a 10 min grace), L3/Q3 (one review section per map, one entry per lineup), S4 as a byte cap
+  (`Grenades.LineupClipsMaxMegabytes`, default 1024) with oldest-first eviction, the renderer's mapped parse
+  behind the same settled-file check, L5/Q7 and L6.
+- `feature/strat-book-perf-sidecars`: Q5, Q6, Q8, S5 (gzipped records), S6 (gzipped grenade sidecars,
+  slimmer rows), with verify-before-delete and a one-off background conversion of existing files.
+- `feature/strat-book-perf-index`: S2 and L7 (SituationIndex 136 to 66 MB retained on 366 synthetic demos),
+  S3 (per-demo signature cache: a second mine 10 s / 2.3 GB allocated before, 5.9 s / 66 MB after; the gate
+  is taken per 16-demo batch; no quiet re-mine while the processing queue has work).
+
+Still open, because each needs a real parse to measure and the owner's library was being processed:
+S1 (narrower background parse plans), S7 (Server GC with DATAS), and the gc-sweep that would say whether
+`ConserveMemory` beats the drain compaction. Nothing shows the lineup clips in the app today, so rendering
+them on demand instead of in the background would remove their parses at no visible cost; that is an owner
+call.
