@@ -268,6 +268,7 @@ public class OpeningTendenciesTests
         using Harness h = await Harness.Create();
         ReviewQueue queue = new(null);
         List<string> shown = [];
+        QueuedPost posted = new();
         using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
             review: queue,
             selectTab: id =>
@@ -275,13 +276,14 @@ public class OpeningTendenciesTests
                 shown.Add(id);
                 return true;
             },
-            post: a => a(),
+            post: posted.Post,
             openings: h.Service);
 
         await Assert.That(vm.Openings.HasSection).IsTrue();
         await Assert.That(vm.HasHeatmapSection).IsFalse();
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == h.TeamA);
         await vm.Openings.BuildTask;
+        posted.Drain();
 
         await Assert.That(vm.Openings.Blocks.Count).IsEqualTo(2);
         OpeningBlockViewModel t = vm.Openings.Blocks[0];

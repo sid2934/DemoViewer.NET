@@ -282,6 +282,7 @@ public class PostPlantTests
         using Harness h = await Harness.Create();
         ReviewQueue queue = new(null);
         List<string> shown = [];
+        QueuedPost posted = new();
         using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
             review: queue,
             selectTab: id =>
@@ -289,13 +290,14 @@ public class PostPlantTests
                 shown.Add(id);
                 return true;
             },
-            post: a => a(),
+            post: posted.Post,
             postPlant: h.Service);
 
         await Assert.That(vm.PostPlant.HasSection).IsTrue();
         await Assert.That(vm.Openings.HasSection).IsFalse();
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == h.TeamA);
         await vm.PostPlant.BuildTask;
+        posted.Drain();
 
         await Assert.That(vm.PostPlant.Blocks.Count).IsEqualTo(2);
         PostPlantBlockViewModel t = vm.PostPlant.Blocks[0];
