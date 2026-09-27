@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
@@ -585,7 +586,7 @@ public sealed class GrenadeIndex : IDisposable
     ///     <see cref="GrenadeLineup.Id" />: deterministic over the map, the kind, the landing cell and the
     ///     rounded origin, so the same throw position gets the same id from every process and every reindex,
     ///     with no row to persist. The first 16 bytes of a SHA-256 over the canonical string, the
-    ///     <see cref="LineupClipPlanner.FileStem" /> idiom, read back as a <see cref="Guid" />.
+    ///     <see cref="LineupClipPlanner.LegacyFileStem" /> idiom, read back as a <see cref="Guid" />.
     /// </summary>
     /// <param name="map">The map, as the demo header spells it.</param>
     /// <param name="kind">What is thrown.</param>
@@ -647,8 +648,15 @@ public sealed class GrenadeIndex : IDisposable
 
     private static (string? Place, string? Source) Resolve(IZonePlaceResolver? zones, WorldPoint landing) =>
         zones?.Resolve(landing.ToVector()) is { Length: > 0 } place
-            ? (place, $"zones:{zones.ZonesVersion}")
+            ? (place, PlaceSourceFor(zones.ZonesVersion))
             : (null, null);
+
+    // One string per zones version, shared by every grenade resolved under it. A version changes only on
+    // an overlay edit or a re-bake, so the map stays a handful of entries.
+    private static readonly ConcurrentDictionary<string, string> _placeSources = new(StringComparer.Ordinal);
+
+    private static string PlaceSourceFor(string zonesVersion) =>
+        _placeSources.GetOrAdd(zonesVersion, static version => $"zones:{version}");
 
     private static WorldPoint Mean(IEnumerable<WorldPoint> points)
     {

@@ -134,6 +134,122 @@ public sealed class ReviewQueue
         return clips;
     }
 
+    /// <summary>
+    ///     Puts clips in the section titled <paramref name="sectionTitle" />, after its last entry, opening
+    ///     the section at the end when there is none. Later cards with the same title are folded into the
+    ///     first, their entries moved after it. A clip already queued is skipped as <see cref="Add" /> does;
+    ///     an existing clip <paramref name="supersedes" /> matches is replaced where it stands, keeping its
+    ///     id and question.
+    /// </summary>
+    /// <param name="clips">The clips.</param>
+    /// <param name="sectionTitle">The section's title card.</param>
+    /// <param name="supersedes">(queued, incoming): true when the incoming clip replaces the queued one.</param>
+    /// <returns>How many clips were added or replaced.</returns>
+    public int Merge(IEnumerable<ReviewEntry> clips, string sectionTitle, Func<ReviewEntry, ReviewEntry, bool> supersedes)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        ArgumentNullException.ThrowIfNull(sectionTitle);
+        ArgumentNullException.ThrowIfNull(supersedes);
+
+        bool changed = FoldSections(sectionTitle);
+        List<ReviewEntry> appended = [];
+        int count = 0;
+        foreach (ReviewEntry clip in clips)
+        {
+            if (clip.Kind != ReviewEntryKind.Clip
+                || _entries.Any(e => SameClip(e, clip)) || appended.Any(e => SameClip(e, clip)))
+            {
+                continue;
+            }
+
+            int old = _entries.FindIndex(e => e.Kind == ReviewEntryKind.Clip && supersedes(e, clip));
+            if (old >= 0)
+            {
+                _entries[old] = clip with { Id = _entries[old].Id, Question = _entries[old].Question };
+            }
+            else
+            {
+                appended.Add(clip.Id == Guid.Empty ? clip with { Id = Guid.NewGuid() } : clip);
+            }
+
+            count++;
+        }
+
+        if (appended.Count > 0)
+        {
+            int card = _entries.FindIndex(e => IsCard(e, sectionTitle));
+            if (card < 0)
+            {
+                _entries.Add(ReviewEntry.Section(sectionTitle));
+                _entries.AddRange(appended);
+            }
+            else
+            {
+                _entries.InsertRange(SectionEnd(card), appended);
+            }
+        }
+
+        if (changed || count > 0)
+        {
+            Commit();
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    ///     Rewrites the queue in one pass and one save: <paramref name="map" /> returns the entry to keep
+    ///     (its id and kind are kept whatever it returns) or null to drop it. Title cards
+    ///     <paramref name="dropWhenEmpty" /> matches are then dropped when no clip is left under them.
+    /// </summary>
+    /// <param name="map">Old entry to new, or null to remove.</param>
+    /// <param name="dropWhenEmpty">Which title cards go when their section is empty; none when null.</param>
+    /// <returns>How many entries changed or went.</returns>
+    public int Reconcile(Func<ReviewEntry, ReviewEntry?> map, Func<ReviewEntry, bool>? dropWhenEmpty = null)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        int changed = 0;
+        List<ReviewEntry> kept = new(_entries.Count);
+        foreach (ReviewEntry entry in _entries)
+        {
+            if (map(entry) is not { } mapped)
+            {
+                changed++;
+                continue;
+            }
+
+            ReviewEntry next = mapped with { Id = entry.Id, Kind = entry.Kind };
+            if (next != entry)
+            {
+                changed++;
+            }
+
+            kept.Add(next);
+        }
+
+        if (dropWhenEmpty is not null)
+        {
+            for (int i = kept.Count - 1; i >= 0; i--)
+            {
+                bool empty = i + 1 >= kept.Count || kept[i + 1].Kind == ReviewEntryKind.Section;
+                if (kept[i].Kind == ReviewEntryKind.Section && empty && dropWhenEmpty(kept[i]))
+                {
+                    kept.RemoveAt(i);
+                    changed++;
+                }
+            }
+        }
+
+        if (changed > 0)
+        {
+            _entries.Clear();
+            _entries.AddRange(kept);
+            Commit();
+        }
+
+        return changed;
+    }
+
     /// <summary>Puts a title card at <paramref name="index" />, clamped; at the end when null.</summary>
     /// <param name="title">The card's title.</param>
     /// <param name="index">Where it goes, or null for the end.</param>
@@ -313,6 +429,39 @@ public sealed class ReviewQueue
                                        && a.FromTick == b.FromTick && a.ToTick == b.ToTick
                                        && string.Equals(a.DemoPath, b.DemoPath, StringComparison.OrdinalIgnoreCase)
                                        && Equals(a.Highlight, b.Highlight);
+
+    private static bool IsCard(ReviewEntry e, string title) =>
+        e.Kind == ReviewEntryKind.Section && string.Equals(e.Title, title, StringComparison.Ordinal);
+
+    // The index after the last entry of the section whose card is at `card`.
+    private int SectionEnd(int card)
+    {
+        int next = _entries.FindIndex(card + 1, e => e.Kind == ReviewEntryKind.Section);
+        return next < 0 ? _entries.Count : next;
+    }
+
+    // Moves every later same-titled section's entries under the first card and drops the later cards.
+    private bool FoldSections(string title)
+    {
+        int first = _entries.FindIndex(e => IsCard(e, title));
+        if (first < 0)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        int later;
+        while ((later = _entries.FindIndex(first + 1, e => IsCard(e, title))) >= 0)
+        {
+            int end = SectionEnd(later);
+            List<ReviewEntry> moved = _entries.GetRange(later + 1, end - later - 1);
+            _entries.RemoveRange(later, end - later);
+            _entries.InsertRange(SectionEnd(first), moved);
+            changed = true;
+        }
+
+        return changed;
+    }
 
     private static string OneLine(string? text) =>
         (text ?? "").ReplaceLineEndings(" ").Trim();

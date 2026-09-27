@@ -22,7 +22,8 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 ///     and the two files the render leaves side by side, the GIF and the <c>setpos</c>/<c>setang</c>
 ///     line it was thrown from.
 /// </summary>
-/// <param name="Key">The representative throw's <see cref="IndexedGrenade.Key" />: one clip per lineup, across sessions.</param>
+/// <param name="Key">The representative throw's <see cref="IndexedGrenade.Key" />. Changes when an older demo is indexed.</param>
+/// <param name="LineupId">The lineup's <see cref="GrenadeLineup.Id" />: what the pair's file name and the queue entry are keyed by.</param>
 /// <param name="DemoPath">The demo the throw is in.</param>
 /// <param name="Sha256">The demo's content hash, or null.</param>
 /// <param name="Map">The map, as the demo header spells it.</param>
@@ -34,8 +35,11 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 /// <param name="ConsoleText">The <see cref="GrenadeConsole.Format" /> line the sidecar holds.</param>
 /// <param name="GifPath">Where the GIF goes.</param>
 /// <param name="SetposPath">Where the console line goes, beside the GIF.</param>
+/// <param name="AliasIds">The lineup's <see cref="GrenadeLineup.AliasIds" />.</param>
+/// <param name="FormerGifPaths">Where an earlier build or an absorbed neighbour may have left this lineup's GIF.</param>
 public sealed record LineupClipJob(
     string Key,
+    Guid LineupId,
     string DemoPath,
     string? Sha256,
     string Map,
@@ -46,7 +50,13 @@ public sealed record LineupClipJob(
     ulong? ThrowerSteamId,
     string ConsoleText,
     string GifPath,
-    string SetposPath);
+    string SetposPath,
+    IReadOnlyList<Guid> AliasIds,
+    IEnumerable<string> FormerGifPaths)
+{
+    /// <summary>The pair's shared file name, without extension.</summary>
+    public string Stem => Path.GetFileNameWithoutExtension(GifPath);
+}
 
 /// <summary>
 ///     Lineup Clip Render's planning (plan.md §3, Phase 4): which Lineup Cards get a clip, what range and
@@ -82,6 +92,9 @@ public static class LineupClipPlanner
     /// <summary>The sidecar's extension, after the GIF's stem.</summary>
     public const string SetposExtension = ".setpos.txt";
 
+    /// <summary>The GIF's extension.</summary>
+    public const string GifExtension = ".gif";
+
     /// <summary>
     ///     The job for one lineup, or null when it gets none: fewer than <see cref="MinThrows" /> throws,
     ///     or a representative whose release state was not read (no console line, so no pair).
@@ -108,15 +121,68 @@ public static class LineupClipPlanner
 
         int rate = representative.TickRate > 0 ? representative.TickRate : 64;
         (int from, int to) = Range(row, rate);
-        string stem = FileStem(representative);
+        string stem = FileStem(representative.Map, representative.Kind, lineup.Id);
+        // Deferred: only a lineup with no pair on disk pays for a hash per throw.
+        IEnumerable<string> former = lineup.AliasIds.Where(a => a != lineup.Id)
+            .Select(a => FileStem(representative.Map, representative.Kind, a))
+            .Concat(lineup.Throws.Select(LegacyFileStem))
+            .Distinct(StringComparer.Ordinal)
+            .Select(s => Path.Combine(directory, s + GifExtension));
         ulong? steamId = ulong.TryParse(row.ThrowerSteamId64, NumberStyles.None, CultureInfo.InvariantCulture,
             out ulong id) && id != 0
             ? id
             : null;
 
-        return new LineupClipJob(representative.Key, representative.Demo.Path, representative.Demo.Sha256,
+        return new LineupClipJob(representative.Key, lineup.Id, representative.Demo.Path, representative.Demo.Sha256,
             representative.Map, title, from, to, rate, steamId, console,
-            Path.Combine(directory, stem + ".gif"), Path.Combine(directory, stem + SetposExtension));
+            Path.Combine(directory, stem + GifExtension), Path.Combine(directory, stem + SetposExtension),
+            lineup.AliasIds, former);
+    }
+
+    /// <summary>The job for every lineup that gets one, whatever is on disk, one per lineup, in cluster order.</summary>
+    /// <param name="clusters">The index's clusters.</param>
+    /// <param name="directory">Where clips are written.</param>
+    public static IReadOnlyList<LineupClipJob> PlanEvery(IEnumerable<GrenadeCluster> clusters, string directory)
+    {
+        ArgumentNullException.ThrowIfNull(clusters);
+
+        List<LineupClipJob> jobs = [];
+        HashSet<Guid> ids = [];
+        foreach (GrenadeCluster cluster in clusters)
+        {
+            string title = Title(cluster);
+            foreach (GrenadeLineup lineup in cluster.Lineups)
+            {
+                if (Plan(lineup, title, directory) is { } job && ids.Add(job.LineupId))
+                {
+                    jobs.Add(job);
+                }
+            }
+        }
+
+        return jobs;
+    }
+
+    /// <summary>The setpos sidecar beside a GIF.</summary>
+    /// <param name="gifPath">The GIF.</param>
+    public static string SetposPathFor(string gifPath)
+    {
+        ArgumentNullException.ThrowIfNull(gifPath);
+        return gifPath[..^GifExtension.Length] + SetposExtension;
+    }
+
+    /// <summary>The pair stem a file in the clip directory belongs to, or null when it is neither half of a pair.</summary>
+    /// <param name="fileName">A file name or path.</param>
+    public static string? StemOf(string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+        string name = Path.GetFileName(fileName);
+        if (name.EndsWith(SetposExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            return name[..^SetposExtension.Length];
+        }
+
+        return name.EndsWith(GifExtension, StringComparison.OrdinalIgnoreCase) ? name[..^GifExtension.Length] : null;
     }
 
     /// <summary>
@@ -129,29 +195,8 @@ public static class LineupClipPlanner
     public static IReadOnlyList<LineupClipJob> PlanAll(IEnumerable<GrenadeCluster> clusters, string directory,
         Func<string, bool> fileExists)
     {
-        ArgumentNullException.ThrowIfNull(clusters);
         ArgumentNullException.ThrowIfNull(fileExists);
-
-        List<LineupClipJob> jobs = [];
-        HashSet<string> keys = new(StringComparer.Ordinal);
-        foreach (GrenadeCluster cluster in clusters)
-        {
-            string title = Title(cluster);
-            foreach (GrenadeLineup lineup in cluster.Lineups)
-            {
-                if (Plan(lineup, title, directory) is not { } job || !keys.Add(job.Key))
-                {
-                    continue;
-                }
-
-                if (!fileExists(job.GifPath) || !fileExists(job.SetposPath))
-                {
-                    jobs.Add(job);
-                }
-            }
-        }
-
-        return jobs;
+        return [.. PlanEvery(clusters, directory).Where(j => !fileExists(j.GifPath) || !fileExists(j.SetposPath))];
     }
 
     /// <summary>
@@ -179,7 +224,7 @@ public static class LineupClipPlanner
     {
         ArgumentNullException.ThrowIfNull(job);
         return ReviewEntry.Clip(job.DemoPath, job.FromTick, job.ToTick, $"{job.Title}. {job.ConsoleText}",
-            ReviewSources.Lineup, job.TickRate, job.Sha256);
+            ReviewSources.Lineup, job.TickRate, job.Sha256) with { LineupId = job.LineupId };
     }
 
     /// <summary>The section title a map's clips are queued under.</summary>
@@ -231,12 +276,29 @@ public static class LineupClipPlanner
                 $"{cluster.Kind} at ({cluster.Landing.X:0}, {cluster.Landing.Y:0}, {cluster.Landing.Z:0})");
     }
 
-    // "de_mirage-smoke-1a2b3c4d5e6f": readable in a folder listing, keyed by the throw so a re-plan finds it.
-    private static string FileStem(IndexedGrenade grenade)
+    /// <summary>
+    ///     "de_mirage-smoke-&lt;lineup id&gt;": keyed by the lineup, so a new representative throw keeps the
+    ///     file it already has.
+    /// </summary>
+    /// <param name="map">The map.</param>
+    /// <param name="kind">What is thrown.</param>
+    /// <param name="lineupId"><see cref="GrenadeLineup.Id" /> or one of its aliases.</param>
+    public static string FileStem(string map, GrenadeKind kind, Guid lineupId)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{SafeMap(map)}-{kind.ToString().ToLowerInvariant()}-{lineupId:N}");
+    }
+
+    // The stem before lineup ids: twelve hex of a hash of the representative throw's key. Read only, to adopt
+    // a pair an earlier build rendered.
+    internal static string LegacyFileStem(IndexedGrenade grenade)
     {
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(grenade.Key));
-        string map = string.Concat(grenade.Map.Select(c => char.IsLetterOrDigit(c) || c is '_' or '-' ? c : '_'));
         return string.Create(CultureInfo.InvariantCulture,
-            $"{map}-{grenade.Kind.ToString().ToLowerInvariant()}-{Convert.ToHexStringLower(hash.AsSpan(0, 6))}");
+            $"{SafeMap(grenade.Map)}-{grenade.Kind.ToString().ToLowerInvariant()}-{Convert.ToHexStringLower(hash.AsSpan(0, 6))}");
     }
+
+    private static string SafeMap(string map) =>
+        string.Concat(map.Select(c => char.IsLetterOrDigit(c) || c is '_' or '-' ? c : '_'));
 }

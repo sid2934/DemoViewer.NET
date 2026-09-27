@@ -7,7 +7,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime;
 using System.Text.Json;
 using System.Windows.Input;
 using Avalonia.Platform.Storage;
@@ -3503,15 +3502,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StatusText = "No demo loaded.";
         AppLog.DemoClosed(DiagLog);
 
-        // Off the UI thread: a blocking gen-2 compacting collection over a demo-sized heap is long
-        // enough to be felt as a hitch.
-        await Task.Run(static () =>
-        {
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-        });
+        await HeapCompactor.CompactAsync();
     }
 
     // ── Idle mode ─────────────────────────────────────────────────────────────

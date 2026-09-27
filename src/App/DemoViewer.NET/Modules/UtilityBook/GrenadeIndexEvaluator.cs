@@ -214,8 +214,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
             // Paths first, rows second, stamp last: a crash between any two leaves "not walked" or a file
             // nothing reads, never rows whose cards have no path to draw.
-            _demoCache.WriteSibling(path, GrenadeSidecar.PathsSuffix, GrenadeSidecar.Serialize(paths));
-            _demoCache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(rows));
+            GrenadeSidecar.Write(_demoCache, path, rows, paths);
             _demoCache.UpdateExisting(path, r =>
             {
                 DemoCacheStore.StampGrenades(r);
@@ -224,6 +223,10 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
                 r.GrenadeWalker = GrenadeWalker.Version;
                 r.GrenadeInputCoverage = rows.Source.InputCoverage;
             });
+            if (!GrenadeSidecar.DeleteLegacy(_demoCache, path))
+            {
+                GrenadeIndexLog.LegacyKept(Log, fileName);
+            }
             _demoCache.SaveIndex();
             GrenadeIndexLog.Walked(Log, fileName, rows.Grenades.Count, rows.Source.InputCoverage);
             _post(() => Indexed?.Invoke(path));
@@ -277,4 +280,8 @@ internal static partial class GrenadeIndexLog
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "lineup clips: {line}")]
     public static partial void LineupClip(ILogger logger, string line);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning,
+        Message = "{fileName}: new grenade sidecars did not read back; pre-gzip files kept")]
+    public static partial void LegacyKept(ILogger logger, string fileName);
 }
