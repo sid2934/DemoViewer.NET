@@ -1,10 +1,10 @@
 #region
 
-using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
@@ -99,16 +99,7 @@ public sealed class RoundPositionsDocument
     public string Serialize() => JsonSerializer.Serialize(this, JsonOptions);
 
     /// <summary>The gzipped compact JSON: what the store writes.</summary>
-    public byte[] SerializeGzip()
-    {
-        using MemoryStream buffer = new();
-        using (GZipStream gzip = new(buffer, CompressionLevel.Optimal, true))
-        {
-            gzip.Write(Encoding.UTF8.GetBytes(Serialize()));
-        }
-
-        return buffer.ToArray();
-    }
+    public byte[] SerializeGzip() => SidecarJson.SerializeGzip(this, JsonOptions);
 
     /// <summary>The document a file's text describes, or null when it does not parse.</summary>
     /// <param name="json">The uncompressed text.</param>
@@ -130,12 +121,24 @@ public sealed class RoundPositionsDocument
     {
         try
         {
-            using MemoryStream source = new(gzipped);
-            using GZipStream gzip = new(source, CompressionMode.Decompress);
-            using StreamReader reader = new(gzip, Encoding.UTF8);
-            return TryDeserialize(reader.ReadToEnd());
+            return SidecarJson.Deserialize<RoundPositionsDocument>(gzipped, JsonOptions);
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The document a positions file holds, or null when it is missing, does not inflate, or does not parse.</summary>
+    /// <param name="path">The file.</param>
+    public static RoundPositionsDocument? TryReadFile(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? SidecarJson.ReadFile<RoundPositionsDocument>(path, JsonOptions) : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException
+                                       or UnauthorizedAccessException)
         {
             return null;
         }

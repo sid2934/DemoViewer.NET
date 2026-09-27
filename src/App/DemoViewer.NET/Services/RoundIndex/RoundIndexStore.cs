@@ -125,8 +125,21 @@ public sealed class RoundIndexStore : IDisposable
     /// <param name="demoPath">The demo's path.</param>
     public RoundIndexDocument? TryRead(string demoPath)
     {
-        string? json = TryReadText(demoPath);
-        return json is null ? null : RoundIndexDocument.TryDeserialize(json);
+        string? file = PathFor(demoPath);
+        if (file is null)
+        {
+            string? json = TryReadText(demoPath);
+            return json is null ? null : RoundIndexDocument.TryDeserialize(json);
+        }
+
+        try
+        {
+            return File.Exists(file) ? SidecarJson.ReadFile<RoundIndexDocument>(file, RoundIndexDocument.JsonOptions) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -142,8 +155,23 @@ public sealed class RoundIndexStore : IDisposable
     public RoundPositionsDocument? TryReadPositions(string demoPath, string? expectedFingerprint = null,
         string? sha256 = null)
     {
-        byte[]? bytes = TryReadPositionsBytes(demoPath);
-        RoundPositionsDocument? positions = bytes is null ? null : RoundPositionsDocument.TryDeserializeGzip(bytes);
+        string? file = PositionsPathFor(demoPath);
+        RoundPositionsDocument? positions;
+        if (file is null)
+        {
+            byte[]? bytes;
+            lock (_gate)
+            {
+                bytes = _memoryPositions.GetValueOrDefault(DemoCacheStore.StableKey(demoPath));
+            }
+
+            positions = bytes is null ? null : RoundPositionsDocument.TryDeserializeGzip(bytes);
+        }
+        else
+        {
+            positions = RoundPositionsDocument.TryReadFile(file);
+        }
+
         if (positions is null)
         {
             return null;
@@ -273,27 +301,6 @@ public sealed class RoundIndexStore : IDisposable
         }
 
         return removed;
-    }
-
-    private byte[]? TryReadPositionsBytes(string demoPath)
-    {
-        string? file = PositionsPathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                return _memoryPositions.GetValueOrDefault(DemoCacheStore.StableKey(demoPath));
-            }
-        }
-
-        try
-        {
-            return File.Exists(file) ? File.ReadAllBytes(file) : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
     }
 
     // A path that changed and is no longer in the index was removed: its files go with it. A null

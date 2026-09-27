@@ -32,10 +32,13 @@ namespace DemoViewer.NET.Services.DemoCache;
 /// </summary>
 public sealed class DemoCacheStore
 {
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        WriteIndented = true
-    };
+    /// <summary>The record sidecar: gzipped compact JSON, named <c>&lt;key&gt;.json.gz</c>.</summary>
+    public const string RecordSuffix = ".json.gz";
+
+    // Record sidecars written before gzip. Still read; replaced at the demo's next write.
+    private const string LegacyRecordSuffix = ".json";
+
+    private static readonly JsonSerializerOptions _jsonOptions = new();
 
     private readonly string? _cacheRoot;
     private readonly object _gate = new();
@@ -62,10 +65,10 @@ public sealed class DemoCacheStore
     ///         every API still works"; this is what makes the second half true.
     ///     </para>
     /// </summary>
-    private readonly Dictionary<string, string> _memoryRecords = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _memoryRecords = new(StringComparer.OrdinalIgnoreCase);
 
     // Sibling files held in memory when there is no cache root, keyed by stable key plus suffix. Under _gate.
-    private readonly Dictionary<string, string> _memorySiblings = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, byte[]> _memorySiblings = new(StringComparer.Ordinal);
 
     private readonly Action<Action> _post;
 
@@ -91,12 +94,11 @@ public sealed class DemoCacheStore
     // last one collapses the common case to zero I/O without holding a library's worth of records live.
     // (The same capacity-1 idiom the demo GetOrParse cache uses, for the same reason.)
     //
-    // Cached as JSON TEXT, not as a live object, and every read deserializes a fresh instance. Handing out a
-    // shared mutable record would let a UI-thread reader (Match Overview, rendering the selected demo) watch
-    // fields change under it while a background tier-2 pass mutates the same instance through Update, a
-    // torn read with no lock a caller could reasonably take. The cache still spares the disk I/O, which is
-    // what it was for; a few KB of deserialization per selection change is not worth a data race.
-    private string? _lastRecordJson;
+    // Cached as the file's BYTES, not as a live object, and every read deserializes a fresh instance. Handing
+    // out a shared mutable record would let a UI-thread reader (Match Overview, rendering the selected demo)
+    // watch fields change under it while a background tier-2 pass mutates the same instance through Update,
+    // a torn read with no lock a caller could reasonably take. Gzipped bytes keep the entry off the LOH.
+    private byte[]? _lastRecordBytes;
     private string? _lastRecordPath;
     private int _legacyMigrationVersion; // under _gate
 
@@ -245,55 +247,57 @@ public sealed class DemoCacheStore
     /// </summary>
     public DemoCacheRecord? TryLoadRecord(string path)
     {
-        string? cachedJson = null;
+        byte[]? cached = null;
         lock (_gate)
         {
             if (_lastRecordPath is not null
                 && string.Equals(_lastRecordPath, path, StringComparison.OrdinalIgnoreCase))
             {
-                cachedJson = _lastRecordJson;
+                cached = _lastRecordBytes;
             }
         }
 
         try
         {
-            if (cachedJson is not null)
+            if (cached is not null)
             {
-                return JsonSerializer.Deserialize<DemoCacheRecord>(cachedJson);
+                return SidecarJson.Deserialize<DemoCacheRecord>(cached, _jsonOptions);
             }
 
             string? file = SidecarPathFor(path);
             if (file is null)
             {
                 // No cache root: the record lives in memory or nowhere.
-                string? held;
+                byte[]? held;
                 lock (_gate)
                 {
                     held = _memoryRecords.GetValueOrDefault(path);
                 }
 
-                return held is null ? null : JsonSerializer.Deserialize<DemoCacheRecord>(held);
+                return held is null ? null : SidecarJson.Deserialize<DemoCacheRecord>(held, _jsonOptions);
             }
 
-            if (!File.Exists(file))
+            // The new file wins whenever it exists, even when it does not parse: a legacy file beside it
+            // is older than it.
+            if (File.Exists(file))
             {
-                return null;
+                byte[] bytes = File.ReadAllBytes(file);
+                if (SidecarJson.Deserialize<DemoCacheRecord>(bytes, _jsonOptions) is not { } record)
+                {
+                    return null;
+                }
+
+                lock (_gate)
+                {
+                    _lastRecordPath = path;
+                    _lastRecordBytes = bytes;
+                }
+
+                return record;
             }
 
-            string json = File.ReadAllText(file);
-            DemoCacheRecord? record = JsonSerializer.Deserialize<DemoCacheRecord>(json);
-            if (record is null)
-            {
-                return null;
-            }
-
-            lock (_gate)
-            {
-                _lastRecordPath = path;
-                _lastRecordJson = json;
-            }
-
-            return record;
+            string legacy = LegacySidecarPathFor(path)!;
+            return File.Exists(legacy) ? SidecarJson.ReadFile<DemoCacheRecord>(legacy, _jsonOptions) : null;
         }
         catch (Exception)
         {
@@ -417,15 +421,15 @@ public sealed class DemoCacheStore
             return;
         }
 
-        string json = JsonSerializer.Serialize(record, _jsonOptions);
+        byte[] bytes = SidecarJson.SerializeGzip(record, _jsonOptions);
         lock (_gate)
         {
             SetIndexEntry(record.ToIndexEntry());
             _lastRecordPath = record.Path;
-            _lastRecordJson = json;
+            _lastRecordBytes = bytes;
         }
 
-        WriteSidecar(record.Path, json);
+        WriteSidecar(record.Path, bytes);
         RaiseChanged(record.Path);
     }
 
@@ -487,7 +491,7 @@ public sealed class DemoCacheStore
                 && string.Equals(_lastRecordPath, path, StringComparison.OrdinalIgnoreCase))
             {
                 _lastRecordPath = null;
-                _lastRecordJson = null;
+                _lastRecordBytes = null;
             }
         }
 
@@ -539,7 +543,7 @@ public sealed class DemoCacheStore
                 };
             }
 
-            WriteAtomic(indexPath, JsonSerializer.Serialize(file, _jsonOptions));
+            WriteAtomicBytes(indexPath, JsonSerializer.SerializeToUtf8Bytes(file, _jsonOptions));
         }
         catch (Exception)
         {
@@ -559,7 +563,14 @@ public sealed class DemoCacheStore
     public string? SidecarPathFor(string demoPath)
     {
         string? dir = SidecarDir;
-        return dir is null ? null : Path.Combine(dir, $"{StableKey(demoPath)}.json");
+        return dir is null ? null : Path.Combine(dir, StableKey(demoPath) + RecordSuffix);
+    }
+
+    /// <summary>Where the record sidecar lived before it was gzipped. Read when the new file is absent.</summary>
+    internal string? LegacySidecarPathFor(string demoPath)
+    {
+        string? dir = SidecarDir;
+        return dir is null ? null : Path.Combine(dir, StableKey(demoPath) + LegacyRecordSuffix);
     }
 
     /// <summary>
@@ -568,7 +579,7 @@ public sealed class DemoCacheStore
     ///     re-reads on every property touch, yet owned by the same demo, so it goes when the demo goes.
     /// </summary>
     /// <param name="demoPath">The demo's path.</param>
-    /// <param name="suffix">Starts with a dot, names a file, and is not <c>.json</c> itself.</param>
+    /// <param name="suffix">Starts with a dot, names a file, and is neither record name (<c>.json</c>, <c>.json.gz</c>).</param>
     public string? SiblingPathFor(string demoPath, string suffix)
     {
         ValidateSuffix(suffix);
@@ -587,6 +598,16 @@ public sealed class DemoCacheStore
     public void WriteSibling(string demoPath, string suffix, string content)
     {
         ArgumentNullException.ThrowIfNull(content);
+        WriteSiblingBytes(demoPath, suffix, Encoding.UTF8.GetBytes(content));
+    }
+
+    /// <summary>As <see cref="WriteSibling" />, for a binary (e.g. gzipped) sibling.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
+    /// <param name="content">The whole file.</param>
+    public void WriteSiblingBytes(string demoPath, string suffix, byte[] content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
         string? file = SiblingPathFor(demoPath, suffix);
         if (file is null)
         {
@@ -598,7 +619,79 @@ public sealed class DemoCacheStore
             return;
         }
 
-        WriteAtomic(file, content);
+        WriteAtomicBytes(file, content);
+    }
+
+    /// <summary>
+    ///     Reads a JSON sibling, gzipped or plain. False when there is no such file; true with a null
+    ///     <paramref name="value" /> when it exists but does not read.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
+    /// <param name="options">The document's serializer options.</param>
+    /// <param name="value">The document, or null.</param>
+    public bool TryReadSiblingJson<T>(string demoPath, string suffix, JsonSerializerOptions? options, out T? value)
+        where T : class
+    {
+        value = null;
+        string? file = SiblingPathFor(demoPath, suffix);
+        try
+        {
+            if (file is null)
+            {
+                byte[]? held;
+                lock (_gate)
+                {
+                    held = _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix);
+                }
+
+                if (held is null)
+                {
+                    return false;
+                }
+
+                value = SidecarJson.Deserialize<T>(held, options);
+                return true;
+            }
+
+            if (!File.Exists(file))
+            {
+                return false;
+            }
+
+            value = SidecarJson.ReadFile<T>(file, options);
+            return true;
+        }
+        catch (Exception)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>Deletes one sibling, best effort.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
+    public void DeleteSibling(string demoPath, string suffix)
+    {
+        string? file = SiblingPathFor(demoPath, suffix);
+        if (file is null)
+        {
+            lock (_gate)
+            {
+                _memorySiblings.Remove(StableKey(demoPath) + suffix);
+            }
+
+            return;
+        }
+
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception)
+        {
+            // An orphaned sibling is never read once the new one exists.
+        }
     }
 
     /// <summary>A sibling's text, or null when it is missing or unreadable (the cache's "not cached").</summary>
@@ -611,7 +704,9 @@ public sealed class DemoCacheStore
         {
             lock (_gate)
             {
-                return _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix);
+                return _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix) is { } held
+                    ? Encoding.UTF8.GetString(held)
+                    : null;
             }
         }
 
@@ -632,14 +727,14 @@ public sealed class DemoCacheStore
         return Convert.ToHexString(hash, 0, 12).ToLowerInvariant();
     }
 
-    private void WriteSidecar(string demoPath, string json)
+    private void WriteSidecar(string demoPath, byte[] bytes)
     {
         string? file = SidecarPathFor(demoPath);
         if (file is null)
         {
             lock (_gate)
             {
-                _memoryRecords[demoPath] = json;
+                _memoryRecords[demoPath] = bytes;
             }
 
             return;
@@ -647,7 +742,14 @@ public sealed class DemoCacheStore
 
         try
         {
-            WriteAtomic(file, json);
+            WriteAtomicBytes(file, bytes);
+
+            // Only once the new file is in place: a failed write keeps the legacy record readable.
+            string legacy = LegacySidecarPathFor(demoPath)!;
+            if (File.Exists(legacy))
+            {
+                File.Delete(legacy);
+            }
         }
         catch (Exception)
         {
@@ -696,7 +798,8 @@ public sealed class DemoCacheStore
     private static void ValidateSuffix(string suffix)
     {
         ArgumentException.ThrowIfNullOrEmpty(suffix);
-        if (suffix[0] != '.' || string.Equals(suffix, ".json", StringComparison.OrdinalIgnoreCase)
+        if (suffix[0] != '.' || string.Equals(suffix, LegacyRecordSuffix, StringComparison.OrdinalIgnoreCase)
+                             || string.Equals(suffix, RecordSuffix, StringComparison.OrdinalIgnoreCase)
                              || suffix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
             throw new ArgumentException($"'{suffix}' is not a sibling suffix", nameof(suffix));
@@ -709,12 +812,18 @@ public sealed class DemoCacheStore
     /// </summary>
     /// <param name="targetPath">The file to write.</param>
     /// <param name="content">Its whole new content.</param>
-    internal static void WriteAtomic(string targetPath, string content)
+    internal static void WriteAtomic(string targetPath, string content) =>
+        WriteAtomicBytes(targetPath, Encoding.UTF8.GetBytes(content));
+
+    /// <summary>As <see cref="WriteAtomic(string, string)" />, for bytes.</summary>
+    /// <param name="targetPath">The file to write.</param>
+    /// <param name="content">Its whole new content.</param>
+    internal static void WriteAtomicBytes(string targetPath, byte[] content)
     {
         string directory = Path.GetDirectoryName(targetPath)!;
         Directory.CreateDirectory(directory);
         string tempPath = Path.Combine(directory, $".dc-{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(tempPath, content);
+        File.WriteAllBytes(tempPath, content);
         if (File.Exists(targetPath))
         {
             File.Replace(tempPath, targetPath, null);
@@ -736,7 +845,7 @@ public sealed class DemoCacheStore
         try
         {
             DemoCacheIndexFile? file =
-                JsonSerializer.Deserialize<DemoCacheIndexFile>(File.ReadAllText(indexPath));
+                SidecarJson.ReadFile<DemoCacheIndexFile>(indexPath, _jsonOptions);
             if (file?.Entries is null)
             {
                 return;
