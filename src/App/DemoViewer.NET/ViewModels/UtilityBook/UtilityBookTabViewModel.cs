@@ -60,6 +60,10 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private bool _disposed;
     private bool _refreshing;
 
+    /// <summary>True when the card opens over the map's left edge, because the selected position is on the right.</summary>
+    [ObservableProperty]
+    private bool _cardOnLeft;
+
     [ObservableProperty]
     private LineupDetail? _detail;
 
@@ -234,6 +238,23 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     {
         _focusedId = string.Equals(_focusedId, id, StringComparison.Ordinal) ? null : id;
         _selectedLineupId = null;
+        Project();
+    }
+
+    /// <summary>Focuses a group without toggling: the host's cycle through stacked icons.</summary>
+    /// <param name="id">The group's id.</param>
+    public void FocusLanding(string id)
+    {
+        _focusedId = id;
+        _selectedLineupId = null;
+        Project();
+    }
+
+    /// <summary>Selects a throw position without toggling: the host's cycle through stacked positions.</summary>
+    /// <param name="lineupId">The lineup's id.</param>
+    public void SelectThrow(string lineupId)
+    {
+        _selectedLineupId = lineupId;
         Project();
     }
 

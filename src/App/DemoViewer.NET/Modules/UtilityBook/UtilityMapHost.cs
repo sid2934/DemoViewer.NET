@@ -131,18 +131,50 @@ public sealed class UtilityMapHost : MapSceneHost
         MapSpace space = LevelSpace;
         bool Belongs(double z) => pane.LevelIndex < 0 || space.Levels.Count <= 1 || space.LevelIndexFor(z) == pane.LevelIndex;
 
-        if (UtilityMapLayer.ThrowAt(_vm.Document, pane.Camera.Current, Belongs, local) is { } position)
+        IReadOnlyList<UtilityThrow> throws = UtilityMapLayer.ThrowsAt(_vm.Document, pane.Camera.Current, Belongs, local);
+        if (throws.Count > 0)
         {
-            _vm.ClickThrow(position.Id);
+            // A second click on a stack moves to the next one under the pointer; on a lone disc it toggles.
+            string? current = throws.FirstOrDefault(t => t.Selected)?.Id;
+            string next = Next([.. throws.Select(t => t.Id)], current);
+            _vm.CardOnLeft = x > Bounds.Width / 2;
+            if (throws.Count > 1 && current is not null)
+            {
+                _vm.SelectThrow(next);
+            }
+            else
+            {
+                _vm.ClickThrow(next);
+            }
+
+            return;
         }
-        else if (UtilityMapLayer.LandingAt(_vm.Document, pane.Camera.Current, Belongs, local) is { } landing)
+
+        IReadOnlyList<UtilityLanding> landings = UtilityMapLayer.LandingsAt(_vm.Document, pane.Camera.Current, Belongs, local);
+        if (landings.Count > 0)
         {
-            _vm.ClickLanding(landing.Id);
+            string? current = landings.Where(l => l.Focused).Select(l => l.Id).FirstOrDefault();
+            string next = Next([.. landings.Select(l => l.Id)], current);
+            if (landings.Count > 1 && current is not null)
+            {
+                _vm.FocusLanding(next);
+            }
+            else
+            {
+                _vm.ClickLanding(next);
+            }
         }
         else if (_vm.HasFocus)
         {
             _vm.Back();
         }
+    }
+
+    // The id after the current one in hit order, wrapping; the topmost when nothing under the pointer is current.
+    private static string Next(IReadOnlyList<string> ids, string? current)
+    {
+        int at = current is null ? -1 : ids.ToList().IndexOf(current);
+        return ids[(at + 1) % ids.Count];
     }
 
     /// <summary>The host point a world point draws at on the pane of its floor, or null. For tests.</summary>
