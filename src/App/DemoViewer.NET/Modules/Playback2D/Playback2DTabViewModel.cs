@@ -410,6 +410,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             () => Settings()?.Current.Playback2D.SuggestedTagsBackground ?? false,
             SaveSuggestedTagsBackground);
 
+        // Review mode starts as the user left it (off on a first run): the lanes follow it from here.
+        _isReviewMode = Settings()?.Current.Playback2D.ReviewMode ?? false;
+        ApplyReviewModeToTimeline();
+
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
@@ -1489,7 +1493,84 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public bool IsTagPaletteEnabled => _features?.IsEnabled(RoundTaggerModule.PaletteFeatureId) ?? true;
 
     /// <summary>Whether the palette has the keyboard: its keys then shadow the tab's (overview correction 21).</summary>
-    public bool IsTagPaletteFocused => IsTagPaletteEnabled && TagPalette.IsFocused;
+    public bool IsTagPaletteFocused => ShowTagPalette && TagPalette.IsFocused;
+
+    private bool _isReviewMode;
+
+    /// <summary>
+    ///     Review mode: the tag palette, the suggestion queue and the tag and suggestion lanes show, the player
+    ///     cards collapse to a strip, and the tagging keys act. Off, the tab is plain playback and every
+    ///     tagging key is unhandled, so a stray N cannot reject a suggestion no one can see. Persisted.
+    /// </summary>
+    public bool IsReviewMode
+    {
+        get => _isReviewMode;
+        set
+        {
+            if (_isReviewMode == value)
+            {
+                return;
+            }
+
+            _isReviewMode = value;
+            if (!value)
+            {
+                // Leaving writes a tag in progress rather than stranding it, and drops the selection that
+                // held J and K for the queue.
+                if (TagPalette.IsFocused)
+                {
+                    TagPalette.Leave();
+                }
+
+                SuggestionQueue.Selected = null;
+            }
+
+            ApplyReviewModeToTimeline();
+            SaveReviewModeSetting(value);
+            RaiseReviewMode();
+        }
+    }
+
+    /// <summary>Whether Review mode has anything to show: either tagging gate is on. The toolbar hides the toggle otherwise.</summary>
+    public bool IsReviewAvailable => IsTagPaletteEnabled || IsSuggestedTagsEnabled;
+
+    /// <summary>The palette shows: its gate is on and the tab is in Review mode.</summary>
+    public bool ShowTagPalette => IsTagPaletteEnabled && IsReviewMode;
+
+    /// <summary>The suggestion queue shows: its gate is on and the tab is in Review mode.</summary>
+    public bool ShowSuggestionQueue => IsSuggestedTagsEnabled && IsReviewMode;
+
+    /// <summary>The player cards draw as a compact strip, leaving the column to the review panels.</summary>
+    public bool IsCardStrip => IsReviewMode && IsReviewAvailable;
+
+    private void RaiseReviewMode()
+    {
+        OnPropertyChanged(nameof(IsReviewMode));
+        OnPropertyChanged(nameof(IsReviewAvailable));
+        OnPropertyChanged(nameof(ShowTagPalette));
+        OnPropertyChanged(nameof(ShowSuggestionQueue));
+        OnPropertyChanged(nameof(IsCardStrip));
+        OnPropertyChanged(nameof(IsTagPaletteFocused));
+    }
+
+    // The tag and suggestion lanes are Review mode's: hidden by mode, never by the user's own toggle.
+    private void ApplyReviewModeToTimeline()
+    {
+        Timeline.SetTrackSuppressed(TagTrack.TrackId, !IsReviewMode);
+        Timeline.SetTrackSuppressed(ProposalTrack.TrackId, !IsReviewMode);
+    }
+
+    private static void SaveReviewModeSetting(bool on)
+    {
+        try
+        {
+            Settings()?.Write(s => s.Playback2D.ReviewMode = on);
+        }
+        catch (Exception)
+        {
+            // A read-only config directory must not take the toggle down.
+        }
+    }
 
     /// <summary>
     ///     The palette's turn at a key, taken by the View BEFORE the tab's own keymap: its palette-scoped
@@ -1516,7 +1597,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="key">The key.</param>
     /// <param name="modifiers">The modifiers held.</param>
     public bool TryHandleSuggestionKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
-        IsSuggestedTagsEnabled && SuggestionQueue.HasSelection
+        ShowSuggestionQueue && SuggestionQueue.HasSelection
                                && Keymap.TryResolveInScope(Playback2DBindingScope.WhenSuggestionSelected, key, modifiers,
                                    out Playback2DAction action)
                                && SuggestionQueue.Execute(action);
@@ -1570,9 +1651,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // The gate folds into the palette's focus: gated off, the palette cannot keep the keyboard, and a tag
     // it was making is written rather than stranded behind a hidden panel.
+    // Outside Review mode C does nothing: the palette is not on screen, and entering the mode is Shift+R's.
     private bool ToggleTagPaletteFocus()
     {
-        if (!IsTagPaletteEnabled)
+        if (!ShowTagPalette)
         {
             return false;
         }
@@ -2084,7 +2166,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             case Playback2DAction.SuggestionReject:
             case Playback2DAction.SuggestionEdit:
             case Playback2DAction.SuggestionAcceptAll:
-                return IsSuggestedTagsEnabled && SuggestionQueue.Execute(action);
+                return ShowSuggestionQueue && SuggestionQueue.Execute(action);
+
+            case Playback2DAction.ToggleReviewMode:
+                if (!IsReviewAvailable && !IsReviewMode)
+                {
+                    return false;
+                }
+
+                IsReviewMode = !IsReviewMode;
+                return true;
 
             default:
                 return false;
@@ -2222,6 +2313,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // selection that held J and K; gated back on, it shows the open demo again.
         OnPropertyChanged(nameof(IsSuggestedTagsEnabled));
         AttachSuggestionsTo(_tagSession.DemoPath, _tagSession.Document?.Demo.Sha256);
+        RaiseReviewMode();
 
         // Same three inputs as the line below it: the gate, the context, and whether that context has a
         // demo. The export host is wired once at composition, before any tab is activated, so activation

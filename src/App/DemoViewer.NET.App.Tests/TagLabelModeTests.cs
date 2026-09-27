@@ -279,6 +279,7 @@ public class TagLabelModeTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
             vm.Timeline.PixelWidth = 1000;
             await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
             TagInstance execute = Instance("A execute", 800, 1_200);

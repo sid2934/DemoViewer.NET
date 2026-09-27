@@ -252,6 +252,7 @@ public class TagPositionTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
             ctx.PushPlacedMarkers((0, 2, -800f, 600f, 64f, "Ramp"), (1, 3, 900f, -500f, 64f, "BombsiteA"));
             await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
             (Window window, Playback2DView view) =
