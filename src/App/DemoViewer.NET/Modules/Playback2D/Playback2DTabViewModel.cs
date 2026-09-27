@@ -20,6 +20,7 @@ using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.SuggestedTags;
@@ -410,6 +411,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             () => Settings()?.Current.Playback2D.SuggestedTagsBackground ?? false,
             SaveSuggestedTagsBackground);
 
+        // Review mode's panel: the Suggested and Labels tabs and the one editor over both.
+        ReviewPanel = new ReviewPanelViewModel(_tagSession, SuggestionQueue, TagPalette,
+            () => _context?.CurrentTick ?? CurrentFrame.Time.Tick, () => _context?.TickRate ?? 64,
+            tick => _context?.RequestSeekToTick(tick));
+
         // Review mode starts as the user left it (off on a first run): the lanes follow it from here.
         _isReviewMode = Settings()?.Current.Playback2D.ReviewMode ?? false;
         ApplyReviewModeToTimeline();
@@ -690,6 +696,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         TagPalette.Finish();
         TagPalette.Dispose();
         _tagTrack.Dispose();
+        ReviewPanel.Dispose();
         SuggestionQueue.Dispose();
         _tagSession.Dispose(); // detaches, which flushes
 
@@ -1523,6 +1530,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 }
 
                 SuggestionQueue.Selected = null;
+                ReviewPanel.SelectedLabel = null;
+                ReviewPanel.CloseEditorCommand.Execute(null);
             }
 
             ApplyReviewModeToTimeline();
@@ -1530,6 +1539,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             RaiseReviewMode();
         }
     }
+
+    /// <summary>Review mode's panel: the Suggested and Labels tabs and the editor.</summary>
+    public ReviewPanelViewModel ReviewPanel { get; }
 
     /// <summary>Whether Review mode has anything to show: either tagging gate is on. The toolbar hides the toggle otherwise.</summary>
     public bool IsReviewAvailable => IsTagPaletteEnabled || IsSuggestedTagsEnabled;
@@ -1638,7 +1650,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public bool TryTagPositionAt(MapLevel level, double worldX, double worldY)
     {
         ArgumentNullException.ThrowIfNull(level);
-        if (!IsTagPaletteFocused || TagPalette.IsEditingNote)
+        bool toEditor = IsReviewMode && ReviewPanel.HasEditor;
+        if (!toEditor && (!IsTagPaletteFocused || TagPalette.IsEditingNote))
         {
             return false;
         }
@@ -1646,7 +1659,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Scene2DFrame frame = CurrentFrame;
         int tick = _context?.CurrentTick ?? frame.Time.Tick;
         TagPosition position = TagPositionResolver.Resolve(worldX, worldY, level, tick, Zones, frame.Markers);
-        return TagPalette.AttachPosition(position);
+
+        // An open editor takes the click: the position goes on the tag being edited, not on the last one written.
+        return toEditor ? ReviewPanel.AddPosition(position) : TagPalette.AttachPosition(position);
     }
 
     // The gate folds into the palette's focus: gated off, the palette cannot keep the keyboard, and a tag

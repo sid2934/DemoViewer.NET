@@ -5,6 +5,8 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Services.Tags;
 
 #endregion
 
@@ -33,6 +35,7 @@ public sealed partial class SuggestionRowViewModel : ObservableObject
             : string.Join(" × ", p.Factors.OrderBy(f => f.Key, StringComparer.Ordinal)
                 .Select(f => string.Create(CultureInfo.InvariantCulture, $"{f.Key} {f.Value:0.00}")));
         EvidenceText = string.Join('\n', p.Evidence.Select(e => e.Text));
+        ReasonText = p.Evidence.Count == 0 ? "" : string.Join("; ", p.Evidence.Take(2).Select(e => e.Text));
         Step = ProposalTrack.StepOf(p.Confidence);
     }
 
@@ -57,6 +60,11 @@ public sealed partial class SuggestionRowViewModel : ObservableObject
 
     /// <summary>Why it fired, one line each.</summary>
     public string EvidenceText { get; }
+
+    /// <summary>Why it fired in plain words, the first two evidence lines; the score's factors stay in the hover.</summary>
+    public string ReasonText { get; }
+
+    public bool HasReason => ReasonText.Length > 0;
 
     public ConfidenceStep Step { get; }
 
@@ -88,6 +96,9 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     /// <summary>The detector filter's "no filter" entry.</summary>
     public const string AllDetectors = "all";
 
+    /// <summary>The round filter's "no filter" entry.</summary>
+    public const string AllRounds = "all rounds";
+
     private readonly Action<Action> _post;
     private readonly Action<int> _seekToTick;
     private readonly SuggestedTagsService? _service;
@@ -102,23 +113,14 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
     private bool _disposed;
 
-    [ObservableProperty]
-    private string _editFrom = "";
-
-    [ObservableProperty]
-    private string _editLabels = "";
-
-    [ObservableProperty]
-    private string _editNote = "";
-
-    [ObservableProperty]
-    private string _editTo = "";
+    // Unsaved edits per proposal, for the session: walking away with J or K keeps what was typed.
+    private readonly Dictionary<string, TagEditorDraft> _drafts = new(StringComparer.Ordinal);
 
     [ObservableProperty]
     private bool _isConfirmingAcceptAll;
 
     [ObservableProperty]
-    private bool _isEditing;
+    private string _roundFilter = AllRounds;
 
     [ObservableProperty]
     private double _minConfidence;
@@ -168,6 +170,23 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     /// <summary>The pending proposals the filters let through, in round order.</summary>
     public ObservableCollection<SuggestionRowViewModel> Rows { get; } = [];
 
+    /// <summary><see cref="AllRounds" /> and every round with a pending proposal.</summary>
+    public ObservableCollection<string> RoundFilters { get; } = [AllRounds];
+
+    /// <summary>The editor open on the selected proposal, or null.</summary>
+    public TagEditorViewModel? Editor { get; private set; }
+
+    /// <summary>True while the editor is open.</summary>
+    public bool IsEditing => Editor is not null;
+
+    /// <summary>The palette's codes and label groups for the editor; empty when the host has no palette.</summary>
+    public Func<TagVocabulary>? Vocabulary { get; set; }
+
+    /// <summary>The shared clock's tick, for the editor's "set here" buttons.</summary>
+    public Func<int>? Playhead { get; set; }
+
+    /// <summary>Raised when the editor opens or closes.</summary>
+    public event Action? EditorChanged;
     /// <summary>The detector filter's choices: <see cref="AllDetectors" /> then every detector id.</summary>
     public IReadOnlyList<string> DetectorFilters { get; } = [AllDetectors, .. ProposalDetection.All.Select(d => d.Id)];
 
@@ -260,6 +279,24 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     {
         _set = _service is not null && DemoPath is { } path ? _service.Load(path, _sha256) : null;
         _track.SetProposals(_set?.Pending.Select(e => e.Proposal) ?? []);
+        List<string> rounds =
+        [
+            AllRounds,
+            .. (_set?.Pending ?? []).Select(e => e.Proposal.Round).Distinct().Order()
+                .Select(r => string.Create(CultureInfo.InvariantCulture, $"round {r}"))
+        ];
+        if (!RoundFilters.SequenceEqual(rounds, StringComparer.Ordinal))
+        {
+            string keep = RoundFilter;
+            RoundFilters.Clear();
+            foreach (string r in rounds)
+            {
+                RoundFilters.Add(r);
+            }
+
+            RoundFilter = RoundFilters.Contains(keep) ? keep : AllRounds;
+        }
+
         RebuildRows();
         StatusText = Describe();
         OnPropertyChanged(nameof(PendingCount));
@@ -348,7 +385,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
                 BeginEdit();
                 return true;
             case Playback2DAction.SuggestionAcceptAll:
-                IsEditing = false;
+                CloseEditor(keepDraft: true);
                 if (!IsConfirmingAcceptAll)
                 {
                     IsConfirmingAcceptAll = true;
@@ -363,36 +400,49 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         }
     }
 
-    /// <summary>Saves the editor: accepts with the edit (<c>edited: true</c>) and advances.</summary>
-    [RelayCommand]
-    private void SaveEdit()
+    // The editor's save: accepts with the edit (edited, or recoded when the code changed) and advances.
+    private bool SaveDraft(SuggestionRowViewModel row, TagEditorDraft draft)
     {
-        if (_service is null || DemoPath is not { } path || _selected is not { } row || !IsEditing)
+        if (_service is null || DemoPath is not { } path)
         {
-            return;
+            return false;
         }
 
-        if (!TryParseEdit(row, out TagInstanceEdit? edit, out string problem))
-        {
-            StatusText = problem;
-            return;
-        }
-
-        IsEditing = false;
+        TagInstanceEdit edit = new(draft.FromTick, draft.ToTick, draft.Labels, draft.Note,
+            draft.Code, draft.Positions.Count > 0 ? draft.Positions : null);
         string? next = NextIdAfter(row);
-        if (_service.Accept(path, row.Proposal.Id, edit, _sha256))
+        if (!_service.Accept(path, row.Proposal.Id, edit, _sha256))
         {
-            Advance(next);
+            return false;
         }
-        else
-        {
-            StatusText = "The tag could not be written.";
-        }
+
+        _drafts.Remove(row.Proposal.Id);
+        CloseEditor(keepDraft: false);
+        Advance(next);
+        return true;
     }
 
-    /// <summary>Closes the editor without a verdict (Esc).</summary>
+    /// <summary>Closes the editor without a verdict (Esc); what was typed stays as this proposal's draft.</summary>
     [RelayCommand]
-    private void CancelEdit() => IsEditing = false;
+    private void CancelEdit() => CloseEditor(keepDraft: true);
+
+    private void CloseEditor(bool keepDraft)
+    {
+        if (Editor is null)
+        {
+            return;
+        }
+
+        if (keepDraft && _selected is { } row && Editor.Snapshot() is { } draft)
+        {
+            _drafts[row.Proposal.Id] = draft;
+        }
+
+        Editor = null;
+        OnPropertyChanged(nameof(Editor));
+        OnPropertyChanged(nameof(IsEditing));
+        EditorChanged?.Invoke();
+    }
 
     /// <summary>The confirm bar's Accept button.</summary>
     [RelayCommand]
@@ -405,7 +455,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         }
 
         int accepted = _service.AcceptAll(path, MinConfidence,
-            DetectorFilter == AllDetectors ? null : DetectorFilter, _sha256);
+            DetectorFilter == AllDetectors ? null : DetectorFilter, _sha256, RoundOfFilter());
         Reload();
         Select(Rows.FirstOrDefault(), true);
         StatusText = string.Create(CultureInfo.InvariantCulture, $"Accepted {accepted} suggestions.");
@@ -446,6 +496,8 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     }
 
     partial void OnDetectorFilterChanged(string value) => RebuildRows();
+
+    partial void OnRoundFilterChanged(string value) => RebuildRows();
 
     partial void OnMinConfidenceChanged(double value) => RebuildRows();
 
@@ -542,7 +594,8 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         {
             TagProposal p = entry.Proposal;
             if (p.Confidence < MinConfidence
-                || (DetectorFilter != AllDetectors && !string.Equals(p.Detector, DetectorFilter, StringComparison.Ordinal)))
+                || (DetectorFilter != AllDetectors && !string.Equals(p.Detector, DetectorFilter, StringComparison.Ordinal))
+                || (RoundOfFilter() is { } round && p.Round != round))
             {
                 continue;
             }
@@ -575,60 +628,33 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         }
 
         TagProposal p = row.Proposal;
-        double rate = _tickRate() > 0 ? _tickRate() : 64;
-        int origin = row.Entry.RoundStartTick;
-        EditFrom = ((p.FromTick - origin) / rate).ToString("0.##", CultureInfo.InvariantCulture);
-        EditTo = ((p.ToTick - origin) / rate).ToString("0.##", CultureInfo.InvariantCulture);
-        EditLabels = string.Join(", ", p.Labels.OrderBy(l => l.Key, StringComparer.Ordinal).Select(l => $"{l.Key}={l.Value}"));
-        EditNote = "";
-        IsEditing = true;
-    }
-
-    // The editor speaks seconds since the round's freeze end (or since tick 0 when the file carried no
-    // round start) and labels as "group=value" pairs separated by commas.
-    private bool TryParseEdit(SuggestionRowViewModel row, out TagInstanceEdit? edit, out string problem)
-    {
-        edit = null;
-        double rate = _tickRate() > 0 ? _tickRate() : 64;
-        int origin = row.Entry.RoundStartTick;
-        if (!double.TryParse(EditFrom, NumberStyles.Float, CultureInfo.InvariantCulture, out double from)
-            || !double.TryParse(EditTo, NumberStyles.Float, CultureInfo.InvariantCulture, out double to))
-        {
-            problem = "From and to are seconds since freeze end, like 21 or 21.5.";
-            return false;
-        }
-
-        if (to < from)
-        {
-            problem = "The end is before the start.";
-            return false;
-        }
-
-        Dictionary<string, string> labels = new(StringComparer.Ordinal);
-        foreach (string part in EditLabels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            int eq = part.IndexOf('=', StringComparison.Ordinal);
-            if (eq <= 0 || eq == part.Length - 1)
+        TagEditorDraft draft = _drafts.TryGetValue(p.Id, out TagEditorDraft? kept)
+            ? kept.Clone()
+            : new TagEditorDraft
             {
-                problem = $"\"{part}\" is not group=value.";
-                return false;
-            }
-
-            labels[part[..eq].Trim()] = part[(eq + 1)..].Trim();
-        }
-
-        edit = new TagInstanceEdit(
-            origin + (int)Math.Round(from * rate),
-            origin + (int)Math.Round(to * rate),
-            labels,
-            string.IsNullOrWhiteSpace(EditNote) ? null : EditNote.Trim());
-        problem = "";
-        return true;
+                Code = p.Code,
+                FromTick = p.FromTick,
+                ToTick = p.ToTick,
+                Labels = [.. p.Labels.OrderBy(l => l.Key, StringComparer.Ordinal).Select(l => new TagLabel(l.Key, l.Value))]
+            };
+        Editor = new TagEditorViewModel($"Suggested: {row.Title} ({row.RoundText})", draft,
+            Vocabulary?.Invoke() ?? TagVocabulary.Empty, _tickRate(), row.Entry.RoundStartTick,
+            Playhead ?? (() => p.FromTick), null, d => SaveDraft(row, d), null, () => CloseEditor(keepDraft: true));
+        OnPropertyChanged(nameof(Editor));
+        OnPropertyChanged(nameof(IsEditing));
+        EditorChanged?.Invoke();
     }
+
+    // The round the filter names, or null for every round.
+    private int? RoundOfFilter() =>
+        RoundFilter.StartsWith("round ", StringComparison.Ordinal)
+        && int.TryParse(RoundFilter.AsSpan(6), NumberStyles.Integer, CultureInfo.InvariantCulture, out int round)
+            ? round
+            : null;
 
     private void CancelModes()
     {
-        IsEditing = false;
+        CloseEditor(keepDraft: true);
         IsConfirmingAcceptAll = false;
     }
 

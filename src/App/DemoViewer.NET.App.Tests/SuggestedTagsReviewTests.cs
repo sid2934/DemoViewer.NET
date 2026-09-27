@@ -136,7 +136,7 @@ public class SuggestedTagsReviewTests
     {
         using SuggestedTagsReviewHarness h = new();
         h.Build();
-        Dictionary<string, string> labels = new(StringComparer.Ordinal) { ["site"] = "BombsiteA", ["tempo"] = "slow" };
+        List<TagLabel> labels = [new("site", "BombsiteA"), new("tempo", "slow")];
 
         await Assert.That(h.Service.Accept(DemoPath, ExecuteId, new TagInstanceEdit(1500, 2500, labels, "late"))).IsTrue();
 
