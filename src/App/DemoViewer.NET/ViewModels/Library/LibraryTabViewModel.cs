@@ -10,6 +10,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
@@ -152,11 +153,13 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         AvailableTeams.Add(TeamFilterItem.All);
         if (_teams is not null)
         {
-            // Subscribed for the VM's life: a team renamed or merged on the Teams tab must reach this
-            // dropdown before the user comes back to the Library.
+            // Subscribed for the VM's life: a team renamed or merged on the Teams view must reach this
+            // dropdown before the user comes back to the demo browser.
             _teams.Changed += OnTeamsChanged;
             RefreshAvailableTeams();
         }
+
+        Sections.PropertyChanged += OnSectionsChanged;
 
         _library.Entries.CollectionChanged += OnEntriesChanged;
         _library.Folders.CollectionChanged += OnFoldersChanged;
@@ -244,6 +247,48 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public bool HasNoFolders => Folders.Count == 0;
 
     /// <summary>
+    ///     The views the Library hosts behind its Demos / Teams toggle (Teams, from the Teams module). No
+    ///     selection means the demo browser; the shell fills and gates the list.
+    /// </summary>
+    public TabSectionHost Sections { get; } = new(autoSelectFirst: false);
+
+    /// <summary>True while the demo browser shows (no hosted view selected). Settable from the toggle.</summary>
+    public bool IsDemosView
+    {
+        get => !Sections.HasSelection;
+        set
+        {
+            if (value)
+            {
+                Sections.SelectedSection = null;
+            }
+        }
+    }
+
+    /// <summary>True while a hosted view (Teams) shows in place of the demo browser. Settable from the toggle.</summary>
+    public bool IsTeamsView
+    {
+        get => Sections.HasSelection;
+        set
+        {
+            if (value && Sections.Sections.Count > 0)
+            {
+                Sections.SelectedSection = Sections.Sections[0];
+            }
+            else if (!value)
+            {
+                Sections.SelectedSection = null;
+            }
+        }
+    }
+
+    /// <summary>True when the toggle has somewhere to go: a hosted view is enabled.</summary>
+    public bool HasTeamsView => Sections.HasSections;
+
+    /// <summary>The demo browser's own chrome (folder chips, filters) shows only with folders and in the demo view.</summary>
+    public bool ShowDemoChrome => !HasNoFolders && IsDemosView;
+
+    /// <summary>
     ///     True when folders ARE configured but the indexer found zero demos in them (v0.6.0). Without
     ///     this state a user who added an empty folder dropped from the landing hero straight onto a
     ///     blank card grid with no explanation.
@@ -307,10 +352,24 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             _scannedOnce = true;
             _ = _library.RescanAsync();
         }
+
+        Sections.OnHostActivated(context);
     }
 
-    public void OnDeactivated()
+    public void OnDeactivated() => Sections.OnHostDeactivated();
+
+    private void OnSectionsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(TabSectionHost.SelectedSection) or nameof(TabSectionHost.HasSelection))
+        {
+            OnPropertyChanged(nameof(IsDemosView));
+            OnPropertyChanged(nameof(IsTeamsView));
+            OnPropertyChanged(nameof(ShowDemoChrome));
+        }
+        else if (e.PropertyName == nameof(TabSectionHost.HasSections))
+        {
+            OnPropertyChanged(nameof(HasTeamsView));
+        }
     }
 
     /// <summary>
@@ -563,6 +622,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private void OnFoldersChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasNoFolders));
+        OnPropertyChanged(nameof(ShowDemoChrome));
         OnPropertyChanged(nameof(ShowHeaderRecents));
         RaiseEmptyStates();
     }

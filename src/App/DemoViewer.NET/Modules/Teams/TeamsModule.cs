@@ -9,8 +9,8 @@ using DemoViewer.NET.Views.Teams;
 namespace DemoViewer.NET.Modules.Teams;
 
 /// <summary>
-///     The Teams tab module: Team Identity's one home. Contributes one Main-strip tab
-///     (<c>"teams.browser"</c>, after Situations) whose VM lists the teams clustering found, the rosters
+///     The Teams module: Team Identity's one home. Contributes the Teams view the Library tab hosts behind
+///     its Demos / Teams toggle (<c>"teams.browser"</c>) whose VM lists the teams clustering found, the rosters
 ///     and members behind each, the demos per team, and the actions that make team truth the user's:
 ///     rename, set as us, merge, split, start roster, hide, not a team, recompute, and the me accounts.
 ///     <para>
@@ -45,8 +45,8 @@ public sealed class TeamsModule : IWorkspaceModule
         {
             TabId = "teams.browser",
             Header = "Teams",
-            Order = 5, // after Situations (4)
-            Placement = TabPlacement.Main,
+            Order = 0,
+            Placement = TabPlacement.Library,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TeamsTabView()
         };

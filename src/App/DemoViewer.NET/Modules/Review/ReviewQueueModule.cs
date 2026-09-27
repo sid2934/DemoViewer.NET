@@ -11,7 +11,8 @@ using DemoViewer.NET.Views.Review;
 namespace DemoViewer.NET.Modules.Review;
 
 /// <summary>
-///     The Review Queue module: one Main-strip tab (<c>"review.queue"</c>, after Teams) over the shared
+///     The Review Queue module: the Review section of the Strat Book tab's rail (<c>"review.queue"</c>,
+///     after Utility) over the shared
 ///     <see cref="ReviewQueue" /> that the Reels tray, Result Cards, a Matrix cell and a
 ///     pick at the playhead all send clips to.
 ///     <para>
@@ -26,7 +27,7 @@ namespace DemoViewer.NET.Modules.Review;
 ///     </para>
 ///     <para>
 ///         <b>The badge</b> is the clip count, driven by the queue rather than the VM, so clips sent
-///         from another tab show on the header before the Review tab is ever opened.
+///         from another surface show on the rail item before the Review section is ever opened.
 ///     </para>
 /// </summary>
 public sealed class ReviewQueueModule : IWorkspaceModule
@@ -63,8 +64,8 @@ public sealed class ReviewQueueModule : IWorkspaceModule
         {
             TabId = TabId,
             Header = "Review",
-            Order = 6, // after Teams (5)
-            Placement = TabPlacement.Main,
+            Order = 4, // after Utility (3)
+            Placement = TabPlacement.StratBook,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new ReviewQueueTabView()
         };
