@@ -116,47 +116,50 @@ public static class StratMiner
     private static double PairingCost(IReadOnlyList<MinedPawn> a, IReadOnlyList<MinedPawn> b)
     {
         (IReadOnlyList<MinedPawn> small, IReadOnlyList<MinedPawn> large) = a.Count <= b.Count ? (a, b) : (b, a);
-        double[,] cost = new double[small.Count, large.Count];
-        for (int i = 0; i < small.Count; i++)
+        int rows = small.Count;
+        int cols = large.Count;
+        Span<double> cost = rows * cols <= 64 ? stackalloc double[64] : new double[rows * cols];
+        Span<bool> used = cols <= 64 ? stackalloc bool[64] : new bool[cols];
+        used = used[..cols];
+        used.Clear();
+        for (int i = 0; i < rows; i++)
         {
-            for (int j = 0; j < large.Count; j++)
+            for (int j = 0; j < cols; j++)
             {
                 double dx = small[i].X - large[j].X, dy = small[i].Y - large[j].Y, dz = small[i].Z - large[j].Z;
-                cost[i, j] = Math.Min(1, Math.Sqrt(dx * dx + dy * dy + dz * dz) / PositionScale);
+                cost[i * cols + j] = Math.Min(1, Math.Sqrt(dx * dx + dy * dy + dz * dz) / PositionScale);
             }
         }
 
         double best = double.PositiveInfinity;
-        bool[] used = new bool[large.Count];
+        Assign(cost, rows, cols, used, 0, 0, ref best);
+        return (best + (cols - rows)) / cols;
+    }
 
-        void Assign(int i, double acc)
+    private static void Assign(ReadOnlySpan<double> cost, int rows, int cols, Span<bool> used, int i, double acc, ref double best)
+    {
+        if (acc >= best)
         {
-            if (acc >= best)
-            {
-                return;
-            }
-
-            if (i == small.Count)
-            {
-                best = acc;
-                return;
-            }
-
-            for (int j = 0; j < large.Count; j++)
-            {
-                if (used[j])
-                {
-                    continue;
-                }
-
-                used[j] = true;
-                Assign(i + 1, acc + cost[i, j]);
-                used[j] = false;
-            }
+            return;
         }
 
-        Assign(0, 0);
-        return (best + (large.Count - small.Count)) / large.Count;
+        if (i == rows)
+        {
+            best = acc;
+            return;
+        }
+
+        for (int j = 0; j < cols; j++)
+        {
+            if (used[j])
+            {
+                continue;
+            }
+
+            used[j] = true;
+            Assign(cost, rows, cols, used, i + 1, acc + cost[i * cols + j], ref best);
+            used[j] = false;
+        }
     }
 
     /// <summary>
@@ -166,12 +169,24 @@ public static class StratMiner
     ///     threw nothing are alike.
     /// </summary>
     public static double UtilitySimilarity(IReadOnlyList<MinedThrow> a, IReadOnlyList<MinedThrow> b) =>
-        a.Count + b.Count == 0 ? 1 : 2.0 * Pairs(a, b).Count / (a.Count + b.Count);
+        a.Count + b.Count == 0 ? 1 : 2.0 * PairCount(a, b) / (a.Count + b.Count);
 
     /// <summary>The matched throws of two rounds as index pairs, the closest first.</summary>
     public static List<(int A, int B)> Pairs(IReadOnlyList<MinedThrow> a, IReadOnlyList<MinedThrow> b)
     {
-        List<(double Cost, int A, int B)> candidates = [];
+        List<(int, int)> pairs = [];
+        Match(a, b, pairs);
+        return pairs;
+    }
+
+    private static int PairCount(IReadOnlyList<MinedThrow> a, IReadOnlyList<MinedThrow> b) => Match(a, b, null);
+
+    // Greedy over the candidates sorted by (cost, A, B), a total order, so the pairing is deterministic.
+    private static int Match(IReadOnlyList<MinedThrow> a, IReadOnlyList<MinedThrow> b, List<(int, int)>? pairs)
+    {
+        int size = a.Count * b.Count;
+        Span<(double Cost, int A, int B)> candidates = size <= 128 ? stackalloc (double, int, int)[128] : new (double, int, int)[size];
+        int n = 0;
         for (int i = 0; i < a.Count; i++)
         {
             for (int j = 0; j < b.Count; j++)
@@ -195,15 +210,23 @@ public static class StratMiner
                     cost -= 0.5;
                 }
 
-                candidates.Add((cost, i, j));
+                candidates[n++] = (cost, i, j);
             }
         }
 
-        candidates.Sort((x, y) => x.Cost != y.Cost ? x.Cost.CompareTo(y.Cost)
+        if (n == 0)
+        {
+            return 0;
+        }
+
+        candidates = candidates[..n];
+        candidates.Sort(static (x, y) => x.Cost != y.Cost ? x.Cost.CompareTo(y.Cost)
             : x.A != y.A ? x.A.CompareTo(y.A) : x.B.CompareTo(y.B));
-        bool[] takenA = new bool[a.Count];
-        bool[] takenB = new bool[b.Count];
-        List<(int, int)> pairs = [];
+        Span<bool> takenA = a.Count <= 64 ? stackalloc bool[64] : new bool[a.Count];
+        Span<bool> takenB = b.Count <= 64 ? stackalloc bool[64] : new bool[b.Count];
+        takenA.Clear();
+        takenB.Clear();
+        int count = 0;
         foreach ((_, int i, int j) in candidates)
         {
             if (takenA[i] || takenB[j])
@@ -212,10 +235,11 @@ public static class StratMiner
             }
 
             takenA[i] = takenB[j] = true;
-            pairs.Add((i, j));
+            pairs?.Add((i, j));
+            count++;
         }
 
-        return pairs;
+        return count;
     }
 
     /// <summary>
@@ -230,17 +254,18 @@ public static class StratMiner
     {
         ArgumentNullException.ThrowIfNull(signatures);
         List<MinedPattern> patterns = [];
+        Scratch scratch = new();
         IEnumerable<IGrouping<string, RoundSignature>> groups = DropCopies(signatures)
             .GroupBy(s => $"{s.Map.ToLowerInvariant()}|{s.Side}|{s.Kind}|{s.Site}", StringComparer.Ordinal)
             .OrderBy(g => g.Key, StringComparer.Ordinal);
         foreach (IGrouping<string, RoundSignature> group in groups)
         {
             List<RoundSignature> members = [.. group.OrderBy(s => s.Key, StringComparer.Ordinal)];
-            foreach (List<int> cluster in CompleteLinkage(members, cutoff))
+            foreach (List<int> cluster in CompleteLinkage(members, cutoff, scratch))
             {
                 if (cluster.Count >= minSupport)
                 {
-                    patterns.Add(ToPattern([.. cluster.Select(i => members[i])]));
+                    patterns.Add(ToPattern([.. cluster.Select(i => members[i])], scratch));
                 }
             }
         }
@@ -288,16 +313,17 @@ public static class StratMiner
 
     // Merges the closest pair of clusters until none is closer than the cut. A cluster's distance to another
     // is its farthest pair, so a merged cluster's row is the elementwise max of the two it replaced.
-    private static List<List<int>> CompleteLinkage(List<RoundSignature> items, double cutoff)
+    // The matrix is scratch shared across groups; its diagonal is stale and never read.
+    private static List<List<int>> CompleteLinkage(List<RoundSignature> items, double cutoff, Scratch scratch)
     {
         int n = items.Count;
-        float[,] d = new float[n, n];
+        float[] d = scratch.Linkage(n);
         for (int i = 0; i < n; i++)
         {
             for (int j = i + 1; j < n; j++)
             {
                 double value = Distance(items[i], items[j]);
-                d[i, j] = d[j, i] = double.IsInfinity(value) ? float.PositiveInfinity : (float)value;
+                d[i * n + j] = d[j * n + i] = double.IsInfinity(value) ? float.PositiveInfinity : (float)value;
             }
         }
 
@@ -314,9 +340,9 @@ public static class StratMiner
             float best = float.PositiveInfinity;
             for (int i = 0; i < n; i++)
             {
-                if (clusters[i] is not null && nearest[i] >= 0 && d[i, nearest[i]] < best)
+                if (clusters[i] is not null && nearest[i] >= 0 && d[i * n + nearest[i]] < best)
                 {
-                    best = d[i, nearest[i]];
+                    best = d[i * n + nearest[i]];
                     a = i;
                 }
             }
@@ -334,7 +360,7 @@ public static class StratMiner
             {
                 if (k != keep && clusters[k] is not null)
                 {
-                    d[keep, k] = d[k, keep] = Math.Max(d[keep, k], d[drop, k]);
+                    d[keep * n + k] = d[k * n + keep] = Math.Max(d[keep * n + k], d[drop * n + k]);
                 }
             }
 
@@ -355,9 +381,9 @@ public static class StratMiner
             float min = float.PositiveInfinity;
             for (int k = 0; k < n; k++)
             {
-                if (k != i && clusters[k] is not null && d[i, k] < min)
+                if (k != i && clusters[k] is not null && d[i * n + k] < min)
                 {
-                    min = d[i, k];
+                    min = d[i * n + k];
                     arg = k;
                 }
             }
@@ -366,17 +392,18 @@ public static class StratMiner
         }
     }
 
-    private static MinedPattern ToPattern(List<RoundSignature> members)
+    private static MinedPattern ToPattern(List<RoundSignature> members, Scratch scratch)
     {
         int n = members.Count;
-        double[,] d = new double[n, n];
+        double[] d = scratch.Members(n);
         double spread = 0;
         for (int i = 0; i < n; i++)
         {
+            d[i * n + i] = 0;
             for (int j = i + 1; j < n; j++)
             {
-                d[i, j] = d[j, i] = Distance(members[i], members[j]);
-                spread = Math.Max(spread, d[i, j]);
+                d[i * n + j] = d[j * n + i] = Distance(members[i], members[j]);
+                spread = Math.Max(spread, d[i * n + j]);
             }
         }
 
@@ -387,7 +414,7 @@ public static class StratMiner
             double sum = 0;
             for (int j = 0; j < n; j++)
             {
-                sum += d[i, j];
+                sum += d[i * n + j];
             }
 
             if (sum < bestSum)
@@ -403,9 +430,9 @@ public static class StratMiner
         [
             .. Enumerable.Range(0, n)
                 .OrderBy(i => i == medoid ? 0 : 1)
-                .ThenBy(i => d[medoid, i])
+                .ThenBy(i => d[medoid * n + i])
                 .ThenBy(i => members[i].Key, StringComparer.Ordinal)
-                .Select(i => Member(members[i], d[medoid, i]))
+                .Select(i => Member(members[i], d[medoid * n + i]))
         ];
 
         return new MinedPattern
@@ -477,6 +504,17 @@ public static class StratMiner
         string text = string.Join("|", medoid.Map.ToLowerInvariant(), medoid.Side, medoid.Kind, medoid.Site ?? "",
             string.Join(",", throws), string.Join(",", places));
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)).AsSpan(0, 8));
+    }
+
+    // One mine's distance matrices, grown to the largest group and reused for the rest.
+    private sealed class Scratch
+    {
+        private float[] _linkage = [];
+        private double[] _members = [];
+
+        public float[] Linkage(int n) => _linkage.Length >= n * n ? _linkage : _linkage = new float[n * n];
+
+        public double[] Members(int n) => _members.Length >= n * n ? _members : _members = new double[n * n];
     }
 
     private static string Cell(WorldPoint p) => string.Create(CultureInfo.InvariantCulture,
