@@ -41,10 +41,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // How many terminal items linger in the mirror for UI feedback before the oldest are pruned.
     private const int TerminalHistoryCap = 30;
 
+    // A drain followed at once by more work must not pay a blocking full GC per job.
+    private static readonly TimeSpan MinDrainCompactInterval = TimeSpan.FromSeconds(30);
+
     // Diagnostics-pillar logger (v0.6.0: replaced Console.WriteLine). Lazy (the ambient factory is
     // wired after construction) and static so the static SafeInvoke helper can log through it.
     private static ILogger? _diagLog;
 
+    private readonly Func<Task> _compactHeap;
     private readonly List<Entry> _entries = [];
     private readonly HeavyJobGate _gate;
     private readonly ObservableCollection<DemoQueueItem> _items = [];
@@ -57,9 +61,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // would throw ObjectDisposedException). The captured struct stays valid post-dispose.
     private readonly CancellationToken _shutdownToken;
     private readonly object _sync = new();
+    private readonly TimeProvider _time;
     private int _activeWorkers;
     private bool _backgroundEnabled = true;
     private bool _disposed;
+    private int _jobsSinceCompact;
+    private DateTimeOffset? _lastCompact;
 
     private int _maxConcurrency = 1;
     private int _maxQueueSize = 200;
@@ -69,23 +76,31 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     /// <param name="gate">The machine-wide heavy-parse gate (concurrency backstop + reel/interactive).</param>
     /// <param name="post">Marshals mirror mutations to the UI thread (inline in tests).</param>
     /// <param name="parseFile">
-    ///     Test seam: the background read+parse step (default reads the file and
-    ///     calls <c>DemoParser.Parse</c>).
+    ///     Test seam: the background read+parse step (default <see cref="ParseFileDefault" />).
     /// </param>
     /// <param name="parseBytes">
     ///     Test seam: the foreground in-hand-bytes parse (default
     ///     <c>DemoParser.Parse</c>).
     /// </param>
+    /// <param name="compactHeap">
+    ///     Test seam: the compaction run when the queue drains (default <see cref="HeapCompactor.CompactAsync" />
+    ///     inside a background gate slot).
+    /// </param>
+    /// <param name="timeProvider">Test seam: the clock for the drain-compaction throttle.</param>
     public DemoProcessingQueue(
         HeavyJobGate gate,
         Action<Action>? post = null,
         Func<string, ParsedDemo>? parseFile = null,
-        Func<ReadOnlyMemory<byte>, ParsedDemo>? parseBytes = null)
+        Func<ReadOnlyMemory<byte>, ParsedDemo>? parseBytes = null,
+        Func<Task>? compactHeap = null,
+        TimeProvider? timeProvider = null)
     {
         _gate = gate;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
-        _parseFile = parseFile ?? (path => DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
+        _parseFile = parseFile ?? ParseFileDefault;
         _parseBytes = parseBytes ?? (bytes => DemoParser.Parse(bytes));
+        _compactHeap = compactHeap ?? CompactInBackgroundSlotAsync;
+        _time = timeProvider ?? TimeProvider.System;
         _shutdownToken = _shutdown.Token;
         Items = new ReadOnlyObservableCollection<DemoQueueItem>(_items);
         _gate.MaxConcurrency = _maxConcurrency;
@@ -93,7 +108,29 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
 
+    /// <summary>
+    ///     The background parse. Maps the file instead of reading it into one LOH-sized array; the
+    ///     mapping is released before this returns and the <see cref="ParsedDemo" /> holds no view of it.
+    ///     Browser has no memory mapping and keeps the byte[] path.
+    /// </summary>
+    internal static ParsedDemo ParseFileDefault(string path) =>
+        OperatingSystem.IsBrowser()
+            ? DemoParser.Parse(File.ReadAllBytes(path).AsMemory())
+            : MemoryMappedDemoSource.ParseFile(path);
+
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }
+
+    // Test seam: a worker decrements this only after its last drain check.
+    internal int ActiveWorkerCount
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _activeWorkers;
+            }
+        }
+    }
 
     public event Action? Changed;
     public event Action? CapacityAvailable;
@@ -353,6 +390,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (freedQueueSlot)
         {
             RaiseCapacityAvailable(); // a queued slot opened → feeders may re-submit their backlog
+            CompactIfDrained();
         }
     }
 
@@ -389,6 +427,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (freedQueueSlot)
         {
             RaiseCapacityAvailable();
+            CompactIfDrained();
         }
     }
 
@@ -466,18 +505,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     continue; // work vanished / paused after the top check, re-evaluate, maybe exit
                 }
 
-                ParsedDemo? parsed = null;
-                Exception? failure = null;
-                try
-                {
-                    parsed = _parseFile(entry.Path);
-                }
-                catch (Exception ex)
-                {
-                    failure = ex;
-                }
-
-                FinishEntry(entry, parsed, failure); // runs handlers OUTSIDE _sync, still inside the slot
+                RunEntry(entry);
+                CompactIfDrained();
             }
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
@@ -493,6 +522,76 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 PumpLocked(); // work may have arrived during teardown
             }
         }
+    }
+
+    // Must stay synchronous: a local of the async worker loop is hoisted into its state machine, which
+    // would root the ParsedDemo while the worker waits for the next slot.
+    private void RunEntry(Entry entry)
+    {
+        ParsedDemo? parsed = null;
+        Exception? failure = null;
+        try
+        {
+            parsed = _parseFile(entry.Path);
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        FinishEntry(entry, parsed, failure); // runs handlers OUTSIDE _sync, still inside the slot
+
+        lock (_sync)
+        {
+            _jobsSinceCompact++;
+        }
+    }
+
+    // Never call from inside RunEntry or FinishEntry: the finished demo must be off every stack frame.
+    // At most once per MinDrainCompactInterval, and only if a job finished since the last compaction.
+    private void CompactIfDrained()
+    {
+        lock (_sync)
+        {
+            if (_disposed || _jobsSinceCompact == 0 || _entries.Any(IsActive))
+            {
+                return;
+            }
+
+            DateTimeOffset now = _time.GetUtcNow();
+            if (_lastCompact is { } last && now - last < MinDrainCompactInterval)
+            {
+                return;
+            }
+
+            _jobsSinceCompact = 0;
+            _lastCompact = now;
+        }
+
+        _ = CompactSafeAsync();
+    }
+
+    private async Task CompactSafeAsync()
+    {
+        try
+        {
+            await _compactHeap().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            // Shutdown while waiting for the slot.
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(DiagLog, "Queue drain heap compaction", ex);
+        }
+    }
+
+    // The blocking gen2 takes a background slot so it yields to an interactive open, a reel or an export.
+    private async Task CompactInBackgroundSlotAsync()
+    {
+        using IDisposable slot = await _gate.AcquireBackgroundAsync(_shutdownToken).ConfigureAwait(false);
+        await HeapCompactor.CompactAsync().ConfigureAwait(false);
     }
 
     // Highest priority, then newest OrderHint, then FIFO seq. Marks the winner Running under the lock.
@@ -589,6 +688,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         entry.State = state;
         entry.Error = error;
         entry.Completion.TrySetResult();
+        // A waiter's task holds the ParsedDemo; history entries must not keep it reachable.
+        entry.ForegroundWaiters.Clear();
         PruneTerminalHistoryLocked();
     }
 
