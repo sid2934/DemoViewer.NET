@@ -46,6 +46,12 @@ public sealed class DemoSideInput
     /// <summary>The assignment order: file date until a real match date exists.</summary>
     public long OrderTicks { get; init; }
 
+    /// <summary>The effective <c>DemoSourceKind</c> by name (<see cref="TeamSourcePolicy.EffectiveKind" />), or null when unknown.</summary>
+    public string? SourceKind { get; init; }
+
+    /// <summary>Both end-of-demo sides carried a clan tag.</summary>
+    public bool BothClanTags => T.Clan is not null && Ct.Clan is not null;
+
     public required SideInput T { get; init; }
 
     public required SideInput Ct { get; init; }
@@ -59,6 +65,7 @@ public sealed class DemoSideInput
     public bool SameSides(DemoSideInput other) =>
         OrderTicks == other.OrderTicks
         && string.Equals(Sha256, other.Sha256, StringComparison.Ordinal)
+        && string.Equals(SourceKind, other.SourceKind, StringComparison.Ordinal)
         && T.Key.SequenceEqual(other.T.Key, StringComparer.Ordinal)
         && Ct.Key.SequenceEqual(other.Ct.Key, StringComparer.Ordinal)
         && string.Equals(T.Clan, other.T.Clan, StringComparison.Ordinal)
@@ -122,6 +129,7 @@ public static class SideKeys
             Path = record.Path,
             Sha256 = record.Sha256,
             OrderTicks = record.ModifiedTicks,
+            SourceKind = TeamSourcePolicy.EffectiveKind(record.SourceKind, record.Server).ToString(),
             T = Side(record, 2),
             Ct = Side(record, 3)
         };
@@ -139,6 +147,7 @@ public static class SideKeys
             Path = row.Path,
             Sha256 = row.Sha256,
             OrderTicks = row.OrderTicks,
+            SourceKind = row.SourceKind,
             T = FromRow(row.Side(2)),
             Ct = FromRow(row.Side(3))
         };

@@ -1022,11 +1022,26 @@ public class App : Application
         // user's teams.json beside settings.json and the derived team-index.json under cache/; the
         // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.
         // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
-        services.AddSingleton(sp => new TeamIdentityService(
-            AppPaths.ConfigRoot,
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IRoundFactsSource>(),
-            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp =>
+        {
+            TeamIdentityService teams = new(
+                AppPaths.ConfigRoot,
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<IRoundFactsSource>(),
+                action => Dispatcher.UIThread.Post(action));
+            // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
+            // UI thread and mutate there, so reading them in their own Changed is safe.
+            StratStore strats = sp.GetRequiredService<StratStore>();
+            DossierNotesStore notes = sp.GetRequiredService<DossierNotesStore>();
+            VetoHistoryStore vetoes = sp.GetRequiredService<VetoHistoryStore>();
+            void Report() => teams.SetReferencedTeams(
+                strats.Index.Select(e => e.Owner.TeamId).OfType<Guid>().Concat(notes.TeamIds).Concat(vetoes.TeamIds));
+            Report();
+            strats.Changed += _ => Report();
+            notes.Changed += Report;
+            vetoes.Changed += Report;
+            return teams;
+        });
         // Demo Provenance Labels: the override from teams.json else the heuristic over the cache row and
         // the assignment. No store of its own; it re-raises the two stores' Changed on the UI thread.
         services.AddSingleton(sp => new DemoProvenanceSource(

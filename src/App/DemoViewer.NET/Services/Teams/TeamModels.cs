@@ -62,6 +62,17 @@ public sealed class Roster
 
     [JsonIgnore]
     public bool HasCoreLineup => CoreLineup is { Count: 5 };
+
+    /// <summary>
+    ///     A squad: the players the user says are their team, two to five of them, fixed until the user
+    ///     edits it. The anchor when set. A side matches when at least min(3, squad size) of them play, so
+    ///     a trio needs all three and the other seats are fills. Never stamped with stand-ins, never given
+    ///     a fixed five: queue groups are not Valve rosters.
+    /// </summary>
+    public List<string>? Squad { get; set; }
+
+    [JsonIgnore]
+    public bool IsSquad => Squad is { Count: > 0 };
 }
 
 /// <summary>A team: user-owned continuity over one or more rosters.</summary>
@@ -174,6 +185,9 @@ public sealed class TeamsFile
     /// <summary>Demo Provenance Labels' user overrides. Additive: a file written before the section reads empty.</summary>
     public ProvenanceSection Provenance { get; set; } = new();
 
+    /// <summary>Suggestion ids the user dismissed, so the same suggestion is not asked again. Additive.</summary>
+    public List<string> DismissedSuggestions { get; set; } = [];
+
     /// <summary>Both team files share one serializer shape: camel case, enums by name, indented.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()
     {
@@ -203,7 +217,7 @@ public sealed class TeamIndexSide
 
     public int Overlap { get; set; }
 
-    /// <summary>1 = matched a fixed five, 2 = matched an extended core, 0 = unaffiliated or overridden.</summary>
+    /// <summary>1 = matched a fixed five, 2 = matched an extended core, 3 = matched a squad, 0 = unaffiliated or overridden.</summary>
     public int Tier { get; set; }
 
     /// <summary>Overlap 3 or 4 with a member outside the anchor. Stored at both tiers, surfaced at tier 1.</summary>
@@ -225,6 +239,12 @@ public sealed class TeamIndexDemo
 
     /// <summary><c>DemoCacheRecord.ModifiedTicks</c> until a real match date exists.</summary>
     public long OrderTicks { get; set; }
+
+    /// <summary>The effective <c>DemoSourceKind</c> by name, what the source gate reads on a rebuild from this file.</summary>
+    public string? SourceKind { get; set; }
+
+    /// <summary>False when the source gate kept clustering from founding or growing teams on this demo.</summary>
+    public bool Tracked { get; set; } = true;
 
     /// <summary>Keyed "2" and "3": the end-of-demo sides.</summary>
     public Dictionary<string, TeamIndexSide> Sides { get; set; } = [];
@@ -269,7 +289,8 @@ public sealed class TeamIndexUnaffiliated
 /// </summary>
 public sealed class TeamIndexFile
 {
-    public const int CurrentSchema = 1;
+    // 2: rows carry the source kind the gate reads; a library indexed at 1 rebuilds once.
+    public const int CurrentSchema = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchema;
 
@@ -289,7 +310,7 @@ public sealed class TeamIndexFile
 /// <param name="TeamId">The team, or null when unaffiliated.</param>
 /// <param name="RosterId">The roster within the team, or null.</param>
 /// <param name="Overlap">Members shared with the anchor.</param>
-/// <param name="Tier">1 = fixed five, 2 = extended core, 0 = unaffiliated or overridden.</param>
+/// <param name="Tier">1 = fixed five, 2 = extended core, 3 = squad, 0 = unaffiliated or overridden.</param>
 /// <param name="StandIn">Overlap 3 or 4 with a member outside the anchor.</param>
 public sealed record SideAssignment(
     IReadOnlyList<string> Key, Guid? TeamId, string? RosterId, int Overlap, int Tier, bool StandIn)

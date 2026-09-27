@@ -44,6 +44,9 @@ public sealed class DossierNotesStore
     /// <summary>Why the file could not be read, or null. While set the file is never written.</summary>
     public string? FileProblem { get; private set; }
 
+    /// <summary>Every team this store holds something for; Team Identity keeps these through a rebuild.</summary>
+    public IReadOnlyList<Guid> TeamIds => [.. _teams.Select(t => t.TeamId).Distinct()];
+
     /// <summary>Raised on the calling thread after every mutation that changed something.</summary>
     public event Action? Changed;
 
