@@ -255,7 +255,7 @@ public static class StratMiner
     }
 
     /// <summary>Rounds of two demos this close (same round number, side and kind) are one demo copied.</summary>
-    public const double CopyDistance = 0.03;
+    public const double CopyDistance = 0.02;
 
     /// <summary>
     ///     Drops a round that repeats another demo's round: same map, round number, side and kind and every

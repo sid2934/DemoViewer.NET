@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Teams;
 using TUnit.Core.Exceptions;
@@ -62,6 +63,7 @@ public class StratMiningCalibration
             Console.WriteLine($"[mine] cutoff {cutoff:0.00}: {patterns.Count} patterns in {ms} ms, same-demo back-to-back pairs {backToBack}; {line}");
         }
 
+        await Promote(demoCache, positions, sources, grenades, teams);
         IReadOnlyList<MinedPattern> chosen = StratMiner.Mine(signatures);
         foreach (MinedPattern p in chosen.Where(p => p.Spread < 0.05).Take(4))
         {
@@ -74,6 +76,34 @@ public class StratMiningCalibration
             string places = string.Join(",", p.Medoid.Anchors[0].Select(a => a.Place ?? "?").Order());
             string teamNames = string.Join("/", p.Teams.Select(t => teams.AllTeams.FirstOrDefault(x => x.Id == t)?.Name ?? "?"));
             Console.WriteLine($"[mine] {p.Map} {(p.Side == 2 ? "T" : "CT")} {p.Kind} {p.Site} support={p.Support} demos={p.Demos} won={p.Wins} spread={p.Spread:0.00} util={p.UtilityCompared} teams={teamNames} take={p.Medoid.AnchorSeconds:0}s places=[{places}] common=[{common}]");
+        }
+    }
+
+    private static async Task Promote(DemoCacheStore demoCache, RoundIndexStore positions, RoundIndexPlaceSources sources,
+        GrenadeIndex grenades, TeamIdentityService teams)
+    {
+        using StratMiningService service = new(demoCache, positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
+            null, null, run: a =>
+            {
+                a();
+                return Task.CompletedTask;
+            }) { QuietDelay = Timeout.InfiniteTimeSpan };
+        Stopwatch watch = Stopwatch.StartNew();
+        await service.MineAsync();
+        Console.WriteLine($"[mine] service mine {watch.ElapsedMilliseconds} ms, {service.Patterns.Count} patterns");
+        foreach (MinedPattern p in service.Patterns.Select(d => d.Pattern).Where(p => p.UtilityCompared).Take(4)
+                     .Concat(service.Patterns.Select(d => d.Pattern).Where(p => p.Kind == PatternKind.Execute).Take(2)))
+        {
+            StratDocument? doc = service.Build(p, StratOwner.Me(), DateTime.UtcNow);
+            if (doc is null)
+            {
+                Console.WriteLine($"[mine] build failed for {p.Key}");
+                continue;
+            }
+
+            int refusals = StratValidator.Validate(doc).Count(i => i.Severity == StratIssueSeverity.Refusal);
+            string verbs = string.Join(",", doc.Steps.GroupBy(s => s.Verb).Select(g => $"{g.Key}:{g.Count()}"));
+            Console.WriteLine($"[mine] strat \"{doc.Name}\" type={doc.Type} site={doc.TargetSite} eco={doc.Economy} tempo={doc.Tempo} steps={doc.Steps.Count} [{verbs}] refusals={refusals} | {doc.Notes}");
         }
     }
 

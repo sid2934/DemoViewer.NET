@@ -1,0 +1,424 @@
+#region
+
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Teams;
+
+#endregion
+
+namespace DemoViewer.NET.Services.Strats.Mining;
+
+/// <summary>A pattern as the inbox lists it: whether the user dismissed it, and the strat it became.</summary>
+public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId);
+
+/// <summary>
+///     Strat Mining's inbox (owner, 2026-09-27): mines the library from cached files, keeps what it found, and turns
+///     a pattern into a strat only when the user promotes it.
+///     <para>
+///         Two files. <c>&lt;cache&gt;/strat-mining/detected.json</c> is derived and rebuilt by every mine;
+///         <c>&lt;config&gt;/strat-mining.json</c> is user truth (dismissed and promoted pattern keys), so a re-mine
+///         never brings back what the user put away. Null roots keep both in memory.
+///     </para>
+///     <para>
+///         After the first mine, a change to the demo cache or the Grenade Index re-mines once things go quiet
+///         for <see cref="QuietDelay" />: the quiet re-mine after new demos finish indexing.
+///     </para>
+/// </summary>
+public sealed class StratMiningService : IDisposable
+{
+    /// <summary>The detected file's shape version.</summary>
+    public const int SchemaVersion = 1;
+
+    /// <summary>The tag code a mined T setup's runs carry; an execute's is the palette's site code.</summary>
+    public const string DefaultCode = "Default";
+
+    /// <summary>The tag code a mined CT setup's runs carry.</summary>
+    public const string SetupCode = "Setup";
+
+    /// <summary>The provenance detector name on a promoted pattern's runs.</summary>
+    public const string Detector = "strat-mining";
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+
+    private readonly DemoCacheStore _demoCache;
+    private readonly string? _detectedPath;
+    private readonly Func<string?, string> _fingerprintFor;
+    private readonly object _gate = new();
+    private readonly GrenadeIndex? _grenadeIndex;
+    private readonly RoundIndexStore _positions;
+    private readonly Action<Action> _post;
+    private readonly Func<Action, Task> _run;
+    private readonly RoundSignatureBuilder _signatures;
+    private readonly string? _statePath;
+    private readonly StratStore _strats;
+    private readonly TagStore? _tags;
+    private readonly TeamIdentityService? _teams;
+    private Timer? _quiet;
+    private bool _rerun;
+    private bool _running;
+    private MiningState _state = new();
+
+    /// <param name="demoCache">Records, Round Facts and the cache events a quiet re-mine follows.</param>
+    /// <param name="positions">The round positions files.</param>
+    /// <param name="fingerprintFor">The positions fingerprint per map.</param>
+    /// <param name="grenadeIndex">The Grenade Index; null mines positions only.</param>
+    /// <param name="teams">Team Identity; null leaves every pattern unowned.</param>
+    /// <param name="strats">Where a promoted pattern is saved.</param>
+    /// <param name="tags">Where a promoted pattern's runs are written; null writes none.</param>
+    /// <param name="cacheRoot">The demo cache directory; null keeps the detected patterns in memory.</param>
+    /// <param name="configRoot">The config root; null keeps dismissals and promotions in memory.</param>
+    /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
+    /// <param name="run">Runs a mine off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
+    public StratMiningService(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
+        GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
+        string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null)
+    {
+        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(positions);
+        ArgumentNullException.ThrowIfNull(fingerprintFor);
+        ArgumentNullException.ThrowIfNull(strats);
+        _demoCache = demoCache;
+        _positions = positions;
+        _fingerprintFor = fingerprintFor;
+        _grenadeIndex = grenadeIndex;
+        _teams = teams;
+        _strats = strats;
+        _tags = tags;
+        _detectedPath = cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "detected.json");
+        _statePath = configRoot is null ? null : Path.Combine(configRoot, "strat-mining.json");
+        _post = post ?? (action => action());
+        _run = run ?? Task.Run;
+        _signatures = new RoundSignatureBuilder(demoCache, positions, fingerprintFor,
+            grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams);
+        Load();
+        _demoCache.Changed += OnSourceChanged;
+        if (_grenadeIndex is not null)
+        {
+            _grenadeIndex.Changed += OnSourceChanged;
+        }
+    }
+
+    /// <summary>How long the cache has to stay quiet before a re-mine; <see cref="Timeout.InfiniteTimeSpan" /> turns it off.</summary>
+    public TimeSpan QuietDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Every pattern the last mine found, the largest first; a dismissed one is flagged, not removed.</summary>
+    public IReadOnlyList<DetectedPattern> Patterns { get; private set; } = [];
+
+    /// <summary>When the last mine finished; null before the first.</summary>
+    public DateTime? MinedUtc { get; private set; }
+
+    /// <summary>True while a mine is running.</summary>
+    public bool IsMining
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _running;
+            }
+        }
+    }
+
+    /// <summary>Demos the last mine read and rounds it compared.</summary>
+    public (int Demos, int Rounds) LastRead { get; private set; }
+
+    public void Dispose()
+    {
+        _demoCache.Changed -= OnSourceChanged;
+        if (_grenadeIndex is not null)
+        {
+            _grenadeIndex.Changed -= OnSourceChanged;
+        }
+
+        _quiet?.Dispose();
+    }
+
+    /// <summary>Raised on the UI thread when the patterns or their flags change.</summary>
+    public event Action? Changed;
+
+    /// <summary>Mines the library. A call while a mine runs queues one more pass of it and returns at once.</summary>
+    public Task MineAsync()
+    {
+        lock (_gate)
+        {
+            if (_running)
+            {
+                _rerun = true;
+                return Task.CompletedTask;
+            }
+
+            _running = true;
+        }
+
+        return _run(MineLoop);
+    }
+
+    private void MineLoop()
+    {
+        while (true)
+        {
+            IReadOnlyList<RoundSignature> signatures = [];
+            IReadOnlyList<MinedPattern> patterns = [];
+            try
+            {
+                signatures = _signatures.Build();
+                patterns = StratMiner.Mine(signatures);
+                Save(patterns);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                // A file mid-write: the next mine reads it.
+            }
+
+            int demos = signatures.Select(s => s.DemoPath).Distinct(StringComparer.Ordinal).Count();
+            _post(() =>
+            {
+                MinedUtc = DateTime.UtcNow;
+                LastRead = (demos, signatures.Count);
+                Publish(patterns);
+            });
+
+            lock (_gate)
+            {
+                if (!_rerun)
+                {
+                    _running = false;
+                    return;
+                }
+
+                _rerun = false;
+            }
+        }
+    }
+
+    /// <summary>Hides a pattern from the inbox for good, across re-mines.</summary>
+    /// <param name="key"><see cref="MinedPattern.Key" />.</param>
+    public void Dismiss(string key) => Mutate(state => state.Dismissed.Add(key));
+
+    /// <summary>Brings a dismissed pattern back.</summary>
+    /// <param name="key"><see cref="MinedPattern.Key" />.</param>
+    public void Restore(string key) => Mutate(state => state.Dismissed.Remove(key));
+
+    /// <summary>
+    ///     Turns a pattern into a strat in <paramref name="owner" />'s book: its medoid round's positions, grenades
+    ///     and plant as steps, then its runs written as accepted suggestions labelled <c>strat: &lt;id&gt;</c> in each
+    ///     member demo that has a hash, so the record panel counts them. Null when the medoid's files are gone or
+    ///     the save is refused.
+    /// </summary>
+    /// <param name="key"><see cref="MinedPattern.Key" />.</param>
+    /// <param name="owner">The book.</param>
+    /// <param name="nowUtc">The creation time; now when null.</param>
+    public StratDocument? Promote(string key, StratOwner owner, DateTime? nowUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (Patterns.FirstOrDefault(p => p.Pattern.Key == key)?.Pattern is not { } pattern
+            || Build(pattern, owner, nowUtc ?? DateTime.UtcNow) is not { } doc)
+        {
+            return null;
+        }
+
+        StratSaveResult saved = _strats.Save(doc, [], $"promoted from {pattern.Support} mined rounds");
+        if (!saved.Saved)
+        {
+            return null;
+        }
+
+        WriteRuns(pattern, doc);
+        Mutate(state => state.Promoted[key] = doc.Id);
+        return doc;
+    }
+
+    /// <summary>The strat a pattern would become, without saving it. Null when the medoid's files are gone.</summary>
+    /// <param name="pattern">The pattern.</param>
+    /// <param name="owner">The book.</param>
+    /// <param name="nowUtc">The creation time.</param>
+    public StratDocument? Build(MinedPattern pattern, StratOwner owner, DateTime nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+        RoundSignature medoid = pattern.Medoid;
+        if (_demoCache.TryLoadRecord(medoid.DemoPath) is not { RoundFacts: { } rows } record
+            || rows.Rounds.FirstOrDefault(r => r.Number == medoid.Round) is not { } facts
+            || _positions.TryReadPositions(medoid.DemoPath, _fingerprintFor(pattern.Map), record.Sha256) is not { } positions
+            || positions.Round(medoid.Round) is not { } stored)
+        {
+            return null;
+        }
+
+        List<GrenadeRow> grenades =
+        [
+            .. _grenadeIndex?.Rows(new GrenadeQuery(pattern.Map, DemoPaths: new HashSet<string>([medoid.DemoPath])))
+                   .Select(g => g.Row)
+                   .Where(r => r.RoundNumber == medoid.Round)
+               ?? []
+        ];
+        Dictionary<int, (ulong, string)> players = [];
+        foreach (CachedPlayerInfo player in record.Players)
+        {
+            players[player.Slot] = (ulong.TryParse(player.SteamId64, out ulong id) ? id : 0, player.Name);
+        }
+
+        RoundCapture capture = CachedRoundCapture.Build(positions, stored, facts, grenades, players, medoid.TickRate,
+            MinedStratBuilder.WindowEnd(pattern, facts));
+        return MinedStratBuilder.Document(pattern, capture, facts, owner, Path.GetFileName(medoid.DemoPath),
+            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, nowUtc);
+    }
+
+    private void WriteRuns(MinedPattern pattern, StratDocument doc)
+    {
+        if (_tags is null)
+        {
+            return;
+        }
+
+        string code = pattern.Kind == PatternKind.Execute ? $"{pattern.Site} execute"
+            : pattern.Side == 2 ? DefaultCode : SetupCode;
+        foreach (MinedMember member in pattern.Members)
+        {
+            string? sha = member.Sha256 ?? _demoCache.TryGetIndex(member.DemoPath)?.Sha256;
+            if (sha is null || _demoCache.TryLoadRecord(member.DemoPath) is not { } record)
+            {
+                continue;
+            }
+
+            (int from, int to) = RunSpan(pattern, member, record.RoundFacts?.Rounds.FirstOrDefault(r => r.Number == member.Round));
+            TagInstance run = new()
+            {
+                Id = Guid.NewGuid(),
+                Code = code,
+                FromTick = from,
+                ToTick = to,
+                Round = member.Round,
+                CreatedUtc = doc.CreatedUtc,
+                ModifiedUtc = doc.CreatedUtc,
+                Source = TagSources.Suggested,
+                Provenance = new JsonObject { ["detector"] = Detector, ["pattern"] = pattern.Key },
+                Labels =
+                [
+                    new TagLabel(TagStore.StratGroup, doc.Id.ToString()),
+                    new TagLabel(StratEvidence.RevisionGroup, "1")
+                ]
+            };
+            _tags.Append(new DemoIdentity(sha, Path.GetFileName(member.DemoPath), record.Size),
+                record.RoundFacts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
+        }
+    }
+
+    // The window the strat covers in that round: the setup's opening, or the take from 10 s before to the plant.
+    private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts.RoundFacts? facts)
+    {
+        int rate = Math.Max(1, member.TickRate);
+        int end = facts?.EndTick ?? int.MaxValue;
+        if (pattern.Kind == PatternKind.Setup)
+        {
+            int to = member.FreezeEndTick + MinedStratBuilder.SetupSeconds * rate;
+            return (member.FreezeEndTick, Math.Min(to, end));
+        }
+
+        int take = member.AnchorTick;
+        int stop = facts?.PlantTick ?? take + MinedStratBuilder.ExecuteTailSeconds * rate;
+        return (Math.Max(member.FreezeEndTick, take - 10 * rate), Math.Min(Math.Max(stop, take), end));
+    }
+
+    private void OnSourceChanged(string? _) => OnSourceChanged();
+
+    private void OnSourceChanged()
+    {
+        if (MinedUtc is null || QuietDelay == Timeout.InfiniteTimeSpan)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _quiet ??= new Timer(_ => MineAsync());
+            _quiet.Change(QuietDelay, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void Publish(IReadOnlyList<MinedPattern> patterns)
+    {
+        MiningState state;
+        lock (_gate)
+        {
+            state = _state;
+        }
+
+        Patterns =
+        [
+            .. patterns.Select(p => new DetectedPattern(p, state.Dismissed.Contains(p.Key),
+                state.Promoted.TryGetValue(p.Key, out Guid id) ? id : null))
+        ];
+        Changed?.Invoke();
+    }
+
+    private void Mutate(Action<MiningState> change)
+    {
+        lock (_gate)
+        {
+            change(_state);
+            if (_statePath is not null)
+            {
+                WriteAtomic(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
+            }
+        }
+
+        Publish([.. Patterns.Select(p => p.Pattern)]);
+    }
+
+    private void Save(IReadOnlyList<MinedPattern> patterns)
+    {
+        if (_detectedPath is not null)
+        {
+            WriteAtomic(_detectedPath, JsonSerializer.Serialize(
+                new DetectedFile(SchemaVersion, DateTime.UtcNow, [.. patterns]), JsonOptions));
+        }
+    }
+
+    private void Load()
+    {
+        try
+        {
+            if (_statePath is not null && File.Exists(_statePath)
+                                       && JsonSerializer.Deserialize<MiningState>(File.ReadAllText(_statePath), JsonOptions) is { } state)
+            {
+                _state = state;
+            }
+
+            if (_detectedPath is not null && File.Exists(_detectedPath)
+                                          && JsonSerializer.Deserialize<DetectedFile>(File.ReadAllText(_detectedPath), JsonOptions) is
+                                              { SchemaVersion: SchemaVersion } file)
+            {
+                MinedUtc = file.MinedUtc;
+                Publish(file.Patterns);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // An unreadable detected file is rebuilt by the next mine; an unreadable state file starts empty
+            // and is only overwritten when the user dismisses or promotes again.
+        }
+    }
+
+    private static void WriteAtomic(string path, string content)
+    {
+        string directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        string temp = Path.Combine(directory, $".mining-{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(temp, content);
+        File.Move(temp, path, true);
+    }
+
+    private sealed record DetectedFile(int SchemaVersion, DateTime MinedUtc, List<MinedPattern> Patterns);
+
+    private sealed class MiningState
+    {
+        public HashSet<string> Dismissed { get; set; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, Guid> Promoted { get; set; } = new(StringComparer.Ordinal);
+    }
+}
