@@ -531,6 +531,51 @@ public class LineupClipTests
     }
 
     [Test]
+    public async Task ALineupGoneForOnePlan_KeepsItsEntryAndItsEviction_UntilTheGraceRunsOut()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        string clips = TempClips();
+        try
+        {
+            IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
+            WritePair(clips, jobs[0].Stem, 100, DateTime.UtcNow);
+            File.WriteAllText(Path.Combine(clips, LineupClipService.EvictedFileName), jobs[1].Stem);
+            ReviewQueue queue = new(null);
+            queue.Add([LineupClipPlanner.ToReviewEntry(jobs[0]) with { Question = "which angle?" }], LineupClipPlanner.SectionTitle(Mirage));
+
+            // A re-index drops the demo's rows for a moment, then puts them back.
+            bool present = true;
+            using (LineupClipService service = new(() => present ? [cluster] : [], queue, clips, () => true, new FileRenderer()))
+            {
+                present = false;
+                service.Plan();
+                present = true;
+                await Assert.That(service.Plan()).IsEqualTo(0);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(queue.Clips.Single().Question).IsEqualTo("which angle?");
+                    await Assert.That(service.Evicted).IsEquivalentTo([jobs[1].Stem]);
+                }
+            }
+
+            using LineupClipService impatient = new(() => present ? [cluster] : [], queue, clips, () => true, new FileRenderer(),
+                orphanGrace: TimeSpan.Zero);
+            present = false;
+            impatient.Plan();
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.ClipCount).IsEqualTo(0);
+                await Assert.That(queue.Entries).IsEmpty().Because("the emptied lineup card goes with its last clip");
+                await Assert.That(impatient.Evicted).IsEmpty();
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
     public async Task Merge_FoldsSameTitledSections_AndReplacesInPlace()
     {
         ReviewQueue queue = new(null);
