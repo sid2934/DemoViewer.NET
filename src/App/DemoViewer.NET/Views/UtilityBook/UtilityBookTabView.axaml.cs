@@ -42,8 +42,22 @@ public partial class UtilityBookTabView : UserControl
         }
     }
 
+    private UtilityBookTabViewModel? _wired;
+
     private void Wire()
     {
+        if (_wired is not null)
+        {
+            _wired.PropertyChanged -= OnVmPropertyChanged;
+        }
+
+        _wired = DataContext as UtilityBookTabViewModel;
+        if (_wired is not null)
+        {
+            _wired.PropertyChanged += OnVmPropertyChanged;
+            PlaceCard();
+        }
+
         if (DataContext is UtilityBookTabViewModel vm)
         {
             vm.Clipboard = async text =>
@@ -53,6 +67,22 @@ public partial class UtilityBookTabView : UserControl
                     await clipboard.SetTextAsync(text);
                 }
             };
+        }
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(UtilityBookTabViewModel.CardOnLeft))
+        {
+            PlaceCard();
+        }
+    }
+
+    private void PlaceCard()
+    {
+        if (this.FindControl<Border>("Card") is { } card && _wired is not null)
+        {
+            card.HorizontalAlignment = _wired.CardOnLeft ? Avalonia.Layout.HorizontalAlignment.Left : Avalonia.Layout.HorizontalAlignment.Right;
         }
     }
 }

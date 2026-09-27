@@ -510,7 +510,9 @@ public class GrenadeIndexTests
     public async Task TheUtilityMap_RendersTheGroups_ThenAFocusedGroupWithItsCard()
     {
         int mapInk = 0, focusInk = 0;
-        bool focused = false, carded = false;
+        bool focused = false, carded = false, cardOnLeft = false;
+        HashSet<string> reached = [];
+        int stacked = 0;
         await HeadlessSession.RunOnUi(() =>
         {
             using GrenadeIndex index = Loaded(Library());
@@ -540,7 +542,19 @@ public class GrenadeIndexTests
             UtilityThrow? jump = vm.Document.Throws.FirstOrDefault(t => t.JumpThrow);
             if (jump is not null && host.HostPointOf(jump.X, jump.Y, jump.Z) is { } origin)
             {
-                host.Click((float)origin.X, (float)origin.Y);
+                // The jump-throw and the standard throw 4 units away stack on one disc: repeated clicks
+                // on that spot must reach both.
+                stacked = vm.Document.Throws.Count(t => Math.Abs(t.X - jump.X) < 8 && Math.Abs(t.Y - jump.Y) < 8);
+                for (int i = 0; i < stacked; i++)
+                {
+                    host.Click((float)origin.X, (float)origin.Y);
+                    if (vm.Detail is { } open)
+                    {
+                        reached.Add(UtilityBookTabViewModel.LineupKey(open.Lineup));
+                    }
+                }
+
+                cardOnLeft = vm.CardOnLeft == origin.X > host.Bounds.Width / 2;
             }
 
             carded = vm.HasDetail;
@@ -561,6 +575,9 @@ public class GrenadeIndexTests
         {
             await Assert.That(focused).IsTrue().Because("a click on the icon focuses the group through the host's hit test");
             await Assert.That(carded).IsTrue().Because("a click on a position opens its card");
+            await Assert.That(stacked).IsEqualTo(2).Because("the fixture stacks a jump-throw and a standard throw");
+            await Assert.That(reached.Count).IsEqualTo(2).Because("repeated clicks on a stack reach every position in it");
+            await Assert.That(cardOnLeft).IsTrue().Because("the card opens on the side away from the selected position");
             await Assert.That(mapInk).IsGreaterThan(500);
             await Assert.That(focusInk).IsGreaterThan(500);
         }

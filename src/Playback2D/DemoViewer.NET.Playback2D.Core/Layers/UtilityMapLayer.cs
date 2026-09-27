@@ -15,8 +15,9 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     the pane of its own floor and a flight is split across floors by <see cref="TrailGeometry" />, so a
 ///     throw from a lower floor onto an upper one reads on both.
 ///     <para>
-///         <see cref="LandingAt" /> and <see cref="ThrowAt" /> are the host's hit test over the same geometry
-///         the layer draws, so what is clicked is what is under the pointer by construction.
+///         <see cref="LandingsAt" /> and <see cref="ThrowsAt" /> are the host's hit test over the same geometry
+///         the layer draws, so what is clicked is what is under the pointer by construction. Items that stack
+///         within a disc carry a count badge, and the host cycles through them on repeated clicks.
 ///     </para>
 /// </summary>
 public sealed class UtilityMapLayer : ISceneLayer
@@ -84,16 +85,17 @@ public sealed class UtilityMapLayer : ISceneLayer
     public static float RadiusFor(int throws) =>
         Math.Min(LandingRadiusMax, LandingRadius + LandingGrowth * MathF.Log2(Math.Max(2, throws) / 2f));
 
-    /// <summary>The landing group under a pane-local point on a pane showing one level, topmost first, or null.</summary>
+    /// <summary>Every landing group under a pane-local point, topmost first; empty when none.</summary>
     /// <param name="document">The document the layer draws.</param>
     /// <param name="transform">The pane's world to screen transform.</param>
     /// <param name="belongsHere">The pane's floor test, the same one the layer draws with.</param>
     /// <param name="local">The pane-local point.</param>
-    public static UtilityLanding? LandingAt(UtilityMapDocument document, ViewportTransform transform,
+    public static IReadOnlyList<UtilityLanding> LandingsAt(UtilityMapDocument document, ViewportTransform transform,
         Func<double, bool> belongsHere, SKPoint local)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(belongsHere);
+        List<UtilityLanding> hits = [];
         for (int i = document.Landings.Count - 1; i >= 0; i--)
         {
             UtilityLanding landing = document.Landings[i];
@@ -106,23 +108,27 @@ public sealed class UtilityMapLayer : ISceneLayer
             float r = RadiusFor(landing.Throws) + HitSlop;
             if (Square(local.X - x) + Square(local.Y - y) <= r * r)
             {
-                return landing;
+                hits.Add(landing);
             }
         }
 
-        return null;
+        return hits;
     }
 
-    /// <summary>The throw position under a pane-local point, or null.</summary>
+    /// <summary>
+    ///     Every throw position under a pane-local point, topmost first; empty when none. A jump-throw and a
+    ///     standard throw from one spot stack exactly, so a click has to be able to reach both.
+    /// </summary>
     /// <param name="document">The document the layer draws.</param>
     /// <param name="transform">The pane's world to screen transform.</param>
     /// <param name="belongsHere">The pane's floor test.</param>
     /// <param name="local">The pane-local point.</param>
-    public static UtilityThrow? ThrowAt(UtilityMapDocument document, ViewportTransform transform,
+    public static IReadOnlyList<UtilityThrow> ThrowsAt(UtilityMapDocument document, ViewportTransform transform,
         Func<double, bool> belongsHere, SKPoint local)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(belongsHere);
+        List<UtilityThrow> hits = [];
         for (int i = document.Throws.Count - 1; i >= 0; i--)
         {
             UtilityThrow position = document.Throws[i];
@@ -135,11 +141,11 @@ public sealed class UtilityMapLayer : ISceneLayer
             const float r = ThrowRadius + HitSlop;
             if (Square(local.X - x) + Square(local.Y - y) <= r * r)
             {
-                return position;
+                hits.Add(position);
             }
         }
 
-        return null;
+        return hits;
     }
 
     /// <inheritdoc />
@@ -154,21 +160,101 @@ public sealed class UtilityMapLayer : ISceneLayer
             DrawFlight(canvas, position, in ctx);
         }
 
-        foreach (UtilityThrow position in _document.Throws)
+        for (int i = 0; i < _document.Throws.Count; i++)
         {
+            UtilityThrow position = _document.Throws[i];
             if (ctx.BelongsHere(position.Z))
             {
                 DrawThrow(canvas, position, in ctx);
+                if (i == LastStacked(_document.Throws, i, in ctx) && Stacked(_document.Throws, i, in ctx) is > 1 and var count)
+                {
+                    DrawBadge(canvas, position.X, position.Y, ThrowRadius, count, 255, in ctx);
+                }
             }
         }
 
-        foreach (UtilityLanding landing in _document.Landings)
+        for (int i = 0; i < _document.Landings.Count; i++)
         {
+            UtilityLanding landing = _document.Landings[i];
             if (ctx.BelongsHere(landing.Z))
             {
-                DrawLanding(canvas, landing, focus && !landing.Focused, in ctx);
+                byte alpha = focus && !landing.Focused ? (byte)90 : (byte)255;
+                DrawLanding(canvas, landing, alpha, in ctx);
+                if (i == LastStacked(_document.Landings, i, in ctx) && Stacked(_document.Landings, i, in ctx) is > 1 and var count)
+                {
+                    DrawBadge(canvas, landing.X, landing.Y, RadiusFor(landing.Throws), count, alpha, in ctx);
+                }
             }
         }
+    }
+
+    // How many items on this pane draw within a disc of item i, i included; a badge on the topmost of them
+    // says a click there reaches more than the one on top.
+    private static int Stacked<T>(IReadOnlyList<T> items, int i, in SceneRenderContext ctx) where T : notnull
+    {
+        (float X, float Y, float Z) at = Where(items[i]);
+        (double ax, double ay) = ctx.Transform.WorldToScreen(at.X, at.Y);
+        int count = 0;
+        for (int j = 0; j < items.Count; j++)
+        {
+            (float X, float Y, float Z) other = Where(items[j]);
+            if (!ctx.BelongsHere(other.Z))
+            {
+                continue;
+            }
+
+            (double bx, double by) = ctx.Transform.WorldToScreen(other.X, other.Y);
+            if (Square(ax - bx) + Square(ay - by) <= Square(ThrowRadius))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    // The last-drawn (topmost) index among the items stacked on item i.
+    private static int LastStacked<T>(IReadOnlyList<T> items, int i, in SceneRenderContext ctx) where T : notnull
+    {
+        (float X, float Y, float Z) at = Where(items[i]);
+        (double ax, double ay) = ctx.Transform.WorldToScreen(at.X, at.Y);
+        int last = i;
+        for (int j = i + 1; j < items.Count; j++)
+        {
+            (float X, float Y, float Z) other = Where(items[j]);
+            if (!ctx.BelongsHere(other.Z))
+            {
+                continue;
+            }
+
+            (double bx, double by) = ctx.Transform.WorldToScreen(other.X, other.Y);
+            if (Square(ax - bx) + Square(ay - by) <= Square(ThrowRadius))
+            {
+                last = j;
+            }
+        }
+
+        return last;
+    }
+
+    private static (float X, float Y, float Z) Where<T>(T item) => item switch
+    {
+        UtilityThrow t => (t.X, t.Y, t.Z),
+        UtilityLanding l => (l.X, l.Y, l.Z),
+        _ => (0, 0, 0)
+    };
+
+    private void DrawBadge(SKCanvas canvas, float worldX, float worldY, float radius, int count, byte alpha, in SceneRenderContext ctx)
+    {
+        (double x, double y) = ctx.Transform.WorldToScreen(worldX, worldY);
+        SKPoint at = new((float)x + radius * 0.8f, (float)y - radius * 0.8f);
+        string text = count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        float width = _font.MeasureText(text);
+        float r = Math.Max(7f, width / 2 + 3f);
+        _fill.Color = new SKColor(250, 250, 250, alpha);
+        canvas.DrawCircle(at, r, _fill);
+        _fill.Color = new SKColor(20, 22, 30, alpha);
+        canvas.DrawText(text, at.X - width / 2, at.Y + _font.Size * 0.35f, _font, _fill);
     }
 
     /// <inheritdoc />
@@ -229,12 +315,11 @@ public sealed class UtilityMapLayer : ISceneLayer
         }
     }
 
-    private void DrawLanding(SKCanvas canvas, UtilityLanding landing, bool dimmed, in SceneRenderContext ctx)
+    private void DrawLanding(SKCanvas canvas, UtilityLanding landing, byte alpha, in SceneRenderContext ctx)
     {
         (double x, double y) = ctx.Transform.WorldToScreen(landing.X, landing.Y);
         SKPoint at = new((float)x, (float)y);
         float r = RadiusFor(landing.Throws);
-        byte alpha = dimmed ? (byte)90 : (byte)255;
 
         _fill.Color = new SKColor(20, 22, 30, (byte)(alpha * 0.85f));
         canvas.DrawCircle(at, r, _fill);

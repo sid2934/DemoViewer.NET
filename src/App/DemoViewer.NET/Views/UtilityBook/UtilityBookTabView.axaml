@@ -66,7 +66,8 @@
 
                 <!-- The details card of the selected throw position. -->
                 <Panel IsVisible="{Binding HasDetail}">
-                <Border DataContext="{Binding Detail}" x:DataType="vm:LineupDetail"
+                <!-- The card opens on the side away from the selected position (CardOnLeft), so it never covers it. -->
+                <Border x:Name="Card" DataContext="{Binding Detail}" x:DataType="vm:LineupDetail"
                         HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="360" Margin="10"
                         Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSubtle}"
                         BorderThickness="1" CornerRadius="6" Padding="12 10">
