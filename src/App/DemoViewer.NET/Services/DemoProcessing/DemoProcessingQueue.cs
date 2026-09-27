@@ -66,6 +66,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private bool _backgroundEnabled = true;
     private bool _disposed;
     private int _jobsSinceCompact;
+    private ITimer? _deferredCompact;
+    private long _deferredGeneration;
     private DateTimeOffset? _lastCompact;
 
     private int _maxConcurrency = 1;
@@ -111,12 +113,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     /// <summary>
     ///     The background parse. Maps the file instead of reading it into one LOH-sized array; the
     ///     mapping is released before this returns and the <see cref="ParsedDemo" /> holds no view of it.
-    ///     Browser has no memory mapping and keeps the byte[] path.
+    ///     Browser has no memory mapping, and a file that may still be written is read into a byte[]:
+    ///     truncating a mapped file under the parse is a fatal access violation, not an exception.
     /// </summary>
-    internal static ParsedDemo ParseFileDefault(string path) =>
-        OperatingSystem.IsBrowser()
-            ? DemoParser.Parse(File.ReadAllBytes(path).AsMemory())
-            : MemoryMappedDemoSource.ParseFile(path);
+    private ParsedDemo ParseFileDefault(string path) =>
+        !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, _time, MappedParsePolicy.StatFile)
+            ? MemoryMappedDemoSource.ParseFile(path)
+            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory());
 
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }
 
@@ -449,6 +452,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             _disposed = true;
+            CancelDeferredCompactLocked();
         }
 
         _shutdown.Cancel();
@@ -549,26 +553,53 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // Never call from inside RunEntry or FinishEntry: the finished demo must be off every stack frame.
     // At most once per MinDrainCompactInterval, and only if a job finished since the last compaction.
-    private void CompactIfDrained()
+    // A drain inside the window schedules one compaction for when it ends; a job start cancels it.
+    private void CompactIfDrained(long? deferredGeneration = null)
     {
         lock (_sync)
         {
+            bool deferredDue = deferredGeneration is not null;
+            if (deferredDue)
+            {
+                // A callback that lost the race with a cancel or a reschedule is stale.
+                if (_deferredCompact is null || deferredGeneration != _deferredGeneration)
+                {
+                    return;
+                }
+
+                CancelDeferredCompactLocked();
+            }
+
             if (_disposed || _jobsSinceCompact == 0 || _entries.Any(IsActive))
             {
                 return;
             }
 
             DateTimeOffset now = _time.GetUtcNow();
-            if (_lastCompact is { } last && now - last < MinDrainCompactInterval)
+            if (!deferredDue && _lastCompact is { } last && now - last < MinDrainCompactInterval)
             {
+                if (_deferredCompact is null)
+                {
+                    long generation = ++_deferredGeneration;
+                    _deferredCompact = _time.CreateTimer(_ => CompactIfDrained(generation), null,
+                        last + MinDrainCompactInterval - now, Timeout.InfiniteTimeSpan);
+                }
+
                 return;
             }
 
+            CancelDeferredCompactLocked();
             _jobsSinceCompact = 0;
             _lastCompact = now;
         }
 
         _ = CompactSafeAsync();
+    }
+
+    private void CancelDeferredCompactLocked()
+    {
+        _deferredCompact?.Dispose();
+        _deferredCompact = null;
     }
 
     private async Task CompactSafeAsync()
@@ -617,6 +648,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
+            CancelDeferredCompactLocked();
         }
 
         return best;
