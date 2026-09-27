@@ -2,6 +2,7 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Services.Tags;
@@ -196,14 +197,21 @@ public class SuggestedTagsQueueTests
         {
             queue.ReviewCommand.Execute(null);
             await Assert.That(queue.Execute(Playback2DAction.SuggestionEdit)).IsTrue();
-            await Assert.That(queue.IsEditing).IsTrue();
-            await Assert.That(queue.EditFrom).IsEqualTo("5").Because("(1320 - 1000) / 64 seconds since freeze end");
-            await Assert.That(queue.EditLabels).IsEqualTo("site=BombsiteA");
+            TagEditorViewModel editor = queue.Editor!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.IsEditing).IsTrue();
+                await Assert.That(editor.FromText).IsEqualTo("5").Because("(1320 - 1000) / 64 seconds from the round start");
+                await Assert.That(editor.SelectedCode).IsEqualTo(Execute.Code);
+                await Assert.That(editor.Labels.Select(l => l.Text)).IsEquivalentTo(["site: BombsiteA"]);
+            }
 
-            queue.EditFrom = "4";
-            queue.EditTo = "12.5";
-            queue.EditLabels = "site=BombsiteA, tempo=slow";
-            queue.SaveEditCommand.Execute(null);
+            editor.FromText = "4";
+            editor.ToText = "12.5";
+            editor.NewGroup = "tempo";
+            editor.NewValue = "slow";
+            editor.AddLabelCommand.Execute(null);
+            editor.SaveCommand.Execute(null);
 
             TagInstance instance = h.Tags.TryLoad(Sha)!.Instances.Single();
             using (Assert.Multiple())
@@ -218,6 +226,56 @@ public class SuggestedTagsQueueTests
     }
 
     [Test]
+    public async Task AnotherCode_AcceptsAsRecoded_WithTheNewCodeAndPositions()
+    {
+        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
+        using (h)
+        {
+            queue.ReviewCommand.Execute(null);
+            queue.Execute(Playback2DAction.SuggestionEdit);
+            TagEditorViewModel editor = queue.Editor!;
+            editor.Codes.Add("fake");
+            editor.SelectedCode = "fake";
+            editor.AddPosition(new TagPosition { X = 10, Y = 20, Place = "BombsiteA" });
+            editor.SaveCommand.Execute(null);
+
+            TagInstance instance = h.Tags.TryLoad(Sha)!.Instances.Single();
+            using (Assert.Multiple())
+            {
+                await Assert.That(instance.Code).IsEqualTo("fake");
+                await Assert.That(instance.Positions.Single().Place).IsEqualTo("BombsiteA");
+                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Recoded)
+                    .Because("the detector did not find what it said; tuning counts it as a miss");
+            }
+        }
+    }
+
+    [Test]
+    public async Task ADraft_SurvivesWalkingAway_AndComesBackOnEdit()
+    {
+        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Default);
+        using (h)
+        {
+            queue.ReviewCommand.Execute(null);
+            queue.Execute(Playback2DAction.SuggestionEdit);
+            queue.Editor!.FromText = "7";
+            queue.Editor.Note = "check the timing";
+
+            await Assert.That(queue.Execute(Playback2DAction.SuggestionNext)).IsTrue();
+            await Assert.That(queue.IsEditing).IsFalse().Because("walking closes the editor");
+            await Assert.That(queue.Execute(Playback2DAction.SuggestionPrev)).IsTrue();
+            queue.Execute(Playback2DAction.SuggestionEdit);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.Editor!.FromText).IsEqualTo("7");
+                await Assert.That(queue.Editor.Note).IsEqualTo("check the timing");
+                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts).IsEmpty().Because("a draft is not a verdict");
+            }
+        }
+    }
+
+    [Test]
     public async Task EscFromTheEditor_LeavesNoVerdict()
     {
         (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
@@ -225,7 +283,7 @@ public class SuggestedTagsQueueTests
         {
             queue.ReviewCommand.Execute(null);
             queue.Execute(Playback2DAction.SuggestionEdit);
-            queue.CancelEditCommand.Execute(null);
+            queue.Editor!.CancelCommand.Execute(null);
 
             await Assert.That(queue.IsEditing).IsFalse();
             await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts).IsEmpty();

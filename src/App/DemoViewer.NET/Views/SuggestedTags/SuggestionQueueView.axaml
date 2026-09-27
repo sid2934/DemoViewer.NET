@@ -45,13 +45,16 @@
                         ToolTip.Tip="Run the detectors over this demo now" />
             </Grid>
 
-            <Grid ColumnDefinitions="*,Auto,Auto">
+            <Grid ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="4">
                 <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" Focusable="False" FontSize="11"
                           ItemsSource="{Binding DetectorFilters}" SelectedItem="{Binding DetectorFilter}"
                           ToolTip.Tip="Show one detector's suggestions" />
-                <TextBlock Grid.Column="1" Text="min" FontSize="10" Margin="8,0,4,0" VerticalAlignment="Center"
+                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" Focusable="False" FontSize="11"
+                          ItemsSource="{Binding RoundFilters}" SelectedItem="{Binding RoundFilter}"
+                          ToolTip.Tip="Show one round's suggestions; Ctrl+Y accepts only what is shown" />
+                <TextBlock Grid.Column="2" Text="min" FontSize="10" Margin="4,0,4,0" VerticalAlignment="Center"
                            Foreground="{DynamicResource Pb2dTextDim}" />
-                <Slider Grid.Column="2" Width="90" Minimum="0" Maximum="0.95" SmallChange="0.05" LargeChange="0.1"
+                <Slider Grid.Column="3" Width="70" Minimum="0" Maximum="0.95" SmallChange="0.05" LargeChange="0.1"
                         TickFrequency="0.05" IsSnapToTickEnabled="True" Focusable="False"
                         Value="{Binding MinConfidence}"
                         ToolTip.Tip="Hide suggestions below this confidence; Ctrl+Y accepts only what is shown" />
@@ -73,26 +76,6 @@
                 </Grid>
             </Border>
 
-            <!-- The editor: the proposal's window in seconds since freeze end and its labels as
-                 group=value pairs. Enter saves (accepting it as edited), Esc returns without a verdict. -->
-            <Border IsVisible="{Binding IsEditing}" Padding="6,4" CornerRadius="3"
-                    Background="{DynamicResource Pb2dPanelBg}">
-                <StackPanel Spacing="3">
-                    <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="4">
-                        <TextBlock Grid.Column="0" Text="from" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource Pb2dTextDim}" />
-                        <TextBox Grid.Column="1" x:Name="EditFromBox" Text="{Binding EditFrom}" FontSize="11" />
-                        <TextBlock Grid.Column="2" Text="to" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource Pb2dTextDim}" />
-                        <TextBox Grid.Column="3" Text="{Binding EditTo}" FontSize="11" />
-                    </Grid>
-                    <TextBox Text="{Binding EditLabels}" FontSize="11" Watermark="labels: site=BombsiteA, tempo=rush" />
-                    <TextBox Text="{Binding EditNote}" FontSize="11" Watermark="note (optional)" />
-                    <TextBlock Text="Enter accepts with these changes, Esc goes back without a verdict" FontSize="10"
-                               Foreground="{DynamicResource Pb2dTextDim}" />
-                </StackPanel>
-            </Border>
-
             <ScrollViewer MaxHeight="220">
                 <ItemsControl ItemsSource="{Binding Rows}">
                     <ItemsControl.ItemTemplate>
@@ -100,7 +83,7 @@
                             <Border Classes="row" Classes.selected="{Binding IsSelected}" Margin="0,0,0,3"
                                     Padding="6,3" CornerRadius="3" Background="{DynamicResource Pb2dPanelBg}"
                                     Tag="{Binding}" PointerPressed="OnRowPressed">
-                                <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto">
                                     <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontSize="11">
                                         <Run Text="{Binding Title}" Foreground="{DynamicResource Pb2dTextBrightest}" />
                                         <Run Text="{Binding SideText}" Foreground="{DynamicResource Pb2dTextMid}" />
@@ -119,7 +102,11 @@
                                             Focusable="False"
                                             Command="{Binding $parent[ItemsControl].((vm:SuggestionQueueViewModel)DataContext).RejectRowCommand}"
                                             CommandParameter="{Binding}" ToolTip.Tip="Reject (N)" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Text="{Binding EvidenceText}"
+                                    <!-- Why it fired in plain words; the score's factors stay in the chip's hover. -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Text="{Binding ReasonText}"
+                                               TextWrapping="Wrap" FontSize="10" IsVisible="{Binding HasReason}"
+                                               Foreground="{DynamicResource Pb2dTextMid}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" Text="{Binding EvidenceText}"
                                                TextWrapping="Wrap" FontSize="10" IsVisible="{Binding IsSelected}"
                                                Foreground="{DynamicResource Pb2dTextMid}" />
                                 </Grid>

@@ -15,21 +15,16 @@ namespace DemoViewer.NET.Views.SuggestedTags;
 /// <summary>
 ///     The Proposal Queue's view, docked by the 2D Playback view with the tab's
 ///     <see cref="SuggestionQueueViewModel" /> as its DataContext. Keys never start here: the 2D view routes
-///     them through the VM. What this owns is the editor's focus, which moves into the first box when the
-///     editor opens and back to the 2D view when it closes, and Enter and Esc inside the editor.
+///     them through the VM. The editor is its own view (<c>TagEditorView</c>), hosted by the review panel;
+///     what this owns is handing focus back to the 2D view when the editor closes.
 /// </summary>
 public partial class SuggestionQueueView : UserControl
 {
-    private readonly TextBox? _firstBox;
     private SuggestionQueueViewModel? _bound;
 
     public SuggestionQueueView()
     {
         AvaloniaXamlLoader.Load(this);
-        _firstBox = this.FindControl<TextBox>("EditFromBox");
-
-        // The editor's boxes: Enter saves and Esc cancels, from whichever box has focus.
-        AddHandler(KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) => Bind();
     }
 
@@ -56,25 +51,6 @@ public partial class SuggestionQueueView : UserControl
         }
     }
 
-    private void OnEditorKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (_bound is not { IsEditing: true } || e.Source is not TextBox)
-        {
-            return;
-        }
-
-        if (e.Key == Key.Enter)
-        {
-            _bound.SaveEditCommand.Execute(null);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
-        {
-            _bound.CancelEditCommand.Execute(null);
-            e.Handled = true;
-        }
-    }
-
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(SuggestionQueueViewModel.IsEditing) || _bound is null)
@@ -82,20 +58,11 @@ public partial class SuggestionQueueView : UserControl
             return;
         }
 
-        // Posted: the same change makes the editor visible, and a hidden box cannot take focus.
-        bool editing = _bound.IsEditing;
-        Dispatcher.UIThread.Post(() =>
+        // Posted: the editor's own view takes focus when it opens; closing hands it back to the keymap.
+        if (!_bound.IsEditing)
         {
-            if (editing)
-            {
-                _firstBox?.Focus();
-                _firstBox?.SelectAll();
-            }
-            else
-            {
-                ReturnFocus();
-            }
-        });
+            Dispatcher.UIThread.Post(ReturnFocus);
+        }
     }
 
     // The keymap lives on the 2D view, the nearest focusable ancestor.
