@@ -65,6 +65,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private int _activeWorkers;
     private bool _backgroundEnabled = true;
     private bool _disposed;
+    private bool _compacting;
     private int _jobsSinceCompact;
     private ITimer? _deferredCompact;
     private long _deferredGeneration;
@@ -556,6 +557,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // A drain inside the window schedules one compaction for when it ends; a job start cancels it.
     private void CompactIfDrained(long? deferredGeneration = null)
     {
+        int jobs;
+        DateTimeOffset startedAt;
         lock (_sync)
         {
             bool deferredDue = deferredGeneration is not null;
@@ -570,7 +573,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 CancelDeferredCompactLocked();
             }
 
-            if (_disposed || _jobsSinceCompact == 0 || _entries.Any(IsActive))
+            // A drain during an in-flight compaction leaves its jobs counted for the next drain.
+            if (_disposed || _compacting || _jobsSinceCompact == 0 || _entries.Any(IsActive))
             {
                 return;
             }
@@ -589,11 +593,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             CancelDeferredCompactLocked();
-            _jobsSinceCompact = 0;
-            _lastCompact = now;
+            _compacting = true;
+            jobs = _jobsSinceCompact;
+            startedAt = now;
         }
 
-        _ = CompactSafeAsync();
+        _ = CompactSafeAsync(jobs, startedAt);
     }
 
     private void CancelDeferredCompactLocked()
@@ -602,11 +607,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _deferredCompact = null;
     }
 
-    private async Task CompactSafeAsync()
+    // The throttle is recorded only on success, so a failed compaction leaves the next drain free to run.
+    private async Task CompactSafeAsync(int jobs, DateTimeOffset startedAt)
     {
+        bool succeeded = false;
         try
         {
             await _compactHeap().ConfigureAwait(false);
+            succeeded = true;
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
         {
@@ -615,6 +623,18 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         catch (Exception ex)
         {
             AppLog.OperationFailed(DiagLog, "Queue drain heap compaction", ex);
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _compacting = false;
+                if (succeeded)
+                {
+                    _jobsSinceCompact -= jobs;
+                    _lastCompact = startedAt;
+                }
+            }
         }
     }
 

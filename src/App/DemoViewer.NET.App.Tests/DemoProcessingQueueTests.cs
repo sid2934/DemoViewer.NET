@@ -33,6 +33,10 @@ public class DemoProcessingQueueTests
 
     private static Task NoCompact() => Task.CompletedTask;
 
+    // The stack frame of the mapped entry point. The type name alone also appears in DemoReader's ctor
+    // signature on the byte[] path.
+    private const string MappedParseFrame = "MemoryMappedDemoSource.ParseFile(";
+
     private static DemoProcessingRequest Req(string path, string owner, DemoJobPriority priority,
         long orderHint, Action<ParsedDemo>? onParsed = null, Action<Exception>? onFailed = null) =>
         new(path, owner, priority, orderHint, onParsed ?? (_ => { }), onFailed, Path.GetFileName(path));
@@ -611,7 +615,7 @@ public class DemoProcessingQueueTests
     }
 
     [Test]
-    public async Task DefaultParse_OnNonDemoFile_FailsTheEntry()
+    public async Task DefaultParse_OnRecentNonDemoFile_ReadsBytes_AndFailsTheEntry()
     {
         string path = Path.Combine(Path.GetTempPath(), $"dv-queue-{Guid.NewGuid():N}.bin");
         await File.WriteAllBytesAsync(path, new byte[4096]);
@@ -625,11 +629,58 @@ public class DemoProcessingQueueTests
 
             await Assert.That(h.State).IsEqualTo(DemoQueueItemState.Failed);
             await Assert.That(failure).IsNotNull();
+            await Assert.That(failure!.ToString()).DoesNotContain(MappedParseFrame);
         }
         finally
         {
             File.Delete(path);
         }
+    }
+
+    [Test]
+    public async Task DefaultParse_OnSettledNonDemoFile_TakesTheMappedPath_AndFailsTheEntry()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"dv-queue-{Guid.NewGuid():N}.bin");
+        await File.WriteAllBytesAsync(path, new byte[4096]);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(-5));
+        try
+        {
+            using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), compactHeap: NoCompact);
+            Exception? failure = null;
+            IDemoQueueHandle h = queue.SubmitBackground(
+                Req(path, "o", DemoJobPriority.Background, 1, onFailed: ex => failure = ex));
+            await h.Completion;
+
+            await Assert.That(h.State).IsEqualTo(DemoQueueItemState.Failed);
+            await Assert.That(failure).IsNotNull();
+            await Assert.That(failure!.ToString()).Contains(MappedParseFrame);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
+    public async Task FailedCompaction_DoesNotStartTheThrottle()
+    {
+        RecordingParser parser = new();
+        ManualClock clock = new();
+        int attempts = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parser.ParseFile, parser.ParseBytes,
+            () =>
+            {
+                return Interlocked.Increment(ref attempts) == 1
+                    ? Task.FromException(new InvalidOperationException("compaction failed"))
+                    : Task.CompletedTask;
+            }, clock);
+
+        await RunOneAsync(queue, "a.dem"); // fails
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await RunOneAsync(queue, "b.dem"); // not throttled: runs now
+
+        await Assert.That(Volatile.Read(ref attempts)).IsEqualTo(2);
+        await Assert.That(clock.PendingTimers).IsEqualTo(0);
     }
 
     // The foreground result lives only in this method's frame, which is gone once it returns.
