@@ -288,14 +288,16 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
     private readonly Func<string, ParsedDemo> _parse;
 
     /// <param name="gate">The heavy-job gate; the parse takes a background slot, so it yields to the user's own.</param>
-    /// <param name="parse">Reads and parses a demo; <c>DemoParser.Parse</c> over the file when null.</param>
+    /// <param name="parse">Reads and parses a demo; a memory-mapped parse of the file when null.</param>
     /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
     /// <param name="log">Line sink for the encoder choice, ffmpeg's stderr and a failed clip.</param>
     public LineupClipRenderer(HeavyJobGate? gate, Func<string, ParsedDemo>? parse = null,
         Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null)
     {
         _gate = gate;
-        _parse = parse ?? (path => DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
+        // Mapped, so the demo never sits on the LOH. Library demos only: a file truncated while mapped
+        // is a fatal access violation, not an exception.
+        _parse = parse ?? (static path => MemoryMappedDemoSource.ParseFile(path));
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
     }
