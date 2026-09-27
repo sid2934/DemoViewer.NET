@@ -225,7 +225,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
         bands.Clear();
         markers.Clear();
-        toggle.IsAvailable = track.IsAvailable(data);
+        toggle.IsAvailable = track.IsAvailable(data) && !_suppressed.Contains(track.Id);
 
         if (!toggle.IsAvailable || !toggle.IsEnabled)
         {
@@ -273,6 +273,37 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         BuildTrack(index, data);
         Recombine();
     }
+
+    /// <summary>
+    ///     Hides or shows a track for a mode of the tab (Review mode's tag and suggestion lanes), without
+    ///     touching the user's own toggle for it: a suppressed track is unavailable, so its toggle hides too,
+    ///     and the persisted choice is whatever the user last set.
+    /// </summary>
+    /// <param name="trackId">The track. Unknown ids are ignored.</param>
+    /// <param name="suppressed">True to hide it.</param>
+    public void SetTrackSuppressed(string trackId, bool suppressed)
+    {
+        bool changed = suppressed ? _suppressed.Add(trackId) : _suppressed.Remove(trackId);
+        if (!changed)
+        {
+            return;
+        }
+
+        int index = _tracks.FindIndex(t => string.Equals(t.Id, trackId, StringComparison.Ordinal));
+        if (index < 0 || _data is not { } data || TotalFrames <= 0)
+        {
+            return;
+        }
+
+        BuildTrack(index, data);
+        Recombine();
+    }
+
+    /// <summary>True when a mode of the tab hides this track.</summary>
+    /// <param name="trackId">The track.</param>
+    public bool IsTrackSuppressed(string trackId) => _suppressed.Contains(trackId);
+
+    private readonly HashSet<string> _suppressed = new(StringComparer.Ordinal);
 
     /// <summary>Turns a track on/off and re-runs the build. Unknown ids are ignored.</summary>
     public void SetTrackEnabled(string trackId, bool enabled)

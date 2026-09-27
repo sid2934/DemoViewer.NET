@@ -123,11 +123,60 @@ public partial class Playback2DView : UserControl
     // The VM is assigned after construction (and can be replaced), so the subscriptions are re-aimed
     // here rather than in the ctor. Unsubscribing the PREVIOUS instance is what keeps a rebuilt tab from
     // driving a stale view.
+    // Review mode gives the column to the panels: the cards' row stops filling and the panels' row fills.
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Playback2DTabViewModel.IsCardStrip))
+        {
+            ApplyCardRows();
+        }
+    }
+
+    private void OnAttributesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_boundViewModel?.IsCardStrip == true)
+        {
+            ApplyCardRows();
+        }
+    }
+
+    // One strip row is 22 px (18 of text and padding, 2 of margin), inside the scroller's 6 px padding.
+    private const double StripRowHeight = 22;
+    private const double StripMaxHeight = 12 + 10 * StripRowHeight;
+
+    // The card list virtualizes, so under an Auto row's unbounded height it measures to nothing; the strip
+    // row is sized from the players in the match instead, and scrolls past ten.
+    private void ApplyCardRows()
+    {
+        if (this.FindControl<Grid>("RightColumn") is not { } column)
+        {
+            return;
+        }
+
+        if (_boundViewModel?.IsCardStrip == true)
+        {
+            int players = _boundViewModel.Attributes.Count(a => a.InMatch);
+            double height = Math.Min(StripMaxHeight, 12 + Math.Max(1, players) * StripRowHeight);
+            column.RowDefinitions = new RowDefinitions
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(height, GridUnitType.Pixel),
+                new RowDefinition(1, GridUnitType.Star)
+            };
+        }
+        else
+        {
+            column.RowDefinitions = RowDefinitions.Parse("Auto,*,Auto");
+        }
+    }
+
     private void BindViewModel()
     {
         if (_boundViewModel is not null)
         {
             _boundViewModel.FollowSlotChanged -= OnFollowSlotChanged;
+            _boundViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _boundViewModel.Attributes.CollectionChanged -= OnAttributesChanged;
             _boundViewModel.FitRequested -= OnFitRequested;
             _boundViewModel.Annotations.ToolSelected -= OnToolSelected;
             _boundViewModel.LevelStrip.Bind(null);
@@ -148,6 +197,9 @@ public partial class Playback2DView : UserControl
 
             _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
             _boundViewModel.FitRequested += OnFitRequested;
+            _boundViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _boundViewModel.Attributes.CollectionChanged += OnAttributesChanged;
+            ApplyCardRows();
 
             // The toolbar picks a tool; the ROUTER owns which tool a press goes to. This is the one
             // wire between them, and it exists here because the router is the surface's, not the VM's.

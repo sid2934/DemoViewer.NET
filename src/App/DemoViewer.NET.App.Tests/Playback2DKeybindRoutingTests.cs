@@ -27,13 +27,13 @@ public class Playback2DKeybindRoutingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            vm.ApplyKeymapOverrides(["NextRound=Shift+R"]);
+            vm.ApplyKeymapOverrides(["NextRound=Shift+W"]);
 
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             view.Focus();
             Playback2DTimelineHarness.Pump();
 
-            window.KeyPressQwerty(PhysicalKey.R, RawInputModifiers.Shift);
+            window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.Shift);
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(ctx.NextEvents.Count).IsEqualTo(1);

@@ -717,6 +717,13 @@ public sealed class Playback2DSettings
     public string TagPaletteId { get; set; } = "cs2-default";
 
     /// <summary>
+    ///     Whether 2D Playback is in Review mode: the tag palette, the suggestion queue and the tag and
+    ///     suggestion lanes show, the player cards collapse to a strip, and the tagging keys act. Off by
+    ///     default, so plain playback keeps the full player cards.
+    /// </summary>
+    public bool ReviewMode { get; set; }
+
+    /// <summary>
     ///     Whether Suggested Tags sweeps the whole library in the background. Off by default, the Highlights
     ///     scan's rule and the integrator's recommendation for this evaluator (overview correction 20): the
     ///     open demo is always evaluated on the parse its open paid for, and the queue's Detect button runs

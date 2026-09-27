@@ -63,6 +63,9 @@ public enum Playback2DAction
     SuggestionEdit,
     SuggestionAcceptAll,
 
+    // Review mode: the labelling panels, the tag and suggestion lanes and every tagging key.
+    ToggleReviewMode,
+
     // Bound by Shape Tools (Strat Room, step-authoring.md §3.7): the annotation toolbar's shape and
     // text tools.
     ToolLine,
@@ -429,6 +432,11 @@ public static class Playback2DKeymap
             "Next situation result: seek to the next card of the Situations search", false),
         new(Playback2DAction.PrevSituationResult, Key.K, KeyModifiers.None, Playback2DBindingScope.Always,
             "Previous situation result: seek to the previous card of the Situations search", false),
+
+        // ── Review mode. Shift+R: bare R is the rectangle tool, and neither reserved list holds the chord.
+        //    Every tagging row below acts only while Review mode is on; with it off they are unhandled.
+        new(Playback2DAction.ToggleReviewMode, Key.R, KeyModifiers.Shift, Playback2DBindingScope.Always,
+            "Review mode: show the tag palette, the suggestions and the tag lanes, or hide them", false),
 
         // ── Tag Palette. C (for code) reaches the palette from anywhere on the surface; the three below
         //    act only while the palette has focus, which is how Esc steps back out of a panel instead of
