@@ -679,7 +679,7 @@ and next step (Step Authoring; the same table drives the Strat Book canvas, wher
 walk the strat's one history and Ctrl+X clears the active step's strokes, and the 2D tab leaves these six
 unhandled),
 Ctrl+F find rounds like this (the Strat Room's Situation Search; plan D7 there, since F is taken),
-J/K next and previous situation result (walking the Situations tab's cards from inside playback).
+J/K next and previous situation result (walking the Situations section's cards from inside playback).
 C focuses the Tag Palette; while it has focus its own scope wins over the tool and always scopes, so
 Esc steps back out of a panel, Ctrl+M opens a note, Ctrl+Backspace clears the sticky labels, Ctrl+Z /
 Ctrl+Shift+Z undo and redo tags, Ctrl+L switches Label Mode (labels for tags that already exist,

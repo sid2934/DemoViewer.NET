@@ -439,7 +439,7 @@ public class ReviewQueueTests
     }
 
     [Test]
-    public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds_WithTheClipCountAsBadge()
+    public async Task TheModule_ContributesTheReviewSection_UnderThePersistedIds_WithTheClipCountAsBadge()
     {
         ReviewQueue queue = new(null);
         ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue);
@@ -453,7 +453,8 @@ public class ReviewQueueTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.review");
             await Assert.That(tab.TabId).IsEqualTo("review.queue");
             await Assert.That(tab.Header).IsEqualTo("Review");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
+            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.StratBook);
+            await Assert.That(tab.Order).IsEqualTo(4).Because("after Utility on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
             await Assert.That(tab.Badge).IsEqualTo("1").Because("clips only; the title card is not counted");

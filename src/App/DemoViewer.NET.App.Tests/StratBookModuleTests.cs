@@ -46,7 +46,7 @@ public class StratBookModuleTests
     }
 
     [Test]
-    public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds()
+    public async Task TheModule_ContributesTheStratsSection_UnderThePersistedIds()
     {
         StratBookModule module = new(() => throw new InvalidOperationException("never built here"));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
@@ -55,9 +55,9 @@ public class StratBookModuleTests
         {
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.stratbook");
             await Assert.That(tab.TabId).IsEqualTo("stratbook.browser");
-            await Assert.That(tab.Header).IsEqualTo("Strat Book");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
-            await Assert.That(tab.Order).IsEqualTo(8).Because("after the Matrix");
+            await Assert.That(tab.Header).IsEqualTo("Strats");
+            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.StratBook);
+            await Assert.That(tab.Order).IsEqualTo(0).Because("first on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
         }

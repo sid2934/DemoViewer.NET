@@ -9,8 +9,8 @@ using DemoViewer.NET.Views.UtilityBook;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The Utility Book module: one Main-strip tab (<see cref="BrowserTabId" />, after the Strat Book) over
-///     the <see cref="GrenadeIndex" />: every grenade in the indexed demos, clustered by where it landed,
+///     The Utility Book module: the Utility section of the Strat Book tab's rail (<see cref="BrowserTabId" />,
+///     after Tags) over the <see cref="GrenadeIndex" />: every grenade in the indexed demos, clustered by where it landed,
 ///     searchable by map, kind, landing place and side, each deduplicated throw position printed as a
 ///     Lineup Card (plan.md §3, Phase 4).
 ///     <para>
@@ -29,7 +29,7 @@ public sealed class UtilityBookModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.utilitybook";
 
-    /// <summary>The tab's id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
     public const string BrowserTabId = "utilitybook.browser";
 
     private readonly Func<UtilityBookTabViewModel> _viewModelFactory;
@@ -50,9 +50,9 @@ public sealed class UtilityBookModule : IWorkspaceModule
         yield return new WorkspaceTabDescriptor
         {
             TabId = BrowserTabId,
-            Header = "Utility Book",
-            Order = 9, // after the Strat Book (8)
-            Placement = TabPlacement.Main,
+            Header = "Utility",
+            Order = 3, // after Tags (2)
+            Placement = TabPlacement.StratBook,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new UtilityBookTabView()
         };

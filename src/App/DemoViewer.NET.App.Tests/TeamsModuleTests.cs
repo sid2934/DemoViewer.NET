@@ -72,7 +72,7 @@ public class TeamsModuleTests
     }
 
     [Test]
-    public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds()
+    public async Task TheModule_ContributesTheLibraryHostedTeamsView_UnderThePersistedIds()
     {
         TeamsModule module = new(() => throw new InvalidOperationException("never built here"));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
@@ -82,7 +82,7 @@ public class TeamsModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.teams");
             await Assert.That(tab.TabId).IsEqualTo("teams.browser");
             await Assert.That(tab.Header).IsEqualTo("Teams");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
+            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Library);
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
         }

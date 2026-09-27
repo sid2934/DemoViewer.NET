@@ -85,13 +85,13 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   `--json` payload carries `zones_version`, the effective stamp (`CRC32(zonesVersion ‖ overlay bytes)`,
   or the baked `zonesVersion` alone), null when the zones layer was not in the stack. The file is read
   only when the layer is named, so a render that did not ask for outlines never pays for the parse.
-- `--query <file.dvquery.json>` draws the Situations tab's Query Canvas tokens (`playback2d.query`)
+- `--query <file.dvquery.json>` draws the Situations section's Query Canvas tokens (`playback2d.query`)
   into a single-frame render, read through the same `QueryFixtureStore` the corpus fixtures are
   written with. `golden` and `bench` take it by the same convention: `queries/<name>.dvquery.json`
   beside the entry's scene. `query-nuke-execute` is the entry that uses it: the canvas's own static
   map frame (the bundle's floors and radar, no markers) with six tokens over it. The layer draws no
   text, so that golden is judged at the unrelaxed gate on every platform.
-- `--overlay <file.dvoverlay.json>` draws the Situations tab's Overlay View (`playback2d.overlay`):
+- `--overlay <file.dvoverlay.json>` draws the Situations section's Overlay View (`playback2d.overlay`):
   every alive position of every matched state of a result set, stacked as a density wash per floor,
   CT-tinted where CT stood and T-tinted where T stood, read through the same `OverlayFixtureStore`
   the corpus fixture is written with. `golden` and `bench` take it by the same convention:
@@ -369,7 +369,7 @@ deletes the partial output.
 
 Headless Packs (plan.md §3, Phase 4): a `review-queue.json` file becomes one video, so "every scrim
 from last night, tagged rounds only, rendered by morning" is a scheduled command rather than a click in
-the Review tab's Export pack row.
+the Review section's Export pack row (on the Strat Book tab).
 
 ```bash
 dv2d pack --queue nightly-queue.json --out packs/2026-09-26.mp4

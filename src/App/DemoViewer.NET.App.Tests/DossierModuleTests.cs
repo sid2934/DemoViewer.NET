@@ -93,7 +93,7 @@ public class DossierModuleTests
     }
 
     [Test]
-    public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds()
+    public async Task TheModule_ContributesTheDossierSection_UnderThePersistedIds()
     {
         DossierModule module = new(() => throw new InvalidOperationException("never built here"));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
@@ -103,7 +103,8 @@ public class DossierModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.dossier");
             await Assert.That(tab.TabId).IsEqualTo("dossier.browser");
             await Assert.That(tab.Header).IsEqualTo("Dossier");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
+            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.StratBook);
+            await Assert.That(tab.Order).IsEqualTo(5).Because("last on the rail, after Review");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
         }
