@@ -11,6 +11,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Dependencies;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 
@@ -91,6 +92,10 @@ public sealed class LineupClipService : IDisposable
     private readonly ReviewQueue _queue;
     private readonly ILineupClipRenderer _renderer;
     private readonly object _sweepGate = new();
+
+    // Held by EnforceCap from its listing to its last delete, and by Request while it saves a pair, so a
+    // pair asked for mid-pass is either seen as just used or evicted and then un-evicted.
+    private readonly object _capGate = new();
     private readonly Action<string, string> _writeText;
     private bool _disposed;
     private HashSet<string>? _evicted;
@@ -205,7 +210,7 @@ public sealed class LineupClipService : IDisposable
         {
             bool gif = exists(job.GifPath);
             bool setpos = exists(job.SetposPath);
-            if ((gif && setpos) || evicted.Contains(job.Stem) || Adopt(job, exists)
+            if ((gif && setpos) || evicted.Contains(job.Stem) || Adopt(job)
                 || (_planned.TryGetValue(job.LineupId, out string? key) && string.Equals(key, job.Key, StringComparison.Ordinal)))
             {
                 continue;
@@ -293,27 +298,30 @@ public sealed class LineupClipService : IDisposable
             return 0;
         }
 
-        lock (_gate)
+        lock (_capGate)
         {
-            if (LoadEvicted().Remove(job.Stem))
+            lock (_gate)
             {
-                SaveEvicted();
+                if (LoadEvicted().Remove(job.Stem))
+                {
+                    SaveEvicted();
+                }
+            }
+
+            try
+            {
+                if (File.Exists(job.GifPath))
+                {
+                    File.SetLastWriteTimeUtc(job.GifPath, DateTime.UtcNow);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _log?.Invoke($"lineup clips: {job.GifPath}: {ex.Message}");
             }
         }
 
         _planned.Remove(job.LineupId);
-        try
-        {
-            if (File.Exists(job.GifPath))
-            {
-                File.SetLastWriteTimeUtc(job.GifPath, DateTime.UtcNow);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _log?.Invoke($"lineup clips: {job.GifPath}: {ex.Message}");
-        }
-
         return Plan();
     }
 
@@ -330,12 +338,12 @@ public sealed class LineupClipService : IDisposable
     private static (string, int, int) RangeKey(string demoPath, int from, int to) => (demoPath.ToUpperInvariant(), from, to);
 
     // A finished pair under an alias's or an older build's name becomes this lineup's pair.
-    private bool Adopt(LineupClipJob job, Func<string, bool> exists)
+    private bool Adopt(LineupClipJob job)
     {
         foreach (string former in job.FormerGifPaths)
         {
             string formerSetpos = LineupClipPlanner.SetposPathFor(former);
-            if (!exists(former) || !exists(formerSetpos))
+            if (!File.Exists(former) || !File.Exists(formerSetpos))
             {
                 continue;
             }
@@ -513,6 +521,9 @@ public sealed class LineupClipService : IDisposable
         }
     }
 
+    /// <summary>Runs inside the eviction pass, between the listing and the deletes. For a test.</summary>
+    internal Action? BeforeEvictionDeletes { get; set; }
+
     // Holds the directory under the cap, oldest write first. Worker thread, between renders.
     private void EnforceCap(string directory)
     {
@@ -522,6 +533,14 @@ public sealed class LineupClipService : IDisposable
             return;
         }
 
+        lock (_capGate)
+        {
+            EnforceCapLocked(directory, cap);
+        }
+    }
+
+    private void EnforceCapLocked(string directory, long cap)
+    {
         Dictionary<string, (long Bytes, DateTime Used)> pairs = new(StringComparer.OrdinalIgnoreCase);
         try
         {
@@ -542,6 +561,7 @@ public sealed class LineupClipService : IDisposable
             return;
         }
 
+        BeforeEvictionDeletes?.Invoke();
         long total = pairs.Values.Sum(p => p.Bytes);
         List<string> evicted = [];
         foreach ((string stem, (long bytes, _)) in pairs.OrderBy(p => p.Value.Used).ThenBy(p => p.Key, StringComparer.Ordinal))
@@ -657,9 +677,10 @@ public sealed class LineupClipService : IDisposable
 
     private async Task DrainAsync(CancellationToken ct)
     {
+        bool drained = false;
         try
         {
-            while (!ct.IsCancellationRequested && NextDemo() is { } batch)
+            while (!ct.IsCancellationRequested && NextDemo(ref drained) is { } batch)
             {
                 IReadOnlyList<LineupClipJob> rendered;
                 try
@@ -689,20 +710,26 @@ public sealed class LineupClipService : IDisposable
         }
         finally
         {
-            lock (_gate)
+            if (!drained)
             {
-                _running = false;
+                lock (_gate)
+                {
+                    _running = false;
+                }
             }
         }
     }
 
-    // The next demo's clips, taken out of the pending list together so the demo is parsed once.
-    private List<LineupClipJob>? NextDemo()
+    // The next demo's clips, taken out of the pending list together so the demo is parsed once. An empty
+    // list ends the run under the same lock, so a Plan after it starts a new worker.
+    private List<LineupClipJob>? NextDemo(ref bool drained)
     {
         lock (_gate)
         {
             if (_pending.Count == 0)
             {
+                _running = false;
+                drained = true;
                 return null;
             }
 
@@ -744,16 +771,18 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
     private readonly Func<string, ParsedDemo> _parse;
 
     /// <param name="gate">The heavy-job gate; the parse takes a background slot, so it yields to the user's own.</param>
-    /// <param name="parse">Reads and parses a demo; a memory-mapped parse of the file when null.</param>
+    /// <param name="parse">Reads and parses a demo; when null, mapped if <see cref="MapsFile" />, else read into a byte[].</param>
     /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
     /// <param name="log">Line sink for the encoder choice, ffmpeg's stderr and a failed clip.</param>
+    /// <param name="time">The clock <see cref="MappedParsePolicy" /> judges a file settled by; the system clock when null.</param>
     public LineupClipRenderer(HeavyJobGate? gate, Func<string, ParsedDemo>? parse = null,
-        Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null)
+        Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null, TimeProvider? time = null)
     {
         _gate = gate;
-        // Mapped, so the demo never sits on the LOH. Library demos only: a file truncated while mapped
-        // is a fatal access violation, not an exception.
-        _parse = parse ?? (static path => MemoryMappedDemoSource.ParseFile(path));
+        TimeProvider clock = time ?? TimeProvider.System;
+        _parse = parse ?? (path => MapsFile(path, clock, MappedParsePolicy.StatFile)
+            ? MemoryMappedDemoSource.ParseFile(path)
+            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
     }
@@ -803,6 +832,13 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
 
         return rendered;
     }
+
+    /// <summary>
+    ///     Whether the default parse maps the demo: never on the browser, and only for a settled file, the
+    ///     processing queue's rule. A mapped file truncated under the parse is a fatal access violation.
+    /// </summary>
+    internal static bool MapsFile(string path, TimeProvider time, Func<string, FileStat> stat) =>
+        !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, time, stat);
 
     private LoadedMapAsset? SafeLoad(string map)
     {

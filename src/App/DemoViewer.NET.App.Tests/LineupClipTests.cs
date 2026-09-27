@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 
@@ -573,6 +574,80 @@ public class LineupClipTests
         {
             System.IO.Directory.Delete(clips, true);
         }
+    }
+
+    [Test]
+    public async Task ARequestDuringAnEvictionPass_WaitsForIt_AndItsClipComesBack()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        string clips = TempClips();
+        try
+        {
+            IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
+
+            // The first lineup's pair is the oldest on disk; the second is rendered and pushes it over the cap.
+            WritePair(clips, jobs[0].Stem, 1000, DateTime.UtcNow.AddHours(-1));
+            FileRenderer renderer = new() { Bytes = 1000 };
+            using LineupClipService service = new(() => [cluster], new ReviewQueue(null), clips, () => true, renderer,
+                maxBytes: () => 1500);
+
+            Task<int>? request = null;
+            bool waited = false;
+            service.BeforeEvictionDeletes = () =>
+            {
+                if (request is not null)
+                {
+                    return;
+                }
+
+                request = Task.Run(() => service.Request(jobs[0].LineupId));
+                waited = !request.Wait(TimeSpan.FromMilliseconds(300));
+            };
+
+            await Assert.That(service.Plan()).IsEqualTo(1);
+            await service.WorkerTask;
+            await request!;
+            while (!service.WorkerTask.IsCompleted || service.Pending.Count > 0)
+            {
+                await service.WorkerTask;
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(waited).IsTrue().Because("the request waits for the pass it arrived in");
+                await Assert.That(renderer.Calls.SelectMany(c => c.Jobs).Count(j => j.LineupId == jobs[0].LineupId)).IsEqualTo(1)
+                    .Because("the pass evicted it, and the request put it back");
+                await Assert.That(HasPair(clips, jobs[0].Stem)).IsTrue();
+                await Assert.That(service.Evicted).DoesNotContain(jobs[0].Stem);
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task TheDefaultParse_MapsOnlyASettledFile()
+    {
+        DateTimeOffset now = new(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+        TimeProvider clock = new FixedClock(now);
+        FileStat old = new(100, now.AddMinutes(-5));
+        FileStat fresh = new(100, now.AddSeconds(-10));
+        int calls = 0;
+        FileStat Growing(string _) => new(100 + calls++, now.AddMinutes(-5));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(LineupClipRenderer.MapsFile("x", clock, _ => old)).IsEqualTo(!OperatingSystem.IsBrowser());
+            await Assert.That(LineupClipRenderer.MapsFile("x", clock, _ => fresh)).IsFalse().Because("it may still be copying");
+            await Assert.That(LineupClipRenderer.MapsFile("x", clock, Growing)).IsFalse().Because("it changed between the two stats");
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     [Test]
