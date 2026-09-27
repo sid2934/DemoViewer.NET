@@ -3,6 +3,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using CS2DemoKit.Analysis.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -39,6 +41,8 @@ public sealed class DemoCacheStore
     private const string LegacyRecordSuffix = ".json";
 
     private static readonly JsonSerializerOptions _jsonOptions = new();
+
+    private static ILogger? _diagLog;
 
     private readonly string? _cacheRoot;
     private readonly object _gate = new();
@@ -85,6 +89,10 @@ public sealed class DemoCacheStore
     ///     </para>
     /// </summary>
     private readonly object _rmwGate = new();
+
+    // Serialize a demo's sidecar file writes, deletes and legacy conversion, so a conversion can never
+    // write a stale file over a fresher one. Taken outside _gate, never inside it.
+    private readonly object[] _fileStripes = [.. Enumerable.Range(0, 16).Select(_ => new object())];
 
     private int _batchDepth; // under _gate
     private bool _batchDirty; // under _gate
@@ -162,6 +170,11 @@ public sealed class DemoCacheStore
     }
 
     private string? IndexPath => _cacheRoot is null ? null : Path.Combine(_cacheRoot, "index.json");
+
+    /// <summary>The cache directory, or null for an in-memory store.</summary>
+    internal string? CacheRoot => _cacheRoot;
+
+    private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(SidecarFormatLog.Category);
 
     private string? SidecarDir => _cacheRoot is null ? null : Path.Combine(_cacheRoot, "demos");
 
@@ -277,23 +290,21 @@ public sealed class DemoCacheStore
                 return held is null ? null : SidecarJson.Deserialize<DemoCacheRecord>(held, _jsonOptions);
             }
 
-            // The new file wins whenever it exists, even when it does not parse: a legacy file beside it
-            // is older than it.
+            // The new file wins whenever it reads. When it does not, a legacy file beside it is the last
+            // good write.
             if (File.Exists(file))
             {
                 byte[] bytes = File.ReadAllBytes(file);
-                if (SidecarJson.Deserialize<DemoCacheRecord>(bytes, _jsonOptions) is not { } record)
+                if (TryDeserializeRecord(bytes) is { } record)
                 {
-                    return null;
-                }
+                    lock (_gate)
+                    {
+                        _lastRecordPath = path;
+                        _lastRecordBytes = bytes;
+                    }
 
-                lock (_gate)
-                {
-                    _lastRecordPath = path;
-                    _lastRecordBytes = bytes;
+                    return record;
                 }
-
-                return record;
             }
 
             string legacy = LegacySidecarPathFor(path)!;
@@ -305,6 +316,93 @@ public sealed class DemoCacheStore
             return null;
         }
     }
+
+    private static DemoCacheRecord? TryDeserializeRecord(byte[] bytes)
+    {
+        try
+        {
+            return SidecarJson.Deserialize<DemoCacheRecord>(bytes, _jsonOptions);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    // True when the file reads back as this demo's record: the check before a legacy file is deleted.
+    private static bool VerifyRecordFile(string file, string demoPath)
+    {
+        try
+        {
+            return SidecarJson.ReadFile<DemoCacheRecord>(file, _jsonOptions) is { } record
+                   && string.Equals(record.Path, demoPath, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Re-encodes a demo's pre-gzip record as <c>&lt;key&gt;.json.gz</c> without a parse. The legacy
+    ///     file goes only after the new one reads back; a legacy file that does not read is kept.
+    /// </summary>
+    /// <param name="demoPath">An indexed demo.</param>
+    internal SidecarConversion ConvertLegacyRecord(string demoPath)
+    {
+        string? file = SidecarPathFor(demoPath);
+        if (file is null)
+        {
+            return SidecarConversion.None;
+        }
+
+        string legacy = LegacySidecarPathFor(demoPath)!;
+        string legacyName = Path.GetFileName(legacy);
+        lock (StripeFor(demoPath))
+        {
+            try
+            {
+                if (!File.Exists(legacy) || TryGetIndex(demoPath) is null)
+                {
+                    return SidecarConversion.None;
+                }
+
+                if (File.Exists(file) && VerifyRecordFile(file, demoPath))
+                {
+                    File.Delete(legacy);
+                    return SidecarConversion.Converted;
+                }
+
+                byte[] compact = SidecarJson.Minify(File.ReadAllBytes(legacy));
+                if (TryDeserializeRecord(compact) is not { } record
+                    || !string.Equals(record.Path, demoPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    SidecarFormatLog.LegacyUnreadable(Log, legacyName);
+                    return SidecarConversion.Failed;
+                }
+
+                WriteAtomicBytes(file, SidecarJson.Gzip(compact));
+                if (!VerifyRecordFile(file, demoPath))
+                {
+                    File.Delete(file);
+                    SidecarFormatLog.KeptLegacy(Log, legacyName);
+                    return SidecarConversion.Failed;
+                }
+
+                File.Delete(legacy);
+                return SidecarConversion.Converted;
+            }
+            catch (Exception ex)
+            {
+                SidecarFormatLog.ConversionFailed(Log, legacyName, ex);
+                return SidecarConversion.Failed;
+            }
+        }
+    }
+
+    /// <summary>The lock that orders one demo's sidecar file writes against its legacy conversion.</summary>
+    internal object StripeFor(string demoPath) =>
+        _fileStripes[(int)((uint)StringComparer.OrdinalIgnoreCase.GetHashCode(demoPath) % (uint)_fileStripes.Length)];
 
     /// <summary>
     ///     The record for a demo if one exists, else a fresh identity-tier record for
@@ -668,6 +766,30 @@ public sealed class DemoCacheStore
         }
     }
 
+    /// <summary>A sibling's raw bytes, or null when it is missing or unreadable.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
+    public byte[]? TryReadSiblingBytes(string demoPath, string suffix)
+    {
+        string? file = SiblingPathFor(demoPath, suffix);
+        if (file is null)
+        {
+            lock (_gate)
+            {
+                return _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix);
+            }
+        }
+
+        try
+        {
+            return File.Exists(file) ? File.ReadAllBytes(file) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Deletes one sibling, best effort.</summary>
     /// <param name="demoPath">The demo's path.</param>
     /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
@@ -740,20 +862,31 @@ public sealed class DemoCacheStore
             return;
         }
 
-        try
+        lock (StripeFor(demoPath))
         {
-            WriteAtomicBytes(file, bytes);
-
-            // Only once the new file is in place: a failed write keeps the legacy record readable.
-            string legacy = LegacySidecarPathFor(demoPath)!;
-            if (File.Exists(legacy))
+            try
             {
-                File.Delete(legacy);
+                WriteAtomicBytes(file, bytes);
+
+                // Only once the new file reads back: otherwise the legacy record stays the reader's fallback.
+                string legacy = LegacySidecarPathFor(demoPath)!;
+                string legacyName = Path.GetFileName(legacy);
+                if (File.Exists(legacy))
+                {
+                    if (VerifyRecordFile(file, demoPath))
+                    {
+                        File.Delete(legacy);
+                    }
+                    else
+                    {
+                        SidecarFormatLog.KeptLegacy(Log, legacyName);
+                    }
+                }
             }
-        }
-        catch (Exception)
-        {
-            // Rebuildable.
+            catch (Exception)
+            {
+                // Rebuildable.
+            }
         }
     }
 
@@ -775,23 +908,26 @@ public sealed class DemoCacheStore
             return;
         }
 
-        try
+        lock (StripeFor(path))
         {
-            File.Delete(file);
-
-            // The siblings share the key and a dot, so one pattern finds every one of them and nothing else.
-            string dir = Path.GetDirectoryName(file)!;
-            if (Directory.Exists(dir))
+            try
             {
-                foreach (string sibling in Directory.EnumerateFiles(dir, key + ".*"))
+                File.Delete(file);
+
+                // The siblings share the key and a dot, so one pattern finds every one of them and nothing else.
+                string dir = Path.GetDirectoryName(file)!;
+                if (Directory.Exists(dir))
                 {
-                    File.Delete(sibling);
+                    foreach (string sibling in Directory.EnumerateFiles(dir, key + ".*"))
+                    {
+                        File.Delete(sibling);
+                    }
                 }
             }
-        }
-        catch (Exception)
-        {
-            // Best effort: an orphaned sidecar is harmless, it is simply never read again.
+            catch (Exception)
+            {
+                // Best effort: an orphaned sidecar is harmless, it is simply never read again.
+            }
         }
     }
 

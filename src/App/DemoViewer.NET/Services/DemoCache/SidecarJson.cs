@@ -38,6 +38,23 @@ internal static class SidecarJson
     }
 
     /// <summary>
+    ///     Plain JSON re-written without whitespace, keeping every property whether or not a model knows
+    ///     it. Throws on bad JSON.
+    /// </summary>
+    public static byte[] Minify(byte[] json)
+    {
+        int bom = SkipBom(json).Length == json.Length ? 0 : 3;
+        using JsonDocument document = JsonDocument.Parse(json.AsMemory(bom));
+        ArrayBufferWriter<byte> buffer = new(json.Length);
+        using (Utf8JsonWriter writer = new(buffer))
+        {
+            document.WriteTo(writer);
+        }
+
+        return buffer.WrittenSpan.ToArray();
+    }
+
+    /// <summary>
     ///     The value <paramref name="bytes" /> hold, gzipped or plain. Throws on a bad stream or bad JSON; the
     ///     callers own the "bad file = not cached" rule.
     /// </summary>

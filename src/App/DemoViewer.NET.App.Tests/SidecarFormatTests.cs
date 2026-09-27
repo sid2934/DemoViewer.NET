@@ -139,7 +139,7 @@ public class SidecarFormatTests
     }
 
     [Test]
-    public async Task BadRecordFiles_ReadAsAbsent_AndTheNewFileWinsOverTheLegacyOne()
+    public async Task BadRecordFiles_ReadAsAbsent_UnlessALegacyFileSitsBesideThem()
     {
         string root = TempRoot();
         try
@@ -158,9 +158,9 @@ public class SidecarFormatTests
             File.WriteAllBytes(file, [0x1F, 0x8B, 1, 2, 3, 4, 5]);
             await Assert.That(new DemoCacheStore(root).TryLoadRecord(Demo)).IsNull();
 
-            // A valid legacy file does not rescue a corrupt new one: the new one is the later write.
+            // A valid legacy file beside a corrupt new one is the last good write, and is read.
             File.WriteAllText(legacy, JsonSerializer.Serialize(BigRecord(Demo)));
-            await Assert.That(new DemoCacheStore(root).TryLoadRecord(Demo)).IsNull();
+            await Assert.That(new DemoCacheStore(root).TryLoadRecord(Demo)).IsNotNull();
 
             // Corrupt legacy alone.
             File.Delete(file);
@@ -328,15 +328,122 @@ public class SidecarFormatTests
     }
 
     [Test]
-    public async Task Grenades_CorruptNewSibling_DoesNotFallBackToTheLegacyOne()
+    public async Task Grenades_CorruptNewSibling_FallsBackToTheLegacyOne()
     {
         DemoCacheStore cache = new(null);
         Stamp(cache);
+        cache.WriteSiblingBytes(Demo, GrenadeSidecar.Suffix, [0x1F, 0x8B, 9, 9, 9]);
+        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull().Because("no legacy file to fall back to");
+
         (GrenadeDocument rows, _) = Documents(Row("g1", "1"));
         cache.WriteSibling(Demo, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(rows));
-        cache.WriteSiblingBytes(Demo, GrenadeSidecar.Suffix, [0x1F, 0x8B, 9, 9, 9]);
+        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)!.Grenades.Single().Id).IsEqualTo("g1");
+    }
 
-        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull();
+    // ── One-off conversion pass ─────────────────────────────────────────────────────────────────
+
+    private static void StampGrenades(DemoCacheStore cache, string path, string sha)
+    {
+        DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, "de_nuke", sha);
+        DemoCacheStore.StampGrenades(record);
+        record.GrenadeState = DemoAnalysisState.Indexed;
+        record.GrenadeWalker = GrenadeWalker.Version;
+        cache.Upsert(record);
+    }
+
+    private static Task<SidecarFormatResult> Pass(DemoCacheStore cache) =>
+        SidecarFormatMigration.RunAsync(cache,
+            [cache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(cache, path)], batchSize: 2);
+
+    [Test]
+    public async Task ConversionPass_ConvertsMixedFiles_KeepsBadOnes_AndMarksDoneOnceClean()
+    {
+        string root = TempRoot();
+        try
+        {
+            const string a = "/d/a.dem", b = "/d/b.dem", c = "/d/c.dem", d = "/d/d.dem", e = "/d/e.dem", f = "/d/f.dem";
+            DemoCacheStore seed = new(root);
+            foreach (string path in (string[])[a, b, c, d])
+            {
+                seed.Upsert(BigRecord(path));
+            }
+
+            StampGrenades(seed, e, "sha-e");
+            StampGrenades(seed, f, "sha-f");
+            seed.SaveIndex();
+
+            // a: legacy only, carrying a field no model knows. c: corrupt legacy only. d: new plus a stale legacy.
+            DemoCacheRecord aRecord = seed.TryLoadRecord(a)!;
+            string aJson = JsonSerializer.Serialize(aRecord, _indented).Insert(1, "\n  \"FutureField\": 7,");
+            File.WriteAllText(seed.LegacySidecarPathFor(a)!, aJson);
+            File.Delete(seed.SidecarPathFor(a)!);
+            File.WriteAllText(seed.LegacySidecarPathFor(c)!, "{ not json");
+            File.Delete(seed.SidecarPathFor(c)!);
+            File.WriteAllText(seed.LegacySidecarPathFor(d)!, "{}");
+
+            // e: legacy grenade pair. f: legacy rows naming another demo.
+            (GrenadeDocument eRows, GrenadePathsDocument ePaths) = Documents(Row("g1", "76561198000000001"));
+            eRows.Demo.Sha256 = ePaths.Demo.Sha256 = "sha-e";
+            seed.WriteSibling(e, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(eRows));
+            seed.WriteSibling(e, GrenadeSidecar.LegacyPathsSuffix, GrenadeSidecar.Serialize(ePaths));
+            (GrenadeDocument fRows, _) = Documents(Row("g9", null));
+            fRows.Demo.Sha256 = "sha-other";
+            seed.WriteSibling(f, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(fRows));
+
+            DemoCacheStore cache = new(root);
+            SidecarFormatResult first = await Pass(cache);
+            string marker = Path.Combine(root, SidecarFormatMigration.MarkerFileName);
+
+            await using (GZipStream gzip = new(File.OpenRead(cache.SidecarPathFor(a)!), CompressionMode.Decompress))
+            using (StreamReader reader = new(gzip, Encoding.UTF8))
+            {
+                string converted = await reader.ReadToEndAsync();
+                await Assert.That(converted).Contains("\"FutureField\":7");
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(first.Demos).IsEqualTo(6);
+                await Assert.That(first.Failed).IsEqualTo(2).Because("c's record and f's rows do not read as theirs");
+                await Assert.That(first.Completed).IsFalse();
+                await Assert.That(File.Exists(marker)).IsFalse();
+                await Assert.That(File.Exists(cache.LegacySidecarPathFor(a)!)).IsFalse();
+                await Assert.That(cache.TryLoadRecord(a)!.Highlights.Count).IsEqualTo(200);
+                await Assert.That(File.Exists(cache.LegacySidecarPathFor(c)!)).IsTrue();
+                await Assert.That(File.Exists(cache.SidecarPathFor(c)!)).IsFalse();
+                await Assert.That(File.Exists(cache.LegacySidecarPathFor(d)!)).IsFalse();
+                await Assert.That(cache.TryLoadRecord(d)).IsNotNull();
+                await Assert.That(File.Exists(cache.SiblingPathFor(e, GrenadeSidecar.LegacySuffix)!)).IsFalse();
+                await Assert.That(File.Exists(cache.SiblingPathFor(e, GrenadeSidecar.LegacyPathsSuffix)!)).IsFalse();
+                await Assert.That(IsGzipFile(cache.SiblingPathFor(e, GrenadeSidecar.Suffix)!)).IsTrue();
+                await Assert.That(GrenadeSidecar.TryReadRows(cache, e)!.Grenades.Single().Id).IsEqualTo("g1");
+                await Assert.That(GrenadeSidecar.TryReadPaths(cache, e)!.Paths["g1"].Count).IsEqualTo(2);
+                await Assert.That(File.Exists(cache.SiblingPathFor(f, GrenadeSidecar.LegacySuffix)!)).IsTrue();
+            }
+
+            // Resumable: the converted demos have nothing left, the bad files are tried again.
+            SidecarFormatResult second = await Pass(cache);
+            using (Assert.Multiple())
+            {
+                await Assert.That(second.Converted).IsEqualTo(0);
+                await Assert.That(second.Failed).IsEqualTo(2);
+            }
+
+            File.Delete(cache.LegacySidecarPathFor(c)!);
+            File.Delete(cache.SiblingPathFor(f, GrenadeSidecar.LegacySuffix)!);
+            SidecarFormatResult third = await Pass(cache);
+            SidecarFormatResult fourth = await Pass(cache);
+            using (Assert.Multiple())
+            {
+                await Assert.That(third.Completed).IsTrue();
+                await Assert.That(File.Exists(marker)).IsTrue();
+                await Assert.That(fourth.Demos).IsEqualTo(0).Because("the marker ends the pass for good");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     [Test]
