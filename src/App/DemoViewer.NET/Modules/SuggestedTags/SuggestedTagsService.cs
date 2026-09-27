@@ -25,13 +25,17 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 /// </summary>
 /// <param name="FromTick">The claim window's start, frame clock.</param>
 /// <param name="ToTick">The claim window's end, frame clock.</param>
-/// <param name="Labels">The labels, replacing the proposal's.</param>
+/// <param name="Labels">The labels, in order, replacing the proposal's; a group may repeat.</param>
 /// <param name="Note">A note for the instance.</param>
+/// <param name="Code">Another code than the proposal's; the verdict is then <c>recoded</c>.</param>
+/// <param name="Positions">Map positions for the instance.</param>
 public sealed record TagInstanceEdit(
     int? FromTick = null,
     int? ToTick = null,
-    IReadOnlyDictionary<string, string>? Labels = null,
-    string? Note = null);
+    IReadOnlyList<TagLabel>? Labels = null,
+    string? Note = null,
+    string? Code = null,
+    IReadOnlyList<TagPosition>? Positions = null);
 
 /// <summary>
 ///     The Suggested Tags engine as a background evaluator (suggested-tags.md §3.5, steps 4 and 5): one
@@ -354,13 +358,15 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <param name="minConfidence">The queue's confidence filter.</param>
     /// <param name="detector">The queue's detector filter, or null for every detector.</param>
     /// <param name="sha256">The demo's hash when the caller knows it better than the index.</param>
-    public int AcceptAll(string path, double minConfidence, string? detector = null, string? sha256 = null)
+    /// <param name="round">The queue's round filter, or null for every round.</param>
+    public int AcceptAll(string path, double minConfidence, string? detector = null, string? sha256 = null, int? round = null)
     {
         List<string> ids =
         [
             .. Load(path, sha256).Pending
                 .Where(e => e.Proposal.Confidence >= minConfidence
-                            && (detector is null || e.Proposal.Detector == detector))
+                            && (detector is null || e.Proposal.Detector == detector)
+                            && (round is null || e.Proposal.Round == round))
                 .Select(e => e.Proposal.Id)
         ];
         int accepted = 0;
@@ -394,12 +400,14 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         ArgumentNullException.ThrowIfNull(proposal);
         int from = edit?.FromTick ?? proposal.FromTick;
         int to = Math.Max(from, edit?.ToTick ?? proposal.ToTick);
-        IReadOnlyDictionary<string, string> labels = edit?.Labels ?? proposal.Labels;
+        List<TagLabel> labels = edit?.Labels is { } edited
+            ? [.. edited.Select(l => new TagLabel(l.Group, l.Value))]
+            : [.. proposal.Labels.OrderBy(l => l.Key, StringComparer.Ordinal).Select(l => new TagLabel(l.Key, l.Value))];
 
         TagInstance instance = new()
         {
             Id = Guid.NewGuid(),
-            Code = proposal.Code,
+            Code = edit?.Code is { Length: > 0 } code ? code : proposal.Code,
             FromTick = from,
             ToTick = to,
             Round = proposal.Round,
@@ -418,14 +426,15 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             }
         };
 
-        if (!labels.ContainsKey("side") && proposal.Side is 2 or 3)
+        if (!labels.Any(l => l.Group == "side") && proposal.Side is 2 or 3)
         {
             instance.Labels.Add(new TagLabel("side", ProposalIds.SideName(proposal.Side)));
         }
 
-        foreach ((string group, string value) in labels.OrderBy(l => l.Key, StringComparer.Ordinal))
+        instance.Labels.AddRange(labels);
+        if (edit?.Positions is { } positions)
         {
-            instance.Labels.Add(new TagLabel(group, value));
+            instance.Positions.AddRange(positions);
         }
 
         return instance;
@@ -458,7 +467,10 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             return false;
         }
 
-        string verdict = edit is null ? SuggestionVerdicts.Accepted : SuggestionVerdicts.Edited;
+        string verdict = edit is null ? SuggestionVerdicts.Accepted
+            : edit.Code is { Length: > 0 } code && !string.Equals(code, entry.Proposal.Code, StringComparison.Ordinal)
+                ? SuggestionVerdicts.Recoded
+                : SuggestionVerdicts.Edited;
         return _tags.RecordVerdict(sha, proposalId, Verdict(verdict, instance.Id, entry.Proposal, document));
     }
 

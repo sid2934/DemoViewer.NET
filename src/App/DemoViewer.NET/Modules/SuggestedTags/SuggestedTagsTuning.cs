@@ -119,6 +119,8 @@ public static class SuggestedTagsTuning
                 SuggestionVerdicts.Accepted => c with { Made = c.Made + 1, Accepted = c.Accepted + 1 },
                 SuggestionVerdicts.Edited => c with { Made = c.Made + 1, Edited = c.Edited + 1 },
                 SuggestionVerdicts.Rejected => c with { Made = c.Made + 1, Rejected = c.Rejected + 1 },
+                // Tagged, but not as what the detector said: against the detector, like a rejection.
+                SuggestionVerdicts.Recoded => c with { Made = c.Made + 1, Rejected = c.Rejected + 1 },
                 _ => c with { Made = c.Made + 1, Pending = c.Pending + 1 }
             };
         }
