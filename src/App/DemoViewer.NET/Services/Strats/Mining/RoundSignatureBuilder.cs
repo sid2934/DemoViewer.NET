@@ -96,11 +96,24 @@ public sealed class RoundSignatureBuilder
     /// <param name="ct">Stops between demos.</param>
     public IReadOnlyList<RoundSignature> Build(CancellationToken ct = default)
     {
-        List<RoundSignature> signatures = [];
+        BuildSession session = Begin();
+        for (int i = 0; i < session.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            Step(session, i, 1);
+        }
+
+        return Finish(session);
+    }
+
+    /// <summary>
+    ///     The demos a build will read, in build order: one per hash, grouped by map, each with its grenades.
+    ///     Reads only memory. <see cref="Step" /> then reads them in batches and <see cref="Finish" /> ends it.
+    /// </summary>
+    public BuildSession Begin()
+    {
+        BuildSession session = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
-        HashSet<string> present = new(StringComparer.Ordinal);
-        int reused = 0;
-        int built = 0;
         foreach (IGrouping<string, DemoCacheIndexEntry> map in _demoCache.Index
                      .Where(e => e.Map is { Length: > 0 })
                      .GroupBy(e => e.Map!, StringComparer.OrdinalIgnoreCase))
@@ -109,47 +122,78 @@ public sealed class RoundSignatureBuilder
                 .ToLookup(g => g.Grenade.Demo.Path, StringComparer.OrdinalIgnoreCase);
             foreach (DemoCacheIndexEntry entry in map)
             {
-                ct.ThrowIfCancellationRequested();
-                if (!seen.Add(entry.Sha256 ?? entry.Path))
+                if (seen.Add(entry.Sha256 ?? entry.Path))
                 {
-                    continue;
-                }
-
-                present.Add(entry.Path);
-                DemoSignatures? demo;
-                string? key = _cache is null ? null : KeyFor(entry, map.Key);
-                if (key is not null && _cache!.TryGet(entry.Path, key) is { } hit)
-                {
-                    demo = hit;
-                    reused++;
-                }
-                else
-                {
-                    demo = Read(entry.Path, map.Key);
-                    built++;
-                    // A demo whose files could not be read is not cached: the next mine tries it again.
-                    if (key is not null && demo is not null)
-                    {
-                        _cache!.Put(entry.Path, key, demo);
-                    }
-                }
-
-                if (demo is not null)
-                {
-                    signatures.AddRange(Attach(entry.Path, map.Key, demo,
-                        grenades.Contains(entry.Path) ? [.. grenades[entry.Path]] : null));
+                    session.Items.Add((entry, map.Key, grenades.Contains(entry.Path) ? [.. grenades[entry.Path]] : null));
                 }
             }
         }
 
+        return session;
+    }
+
+    /// <summary>Reads demos <paramref name="from" /> to <paramref name="from" /> + <paramref name="count" /> of the session.</summary>
+    public void Step(BuildSession session, int from, int count)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        for (int i = from; i < Math.Min(session.Count, from + count); i++)
+        {
+            (DemoCacheIndexEntry entry, string map, IReadOnlyList<MiningGrenade>? grenades) = session.Items[i];
+            session.Present.Add(entry.Path);
+            DemoSignatures? demo;
+            string? key = _cache is null ? null : KeyFor(entry, map);
+            if (key is not null && _cache!.TryGet(entry.Path, key) is { } hit)
+            {
+                demo = hit;
+                session.Reused++;
+            }
+            else
+            {
+                demo = Read(entry.Path, map);
+                session.Built++;
+                // A demo whose files could not be read is not cached: the next mine tries it again.
+                if (key is not null && demo is not null)
+                {
+                    _cache!.Put(entry.Path, key, demo);
+                }
+            }
+
+            if (demo is not null)
+            {
+                session.Signatures.AddRange(Attach(entry.Path, map, demo, grenades));
+            }
+        }
+    }
+
+    /// <summary>Drops cache entries for demos the session did not see, writes the cache, and returns the signatures.</summary>
+    public IReadOnlyList<RoundSignature> Finish(BuildSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
         if (_cache is not null)
         {
-            _cache.Retain(present);
+            _cache.Retain(session.Present);
             _cache.Save();
         }
 
-        LastBuild = (reused, built);
-        return signatures;
+        LastBuild = (session.Reused, session.Built);
+        return session.Signatures;
+    }
+
+    /// <summary>One build in progress; see <see cref="Begin" />.</summary>
+    public sealed class BuildSession
+    {
+        internal List<(DemoCacheIndexEntry Entry, string Map, IReadOnlyList<MiningGrenade>? Grenades)> Items { get; } = [];
+
+        internal List<RoundSignature> Signatures { get; } = [];
+
+        internal HashSet<string> Present { get; } = new(StringComparer.Ordinal);
+
+        internal int Reused { get; set; }
+
+        internal int Built { get; set; }
+
+        /// <summary>Demos to read.</summary>
+        public int Count => Items.Count;
     }
 
     /// <summary>One demo's signatures.</summary>
