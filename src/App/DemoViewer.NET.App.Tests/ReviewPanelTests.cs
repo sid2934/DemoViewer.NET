@@ -6,8 +6,10 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Tags;
@@ -182,6 +184,69 @@ public class ReviewPanelTests
             window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
             await Assert.That(vm.ReviewPanel.HasEditor).IsFalse().Because("Esc in the editor cancels it");
+        });
+
+    [Test]
+    public async Task OnTheLane_TheHandlesMoveTheEditor_AClickStartsALabel_AndABandOffersEditAndDelete() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            vm.Timeline.PixelWidth = 999; // one px per frame over the harness's 1000 frames
+            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            TagInstance tag = Tag("A execute", 800, 1_200);
+            vm.Tags.Apply(new TagDelta.Add(tag));
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(vm.Timeline.IsLaneEditable).IsFalse().Because("the lane takes edits in Review mode only");
+            vm.IsReviewMode = true;
+            await Assert.That(vm.Timeline.IsLaneEditable).IsTrue();
+
+            vm.ReviewPanel.EditTag(tag.Id);
+            TagEditorViewModel editor = vm.ReviewPanel.ActiveEditor!;
+            await Assert.That(vm.Timeline.HasEditSpan).IsTrue();
+            await Assert.That(vm.Timeline.EditX).IsEqualTo(400).Because("tick 800 is frame 400 on the fake");
+
+            int seeks = ctx.SeekFrames.Count + ctx.SeekTicks.Count;
+            vm.Timeline.DragEditEdge(true, 300);
+            vm.Timeline.DragEditEdge(false, 700);
+            using (Assert.Multiple())
+            {
+                await Assert.That(editor.CurrentSpan).IsEqualTo((600, 1_400));
+                await Assert.That(ctx.SeekFrames.Count + ctx.SeekTicks.Count).IsEqualTo(seeks).Because("a handle drag never seeks");
+                await Assert.That(vm.Tags.Document!.Instances.Single().FromTick).IsEqualTo(800).Because("the drag moves the draft; Save writes it");
+            }
+
+            vm.Timeline.DragEditEdge(true, 900);
+            await Assert.That(editor.CurrentSpan!.Value.From).IsEqualTo(1_400).Because("the start never passes the end");
+            editor.SaveCommand.Execute(null);
+            await Assert.That(vm.Tags.Document!.Instances.Single().FromTick).IsEqualTo(1_400);
+            await Assert.That(vm.Timeline.HasEditSpan).IsFalse();
+            Playback2DTimelineHarness.Pump();
+
+            TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == TagTrack.TrackId);
+            List<(string Header, Action Run)> menu = vm.Timeline.LaneMenu!(band).ToList();
+            await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo(["Edit A execute", "Delete A execute"]);
+            menu[1].Run();
+            await Assert.That(vm.Tags.Document!.Instances).IsEmpty();
+
+            vm.Timeline.RequestLaneLabel(100);
+            TagEditorViewModel created = vm.ReviewPanel.ActiveEditor!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(created.CanDelete).IsFalse().Because("a click on empty lane starts a new label");
+                await Assert.That(created.CurrentSpan).IsEqualTo((200, 200 + 10 * 64));
+            }
+
+            vm.IsReviewMode = false;
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Timeline.IsLaneEditable).IsFalse();
+                await Assert.That(vm.Timeline.HasEditSpan).IsFalse();
+                await Assert.That(vm.Timeline.LaneMenu!(band)).IsEmpty();
+            }
+
+            vm.OnDeactivated();
+            vm.Dispose();
         });
 
     [Test]
