@@ -465,6 +465,7 @@ public class SidecarFormatTests
     // Prints the before/after allocation of one record read. Not an assertion: the numbers depend on
     // the record's shape, and this one is synthetic.
     [Test]
+    [Category("Budget")]
     public async Task Measure_RecordReadAllocation()
     {
         string root = TempRoot();
