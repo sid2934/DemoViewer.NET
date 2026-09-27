@@ -416,6 +416,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             () => _context?.CurrentTick ?? CurrentFrame.Time.Tick, () => _context?.TickRate ?? 64,
             tick => _context?.RequestSeekToTick(tick));
 
+        // Review mode's lane editing: the open editor's span drawn with handles, a click on empty lane to start a
+        // label, and the right-click menu on a lane band.
+        ReviewPanel.PropertyChanged += OnReviewPanelChanged;
+        Timeline.EditSpanDragged += OnEditSpanDragged;
+        Timeline.LaneLabelRequested += OnLaneLabelRequested;
+        Timeline.LaneMenu = band => LaneMenuFor(band);
+        _tagSession.Changed += RefreshLaneEditing;
+
         // Review mode starts as the user left it (off on a first run): the lanes follow it from here.
         _isReviewMode = Settings()?.Current.Playback2D.ReviewMode ?? false;
         ApplyReviewModeToTimeline();
@@ -696,6 +704,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         TagPalette.Finish();
         TagPalette.Dispose();
         _tagTrack.Dispose();
+        ReviewPanel.PropertyChanged -= OnReviewPanelChanged;
+        Timeline.EditSpanDragged -= OnEditSpanDragged;
+        Timeline.LaneLabelRequested -= OnLaneLabelRequested;
+        _tagSession.Changed -= RefreshLaneEditing;
         ReviewPanel.Dispose();
         SuggestionQueue.Dispose();
         _tagSession.Dispose(); // detaches, which flushes
@@ -1570,6 +1582,157 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     {
         Timeline.SetTrackSuppressed(TagTrack.TrackId, !IsReviewMode);
         Timeline.SetTrackSuppressed(ProposalTrack.TrackId, !IsReviewMode);
+        RefreshLaneEditing();
+    }
+
+    private TagEditorViewModel? _spanEditor;
+
+    private void RefreshLaneEditing()
+    {
+        Timeline.IsLaneEditable = IsReviewMode && ShowTagPalette && _tagSession.Document is not null;
+        UpdateEditSpan();
+    }
+
+    private void OnReviewPanelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ReviewPanelViewModel.ActiveEditor))
+        {
+            return;
+        }
+
+        if (_spanEditor is not null)
+        {
+            _spanEditor.PropertyChanged -= OnSpanEditorChanged;
+        }
+
+        _spanEditor = ReviewPanel.ActiveEditor;
+        if (_spanEditor is not null)
+        {
+            _spanEditor.PropertyChanged += OnSpanEditorChanged;
+        }
+
+        UpdateEditSpan();
+    }
+
+    private void OnSpanEditorChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TagEditorViewModel.CurrentSpan))
+        {
+            UpdateEditSpan();
+        }
+    }
+
+    // The open editor's span as frames on the lane, or nothing outside Review mode or with no editor.
+    private void UpdateEditSpan()
+    {
+        if (!IsReviewMode || _context is not { } ctx || ReviewPanel.ActiveEditor?.CurrentSpan is not { } span)
+        {
+            Timeline.SetEditSpan(null);
+            return;
+        }
+
+        int start = ctx.FrameIndexAtTick(span.From);
+        int end = ctx.FrameIndexAtTick(span.To);
+        Timeline.SetEditSpan(start < 0 ? null : (start, end < 0 ? Math.Max(start, ctx.TotalFrames - 1) : end));
+    }
+
+    private void OnEditSpanDragged(int startFrame, int endFrame)
+    {
+        if (ReviewPanel.ActiveEditor is { } editor)
+        {
+            editor.SetSpan(TickAtFrame(startFrame), TickAtFrame(endFrame));
+        }
+    }
+
+    private void OnLaneLabelRequested(int frame)
+    {
+        if (!IsReviewMode)
+        {
+            return;
+        }
+
+        int tick = TickAtFrame(frame);
+        int rate = _context?.TickRate ?? 64;
+        ReviewPanel.NewTag(tick, tick + 10 * (rate > 0 ? rate : 64), "New label");
+    }
+
+    // The labels or suggestions in a lane band, each with what can be done to it.
+    private List<(string Header, Action Run)> LaneMenuFor(TimelineBandViewModel band)
+    {
+        List<(string, Action)> entries = [];
+        if (!IsReviewMode || _timelineData is not { } data)
+        {
+            return entries;
+        }
+
+        if (band.TrackId == TagTrack.TrackId && _tagSession.Document is { } document)
+        {
+            foreach (Guid id in _tagTrack.InstancesInRun(data, band.StartFrameIndex))
+            {
+                if (document.Instances.FirstOrDefault(i => i.Id == id) is not { } instance)
+                {
+                    continue;
+                }
+
+                string name = instance.Round is { } round ? $"{instance.Code} (round {round})" : instance.Code;
+                entries.Add(($"Edit {name}", () => ReviewPanel.EditTag(id)));
+                entries.Add(($"Delete {name}", () => DeleteTag(id)));
+            }
+        }
+        else if (band.TrackId == ProposalTrack.TrackId)
+        {
+            foreach (string id in _proposalTrack.ProposalsInRun(data, band.StartFrameIndex))
+            {
+                string pick = id;
+                entries.Add(($"Review {id}", () =>
+                {
+                    ReviewPanel.IsSuggestedTab = true;
+                    SuggestionQueue.SelectFromTrack([pick]);
+                }));
+            }
+        }
+
+        return entries;
+    }
+
+    private void DeleteTag(Guid id)
+    {
+        try
+        {
+            _tagSession.Apply(new TagDelta.Remove(id));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            // Already gone: nothing to delete.
+        }
+    }
+
+    // The frame clock's inverse: the first tick whose frame index reaches the frame. Frame indices rise with
+    // ticks, so a binary search over the parse's tick range finds it.
+    private int TickAtFrame(int frame)
+    {
+        if (_context is not { } ctx)
+        {
+            return 0;
+        }
+
+        int lo = ctx.FirstTick;
+        int hi = ctx.LastTick > lo ? ctx.LastTick : lo + frame * 2 + 2;
+        while (lo < hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            int at = ctx.FrameIndexAtTick(mid);
+            if (at >= 0 && at >= frame)
+            {
+                hi = mid;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+
+        return lo;
     }
 
     private static void SaveReviewModeSetting(bool on)

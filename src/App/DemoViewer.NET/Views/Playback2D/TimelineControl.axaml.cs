@@ -109,12 +109,70 @@ public partial class TimelineControl : UserControl
                 create.Click += (_, _) => vm.RequestCreateStrat(band);
                 new ContextMenu { ItemsSource = new[] { create } }.Open(control);
             }
+            else if (vm.LaneMenu?.Invoke(band) is { Count: > 0 } entries)
+            {
+                // A lane band: its labels or suggestions, each with what can be done to it.
+                List<MenuItem> items = [];
+                foreach ((string header, Action run) in entries)
+                {
+                    MenuItem item = new() { Header = header };
+                    item.Click += (_, _) => run();
+                    items.Add(item);
+                }
+
+                new ContextMenu { ItemsSource = items }.Open(control);
+            }
 
             e.Handled = true;
             return;
         }
 
         vm.PressBand(band);
+        e.Handled = true;
+    }
+
+    // Empty lane: bands mark their own presses handled, so what reaches here missed every band.
+    private void OnLanePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Handled || ViewModel is not { } vm || sender is not Control lane
+            || !e.GetCurrentPoint(lane).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        vm.RequestLaneLabel(e.GetPosition(lane).X);
+        e.Handled = true;
+    }
+
+    private bool _draggingStart;
+
+    private void OnHandlePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control handle)
+        {
+            return;
+        }
+
+        _draggingStart = handle.Name == "EditStartHandle";
+        e.Pointer.Capture(handle);
+        e.Handled = true;
+    }
+
+    private void OnHandleMoved(object? sender, PointerEventArgs e)
+    {
+        if (ViewModel is not { } vm || sender is not Control handle || !ReferenceEquals(e.Pointer.Captured, handle)
+            || this.FindControl<Panel>("LaneHost") is not { } lane)
+        {
+            return;
+        }
+
+        vm.DragEditEdge(_draggingStart, e.GetPosition(lane).X);
+        e.Handled = true;
+    }
+
+    private void OnHandleReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        e.Pointer.Capture(null);
         e.Handled = true;
     }
 }

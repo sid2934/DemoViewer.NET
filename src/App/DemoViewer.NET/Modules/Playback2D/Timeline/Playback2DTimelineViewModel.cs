@@ -410,6 +410,116 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>Raised by <see cref="RequestCreateStrat" />; the tab opens the review for the band's round.</summary>
     public event Action<TimelineBandViewModel>? CreateStratRequested;
 
+    // ── Review mode's lane editing ───────────────────────────────────────────────────────────────────────
+
+    private (int Start, int End)? _editSpan;
+
+    /// <summary>
+    ///     Whether the lane takes edits: Review mode with a demo's tags attached. The lane then shows even with
+    ///     nothing on it, so a click there can start a label.
+    /// </summary>
+    public bool IsLaneEditable
+    {
+        get => _isLaneEditable;
+        set
+        {
+            if (SetProperty(ref _isLaneEditable, value))
+            {
+                OnPropertyChanged(nameof(ShowLane));
+            }
+        }
+    }
+
+    private bool _isLaneEditable;
+
+    /// <summary>The lane shows when it has bands or takes edits.</summary>
+    public bool ShowLane => HasLaneBands || IsLaneEditable;
+
+    /// <summary>True while the open editor's span is drawn over the lane with its two handles.</summary>
+    public bool HasEditSpan => _editSpan is not null;
+
+    /// <summary>The edit band's left edge, px.</summary>
+    public Thickness EditOffset => new(EditX, 0, 0, 0);
+
+    /// <summary>The edit band's left edge, px.</summary>
+    public double EditX => _editSpan is { } span ? XForFrame(span.Start) : 0;
+
+    /// <summary>The edit band's width, px; never narrower than its two handles.</summary>
+    public double EditWidth => _editSpan is { } span ? Math.Max(8, XForFrame(span.End) - XForFrame(span.Start)) : 0;
+
+    /// <summary>
+    ///     Shows the open editor's span as frames, or hides it with null. Set by the tab whenever the editor
+    ///     opens, closes or its start and end change.
+    /// </summary>
+    /// <param name="span">Start and end frame indices, or null.</param>
+    public void SetEditSpan((int Start, int End)? span)
+    {
+        if (_editSpan == span)
+        {
+            return;
+        }
+
+        _editSpan = span;
+        RaiseEditSpan();
+    }
+
+    /// <summary>
+    ///     A handle dragged to a pixel: moves that end of the edit band and tells the tab, which moves the
+    ///     editor's start or end. Never a seek: the handles sit on the lane, not the scrub bar.
+    /// </summary>
+    /// <param name="startEdge">True for the start handle.</param>
+    /// <param name="x">The pointer's x on the lane, px.</param>
+    public void DragEditEdge(bool startEdge, double x)
+    {
+        if (_editSpan is not { } span)
+        {
+            return;
+        }
+
+        int frame = FrameIndexAt(x);
+        (int Start, int End) next = startEdge
+            ? (Math.Min(frame, span.End), span.End)
+            : (span.Start, Math.Max(frame, span.Start));
+        if (next == span)
+        {
+            return;
+        }
+
+        _editSpan = next;
+        RaiseEditSpan();
+        EditSpanDragged?.Invoke(next.Start, next.End);
+    }
+
+    /// <summary>Raised by a handle drag with the new start and end frames.</summary>
+    public event Action<int, int>? EditSpanDragged;
+
+    /// <summary>A click on the lane where no band is: asks the tab for a new label starting there.</summary>
+    /// <param name="x">The click's x on the lane, px.</param>
+    public void RequestLaneLabel(double x)
+    {
+        if (IsLaneEditable && TotalFrames > 0)
+        {
+            LaneLabelRequested?.Invoke(FrameIndexAt(x));
+        }
+    }
+
+    /// <summary>Raised by <see cref="RequestLaneLabel" /> with the frame clicked.</summary>
+    public event Action<int>? LaneLabelRequested;
+
+    /// <summary>
+    ///     The right-click menu for a lane band: what the tab offers for the labels or suggestions in it (edit,
+    ///     delete, review). Null or empty offers nothing.
+    /// </summary>
+    public Func<TimelineBandViewModel, IReadOnlyList<(string Header, Action Run)>>? LaneMenu { get; set; }
+
+    private void RaiseEditSpan()
+    {
+        OnPropertyChanged(nameof(HasEditSpan));
+        OnPropertyChanged(nameof(EditX));
+        OnPropertyChanged(nameof(EditWidth));
+        OnPropertyChanged(nameof(EditOffset));
+    }
+
     /// <summary>
     ///     Raised for a band click before its seek. The tab picks a tag for the Tag Palette's Label Mode
     ///     from the tag lane with it; the timeline itself knows nothing of what a band stands for.
@@ -505,6 +615,8 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         LayOutBands(_builtBands, Bands);
         LayOutBands(_builtLaneBands, LaneBands);
         HasLaneBands = LaneBands.Count > 0;
+        OnPropertyChanged(nameof(ShowLane));
+        RaiseEditSpan();
 
         Markers.Clear();
         int i = 0;
