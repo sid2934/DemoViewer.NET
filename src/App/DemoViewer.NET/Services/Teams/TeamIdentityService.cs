@@ -54,6 +54,8 @@ public sealed class TeamIdentityService : IDisposable
     private TeamIndexFile _index = new();
     private TeamsFile _teams = new();
     private bool _teamsRefused;
+    private readonly object _referencesGate = new();
+    private HashSet<Guid> _referenced = [];
     private Task _work = Task.CompletedTask;
 
     /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
@@ -97,6 +99,138 @@ public sealed class TeamIdentityService : IDisposable
 
     /// <summary>The account the share heuristic proposes as me, or null (design §3.5). Written only by confirmation.</summary>
     public MeSuggestion? MeSuggestion { get; private set; }
+
+    /// <summary>Pending suggestions (squad, roster change, merge by tag). None is ever applied without the user.</summary>
+    public IReadOnlyList<TeamSuggestion> Suggestions { get; private set; } = [];
+
+    /// <summary>
+    ///     Replaces the set of teams other stores point at: strat books, Dossier notes, veto history. A
+    ///     rebuild keeps an auto team in this set even when it received no side. Called by the composition
+    ///     root on each store's change; cheap, and read at the next replay.
+    /// </summary>
+    /// <param name="teamIds">Every referenced team id.</param>
+    public void SetReferencedTeams(IEnumerable<Guid> teamIds)
+    {
+        ArgumentNullException.ThrowIfNull(teamIds);
+        HashSet<Guid> set = [.. teamIds];
+        lock (_referencesGate)
+        {
+            _referenced = set;
+        }
+    }
+
+    /// <summary>Who plays for a team now: Valve's active roster (five or more of its last ten sides, at most five).</summary>
+    /// <param name="teamId">The team.</param>
+    public IReadOnlyList<SuggestedPlayer> ActiveRoster(Guid teamId)
+    {
+        lock (_gate)
+        {
+            return TeamSuggestions.ActiveRoster(_index, teamId);
+        }
+    }
+
+    /// <summary>The players on your side of your demos with their counts, you excluded; empty until me is set.</summary>
+    public (IReadOnlyList<SuggestedPlayer> Players, int MyGames, string? MainAccount) CoPlayers()
+    {
+        lock (_gate)
+        {
+            return TeamSuggestions.CoPlayers(_teams, _index);
+        }
+    }
+
+    /// <summary>
+    ///     Sets your team's squad: the players you say are your team, you included, two to five. Creates the
+    ///     us team when there is none (named <paramref name="name" />, else "My team"); on an existing us
+    ///     team it replaces the squad roster and leaves the other rosters alone.
+    /// </summary>
+    /// <param name="steamIds">The squad.</param>
+    /// <param name="name">A name for a new us team, or null.</param>
+    public void SetSquad(IReadOnlyList<string> steamIds, string? name = null)
+    {
+        ArgumentNullException.ThrowIfNull(steamIds);
+        List<string> squad = [.. steamIds.Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        if (squad.Count is < 2 or > 5)
+        {
+            throw new ArgumentException("a squad is two to five players", nameof(steamIds));
+        }
+
+        lock (_gate)
+        {
+            Team? us = _teams.Teams.FirstOrDefault(t => t.IsUs);
+            if (us is null)
+            {
+                us = new Team
+                {
+                    Id = Guid.NewGuid(),
+                    Name = string.IsNullOrWhiteSpace(name) ? "My team" : name.Trim(),
+                    NameSource = TeamNameSource.User,
+                    IsUs = true
+                };
+                _teams.Teams.Insert(0, us);
+            }
+
+            if (us.Rosters.FirstOrDefault(r => r.IsSquad) is { } existing)
+            {
+                existing.Squad = squad;
+                existing.ExtendedCore = null;
+            }
+            else
+            {
+                us.Rosters.Add(new Roster
+                {
+                    Id = UniqueRosterId(us, "squad"),
+                    Since = DateOnly.MinValue,
+                    Squad = squad,
+                    Label = "squad"
+                });
+            }
+
+            Recompute();
+        }
+    }
+
+    /// <summary>Applies a pending suggestion by id. A suggestion no longer pending is ignored.</summary>
+    /// <param name="id">The suggestion id.</param>
+    public void AcceptSuggestion(string id)
+    {
+        TeamSuggestion? suggestion;
+        lock (_gate)
+        {
+            suggestion = Suggestions.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.Ordinal));
+        }
+
+        switch (suggestion)
+        {
+            case { Kind: TeamSuggestionKind.Squad }:
+                SetSquad([.. suggestion.Players.Select(p => p.SteamId64)]);
+                break;
+            case { Kind: TeamSuggestionKind.RosterChange, TeamId: { } team, Since: { } since }:
+                StartRoster(team, since, null);
+                break;
+            case { Kind: TeamSuggestionKind.MergeByTag, TeamId: { } into, OtherTeamId: { } from }:
+                Merge(into, from);
+                break;
+        }
+    }
+
+    /// <summary>Dismisses a suggestion; the same proposal is not offered again.</summary>
+    /// <param name="id">The suggestion id.</param>
+    public void DismissSuggestion(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        lock (_gate)
+        {
+            if (!_teams.DismissedSuggestions.Contains(id, StringComparer.Ordinal))
+            {
+                _teams.DismissedSuggestions.Add(id);
+            }
+
+            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
 
     /// <summary>Visible teams, in file order.</summary>
     public IReadOnlyList<Team> Teams
@@ -808,7 +942,7 @@ public sealed class TeamIdentityService : IDisposable
 
     /// <summary>
     ///     Pins a demo's provenance label, or with null removes the pin so the heuristic decides again.
-    ///     Keyed by hash when the demo has one. Touches nothing derived.
+    ///     Keyed by hash when the demo has one. Re-clusters: the pin is an input to the source gate.
     /// </summary>
     /// <param name="demoPath">The demo.</param>
     /// <param name="label">One of <see cref="Provenance.DemoProvenanceLabel.All" />, or null.</param>
@@ -840,10 +974,9 @@ public sealed class TeamIdentityService : IDisposable
                 });
             }
 
-            SaveTeams();
+            // The pin is an input to the source gate, so it can found or dissolve a team.
+            Recompute();
         }
-
-        RaiseChanged();
     }
 
     /// <summary>Hides or shows a team in lists. Touches nothing derived.</summary>
@@ -873,15 +1006,23 @@ public sealed class TeamIdentityService : IDisposable
         TeamClusterer clusterer = new(teams);
         foreach (DemoSideInput input in _inputs.Values.OrderBy(i => i.OrderTicks).ThenBy(i => i.Path, StringComparer.Ordinal))
         {
-            clusterer.Assign(input, OverridesFor(teams, input));
+            string? pin = teams.Provenance.Overrides.FirstOrDefault(o => Matches(o, input.StableKey, input.Sha256))?.Label;
+            clusterer.Assign(input, OverridesFor(teams, input), TeamSourcePolicy.AutoTracks(input.SourceKind, input.BothClanTags, pin));
         }
 
-        TeamIndexFile index = clusterer.Finish(DateTime.UtcNow.Ticks);
+        HashSet<Guid> keep;
+        lock (_referencesGate)
+        {
+            keep = _referenced;
+        }
+
+        TeamIndexFile index = clusterer.Finish(DateTime.UtcNow.Ticks, keep);
         _teams = teams;
         _index = index;
         UpgradeOverrides();
         ResolveOurSides();
         SuggestMe();
+        Suggestions = TeamSuggestions.Compute(_teams, _index);
         SaveTeams();
         SaveIndex();
         RaiseChanged();
@@ -1084,6 +1225,7 @@ public sealed class TeamIdentityService : IDisposable
                     }
 
                     SuggestMe();
+                    Suggestions = TeamSuggestions.Compute(_teams, _index);
                     return;
                 }
             }
