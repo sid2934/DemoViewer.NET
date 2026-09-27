@@ -28,7 +28,7 @@ public class Playback2DFollowCardRenderTests
             (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Playback2DViewport viewport = Playback2DTimelineHarness.Viewport(view);
 
-            ListBox cards = view.GetVisualDescendants().OfType<ListBox>().First();
+            ListBox cards = view.FindControl<ListBox>("PlayerCards")!;
             await Assert.That(cards.ItemCount).IsEqualTo(vm.Attributes.Count);
 
             cards.SelectedItem = vm.Attributes.First(a => a.Slot == 2);
@@ -40,9 +40,10 @@ public class Playback2DFollowCardRenderTests
             await Assert.That(viewport.Mode).IsEqualTo(CameraMode.FollowPlayer);
             await Assert.That(ctx.SpectateTargets).Contains(2);
 
-            // Exactly one card carries the followed class. The treatment must not smear across the panel.
+            // Exactly one visible card carries the followed class. The treatment must not smear across the
+            // panel; the strip row of the same player is hidden outside Review mode and not counted.
             int followed = view.GetVisualDescendants().OfType<Border>()
-                .Count(b => b.Classes.Contains("followed"));
+                .Count(b => b.Classes.Contains("followed") && b.IsVisible);
             Console.WriteLine($"[follow-card] followed borders={followed}");
             await Assert.That(followed).IsEqualTo(1);
         });
@@ -61,7 +62,7 @@ public class Playback2DFollowCardRenderTests
             ctx.Push(1, 2);
             (Window _, Playback2DView first) = Playback2DTimelineHarness.Show(vm);
 
-            ListBox cards = first.GetVisualDescendants().OfType<ListBox>().First();
+            ListBox cards = first.FindControl<ListBox>("PlayerCards")!;
             cards.SelectedItem = vm.Attributes.First(a => a.Slot == 2);
             Playback2DTimelineHarness.Pump();
             await Assert.That(vm.FollowedSlot).IsEqualTo(2);
@@ -85,7 +86,7 @@ public class Playback2DFollowCardRenderTests
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
-            ListBox cards = view.GetVisualDescendants().OfType<ListBox>().First();
+            ListBox cards = view.FindControl<ListBox>("PlayerCards")!;
             await Assert.That(cards.IsEnabled).IsTrue();
 
             ctx.Gate!.SetEnabled("playback2d.follow", false);

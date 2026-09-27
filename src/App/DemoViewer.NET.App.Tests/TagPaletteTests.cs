@@ -329,6 +329,7 @@ public class TagPaletteTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
             await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
 
             await Assert.That(Press(vm, Key.C)).IsTrue();
@@ -389,6 +390,7 @@ public class TagPaletteTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
             await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             view.Focus();
