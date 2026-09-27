@@ -361,18 +361,43 @@ public sealed class GrenadeIndex : IDisposable
         // 2. Lineups: a fixed 16-unit grid splits one standing spot across a cell edge, so neighbouring
         // positions merge into the biggest one near them (seeded, never chained): close origin, close
         // landing, same aim within a couple of degrees. The seed's grid id stays the lineup's id.
+        // Seeds are bucketed on a merge-radius grid, so a position only compares against the nine cells
+        // around it; first-come order within a bucket keeps the most thrown seed winning.
         List<LineupSeed> seeds = [];
+        Dictionary<(GrenadeKind, bool, int, int), List<LineupSeed>> seedCells = [];
         foreach (GridPosition position in grid)
         {
             (WorldPoint origin, WorldPoint landing, float? yaw, float? pitch) = Centre(position.Throws);
-            LineupSeed? home = seeds.FirstOrDefault(s => s.Kind == position.Kind && s.JumpThrow == position.JumpThrow
-                                                         && Near(s.Origin, origin, OriginMergeRadius, OriginMergeHeight)
-                                                         && Near(s.Landing, landing, LineupLandingRadius, LineupLandingHeight)
-                                                         && AimNear(s.Yaw, yaw, s.Pitch, pitch));
+            (int cx, int cy) = BucketOf(origin, OriginMergeRadius);
+            LineupSeed? home = null;
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (seedCells.TryGetValue((position.Kind, position.JumpThrow, cx + dx, cy + dy), out List<LineupSeed>? near)
+                        && near.FirstOrDefault(s => Near(s.Origin, origin, OriginMergeRadius, OriginMergeHeight)
+                                                    && Near(s.Landing, landing, LineupLandingRadius, LineupLandingHeight)
+                                                    && AimNear(s.Yaw, yaw, s.Pitch, pitch)) is { } found
+                        && (home is null || found.Order < home.Order))
+                    {
+                        home = found;
+                    }
+                }
+            }
+
             if (home is null)
             {
-                seeds.Add(new LineupSeed(position.Kind, position.JumpThrow, position.Cell, position.Id, origin, landing, yaw, pitch,
-                    [.. position.Throws], [position.Id]));
+                LineupSeed seed = new(position.Kind, position.JumpThrow, position.Cell, position.Id, origin, landing, yaw, pitch,
+                    [.. position.Throws], [position.Id], seeds.Count);
+                seeds.Add(seed);
+                (int, int) key = BucketOf(origin, OriginMergeRadius);
+                if (!seedCells.TryGetValue((position.Kind, position.JumpThrow, key.Item1, key.Item2), out List<LineupSeed>? bucket))
+                {
+                    bucket = [];
+                    seedCells[(position.Kind, position.JumpThrow, key.Item1, key.Item2)] = bucket;
+                }
+
+                bucket.Add(seed);
             }
             else
             {
@@ -384,13 +409,36 @@ public sealed class GrenadeIndex : IDisposable
         // 3. Landing groups: lineups of one kind whose landings sit together, seeded by the most thrown, so
         // one smoke spot is one group even where the 256-unit grid cuts through it.
         List<LandingSeed> landings = [];
+        Dictionary<(GrenadeKind, int, int), List<LandingSeed>> landingCells = [];
         foreach (LineupSeed seed in seeds.OrderByDescending(s => s.Throws.Count).ThenBy(s => s.Id))
         {
             WorldPoint landing = Mean(seed.Throws.Select(t => t.Landing));
-            LandingSeed? home = landings.FirstOrDefault(l => l.Kind == seed.Kind && Near(l.Landing, landing, LandingMergeRadius, LandingMergeHeight));
+            (int cx, int cy) = BucketOf(landing, LandingMergeRadius);
+            LandingSeed? home = null;
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (landingCells.TryGetValue((seed.Kind, cx + dx, cy + dy), out List<LandingSeed>? near)
+                        && near.FirstOrDefault(l => Near(l.Landing, landing, LandingMergeRadius, LandingMergeHeight)) is { } found
+                        && (home is null || found.Order < home.Order))
+                    {
+                        home = found;
+                    }
+                }
+            }
+
             if (home is null)
             {
-                landings.Add(new LandingSeed(seed.Kind, seed.Cell, landing, [seed]));
+                LandingSeed group = new(seed.Kind, seed.Cell, landing, [seed], landings.Count);
+                landings.Add(group);
+                if (!landingCells.TryGetValue((seed.Kind, cx, cy), out List<LandingSeed>? bucket))
+                {
+                    bucket = [];
+                    landingCells[(seed.Kind, cx, cy)] = bucket;
+                }
+
+                bucket.Add(group);
             }
             else
             {
@@ -461,6 +509,9 @@ public sealed class GrenadeIndex : IDisposable
     /// <summary>...and this close in height.</summary>
     public const float LandingMergeHeight = 96f;
 
+    private static (int X, int Y) BucketOf(WorldPoint point, float size) =>
+        ((int)MathF.Floor(point.X / size), (int)MathF.Floor(point.Y / size));
+
     private static bool Near(WorldPoint a, WorldPoint b, float radius, float height) =>
         MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y)) <= radius && MathF.Abs(a.Z - b.Z) <= height;
 
@@ -489,9 +540,9 @@ public sealed class GrenadeIndex : IDisposable
     private sealed record GridPosition(GrenadeKind Kind, (int X, int Y, int Z) Cell, bool JumpThrow, Guid Id, IReadOnlyList<IndexedGrenade> Throws);
 
     private sealed record LineupSeed(GrenadeKind Kind, bool JumpThrow, (int X, int Y, int Z) Cell, Guid Id,
-        WorldPoint Origin, WorldPoint Landing, float? Yaw, float? Pitch, List<IndexedGrenade> Throws, List<Guid> Aliases);
+        WorldPoint Origin, WorldPoint Landing, float? Yaw, float? Pitch, List<IndexedGrenade> Throws, List<Guid> Aliases, int Order);
 
-    private sealed record LandingSeed(GrenadeKind Kind, (int X, int Y, int Z) Cell, WorldPoint Landing, List<LineupSeed> Lineups);
+    private sealed record LandingSeed(GrenadeKind Kind, (int X, int Y, int Z) Cell, WorldPoint Landing, List<LineupSeed> Lineups, int Order);
 
     /// <summary>
     ///     A walk row as an index row, or null when it has no origin or no landing point to cluster on (a
