@@ -118,28 +118,66 @@
                         BorderBrush="{DynamicResource BorderSubtle}"
                         BorderThickness="1" CornerRadius="6" Padding="12 10">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Strats" Classes="col-label"
-                                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" Margin="0 0 0 8" />
-                        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0 8 0 0">
+                        <!-- Book or Detected (Strat Mining): the book's strats, or the repeated setups and
+                             executes found in the library that are not in a book yet. -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="0 0 0 8">
+                            <ToggleButton x:Name="BookToggle" Content="Book" FontSize="11" Padding="10 4"
+                                          IsChecked="{Binding !IsDetectedView, Mode=OneWay}" Command="{Binding ShowBookCommand}" />
+                            <ToggleButton x:Name="DetectedToggle" Content="{Binding DetectedHeader}" FontSize="11" Padding="10 4"
+                                          IsChecked="{Binding IsDetectedView, Mode=OneWay}" Command="{Binding ShowDetectedCommand}"
+                                          ToolTip.Tip="Setups and executes seen at least twice in the library" />
+                        </StackPanel>
+                        <Panel DockPanel.Dock="Bottom" IsVisible="{Binding IsDetectedView}">
+                            <StackPanel Spacing="6" Margin="0 8 0 0"
+                                        DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Find strats" Classes="ghost" FontSize="11" Padding="10 5"
+                                            Command="{Binding FindCommand}" IsEnabled="{Binding !IsMining}"
+                                            ToolTip.Tip="Search every indexed demo for repeated setups and executes" />
+                                    <CheckBox Content="dismissed" FontSize="11" IsChecked="{Binding ShowDismissed}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Panel>
+                        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0 8 0 0" IsVisible="{Binding !IsDetectedView}">
                             <TextBlock Text="{Binding ListLine}" FontSize="11" TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextMid}" />
                             <Button Content="Delete" Classes="ghost" FontSize="11" Padding="10 5"
                                     Command="{Binding DeleteStratCommand}"
                                     ToolTip.Tip="Moves the strat and its history to the book's .trash folder" />
                         </StackPanel>
-                        <ListBox ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
-                                 IsVisible="{Binding HasStrats}" Background="Transparent">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:StratListRow">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextMid}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <Panel>
+                            <ListBox ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
+                                     IsVisible="{Binding ShowBookList}" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratListRow">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMid}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Panel IsVisible="{Binding IsDetectedView}">
+                                <ListBox x:Name="DetectedList" Background="Transparent"
+                                         DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel"
+                                         ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:DetectedRowViewModel">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{Binding Title}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextMid}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Panel>
+                        </Panel>
                     </DockPanel>
                 </Border>
 
@@ -201,8 +239,65 @@
                 </Border>
             </Grid>
 
+            <!-- A detected pattern (Strat Mining): what it is, where it was seen, and Add to book. -->
+            <Border Grid.Column="2" x:Name="DetectedDetail" IsVisible="{Binding IsDetectedView}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <Panel DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
+                    <TextBlock Text="select a detected pattern" FontSize="11" Foreground="{DynamicResource TextMid}"
+                               IsVisible="{Binding !HasSelection}" />
+                    <ScrollViewer IsVisible="{Binding HasSelection}">
+                        <StackPanel Spacing="10" DataContext="{Binding SelectedRow}" x:DataType="vm:DetectedRowViewModel">
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding Summary}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Add to book" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding CanAdd}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.AddToBookCommand}"
+                                        ToolTip.Tip="Build a strat from the most typical round into the book selected above, with every round as a run" />
+                                <Button Content="Open strat" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding IsInBook}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.OpenStratCommand}" />
+                                <Button Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding !IsDismissed}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.DismissCommand}"
+                                        ToolTip.Tip="Hide this pattern; it stays hidden when strats are found again" />
+                                <Button Content="Restore" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding IsDismissed}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.RestoreCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding TeamsLine}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding TimingLine}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding UtilityLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <TextBlock Text="Utility most rounds share" Classes="col-label" FontSize="11"
+                                       Foreground="{DynamicResource TextCardHeader}" IsVisible="{Binding HasCommonThrows}" />
+                            <ItemsControl ItemsSource="{Binding CommonThrows}" IsVisible="{Binding HasCommonThrows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0 0 0 2"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Rounds" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                            <ItemsControl ItemsSource="{Binding Members}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DetectedMemberRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 3">
+                                            <TextBlock Grid.Column="0" Text="{Binding Line}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                            <Button Grid.Column="1" Content="Open" Classes="ghost" FontSize="10" Padding="8 2"
+                                                    Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.OpenRoundCommand}"
+                                                    CommandParameter="{Binding}" ToolTip.Tip="Open this round in 2D Playback" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Panel>
+            </Border>
+
             <!-- The editor. -->
-            <Border Grid.Column="2"
+            <Border Grid.Column="2" IsVisible="{Binding !IsDetectedView}"
                     Background="{DynamicResource CardBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="1" CornerRadius="6" Padding="12 10">

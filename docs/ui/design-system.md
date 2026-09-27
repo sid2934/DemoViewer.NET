@@ -407,6 +407,19 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Do not:** show a tagging panel or lane outside the mode, or hide the lanes by writing the user's per-track toggle;
   use `SetTrackSuppressed`.
 
+### Detected inbox (Strat Mining, the Strats section)
+- **Files:** `ViewModels/StratBook/DetectedStratsViewModel.cs`, the Book / Detected toggle, the `DetectedList` and
+  the `DetectedDetail` pane in `Views/StratBook/StratBookTabView.axaml`; the data is `Services/Strats/Mining/`.
+- **Purpose:** repeated setups and executes the miner found in the library, offered as strats the user adds by
+  hand. The toggle sits where the list's "Strats" label was and counts the patterns not yet in a book or
+  dismissed. The list takes the tab's map, side and book filters; utility-compared patterns sort first, and a
+  positions-only one says so in its summary line.
+- **Contract:** the detail pane takes the editor's column while the inbox is up and gives back the editor on
+  Add to book, which opens the new strat. Dismiss is permanent across re-mines until Restore (the "dismissed"
+  checkbox shows them). A member round opens in 2D Playback through `ISituationPlayback`, the Utility map's seam.
+- **Do not:** save a pattern into a book without the user's click, or show a pattern's win rate as a strat's
+  record before it is added; until then the numbers are the rounds', not runs of a strat.
+
 ### KeyValueTable
 - **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`
   (`IReadOnlyList<KvpRow>`), `ShowDeltaOnly` (filters to changed rows → `VisibleRows`).

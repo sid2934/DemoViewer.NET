@@ -84,9 +84,14 @@ files to `<owner>/<map>/.trash/` rather than removing them.
   utility | call` or null, `atSeconds` (round clock remaining) only meaningful for `kind: "time"`.
 * **`status`** is one of `Theory | InProgress | Active | Archived`. **`revision`** moves only on a
   commit (see "The history log" below), together with `modifiedUtc`.
-* **`origin`** is set only when Create Strat From Round made the strat: the demo it came from, keyed by
-  content hash, never by path, plus the round number (`ClipRound.Number`, never
-  `m_totalRoundsPlayed + 1`).
+* **`origin`** is set when Create Strat From Round made the strat, or when a mined pattern was added to
+  the book (then it names the pattern's most typical round): the demo it came from, keyed by content hash,
+  never by path, plus the round number (`ClipRound.Number`, never `m_totalRoundsPlayed + 1`).
+* **A mined strat** (Strat Mining's Detected inbox) carries the tag `mined` and an `extra.mined` object:
+  `Key` (the pattern's identity, stable across re-mines), `Support` (rounds), `Spread` (the largest
+  distance between two of them), `UtilityCompared` (false when some of its demos had no grenade rows) and
+  `Members` (each round's `Sha256`, `FileName`, `Round` and `Won`). Each member round with a hash also gets
+  a tag instance with source `suggested` and the label `strat: <id>`, so it counts as a run.
 * **`clock`**: the STRAT clock, not a demo clock. `kind` is `round` in schema v1 (`plant`, for a
   post-plant strat counted from the bomb going down, is reserved and not defined yet). `roundSeconds` is
   the authored round length, defaulting to 115 (the competitive round length, measured on 43 of 43
