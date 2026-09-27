@@ -1131,9 +1131,14 @@ public class App : Application
             sp.GetRequiredService<IZonePlaceResolverSource>(),
             sp.GetRequiredService<GrenadeIndexEvaluator>(),
             action => Dispatcher.UIThread.Post(action)));
-        services.AddSingleton(sp => new UtilityBookTabViewModel(
-            sp.GetRequiredService<GrenadeIndex>(),
-            sp.GetRequiredService<ISituationPlayback>()));
+        services.AddSingleton(sp =>
+        {
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            return new UtilityBookTabViewModel(
+                sp.GetRequiredService<GrenadeIndex>(),
+                sp.GetRequiredService<ISituationPlayback>(),
+                demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null);
+        });
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
         // config root (the browser) keeps entries in memory for the session.
