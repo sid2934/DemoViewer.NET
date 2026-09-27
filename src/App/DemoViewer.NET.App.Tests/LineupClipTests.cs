@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 
@@ -46,7 +47,12 @@ public class LineupClipTests
         new(new DemoRef(demo, DemoCacheStore.StableKey(demo), "sha-" + Path.GetFileNameWithoutExtension(demo)),
             Mirage, row, row.ReleasePosition ?? default, new WorldPoint(-1500, 800, 0), "CTSpawn", "zones:1");
 
-    private static GrenadeLineup Lineup(params IndexedGrenade[] throws) => new(throws[0].Origin, false, throws, Guid.NewGuid());
+    // The id is the position's, stable across calls, as GrenadeIndex.LineupId is; here keyed by the first row.
+    private static GrenadeLineup Lineup(params IndexedGrenade[] throws) =>
+        new(throws[0].Origin, false, throws, IdOf(throws[0].Row.Id));
+
+    private static Guid IdOf(string seed) =>
+        new(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed)).AsSpan(0, 16));
 
     private static GrenadeCluster Cluster(params GrenadeLineup[] lineups) =>
         new(GrenadeKind.Smoke, (0, 0, 0), new WorldPoint(-1500, 800, 0), "CTSpawn", lineups);
@@ -279,6 +285,415 @@ public class LineupClipTests
         await Assert.That(browser.Plan()).IsEqualTo(0);
         await Assert.That(queue.Entries.Count).IsEqualTo(0);
         await Assert.That(renderer.Calls.Count).IsEqualTo(0);
+    }
+
+    // ── Keyed by lineup, bounded on disk and in the queue ─────────────────────
+
+    private static string TempClips() =>
+        System.IO.Directory.CreateTempSubdirectory("dv-lineup-clips-").FullName;
+
+    private static void WritePair(string directory, string stem, int gifBytes, DateTime written)
+    {
+        string gif = Path.Combine(directory, stem + LineupClipPlanner.GifExtension);
+        File.WriteAllBytes(gif, new byte[gifBytes]);
+        File.WriteAllText(LineupClipPlanner.SetposPathFor(gif), Setpos);
+        File.SetLastWriteTimeUtc(gif, written);
+        File.SetLastWriteTimeUtc(LineupClipPlanner.SetposPathFor(gif), written);
+    }
+
+    private static bool HasPair(string directory, string stem) =>
+        File.Exists(Path.Combine(directory, stem + LineupClipPlanner.GifExtension))
+        && File.Exists(Path.Combine(directory, stem + LineupClipPlanner.SetposExtension));
+
+    [Test]
+    public async Task TheStem_IsTheLineups_SoANewRepresentativeKeepsThePair()
+    {
+        GrenadeLineup before = new(default, false,
+            [Throw("/d/b.dem", Row("b1", 3000, 3100)), Throw("/d/c.dem", Row("c1", 5000, 5100))], IdOf("spot"));
+
+        // An older demo is indexed: it sorts first and becomes the representative, the position is the same.
+        GrenadeLineup after = before with { Throws = [Throw("/d/a.dem", Row("a1")), .. before.Throws] };
+
+        LineupClipJob first = LineupClipPlanner.Plan(before, "t", Directory)!;
+        LineupClipJob second = LineupClipPlanner.Plan(after, "t", Directory)!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(second.Key).IsNotEqualTo(first.Key);
+            await Assert.That(second.GifPath).IsEqualTo(first.GifPath);
+            await Assert.That(second.SetposPath).IsEqualTo(first.SetposPath);
+            await Assert.That(first.Stem).IsEqualTo(LineupClipPlanner.FileStem(Mirage, GrenadeKind.Smoke, IdOf("spot")));
+        }
+
+        string clips = TempClips();
+        try
+        {
+            ReviewQueue queue = new(null);
+            FileRenderer renderer = new();
+            GrenadeLineup current = before;
+            using LineupClipService service = new(() => [Cluster(current)], queue, clips, () => true, renderer);
+
+            await Assert.That(service.Plan()).IsEqualTo(1);
+            await service.WorkerTask;
+            current = after;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(service.Plan()).IsEqualTo(0).Because("the pair on disk is the lineup's, whoever represents it");
+                await Assert.That(renderer.Calls.Count).IsEqualTo(1);
+                await Assert.That(queue.ClipCount).IsEqualTo(1);
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task APairUnderTheOldThrowKeyedName_IsRenamed_NotRenderedAgain()
+    {
+        GrenadeLineup lineup = Lineup(Throw("/d/a.dem", Row("a1")), Throw("/d/b.dem", Row("b1", 3000, 3100)));
+        string legacy = LineupClipPlanner.LegacyFileStem(lineup.Throws[1]);
+        string clips = TempClips();
+        try
+        {
+            WritePair(clips, legacy, 100, DateTime.UtcNow);
+            FileRenderer renderer = new();
+            using LineupClipService service = new(() => [Cluster(lineup)], new ReviewQueue(null), clips, () => true, renderer);
+
+            int planned = service.Plan();
+            LineupClipJob job = LineupClipPlanner.Plan(lineup, "t", clips)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(planned).IsEqualTo(0);
+                await Assert.That(renderer.Calls).IsEmpty();
+                await Assert.That(HasPair(clips, job.Stem)).IsTrue();
+                await Assert.That(HasPair(clips, legacy)).IsFalse();
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task TheSweep_DeletesPairsNoLineupPlans_OnlyOnceTheIndexIsComplete()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        string clips = TempClips();
+        try
+        {
+            IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
+            foreach (LineupClipJob job in jobs)
+            {
+                WritePair(clips, job.Stem, 100, DateTime.UtcNow);
+            }
+
+            WritePair(clips, "de_mirage-smoke-0123456789ab", 100, DateTime.UtcNow);
+            File.WriteAllText(Path.Combine(clips, "notes.txt"), "not a clip");
+
+            bool complete = false;
+            using (LineupClipService loading = new(() => [cluster], new ReviewQueue(null), clips, () => true, new FileRenderer(),
+                       complete: () => complete, orphanGrace: TimeSpan.Zero))
+            {
+                loading.Plan();
+                await loading.SweepTask;
+                await Assert.That(HasPair(clips, "de_mirage-smoke-0123456789ab")).IsTrue().Because("half an index is not the library");
+
+                complete = true;
+                loading.Plan();
+                await loading.SweepTask;
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(HasPair(clips, "de_mirage-smoke-0123456789ab")).IsFalse();
+                await Assert.That(jobs.All(j => HasPair(clips, j.Stem))).IsTrue();
+                await Assert.That(File.Exists(Path.Combine(clips, "notes.txt"))).IsTrue();
+            }
+
+            // With a grace period, the first sighting only starts the clock.
+            WritePair(clips, "de_mirage-smoke-ba9876543210", 100, DateTime.UtcNow);
+            using LineupClipService patient = new(() => [cluster], new ReviewQueue(null), clips, () => true, new FileRenderer());
+            patient.Plan();
+            await patient.SweepTask;
+            await Assert.That(HasPair(clips, "de_mirage-smoke-ba9876543210")).IsTrue();
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task TheQueue_HoldsOneSectionPerMap_AndOneEntryPerLineup()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        LineupClipJob first = LineupClipPlanner.PlanEvery([cluster], Directory)[0];
+        ReviewQueue queue = new(null);
+
+        // What earlier builds left: a card per plan, entries with no lineup id, one of them for a throw that
+        // no longer represents anything, and a clip the user filed under the second card by hand.
+        ReviewEntry legacy = LineupClipPlanner.ToReviewEntry(first) with { LineupId = null, Question = "which angle?" };
+        queue.Add([legacy], LineupClipPlanner.SectionTitle(Mirage));
+        queue.Add([ReviewEntry.Clip("/d/z.dem", 1, 2, "stale", ReviewSources.Lineup)], LineupClipPlanner.SectionTitle(Mirage));
+        ReviewEntry manual = ReviewEntry.Clip("/d/m.dem", 5, 6, "mine", ReviewSources.Manual);
+        queue.Add([manual]);
+
+        using LineupClipService service = new(() => [cluster], queue, Directory, () => true, new FakeRenderer(), _ => false,
+            (_, _) => { });
+        await Assert.That(service.Plan()).IsEqualTo(2);
+        await service.WorkerTask;
+
+        List<ReviewEntry> lineups = [.. queue.Clips.Where(c => c.Source == ReviewSources.Lineup)];
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Entries.Count(e => e.Kind == ReviewEntryKind.Section)).IsEqualTo(1);
+            await Assert.That(lineups.Count).IsEqualTo(2);
+            await Assert.That(lineups.Select(c => c.LineupId)).IsEquivalentTo(cluster.Lineups.Take(2).Select(l => (Guid?)l.Id));
+            await Assert.That(queue.Find(legacy.Id)!.Question).IsEqualTo("which angle?").Because("the old entry was kept, not re-added");
+            await Assert.That(queue.Find(manual.Id)).IsNotNull();
+        }
+
+        // The first lineup's representative changes while its pair is still missing: its entry is replaced
+        // where it stands, not appended.
+        GrenadeCluster rekeyed = cluster with
+        {
+            Lineups = [cluster.Lineups[0] with { Throws = [Throw("/d/0.dem", Row("z1", 2000, 2100)), .. cluster.Lineups[0].Throws] }, .. cluster.Lineups.Skip(1)]
+        };
+        using LineupClipService again = new(() => [rekeyed], queue, Directory, () => true, new FakeRenderer(), _ => false,
+            (_, _) => { });
+        await Assert.That(again.Plan()).IsEqualTo(2);
+        await again.WorkerTask;
+
+        ReviewEntry replaced = queue.Find(legacy.Id)!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Clips.Count(c => c.Source == ReviewSources.Lineup)).IsEqualTo(2);
+            await Assert.That(replaced.DemoPath).IsEqualTo("/d/0.dem");
+            await Assert.That(replaced.Question).IsEqualTo("which angle?");
+            await Assert.That(queue.Entries.Count(e => e.Kind == ReviewEntryKind.Section)).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task TheCap_EvictsTheLeastRecentlyUsedPairs_AndAnEvictedClipComesBackOnlyOnRequest()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        string clips = TempClips();
+        try
+        {
+            IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
+            DateTime now = DateTime.UtcNow;
+            WritePair(clips, "de_mirage-smoke-000000000001", 1000, now.AddHours(-3));
+            WritePair(clips, "de_mirage-smoke-000000000002", 1000, now.AddHours(-2));
+
+            // Two old pairs and two new GIFs of 1000 bytes, four setpos lines: a 3,000-byte cap takes one old pair.
+            long setpos = new FileInfo(Path.Combine(clips, "de_mirage-smoke-000000000001" + LineupClipPlanner.SetposExtension)).Length;
+            long cap = 3000 + (4 * setpos);
+            FileRenderer renderer = new() { Bytes = 1000 };
+            using (LineupClipService service = new(() => [cluster], new ReviewQueue(null), clips, () => true, renderer,
+                       complete: () => false, maxBytes: () => cap))
+            {
+                await Assert.That(service.Plan()).IsEqualTo(2);
+                await service.WorkerTask;
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(HasPair(clips, "de_mirage-smoke-000000000001")).IsFalse().Because("the oldest write goes first");
+                    await Assert.That(HasPair(clips, "de_mirage-smoke-000000000002")).IsTrue();
+                    await Assert.That(jobs.All(j => HasPair(clips, j.Stem))).IsTrue();
+                    await Assert.That(service.Evicted).IsEquivalentTo(["de_mirage-smoke-000000000001"]);
+                }
+            }
+
+            // An evicted current lineup stays evicted across sessions until it is asked for.
+            File.Delete(jobs[0].GifPath);
+            File.Delete(jobs[0].SetposPath);
+            File.WriteAllText(Path.Combine(clips, LineupClipService.EvictedFileName), jobs[0].Stem);
+            FileRenderer later = new();
+            using LineupClipService next = new(() => [cluster], new ReviewQueue(null), clips, () => true, later);
+            await Assert.That(next.Plan()).IsEqualTo(0);
+
+            await Assert.That(next.Request(jobs[0].LineupId)).IsEqualTo(1);
+            await next.WorkerTask;
+            using (Assert.Multiple())
+            {
+                await Assert.That(later.Calls.Single().Jobs.Single().LineupId).IsEqualTo(jobs[0].LineupId);
+                await Assert.That(HasPair(clips, jobs[0].Stem)).IsTrue();
+                await Assert.That(next.Evicted).IsEmpty();
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task ALineupGoneForOnePlan_KeepsItsEntryAndItsEviction_UntilTheGraceRunsOut()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        string clips = TempClips();
+        try
+        {
+            IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
+            WritePair(clips, jobs[0].Stem, 100, DateTime.UtcNow);
+            File.WriteAllText(Path.Combine(clips, LineupClipService.EvictedFileName), jobs[1].Stem);
+            ReviewQueue queue = new(null);
+            queue.Add([LineupClipPlanner.ToReviewEntry(jobs[0]) with { Question = "which angle?" }], LineupClipPlanner.SectionTitle(Mirage));
+
+            // A re-index drops the demo's rows for a moment, then puts them back.
+            bool present = true;
+            using (LineupClipService service = new(() => present ? [cluster] : [], queue, clips, () => true, new FileRenderer()))
+            {
+                present = false;
+                service.Plan();
+                present = true;
+                await Assert.That(service.Plan()).IsEqualTo(0);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(queue.Clips.Single().Question).IsEqualTo("which angle?");
+                    await Assert.That(service.Evicted).IsEquivalentTo([jobs[1].Stem]);
+                }
+            }
+
+            using LineupClipService impatient = new(() => present ? [cluster] : [], queue, clips, () => true, new FileRenderer(),
+                orphanGrace: TimeSpan.Zero);
+            present = false;
+            impatient.Plan();
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.ClipCount).IsEqualTo(0);
+                await Assert.That(queue.Entries).IsEmpty().Because("the emptied lineup card goes with its last clip");
+                await Assert.That(impatient.Evicted).IsEmpty();
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task ARequestDuringAnEvictionPass_WaitsForIt_AndItsClipComesBack()
+    {
+        GrenadeCluster cluster = TwoLineups();
+        string clips = TempClips();
+        try
+        {
+            IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
+
+            // The first lineup's pair is the oldest on disk; the second is rendered and pushes it over the cap.
+            WritePair(clips, jobs[0].Stem, 1000, DateTime.UtcNow.AddHours(-1));
+            FileRenderer renderer = new() { Bytes = 1000 };
+            using LineupClipService service = new(() => [cluster], new ReviewQueue(null), clips, () => true, renderer,
+                maxBytes: () => 1500);
+
+            Task<int>? request = null;
+            bool waited = false;
+            service.BeforeEvictionDeletes = () =>
+            {
+                if (request is not null)
+                {
+                    return;
+                }
+
+                request = Task.Run(() => service.Request(jobs[0].LineupId));
+                waited = !request.Wait(TimeSpan.FromMilliseconds(300));
+            };
+
+            await Assert.That(service.Plan()).IsEqualTo(1);
+            await service.WorkerTask;
+            await request!;
+            while (!service.WorkerTask.IsCompleted || service.Pending.Count > 0)
+            {
+                await service.WorkerTask;
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(waited).IsTrue().Because("the request waits for the pass it arrived in");
+                await Assert.That(renderer.Calls.SelectMany(c => c.Jobs).Count(j => j.LineupId == jobs[0].LineupId)).IsEqualTo(1)
+                    .Because("the pass evicted it, and the request put it back");
+                await Assert.That(HasPair(clips, jobs[0].Stem)).IsTrue();
+                await Assert.That(service.Evicted).DoesNotContain(jobs[0].Stem);
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task TheDefaultParse_MapsOnlyASettledFile()
+    {
+        DateTimeOffset now = new(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+        TimeProvider clock = new FixedClock(now);
+        FileStat old = new(100, now.AddMinutes(-5));
+        FileStat fresh = new(100, now.AddSeconds(-10));
+        int calls = 0;
+        FileStat Growing(string _) => new(100 + calls++, now.AddMinutes(-5));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(LineupClipRenderer.MapsFile("x", clock, _ => old)).IsEqualTo(!OperatingSystem.IsBrowser());
+            await Assert.That(LineupClipRenderer.MapsFile("x", clock, _ => fresh)).IsFalse().Because("it may still be copying");
+            await Assert.That(LineupClipRenderer.MapsFile("x", clock, Growing)).IsFalse().Because("it changed between the two stats");
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Test]
+    public async Task Merge_FoldsSameTitledSections_AndReplacesInPlace()
+    {
+        ReviewQueue queue = new(null);
+        ReviewEntry a = ReviewEntry.Clip("/d/a.dem", 1, 2, "a", ReviewSources.Lineup) with { LineupId = IdOf("a") };
+        ReviewEntry b = ReviewEntry.Clip("/d/b.dem", 1, 2, "b", ReviewSources.Lineup) with { LineupId = IdOf("b") };
+        queue.Add([a], "Lineup clips, de_mirage");
+        queue.Add([ReviewEntry.Clip("/d/x.dem", 1, 2, "x", ReviewSources.Manual)], "Other");
+        queue.Add([b], "Lineup clips, de_mirage");
+
+        ReviewEntry a2 = ReviewEntry.Clip("/d/a.dem", 5, 9, "a2", ReviewSources.Lineup) with { LineupId = IdOf("a") };
+        ReviewEntry c = ReviewEntry.Clip("/d/c.dem", 1, 2, "c", ReviewSources.Lineup) with { LineupId = IdOf("c") };
+        int merged = queue.Merge([a2, c], "Lineup clips, de_mirage", (old, incoming) => old.LineupId == incoming.LineupId);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(merged).IsEqualTo(2);
+            await Assert.That(string.Join("|", queue.Entries.Select(e => e.Kind == ReviewEntryKind.Section ? e.Title : e.Note)))
+                .IsEqualTo("Lineup clips, de_mirage|a2|b|c|Other|x");
+            await Assert.That(queue.Clips[0].Id).IsEqualTo(a.Id);
+        }
+    }
+
+    private sealed class FileRenderer : ILineupClipRenderer
+    {
+        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls { get; } = [];
+
+        public int Bytes { get; init; } = 100;
+
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+            CancellationToken ct)
+        {
+            lock (Calls)
+            {
+                Calls.Add((demoPath, jobs));
+            }
+
+            foreach (LineupClipJob job in jobs)
+            {
+                File.WriteAllBytes(job.GifPath, new byte[Bytes]);
+            }
+
+            return Task.FromResult(jobs);
+        }
     }
 
     private sealed class FakeRenderer : ILineupClipRenderer
