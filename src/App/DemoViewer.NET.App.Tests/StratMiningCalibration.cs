@@ -63,6 +63,7 @@ public class StratMiningCalibration
             Console.WriteLine($"[mine] cutoff {cutoff:0.00}: {patterns.Count} patterns in {ms} ms, same-demo back-to-back pairs {backToBack}; {line}");
         }
 
+        KeyChurn(signatures);
         await Promote(demoCache, positions, sources, grenades, teams);
         IReadOnlyList<MinedPattern> chosen = StratMiner.Mine(signatures);
         foreach (MinedPattern p in chosen.Where(p => p.Spread < 0.05).Take(4))
@@ -77,6 +78,26 @@ public class StratMiningCalibration
             string teamNames = string.Join("/", p.Teams.Select(t => teams.AllTeams.FirstOrDefault(x => x.Id == t)?.Name ?? "?"));
             Console.WriteLine($"[mine] {p.Map} {(p.Side == 2 ? "T" : "CT")} {p.Kind} {p.Site} support={p.Support} demos={p.Demos} won={p.Wins} spread={p.Spread:0.00} util={p.UtilityCompared} teams={teamNames} take={p.Medoid.AnchorSeconds:0}s places=[{places}] common=[{common}]");
         }
+    }
+
+    // A re-mine after new demos: mine without a few demos, then with them, and count the patterns of the
+    // smaller run whose key survives, and whose members mostly reappear in one pattern of the larger run.
+    private static void KeyChurn(IReadOnlyList<RoundSignature> signatures)
+    {
+        HashSet<string> held = [.. signatures.Select(s => s.DemoPath).Distinct().Order(StringComparer.Ordinal).Where((_, i) => i % 36 == 0)];
+        IReadOnlyList<MinedPattern> before = StratMiner.Mine(signatures.Where(s => !held.Contains(s.DemoPath)));
+        IReadOnlyList<MinedPattern> after = StratMiner.Mine(signatures);
+        HashSet<string> keys = [.. after.Select(p => p.Key)];
+        static HashSet<string> Members(MinedPattern p) => [.. p.Members.Select(m => $"{m.DemoPath}#{m.Round}")];
+        List<HashSet<string>> afterMembers = [.. after.Select(Members)];
+        int sameKey = before.Count(p => keys.Contains(p.Key));
+        int overlap = before.Count(p =>
+        {
+            HashSet<string> m = Members(p);
+            return afterMembers.Any(a => a.Count(m.Contains) * 2 >= m.Count);
+        });
+        int sameKeyUtil = before.Where(p => p.UtilityCompared).Count(p => keys.Contains(p.Key));
+        Console.WriteLine($"[mine] churn: held out {held.Count} demos; {before.Count} patterns before, {after.Count} after; key kept {sameKey} ({sameKeyUtil} of {before.Count(p => p.UtilityCompared)} utility-compared); half the members kept together {overlap}");
     }
 
     private static async Task Promote(DemoCacheStore demoCache, RoundIndexStore positions, RoundIndexPlaceSources sources,
