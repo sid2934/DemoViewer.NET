@@ -52,7 +52,7 @@ public sealed record LineupClipJob(
     string GifPath,
     string SetposPath,
     IReadOnlyList<Guid> AliasIds,
-    IReadOnlyList<string> FormerGifPaths)
+    IEnumerable<string> FormerGifPaths)
 {
     /// <summary>The pair's shared file name, without extension.</summary>
     public string Stem => Path.GetFileNameWithoutExtension(GifPath);
@@ -122,14 +122,12 @@ public static class LineupClipPlanner
         int rate = representative.TickRate > 0 ? representative.TickRate : 64;
         (int from, int to) = Range(row, rate);
         string stem = FileStem(representative.Map, representative.Kind, lineup.Id);
-        List<string> former =
-        [
-            .. lineup.AliasIds.Where(a => a != lineup.Id)
-                .Select(a => FileStem(representative.Map, representative.Kind, a))
-                .Concat(lineup.Throws.Select(LegacyFileStem))
-                .Distinct(StringComparer.Ordinal)
-                .Select(s => Path.Combine(directory, s + GifExtension))
-        ];
+        // Deferred: only a lineup with no pair on disk pays for a hash per throw.
+        IEnumerable<string> former = lineup.AliasIds.Where(a => a != lineup.Id)
+            .Select(a => FileStem(representative.Map, representative.Kind, a))
+            .Concat(lineup.Throws.Select(LegacyFileStem))
+            .Distinct(StringComparer.Ordinal)
+            .Select(s => Path.Combine(directory, s + GifExtension));
         ulong? steamId = ulong.TryParse(row.ThrowerSteamId64, NumberStyles.None, CultureInfo.InvariantCulture,
             out ulong id) && id != 0
             ? id

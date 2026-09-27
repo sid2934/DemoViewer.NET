@@ -84,6 +84,8 @@ public sealed class LineupClipService : IDisposable
     private readonly Func<long> _maxBytes;
     private readonly TimeSpan _orphanGrace;
     private readonly Dictionary<string, DateTime> _orphanSince = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Guid, DateTime> _entryAbsentSince = [];
+    private readonly Dictionary<string, DateTime> _evictedAbsentSince = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<(Guid EntryId, LineupClipJob Job)> _pending = [];
     private readonly Dictionary<Guid, string> _planned = [];
     private readonly ReviewQueue _queue;
@@ -228,21 +230,36 @@ public sealed class LineupClipService : IDisposable
             return 0;
         }
 
-        List<(Guid, LineupClipJob)> planned = [];
         foreach (IGrouping<string, LineupClipJob> map in jobs.GroupBy(j => j.Map, StringComparer.OrdinalIgnoreCase))
         {
             _queue.Merge(map.Select(LineupClipPlanner.ToReviewEntry), LineupClipPlanner.SectionTitle(map.Key),
                 static (queued, incoming) => string.Equals(queued.Source, ReviewSources.Lineup, StringComparison.Ordinal)
                                              && queued.LineupId is { } id && id == incoming.LineupId);
+        }
 
-            // Found rather than taken from what was merged: a clip queued in an earlier session is skipped
-            // as a duplicate, and it is still the entry this render belongs to.
-            foreach (LineupClipJob job in map)
+        // Found rather than taken from what was merged: a clip queued in an earlier session is skipped as a
+        // duplicate, and it is still the entry this render belongs to.
+        Dictionary<Guid, Guid> byLineup = [];
+        Dictionary<(string, int, int), Guid> byRange = [];
+        foreach (ReviewEntry clip in _queue.Clips.Where(c => string.Equals(c.Source, ReviewSources.Lineup, StringComparison.Ordinal)))
+        {
+            if (clip.LineupId is { } id)
             {
-                if (EntryFor(job) is { } entry)
-                {
-                    planned.Add((entry.Id, job));
-                }
+                byLineup.TryAdd(id, clip.Id);
+            }
+            else
+            {
+                byRange.TryAdd(RangeKey(clip.DemoPath, clip.FromTick, clip.ToTick), clip.Id);
+            }
+        }
+
+        List<(Guid, LineupClipJob)> planned = [];
+        foreach (LineupClipJob job in jobs)
+        {
+            if (byLineup.TryGetValue(job.LineupId, out Guid entry)
+                || byRange.TryGetValue(RangeKey(job.DemoPath, job.FromTick, job.ToTick), out entry))
+            {
+                planned.Add((entry, job));
             }
         }
 
@@ -310,9 +327,7 @@ public sealed class LineupClipService : IDisposable
         }
     }
 
-    private ReviewEntry? EntryFor(LineupClipJob job) =>
-        _queue.Clips.FirstOrDefault(e => string.Equals(e.Source, ReviewSources.Lineup, StringComparison.Ordinal)
-                                         && e.LineupId == job.LineupId);
+    private static (string, int, int) RangeKey(string demoPath, int from, int to) => (demoPath.ToUpperInvariant(), from, to);
 
     // A finished pair under an alias's or an older build's name becomes this lineup's pair.
     private bool Adopt(LineupClipJob job, Func<string, bool> exists)
@@ -352,18 +367,21 @@ public sealed class LineupClipService : IDisposable
         ReconcileQueue(every);
 
         HashSet<string> keep = new(every.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
+        DateTime now = DateTime.UtcNow;
         lock (_gate)
         {
-            if (LoadEvicted().RemoveWhere(stem => !keep.Contains(stem)) > 0)
+            HashSet<string> evicted = LoadEvicted();
+            if (evicted.RemoveWhere(stem => !keep.Contains(stem) && GoneFor(_evictedAbsentSince, stem, now)) > 0)
             {
                 SaveEvicted();
             }
+
+            Forget(_evictedAbsentSince, evicted, keep);
         }
 
         if (SweepTask.IsCompleted)
         {
             string directory = _directory!;
-            DateTime now = DateTime.UtcNow;
             SweepTask = Task.Run(() => Sweep(directory, keep, now), CancellationToken.None);
         }
     }
@@ -382,10 +400,12 @@ public sealed class LineupClipService : IDisposable
                 canonical.TryAdd(alias, job.LineupId);
             }
 
-            byRange.TryAdd((job.DemoPath.ToUpperInvariant(), job.FromTick, job.ToTick), job.LineupId);
+            byRange.TryAdd(RangeKey(job.DemoPath, job.FromTick, job.ToTick), job.LineupId);
         }
 
         HashSet<Guid> seen = [];
+        HashSet<Guid> absent = [];
+        DateTime now = DateTime.UtcNow;
         _queue.Reconcile(e =>
         {
             if (e.Kind != ReviewEntryKind.Clip || !string.Equals(e.Source, ReviewSources.Lineup, StringComparison.Ordinal))
@@ -393,10 +413,18 @@ public sealed class LineupClipService : IDisposable
                 return e;
             }
 
+            // A stamped entry whose lineup is missing waits out the grace; an unstamped one that matches no
+            // current range is from a re-key and goes now.
+            if (e.LineupId is { } stored && !canonical.ContainsKey(stored))
+            {
+                absent.Add(stored);
+                return GoneFor(_entryAbsentSince, stored, now) ? null : e;
+            }
+
             Guid found;
-            bool known = e.LineupId is { } stored
-                ? canonical.TryGetValue(stored, out found)
-                : byRange.TryGetValue((e.DemoPath.ToUpperInvariant(), e.FromTick, e.ToTick), out found);
+            bool known = e.LineupId is { } id
+                ? canonical.TryGetValue(id, out found)
+                : byRange.TryGetValue(RangeKey(e.DemoPath, e.FromTick, e.ToTick), out found);
             if (!known || !seen.Add(found))
             {
                 return null;
@@ -404,10 +432,38 @@ public sealed class LineupClipService : IDisposable
 
             return e.LineupId == found ? e : e with { LineupId = found };
         }, IsLineupCard);
+        Forget(_entryAbsentSince, absent, null);
 
         foreach (string title in _queue.Entries.Where(IsLineupCard).Select(e => e.Title).Distinct(StringComparer.Ordinal).ToList())
         {
             _queue.Merge([], title, static (_, _) => false);
+        }
+    }
+
+    // Starts the clock for a key seen missing; true once it has been missing for the grace period.
+    private bool GoneFor<TKey>(Dictionary<TKey, DateTime> since, TKey key, DateTime now) where TKey : notnull
+    {
+        if (!since.TryGetValue(key, out DateTime first))
+        {
+            since[key] = first = now;
+        }
+
+        if (now - first < _orphanGrace)
+        {
+            return false;
+        }
+
+        since.Remove(key);
+        return true;
+    }
+
+    // Drops clocks for keys no longer missing: not in `missing`, or back in `current`.
+    private static void Forget<TKey>(Dictionary<TKey, DateTime> since, HashSet<TKey> missing, HashSet<TKey>? current)
+        where TKey : notnull
+    {
+        foreach (TKey key in since.Keys.Where(k => !missing.Contains(k) || (current?.Contains(k) ?? false)).ToList())
+        {
+            since.Remove(key);
         }
     }
 
