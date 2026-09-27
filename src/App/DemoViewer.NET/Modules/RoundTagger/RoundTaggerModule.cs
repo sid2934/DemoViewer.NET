@@ -10,7 +10,8 @@ namespace DemoViewer.NET.Modules.RoundTagger;
 
 /// <summary>
 ///     The Round Tagger module (tag-store.md §3.11): the home of the Tag Palette hosted by the 2D Playback
-///     tab and of The Matrix's Main-strip tab (<see cref="MatrixTabId" />, after Review).
+///     tab and of The Matrix, the Tags section of the Strat Book tab's rail (<see cref="MatrixTabId" />,
+///     after Situations).
 ///     <para>
 ///         The Tag Palette (<c>Palette/TagPaletteViewModel</c>) docks in the 2D Playback tab, which owns the
 ///         tag session it writes through, under <see cref="PaletteFeatureId" />; this module contributes only
@@ -31,7 +32,7 @@ public sealed class RoundTaggerModule : IWorkspaceModule
     /// <summary>The Tag Palette's feature id, a sub-feature of the 2D Playback tab. A persisted key; never renamed.</summary>
     public const string PaletteFeatureId = "playback2d.tagger";
 
-    /// <summary>The Matrix tab's id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The Matrix section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
     public const string MatrixTabId = "tagger.matrix";
 
     private readonly Func<TagMatrixTabViewModel> _viewModelFactory;
@@ -52,9 +53,9 @@ public sealed class RoundTaggerModule : IWorkspaceModule
         yield return new WorkspaceTabDescriptor
         {
             TabId = MatrixTabId,
-            Header = "Matrix",
-            Order = 7, // after Review (6)
-            Placement = TabPlacement.Main,
+            Header = "Tags",
+            Order = 2, // after Situations (1)
+            Placement = TabPlacement.StratBook,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TagMatrixTabView()
         };

@@ -10,11 +10,11 @@ wants to read or write either. Committed samples live under
 
 | File | Desktop | Browser build |
 |---|---|---|
-| `teams.json` (user truth) | `<app config root>/teams.json` | Nowhere. Session-only, and the Teams tab says so. |
+| `teams.json` (user truth) | `<app config root>/teams.json` | Nowhere. Session-only, and the Teams view under Library says so. |
 | `team-index.json` (derived) | `<app config root>/cache/team-index.json` | Nowhere. |
 
 `teams.json` is never rebuilt and never overwritten when it cannot be read: a file that fails to
-parse is refused, the Teams tab reports why, and the session runs in memory. `team-index.json` is a
+parse is refused, the Teams view under Library reports why, and the session runs in memory. `team-index.json` is a
 cache: missing, corrupt or behind, it is rebuilt from the demo cache's sidecars with the ids in
 `teams.json` preserved.
 

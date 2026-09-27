@@ -11,7 +11,7 @@ and is round-trip-pinned by `RoundIndexStoreTests`.
 | Condition | Location |
 |---|---|
 | Desktop | `<app config root>/cache/round-index/<StableKey>.dvri.json`, where `StableKey` is the same path hash the cache's `demos/<StableKey>.json` record uses |
-| Browser build | Nowhere. The index is session-only and the Situations tab says so. |
+| Browser build | Nowhere. The index is session-only and the Situations section of the Strat Book tab says so. |
 
 The file is a cache: it is rebuilt from the demo whenever its fingerprint no longer matches, and it is
 never a source of truth. The stamp that says whether it is current (`RoundIndex`, `RoundIndexState`,
