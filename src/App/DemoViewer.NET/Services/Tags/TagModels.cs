@@ -335,6 +335,12 @@ public static class SuggestionVerdicts
 
     /// <summary>Rejected: never offered again, across tuning passes.</summary>
     public const string Rejected = "rejected";
+
+    /// <summary>
+    ///     Accepted under another code: something worth tagging was there, but not what the detector said.
+    ///     Tuning counts it against the detector, like a rejection.
+    /// </summary>
+    public const string Recoded = "recoded";
 }
 
 /// <summary>
