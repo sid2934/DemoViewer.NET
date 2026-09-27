@@ -219,6 +219,36 @@ public class TeamIdentityRevisionTests
         }
     }
 
+    [Test]
+    public async Task AnUsTeamWithOnlyARollingCore_TakesNoQueueSide_UntilItHasASquad()
+    {
+        // The shape of a library clustered before the gate: an us team whose one roster is a rolling core.
+        Team us = new()
+        {
+            Id = Guid.NewGuid(), Name = "My team", NameSource = TeamNameSource.User, IsUs = true,
+            Rosters = [new Roster { Id = "r1", ExtendedCore = [.. Ids(1, 2, 3, 41, 42)] }]
+        };
+        TeamsFile teams = new();
+        teams.Teams.Add(us);
+        List<DemoSideInput> queue =
+        [
+            Demo("/d/q1.dem", 1, Ids(1, 2, 3, 43, 44), Strangers(), sourceKind: "GotvMatchmaking"),
+            Demo("/d/q2.dem", 2, Ids(1, 2, 3, 45, 46), Strangers(), sourceKind: "GotvMatchmaking")
+        ];
+        TeamIndexFile before = Cluster(teams, queue);
+        us.Rosters.Add(new Roster { Id = "squad", Squad = [.. Ids(1, 2, 3)] });
+        TeamIndexFile after = Cluster(teams, queue);
+        using (Assert.Multiple())
+        {
+            await Assert.That(before.Demos.Values.All(d => d.Side(2)!.TeamId is null)).IsTrue()
+                .Because("a rolling core would absorb every fill it meets in queue play");
+            await Assert.That(after.Demos.Values.All(d => d.Side(2)!.RosterId == "squad")).IsTrue();
+            await Assert.That(teams.Find(us.Id)).IsNotNull().Because("a user team survives with no side");
+            await Assert.That(TeamSuggestions.Compute(new TeamsFile { Me = new MeAccounts { SteamIds = [Ids(1)[0]] }, Teams = [us] }, before)
+                .Any(s => s.Kind == TeamSuggestionKind.Squad)).IsFalse().Because("two games is under the squad bar");
+        }
+    }
+
     // ── Suggestions ──────────────────────────────────────────────────────────────────────────────
 
     [Test]
