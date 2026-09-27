@@ -78,6 +78,16 @@ public sealed record GrenadeQuery(
 /// </param>
 public sealed record GrenadeLineup(WorldPoint Origin, bool JumpThrow, IReadOnlyList<IndexedGrenade> Throws, Guid Id)
 {
+    /// <summary>
+    ///     Every grid id this lineup absorbed when neighbouring grid positions were merged, <see cref="Id" />
+    ///     included, so a strat step that stored a smaller neighbour's id still finds the lineup.
+    /// </summary>
+    public IReadOnlyList<Guid> AliasIds { get; init; } = [];
+
+    /// <summary>True when <paramref name="id" /> names this lineup, directly or through a merged neighbour.</summary>
+    /// <param name="id">A stored lineup id.</param>
+    public bool Answers(Guid id) => Id == id || AliasIds.Contains(id);
+
     /// <summary>Distinct demos among the members, by content where the hash is known.</summary>
     public int DemoCount => Throws.Select(t => t.Demo.Sha256 ?? t.Demo.StableKey).Distinct(StringComparer.Ordinal).Count();
 }
@@ -337,32 +347,84 @@ public sealed class GrenadeIndex : IDisposable
     public static IReadOnlyList<GrenadeCluster> Cluster(IEnumerable<IndexedGrenade> grenades)
     {
         ArgumentNullException.ThrowIfNull(grenades);
+
+        // 1. Grid positions: the stable ids, one per landing cell, rounded origin and throw style.
+        List<GridPosition> grid =
+        [
+            .. grenades.GroupBy(g => (g.Kind, Cell: CellOf(g.Landing), RoundedOrigin: RoundedOrigin(g.Origin), g.Row.JumpThrow))
+                .Select(group => new GridPosition(group.Key.Kind, group.Key.Cell, group.Key.JumpThrow,
+                    LineupId(group.First().Map, group.Key.Kind, group.Key.Cell, group.Key.RoundedOrigin, group.Key.JumpThrow),
+                    [.. group]))
+                .OrderByDescending(p => p.Throws.Count).ThenBy(p => p.Id)
+        ];
+
+        // 2. Lineups: a fixed 16-unit grid splits one standing spot across a cell edge, so neighbouring
+        // positions merge into the biggest one near them (seeded, never chained): close origin, close
+        // landing, same aim within a couple of degrees. The seed's grid id stays the lineup's id.
+        List<LineupSeed> seeds = [];
+        foreach (GridPosition position in grid)
+        {
+            (WorldPoint origin, WorldPoint landing, float? yaw, float? pitch) = Centre(position.Throws);
+            LineupSeed? home = seeds.FirstOrDefault(s => s.Kind == position.Kind && s.JumpThrow == position.JumpThrow
+                                                         && Near(s.Origin, origin, OriginMergeRadius, OriginMergeHeight)
+                                                         && Near(s.Landing, landing, LineupLandingRadius, LineupLandingHeight)
+                                                         && AimNear(s.Yaw, yaw, s.Pitch, pitch));
+            if (home is null)
+            {
+                seeds.Add(new LineupSeed(position.Kind, position.JumpThrow, position.Cell, position.Id, origin, landing, yaw, pitch,
+                    [.. position.Throws], [position.Id]));
+            }
+            else
+            {
+                home.Throws.AddRange(position.Throws);
+                home.Aliases.Add(position.Id);
+            }
+        }
+
+        // 3. Landing groups: lineups of one kind whose landings sit together, seeded by the most thrown, so
+        // one smoke spot is one group even where the 256-unit grid cuts through it.
+        List<LandingSeed> landings = [];
+        foreach (LineupSeed seed in seeds.OrderByDescending(s => s.Throws.Count).ThenBy(s => s.Id))
+        {
+            WorldPoint landing = Mean(seed.Throws.Select(t => t.Landing));
+            LandingSeed? home = landings.FirstOrDefault(l => l.Kind == seed.Kind && Near(l.Landing, landing, LandingMergeRadius, LandingMergeHeight));
+            if (home is null)
+            {
+                landings.Add(new LandingSeed(seed.Kind, seed.Cell, landing, [seed]));
+            }
+            else
+            {
+                home.Lineups.Add(seed);
+            }
+        }
+
         List<GrenadeCluster> clusters = [];
-        foreach (IGrouping<(GrenadeKind Kind, (int, int, int) Cell), IndexedGrenade> cell in grenades
-                     .GroupBy(g => (g.Kind, CellOf(g.Landing))))
+        foreach (LandingSeed group in landings)
         {
             List<GrenadeLineup> lineups =
             [
-                .. cell.GroupBy(g => (RoundedOrigin: RoundedOrigin(g.Origin), g.Row.JumpThrow))
-                    .Select(group =>
+                .. group.Lineups.Select(seed =>
                     {
                         List<IndexedGrenade> throws =
                         [
-                            .. group.OrderBy(g => g.Demo.Path, StringComparer.OrdinalIgnoreCase)
+                            .. seed.Throws.OrderBy(g => g.Demo.Path, StringComparer.OrdinalIgnoreCase)
                                 .ThenBy(g => g.Row.ReleaseTick)
                         ];
-                        Guid id = LineupId(throws[0].Map, cell.Key.Kind, cell.Key.Cell, group.Key.RoundedOrigin, group.Key.JumpThrow);
-                        return new GrenadeLineup(Mean(throws.Select(t => t.Origin)), group.Key.JumpThrow, throws, id);
+                        return new GrenadeLineup(Mean(throws.Select(t => t.Origin)), seed.JumpThrow, throws, seed.Id)
+                        {
+                            AliasIds = [.. seed.Aliases]
+                        };
                     })
                     .OrderByDescending(l => l.Throws.Count)
                     .ThenBy(l => l.Origin.X).ThenBy(l => l.Origin.Y).ThenBy(l => l.Origin.Z)
                     .ThenBy(l => l.JumpThrow)
             ];
-            string? place = cell.Select(g => g.LandingPlace).OfType<string>()
+            List<IndexedGrenade> members = [.. lineups.SelectMany(l => l.Throws)];
+            string? place = members.Select(g => g.LandingPlace).OfType<string>()
                 .GroupBy(p => p, StringComparer.Ordinal)
                 .OrderByDescending(p => p.Count()).ThenBy(p => p.Key, StringComparer.Ordinal)
                 .Select(p => p.Key).FirstOrDefault();
-            clusters.Add(new GrenadeCluster(cell.Key.Kind, cell.Key.Cell, Mean(cell.Select(g => g.Landing)), place, lineups));
+            clusters.Add(new GrenadeCluster(group.Kind, group.Cell, Mean(members.Select(g => g.Landing)), place, lineups));
         }
 
         return
@@ -372,6 +434,64 @@ public sealed class GrenadeIndex : IDisposable
                 .ThenBy(c => c.Cell.X).ThenBy(c => c.Cell.Y).ThenBy(c => c.Cell.Z)
         ];
     }
+
+    /// <summary>
+    ///     Two grid positions within this distance of each other's mean origin, in the plane, are one
+    ///     standing spot. Measured on the owner's 53 indexed demos (16,374 grenades): the fixed grid alone
+    ///     finds 1,243 lineups thrown twice or more covering 3,923 throws; merging within 16 units and 2
+    ///     degrees of aim finds 1,408 covering 5,201, with the largest lineup at 40 throws (no chaining).
+    /// </summary>
+    public const float OriginMergeRadius = 16f;
+
+    /// <summary>...and this far apart in height, a crouch plus a step.</summary>
+    public const float OriginMergeHeight = 24f;
+
+    /// <summary>The same lineup lands within this distance in the plane.</summary>
+    public const float LineupLandingRadius = 128f;
+
+    /// <summary>...and this far apart in height.</summary>
+    public const float LineupLandingHeight = 96f;
+
+    /// <summary>The same lineup is aimed within this many degrees of yaw and of pitch.</summary>
+    public const float AimToleranceDegrees = 2f;
+
+    /// <summary>Lineups of one kind whose landings are this close in the plane are one landing group on the map.</summary>
+    public const float LandingMergeRadius = 96f;
+
+    /// <summary>...and this close in height.</summary>
+    public const float LandingMergeHeight = 96f;
+
+    private static bool Near(WorldPoint a, WorldPoint b, float radius, float height) =>
+        MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y)) <= radius && MathF.Abs(a.Z - b.Z) <= height;
+
+    private static bool AimNear(float? yawA, float? yawB, float? pitchA, float? pitchB)
+    {
+        if (yawA is { } ya && yawB is { } yb && MathF.Abs(((ya - yb) % 360 + 540) % 360 - 180) > AimToleranceDegrees)
+        {
+            return false;
+        }
+
+        return pitchA is not { } pa || pitchB is not { } pb || MathF.Abs(pa - pb) <= AimToleranceDegrees;
+    }
+
+    // The mean origin and landing, and the mean aim (yaw on the circle), of one grid position's throws.
+    private static (WorldPoint Origin, WorldPoint Landing, float? Yaw, float? Pitch) Centre(IReadOnlyList<IndexedGrenade> throws)
+    {
+        List<float> yaws = [.. throws.Select(t => t.Row.ReleaseEyeYaw).OfType<float>()];
+        List<float> pitches = [.. throws.Select(t => t.Row.ReleaseEyePitch).OfType<float>()];
+        float? yaw = yaws.Count == 0
+            ? null
+            : MathF.Atan2(yaws.Sum(y => MathF.Sin(y * MathF.PI / 180)), yaws.Sum(y => MathF.Cos(y * MathF.PI / 180))) * 180 / MathF.PI;
+        float? pitch = pitches.Count == 0 ? null : pitches.Average();
+        return (Mean(throws.Select(t => t.Origin)), Mean(throws.Select(t => t.Landing)), yaw, pitch);
+    }
+
+    private sealed record GridPosition(GrenadeKind Kind, (int X, int Y, int Z) Cell, bool JumpThrow, Guid Id, IReadOnlyList<IndexedGrenade> Throws);
+
+    private sealed record LineupSeed(GrenadeKind Kind, bool JumpThrow, (int X, int Y, int Z) Cell, Guid Id,
+        WorldPoint Origin, WorldPoint Landing, float? Yaw, float? Pitch, List<IndexedGrenade> Throws, List<Guid> Aliases);
+
+    private sealed record LandingSeed(GrenadeKind Kind, (int X, int Y, int Z) Cell, WorldPoint Landing, List<LineupSeed> Lineups);
 
     /// <summary>
     ///     A walk row as an index row, or null when it has no origin or no landing point to cluster on (a
@@ -456,7 +576,7 @@ public sealed class GrenadeIndex : IDisposable
         ArgumentNullException.ThrowIfNull(map);
         foreach (GrenadeCluster cluster in Query(new GrenadeQuery(map)))
         {
-            if (cluster.Lineups.FirstOrDefault(l => l.Id == lineupId) is { } lineup)
+            if (cluster.Lineups.FirstOrDefault(l => l.Answers(lineupId)) is { } lineup)
             {
                 return Describe(cluster, lineup);
             }
