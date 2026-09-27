@@ -681,7 +681,10 @@ public sealed class TeamIdentityService : IDisposable
 
     // ── Writes ───────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Renames a team. A user name is never overwritten by a later tag. Touches nothing derived.</summary>
+    /// <summary>
+    ///     Renames a team. A user name is never overwritten by a later tag, and it makes the team the
+    ///     user's, which queue play may then match, so this re-clusters.
+    /// </summary>
     public void Rename(Guid teamId, string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -692,8 +695,15 @@ public sealed class TeamIdentityService : IDisposable
                 return;
             }
 
+            bool wasAuto = team.IsAuto;
             team.Name = name.Trim();
             team.NameSource = TeamNameSource.User;
+            if (wasAuto)
+            {
+                Recompute();
+                return;
+            }
+
             Suggestions = TeamSuggestions.Compute(_teams, _index);
             SaveTeams();
         }
@@ -701,7 +711,10 @@ public sealed class TeamIdentityService : IDisposable
         RaiseChanged();
     }
 
-    /// <summary>Marks a team as us, clearing the previous one; null clears the mark. Re-derives our side everywhere.</summary>
+    /// <summary>
+    ///     Marks a team as us, clearing the previous one; null clears the mark. The us mark makes a team the
+    ///     user's, which queue play may match, so this re-clusters.
+    /// </summary>
     public void SetUs(Guid? teamId)
     {
         lock (_gate)
@@ -711,13 +724,8 @@ public sealed class TeamIdentityService : IDisposable
                 team.IsUs = teamId is not null && team.Id == teamId;
             }
 
-            ResolveOurSides();
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
-            SaveTeams();
-            SaveIndex();
+            Recompute();
         }
-
-        RaiseChanged();
     }
 
     /// <summary>Replaces the me accounts. Re-derives our side everywhere.</summary>
