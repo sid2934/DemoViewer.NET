@@ -31,7 +31,25 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     private bool _disposed;
 
     [ObservableProperty]
+    private string _activeRosterLine = "";
+
+    [ObservableProperty]
+    private string _fillsLine = "";
+
+    [ObservableProperty]
     private string _footerLine = "";
+
+    [ObservableProperty]
+    private bool _isEditingSquad;
+
+    [ObservableProperty]
+    private TeamRow? _moveTarget;
+
+    [ObservableProperty]
+    private string _myTeamLine = "";
+
+    [ObservableProperty]
+    private string _squadHint = "";
 
     [ObservableProperty]
     private TeamRow? _mergeTarget;
@@ -84,6 +102,20 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     public ObservableCollection<RosterRow> Rosters { get; } = [];
 
     public ObservableCollection<DemoRow> Demos { get; } = [];
+
+    /// <summary>Pending suggestions, each with its accept and dismiss.</summary>
+    public ObservableCollection<SuggestionRow> Suggestions { get; } = [];
+
+    /// <summary>The squad editor's list: the players on your side with their games, the current squad checked.</summary>
+    public ObservableCollection<SquadCandidateRow> SquadCandidates { get; } = [];
+
+    /// <summary>Every other team: where the selected demo's side can be moved.</summary>
+    public ObservableCollection<TeamRow> MoveTargets { get; } = [];
+
+    public bool HasSuggestions => Suggestions.Count > 0;
+
+    /// <summary>True when your accounts are set, so the squad editor has a "your side" to read.</summary>
+    public bool CanEditSquad => _teams.MyAccounts.Count > 0;
 
     public bool HasSelection => SelectedTeam is not null;
 
@@ -206,6 +238,67 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     [RelayCommand]
     private Task Recompute() => _teams.RebuildAsync();
 
+    /// <summary>Moves the selected demo's side to another team: an override, kept by every rebuild.</summary>
+    [RelayCommand]
+    private void MoveDemo()
+    {
+        if (SelectedDemo is { } demo && MoveTarget is { } target)
+        {
+            _teams.Override(demo.Path, demo.Side, target.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void AcceptSuggestion(SuggestionRow? row)
+    {
+        if (row is not null)
+        {
+            _teams.AcceptSuggestion(row.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void DismissSuggestion(SuggestionRow? row)
+    {
+        if (row is not null)
+        {
+            _teams.DismissSuggestion(row.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void EditSquad()
+    {
+        ProjectSquadCandidates();
+        IsEditingSquad = true;
+    }
+
+    [RelayCommand]
+    private void CancelSquad() => IsEditingSquad = false;
+
+    /// <summary>Your main account plus the checked players become the squad; two to five in all.</summary>
+    [RelayCommand]
+    private void SaveSquad()
+    {
+        (_, _, string? main) = _teams.CoPlayers();
+        List<string> picked = [.. SquadCandidates.Where(c => c.IsChecked).Select(c => c.SteamId)];
+        if (main is not null)
+        {
+            picked.Insert(0, main);
+        }
+
+        picked = [.. picked.Distinct(StringComparer.Ordinal)];
+        if (picked.Count is < 2 or > 5)
+        {
+            SquadHint = "a squad is you plus one to four players";
+            return;
+        }
+
+        SquadHint = "";
+        IsEditingSquad = false;
+        _teams.SetSquad(picked);
+    }
+
     [RelayCommand]
     private void SaveMyAccounts() =>
         _teams.SetMyAccounts([.. MyAccountsText.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)]);
@@ -232,6 +325,9 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
             ? $"{DisplayText.Sanitize(s.LastName)} ({s.SteamId64}) is on {s.DemoCount} of your demos ({s.Share:P0}). Is that you?"
             : "";
         FooterLine = Footer();
+        ProjectMyTeam();
+        ProjectSuggestions();
+        OnPropertyChanged(nameof(CanEditSquad));
         OnPropertyChanged(nameof(HasMeSuggestion));
         OnPropertyChanged(nameof(TeamsFileProblem));
         OnPropertyChanged(nameof(HasTeamsFileProblem));
@@ -249,6 +345,8 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         Rosters.Clear();
         Demos.Clear();
         MergeTargets.Clear();
+        MoveTargets.Clear();
+        ActiveRosterLine = "";
         if (SelectedTeam is not { } row)
         {
             return;
@@ -257,7 +355,13 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         foreach (TeamRow other in Teams.Where(t => t.Id != row.Id))
         {
             MergeTargets.Add(other);
+            MoveTargets.Add(other);
         }
+
+        IReadOnlyList<SuggestedPlayer> active = _teams.ActiveRoster(row.Id);
+        ActiveRosterLine = active.Count > 0
+            ? "plays now (5 or more of the last 10): " + string.Join(", ", active.Select(p => DisplayText.Sanitize(p.Name)))
+            : "plays now: nobody has 5 of the last 10 yet";
 
         foreach (Roster roster in row.Team.Rosters)
         {
@@ -285,10 +389,79 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
                 {
                     1 => $"{mine.Overlap} of the five",
                     2 => $"{mine.Overlap} of the core",
+                    3 => "squad",
                     _ => "pinned"
                 }
             });
         }
+    }
+
+    // The my-team card: the squad, then the regular fills around it with their games.
+    private void ProjectMyTeam()
+    {
+        FillsLine = "";
+        if (_teams.Us is not { } us)
+        {
+            MyTeamLine = _teams.MyAccounts.Count == 0
+                ? "Set your accounts below, then pick the players you play with."
+                : "No team yet. Pick the players you play with, or accept a suggestion.";
+            return;
+        }
+
+        if (us.Rosters.FirstOrDefault(r => r.IsSquad) is not { } squad)
+        {
+            MyTeamLine = $"{DisplayText.Sanitize(us.Name)}: no squad set; its demos come from its rosters.";
+            return;
+        }
+
+        IReadOnlyDictionary<string, TeamIndexMember> members = _teams.MembersOf(us.Id, squad.Id);
+        string Name(string id) => members.TryGetValue(id, out TeamIndexMember? m) ? DisplayText.Sanitize(m.LastName) : id;
+        int games = _teams.DemosOf(us.Id).Count;
+        MyTeamLine = $"{DisplayText.Sanitize(us.Name)} · squad: {string.Join(", ", squad.Squad!.Select(Name))} · {TeamSuggestions.Count(games, "game")}";
+        HashSet<string> core = new(squad.Squad!, StringComparer.Ordinal);
+        List<string> fills =
+        [
+            .. members.Where(m => !core.Contains(m.Key) && m.Value.Count >= 2)
+                .OrderByDescending(m => m.Value.Count).ThenBy(m => m.Key, StringComparer.Ordinal)
+                .Take(6)
+                .Select(m => $"{DisplayText.Sanitize(m.Value.LastName)} ({m.Value.Count})")
+        ];
+        FillsLine = fills.Count > 0 ? "regular fills: " + string.Join(", ", fills) : "no regular fills yet";
+    }
+
+    private void ProjectSquadCandidates()
+    {
+        SquadCandidates.Clear();
+        (IReadOnlyList<SuggestedPlayer> players, _, _) = _teams.CoPlayers();
+        HashSet<string> current = new(_teams.Us?.Rosters.FirstOrDefault(r => r.IsSquad)?.Squad ?? [], StringComparer.Ordinal);
+        foreach (SuggestedPlayer player in players.Take(20))
+        {
+            SquadCandidates.Add(new SquadCandidateRow(player.SteamId64, DisplayText.Sanitize(player.Name), player.Games)
+            {
+                IsChecked = current.Contains(player.SteamId64)
+            });
+        }
+    }
+
+    private void ProjectSuggestions()
+    {
+        Suggestions.Clear();
+        foreach (TeamSuggestion s in _teams.Suggestions)
+        {
+            string text = s.Kind switch
+            {
+                TeamSuggestionKind.Squad =>
+                    $"You played {TeamSuggestions.Count(s.GamesTogether, "game")} with {DisplayText.Sanitize(TeamSuggestions.Join(s.Players.Skip(1)))}. Make them your team?",
+                TeamSuggestionKind.RosterChange =>
+                    $"{DisplayText.Sanitize(s.Subject)}: {DisplayText.Sanitize(TeamSuggestions.Join(s.Players))} now plays in 5 or more of the last 10"
+                    + (s.Left.Count > 0 ? $" in place of {DisplayText.Sanitize(TeamSuggestions.Join(s.Left))}" : "")
+                    + $". Start a new roster from about {s.Since:yyyy-MM-dd}?",
+                _ => $"Two teams are tagged {DisplayText.Sanitize(s.Subject)}. Merge them?"
+            };
+            Suggestions.Add(new SuggestionRow(s.Id, text));
+        }
+
+        OnPropertyChanged(nameof(HasSuggestions));
     }
 
     // The footer states what could not be clustered and, when no demo has a recurring opponent, that
@@ -346,8 +519,21 @@ public sealed class RosterRow
 {
     public RosterRow(Roster roster, IReadOnlyDictionary<string, TeamIndexMember> members)
     {
-        Label = $"{roster.Id} · since {roster.Since:yyyy-MM-dd}{(roster.Label is null ? "" : $" · {DisplayText.Sanitize(roster.Label)}")}";
         string Name(string id) => members.TryGetValue(id, out TeamIndexMember? m) ? DisplayText.Sanitize(m.LastName) : id;
+        if (roster.IsSquad)
+        {
+            Label = "squad · the players you chose";
+            FiveLine = "squad: " + string.Join(", ", roster.Squad!.Select(Name));
+            CoreLine = "";
+            foreach ((string id, TeamIndexMember m) in members.OrderByDescending(m => m.Value.Count).ThenBy(m => m.Key, StringComparer.Ordinal))
+            {
+                Members.Add(new MemberRow(id, m));
+            }
+
+            return;
+        }
+
+        Label = $"{roster.Id} · since {roster.Since:yyyy-MM-dd}{(roster.Label is null ? "" : $" · {DisplayText.Sanitize(roster.Label)}")}";
         FiveLine = roster.HasCoreLineup
             ? "fixed five: " + string.Join(", ", roster.CoreLineup!.Select(Name))
             : "no fixed five yet";
@@ -383,6 +569,29 @@ public sealed class MemberRow(string steamId, TeamIndexMember member)
     public string LastSeen { get; } = new DateTime(member.LastTicks).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     public int StandIns { get; } = member.StandInCount;
+}
+
+/// <summary>One pending suggestion, as the inbox shows it.</summary>
+public sealed class SuggestionRow(string id, string text)
+{
+    public string Id { get; } = id;
+
+    public string Text { get; } = text;
+}
+
+/// <summary>One player the squad editor offers.</summary>
+public sealed partial class SquadCandidateRow(string steamId, string name, int games) : ObservableObject
+{
+    [ObservableProperty]
+    private bool _isChecked;
+
+    public string SteamId { get; } = steamId;
+
+    public string Name { get; } = name;
+
+    public int Games { get; } = games;
+
+    public string Label => $"{Name} ({Games} with you)";
 }
 
 /// <summary>One demo of the selected team: the side it played and who it faced.</summary>

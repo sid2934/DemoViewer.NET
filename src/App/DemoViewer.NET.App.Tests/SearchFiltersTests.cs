@@ -29,6 +29,8 @@ public class SearchFiltersTests
     private const string DemoB = "/d/b.dem";
     private const string DemoC = "/d/c.dem";
     private const string ValveServer = "Valve Counter-Strike 2 eu_west Server (srcds1234)";
+    // A is our scrim against Falcons: team play, so it has to be on a scrim server, not in matchmaking.
+    private const string ScrimServer = "eBot :: us vs Falcons";
 
     private static readonly Func<Action, Task> _inline = a =>
     {
@@ -492,7 +494,7 @@ public class SearchFiltersTests
             await h.Teams.StartAsync();
             using (h.Cache.BeginBatch())
             {
-                h.Indexed(DemoA, 1, t: us, ct: falcons, DocA(fingerprint));
+                h.Indexed(DemoA, 1, t: us, ct: falcons, DocA(fingerprint), server: ScrimServer);
                 h.Indexed(DemoB, 5, t: falcons, ct: us, DocB(fingerprint), tClan: "FLC", ctClan: "US");
                 h.Indexed(DemoC, 9, t: us, ct: strangers, DocC(fingerprint));
             }
@@ -510,7 +512,7 @@ public class SearchFiltersTests
 
         // A parsed record with a seated roster (T first, then CT), stamped Indexed over a written sidecar.
         private void Indexed(string path, int day, string[] t, string[] ct, RoundIndexDocument document,
-            string? tClan = null, string? ctClan = null)
+            string? tClan = null, string? ctClan = null, string server = ValveServer)
         {
             Sidecars.Write(path, document);
             DemoCacheRecord record = new()
@@ -519,7 +521,7 @@ public class SearchFiltersTests
                 Size = 1000,
                 ModifiedTicks = Day(day),
                 Map = "de_nuke",
-                Server = ValveServer,
+                Server = server,
                 TClan = tClan,
                 CtClan = ctClan
             };

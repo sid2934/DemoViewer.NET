@@ -74,7 +74,11 @@ public sealed class TeamClusterer
     /// </summary>
     /// <param name="demo">The demo's side inputs.</param>
     /// <param name="overrides">Per side (2 or 3): the team a user pinned the side to, or null for "not a team".</param>
-    public TeamIndexDemo Assign(DemoSideInput demo, IReadOnlyDictionary<int, Guid?>? overrides = null)
+    /// <param name="tracked">
+    ///     False for queue play (<see cref="TeamSourcePolicy.AutoTracks" />): a side may only match a team
+    ///     the user owns, founds nothing, is never stamped a stand-in and never fixes a five.
+    /// </param>
+    public TeamIndexDemo Assign(DemoSideInput demo, IReadOnlyDictionary<int, Guid?>? overrides = null, bool tracked = true)
     {
         ArgumentNullException.ThrowIfNull(demo);
         DateOnly date = DateOf(demo.OrderTicks);
@@ -82,12 +86,14 @@ public sealed class TeamClusterer
         {
             Path = demo.Path,
             Sha256 = demo.Sha256,
-            OrderTicks = demo.OrderTicks
+            OrderTicks = demo.OrderTicks,
+            SourceKind = demo.SourceKind,
+            Tracked = tracked
         };
         _rows[demo.StableKey] = row;
 
-        Pending t = Prepare(demo, 2, date, overrides, row);
-        Pending ct = Prepare(demo, 3, date, overrides, row);
+        Pending t = Prepare(demo, 2, date, overrides, row, tracked);
+        Pending ct = Prepare(demo, 3, date, overrides, row, tracked);
 
         // A roster never takes both sides of one demo: the larger overlap keeps it, T on a tie, and the
         // other side founds its own candidate (a user override fixes a genuine mirror match).
@@ -103,8 +109,8 @@ public sealed class TeamClusterer
             }
         }
 
-        Apply(demo, t);
-        Apply(demo, ct);
+        Apply(demo, t, tracked);
+        Apply(demo, ct, tracked);
         return row;
     }
 
@@ -114,7 +120,11 @@ public sealed class TeamClusterer
     ///     team with none survives as "no demos".
     /// </summary>
     /// <param name="nowTicks">The build stamp.</param>
-    public TeamIndexFile Finish(long nowTicks)
+    /// <param name="keep">
+    ///     Teams another store points at (a strat book, Dossier notes, veto history): kept even when they
+    ///     received no side, so a rebuild never orphans what the user wrote about them.
+    /// </param>
+    public TeamIndexFile Finish(long nowTicks, IReadOnlySet<Guid>? keep = null)
     {
         TeamIndexFile index = new()
         {
@@ -138,7 +148,8 @@ public sealed class TeamClusterer
                 continue;
             }
 
-            if (state.Keys.Count > 0)
+            // A squad's anchor is the squad; an extended core of its fills would read as a second anchor.
+            if (state.Keys.Count > 0 && state.Squad is null)
             {
                 state.Roster!.ExtendedCore = [.. TopMembers(state, ExtendedCoreCap)];
             }
@@ -177,7 +188,7 @@ public sealed class TeamClusterer
         // Auto teams that received no side this pass are clustering's own leftovers and go; anything
         // the user touched stays.
         HashSet<Guid> withSides = [.. _rosters.Where(r => r.Team is not null && r.Sides.Count > 0).Select(r => r.Team!.Id)];
-        _teams.Teams.RemoveAll(team => team.IsAuto && !withSides.Contains(team.Id));
+        _teams.Teams.RemoveAll(team => team.IsAuto && !withSides.Contains(team.Id) && keep?.Contains(team.Id) != true);
 
         foreach (Team team in _teams.Teams)
         {
@@ -214,12 +225,13 @@ public sealed class TeamClusterer
                 Since = roster.Since,
                 FoundedOrder = _rosters.Count,
                 Lineup = roster.HasCoreLineup ? new HashSet<string>(roster.CoreLineup!, StringComparer.Ordinal) : null,
+                Squad = roster.IsSquad ? new HashSet<string>(roster.Squad!, StringComparer.Ordinal) : null,
                 SeedAnchor = roster.ExtendedCore is { Count: > 0 }
                     ? new HashSet<string>(roster.ExtendedCore, StringComparer.Ordinal)
                     : null
             };
             _rosters.Add(state);
-            foreach (string member in state.Lineup ?? state.SeedAnchor ?? [])
+            foreach (string member in state.Squad ?? state.Lineup ?? state.SeedAnchor ?? [])
             {
                 Post(member, state);
             }
@@ -244,7 +256,7 @@ public sealed class TeamClusterer
     // ── Matching ───────────────────────────────────────────────────────────────────────────────
 
     private Pending Prepare(DemoSideInput demo, int side, DateOnly date, IReadOnlyDictionary<int, Guid?>? overrides,
-        TeamIndexDemo row)
+        TeamIndexDemo row, bool tracked)
     {
         SideInput input = demo.Side(side);
         TeamIndexSide rowSide = new()
@@ -266,13 +278,12 @@ public sealed class TeamClusterer
             return new Pending(side, input, rowSide, null, pinned, true);
         }
 
-        return new Pending(side, input, rowSide, Compete(input, date), null, false);
+        return new Pending(side, input, rowSide, Compete(input, date, tracked), null, false);
     }
 
-    private Match? Compete(SideInput input, DateOnly date)
+    private Match? Compete(SideInput input, DateOnly date, bool tracked)
     {
         HashSet<string> key = new(input.Key, StringComparer.Ordinal);
-        int k = Math.Min(Continuity, key.Count);
         HashSet<RosterState> seen = [];
         Match? best = null;
 
@@ -282,6 +293,16 @@ public sealed class TeamClusterer
             {
                 return;
             }
+
+            // Queue play reaches only the user's own teams: a candidate or an auto team never grows there.
+            if (!tracked && state.Team is not { IsAuto: false })
+            {
+                return;
+            }
+
+            // A squad of N needs min(3, N) of its people, so a trio needs all three; every other anchor keeps
+            // three of the side's members, which leaves wingman (2 v 2) unchanged.
+            int k = state.Squad is { } squad ? Math.Min(Continuity, squad.Count) : Math.Min(Continuity, key.Count);
 
             HashSet<string> anchor = Anchor(state);
             int overlap = 0;
@@ -298,7 +319,7 @@ public sealed class TeamClusterer
                 return;
             }
 
-            int tier = state.Lineup is not null ? 1 : 2;
+            int tier = state.Squad is not null ? 3 : state.Lineup is not null ? 1 : 2;
             // Candidates compete by overlap; a tie goes first to an established five, then founded-first.
             if (best is null
                 || overlap > best.Overlap
@@ -357,6 +378,11 @@ public sealed class TeamClusterer
 
     private static HashSet<string> Anchor(RosterState state)
     {
+        if (state.Squad is not null)
+        {
+            return state.Squad;
+        }
+
         if (state.Lineup is not null)
         {
             return state.Lineup;
@@ -390,7 +416,7 @@ public sealed class TeamClusterer
 
     // ── Applying ───────────────────────────────────────────────────────────────────────────────
 
-    private void Apply(DemoSideInput demo, Pending pending)
+    private void Apply(DemoSideInput demo, Pending pending, bool tracked)
     {
         if (!pending.Input.IsClusterable)
         {
@@ -401,7 +427,7 @@ public sealed class TeamClusterer
         {
             if (pending.PinnedTeam is { } teamId && _teams.Find(teamId) is { } team)
             {
-                Join(PinnedRoster(team, pending.Input, DateOf(demo.OrderTicks)), demo, pending, 0, 0, overridden: true);
+                Join(PinnedRoster(team, pending.Input, DateOf(demo.OrderTicks)), demo, pending, 0, 0, overridden: true, tracked);
             }
 
             return;
@@ -409,11 +435,15 @@ public sealed class TeamClusterer
 
         if (pending.Match is { } match)
         {
-            Join(match.Roster, demo, pending, match.Overlap, match.Tier, overridden: false);
+            Join(match.Roster, demo, pending, match.Overlap, match.Tier, overridden: false, tracked);
             return;
         }
 
-        Found(demo, pending);
+        // Queue play founds nothing: a side there is either the user's team or nobody's.
+        if (tracked)
+        {
+            Found(demo, pending);
+        }
     }
 
     // An override names a team; the side joins the team's roster it best fits, else the team's latest,
@@ -459,11 +489,12 @@ public sealed class TeamClusterer
         return fresh;
     }
 
-    private void Join(RosterState state, DemoSideInput demo, Pending pending, int overlap, int tier, bool overridden)
+    private void Join(RosterState state, DemoSideInput demo, Pending pending, int overlap, int tier, bool overridden, bool tracked)
     {
         HashSet<string> anchorBefore = Anchor(state);
         HashSet<string> key = new(pending.Input.Key, StringComparer.Ordinal);
-        bool standIn = overlap is 3 or 4 && key.Any(m => !anchorBefore.Contains(m));
+        // Fills around a squad and rotating seats in queue play are the normal case, not stand-ins.
+        bool standIn = tracked && state.Squad is null && overlap is 3 or 4 && key.Any(m => !anchorBefore.Contains(m));
 
         if (state.Team is null)
         {
@@ -501,7 +532,8 @@ public sealed class TeamClusterer
         }
 
         // The fixed five: the first time the same five is seen twice on this roster, and never again.
-        if (state.Lineup is null && key.Count == 5 && state.Keys.Count(k => k.SetEquals(key)) >= 2)
+        if (tracked && state.Squad is null && state.Lineup is null && key.Count == 5
+            && state.Keys.Count(k => k.SetEquals(key)) >= 2)
         {
             state.Lineup = key;
             state.AnchorCache = null;
@@ -690,6 +722,7 @@ public sealed class TeamClusterer
         public Roster? Roster;
         public HashSet<string>? SeedAnchor;
         public DateOnly Since;
+        public HashSet<string>? Squad;
         public Team? Team;
     }
 }

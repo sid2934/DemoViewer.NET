@@ -32,7 +32,8 @@
             "76560005"
           ],
           "label": null,
-          "userStarted": false
+          "userStarted": false,
+          "squad": null
         }
       ],
       "mergedFrom": [
@@ -60,5 +61,6 @@
         "label": "our scrim"
       }
     ]
-  }
+  },
+  "dismissedSuggestions": []
 }

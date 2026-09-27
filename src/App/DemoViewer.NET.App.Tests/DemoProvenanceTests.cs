@@ -23,6 +23,7 @@ public class DemoProvenanceTests
 {
     private const string ValveServer = "Valve Counter-Strike 2 eu_west Server (srcds1234)";
     private const string FaceitServer = "FACEIT.com register to play here";
+    private const string ScrimServer = "eBot :: Us vs Them";
 
     private static readonly Func<Action, Task> _inline = a =>
     {
@@ -114,6 +115,8 @@ public class DemoProvenanceTests
     public async Task Heuristic_MeResolved_OnMatchmaking_IsMatchmaking()
     {
         await Assert.That(DemoProvenanceHeuristic.Default(Inputs(false, DemoSourceKind.GotvMatchmaking, OurSideSource.Me, false))).IsEqualTo("matchmaking");
+        await Assert.That(DemoProvenanceHeuristic.Default(Inputs(false, DemoSourceKind.Faceit, OurSideSource.Me, false))).IsEqualTo("matchmaking")
+            .Because("FACEIT queue play is matchmaking, not a scrim");
     }
 
     [Test]
@@ -122,7 +125,6 @@ public class DemoProvenanceTests
         using (Assert.Multiple())
         {
             await Assert.That(DemoProvenanceHeuristic.Default(Inputs(false, DemoSourceKind.Unknown, OurSideSource.Me, false))).IsEqualTo("scrim");
-            await Assert.That(DemoProvenanceHeuristic.Default(Inputs(false, DemoSourceKind.Faceit, OurSideSource.Me, false))).IsEqualTo("scrim");
             await Assert.That(DemoProvenanceHeuristic.Default(Inputs(false, DemoSourceKind.HltvPro, OurSideSource.Me, false))).IsEqualTo("scrim")
                 .Because("an untagged broadcast our account played is a scrim until tags say otherwise");
         }
@@ -183,11 +185,11 @@ public class DemoProvenanceTests
             string[] them = Ids(11, 12, 13, 14, 15);
             await Seed(cache, teams,
                 Record("/d/official.dem", 1, Ids(21, 22, 23, 24, 25), Ids(31, 32, 33, 34, 35), server: "hltv", sourceKind: "HltvPro", tClan: "FURIA", ctClan: "Vitality"),
-                Record("/d/us1.dem", 2, us, them, server: FaceitServer, sourceKind: "Unknown"),
-                Record("/d/us2.dem", 3, us, them, server: FaceitServer, sourceKind: "Unknown"),
+                Record("/d/us1.dem", 2, us, them, server: ScrimServer, sourceKind: "Unknown"),
+                Record("/d/us2.dem", 3, us, them, server: ScrimServer, sourceKind: "Unknown"),
                 Record("/d/mm-team.dem", 4, us, Strangers(), sourceKind: "GotvMatchmaking"),
                 Record("/d/mm-me.dem", 5, Ids(1, 41, 42, 43, 44), Strangers(), sourceKind: "GotvMatchmaking"),
-                Record("/d/scrim-me.dem", 6, Ids(1, 51, 52, 53, 54), Strangers(), server: FaceitServer, sourceKind: "Unknown"),
+                Record("/d/scrim-me.dem", 6, Ids(1, 51, 52, 53, 54), Strangers(), server: ScrimServer, sourceKind: "Unknown"),
                 Record("/d/nobody.dem", 7, Strangers(), Strangers(), sourceKind: "GotvMatchmaking"),
                 Record("/d/one-tag.dem", 8, Strangers(), Strangers(), server: "hltv", sourceKind: "HltvPro", tClan: "FURIA"));
 
@@ -221,8 +223,8 @@ public class DemoProvenanceTests
             string[] a = Ids(1, 2, 3, 4, 5);
             string[] b = Ids(11, 12, 13, 14, 15);
             await Seed(cache, teams,
-                Record("/d/m1.dem", 1, a, b, server: FaceitServer, sourceKind: "Unknown"),
-                Record("/d/m2.dem", 2, a, b, server: FaceitServer, sourceKind: "Unknown"));
+                Record("/d/m1.dem", 1, a, b, server: ScrimServer, sourceKind: "Unknown"),
+                Record("/d/m2.dem", 2, a, b, server: ScrimServer, sourceKind: "Unknown"));
             int raised = 0;
             source.Changed += () => raised++;
 
@@ -252,6 +254,8 @@ public class DemoProvenanceTests
             await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = ValveServer, SourceKind = null }))
                 .IsEqualTo(DemoSourceKind.GotvMatchmaking).Because("a row written before the field: the classifier's own server-name fallback");
             await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = FaceitServer, SourceKind = null }))
+                .IsEqualTo(DemoSourceKind.Faceit).Because("the engine reads FACEIT server names as Unknown; the app reads them as FACEIT");
+            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = ScrimServer, SourceKind = null }))
                 .IsEqualTo(DemoSourceKind.Unknown);
             await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = null, SourceKind = "not a kind" }))
                 .IsEqualTo(DemoSourceKind.Unknown);
