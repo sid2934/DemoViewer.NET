@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 public class StratMiningCalibration
 {
     [Test]
-    [Category("Calibration")]
+    [Category("Environmental")]
     public async Task PrintTheNumbers()
     {
         string? root = Environment.GetEnvironmentVariable("STRAT_MINE_CONFIG");

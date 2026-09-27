@@ -31,7 +31,7 @@ public class StratMiningServiceTests
         return Task.CompletedTask;
     };
 
-    private static readonly RoundIndexPlaceSources _sources = new(() => RoundIndexTokenSource.Pawn);
+    internal static readonly RoundIndexPlaceSources _sources = new(() => RoundIndexTokenSource.Pawn);
 
     private static string Sha(int n) => new string((char)('a' + n), 64);
 
@@ -118,7 +118,7 @@ public class StratMiningServiceTests
         ]
     };
 
-    private sealed class Library : IDisposable
+    internal sealed class Library : IDisposable
     {
         public required DemoCacheStore Cache { get; init; }
         public required RoundIndexStore Positions { get; init; }
