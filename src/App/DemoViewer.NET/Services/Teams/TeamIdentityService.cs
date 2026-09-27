@@ -40,11 +40,19 @@ public sealed class TeamIdentityService : IDisposable
     public const int MeSuggestionMinDemos = 20;
 
     private const string TeamsFileName = "teams.json";
+
+    // Dossier builds and search filters walk one or two demos at a time, round by round.
+    private const int SideJoinCapacity = 4;
     private const string IndexFileName = "team-index.json";
 
     private readonly DemoCacheStore _demoCache;
     private readonly object _gate = new();
     private readonly string? _indexPath;
+
+    // Keyed on the index entry INSTANCE: Upsert swaps it synchronously before the record is readable, so a
+    // cached join never outlives the record it was built from. Under _joinGate.
+    private readonly object _joinGate = new();
+    private readonly List<SideJoin> _joins = [];
     private readonly Dictionary<string, DemoSideInput> _inputs = new(StringComparer.Ordinal);
     private readonly Action<Action> _post;
     private readonly IRoundFactsSource? _roundFacts;
@@ -580,23 +588,13 @@ public sealed class TeamIdentityService : IDisposable
                 : null;
         }
 
-        if (key is null || key.Count == 0 || _roundFacts?.TryGet(demoPath) is not { } rows)
+        if (key is null || key.Count == 0 || JoinFor(demoPath) is not { } join
+            || !join.Rounds.TryGetValue(roundNumber, out RoundFacts.RoundFacts? round))
         {
             return null;
         }
 
-        RoundFacts.RoundFacts? round = rows.Rounds.FirstOrDefault(r => r.Number == roundNumber);
-        if (round is null || _demoCache.TryLoadRecord(demoPath) is not { } record)
-        {
-            return null;
-        }
-
-        Dictionary<int, string> bySlot = [];
-        foreach (CachedPlayerInfo player in record.Players)
-        {
-            bySlot[player.Slot] = player.SteamId64;
-        }
-
+        Dictionary<int, string> bySlot = join.BySlot;
         HashSet<string> members = new(key, StringComparer.Ordinal);
         int k = Math.Min(TeamClusterer.Continuity, members.Count);
         int ct = round.Ct.Slots.Count(s => bySlot.TryGetValue(s, out string? id) && members.Contains(id));
@@ -608,6 +606,70 @@ public sealed class TeamIdentityService : IDisposable
 
         return t >= k && t > ct ? 2 : null;
     }
+
+    // The rows and slot map SideAtRound joins, read once per record write instead of once per call.
+    private SideJoin? JoinFor(string demoPath)
+    {
+        if (_roundFacts is null)
+        {
+            return null;
+        }
+
+        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(demoPath);
+        if (entry is not null)
+        {
+            lock (_joinGate)
+            {
+                foreach (SideJoin cached in _joins)
+                {
+                    if (ReferenceEquals(cached.Entry, entry)
+                        && string.Equals(cached.Path, demoPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return cached;
+                    }
+                }
+            }
+        }
+
+        if (_roundFacts.TryGet(demoPath) is not { } rows || _demoCache.TryLoadRecord(demoPath) is not { } record)
+        {
+            return null;
+        }
+
+        Dictionary<int, RoundFacts.RoundFacts> rounds = [];
+        foreach (RoundFacts.RoundFacts row in rows.Rounds)
+        {
+            rounds.TryAdd(row.Number, row);
+        }
+
+        Dictionary<int, string> bySlot = [];
+        foreach (CachedPlayerInfo player in record.Players)
+        {
+            bySlot[player.Slot] = player.SteamId64;
+        }
+
+        SideJoin join = new(demoPath, entry, rounds, bySlot);
+        if (entry is not null)
+        {
+            lock (_joinGate)
+            {
+                if (_joins.Count >= SideJoinCapacity)
+                {
+                    _joins.RemoveAt(0);
+                }
+
+                _joins.Add(join);
+            }
+        }
+
+        return join;
+    }
+
+    private sealed record SideJoin(
+        string Path,
+        DemoCacheIndexEntry? Entry,
+        Dictionary<int, RoundFacts.RoundFacts> Rounds,
+        Dictionary<int, string> BySlot);
 
     /// <summary>The members table of one roster: SteamID64 to appearances, last name, first and last seen.</summary>
     /// <param name="teamId">The team.</param>
