@@ -87,7 +87,7 @@ public class TeamIdentityCorpusTests
     }
 
     [Test]
-    public async Task TheReplays_ClusterToTheChosenRow()
+    public async Task TheReplays_AsATrackedSource_ClusterToTheChosenRow()
     {
         (TeamsFile teams, TeamIndexFile index) = Cluster(Load("replays"));
         Dictionary<(Guid, string), List<TeamIndexSide>> rosters = RosterSides(index);

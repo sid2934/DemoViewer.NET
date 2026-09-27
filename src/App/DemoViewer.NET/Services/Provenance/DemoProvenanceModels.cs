@@ -74,7 +74,7 @@ public sealed record ProvenanceInputs(bool BothClanTags, DemoSourceKind SourceKi
 ///         <item>clan tags on both sides: <c>official</c>, whoever we are;</item>
 ///         <item>our side is a roster of the us team (or an override naming it) and the other side is a
 ///         team the library knows: <c>our scrim</c>;</item>
-///         <item>our side resolved and the header says Valve matchmaking: <c>matchmaking</c>;</item>
+///         <item>our side resolved and the source is queue play (Valve matchmaking or FACEIT): <c>matchmaking</c>;</item>
 ///         <item>our side resolved, tagless, not matchmaking: <c>scrim</c>;</item>
 ///         <item>else unlabeled.</item>
 ///     </list>
@@ -105,6 +105,6 @@ public static class DemoProvenanceHeuristic
             return null;
         }
 
-        return inputs.SourceKind == DemoSourceKind.GotvMatchmaking ? DemoProvenanceLabel.Matchmaking : DemoProvenanceLabel.Scrim;
+        return TeamSourcePolicy.IsMatchmaking(inputs.SourceKind) ? DemoProvenanceLabel.Matchmaking : DemoProvenanceLabel.Scrim;
     }
 }

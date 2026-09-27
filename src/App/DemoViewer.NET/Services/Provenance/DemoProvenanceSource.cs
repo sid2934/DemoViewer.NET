@@ -128,17 +128,15 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
     }
 
     /// <summary>
-    ///     The engine classifier's verdict on the row: the kind tier 2 stored, else, for a row written
-    ///     before the field existed, the classifier over the cached server name alone (its own fallback
-    ///     when the client name is absent), so no re-index is needed to label an old library.
+    ///     The row's effective source kind (<see cref="TeamSourcePolicy.EffectiveKind" />): the kind tier 2
+    ///     stored, else the classifier over the cached server name, with a FACEIT server read as FACEIT, so
+    ///     no re-index is needed to label an old library.
     /// </summary>
     /// <param name="entry">The index row.</param>
     public static DemoSourceKind SourceKindOf(DemoCacheIndexEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return Enum.TryParse(entry.SourceKind, out DemoSourceKind kind)
-            ? kind
-            : DemoSourceClassifier.Classify(entry.Server ?? "", "", "", 0).SourceKind;
+        return TeamSourcePolicy.EffectiveKind(entry.SourceKind, entry.Server);
     }
 
     private DemoProvenance Resolve(DemoCacheIndexEntry entry, IReadOnlyList<ProvenanceOverride> overrides)

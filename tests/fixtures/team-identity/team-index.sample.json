@@ -1,11 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "builtAtTicks": 639201024000000000,
   "demos": {
     "demo1": {
       "path": "C:\\demos\\one.dem",
       "sha256": null,
       "orderTicks": 639166464000000000,
+      "sourceKind": null,
+      "tracked": true,
       "sides": {
         "2": {
           "key": [
@@ -62,6 +64,8 @@
       "path": "C:\\demos\\two.dem",
       "sha256": "ab12",
       "orderTicks": 639167328000000000,
+      "sourceKind": null,
+      "tracked": true,
       "sides": {
         "2": {
           "key": [
