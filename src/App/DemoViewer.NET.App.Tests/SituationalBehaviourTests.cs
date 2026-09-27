@@ -173,6 +173,7 @@ public class SituationalBehaviourTests
         using Harness h = await Harness.Create();
         ReviewQueue queue = new(null);
         List<string> shown = [];
+        QueuedPost posted = new();
         using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
             review: queue,
             selectTab: id =>
@@ -180,13 +181,14 @@ public class SituationalBehaviourTests
                 shown.Add(id);
                 return true;
             },
-            post: a => a(),
+            post: posted.Post,
             situational: h.Service);
 
         await Assert.That(vm.Situational.HasSection).IsTrue();
         await Assert.That(vm.PostPlant.HasSection).IsFalse();
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == h.TeamA);
         await vm.Situational.BuildTask;
+        posted.Drain();
 
         await Assert.That(vm.Situational.Blocks.Count).IsEqualTo(2);
         SituationalBlockViewModel t = vm.Situational.Blocks[0];
