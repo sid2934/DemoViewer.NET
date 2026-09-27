@@ -2,161 +2,37 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Utility;
+using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
+using GrenadeTrailPoint = DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 #endregion
 
 namespace DemoViewer.NET.ViewModels.UtilityBook;
 
-/// <summary>One entry of a filter picker: its label and the value it stands for (null for "any").</summary>
-/// <typeparam name="T">The filter's value type.</typeparam>
-/// <param name="Label">What the picker shows.</param>
-/// <param name="Value">The filter value, or null for no filter.</param>
+/// <summary>A picker entry: the label shown and the value it stands for, null for "any".</summary>
+/// <typeparam name="T">The value type.</typeparam>
 public sealed record UtilityBookOption<T>(string Label, T? Value) where T : struct
 {
     public override string ToString() => Label;
 }
 
 /// <summary>
-///     One deduplicated throw position of a cluster: a Lineup Card (plan.md §3, Phase 4). Prints the
-///     CS2UTIL field set over the group's representative throw (oldest demo, then earliest release):
-///     map, type, jump-throw flag, air time, movement, the <c>setpos</c>/<c>setang</c> string, and the
-///     landing point, rendered on the radar when this host has the map's baked bundle and in words
-///     otherwise. <see cref="ConsoleText" /> is what a card is copy-pasted into a console from.
-/// </summary>
-public sealed partial class GrenadeLineupRow : ViewModelBase
-{
-    /// <summary>The card's note when its map has no baked bundle on this host.</summary>
-    public const string NoRadarNote = "no radar for this map";
-
-    /// <summary><see cref="GrenadeConsole.Format" />'s own words for a throw whose release state was not read.</summary>
-    public const string NoConsoleText = "release state unavailable";
-
-    [ObservableProperty]
-    private Bitmap? _thumbnail;
-
-    [ObservableProperty]
-    private string _thumbnailNote = "";
-
-    public GrenadeLineupRow(GrenadeLineup lineup, IAsyncRelayCommand watch)
-    {
-        ArgumentNullException.ThrowIfNull(lineup);
-        ArgumentNullException.ThrowIfNull(watch);
-        Lineup = lineup;
-        WatchCommand = watch;
-        Representative = lineup.Throws[0];
-    }
-
-    public GrenadeLineup Lineup { get; }
-
-    /// <summary>The throw the card's fields are read from: the group's oldest demo, then earliest release.</summary>
-    public IndexedGrenade Representative { get; }
-
-    /// <summary>The map, as the demo header spells it.</summary>
-    public string Map => Representative.Map;
-
-    /// <summary>"Smoke", "Molotov" and so on: the CS2UTIL type field.</summary>
-    public string TypeText => Representative.Kind.ToString();
-
-    /// <summary>"Jump-throw" or "Standard throw": the CS2UTIL jump-throw flag.</summary>
-    public string JumpThrowText => Lineup.JumpThrow ? "Jump-throw" : "Standard throw";
-
-    /// <summary>"1.8s air time", from <see cref="IndexedGrenade.AirTimeSeconds" />.</summary>
-    public string AirTimeText => string.Create(CultureInfo.InvariantCulture,
-        $"{Representative.AirTimeSeconds:0.0}s air time");
-
-    /// <summary>"Running", "Walking", "Stationary" or "Unknown": the CS2UTIL movement word.</summary>
-    public string MovementText => Representative.Row.Movement.ToString();
-
-    /// <summary>
-    ///     The console line a card is copy-pasted from: <see cref="GrenadeConsole.Format" /> over
-    ///     <see cref="Representative" />, or <see cref="NoConsoleText" /> when the release state was not
-    ///     read (grenade-walk.md: never a confident wrong number).
-    /// </summary>
-    public string ConsoleText => GrenadeConsole.Format(Representative.Row) ?? NoConsoleText;
-
-    /// <summary>"at (x, y, z)": the exact landing point in words, the radar's fallback.</summary>
-    public string LandingText => string.Create(CultureInfo.InvariantCulture,
-        $"at ({Representative.Landing.X:0}, {Representative.Landing.Y:0}, {Representative.Landing.Z:0})");
-
-    /// <summary><c>from (x, y, z)</c> at whole units.</summary>
-    public string OriginText => string.Create(CultureInfo.InvariantCulture,
-        $"from ({Lineup.Origin.X:0}, {Lineup.Origin.Y:0}, {Lineup.Origin.Z:0})");
-
-    /// <summary><c>6 throws in 4 demos, jump-throw</c>.</summary>
-    public string DetailText
-    {
-        get
-        {
-            int throws = Lineup.Throws.Count;
-            int demos = Lineup.DemoCount;
-            string text = string.Create(CultureInfo.InvariantCulture,
-                $"{throws} {(throws == 1 ? "throw" : "throws")} in {demos} {(demos == 1 ? "demo" : "demos")}");
-            return Lineup.JumpThrow ? text + ", jump-throw" : text;
-        }
-    }
-
-    /// <summary>A picture is on the card.</summary>
-    public bool HasThumbnail => Thumbnail is not null;
-
-    /// <summary>The card has a note instead of a picture.</summary>
-    public bool HasThumbnailNote => ThumbnailNote.Length > 0;
-
-    /// <summary>Opens the first throw's demo a moment before the release in 2D Playback.</summary>
-    public IAsyncRelayCommand WatchCommand { get; }
-
-    /// <summary>Puts the rendered radar on the card, or the note that stands in for it. Called on the UI thread.</summary>
-    /// <param name="bitmap">The decoded picture, or null when this host has no bundle for the map.</param>
-    public void ApplyThumbnail(Bitmap? bitmap)
-    {
-        Thumbnail = bitmap;
-        ThumbnailNote = bitmap is null ? NoRadarNote : "";
-        OnPropertyChanged(nameof(HasThumbnail));
-        OnPropertyChanged(nameof(HasThumbnailNote));
-    }
-}
-
-/// <summary>One landing cluster, as the tab lists it.</summary>
-public sealed class GrenadeClusterRow
-{
-    public GrenadeClusterRow(GrenadeCluster cluster, IReadOnlyList<GrenadeLineupRow> lineups)
-    {
-        ArgumentNullException.ThrowIfNull(cluster);
-        Cluster = cluster;
-        Lineups = lineups;
-    }
-
-    public GrenadeCluster Cluster { get; }
-
-    public IReadOnlyList<GrenadeLineupRow> Lineups { get; }
-
-    /// <summary><c>Smoke into CTSpawn</c>, or the landing point when no zone placed it.</summary>
-    public string Title => LineupClipPlanner.Title(Cluster);
-
-    /// <summary><c>14 throws from 5 positions</c>.</summary>
-    public string Summary
-    {
-        get
-        {
-            int throws = Cluster.ThrowCount;
-            int positions = Cluster.Lineups.Count;
-            return string.Create(CultureInfo.InvariantCulture,
-                $"{throws} {(throws == 1 ? "throw" : "throws")} from {positions} {(positions == 1 ? "position" : "positions")}");
-        }
-    }
-}
-
-/// <summary>
-///     The Utility Book tab: the Grenade Index queried by map, kind, landing place and side, listed as
-///     landing clusters with their deduplicated throw positions. Delegate-injected (the Highlights
-///     precedent): the VM owns no clustering; it reads the <see cref="GrenadeIndex" /> and re-projects on
-///     its <c>Changed</c> and on every filter change.
+///     The Utility Book: every grenade of the chosen map drawn where it goes off, grouped into landing
+///     groups on the radar. Clicking a group shows the positions it was thrown from with a flight from each;
+///     clicking a position opens its details (how often and in how many demos, the console line to copy, and
+///     every throw from there, each one openable in 2D Playback).
+///     <para>
+///         By default only lineups seen twice or more are shown: one throw from a spot is a throw, two are a
+///         lineup. The toggle brings the single throws back, and the map says how many it is hiding.
+///     </para>
 /// </summary>
 public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
@@ -166,21 +42,35 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     /// <summary>The place picker's "no filter" entry.</summary>
     public const string AnyPlace = "any place";
 
+    /// <summary>A lineup is a position thrown from at least this many times.</summary>
+    public const int LineupMinThrows = 2;
+
+    /// <summary>The console line shown when the throw's release angles were not read.</summary>
+    public const string NoConsoleText = "release state unavailable";
+
     /// <summary>The line the panel shows on the browser host.</summary>
     public const string BrowserNote =
         "In the browser, grenades are indexed for the open demo only and this tab forgets them when it reloads.";
 
-    private readonly Func<byte[], Bitmap?> _decode;
+    private readonly Func<string, DateTime?> _demoDate;
     private readonly GrenadeIndex _index;
+    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
     private readonly ISituationPlayback? _playback;
-    private readonly Action<Action> _post;
-    private readonly Func<GrenadeLineupThumbnailRenderer> _renderer;
+    private readonly Dictionary<string, LandingGroup> _groups = new(StringComparer.Ordinal);
     private bool _disposed;
-    private int _generation;
     private bool _refreshing;
 
     [ObservableProperty]
+    private LineupDetail? _detail;
+
+    [ObservableProperty]
+    private string _focusLine = "";
+
+    [ObservableProperty]
     private string _footerLine = "";
+
+    [ObservableProperty]
+    private string _hiddenLine = "";
 
     [ObservableProperty]
     private UtilityBookOption<GrenadeKind>? _selectedKind;
@@ -195,24 +85,27 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private UtilityBookOption<int>? _selectedSide;
 
     [ObservableProperty]
+    private bool _showSingleThrows;
+
+    [ObservableProperty]
     private string _statusLine = "";
+
+    private string? _focusedId;
+    private string? _selectedLineupId;
 
     /// <param name="index">The grenade index.</param>
     /// <param name="playback">Opens a throw in 2D Playback; null when the host has no shell.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    /// <param name="renderer">Builds a batch's landing-point radar renderer; the pipeline's bundle loader when null.</param>
-    /// <param name="post">UI-thread marshal for a rendered card; the dispatcher when null.</param>
-    /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
+    /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader when null, a stub in a test.</param>
+    /// <param name="demoDate">A demo's date for the instance list; none shown when null.</param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
-        Func<GrenadeLineupThumbnailRenderer>? renderer = null, Action<Action>? post = null,
-        Func<byte[], Bitmap?>? decode = null)
+        Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
-        _renderer = renderer ?? (() => new GrenadeLineupThumbnailRenderer());
-        _post = post ?? (action => Dispatcher.UIThread.Post(action));
-        _decode = decode ?? DecodePng;
+        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+        _demoDate = demoDate ?? (_ => null);
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Kinds =
         [
@@ -243,12 +136,35 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     /// <summary><see cref="AnyPlace" /> first, then the landing places the selected map resolved to.</summary>
     public ObservableCollection<string> Places { get; } = [AnyPlace];
 
-    public ObservableCollection<GrenadeClusterRow> Clusters { get; } = [];
+    /// <summary>What the map draws; the host binds its layer to it.</summary>
+    public UtilityMapDocument Document { get; } = new();
 
-    public bool HasClusters => Clusters.Count > 0;
+    /// <summary>The selected map's baked bundle, or null when this host has none.</summary>
+    public LoadedMapAsset? MapAsset { get; private set; }
 
-    /// <summary>The last landing-point render batch's worker, so a test can await it instead of polling the cards.</summary>
-    internal Task ThumbnailTask { get; private set; } = Task.CompletedTask;
+    /// <summary>The map the document lies on.</summary>
+    public string MapName => SelectedMap ?? "";
+
+    /// <summary>True when the selected map has no baked bundle, so there is no radar to draw on.</summary>
+    public bool HasNoMapArt => SelectedMap is not null && MapAsset is null;
+
+    /// <summary>The landing groups on the map, most thrown first.</summary>
+    public IReadOnlyList<LandingGroup> Groups => [.. _groups.Values.OrderByDescending(g => g.ThrowCount)];
+
+    /// <summary>The focused landing group, or null.</summary>
+    public LandingGroup? FocusedGroup => _focusedId is { } id ? _groups.GetValueOrDefault(id) : null;
+
+    public bool HasFocus => FocusedGroup is not null;
+
+    public bool HasDetail => Detail is not null;
+
+    public bool HasGroups => _groups.Count > 0;
+
+    /// <summary>Writes text to the clipboard; the view sets it, since the clipboard needs the visual tree.</summary>
+    public Func<string, Task>? Clipboard { get; set; }
+
+    /// <summary>Raised when the bound map or its bundle changes, so the host rebinds the radar.</summary>
+    public event Action? MapChanged;
 
     /// <inheritdoc />
     public void OnActivated(IModuleContext context) => Refresh();
@@ -267,7 +183,6 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         }
 
         _disposed = true;
-        Interlocked.Increment(ref _generation); // stops a straggling render worker from posting after this
         _index.Changed -= Refresh;
     }
 
@@ -280,7 +195,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
                 SelectedPlace is { } place && place != AnyPlace ? new HashSet<string>(StringComparer.Ordinal) { place } : null,
                 SelectedSide?.Value);
 
-    /// <summary>Re-reads the maps and places and re-runs the query.</summary>
+    /// <summary>Re-reads the maps and places and re-runs the query, keeping the focus and selection when they survive.</summary>
     public void Refresh()
     {
         if (_refreshing)
@@ -303,36 +218,47 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
                 SelectedPlace = AnyPlace;
             }
 
-            Clusters.Clear();
-            List<GrenadeLineupRow> cards = [];
-            if (CurrentQuery() is { } query)
-            {
-                foreach (GrenadeCluster cluster in _index.Query(query))
-                {
-                    List<GrenadeLineupRow> lineups =
-                    [
-                        .. cluster.Lineups.Select(l => new GrenadeLineupRow(l,
-                            new AsyncRelayCommand(() => WatchAsync(l.Throws[0]), () => _playback is not null)))
-                    ];
-                    Clusters.Add(new GrenadeClusterRow(cluster, lineups));
-                    cards.AddRange(lineups);
-                }
-            }
-
-            FillThumbnails(cards);
-            OnPropertyChanged(nameof(HasClusters));
+            RebindMap();
+            BuildGroups();
             StatusLine = StatusFor(_index.IsReady, _index.DemoCount, _index.GrenadeCount, SelectedMap is not null);
-            int throws = Clusters.Sum(c => c.Cluster.ThrowCount);
-            FooterLine = Clusters.Count == 0
-                ? ""
-                : string.Create(CultureInfo.InvariantCulture,
-                    $"{Clusters.Count} landing {(Clusters.Count == 1 ? "spot" : "spots")}, {throws} {(throws == 1 ? "throw" : "throws")}; "
-                    + $"a spot is a {GrenadeIndex.LandingCellSize:0}-unit square, and throws within {GrenadeIndex.OriginRounding:0} units count as one position");
         }
         finally
         {
             _refreshing = false;
         }
+    }
+
+    /// <summary>A landing group was clicked: focus it, or unfocus when it already is.</summary>
+    /// <param name="id">The group's id.</param>
+    public void ClickLanding(string id)
+    {
+        _focusedId = string.Equals(_focusedId, id, StringComparison.Ordinal) ? null : id;
+        _selectedLineupId = null;
+        Project();
+    }
+
+    /// <summary>A throw position of the focused group was clicked: open its details, or close them when open.</summary>
+    /// <param name="lineupId">The lineup's id.</param>
+    public void ClickThrow(string lineupId)
+    {
+        _selectedLineupId = string.Equals(_selectedLineupId, lineupId, StringComparison.Ordinal) ? null : lineupId;
+        Project();
+    }
+
+    /// <summary>Empty map clicked, or Escape: close the details, else leave the group.</summary>
+    [RelayCommand]
+    public void Back()
+    {
+        if (_selectedLineupId is not null)
+        {
+            _selectedLineupId = null;
+        }
+        else
+        {
+            _focusedId = null;
+        }
+
+        Project();
     }
 
     /// <summary>The status strip's line.</summary>
@@ -347,13 +273,164 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             : string.Create(CultureInfo.InvariantCulture,
                 $"{grenades} {(grenades == 1 ? "grenade" : "grenades")} from {demos} {(demos == 1 ? "demo" : "demos")}");
 
-    partial void OnSelectedMapChanged(string? value) => Refresh();
+    /// <summary>The baked icon key for a grenade kind.</summary>
+    /// <param name="kind">What is thrown.</param>
+    public static string IconKey(GrenadeKind kind) => kind switch
+    {
+        GrenadeKind.Smoke => "equipment/smokegrenade",
+        GrenadeKind.Flash => "equipment/flashbang",
+        GrenadeKind.He => "equipment/hegrenade",
+        GrenadeKind.Molotov => "equipment/molotov",
+        GrenadeKind.Incendiary => "equipment/incgrenade",
+        GrenadeKind.Decoy => "equipment/decoy",
+        _ => ""
+    };
+
+    partial void OnSelectedMapChanged(string? value)
+    {
+        _focusedId = null;
+        _selectedLineupId = null;
+        Refresh();
+    }
 
     partial void OnSelectedKindChanged(UtilityBookOption<GrenadeKind>? value) => Refresh();
 
     partial void OnSelectedPlaceChanged(string? value) => Refresh();
 
     partial void OnSelectedSideChanged(UtilityBookOption<int>? value) => Refresh();
+
+    partial void OnShowSingleThrowsChanged(bool value) => Refresh();
+
+    partial void OnDetailChanged(LineupDetail? value) => OnPropertyChanged(nameof(HasDetail));
+
+    private void RebindMap()
+    {
+        LoadedMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
+        if (ReferenceEquals(asset, MapAsset) && _boundMap == SelectedMap)
+        {
+            return;
+        }
+
+        MapAsset = asset;
+        _boundMap = SelectedMap;
+        OnPropertyChanged(nameof(MapAsset));
+        OnPropertyChanged(nameof(HasNoMapArt));
+        MapChanged?.Invoke();
+    }
+
+    private string? _boundMap;
+
+    // The groups the pickers and the lineup bar leave, each placed at the mean landing of the throws it
+    // still shows, so filtering out single throws moves an icon onto the lineups that remain.
+    private void BuildGroups()
+    {
+        _groups.Clear();
+        int hiddenLineups = 0;
+        int hiddenThrows = 0;
+        if (CurrentQuery() is { } query)
+        {
+            foreach (GrenadeCluster cluster in _index.Query(query))
+            {
+                List<GrenadeLineup> shown = [];
+                foreach (GrenadeLineup lineup in cluster.Lineups)
+                {
+                    if (ShowSingleThrows || lineup.Throws.Count >= LineupMinThrows)
+                    {
+                        shown.Add(lineup);
+                    }
+                    else
+                    {
+                        hiddenLineups++;
+                        hiddenThrows += lineup.Throws.Count;
+                    }
+                }
+
+                if (shown.Count == 0)
+                {
+                    continue;
+                }
+
+                LandingGroup group = new(cluster, shown);
+                _groups[group.Id] = group;
+            }
+        }
+
+        if (_focusedId is not null && !_groups.ContainsKey(_focusedId))
+        {
+            _focusedId = null;
+            _selectedLineupId = null;
+        }
+
+        HiddenLine = ShowSingleThrows || hiddenLineups == 0
+            ? ""
+            : string.Create(CultureInfo.InvariantCulture,
+                $"{hiddenLineups} {(hiddenLineups == 1 ? "position" : "positions")} thrown from only once ({hiddenThrows} {(hiddenThrows == 1 ? "throw" : "throws")}) {(hiddenLineups == 1 ? "is" : "are")} hidden");
+        int throws = _groups.Values.Sum(g => g.ThrowCount);
+        int lineups = _groups.Values.Sum(g => g.Lineups.Count);
+        FooterLine = _groups.Count == 0
+            ? ""
+            : string.Create(CultureInfo.InvariantCulture,
+                  $"{_groups.Count} landing {(_groups.Count == 1 ? "spot" : "spots")}, {lineups} {(lineups == 1 ? "lineup" : "lineups")}, {throws} {(throws == 1 ? "throw" : "throws")}. ")
+              + "Click an icon to see where it is thrown from; click a position for its details.";
+        OnPropertyChanged(nameof(HasGroups));
+        OnPropertyChanged(nameof(Groups));
+        Project();
+    }
+
+    // Everything the focus and selection decide: the document the map draws, the focus line and the card.
+    private void Project()
+    {
+        LandingGroup? focused = FocusedGroup;
+        GrenadeLineup? selected = focused?.Lineups.FirstOrDefault(l => string.Equals(LineupKey(l), _selectedLineupId, StringComparison.Ordinal));
+        if (selected is null)
+        {
+            _selectedLineupId = null;
+        }
+
+        // Biggest last, so it draws on top and wins the hit test where icons overlap.
+        List<UtilityLanding> landings =
+        [
+            .. _groups.Values.OrderBy(g => g.ThrowCount).ThenBy(g => g.Id, StringComparer.Ordinal)
+                .Select(g => new UtilityLanding(g.Id, g.Landing.X, g.Landing.Y, g.Landing.Z, IconKey(g.Kind),
+                    g.Kind.ToString()[0], g.ThrowCount, ReferenceEquals(g, focused)))
+        ];
+        List<UtilityThrow> throws = focused is null
+            ? []
+            :
+            [
+                .. focused.Lineups.OrderBy(l => l.Throws.Count)
+                    .Select(l => new UtilityThrow(LineupKey(l), l.Origin.X, l.Origin.Y, l.Origin.Z, TeamOf(l), l.JumpThrow,
+                        ReferenceEquals(l, selected), Flight(l, focused.Landing)))
+            ];
+        Document.Set(landings, throws);
+
+        FocusLine = focused is null
+            ? ""
+            : string.Create(CultureInfo.InvariantCulture,
+                $"{focused.Title}: {focused.ThrowCount} {(focused.ThrowCount == 1 ? "throw" : "throws")} from {focused.Lineups.Count} {(focused.Lineups.Count == 1 ? "position" : "positions")}. Click a position for its details; Escape steps back.");
+        Detail = selected is null ? null : new LineupDetail(focused!, selected, _demoDate, WatchAsync, CopyAsync);
+        OnPropertyChanged(nameof(FocusedGroup));
+        OnPropertyChanged(nameof(HasFocus));
+    }
+
+    /// <summary>The key a throw position is clicked by: the lineup's stable id.</summary>
+    /// <param name="lineup">The lineup.</param>
+    public static string LineupKey(GrenadeLineup lineup) => lineup.Id.ToString("N", CultureInfo.InvariantCulture);
+
+    private static int TeamOf(GrenadeLineup lineup) =>
+        lineup.Throws.GroupBy(t => t.Row.ThrowerTeam).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
+
+    // The first throw's recorded flight, else a straight line from the position to the group's landing.
+    private static IReadOnlyList<GrenadeTrailPoint> Flight(GrenadeLineup lineup, WorldPoint landing)
+    {
+        IndexedGrenade first = lineup.Throws[0];
+        if (first.Row.Trajectory is { Count: >= 2 } path)
+        {
+            return [.. path.Select(p => new GrenadeTrailPoint(p.X, p.Y, p.Z))];
+        }
+
+        return [new GrenadeTrailPoint(lineup.Origin.X, lineup.Origin.Y, lineup.Origin.Z), new GrenadeTrailPoint(landing.X, landing.Y, landing.Z)];
+    }
 
     private async Task WatchAsync(IndexedGrenade grenade)
     {
@@ -365,65 +442,18 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         await _playback.SeekAsync(grenade.Demo.Path, Math.Max(0, grenade.Row.ReleaseTick - WatchLeadTicks));
     }
 
-    // Starts the batch that draws every visible card's landing-point radar, off the UI thread. A
-    // generation behind the latest Refresh posts nothing, so a fast filter change never lands a
-    // picture on a card an earlier query already replaced.
-    private void FillThumbnails(List<GrenadeLineupRow> cards)
+    private async Task CopyAsync(string text)
     {
-        int generation = Interlocked.Increment(ref _generation);
-        if (cards.Count == 0)
+        if (Clipboard is { } clipboard)
         {
-            ThumbnailTask = Task.CompletedTask;
-            return;
-        }
-
-        ThumbnailTask = Task.Run(() => Fill(generation, cards));
-    }
-
-    private void Fill(int generation, List<GrenadeLineupRow> cards)
-    {
-        using GrenadeLineupThumbnailRenderer renderer = _renderer();
-        foreach (GrenadeLineupRow card in cards)
-        {
-            if (generation != Volatile.Read(ref _generation))
+            try
             {
-                return;
+                await clipboard(text);
             }
-
-            byte[]? png = TryRender(renderer, card.Representative);
-            Bitmap? bitmap = png is null ? null : _decode(png);
-            _post(() =>
+            catch (Exception)
             {
-                if (generation == Volatile.Read(ref _generation))
-                {
-                    card.ApplyThumbnail(bitmap);
-                }
-            });
-        }
-    }
-
-    private static byte[]? TryRender(GrenadeLineupThumbnailRenderer renderer, IndexedGrenade grenade)
-    {
-        try
-        {
-            return renderer.Render(grenade.Map, grenade.Landing, grenade.Row.ThrowerTeam);
-        }
-        catch (Exception)
-        {
-            return null; // a render that throws is a card with the landing point in words, never a dead one
-        }
-    }
-
-    private static Bitmap? DecodePng(byte[] png)
-    {
-        try
-        {
-            using MemoryStream stream = new(png);
-            return new Bitmap(stream);
-        }
-        catch (Exception)
-        {
-            return null;
+                // Clipboard writes are gated on some hosts; the line stays selectable in the card.
+            }
         }
     }
 
@@ -441,4 +471,122 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             target.Add(value);
         }
     }
+}
+
+/// <summary>One landing group on the map: a cluster with the lineups the filters leave.</summary>
+public sealed class LandingGroup
+{
+    /// <param name="cluster">The index's cluster.</param>
+    /// <param name="lineups">Its lineups that are shown.</param>
+    public LandingGroup(GrenadeCluster cluster, IReadOnlyList<GrenadeLineup> lineups)
+    {
+        Cluster = cluster;
+        Lineups = lineups;
+        List<IndexedGrenade> throws = [.. lineups.SelectMany(l => l.Throws)];
+        Landing = new WorldPoint(throws.Average(t => t.Landing.X), throws.Average(t => t.Landing.Y), throws.Average(t => t.Landing.Z));
+        Id = string.Create(CultureInfo.InvariantCulture, $"{cluster.Kind}:{cluster.Cell.X},{cluster.Cell.Y},{cluster.Cell.Z}");
+    }
+
+    public GrenadeCluster Cluster { get; }
+
+    public IReadOnlyList<GrenadeLineup> Lineups { get; }
+
+    public string Id { get; }
+
+    public GrenadeKind Kind => Cluster.Kind;
+
+    /// <summary>Where the shown throws go off, on average.</summary>
+    public WorldPoint Landing { get; }
+
+    public int ThrowCount => Lineups.Sum(l => l.Throws.Count);
+
+    public string Title => LineupClipPlanner.Title(Cluster);
+}
+
+/// <summary>The details card of one throw position: counts, the console line, and every throw from there.</summary>
+public sealed partial class LineupDetail : ObservableObject
+{
+    private readonly Func<string, Task> _copy;
+
+    [ObservableProperty]
+    private string _copyStatus = "";
+
+    /// <param name="group">The landing group.</param>
+    /// <param name="lineup">The throw position.</param>
+    /// <param name="demoDate">A demo's date, or null.</param>
+    /// <param name="watch">Opens one throw in 2D Playback.</param>
+    /// <param name="copy">Writes the console line to the clipboard.</param>
+    public LineupDetail(LandingGroup group, GrenadeLineup lineup, Func<string, DateTime?> demoDate,
+        Func<IndexedGrenade, Task> watch, Func<string, Task> copy)
+    {
+        Lineup = lineup;
+        _copy = copy;
+        IndexedGrenade first = lineup.Throws[0];
+        Title = group.Title;
+        StyleLine = string.Create(CultureInfo.InvariantCulture,
+            $"{first.Kind} · {(lineup.JumpThrow ? "jump-throw" : "standard throw")} · {first.Row.Movement} · {first.AirTimeSeconds:0.0}s air time");
+        UsedLine = string.Create(CultureInfo.InvariantCulture,
+            $"Used {lineup.Throws.Count} {(lineup.Throws.Count == 1 ? "time" : "times")} in {lineup.DemoCount} {(lineup.DemoCount == 1 ? "demo" : "demos")}");
+        ConsoleText = GrenadeConsole.Format(first.Row) ?? UtilityBookTabViewModel.NoConsoleText;
+        HasConsole = GrenadeConsole.Format(first.Row) is not null;
+        foreach (IndexedGrenade grenade in lineup.Throws
+                     .OrderByDescending(t => demoDate(t.Demo.Path) ?? DateTime.MinValue)
+                     .ThenBy(t => t.Demo.Path, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(t => t.Row.ReleaseTick))
+        {
+            Instances.Add(new LineupInstanceRow(grenade, demoDate(grenade.Demo.Path), new AsyncRelayCommand(() => watch(grenade))));
+        }
+    }
+
+    public GrenadeLineup Lineup { get; }
+
+    public string Title { get; }
+
+    public string StyleLine { get; }
+
+    /// <summary>"Used 7 times in 4 demos".</summary>
+    public string UsedLine { get; }
+
+    /// <summary>The setpos and setang line of the first throw, the one to copy.</summary>
+    public string ConsoleText { get; }
+
+    public bool HasConsole { get; }
+
+    /// <summary>Every throw from this position, newest demo first.</summary>
+    public ObservableCollection<LineupInstanceRow> Instances { get; } = [];
+
+    [RelayCommand]
+    private async Task CopyConsole()
+    {
+        if (!HasConsole)
+        {
+            return;
+        }
+
+        await _copy(ConsoleText);
+        CopyStatus = "copied";
+    }
+}
+
+/// <summary>One throw from a lineup's position, as the details card lists it.</summary>
+public sealed class LineupInstanceRow(IndexedGrenade grenade, DateTime? date, IAsyncRelayCommand watch)
+{
+    public IndexedGrenade Grenade { get; } = grenade;
+
+    public string Date { get; } = date is { } d ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
+
+    public string DemoName { get; } = Path.GetFileNameWithoutExtension(grenade.Demo.Path);
+
+    public string RoundText { get; } = grenade.Row.RoundNumber > 0
+        ? string.Create(CultureInfo.InvariantCulture, $"round {grenade.Row.RoundNumber}")
+        : "";
+
+    public string SideText { get; } = grenade.Row.ThrowerTeam switch
+    {
+        2 => "T",
+        3 => "CT",
+        _ => ""
+    };
+
+    public IAsyncRelayCommand WatchCommand { get; } = watch;
 }
