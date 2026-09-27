@@ -389,6 +389,24 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   when a section was contributed and hides when the gate turns every section off.
 - **Do not:** add a Main-strip tab for a Strat Book feature; add a section.
 
+### Review mode (2D Playback)
+- **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,
+  `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`, `Modules/RoundTagger/Review/TagEditorViewModel.cs`,
+  `Views/Playback2D/TimelineControl.axaml` (the lane's edit band).
+- **Purpose:** labelling and suggestion review are a mode, off by default (the `Review` toolbar toggle, Shift+R,
+  persisted as `Playback2D.ReviewMode`). Off: full player cards, no palette, queue or tag lanes, and C, Y, N, Enter
+  and Ctrl+Y fall through. On: the cards collapse to a one-line strip (name, HP, money) and the review panel takes
+  the rest of the column: palette, a Suggested / Labels toggle, one editor, the queue or the Labels list.
+- **Contract:** one `TagEditorViewModel` edits both a suggestion (Save accepts it with the edit) and a written tag
+  (Save replaces it, Delete removes it through `TagDelta`, so both undo). Start and end are seconds from the round
+  start and clamp to the round like the palette does. With an editor open, a map click adds a position and the lane
+  draws the span with two handles; dragging a handle moves the draft and never seeks. Keys typed into the editor
+  stay in it; Enter saves, Esc cancels.
+- **Layout note:** the strip row is sized from the player count (22 px each plus 12, at most 10 rows) because a
+  virtualizing `ListBox` in an `Auto` row measures to 0.
+- **Do not:** show a tagging panel or lane outside the mode, or hide the lanes by writing the user's per-track toggle;
+  use `SetTrackSuppressed`.
+
 ### KeyValueTable
 - **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`
   (`IReadOnlyList<KvpRow>`), `ShowDeltaOnly` (filters to changed rows → `VisibleRows`).
