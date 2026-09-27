@@ -341,6 +341,25 @@ public sealed partial class TagEditorViewModel : ObservableObject
 
     partial void OnNewGroupChanged(string value) => OnPropertyChanged(nameof(ValuesForGroup));
 
+    partial void OnFromTextChanged(string value) => OnPropertyChanged(nameof(CurrentSpan));
+
+    partial void OnToTextChanged(string value) => OnPropertyChanged(nameof(CurrentSpan));
+
+    /// <summary>The span as the boxes stand, in ticks, or null while either box does not parse. The timeline draws it.</summary>
+    public (int From, int To)? CurrentSpan =>
+        TryParseSeconds(FromText, out double from) && TryParseSeconds(ToText, out double to)
+            ? (_origin + (int)Math.Round(from * _tickRate), _origin + (int)Math.Round(to * _tickRate))
+            : null;
+
+    /// <summary>Sets the span from ticks: the timeline's handles drag it.</summary>
+    /// <param name="fromTick">Start tick.</param>
+    /// <param name="toTick">End tick.</param>
+    public void SetSpan(int fromTick, int toTick)
+    {
+        FromText = Seconds(fromTick);
+        ToText = Seconds(Math.Max(fromTick, toTick));
+    }
+
     partial void OnProblemChanged(string value) => OnPropertyChanged(nameof(HasProblem));
 
     /// <summary>

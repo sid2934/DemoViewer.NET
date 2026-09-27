@@ -57,31 +57,50 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Same template and the same click, seek to the band's first frame; only the height differs. -->
-                <ItemsControl x:Name="TagLane" Height="10" Margin="0,2,0,0"
-                              IsVisible="{Binding HasLaneBands}" ItemsSource="{Binding LaneBands}"
-                              ClipToBounds="True">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Panel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="timeline:TimelineBandViewModel">
-                            <Border HorizontalAlignment="Left" VerticalAlignment="Stretch"
-                                    Margin="{Binding Offset}" Width="{Binding Width}"
-                                    Background="{Binding Brush}"
-                                    BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="0,0,1,0"
-                                    ToolTip.Tip="{Binding Tooltip}"
-                                    PointerPressed="OnBandPressed">
-                                <TextBlock Text="{Binding Label}" HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" ClipToBounds="True"
-                                           Foreground="{DynamicResource Pb2dTextBrightest}"
-                                           FontFamily="Consolas,Menlo,monospace" FontSize="8" />
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- The lane, and in Review mode what edits it: a click on empty lane starts a label there, and the
+                     open editor's span is drawn over the lane with a handle at each end to drag. The handles sit
+                     here, not on the scrub bar, so a drag never seeks. -->
+                <Panel x:Name="LaneHost" Height="10" Margin="0,2,0,0" Background="Transparent"
+                       IsVisible="{Binding ShowLane}" PointerPressed="OnLanePressed">
+                    <!-- Same template and the same click, seek to the band's first frame; only the height differs. -->
+                    <ItemsControl x:Name="TagLane" Height="10" ItemsSource="{Binding LaneBands}"
+                                  ClipToBounds="True">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Panel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="timeline:TimelineBandViewModel">
+                                <Border HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                                        Margin="{Binding Offset}" Width="{Binding Width}"
+                                        Background="{Binding Brush}"
+                                        BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="0,0,1,0"
+                                        ToolTip.Tip="{Binding Tooltip}"
+                                        PointerPressed="OnBandPressed">
+                                    <TextBlock Text="{Binding Label}" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" ClipToBounds="True"
+                                               Foreground="{DynamicResource Pb2dTextBrightest}"
+                                               FontFamily="Consolas,Menlo,monospace" FontSize="8" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border x:Name="EditBand" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                            Margin="{Binding EditOffset}" Width="{Binding EditWidth}"
+                            IsVisible="{Binding HasEditSpan}" BorderThickness="1" CornerRadius="2"
+                            BorderBrush="{DynamicResource Pb2dPositive}" Background="Transparent"
+                            IsHitTestVisible="True">
+                        <Panel>
+                            <Border x:Name="EditStartHandle" Width="5" HorizontalAlignment="Left" Cursor="SizeWestEast"
+                                    Background="{DynamicResource Pb2dPositive}" ToolTip.Tip="Drag to move the start"
+                                    PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased" />
+                            <Border x:Name="EditEndHandle" Width="5" HorizontalAlignment="Right" Cursor="SizeWestEast"
+                                    Background="{DynamicResource Pb2dPositive}" ToolTip.Tip="Drag to move the end"
+                                    PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased" />
+                        </Panel>
+                    </Border>
+                </Panel>
             </StackPanel>
 
             <!-- ── Scrub bar ───────────────────────────────────────────────────────────── -->

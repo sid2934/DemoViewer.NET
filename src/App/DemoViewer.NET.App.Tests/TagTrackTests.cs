@@ -265,14 +265,14 @@ public class TagTrackTests
             double heightWithoutTags = control.Bounds.Height;
 
             await Assert.That(vm.Timeline.HasLaneBands).IsFalse();
-            await Assert.That(lane.IsVisible).IsFalse();
+            await Assert.That(lane.IsEffectivelyVisible).IsFalse();
 
             await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
             vm.Tags.Apply(new TagDelta.Add(Instance("A execute", 800, 1_200)));
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(vm.Timeline.LaneBands.Count).IsEqualTo(1);
-            await Assert.That(lane.IsVisible).IsTrue();
+            await Assert.That(lane.IsEffectivelyVisible).IsTrue();
             await Assert.That(control.Bounds.Height).IsGreaterThan(heightWithoutTags);
 
             TimelineBandViewModel band = vm.Timeline.LaneBands[0];
