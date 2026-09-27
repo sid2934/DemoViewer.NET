@@ -214,8 +214,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
             // Paths first, rows second, stamp last: a crash between any two leaves "not walked" or a file
             // nothing reads, never rows whose cards have no path to draw.
-            _demoCache.WriteSibling(path, GrenadeSidecar.PathsSuffix, GrenadeSidecar.Serialize(paths));
-            _demoCache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(rows));
+            GrenadeSidecar.Write(_demoCache, path, rows, paths);
             _demoCache.UpdateExisting(path, r =>
             {
                 DemoCacheStore.StampGrenades(r);
@@ -224,6 +223,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
                 r.GrenadeWalker = GrenadeWalker.Version;
                 r.GrenadeInputCoverage = rows.Source.InputCoverage;
             });
+            GrenadeSidecar.DeleteLegacy(_demoCache, path);
             _demoCache.SaveIndex();
             GrenadeIndexLog.Walked(Log, fileName, rows.Grenades.Count, rows.Source.InputCoverage);
             _post(() => Indexed?.Invoke(path));

@@ -52,7 +52,7 @@ public sealed class GrenadeSourceHeader
 }
 
 /// <summary>
-///     <c>demos/&lt;key&gt;.grenades.json</c>: the header and one row per grenade without its trajectory,
+///     <c>demos/&lt;key&gt;.grenades.json.gz</c>: the header and one row per grenade without its trajectory,
 ///     about 120 KB at 300 grenades. Read across the library by the Grenade Index and per demo by the
 ///     Lineup Cards (grenade-walk.md §3.9).
 /// </summary>
@@ -73,7 +73,7 @@ public sealed class GrenadeDocument
 }
 
 /// <summary>
-///     <c>demos/&lt;key&gt;.grenades.paths.json</c>: the same header and each row's trajectory by id, at
+///     <c>demos/&lt;key&gt;.grenades.paths.json.gz</c>: the same header and each row's trajectory by id, at
 ///     the configured stride with the bounce vertices kept. Read one demo at a time, by the card's radar path
 ///     and the clip render.
 /// </summary>
@@ -100,10 +100,16 @@ public sealed class GrenadePathsDocument
 public static class GrenadeSidecar
 {
     /// <summary>The rows sibling's suffix.</summary>
-    public const string Suffix = ".grenades.json";
+    public const string Suffix = ".grenades.json.gz";
 
     /// <summary>The paths sibling's suffix.</summary>
-    public const string PathsSuffix = ".grenades.paths.json";
+    public const string PathsSuffix = ".grenades.paths.json.gz";
+
+    /// <summary>The rows sibling as written before gzip. Read when <see cref="Suffix" /> is absent.</summary>
+    public const string LegacySuffix = ".grenades.json";
+
+    /// <summary>The paths sibling as written before gzip. Read when <see cref="PathsSuffix" /> is absent.</summary>
+    public const string LegacyPathsSuffix = ".grenades.paths.json";
 
     /// <summary>The shape of both files; equal to <see cref="DemoCacheRecord.GrenadeSchema" />.</summary>
     public const int CurrentSchema = DemoCacheRecord.GrenadeSchema;
@@ -189,8 +195,8 @@ public static class GrenadeSidecar
     {
         ArgumentNullException.ThrowIfNull(cache);
         if (cache.TryGetIndex(path) is not { } entry || !entry.IsGrenadesCurrent(GrenadeWalker.Version)
-                                                     || cache.TryReadSibling(path, Suffix) is not { } json
-                                                     || TryDeserializeRows(json) is not { } document)
+                                                     || Read<GrenadeDocument>(cache, path, Suffix, LegacySuffix)
+                                                         is not { SchemaVersion: CurrentSchema } document)
         {
             return null;
         }
@@ -205,13 +211,32 @@ public static class GrenadeSidecar
     {
         ArgumentNullException.ThrowIfNull(cache);
         if (cache.TryGetIndex(path) is not { } entry || !entry.IsGrenadesCurrent(GrenadeWalker.Version)
-                                                     || cache.TryReadSibling(path, PathsSuffix) is not { } json
-                                                     || TryDeserializePaths(json) is not { } document)
+                                                     || Read<GrenadePathsDocument>(cache, path, PathsSuffix, LegacyPathsSuffix)
+                                                         is not { SchemaVersion: CurrentSchema } document)
         {
             return null;
         }
 
         return SameDemo(entry.Sha256, document.Demo.Sha256) ? document : null;
+    }
+
+    /// <summary>
+    ///     Writes both siblings gzipped, paths first. The caller stamps the record next and then calls
+    ///     <see cref="DeleteLegacy" />.
+    /// </summary>
+    public static void Write(DemoCacheStore cache, string path, GrenadeDocument rows, GrenadePathsDocument paths)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        cache.WriteSiblingBytes(path, PathsSuffix, SidecarJson.SerializeGzip(paths, JsonOptions));
+        cache.WriteSiblingBytes(path, Suffix, SidecarJson.SerializeGzip(rows, JsonOptions));
+    }
+
+    /// <summary>Removes the pre-gzip siblings of one demo. Only after the new ones are written and stamped.</summary>
+    public static void DeleteLegacy(DemoCacheStore cache, string path)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        cache.DeleteSibling(path, LegacyPathsSuffix);
+        cache.DeleteSibling(path, LegacySuffix);
     }
 
     /// <summary>A file with no hash is path-keyed only and is accepted; two hashes must agree.</summary>
@@ -226,6 +251,12 @@ public static class GrenadeSidecar
         FileName = Path.GetFileName(path),
         SizeBytes = record?.Size ?? 0
     };
+
+    // The gzipped sibling when it exists, even unreadable; the pre-gzip one only when it does not.
+    private static T? Read<T>(DemoCacheStore cache, string path, string suffix, string legacySuffix) where T : class =>
+        cache.TryReadSiblingJson(path, suffix, JsonOptions, out T? value)
+            ? value
+            : cache.TryReadSiblingJson(path, legacySuffix, JsonOptions, out T? legacy) ? legacy : null;
 
     private static T? TryDeserialize<T>(string json) where T : class
     {
