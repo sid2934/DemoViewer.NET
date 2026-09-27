@@ -174,7 +174,10 @@ public sealed class StratMiningService : IDisposable
     /// </summary>
     public Task MineAsync() => MineAsync(user: true);
 
-    private Task MineAsync(bool user)
+    /// <summary>Demos read per gate slot.</summary>
+    internal int BatchSize { get; set; } = 16;
+
+    internal Task MineAsync(bool user)
     {
         lock (_gate)
         {
@@ -190,29 +193,70 @@ public sealed class StratMiningService : IDisposable
         return _heavy is null ? _run(MineLoop) : MineGatedAsync(_heavy, user);
     }
 
+    // The gate is taken per batch of demos and again for the clustering, never across a whole mine, so a demo
+    // open waits for one batch at most.
     private async Task MineGatedAsync(HeavyJobGate heavy, bool user)
     {
-        IDisposable slot;
-        if (user)
+        while (true)
         {
+            IReadOnlyList<RoundSignature> signatures = [];
+            IReadOnlyList<MinedPattern> patterns = [];
             try
             {
-                slot = await heavy.AcquireInteractiveAsync().ConfigureAwait(false);
+                RoundSignatureBuilder.BuildSession? session = null;
+                await _run(() => session = _signatures.Begin()).ConfigureAwait(false);
+                for (int from = 0; from < session!.Count; from += BatchSize)
+                {
+                    int start = from;
+                    using (await AcquireAsync(heavy, user).ConfigureAwait(false))
+                    {
+                        await _run(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false);
+                    }
+                }
+
+                using (await AcquireAsync(heavy, user).ConfigureAwait(false))
+                {
+                    await _run(() =>
+                    {
+                        signatures = _signatures.Finish(session);
+                        patterns = StratMiner.Mine(signatures);
+                        Save(patterns);
+                    }).ConfigureAwait(false);
+                }
             }
-            catch (ReelInProgressException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
-                // A reel refuses interactive work; the mine waits for it to end instead.
-                slot = await heavy.AcquireBackgroundAsync().ConfigureAwait(false);
+                // A file mid-write: the next mine reads it.
+            }
+
+            if (!Completed(signatures, patterns))
+            {
+                return;
             }
         }
-        else
+    }
+
+    private static async Task<IDisposable> AcquireAsync(HeavyJobGate heavy, bool user)
+    {
+        if (!user)
         {
-            slot = await heavy.AcquireBackgroundAsync().ConfigureAwait(false);
+            return await heavy.AcquireBackgroundAsync().ConfigureAwait(false);
         }
 
-        using (slot)
+        // Interactive acquisitions do not yield to each other; step aside for a demo open already waiting.
+        while (heavy.IsInteractivePending)
         {
-            await _run(MineLoop).ConfigureAwait(false);
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        try
+        {
+            return await heavy.AcquireInteractiveAsync().ConfigureAwait(false);
+        }
+        catch (ReelInProgressException)
+        {
+            // A reel refuses interactive work; the mine waits for it to end instead.
+            return await heavy.AcquireBackgroundAsync().ConfigureAwait(false);
         }
     }
 
@@ -233,25 +277,35 @@ public sealed class StratMiningService : IDisposable
                 // A file mid-write: the next mine reads it.
             }
 
-            int demos = signatures.Select(s => s.DemoPath).Distinct(StringComparer.Ordinal).Count();
-            _post(() =>
+            if (!Completed(signatures, patterns))
             {
-                MinedUtc = DateTime.UtcNow;
-                LastRead = (demos, signatures.Count);
-                CarryState([.. Patterns.Select(p => p.Pattern)], patterns);
-                Publish(patterns);
-            });
-
-            lock (_gate)
-            {
-                if (!_rerun)
-                {
-                    _running = false;
-                    return;
-                }
-
-                _rerun = false;
+                return;
             }
+        }
+    }
+
+    // Publishes a pass; true when another pass was asked for while it ran.
+    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    {
+        int demos = signatures.Select(s => s.DemoPath).Distinct(StringComparer.Ordinal).Count();
+        _post(() =>
+        {
+            MinedUtc = DateTime.UtcNow;
+            LastRead = (demos, signatures.Count);
+            CarryState([.. Patterns.Select(p => p.Pattern)], patterns);
+            Publish(patterns);
+        });
+
+        lock (_gate)
+        {
+            if (!_rerun)
+            {
+                _running = false;
+                return false;
+            }
+
+            _rerun = false;
+            return true;
         }
     }
 

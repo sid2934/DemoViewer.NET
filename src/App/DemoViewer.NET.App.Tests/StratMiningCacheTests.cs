@@ -265,6 +265,50 @@ public class StratMiningCacheTests
         await Assert.That(gate.InFlight).IsEqualTo(0).Because("the slot is released after the mine");
     }
 
+    [Test]
+    public async Task ADemoOpen_GetsTheGateBetweenBatches_BeforeTheMineFinishes()
+    {
+        using Library library = Library.Create();
+        using HeavyJobGate gate = new();
+        TaskCompletionSource inBatch = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource proceed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int steps = 0;
+        using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
+            library.Strats, library.Tags, null, null, heavy: gate, run: a => Task.Run(async () =>
+            {
+                a();
+                // Step 1 is Begin, step 2 the first batch, run while the mine holds the slot.
+                if (Interlocked.Increment(ref steps) == 2)
+                {
+                    inBatch.SetResult();
+                    await proceed.Task;
+                }
+            })) { QuietDelay = Timeout.InfiniteTimeSpan, BatchSize = 1 };
+
+        foreach (bool user in (bool[]) [false, true])
+        {
+            steps = 0;
+            inBatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            proceed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Task mine = service.MineAsync(user);
+            await inBatch.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Task<IDisposable> open = gate.AcquireInteractiveAsync();
+            await Task.Delay(150);
+            await Assert.That(open.IsCompleted).IsFalse().Because("the batch in flight holds the slot");
+            proceed.SetResult();
+
+            using (await open.WaitAsync(TimeSpan.FromSeconds(10)))
+            {
+                await Task.Delay(300);
+                await Assert.That(mine.IsCompleted).IsFalse().Because($"the open took the gate between batches (user={user})");
+            }
+
+            await mine.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(service.Signatures.LastBuild.Reused + service.Signatures.LastBuild.Built).IsEqualTo(4);
+            await Assert.That(gate.InFlight).IsEqualTo(0);
+        }
+    }
+
     private sealed class FakeQueue : IDemoProcessingQueue
     {
         public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
