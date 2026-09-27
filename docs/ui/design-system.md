@@ -374,6 +374,21 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   every node and destroy virtualization.
 - **Used in:** the 4 message-card list surfaces (Parser card list + descendants).
 
+### Hosted tab sections (the Strat Book rail, the Library's Teams view)
+- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle), `ViewModels/Shell/StratBookHubViewModel.cs`
+  and `Views/StratBook/StratBookHubView.axaml` (the rail), the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
+- **Purpose:** a module tab that belongs to a workflow rather than the strip. `TabPlacement.StratBook` puts a
+  descriptor on the Strat Book tab's left rail (164px, `PanelHeaderBg`, `sectionHeader` band "STRAT BOOK",
+  `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
+  `TabPlacement.Library` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from
+  four tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
+- **Contract:** the descriptor keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session
+  file treat a section exactly as they treated the strip tab (the shell resolves a section id through its
+  host and persists the section id as the active tab). A section is `Activate`d only while it is selected
+  AND its host tab is, so the one-realized-View invariant holds one level down. The hub tab exists only
+  when a section was contributed and hides when the gate turns every section off.
+- **Do not:** add a Main-strip tab for a Strat Book feature; add a section.
+
 ### KeyValueTable
 - **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`
   (`IReadOnlyList<KvpRow>`), `ShowDeltaOnly` (filters to changed rows → `VisibleRows`).

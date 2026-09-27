@@ -9,8 +9,8 @@ using DemoViewer.NET.Views.Dossier;
 namespace DemoViewer.NET.Modules.Dossier;
 
 /// <summary>
-///     The Opponent Dossier module: one Main-strip tab (<see cref="BrowserTabId" />, after the Utility
-///     Book) keyed by a Team Identity team: the Map Pool Record (the demo-derivable substitute for the veto
+///     The Opponent Dossier module: the Dossier section of the Strat Book tab's rail (<see cref="BrowserTabId" />,
+///     last on it) keyed by a Team Identity team: the Map Pool Record (the demo-derivable substitute for the veto
 ///     model), Setup Heatmaps By Buy, Opening Tendencies, Post-Plant And Retake, Situational Behaviour,
 ///     Period Diff, and the editable long form with its one-pager export (plan.md §3, Phase 5; F12).
 ///     <para>
@@ -30,7 +30,7 @@ public sealed class DossierModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed. On by default for every category.</summary>
     public const string TabFeatureId = "tab.dossier";
 
-    /// <summary>The tab's id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
     public const string BrowserTabId = "dossier.browser";
 
     private readonly Func<DossierTabViewModel> _viewModelFactory;
@@ -52,8 +52,8 @@ public sealed class DossierModule : IWorkspaceModule
         {
             TabId = BrowserTabId,
             Header = "Dossier",
-            Order = 10, // after the Utility Book (9)
-            Placement = TabPlacement.Main,
+            Order = 5, // after Review (4)
+            Placement = TabPlacement.StratBook,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new DossierTabView()
         };

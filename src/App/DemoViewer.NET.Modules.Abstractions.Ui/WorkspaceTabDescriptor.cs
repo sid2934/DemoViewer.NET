@@ -7,14 +7,26 @@ using Avalonia.Controls;
 
 namespace DemoViewer.NET.Modules.Abstractions;
 
-/// <summary>Where a tab sits in the shell.</summary>
+/// <summary>
+///     Where a tab sits in the shell. <see cref="Main" /> and <see cref="Diagnostics" /> are strip tabs;
+///     <see cref="StratBook" /> and <see cref="Library" /> are sections hosted INSIDE another tab, so a
+///     descriptor with one of those placements never appears on the strip itself. Its <c>TabId</c> stays
+///     the persisted key and the shell's tab navigation still resolves it (by selecting the host tab and
+///     then the section), so a section keeps every id it had as a strip tab.
+/// </summary>
 public enum TabPlacement
 {
     /// <summary>The main tab strip.</summary>
     Main,
 
     /// <summary>The diagnostics group (rendered after Main tabs).</summary>
-    Diagnostics
+    Diagnostics,
+
+    /// <summary>A section on the Strat Book tab's left rail, ordered by <see cref="WorkspaceTabDescriptor.Order" />.</summary>
+    StratBook,
+
+    /// <summary>A section the Library tab hosts behind its view toggle (Teams).</summary>
+    Library
 }
 
 /// <summary>
@@ -72,7 +84,7 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
     /// <summary>Optional header icon (Geometry / StreamGeometry / path key).</summary>
     public object? Icon { get; init; }
 
-    /// <summary>Sort key within (Placement) in the tab strip.</summary>
+    /// <summary>Sort key within (Placement): the strip position for a strip tab, the rail position for a section.</summary>
     public int Order { get; init; }
 
     /// <summary>Where the tab sits.</summary>

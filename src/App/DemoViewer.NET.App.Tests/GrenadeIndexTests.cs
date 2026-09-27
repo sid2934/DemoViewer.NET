@@ -345,7 +345,7 @@ public class GrenadeIndexTests
     }
 
     [Test]
-    public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds()
+    public async Task TheModule_ContributesTheUtilitySection_UnderThePersistedIds()
     {
         UtilityBookModule module = new(() => throw new InvalidOperationException("never built here"));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
@@ -355,9 +355,9 @@ public class GrenadeIndexTests
         {
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.utilitybook");
             await Assert.That(tab.TabId).IsEqualTo("utilitybook.browser");
-            await Assert.That(tab.Header).IsEqualTo("Utility Book");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
-            await Assert.That(tab.Order).IsEqualTo(9).Because("after the Strat Book");
+            await Assert.That(tab.Header).IsEqualTo("Utility");
+            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.StratBook);
+            await Assert.That(tab.Order).IsEqualTo(3).Because("after Tags on the rail");
             await Assert.That(tab.DataContext).IsNull();
             await Assert.That(feature).IsNotNull();
             await Assert.That(feature!.Scope).IsEqualTo(FeatureScope.Tab);

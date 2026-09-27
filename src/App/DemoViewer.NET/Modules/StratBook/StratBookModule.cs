@@ -9,10 +9,10 @@ using DemoViewer.NET.Views.StratBook;
 namespace DemoViewer.NET.Modules.StratBook;
 
 /// <summary>
-///     The Strat Book module (strat-model.md §3.11): one Main-strip tab (<see cref="BrowserTabId" />, after the
-///     Matrix) holding the book selector, the map and side filters, the strat list and the strat editor. The Step
-///     Authoring canvas, the record, history and callouts panes join this tab as their items land; a strat has no
-///     demo, so none of it lives in 2D Playback.
+///     The Strat Book module (strat-model.md §3.11): the Strats section of the Strat Book tab's rail, first on
+///     it, holding the book selector, the map and side filters, the strat list and the strat editor with the
+///     Step Authoring canvas, the record, history and callouts panes. A strat has no demo, so none of it lives
+///     in 2D Playback.
 ///     <para>
 ///         <b>The ids are persisted keys.</b> The module id, <see cref="BrowserTabId" /> and
 ///         <see cref="TabFeatureId" /> key the user's per-tab session state and <c>Features:Overrides:{id}</c>;
@@ -30,7 +30,7 @@ public sealed class StratBookModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.stratbook";
 
-    /// <summary>The tab's id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
     public const string BrowserTabId = "stratbook.browser";
 
     private readonly Func<StratBookTabViewModel> _viewModelFactory;
@@ -52,9 +52,9 @@ public sealed class StratBookModule : IWorkspaceModule
         yield return new WorkspaceTabDescriptor
         {
             TabId = BrowserTabId,
-            Header = "Strat Book",
-            Order = 8, // after the Matrix (7)
-            Placement = TabPlacement.Main,
+            Header = "Strats",
+            Order = 0, // first on the rail
+            Placement = TabPlacement.StratBook,
             ViewModelFactory = () => _viewModel ??= _viewModelFactory(),
             ViewFactory = () => new StratBookTabView()
         };

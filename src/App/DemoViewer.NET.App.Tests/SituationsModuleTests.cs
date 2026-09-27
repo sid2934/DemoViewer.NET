@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 public class SituationsModuleTests
 {
     [Test]
-    public async Task TheModule_ContributesOneMainTab_UnderThePersistedIds()
+    public async Task TheModule_ContributesTheSituationsSection_UnderThePersistedIds()
     {
         SituationsModule module = new(() => throw new InvalidOperationException("never built here"));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
@@ -30,7 +30,8 @@ public class SituationsModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.situations");
             await Assert.That(tab.TabId).IsEqualTo("situations.search");
             await Assert.That(tab.Header).IsEqualTo("Situations");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
+            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.StratBook);
+            await Assert.That(tab.Order).IsEqualTo(1).Because("after Strats on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
         }

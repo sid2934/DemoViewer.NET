@@ -9,10 +9,9 @@ using DemoViewer.NET.Views.Situations;
 namespace DemoViewer.NET.Modules.Situations;
 
 /// <summary>
-///     The Situations tab module: Situation Search over the round index. Contributes one Main-strip
-///     tab (<c>"situations.search"</c>, after Reels) whose VM owns the index status strip; the Query
-///     Canvas (with its tolerance slider), Result Cards and Overlay View are their own build items and
-///     plug into this tab.
+///     The Situations module: Situation Search over the round index. Contributes the Situations section of
+///     the Strat Book tab's rail (<c>"situations.search"</c>, after Strats) whose VM owns the index status
+///     strip; the Query Canvas (with its tolerance slider), Result Cards and Overlay View plug into it.
 ///     <para>
 ///         <b>The ids are persisted keys.</b> <c>TabId "situations.search"</c> and the feature id
 ///         <c>"tab.situations"</c> key the user's per-tab session state and feature overrides; the
@@ -25,7 +24,7 @@ namespace DemoViewer.NET.Modules.Situations;
 ///         evaluator and the cache directly; the module references no shell.
 ///     </para>
 ///     <para>
-///         <b>The badge.</b> Watched Situations' "N new" sits on the tab header through
+///         <b>The badge.</b> Watched Situations' "N new" sits on the rail item through
 ///         <see cref="WorkspaceTabDescriptor.Badge" />, driven by the service rather than the VM: the
 ///         VM is built on first activation, and the badge has to show before the tab is ever opened.
 ///     </para>
@@ -58,8 +57,8 @@ public sealed class SituationsModule : IWorkspaceModule
         {
             TabId = "situations.search",
             Header = "Situations",
-            Order = 4, // after Reels (3)
-            Placement = TabPlacement.Main,
+            Order = 1, // after Strats (0)
+            Placement = TabPlacement.StratBook,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SituationsTabView()
         };
