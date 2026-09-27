@@ -227,17 +227,105 @@ public static class GrenadeSidecar
     public static void Write(DemoCacheStore cache, string path, GrenadeDocument rows, GrenadePathsDocument paths)
     {
         ArgumentNullException.ThrowIfNull(cache);
-        cache.WriteSiblingBytes(path, PathsSuffix, SidecarJson.SerializeGzip(paths, JsonOptions));
-        cache.WriteSiblingBytes(path, Suffix, SidecarJson.SerializeGzip(rows, JsonOptions));
+        lock (cache.StripeFor(path))
+        {
+            cache.WriteSiblingBytes(path, PathsSuffix, SidecarJson.SerializeGzip(paths, JsonOptions));
+            cache.WriteSiblingBytes(path, Suffix, SidecarJson.SerializeGzip(rows, JsonOptions));
+        }
     }
 
-    /// <summary>Removes the pre-gzip siblings of one demo. Only after the new ones are written and stamped.</summary>
-    public static void DeleteLegacy(DemoCacheStore cache, string path)
+    /// <summary>
+    ///     Removes the pre-gzip siblings of one demo once the new ones read back. Call after the new pair is
+    ///     written and stamped. False when a new file did not verify; the legacy files are then kept.
+    /// </summary>
+    public static bool DeleteLegacy(DemoCacheStore cache, string path)
     {
         ArgumentNullException.ThrowIfNull(cache);
-        cache.DeleteSibling(path, LegacyPathsSuffix);
-        cache.DeleteSibling(path, LegacySuffix);
+        lock (cache.StripeFor(path))
+        {
+            string? sha = cache.TryGetIndex(path)?.Sha256;
+            if (!Verify<GrenadeDocument>(cache, path, Suffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256)
+                || !Verify<GrenadePathsDocument>(cache, path, PathsSuffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256))
+            {
+                return false;
+            }
+
+            cache.DeleteSibling(path, LegacyPathsSuffix);
+            cache.DeleteSibling(path, LegacySuffix);
+            return true;
+        }
     }
+
+    /// <summary>
+    ///     Re-encodes a demo's pre-gzip siblings as gzip without a walk. Each legacy file goes only after
+    ///     its new file reads back; one that does not read, or is another demo's, is kept.
+    /// </summary>
+    internal static SidecarConversion ConvertLegacy(DemoCacheStore cache, string path)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        lock (cache.StripeFor(path))
+        {
+            if (cache.TryGetIndex(path) is not { } entry)
+            {
+                return SidecarConversion.None;
+            }
+
+            SidecarConversion paths = ConvertOne<GrenadePathsDocument>(cache, path, entry.Sha256, PathsSuffix, LegacyPathsSuffix,
+                d => d.SchemaVersion, d => d.Demo.Sha256);
+            SidecarConversion rows = ConvertOne<GrenadeDocument>(cache, path, entry.Sha256, Suffix, LegacySuffix,
+                d => d.SchemaVersion, d => d.Demo.Sha256);
+            return paths == SidecarConversion.Failed || rows == SidecarConversion.Failed ? SidecarConversion.Failed
+                : paths == SidecarConversion.Converted || rows == SidecarConversion.Converted ? SidecarConversion.Converted
+                : SidecarConversion.None;
+        }
+    }
+
+    // Under the demo's stripe.
+    private static SidecarConversion ConvertOne<T>(DemoCacheStore cache, string path, string? sha, string suffix,
+        string legacySuffix, Func<T, int> schema, Func<T, string?> fileSha) where T : class
+    {
+        if (cache.TryReadSiblingBytes(path, legacySuffix) is not { } raw)
+        {
+            return SidecarConversion.None;
+        }
+
+        if (Verify(cache, path, suffix, sha, schema, fileSha))
+        {
+            cache.DeleteSibling(path, legacySuffix);
+            return SidecarConversion.Converted;
+        }
+
+        T? legacy;
+        try
+        {
+            legacy = SidecarJson.Deserialize<T>(raw, JsonOptions);
+        }
+        catch (Exception)
+        {
+            legacy = null;
+        }
+
+        if (legacy is null || schema(legacy) != CurrentSchema || !SameDemo(sha, fileSha(legacy)))
+        {
+            return SidecarConversion.Failed;
+        }
+
+        cache.WriteSiblingBytes(path, suffix, SidecarJson.Gzip(SidecarJson.Minify(raw)));
+        if (!Verify(cache, path, suffix, sha, schema, fileSha))
+        {
+            cache.DeleteSibling(path, suffix);
+            return SidecarConversion.Failed;
+        }
+
+        cache.DeleteSibling(path, legacySuffix);
+        return SidecarConversion.Converted;
+    }
+
+    // The gzipped sibling alone, with the reader's schema and hash checks.
+    private static bool Verify<T>(DemoCacheStore cache, string path, string suffix, string? sha, Func<T, int> schema,
+        Func<T, string?> fileSha) where T : class =>
+        cache.TryReadSiblingJson(path, suffix, JsonOptions, out T? value)
+        && value is not null && schema(value) == CurrentSchema && SameDemo(sha, fileSha(value));
 
     /// <summary>A file with no hash is path-keyed only and is accepted; two hashes must agree.</summary>
     public static bool SameDemo(string? recordSha256, string? fileSha256) =>
@@ -252,9 +340,9 @@ public static class GrenadeSidecar
         SizeBytes = record?.Size ?? 0
     };
 
-    // The gzipped sibling when it exists, even unreadable; the pre-gzip one only when it does not.
+    // The gzipped sibling when it reads; else the pre-gzip one, the last good write.
     private static T? Read<T>(DemoCacheStore cache, string path, string suffix, string legacySuffix) where T : class =>
-        cache.TryReadSiblingJson(path, suffix, JsonOptions, out T? value)
+        cache.TryReadSiblingJson(path, suffix, JsonOptions, out T? value) && value is not null
             ? value
             : cache.TryReadSiblingJson(path, legacySuffix, JsonOptions, out T? legacy) ? legacy : null;
 
