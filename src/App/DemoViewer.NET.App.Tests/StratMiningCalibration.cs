@@ -128,6 +128,8 @@ public class StratMiningCalibration
             }
 
             service?.Dispose();
+            FileInfo file = new(Path.Combine(scratch, "strat-mining", "signatures.json.gz"));
+            Console.WriteLine($"[mine-cost] signature file {(file.Exists ? file.Length / 1024.0 / 1024.0 : 0):0.00} MB");
         }
         finally
         {
