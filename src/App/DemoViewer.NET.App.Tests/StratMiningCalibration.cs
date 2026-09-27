@@ -80,6 +80,62 @@ public class StratMiningCalibration
         }
     }
 
+    // First and second mine through the service, with the detected file under a scratch cache root. The
+    // library copy is only read.
+    [Test]
+    [Category("Environmental")]
+    public async Task MineCost()
+    {
+        string? root = Environment.GetEnvironmentVariable("STRAT_MINE_CONFIG");
+        if (string.IsNullOrEmpty(root))
+        {
+            throw new SkipTestException("STRAT_MINE_CONFIG not set");
+        }
+
+        string cache = Path.Combine(root, "cache");
+        DemoCacheStore demoCache = new(cache);
+        RoundIndexStore positions = new(cache, demoCache);
+        AssetZonePlaceResolverSource zones = new();
+        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
+        using GrenadeIndex grenades = new(demoCache, zones);
+        grenades.Load();
+        TeamIdentityService teams = new(root, demoCache, new CachedFacts(demoCache));
+        await teams.StartAsync();
+        string scratch = Path.Combine(Path.GetTempPath(), "dv-mine-cost-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using StratMiningService service = new(demoCache, positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
+                scratch, null, run: a =>
+                {
+                    a();
+                    return Task.CompletedTask;
+                }) { QuietDelay = Timeout.InfiniteTimeSpan };
+            for (int pass = 1; pass <= 2; pass++)
+            {
+                long allocated = GC.GetTotalAllocatedBytes(true);
+                Stopwatch watch = Stopwatch.StartNew();
+                await service.MineAsync();
+                long ms = watch.ElapsedMilliseconds;
+                long bytes = GC.GetTotalAllocatedBytes(true) - allocated;
+                Console.WriteLine($"[mine-cost] pass {pass}: {ms} ms, {bytes / 1024.0 / 1024.0:0.0} MB allocated, {service.Patterns.Count} patterns, read {service.LastRead}, digest {Digest(service.Patterns)}");
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(scratch, true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static string Digest(IEnumerable<DetectedPattern> patterns) => Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes(string.Join("\n", patterns.Select(d => d.Pattern).Select(p =>
+            $"{p.Key} {p.Spread:R} {string.Join(",", p.Members.Select(m => $"{m.DemoPath}#{m.Round}#{m.TeamId}#{m.Distance:R}"))} {string.Join(",", p.CommonThrows.Select(c => $"{c.Throw.Kind}{c.Throw.Seconds:R}{c.Throw.LineupId}{c.Rounds}"))}")))))[..16];
+
     // A re-mine after new demos: mine without a few demos, then with them, and count the patterns of the
     // smaller run whose key survives, and whose members mostly reappear in one pattern of the larger run.
     private static void KeyChurn(IReadOnlyList<RoundSignature> signatures)
