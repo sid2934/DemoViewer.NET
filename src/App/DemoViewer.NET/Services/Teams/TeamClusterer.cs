@@ -76,7 +76,8 @@ public sealed class TeamClusterer
     /// <param name="overrides">Per side (2 or 3): the team a user pinned the side to, or null for "not a team".</param>
     /// <param name="tracked">
     ///     False for queue play (<see cref="TeamSourcePolicy.AutoTracks" />): a side may only match a team
-    ///     the user owns, founds nothing, is never stamped a stand-in and never fixes a five.
+    ///     the user owns through its squad or an established five, founds nothing, is never stamped a
+    ///     stand-in and never fixes a five.
     /// </param>
     public TeamIndexDemo Assign(DemoSideInput demo, IReadOnlyDictionary<int, Guid?>? overrides = null, bool tracked = true)
     {
@@ -294,8 +295,10 @@ public sealed class TeamClusterer
                 return;
             }
 
-            // Queue play reaches only the user's own teams: a candidate or an auto team never grows there.
-            if (!tracked && state.Team is not { IsAuto: false })
+            // Queue play reaches only the user's own teams, and only through a fixed anchor: a squad or an
+            // established five. A rolling core would keep absorbing fills, which is the looseness the gate
+            // exists to keep out; an us team built that way gets its queue sides back through a squad.
+            if (!tracked && (state.Team is not { IsAuto: false } || (state.Squad is null && state.Lineup is null)))
             {
                 return;
             }
