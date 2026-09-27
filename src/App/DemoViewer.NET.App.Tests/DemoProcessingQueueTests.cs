@@ -28,8 +28,10 @@ public class DemoProcessingQueueTests
     {
         gate = new HeavyJobGate();
         return new DemoProcessingQueue(gate, a => a(), parser.ParseFile,
-            parser.ParseBytes);
+            parser.ParseBytes, NoCompact);
     }
+
+    private static Task NoCompact() => Task.CompletedTask;
 
     private static DemoProcessingRequest Req(string path, string owner, DemoJobPriority priority,
         long orderHint, Action<ParsedDemo>? onParsed = null, Action<Exception>? onFailed = null) =>
@@ -445,6 +447,163 @@ public class DemoProcessingQueueTests
                 3
             }, cts.Token));
         }
+    }
+
+    // ── History retention + drain compaction ─────────────────────────────────
+
+    [Test]
+    public async Task CoalescedForeground_TerminalHistory_DoesNotRootTheParsedDemo()
+    {
+        using ManualResetEventSlim block = new(false);
+        int byteCalls = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ =>
+            {
+                block.Wait();
+                return SyntheticDemo();
+            },
+            _ =>
+            {
+                Interlocked.Increment(ref byteCalls);
+                return SyntheticDemo();
+            },
+            NoCompact);
+
+        WeakReference demo = await CoalesceOntoRunningParseAsync(queue, block);
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+
+        await Assert.That(byteCalls).IsEqualTo(0); // the open coalesced; it did not parse on its own
+        await Assert.That(queue.Snapshot().Single().State).IsEqualTo(DemoQueueItemState.Completed);
+
+        // Polled: this continuation can run inline inside the helper's completion, before the
+        // runtime clears the helper's state machine.
+        await WaitForAsync(() =>
+        {
+            Collect();
+            return !demo.IsAlive;
+        }, "the coalesced demo to be collected", 2000);
+    }
+
+    [Test]
+    public async Task Drain_AfterJobs_CompactsOnce()
+    {
+        RecordingParser parser = new() { Block = new ManualResetEventSlim(false) };
+        int compactions = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parser.ParseFile,
+            parser.ParseBytes, () =>
+            {
+                Interlocked.Increment(ref compactions);
+                return Task.CompletedTask;
+            });
+
+        queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.Background, 1));
+        queue.SubmitBackground(Req("b.dem", "o", DemoJobPriority.Background, 2));
+        parser.Block.Set();
+        await WaitForAsync(() => parser.FileCalls == 2 && queue.ActiveWorkerCount == 0, "drain");
+
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+        parser.Block.Dispose();
+    }
+
+    [Test]
+    public async Task Drain_WithinThrottleWindow_DoesNotCompactAgain_UntilItElapses()
+    {
+        RecordingParser parser = new();
+        ManualClock clock = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parser.ParseFile,
+            parser.ParseBytes, () =>
+            {
+                Interlocked.Increment(ref compactions);
+                return Task.CompletedTask;
+            }, clock);
+
+        async Task RunOneAsync(string path)
+        {
+            IDemoQueueHandle h = queue.SubmitBackground(Req(path, "o", DemoJobPriority.Background, 1));
+            await h.Completion;
+            await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit " + path);
+        }
+
+        await RunOneAsync("a.dem");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+
+        clock.Advance(TimeSpan.FromSeconds(5));
+        await RunOneAsync("b.dem");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+
+        clock.Advance(TimeSpan.FromSeconds(30));
+        await RunOneAsync("c.dem");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task Drain_WithNoJobRun_DoesNotCompact()
+    {
+        RecordingParser parser = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parser.ParseFile,
+            parser.ParseBytes, () =>
+            {
+                Interlocked.Increment(ref compactions);
+                return Task.CompletedTask;
+            });
+
+        queue.Pause();
+        IDemoQueueHandle h = queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.Background, 1));
+        queue.RemoveByUser(h.Id);
+
+        await Assert.That(queue.Snapshot().Single().State).IsEqualTo(DemoQueueItemState.Cancelled);
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task DefaultParse_OnNonDemoFile_FailsTheEntry()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"dv-queue-{Guid.NewGuid():N}.bin");
+        await File.WriteAllBytesAsync(path, new byte[4096]);
+        try
+        {
+            using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), compactHeap: NoCompact);
+            Exception? failure = null;
+            IDemoQueueHandle h = queue.SubmitBackground(
+                Req(path, "o", DemoJobPriority.Background, 1, onFailed: ex => failure = ex));
+            await h.Completion;
+
+            await Assert.That(h.State).IsEqualTo(DemoQueueItemState.Failed);
+            await Assert.That(failure).IsNotNull();
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    // The foreground result lives only in this method's frame, which is gone once it returns.
+    private static async Task<WeakReference> CoalesceOntoRunningParseAsync(DemoProcessingQueue queue,
+        ManualResetEventSlim block)
+    {
+        queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.Background, 1));
+        await WaitForAsync(() => queue.RunningCount == 1, "running");
+        Task<ParsedDemo> open = queue.RequestForegroundAsync("a.dem", ReadOnlyMemory<byte>.Empty);
+        block.Set();
+        return new WeakReference(await open);
+    }
+
+    private static void Collect()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            GC.WaitForPendingFinalizers();
+        }
+    }
+
+    private sealed class ManualClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan by) => _now += by;
     }
 
     private sealed class RecordingParser
