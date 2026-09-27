@@ -1300,6 +1300,17 @@ public class App : Application
         _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
         // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
         provider.GetRequiredService<TagFactsRefresher>();
+        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a background slot per batch,
+        // marker-gated once a pass converts everything it found.
+        if (!OperatingSystem.IsBrowser())
+        {
+            DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
+            HeavyJobGate gate = provider.GetRequiredService<HeavyJobGate>();
+            _ = Task.Run(() => SidecarFormatMigration.RunAsync(demoCache,
+                [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)],
+                gate.AcquireBackgroundAsync,
+                TimeSpan.FromSeconds(30)));
+        }
         Services = provider;
         return provider;
     }

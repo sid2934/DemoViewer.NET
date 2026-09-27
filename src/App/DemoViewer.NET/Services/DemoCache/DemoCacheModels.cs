@@ -341,7 +341,7 @@ public sealed class DemoCacheRecord
     public int SuggestionCount { get; set; }
 
     // ── Grenade walk ─────────────────────────────────────────────────────────
-    // The rows live in the .grenades.json and .grenades.paths.json siblings of this sidecar
+    // The rows live in the .grenades.json.gz and .grenades.paths.json.gz siblings of this sidecar
     // (grenade-walk.md §3.9); only the stamp rides the record. A stamp beside the tiers rather than a
     // tier: the walk depends on the parse, not on the analysis run, so a rules change must not
     // invalidate it.
@@ -700,8 +700,11 @@ public sealed record DemoRef(string Path, string StableKey, string? Sha256)
 /// <summary>The on-disk shape of <c>index.json</c>: a versioned wrapper so migrations have a hook.</summary>
 public sealed class DemoCacheIndexFile
 {
-    /// <summary>Version of the INDEX container itself, independent of the per-tier record schemas.</summary>
-    public const int CurrentVersion = 1;
+    /// <summary>
+    ///     Version of the INDEX container itself, independent of the per-tier record schemas. 2: record
+    ///     sidecars are gzipped <c>&lt;key&gt;.json.gz</c>; a version-1 <c>&lt;key&gt;.json</c> is still read.
+    /// </summary>
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
 
