@@ -827,6 +827,13 @@ public class TeamIdentityTests
             await Assert.That(again).IsEqualTo(3);
             await Assert.That(afterWrite).IsEqualTo(2).Because("a record write replaces the index entry the join is keyed on");
         }
+
+        // Concurrent misses on a fresh entry share one read.
+        cache.UpdateExisting("/d/a2.dem", r => r.Server = "lan");
+        await teams.Idle;
+        int beforeRace = facts.Reads;
+        await Task.WhenAll(Enumerable.Range(1, 16).Select(n => Task.Run(() => teams.SideAtRound("/d/a2.dem", team, n))));
+        await Assert.That(facts.Reads - beforeRace).IsEqualTo(1);
     }
 
     [Test]

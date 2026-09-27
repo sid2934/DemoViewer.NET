@@ -52,7 +52,7 @@ public sealed class TeamIdentityService : IDisposable
     // Keyed on the index entry INSTANCE: Upsert swaps it synchronously before the record is readable, so a
     // cached join never outlives the record it was built from. Under _joinGate.
     private readonly object _joinGate = new();
-    private readonly List<SideJoin> _joins = [];
+    private readonly List<JoinSlot> _joins = [];
     private readonly Dictionary<string, DemoSideInput> _inputs = new(StringComparer.Ordinal);
     private readonly Action<Action> _post;
     private readonly IRoundFactsSource? _roundFacts;
@@ -616,22 +616,38 @@ public sealed class TeamIdentityService : IDisposable
         }
 
         DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(demoPath);
-        if (entry is not null)
+        if (entry is null)
         {
-            lock (_joinGate)
-            {
-                foreach (SideJoin cached in _joins)
-                {
-                    if (ReferenceEquals(cached.Entry, entry)
-                        && string.Equals(cached.Path, demoPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return cached;
-                    }
-                }
-            }
+            return BuildJoin(demoPath);
         }
 
-        if (_roundFacts.TryGet(demoPath) is not { } rows || _demoCache.TryLoadRecord(demoPath) is not { } record)
+        // Concurrent misses on one demo share one Lazy, so the record is read once.
+        Lazy<SideJoin?> join;
+        lock (_joinGate)
+        {
+            JoinSlot? slot = _joins.Find(j => ReferenceEquals(j.Entry, entry)
+                                              && string.Equals(j.Path, demoPath, StringComparison.OrdinalIgnoreCase));
+            if (slot is null)
+            {
+                if (_joins.Count >= SideJoinCapacity)
+                {
+                    _joins.RemoveAt(0);
+                }
+
+                slot = new JoinSlot(demoPath, entry, new Lazy<SideJoin?>(() => BuildJoin(demoPath)));
+                _joins.Add(slot);
+            }
+
+            join = slot.Join;
+        }
+
+        return join.Value;
+    }
+
+    // Rows and slot map from one record read, so the two always describe the same write.
+    private SideJoin? BuildJoin(string demoPath)
+    {
+        if (_demoCache.TryLoadRecord(demoPath) is not { } record || _roundFacts?.TryGet(record) is not { } rows)
         {
             return null;
         }
@@ -648,28 +664,12 @@ public sealed class TeamIdentityService : IDisposable
             bySlot[player.Slot] = player.SteamId64;
         }
 
-        SideJoin join = new(demoPath, entry, rounds, bySlot);
-        if (entry is not null)
-        {
-            lock (_joinGate)
-            {
-                if (_joins.Count >= SideJoinCapacity)
-                {
-                    _joins.RemoveAt(0);
-                }
-
-                _joins.Add(join);
-            }
-        }
-
-        return join;
+        return new SideJoin(rounds, bySlot);
     }
 
-    private sealed record SideJoin(
-        string Path,
-        DemoCacheIndexEntry? Entry,
-        Dictionary<int, RoundFacts.RoundFacts> Rounds,
-        Dictionary<int, string> BySlot);
+    private sealed record SideJoin(Dictionary<int, RoundFacts.RoundFacts> Rounds, Dictionary<int, string> BySlot);
+
+    private sealed record JoinSlot(string Path, DemoCacheIndexEntry Entry, Lazy<SideJoin?> Join);
 
     /// <summary>The members table of one roster: SteamID64 to appearances, last name, first and last seen.</summary>
     /// <param name="teamId">The team.</param>

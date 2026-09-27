@@ -20,6 +20,9 @@ public interface IRoundFactsSource
     /// <summary>One demo's rows: a sidecar read, served by the store's capacity-1 record cache. Null when none were written.</summary>
     RoundFactsRows? TryGet(string demoPath);
 
+    /// <summary>The rows of a record the caller already holds, so a join reads one snapshot.</summary>
+    RoundFactsRows? TryGet(DemoCacheRecord record) => TryGet(record.Path);
+
     /// <summary>The round whose window holds <paramref name="frameClockTick" />, or null before the first freeze end or without rows.</summary>
     RoundFacts? RoundAt(string demoPath, int frameClockTick);
 
@@ -61,6 +64,9 @@ public sealed class RoundFactsSource : IRoundFactsSource
 
     /// <inheritdoc />
     public RoundFactsRows? TryGet(string demoPath) => _demoCache.TryLoadRecord(demoPath)?.RoundFacts;
+
+    /// <inheritdoc />
+    public RoundFactsRows? TryGet(DemoCacheRecord record) => record.RoundFacts;
 
     /// <inheritdoc />
     public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
