@@ -1,8 +1,8 @@
 #region
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
-using Avalonia.Interactivity;
 using DemoViewer.NET.ViewModels.UtilityBook;
 
 #endregion
@@ -10,32 +10,49 @@ using DemoViewer.NET.ViewModels.UtilityBook;
 namespace DemoViewer.NET.Views.UtilityBook;
 
 /// <summary>
-///     The Utility Book tab view. Bindings only, except the Lineup Card's Copy button: the clipboard
-///     needs the visual tree (<c>TopLevel.GetTopLevel</c>), so it lives here rather than on the VM,
-///     the Diagnostics tab's precedent. The card's console line is a read-only <c>TextBox</c> too, so
-///     a clipboard write that a host rejects still leaves the line selectable by hand.
+///     The Utility Book view. Bindings only, except the clipboard: it needs the visual tree
+///     (<c>TopLevel.GetTopLevel</c>), so the view hands the view model a writer while it is attached.
 /// </summary>
 public partial class UtilityBookTabView : UserControl
 {
     /// <summary>Builds the view.</summary>
     public UtilityBookTabView() => InitializeComponent();
 
-    private async void OnCopyConsoleClick(object? sender, RoutedEventArgs e)
+    /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        if (sender is not Button { DataContext: GrenadeLineupRow row }
-            || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
-        {
-            return;
-        }
+        base.OnAttachedToVisualTree(e);
+        Wire();
+    }
 
-        try
+    /// <inheritdoc />
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        Wire();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (DataContext is UtilityBookTabViewModel vm)
         {
-            await clipboard.SetTextAsync(row.ConsoleText);
+            vm.Clipboard = null;
         }
-        catch (Exception)
+    }
+
+    private void Wire()
+    {
+        if (DataContext is UtilityBookTabViewModel vm)
         {
-            // Clipboard writes are permission/gesture-gated on some hosts; the line is already shown
-            // selectable in the read-only TextBox as the manual fallback.
+            vm.Clipboard = async text =>
+            {
+                if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+                {
+                    await clipboard.SetTextAsync(text);
+                }
+            };
         }
     }
 }

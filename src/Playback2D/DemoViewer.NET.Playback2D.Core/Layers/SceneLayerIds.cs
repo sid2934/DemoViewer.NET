@@ -69,6 +69,12 @@ public static class SceneLayerIds
     public const string Overlay = "playback2d.overlay";
 
     /// <summary>
+    ///     The Utility Book map: landing groups and a focused group's throw positions and flights. Opt-in
+    ///     like the overlay: it draws a document the caller supplies.
+    /// </summary>
+    public const string Utility = "playback2d.utility";
+
+    /// <summary>
     ///     The layers a stack registers <b>only when the caller names them</b>. Off under a null or empty
     ///     include set: an export that silently burned in a scoreboard, or someone else's telestration,
     ///     would be a surprise rather than a feature.

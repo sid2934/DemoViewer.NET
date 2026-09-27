@@ -1,6 +1,15 @@
 #region
 
 using System.Numerics;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Threading;
+using DemoViewer.NET.Playback2D.Core.Utility;
+using DemoViewer.NET.Views.UtilityBook;
+using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
@@ -366,77 +375,216 @@ public class GrenadeIndexTests
     }
 
     [Test]
-    public async Task TheTab_ListsTheClusters_AndWatchSeeksBeforeTheRelease()
+    public async Task TheMap_ShowsLineupsSeenTwice_FocusShowsPositions_AndTheCardOpensEachThrow()
     {
         using GrenadeIndex index = Loaded(Library());
         RecordingPlayback playback = new();
-        using UtilityBookTabViewModel vm = new(index, playback, isBrowser: false,
-            renderer: () => new GrenadeLineupThumbnailRenderer(_ => null), post: action => action(), decode: _ => null);
-
+        using UtilityBookTabViewModel vm = new(index, playback, isBrowser: false, loadMapAsset: _ => null);
         vm.SelectedMap = Mirage;
         vm.SelectedPlace = "CTSpawn";
-        await vm.ThumbnailTask;
 
+        LandingGroup top = vm.Groups[0];
         using (Assert.Multiple())
         {
             await Assert.That(vm.SelectedKind!.Value).IsEqualTo(GrenadeKind.Smoke).Because("smokes are the default");
-            await Assert.That(vm.Places).IsEquivalentTo(new[] { UtilityBookTabViewModel.AnyPlace, "CTSpawn", "TSpawn" });
-            await Assert.That(vm.Clusters.Count).IsEqualTo(2);
-            await Assert.That(vm.Clusters[0].Title).IsEqualTo("Smoke into CTSpawn");
-            await Assert.That(vm.Clusters[0].Summary).IsEqualTo("15 throws from 3 positions");
-            await Assert.That(vm.Clusters[0].Lineups[0].OriginText).IsEqualTo("from (512, 288, -160)");
-            await Assert.That(vm.Clusters[0].Lineups[1].DetailText).IsEqualTo("4 throws in 4 demos, jump-throw");
+            await Assert.That(vm.Groups.Count).IsEqualTo(2).Because("the main CT smoke spot and the two-throw spot beside it");
+            await Assert.That(top.Title).IsEqualTo("Smoke into CTSpawn");
+            await Assert.That(top.ThrowCount).IsEqualTo(15);
+            await Assert.That(top.Lineups.All(l => l.Throws.Count >= UtilityBookTabViewModel.LineupMinThrows)).IsTrue();
+            await Assert.That(vm.HiddenLine).IsEqualTo("").Because("every CTSpawn position here was thrown from twice or more");
+            await Assert.That(vm.Document.Landings.Count).IsEqualTo(2);
+            await Assert.That(vm.Document.Landings[^1].Id).IsEqualTo(top.Id).Because("the biggest draws last, on top");
+            await Assert.That(vm.Document.Throws).IsEmpty().Because("no group is focused yet");
             await Assert.That(vm.StatusLine).IsEqualTo("36 grenades from 10 demos");
         }
 
-        await vm.Clusters[0].Lineups[1].WatchCommand.ExecuteAsync(null);
-        await Assert.That(playback.Seeks.Single()).IsEqualTo((DemoPath(1), 2000 - UtilityBookTabViewModel.WatchLeadTicks));
+        vm.ClickLanding(top.Id);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.HasFocus).IsTrue();
+            await Assert.That(vm.Document.Throws.Count).IsEqualTo(top.Lineups.Count);
+            await Assert.That(vm.Document.Throws.All(t => t.Trajectory.Count >= 2)).IsTrue().Because("a straight flight stands in for a missing path");
+            await Assert.That(vm.FocusLine).StartsWith("Smoke into CTSpawn:");
+        }
+
+        GrenadeLineup jump = top.Lineups.First(l => l.JumpThrow);
+        vm.ClickThrow(UtilityBookTabViewModel.LineupKey(jump));
+        LineupDetail detail = vm.Detail!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(detail.UsedLine).IsEqualTo($"Used {jump.Throws.Count} times in {jump.DemoCount} demos");
+            await Assert.That(detail.StyleLine).Contains("jump-throw");
+            await Assert.That(detail.Instances.Count).IsEqualTo(jump.Throws.Count);
+            await Assert.That(detail.ConsoleText).IsEqualTo(UtilityBookTabViewModel.NoConsoleText)
+                .Because("the fixture rows never set release eye angles");
+            await Assert.That(detail.HasConsole).IsFalse();
+        }
+
+        IndexedGrenade opened = detail.Instances[0].Grenade;
+        await detail.Instances[0].WatchCommand.ExecuteAsync(null);
+        await Assert.That(playback.Seeks.Single()).IsEqualTo((opened.Demo.Path, opened.Row.ReleaseTick - UtilityBookTabViewModel.WatchLeadTicks));
+
+        vm.Back();
+        await Assert.That(vm.HasDetail).IsFalse().Because("Escape closes the card first");
+        vm.Back();
+        await Assert.That(vm.HasFocus).IsFalse().Because("then leaves the group");
+
     }
 
     [Test]
-    public async Task LineupCards_PrintTheCS2UtilFieldSet_AndTheConsoleLineIsTheSetposSetangFormat()
+    public async Task TheCard_CopiesTheSetposSetangLine()
     {
         DemoCacheStore cache = new(null);
-        GrenadeRow row = Row("a", GrenadeKind.Smoke, new Vector3(512, 288, -160), new Vector3(-1400, -1400, -170));
-        row.ReleaseEyePitch = -18.12f;
-        row.ReleaseEyeYaw = -15.3f;
-        row.Movement = MovementClass.Running;
-        row.AirTimeTicks = 115;
-        Indexed(cache, DemoPath(1), Mirage, "sha1", [row]);
+        List<GrenadeRow> rows = [];
+        for (int n = 1; n <= 2; n++)
+        {
+            GrenadeRow row = Row("a", GrenadeKind.Smoke, new Vector3(512, 288, -160), new Vector3(-1400, -1400, -170));
+            row.ReleaseEyePitch = -18.12f;
+            row.ReleaseEyeYaw = -15.3f;
+            row.Movement = MovementClass.Running;
+            row.AirTimeTicks = 115;
+            Indexed(cache, DemoPath(n), Mirage, $"sha{n}", [row]);
+        }
+
+        // One single throw somewhere else: hidden by default.
+        Indexed(cache, DemoPath(3), Mirage, "sha3", [Row("s", GrenadeKind.Smoke, new Vector3(-600, 900, -100), new Vector3(1500, 300, -170))]);
 
         using GrenadeIndex index = Loaded(cache);
-        using UtilityBookTabViewModel vm = new(index, isBrowser: false,
-            renderer: () => new GrenadeLineupThumbnailRenderer(_ => null), post: action => action(), decode: _ => null);
+        using UtilityBookTabViewModel vm = new(index, isBrowser: false, loadMapAsset: _ => null);
+        string? copied = null;
+        vm.Clipboard = text =>
+        {
+            copied = text;
+            return Task.CompletedTask;
+        };
         vm.SelectedMap = Mirage;
-        await vm.ThumbnailTask;
+        vm.ClickLanding(vm.Groups.Single().Id);
+        vm.ClickThrow(vm.Document.Throws.Single().Id);
+        LineupDetail detail = vm.Detail!;
+        await detail.CopyConsoleCommand.ExecuteAsync(null);
 
-        GrenadeLineupRow card = vm.Clusters.Single().Lineups.Single();
         using (Assert.Multiple())
         {
-            await Assert.That(card.Map).IsEqualTo(Mirage);
-            await Assert.That(card.TypeText).IsEqualTo("Smoke");
-            await Assert.That(card.JumpThrowText).IsEqualTo("Standard throw");
-            await Assert.That(card.MovementText).IsEqualTo("Running");
-            await Assert.That(card.AirTimeText).IsEqualTo("1.8s air time").Because("115 ticks at the default 64 tick rate");
-            await Assert.That(card.ConsoleText).IsEqualTo("setpos 512.00 288.00 -160.00; setang -18.12 -15.30 0.00")
-                .Because("a card is copy-pasteable into a console at this exact shape");
-            await Assert.That(card.LandingText).IsEqualTo("at (-1400, -1400, -170)");
-            await Assert.That(card.HasThumbnail).IsFalse().Because("no baked bundle on this host");
-            await Assert.That(card.ThumbnailNote).IsEqualTo(GrenadeLineupRow.NoRadarNote);
+            await Assert.That(detail.UsedLine).IsEqualTo("Used 2 times in 2 demos");
+            await Assert.That(detail.StyleLine).IsEqualTo("Smoke · standard throw · Running · 1.8s air time");
+            await Assert.That(copied).IsEqualTo("setpos 512.00 288.00 -160.00; setang -18.12 -15.30 0.00")
+                .Because("the console line is copy-pasteable at this exact shape");
+            await Assert.That(detail.CopyStatus).IsEqualTo("copied");
+            await Assert.That(vm.HiddenLine).IsEqualTo("1 position thrown from only once (1 throw) is hidden");
+        }
+
+        vm.ShowSingleThrows = true;
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Groups.Count).IsEqualTo(2);
+            await Assert.That(vm.HiddenLine).IsEqualTo("");
+            await Assert.That(vm.HasDetail).IsTrue().Because("the focus and the card survive a filter that keeps them");
         }
     }
 
     [Test]
-    public async Task ALineupWithNoReleaseAngles_PrintsWhatGrenadeConsoleAsksFor()
+    public async Task TwoThrowsFromOneSpot_AcrossTheOriginGridEdge_AreOneLineup_AndBothIdsResolve()
     {
-        using GrenadeIndex index = Loaded(Library());
-        using UtilityBookTabViewModel vm = new(index, isBrowser: false,
-            renderer: () => new GrenadeLineupThumbnailRenderer(_ => null), post: action => action(), decode: _ => null);
-        vm.SelectedMap = Mirage;
-        await vm.ThumbnailTask;
+        // 8 units apart but on either side of a 16-unit rounding edge (504 rounds to 32, 511.9 to 32, 519 to 32...);
+        // 519.9 and 520.1 straddle 520, the midpoint between 512 and 528.
+        DemoCacheStore cache = new(null);
+        Indexed(cache, DemoPath(1), Mirage, "sha1", [Row("a", GrenadeKind.Smoke, new Vector3(519.9f, 288, -160), new Vector3(-1400, -1400, -170))]);
+        Indexed(cache, DemoPath(2), Mirage, "sha2", [Row("a", GrenadeKind.Smoke, new Vector3(520.1f, 288, -160), new Vector3(-1395, -1402, -170))]);
+        using GrenadeIndex index = Loaded(cache);
 
-        await Assert.That(vm.Clusters[0].Lineups[0].ConsoleText).IsEqualTo(GrenadeLineupRow.NoConsoleText)
-            .Because("the fixture rows never set release eye angles");
+        GrenadeCluster cluster = index.Query(new GrenadeQuery(Mirage)).Single();
+        GrenadeLineup lineup = cluster.Lineups.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(lineup.Throws.Count).IsEqualTo(2).Because("one standing spot, split only by the grid");
+            await Assert.That(lineup.AliasIds.Count).IsEqualTo(2);
+            foreach (Guid id in lineup.AliasIds)
+            {
+                await Assert.That(index.DescribeLineup(Mirage, id)?.Id).IsEqualTo(lineup.Id).Because("a strat step that stored either id still resolves");
+            }
+        }
+    }
+
+    [Test]
+    [Category("Integration")]
+    public async Task TheUtilityMap_RendersTheGroups_ThenAFocusedGroupWithItsCard()
+    {
+        int mapInk = 0, focusInk = 0;
+        bool focused = false, carded = false;
+        await HeadlessSession.RunOnUi(() =>
+        {
+            using GrenadeIndex index = Loaded(Library());
+            using UtilityBookTabViewModel vm = new(index, new RecordingPlayback(), isBrowser: false);
+            vm.SelectedMap = Mirage;
+            vm.SelectedPlace = "CTSpawn";
+            UtilityBookTabView view = new() { DataContext = vm };
+            Window window = new() { Width = 1280, Height = 860, Content = view };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            if (window.CaptureRenderedFrame() is { } map)
+            {
+                map.Save(Path.Combine(HeadlessSession.ArtifactDir, "utility-map.png"), new PngBitmapEncoderOptions());
+                mapInk = RenderInk(map);
+            }
+
+            UtilityMapHost host = view.FindControl<UtilityMapHost>("Map")!;
+            LandingGroup top = vm.Groups[0];
+            if (host.HostPointOf(top.Landing.X, top.Landing.Y, top.Landing.Z) is { } at)
+            {
+                host.Click((float)at.X, (float)at.Y);
+            }
+
+            focused = vm.HasFocus;
+            UtilityThrow? jump = vm.Document.Throws.FirstOrDefault(t => t.JumpThrow);
+            if (jump is not null && host.HostPointOf(jump.X, jump.Y, jump.Z) is { } origin)
+            {
+                host.Click((float)origin.X, (float)origin.Y);
+            }
+
+            carded = vm.HasDetail;
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            if (window.CaptureRenderedFrame() is { } card)
+            {
+                card.Save(Path.Combine(HeadlessSession.ArtifactDir, "utility-focus.png"), new PngBitmapEncoderOptions());
+                focusInk = RenderInk(card);
+            }
+
+            window.Close();
+            return Task.CompletedTask;
+        });
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(focused).IsTrue().Because("a click on the icon focuses the group through the host's hit test");
+            await Assert.That(carded).IsTrue().Because("a click on a position opens its card");
+            await Assert.That(mapInk).IsGreaterThan(500);
+            await Assert.That(focusInk).IsGreaterThan(500);
+        }
+    }
+
+    private static int RenderInk(WriteableBitmap bmp)
+    {
+        PixelSize size = bmp.PixelSize;
+        byte[] buffer = new byte[size.Width * size.Height * 4];
+        using (ILockedFramebuffer fb = bmp.Lock())
+        {
+            System.Runtime.InteropServices.Marshal.Copy(fb.Address, buffer, 0, buffer.Length);
+        }
+
+        int count = 0;
+        for (int i = 0; i < buffer.Length; i += 4)
+        {
+            if (buffer[i] > 40 || buffer[i + 1] > 40 || buffer[i + 2] > 40)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private sealed class SwitchableZones(IZonePlaceResolver current) : IZonePlaceResolverSource
