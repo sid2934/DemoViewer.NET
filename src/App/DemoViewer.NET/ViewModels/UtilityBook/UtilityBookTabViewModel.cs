@@ -55,6 +55,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private readonly Func<string, DateTime?> _demoDate;
     private readonly GrenadeIndex _index;
     private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Action<Action> _retire;
     private readonly ISituationPlayback? _playback;
     private readonly Dictionary<string, LandingGroup> _groups = new(StringComparer.Ordinal);
     private bool _disposed;
@@ -102,13 +103,19 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader when null, a stub in a test.</param>
     /// <param name="demoDate">A demo's date for the instance list; none shown when null.</param>
+    /// <param name="retire">
+    ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
+    ///     post in the app, inline in a test.
+    /// </param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
-        Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null)
+        Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
+        Action<Action>? retire = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
         _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+        _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
         _demoDate = demoDate ?? (_ => null);
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Kinds =
@@ -188,6 +195,11 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
         _disposed = true;
         _index.Changed -= Refresh;
+        if (MapAsset is { } asset)
+        {
+            MapAsset = null;
+            _retire(asset.Dispose);
+        }
     }
 
     /// <summary>The query the pickers describe, or null with no map chosen.</summary>
@@ -324,19 +336,34 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
     partial void OnDetailChanged(LineupDetail? value) => OnPropertyChanged(nameof(HasDetail));
 
+    // Every index change lands here, so the same map must not reload its bundle. A map with no art is
+    // retried, since a bundle baked later should appear.
     private void RebindMap()
     {
-        LoadedMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
-        if (ReferenceEquals(asset, MapAsset) && _boundMap == SelectedMap)
+        bool sameMap = string.Equals(_boundMap, SelectedMap, StringComparison.Ordinal);
+        if (sameMap && (MapAsset is not null || SelectedMap is null))
         {
             return;
         }
 
+        LoadedMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
+        if (sameMap && asset is null)
+        {
+            return;
+        }
+
+        LoadedMapAsset? previous = MapAsset;
         MapAsset = asset;
         _boundMap = SelectedMap;
         OnPropertyChanged(nameof(MapAsset));
         OnPropertyChanged(nameof(HasNoMapArt));
         MapChanged?.Invoke();
+
+        // After the host rebound; the render thread may still hold a picture over the old images.
+        if (previous is not null && !ReferenceEquals(previous, asset))
+        {
+            _retire(previous.Dispose);
+        }
     }
 
     private string? _boundMap;
