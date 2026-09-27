@@ -38,6 +38,7 @@ using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Zones;
@@ -1077,6 +1078,19 @@ public class App : Application
         services.AddSingleton(sp => new StratEvidenceService(
             sp.GetRequiredService<TagStore>(),
             sp.GetRequiredService<IDemoProvenanceSource>()));
+        // Strat Mining: repeated setups and executes found from cached files, offered in the Strats
+        // section's Detected inbox and written to a book only when the user adds one.
+        services.AddSingleton(sp => new StratMiningService(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<RoundIndexStore>(),
+            sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
+            sp.GetRequiredService<GrenadeIndex>(),
+            sp.GetRequiredService<TeamIdentityService>(),
+            sp.GetRequiredService<StratStore>(),
+            sp.GetRequiredService<TagStore>(),
+            AppPaths.DemoCacheDir,
+            AppPaths.ConfigRoot,
+            action => Dispatcher.UIThread.Post(action)));
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
@@ -1090,7 +1104,9 @@ public class App : Application
                 review: sp.GetRequiredService<ReviewQueue>(),
                 indexBySha: cache.TryGetIndexBySha256,
                 selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                grenades: sp.GetRequiredService<GrenadeIndex>());
+                grenades: sp.GetRequiredService<GrenadeIndex>(),
+                mining: sp.GetRequiredService<StratMiningService>(),
+                playback: () => sp.GetService<ISituationPlayback>());
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds

@@ -25,7 +25,9 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Playback2D;
@@ -85,6 +87,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     [ObservableProperty]
     private string _listLine = "";
 
+    /// <summary>True while the list pane shows the Detected inbox instead of the book.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowBookList))]
+    private bool _isDetectedView;
+
     [ObservableProperty]
     private string _selectedMap = AllMaps;
 
@@ -113,11 +120,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     ///     editor and resolves a lineup reference to its title in Role View and LAN Print; null offers only
     ///     "none" and prints a raw id, the pre-item behaviour.
     /// </param>
+    /// <param name="mining">Strat Mining, for the Detected inbox; null says the host has no demo cache.</param>
+    /// <param name="playback">Opens a detected pattern's round in 2D Playback, resolved at click time.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
-        GrenadeIndex? grenades = null)
+        GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
@@ -150,6 +159,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document);
+
+        Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
+            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post);
+        Detected.PropertyChanged += OnDetectedChanged;
 
         Session.Changed += OnSessionChanged;
         _store.Changed += OnStoreChanged;
@@ -192,6 +205,15 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>The Step Authoring canvas over the open strat (step-authoring.md §3.10).</summary>
     public StratCanvasViewModel Canvas { get; }
+
+    /// <summary>The book's list shows when it has strats and the Detected inbox is not up.</summary>
+    public bool ShowBookList => HasStrats && !IsDetectedView;
+
+    /// <summary>Strat Mining's inbox: repeated setups and executes found in the library.</summary>
+    public DetectedStratsViewModel Detected { get; }
+
+    /// <summary>The list toggle's second label, with how many new patterns the filters show.</summary>
+    public string DetectedHeader => Detected.NewCount > 0 ? $"Detected ({Detected.NewCount})" : "Detected";
 
     /// <summary>The Strat Record Panel over the open strat (strat-model.md §3.6).</summary>
     public StratRecordPanelViewModel RecordPanel { get; }
@@ -334,6 +356,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         {
             _teams.Changed -= RefreshOwners;
         }
+
+        Detected.PropertyChanged -= OnDetectedChanged;
+        Detected.Dispose();
 
         if (_features is not null)
         {
@@ -583,6 +608,36 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     // ── Selection ────────────────────────────────────────────────────────────────────────────────
 
+    partial void OnIsDetectedViewChanged(bool value)
+    {
+        if (value)
+        {
+            Detected.EnsureMined();
+        }
+    }
+
+    [RelayCommand]
+    private void ShowBook() => IsDetectedView = false;
+
+    [RelayCommand]
+    private void ShowDetected() => IsDetectedView = true;
+
+    private void OnDetectedChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DetectedStratsViewModel.NewCount))
+        {
+            OnPropertyChanged(nameof(DetectedHeader));
+        }
+    }
+
+    // A pattern just added to the book: back to the book with it open.
+    private void ShowStratFromDetected(Guid id)
+    {
+        IsDetectedView = false;
+        RefreshList();
+        SelectedStrat = Strats.FirstOrDefault(r => r.Id == id) ?? SelectedStrat;
+    }
+
     partial void OnSelectedOwnerChanged(StratOwnerOption? value)
     {
         if (_refreshing)
@@ -741,6 +796,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         RefreshMaps(_context?.MapName);
+        Detected.SetFilter(SelectedMap == AllMaps ? null : SelectedMap, SelectedSide == AllSides ? null : SelectedSide, SelectedOwner?.Owner);
         Guid? keep = SelectedStrat?.Id ?? Session.Document?.Id;
         IReadOnlyList<StratIndexEntry> rows = SelectedOwner is { } owner
             ? _store.Query(owner.Owner, SelectedMap == AllMaps ? null : SelectedMap, SelectedSide == AllSides ? null : SelectedSide, null)
@@ -766,6 +822,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             ? SelectedOwner is null ? "" : "no strats in this book yet"
             : string.Create(CultureInfo.InvariantCulture, $"{rows.Count} strat{(rows.Count == 1 ? "" : "s")}");
         OnPropertyChanged(nameof(HasStrats));
+        OnPropertyChanged(nameof(ShowBookList));
 
         // The open strat's branch targets are the book's strats on its map, which a commit elsewhere changes.
         if (configureEditor && Session.Document is not null)
