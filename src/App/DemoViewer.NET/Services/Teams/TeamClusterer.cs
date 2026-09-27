@@ -148,7 +148,8 @@ public sealed class TeamClusterer
                 continue;
             }
 
-            if (state.Keys.Count > 0)
+            // A squad's anchor is the squad; an extended core of its fills would read as a second anchor.
+            if (state.Keys.Count > 0 && state.Squad is null)
             {
                 state.Roster!.ExtendedCore = [.. TopMembers(state, ExtendedCoreCap)];
             }

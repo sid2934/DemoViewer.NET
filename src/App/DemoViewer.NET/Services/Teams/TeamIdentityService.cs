@@ -694,6 +694,7 @@ public sealed class TeamIdentityService : IDisposable
 
             team.Name = name.Trim();
             team.NameSource = TeamNameSource.User;
+            Suggestions = TeamSuggestions.Compute(_teams, _index);
             SaveTeams();
         }
 
@@ -711,6 +712,7 @@ public sealed class TeamIdentityService : IDisposable
             }
 
             ResolveOurSides();
+            Suggestions = TeamSuggestions.Compute(_teams, _index);
             SaveTeams();
             SaveIndex();
         }
@@ -730,6 +732,7 @@ public sealed class TeamIdentityService : IDisposable
             ];
             MeSuggestion = null;
             ResolveOurSides();
+            Suggestions = TeamSuggestions.Compute(_teams, _index);
             SaveTeams();
             SaveIndex();
         }
@@ -990,6 +993,7 @@ public sealed class TeamIdentityService : IDisposable
             }
 
             team.Hidden = hidden;
+            Suggestions = TeamSuggestions.Compute(_teams, _index);
             SaveTeams();
         }
 
