@@ -764,6 +764,78 @@ public class TeamIdentityTests
         }
     }
 
+    private sealed class CountingFacts(RoundFactsRows rows) : IRoundFactsSource
+    {
+        private int _reads;
+
+        public int Reads => Volatile.Read(ref _reads);
+
+        public int Schema => 1;
+
+        public event Action<string>? Updated
+        {
+            add { }
+            remove { }
+        }
+
+        public RoundFactsRows? TryGet(string demoPath)
+        {
+            Interlocked.Increment(ref _reads);
+            return rows;
+        }
+
+        public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
+
+        public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
+
+        public IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null) => [];
+    }
+
+    /// <summary>A Dossier build asks per round; the rows and slots are read once per record write, not per call.</summary>
+    [Test]
+    public async Task SideAtRound_ReadsTheRowsOncePerRecordWrite()
+    {
+        List<RoundFacts> rounds = [];
+        for (int n = 1; n <= 24; n++)
+        {
+            rounds.Add(n <= 12
+                ? RoundIndexTestData.Round(n, n * 1000, n * 1000 + 500, ctSlots: [0, 1, 2, 3, 4], tSlots: [5, 6, 7, 8, 9])
+                : RoundIndexTestData.Round(n, n * 1000, n * 1000 + 500, ctSlots: [5, 6, 7, 8, 9], tSlots: [0, 1, 2, 3, 4]));
+        }
+
+        CountingFacts facts = new(RoundIndexTestData.Facts([.. rounds]));
+        (DemoCacheStore cache, TeamIdentityService teams) = Fresh(facts: facts);
+        await Seed(cache, teams,
+            Record("/d/a1.dem", 1, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15)),
+            Record("/d/a2.dem", 2, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15)));
+        Guid team = teams.TeamOnSide("/d/a2.dem", 2)!.Id;
+
+        int start = facts.Reads;
+        List<int?> sides = [.. Enumerable.Range(1, 24).Select(n => teams.SideAtRound("/d/a2.dem", team, n))];
+        int afterBuild = facts.Reads - start;
+
+        cache.UpdateExisting("/d/a2.dem", r => r.Server = "local");
+        await teams.Idle;
+        int? again = teams.SideAtRound("/d/a2.dem", team, 1);
+        int afterWrite = facts.Reads - start;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(sides.Take(12).All(s => s == 3)).IsTrue();
+            await Assert.That(sides.Skip(12).All(s => s == 2)).IsTrue();
+            await Assert.That(afterBuild).IsEqualTo(1).Because("24 rounds of one demo share one read");
+            await Assert.That(again).IsEqualTo(3);
+            await Assert.That(afterWrite).IsEqualTo(2).Because("a record write replaces the index entry the join is keyed on");
+        }
+
+        // Concurrent misses on a fresh entry share one read.
+        cache.UpdateExisting("/d/a2.dem", r => r.Server = "lan");
+        await teams.Idle;
+        int beforeRace = facts.Reads;
+        await Task.WhenAll(Enumerable.Range(1, 16).Select(n => Task.Run(() => teams.SideAtRound("/d/a2.dem", team, n))));
+        await Assert.That(facts.Reads - beforeRace).IsEqualTo(1);
+    }
+
     [Test]
     public async Task Removal_DropsTheDemo_AndAnAutoTeamWithNoSidesGoesWithIt()
     {

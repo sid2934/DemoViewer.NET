@@ -232,6 +232,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
         _disposed = true;
         Interlocked.Increment(ref _generation);
+        RetireHeatmaps();
         Openings.Dispose();
         PostPlant.Dispose();
         Situational.Dispose();
@@ -499,7 +500,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     private void BuildHeatmaps()
     {
         int generation = Interlocked.Increment(ref _generation);
-        Heatmaps.Clear();
+        RetireHeatmaps();
         ReviewLine = "";
         OnPropertyChanged(nameof(HasHeatmaps));
         if (_heatmaps is null || SelectedTeam is not { } row)
@@ -573,6 +574,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
                     {
                         heatmap.ApplyImage(png, bitmap);
                     }
+                    else
+                    {
+                        bitmap?.Dispose();
+                    }
                 });
             }
         }
@@ -582,6 +587,25 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             if (generation == Volatile.Read(ref _generation))
             {
                 IsHeatmapBuilding = false;
+            }
+        });
+    }
+
+    // Empties the list and disposes its pictures one post later, once the view has let go of them.
+    private void RetireHeatmaps()
+    {
+        if (Heatmaps.Count == 0)
+        {
+            return;
+        }
+
+        SetupHeatmapViewModel[] retired = [.. Heatmaps];
+        Heatmaps.Clear();
+        _post(() =>
+        {
+            foreach (SetupHeatmapViewModel heatmap in retired)
+            {
+                heatmap.ReleaseImage();
             }
         });
     }
@@ -812,6 +836,19 @@ public sealed partial class SetupHeatmapViewModel : ObservableObject
         ImageNote = png is null ? NoPositionsNote : "";
         OnPropertyChanged(nameof(HasImage));
         OnPropertyChanged(nameof(HasImageNote));
+    }
+
+    /// <summary>Drops the picture and disposes it; the note stays. For a heatmap no longer shown.</summary>
+    public void ReleaseImage()
+    {
+        if (Image is not { } image)
+        {
+            return;
+        }
+
+        Image = null;
+        OnPropertyChanged(nameof(HasImage));
+        image.Dispose();
     }
 
     private static string PlacesLabel(string kind, IEnumerable<SetupPosition> places)
