@@ -209,6 +209,8 @@ public class StratMiningServiceTests
         StratRecord record = StratEvidence.Build(doc.Id, doc.Revision, doc.Side,
             [.. Enumerable.Range(1, 3).Select(n => library.Tags.TryLoad(Sha(n))!)]);
         await Assert.That(record.Total.Run).IsEqualTo(3).Because("each member round is a run of the new strat");
+        await Assert.That(new StratEvidenceService(library.Tags).Compute(doc).Total.Run).IsEqualTo(3)
+            .Because("the record panel finds the runs through the tag index");
     }
 
     [Test]
@@ -244,6 +246,32 @@ public class StratMiningServiceTests
             await Assert.That(thrown.Strokes).HasCount().EqualTo(1).Because("the arrow from the release point");
             await Assert.That(thrown.AtSeconds).IsEqualTo(108);
         }
+    }
+
+    private static MinedPattern Pattern(string key, params int[] rounds)
+    {
+        List<MinedMember> members = [.. rounds.Select(r => new MinedMember($"/d/m{r}.dem", Sha(r % 20), r, null, true, BuyType.Full, 0, 0, Rate, 0))];
+        return new MinedPattern
+        {
+            Key = key,
+            Kind = PatternKind.Setup,
+            Map = Map,
+            Side = 2,
+            Members = members,
+            Medoid = new RoundSignature { DemoPath = "/d/m1.dem", Round = 1, Map = Map, Side = 2, Kind = PatternKind.Setup, Anchors = [] }
+        };
+    }
+
+    [Test]
+    public async Task ADismissedPattern_WhoseKeyMoved_HandsItsStateToThePatternHoldingItsRounds()
+    {
+        List<MinedPattern> before = [Pattern("old", 1, 2, 3), Pattern("kept", 7, 8), Pattern("quiet", 11, 12)];
+        List<MinedPattern> after = [Pattern("new", 2, 3, 4), Pattern("kept", 7, 8, 9), Pattern("other", 1, 11)];
+
+        Dictionary<string, string> moves = StratMiningService.KeyMoves(before, after, k => k is "old" or "kept");
+
+        await Assert.That(moves).IsEquivalentTo(new Dictionary<string, string> { ["old"] = "new" })
+            .Because("two of old's three rounds are in new; kept kept its key; quiet had no state to carry");
     }
 
     [Test]
