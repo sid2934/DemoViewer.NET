@@ -8,6 +8,8 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Strats.Mining;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
 
@@ -66,9 +68,66 @@ public class StratMiningCacheTests
 
         public Guid Lineup { get; set; } = Guid.NewGuid();
 
+        public TeamIdentityService? Teams { get; set; }
+
         public RoundSignatureBuilder Builder(Library library, SignatureCache? cache) =>
             new(library.Cache, library.Positions, _ => Fingerprint,
-                map => [Grenade(1, Lineup), Grenade(2, Lineup)], null, cache);
+                map => [Grenade(1, Lineup), Grenade(2, Lineup)], Teams, cache);
+    }
+
+    private sealed class RecordFacts(DemoCacheStore cache) : IRoundFactsSource
+    {
+        public int Schema => DemoCacheRecord.RoundFactsSchema;
+
+        public event Action<string>? Updated
+        {
+            add { }
+            remove { }
+        }
+
+        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts;
+
+        public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
+
+        public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
+
+        public IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null) => [];
+    }
+
+    [Test]
+    public async Task ATeamChange_ReachesTheCachedSignatures()
+    {
+        using Library library = Library.Create();
+        // One T five across every demo, so Team Identity forms a team on the T side.
+        for (int n = 1; n <= 4; n++)
+        {
+            DemoCacheRecord record = library.Cache.TryLoadRecord($"/d/m{n}.dem")!;
+            foreach (CachedPlayerInfo player in record.Players.Where(p => p.Slot < 5))
+            {
+                player.SteamId64 = $"76561190000000{player.Slot:D3}";
+            }
+
+            library.Cache.Upsert(record);
+        }
+
+        TeamIdentityService teams = new(null, library.Cache, new RecordFacts(library.Cache), run: a =>
+        {
+            a();
+            return Task.CompletedTask;
+        });
+        await teams.StartAsync();
+        await teams.Idle;
+        Rig rig = new() { Teams = teams };
+        SignatureCache cache = new(null);
+        await Assert.That(await BuildsAsUncached(rig, library, cache)).IsEqualTo((0, 4));
+        await Assert.That(rig.Builder(library, cache).Build().Any(s => s.TeamId is not null)).IsTrue().Because("the rig has a team");
+
+        teams.Override("/d/m2.dem", 2, null);
+        await Assert.That(await BuildsAsUncached(rig, library, cache)).IsEqualTo((3, 1)).Because("m2's T side left the team");
+
+        teams.ClearOverride("/d/m2.dem", 2);
+        await Assert.That(await BuildsAsUncached(rig, library, cache)).IsEqualTo((3, 1)).Because("and came back");
+        teams.Dispose();
     }
 
     private static async Task<(int Reused, int Built)> BuildsAsUncached(Rig rig, Library library, SignatureCache cache)
