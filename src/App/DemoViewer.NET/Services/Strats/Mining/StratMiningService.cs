@@ -180,6 +180,7 @@ public sealed class StratMiningService : IDisposable
             {
                 MinedUtc = DateTime.UtcNow;
                 LastRead = (demos, signatures.Count);
+                CarryState([.. Patterns.Select(p => p.Pattern)], patterns);
                 Publish(patterns);
             });
 
@@ -324,6 +325,75 @@ public sealed class StratMiningService : IDisposable
         return (Math.Max(member.FreezeEndTick, take - 10 * rate), Math.Min(Math.Max(stop, take), end));
     }
 
+    /// <summary>
+    ///     Old key to new key for each pattern that has user state and whose key the re-mine did not keep: the new
+    ///     pattern holding at least half of its rounds, when one does and has no state of its own. A new demo can
+    ///     move a pattern's medoid or its common throws, and with them its key.
+    /// </summary>
+    /// <param name="previous">The patterns before the re-mine.</param>
+    /// <param name="next">The patterns after it.</param>
+    /// <param name="hasState">Whether a key is dismissed or promoted.</param>
+    public static Dictionary<string, string> KeyMoves(IReadOnlyList<MinedPattern> previous, IReadOnlyList<MinedPattern> next,
+        Func<string, bool> hasState)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(hasState);
+        HashSet<string> kept = [.. next.Select(p => p.Key)];
+        Dictionary<string, string> moves = new(StringComparer.Ordinal);
+        foreach (MinedPattern old in previous.Where(p => hasState(p.Key) && !kept.Contains(p.Key)))
+        {
+            HashSet<string> rounds = [.. old.Members.Select(RoundKey)];
+            MinedPattern? heir = next
+                .Where(p => !hasState(p.Key) && !moves.ContainsValue(p.Key))
+                .Select(p => (Pattern: p, Shared: p.Members.Count(m => rounds.Contains(RoundKey(m)))))
+                .Where(x => x.Shared * 2 >= rounds.Count)
+                .OrderByDescending(x => x.Shared)
+                .ThenBy(x => x.Pattern.Key, StringComparer.Ordinal)
+                .Select(x => x.Pattern)
+                .FirstOrDefault();
+            if (heir is not null)
+            {
+                moves[old.Key] = heir.Key;
+            }
+        }
+
+        return moves;
+
+        static string RoundKey(MinedMember m) => $"{m.Sha256 ?? m.DemoPath}#{m.Round}";
+    }
+
+    private void CarryState(IReadOnlyList<MinedPattern> previous, IReadOnlyList<MinedPattern> next)
+    {
+        Dictionary<string, string> moves;
+        lock (_gate)
+        {
+            MiningState state = _state;
+            moves = KeyMoves(previous, next, k => state.Dismissed.Contains(k) || state.Promoted.ContainsKey(k));
+        }
+
+        if (moves.Count == 0)
+        {
+            return;
+        }
+
+        Mutate(state =>
+        {
+            foreach ((string from, string to) in moves)
+            {
+                if (state.Dismissed.Remove(from))
+                {
+                    state.Dismissed.Add(to);
+                }
+
+                if (state.Promoted.Remove(from, out Guid id))
+                {
+                    state.Promoted[to] = id;
+                }
+            }
+        }, publish: false);
+    }
+
     private void OnSourceChanged(string? _) => OnSourceChanged();
 
     private void OnSourceChanged()
@@ -356,7 +426,7 @@ public sealed class StratMiningService : IDisposable
         Changed?.Invoke();
     }
 
-    private void Mutate(Action<MiningState> change)
+    private void Mutate(Action<MiningState> change, bool publish = true)
     {
         lock (_gate)
         {
@@ -367,7 +437,10 @@ public sealed class StratMiningService : IDisposable
             }
         }
 
-        Publish([.. Patterns.Select(p => p.Pattern)]);
+        if (publish)
+        {
+            Publish([.. Patterns.Select(p => p.Pattern)]);
+        }
     }
 
     private void Save(IReadOnlyList<MinedPattern> patterns)
