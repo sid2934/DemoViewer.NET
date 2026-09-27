@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
@@ -647,8 +648,15 @@ public sealed class GrenadeIndex : IDisposable
 
     private static (string? Place, string? Source) Resolve(IZonePlaceResolver? zones, WorldPoint landing) =>
         zones?.Resolve(landing.ToVector()) is { Length: > 0 } place
-            ? (place, $"zones:{zones.ZonesVersion}")
+            ? (place, PlaceSourceFor(zones.ZonesVersion))
             : (null, null);
+
+    // One string per zones version, shared by every grenade resolved under it. A version changes only on
+    // an overlay edit or a re-bake, so the map stays a handful of entries.
+    private static readonly ConcurrentDictionary<string, string> _placeSources = new(StringComparer.Ordinal);
+
+    private static string PlaceSourceFor(string zonesVersion) =>
+        _placeSources.GetOrAdd(zonesVersion, static version => $"zones:{version}");
 
     private static WorldPoint Mean(IEnumerable<WorldPoint> points)
     {
