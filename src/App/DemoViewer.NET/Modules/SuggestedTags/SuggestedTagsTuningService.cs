@@ -31,7 +31,11 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 /// </summary>
 public sealed class SuggestedTagsTuningService
 {
+    /// <summary>How many demos' detection inputs the preview keeps, least recently used out first.</summary>
+    internal const int CacheCapacity = 8;
+
     private readonly Dictionary<string, CachedDemo> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LinkedList<string> _cacheOrder = [];
     private readonly DemoCacheStore _demoCache;
     private readonly Lock _gate = new();
     private readonly Func<string, ParsedDemo> _parseFile;
@@ -165,6 +169,7 @@ public sealed class SuggestedTagsTuningService
         lock (_gate)
         {
             _cache.Clear();
+            _cacheOrder.Clear();
         }
     }
 
@@ -174,6 +179,7 @@ public sealed class SuggestedTagsTuningService
         {
             if (_cache.TryGetValue(path, out CachedDemo? cached))
             {
+                Touch(path);
                 return cached;
             }
         }
@@ -210,9 +216,42 @@ public sealed class SuggestedTagsTuningService
         lock (_gate)
         {
             _cache[path] = built;
+            Touch(path);
+            while (_cache.Count > CacheCapacity && _cacheOrder.Last is { } oldest)
+            {
+                _cache.Remove(oldest.Value);
+                _cacheOrder.RemoveLast();
+            }
         }
 
         return built;
+    }
+
+    /// <summary>The cached demos, most recently used first. For a test.</summary>
+    internal IReadOnlyList<string> CachedPaths
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _cacheOrder];
+            }
+        }
+    }
+
+    // Under _gate.
+    private void Touch(string path)
+    {
+        for (LinkedListNode<string>? node = _cacheOrder.First; node is not null; node = node.Next)
+        {
+            if (string.Equals(node.Value, path, StringComparison.OrdinalIgnoreCase))
+            {
+                _cacheOrder.Remove(node);
+                break;
+            }
+        }
+
+        _cacheOrder.AddFirst(path);
     }
 
     private (IReadOnlyDictionary<string, IReadOnlyList<HandTagWindow>>, int DemosWithHandTags) CollectHandTags(

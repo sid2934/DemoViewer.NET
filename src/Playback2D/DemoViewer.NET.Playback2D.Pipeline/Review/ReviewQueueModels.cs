@@ -104,6 +104,9 @@ public sealed record ReviewEntry
     /// <summary>The staged highlight's identity on a clip the Reels tray owns; null on every other clip.</summary>
     public ReviewHighlightRef? Highlight { get; init; }
 
+    /// <summary>The Grenade Index lineup a Lineup Clip belongs to; null on every other clip and on clips queued before it existed.</summary>
+    public Guid? LineupId { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
 

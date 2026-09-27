@@ -392,6 +392,13 @@ public sealed class GrenadesSettings
     ///     setpos line, queued in the Review Queue and rendered in the background. Read when the index changes.
     /// </summary>
     public bool RenderLineupClips { get; set; } = true;
+
+    /// <summary>
+    ///     The most the lineup-clips directory may hold, in MB, default 1024. Past it the least recently
+    ///     used pairs are deleted after a render and not rendered again unless asked for. Zero or less caps
+    ///     nothing.
+    /// </summary>
+    public int LineupClipsMaxMegabytes { get; set; } = 1024;
 }
 
 /// <summary>Demo-library settings.</summary>
