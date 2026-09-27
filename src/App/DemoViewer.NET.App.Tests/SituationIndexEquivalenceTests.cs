@@ -184,6 +184,8 @@ public class SituationIndexEquivalenceTests
         using RoundIndexStore freshSidecars = new(null, freshCache);
         using SituationIndex fresh = Build(freshCache, freshSidecars, library.Where((_, n) => !removed.Contains(n)));
         string remaining = Battery(fresh);
+        List<int> tokensAfterRemoval = [.. Maps.Select(m => index.TokenTable(m).Tokens)];
+        List<int> tokensFresh = [.. Maps.Select(m => fresh.TokenTable(m).Tokens)];
 
         // Load again: every demo leaves and comes back, the removed ones included, so freed token slots are reused.
         foreach (int n in removed)
@@ -199,11 +201,36 @@ public class SituationIndexEquivalenceTests
         {
             await Assert.That(afterRemoval).IsEqualTo(remaining).Because("a removal subtracts exactly what the demo added");
             await Assert.That(reloaded).IsEqualTo(full).Because("a re-added demo answers as it did on the first load");
+            await Assert.That(tokensAfterRemoval).IsEquivalentTo(tokensFresh).Because("a token no remaining demo uses leaves the table");
             if (FullDigest.Length > 0)
             {
                 await Assert.That(Digest(full)).IsEqualTo(FullDigest);
                 await Assert.That(Digest(afterRemoval)).IsEqualTo(RemovedDigest);
             }
+        }
+    }
+
+    [Test]
+    public async Task RemovingEveryDemoOfAMap_EmptiesItsTokenTable()
+    {
+        List<(string Path, RoundIndexDocument Document, long Computed, long Modified)> library = Library(30, 3);
+        DemoCacheStore cache = new(null);
+        using RoundIndexStore sidecars = new(null, cache);
+        using SituationIndex index = Build(cache, sidecars, library);
+        (int tokens, int slots) before = index.TokenTable("de_nuke");
+        foreach ((string path, RoundIndexDocument document, _, _) in library)
+        {
+            if (document.Map == "de_nuke")
+            {
+                cache.Remove(path);
+            }
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(before.tokens).IsGreaterThan(0);
+            await Assert.That(index.TokenTable("de_nuke")).IsEqualTo((0, 0));
+            await Assert.That(index.TokenTable("de_mirage").Tokens).IsGreaterThan(0).Because("another map's table is untouched");
         }
     }
 
