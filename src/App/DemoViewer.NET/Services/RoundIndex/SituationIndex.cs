@@ -416,7 +416,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
 
                 DecodedRound round = demo.Rounds[roundIndex];
                 List<(int From, int To)> matched = [];
-                foreach (DecodedRun run in round.Runs)
+                foreach (DecodedRun run in demo.Runs.AsSpan(round.RunStart, round.RunCount))
                 {
                     if ((ctMatch is null || ctMatch[run.CtId]) && (tMatch is null || tMatch[run.TId]))
                     {
@@ -477,12 +477,12 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 // window narrows to those steps so the card seeks to one of them.
                 if (filter.HasTickAnchored)
                 {
-                    int tickRate = candidate.Demo.Document.Clock.TickRate;
+                    int tickRate = candidate.Demo.TickRate;
                     foreach ((int from, int to) in candidate.Matched)
                     {
                         for (int step = from; step <= to; step++)
                         {
-                            int tick = candidate.Round.FreezeEndTick + step * candidate.Round.CadenceTicks;
+                            int tick = candidate.Round.FreezeEndTick + step * candidate.Demo.CadenceTicks;
                             if (RoundFactsSource.MatchesAt(facts, filter, tick, tickRate))
                             {
                                 first = Math.Min(first, step);
@@ -517,12 +517,21 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 candidate.Demo.Map.Name,
                 candidate.Round.Number,
                 candidate.Round.FreezeEndTick,
-                candidate.Round.FreezeEndTick + first * candidate.Round.CadenceTicks,
-                candidate.Round.FreezeEndTick + last * candidate.Round.CadenceTicks,
+                candidate.Round.FreezeEndTick + first * candidate.Demo.CadenceTicks,
+                candidate.Round.FreezeEndTick + last * candidate.Demo.CadenceTicks,
                 steps));
         }
 
         return count;
+    }
+
+    /// <summary>Live tokens and token slots of a map's token table, for the shrink tests.</summary>
+    internal (int Tokens, int Slots) TokenTable(string map)
+    {
+        lock (_gate)
+        {
+            return _maps.TryGetValue(map, out MapIndex? index) ? (index.TokenCount, index.TokenSlots) : (0, 0);
+        }
     }
 
     private IPlaceAdjacency? AdjacencyLocked(string map)
@@ -548,20 +557,21 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
         public Dictionary<int, (int Count, double SumX, double SumY)> Buckets { get; } = [];
     }
 
-    private sealed record DecodedRun(int FromStep, int ToStep, int CtId, int TId);
+    private readonly record struct DecodedRun(int FromStep, int ToStep, int CtId, int TId);
 
-    private sealed class DecodedRound(int number, int freezeEndTick, int cadenceTicks, List<DecodedRun> runs)
-    {
-        public int Number { get; } = number;
+    // A round's runs are Runs[RunStart .. RunStart + RunCount) on its demo.
+    private readonly record struct DecodedRound(int Number, int FreezeEndTick, int RunStart, int RunCount);
 
-        public int FreezeEndTick { get; } = freezeEndTick;
+    private readonly record struct Posting(int DemoId, int RoundIndex);
 
-        public int CadenceTicks { get; } = cadenceTicks;
+    private readonly record struct BucketSum(int ZBucket, int Count, double SumX, double SumY);
 
-        public List<DecodedRun> Runs { get; } = runs;
-    }
+    // What a demo folded into the place and transition summaries; removal subtracts exactly this.
+    private readonly record struct PlaceContribution(string Place, int Count, BucketSum[] Buckets);
 
-    private sealed class LoadedDemo(MapIndex map, int id, DemoCacheIndexEntry entry, RoundIndexDocument document)
+    private readonly record struct TransitionContribution(string A, string B, int Count);
+
+    private sealed class LoadedDemo(MapIndex map, int id, DemoCacheIndexEntry entry, int tickRate, int cadenceTicks)
     {
         public MapIndex Map { get; } = map;
 
@@ -577,14 +587,20 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
 
         public long ComputedAtTicks { get; } = entry.RoundIndexComputedAtTicks;
 
-        public string Fingerprint { get; } = document.Fingerprint;
+        public int TickRate { get; } = tickRate;
 
-        public RoundIndexDocument Document { get; } = document;
+        public int CadenceTicks { get; } = cadenceTicks;
 
-        public List<DecodedRound> Rounds { get; } = [];
+        public DecodedRound[] Rounds { get; set; } = [];
 
-        /// <summary>The token ids this demo posted under, per side, so removal filters those lists only.</summary>
-        public HashSet<int>[] Contributed { get; } = [[], []];
+        public DecodedRun[] Runs { get; set; } = [];
+
+        /// <summary>The distinct token ids this demo posted under, per side, so removal filters those lists only.</summary>
+        public int[][] Contributed { get; set; } = [[], []];
+
+        public PlaceContribution[] Places { get; set; } = [];
+
+        public TransitionContribution[] Transitions { get; set; } = [];
     }
 
     private sealed class TokenInfo(string text, int[] placeIds, int[] counts)
@@ -596,25 +612,34 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
         public int[] Counts { get; } = counts;
 
         public int Alive { get; } = counts.Sum();
-    }
 
-    private sealed record Posting(int DemoId, int RoundIndex);
+        /// <summary>(demo, side) pairs posting under this token; the slot is freed at zero.</summary>
+        public int References { get; set; }
+    }
 
     private sealed class MapIndex(string name)
     {
         private readonly List<LoadedDemo?> _demos = [];
         private readonly Stack<int> _freeIds = new();
+        private readonly Stack<int> _freeTokenIds = new();
+        private readonly Dictionary<string, string> _names = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _placeIds = new(StringComparer.Ordinal);
 
         // postings[side][tokenId]: side 0 = CT, 1 = T.
         private readonly List<List<Posting>>[] _postings = [[], []];
         private readonly Dictionary<string, int> _tokenIds = new(StringComparer.Ordinal);
-        private readonly List<TokenInfo> _tokens = [];
+
+        // A freed slot stays null until a new token takes it; it never matches and has no postings.
+        private readonly List<TokenInfo?> _tokens = [];
         private EmpiricalPlaceAdjacency? _empirical;
 
         public string Name { get; } = name;
 
         public int DemoCount { get; private set; }
+
+        public int TokenCount => _tokenIds.Count;
+
+        public int TokenSlots => _tokens.Count;
 
         public Dictionary<string, PlaceAggregate> Places { get; } = new(StringComparer.Ordinal);
 
@@ -635,28 +660,45 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 _demos.Add(null);
             }
 
-            LoadedDemo demo = new(this, id, entry, document);
+            LoadedDemo demo = new(this, id, entry, document.Clock.TickRate, document.CadenceTicks);
             _demos[id] = demo;
             DemoCount++;
 
+            HashSet<int>[] contributed = [[], []];
+            DecodedRound[] rounds = new DecodedRound[document.Rounds.Count];
+            DecodedRun[] runs = new DecodedRun[document.Rounds.Sum(r => r.Runs.Count)];
+            int next = 0;
             for (int r = 0; r < document.Rounds.Count; r++)
             {
                 RoundIndexRound round = document.Rounds[r];
-                List<DecodedRun> runs = [];
+                int start = next;
                 foreach (RoundIndexRun run in round.Runs)
                 {
                     int ctId = TokenId(run.Ct);
                     int tId = TokenId(run.T);
-                    runs.Add(new DecodedRun(run.FromStep, run.ToStep, ctId, tId));
-                    Post(0, ctId, id, r, demo);
-                    Post(1, tId, id, r, demo);
+                    runs[next++] = new DecodedRun(run.FromStep, run.ToStep, ctId, tId);
+                    Post(0, ctId, id, r, contributed[0]);
+                    Post(1, tId, id, r, contributed[1]);
                 }
 
-                demo.Rounds.Add(new DecodedRound(round.Number, round.FreezeEndTick, document.CadenceTicks, runs));
+                rounds[r] = new DecodedRound(round.Number, round.FreezeEndTick, start, next - start);
             }
 
-            foreach ((string place, PlaceSampleSummary summary) in document.Places)
+            demo.Rounds = rounds;
+            demo.Runs = runs;
+            demo.Contributed = [[.. contributed[0]], [.. contributed[1]]];
+            foreach (int[] side in demo.Contributed)
             {
+                foreach (int tokenId in side)
+                {
+                    _tokens[tokenId]!.References++;
+                }
+            }
+
+            List<PlaceContribution> places = new(document.Places.Count);
+            foreach ((string text, PlaceSampleSummary summary) in document.Places)
+            {
+                string place = Intern(text);
                 if (!Places.TryGetValue(place, out PlaceAggregate? aggregate))
                 {
                     aggregate = new PlaceAggregate();
@@ -664,19 +706,29 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 }
 
                 aggregate.Count += summary.Count;
-                foreach (PlaceZBucketSum bucket in summary.Buckets)
+                BucketSum[] buckets = new BucketSum[summary.Buckets.Count];
+                for (int b = 0; b < buckets.Length; b++)
                 {
+                    PlaceZBucketSum bucket = summary.Buckets[b];
+                    buckets[b] = new BucketSum(bucket.ZBucket, bucket.Count, bucket.SumX, bucket.SumY);
                     (int count, double sumX, double sumY) = aggregate.Buckets.GetValueOrDefault(bucket.ZBucket);
                     aggregate.Buckets[bucket.ZBucket] = (count + bucket.Count, sumX + bucket.SumX, sumY + bucket.SumY);
                 }
+
+                places.Add(new PlaceContribution(place, summary.Count, buckets));
             }
 
-            foreach (PlaceTransition transition in document.Transitions)
+            TransitionContribution[] transitions = new TransitionContribution[document.Transitions.Count];
+            for (int i = 0; i < transitions.Length; i++)
             {
-                (string, string) key = (transition.A, transition.B);
+                PlaceTransition transition = document.Transitions[i];
+                (string, string) key = (Intern(transition.A), Intern(transition.B));
                 Transitions[key] = Transitions.GetValueOrDefault(key) + transition.Count;
+                transitions[i] = new TransitionContribution(key.Item1, key.Item2, transition.Count);
             }
 
+            demo.Places = [.. places];
+            demo.Transitions = transitions;
             _empirical = null;
             return demo;
         }
@@ -691,15 +743,26 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 }
             }
 
-            foreach ((string place, PlaceSampleSummary summary) in demo.Document.Places)
+            for (int side = 0; side < 2; side++)
             {
-                if (!Places.TryGetValue(place, out PlaceAggregate? aggregate))
+                foreach (int tokenId in demo.Contributed[side])
+                {
+                    if (_tokens[tokenId] is { } token && --token.References == 0)
+                    {
+                        FreeToken(tokenId);
+                    }
+                }
+            }
+
+            foreach (PlaceContribution contribution in demo.Places)
+            {
+                if (!Places.TryGetValue(contribution.Place, out PlaceAggregate? aggregate))
                 {
                     continue;
                 }
 
-                aggregate.Count -= summary.Count;
-                foreach (PlaceZBucketSum bucket in summary.Buckets)
+                aggregate.Count -= contribution.Count;
+                foreach (BucketSum bucket in contribution.Buckets)
                 {
                     (int count, double sumX, double sumY) = aggregate.Buckets.GetValueOrDefault(bucket.ZBucket);
                     count -= bucket.Count;
@@ -715,11 +778,11 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
 
                 if (aggregate.Count <= 0)
                 {
-                    Places.Remove(place);
+                    Places.Remove(contribution.Place);
                 }
             }
 
-            foreach (PlaceTransition transition in demo.Document.Transitions)
+            foreach (TransitionContribution transition in demo.Transitions)
             {
                 (string, string) key = (transition.A, transition.B);
                 int remaining = Transitions.GetValueOrDefault(key) - transition.Count;
@@ -795,7 +858,11 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
 
             for (int t = 0; t < _tokens.Count; t++)
             {
-                TokenInfo token = _tokens[t];
+                if (_tokens[t] is not { } token)
+                {
+                    continue;
+                }
+
                 match[t] = tolerance switch
                 {
                     SituationTolerance.AnyPlace => token.Alive >= total,
@@ -819,7 +886,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                         continue;
                     }
 
-                    for (int r = 0; r < demo.Rounds.Count; r++)
+                    for (int r = 0; r < demo.Rounds.Length; r++)
                     {
                         yield return (demo, r);
                     }
@@ -916,7 +983,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
             return sum;
         }
 
-        private void Post(int side, int tokenId, int demoId, int roundIndex, LoadedDemo demo)
+        private void Post(int side, int tokenId, int demoId, int roundIndex, HashSet<int> contributed)
         {
             List<Posting> list = _postings[side][tokenId];
             // Consecutive runs of one round often repeat a side's token; one posting per (round, token) is enough.
@@ -925,7 +992,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 list.Add(new Posting(demoId, roundIndex));
             }
 
-            demo.Contributed[side].Add(tokenId);
+            contributed.Add(tokenId);
         }
 
         // Decodes a token once; a token that will not parse (a hand-edited sidecar) is kept as a
@@ -956,12 +1023,55 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 counts = [];
             }
 
-            id = _tokens.Count;
-            _tokens.Add(new TokenInfo(text, placeIds, counts));
+            TokenInfo token = new(text, placeIds, counts);
+            id = -1;
+            while (_freeTokenIds.Count > 0)
+            {
+                int free = _freeTokenIds.Pop();
+                // A slot past a truncated tail is stale.
+                if (free < _tokens.Count && _tokens[free] is null)
+                {
+                    id = free;
+                    break;
+                }
+            }
+
+            if (id < 0)
+            {
+                id = _tokens.Count;
+                _tokens.Add(token);
+                _postings[0].Add([]);
+                _postings[1].Add([]);
+            }
+            else
+            {
+                _tokens[id] = token;
+            }
+
             _tokenIds[text] = id;
-            _postings[0].Add([]);
-            _postings[1].Add([]);
             return id;
+        }
+
+        private void FreeToken(int tokenId)
+        {
+            _tokenIds.Remove(_tokens[tokenId]!.Text);
+            _tokens[tokenId] = null;
+            _postings[0][tokenId].TrimExcess();
+            _postings[1][tokenId].TrimExcess();
+            _freeTokenIds.Push(tokenId);
+            int last = _tokens.Count;
+            while (last > 0 && _tokens[last - 1] is null)
+            {
+                last--;
+            }
+
+            if (last < _tokens.Count)
+            {
+                int drop = _tokens.Count - last;
+                _tokens.RemoveRange(last, drop);
+                _postings[0].RemoveRange(last, drop);
+                _postings[1].RemoveRange(last, drop);
+            }
         }
 
         private int PlaceId(string place)
@@ -973,6 +1083,17 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
             }
 
             return id;
+        }
+
+        private string Intern(string name)
+        {
+            if (_names.TryGetValue(name, out string? interned))
+            {
+                return interned;
+            }
+
+            _names[name] = name;
+            return name;
         }
     }
 }
