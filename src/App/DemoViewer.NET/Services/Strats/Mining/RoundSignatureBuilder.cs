@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -34,10 +35,14 @@ public sealed class RoundSignatureBuilder
     /// <summary>Seconds after freeze end before which an execute anchor says nothing.</summary>
     public const int SpawnSeconds = 4;
 
+    /// <summary>Part of every cache key: bump it when the anchors, the windows or the take rule change.</summary>
+    public const int SignatureVersion = 1;
+
     private const string SiteAPlace = "BombsiteA";
     private const string SiteBPlace = "BombsiteB";
     private const int FallbackTickRate = 64;
 
+    private readonly SignatureCache? _cache;
     private readonly DemoCacheStore _demoCache;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly Func<string, IReadOnlyList<MiningGrenade>>? _grenades;
@@ -49,8 +54,9 @@ public sealed class RoundSignatureBuilder
     /// <param name="fingerprintFor">The fingerprint current positions carry per map.</param>
     /// <param name="grenades">A map's indexed grenades with their lineups; null when nothing is indexed.</param>
     /// <param name="teams">Team Identity, for the team on each side; null leaves every round unowned.</param>
+    /// <param name="cache">Signatures from earlier builds; null reads every demo's files on every build.</param>
     public RoundSignatureBuilder(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
-        Func<string, IReadOnlyList<MiningGrenade>>? grenades, TeamIdentityService? teams)
+        Func<string, IReadOnlyList<MiningGrenade>>? grenades, TeamIdentityService? teams, SignatureCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(positions);
@@ -60,7 +66,11 @@ public sealed class RoundSignatureBuilder
         _fingerprintFor = fingerprintFor;
         _grenades = grenades;
         _teams = teams;
+        _cache = cache;
     }
+
+    /// <summary>Demos the last <see cref="Build" /> took from the cache, and demos it read files for.</summary>
+    public (int Reused, int Built) LastBuild { get; private set; }
 
     /// <summary>The Grenade Index's rows for a map with each throw's lineup id.</summary>
     /// <param name="index">The index.</param>
@@ -88,6 +98,9 @@ public sealed class RoundSignatureBuilder
     {
         List<RoundSignature> signatures = [];
         HashSet<string> seen = new(StringComparer.Ordinal);
+        HashSet<string> present = new(StringComparer.Ordinal);
+        int reused = 0;
+        int built = 0;
         foreach (IGrouping<string, DemoCacheIndexEntry> map in _demoCache.Index
                      .Where(e => e.Map is { Length: > 0 })
                      .GroupBy(e => e.Map!, StringComparer.OrdinalIgnoreCase))
@@ -102,10 +115,40 @@ public sealed class RoundSignatureBuilder
                     continue;
                 }
 
-                signatures.AddRange(ForDemo(entry.Path, map.Key, grenades.Contains(entry.Path) ? [.. grenades[entry.Path]] : null));
+                present.Add(entry.Path);
+                DemoSignatures? demo;
+                string? key = _cache is null ? null : KeyFor(entry, map.Key);
+                if (key is not null && _cache!.TryGet(entry.Path, key) is { } hit)
+                {
+                    demo = hit;
+                    reused++;
+                }
+                else
+                {
+                    demo = Read(entry.Path, map.Key);
+                    built++;
+                    // A demo whose files could not be read is not cached: the next mine tries it again.
+                    if (key is not null && demo is not null)
+                    {
+                        _cache!.Put(entry.Path, key, demo);
+                    }
+                }
+
+                if (demo is not null)
+                {
+                    signatures.AddRange(Attach(entry.Path, map.Key, demo,
+                        grenades.Contains(entry.Path) ? [.. grenades[entry.Path]] : null));
+                }
             }
         }
 
+        if (_cache is not null)
+        {
+            _cache.Retain(present);
+            _cache.Save();
+        }
+
+        LastBuild = (reused, built);
         return signatures;
     }
 
@@ -113,12 +156,42 @@ public sealed class RoundSignatureBuilder
     /// <param name="path">The demo.</param>
     /// <param name="map">Its map.</param>
     /// <param name="grenades">Its grenades, or null when it has no grenade rows.</param>
-    public IEnumerable<RoundSignature> ForDemo(string path, string map, IReadOnlyList<MiningGrenade>? grenades)
+    public IEnumerable<RoundSignature> ForDemo(string path, string map, IReadOnlyList<MiningGrenade>? grenades) =>
+        Read(path, map) is { } demo ? Attach(path, map, demo, grenades) : [];
+
+    // Everything a demo's signatures are read from, so a change to any of them rebuilds it. Grenades are not in
+    // it: throws are attached fresh on every build. The file stamps catch a rewrite the index row does not show.
+    private string KeyFor(DemoCacheIndexEntry entry, string map)
+    {
+        string teams = "-";
+        if (_teams is not null && _teams.GetAssignment(entry.Path) is { } assignment)
+        {
+            teams = string.Create(CultureInfo.InvariantCulture,
+                $"{_teams.TeamOnSide(entry.Path, 2)?.Id}:{assignment.T.TeamId}:{string.Join(',', assignment.T.Key)}/{_teams.TeamOnSide(entry.Path, 3)?.Id}:{assignment.Ct.TeamId}:{string.Join(',', assignment.Ct.Key)}");
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{SignatureVersion}|{entry.Sha256}|{entry.Size}|{entry.ModifiedTicks}|{entry.RoundFactsSchema}|{entry.RoundFactsFingerprint}|{entry.RoundIndexComputedAtTicks}|{_fingerprintFor(map)}|{FileStamp(_demoCache.SidecarPathFor(entry.Path))}|{FileStamp(_positions.PositionsPathFor(entry.Path))}|{teams}");
+    }
+
+    private static string FileStamp(string? file)
+    {
+        if (file is null)
+        {
+            return "-";
+        }
+
+        FileInfo info = new(file);
+        return info.Exists ? string.Create(CultureInfo.InvariantCulture, $"{info.Length}:{info.LastWriteTimeUtc.Ticks}") : "none";
+    }
+
+    // Null when the record has no Round Facts rows or the positions file is missing or stale.
+    private DemoSignatures? Read(string path, string map)
     {
         if (_demoCache.TryLoadRecord(path) is not { RoundFacts: { } rows } record
             || _positions.TryReadPositions(path, _fingerprintFor(map), record.Sha256) is not { } positions)
         {
-            yield break;
+            return null;
         }
 
         int rate = rows.Clock?.TickRate is > 0 and var r ? r : FallbackTickRate;
@@ -134,6 +207,7 @@ public sealed class RoundSignatureBuilder
             }
         }
 
+        List<CachedSignature> signatures = [];
         foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
         {
             if (!round.IsLive || positions.Round(round.Number) is not { } stored)
@@ -144,21 +218,55 @@ public sealed class RoundSignatureBuilder
             foreach (int side in (int[]) [2, 3])
             {
                 Guid? team = teams.FirstOrDefault(t => _teams!.SideAtRound(path, t.Team.Id, round.Number) == side).Team?.Id;
-                Context context = new(path, record.Sha256, map, round, side, rate, positions, stored, grenades, team);
+                Context context = new(round, side, rate, positions, stored, team);
                 if (Setup(context) is { } setup)
                 {
-                    yield return setup;
+                    signatures.Add(setup);
                 }
 
                 if (side == 2 && Execute(context) is { } execute)
                 {
-                    yield return execute;
+                    signatures.Add(execute);
                 }
             }
         }
+
+        return new DemoSignatures(record.Sha256, signatures);
     }
 
-    private static RoundSignature? Setup(Context c)
+    private static IEnumerable<RoundSignature> Attach(string path, string map, DemoSignatures demo,
+        IReadOnlyList<MiningGrenade>? grenades) =>
+        demo.Signatures.Select(s => new RoundSignature
+        {
+            DemoPath = path,
+            Sha256 = demo.Sha256,
+            Round = s.Round,
+            Map = map,
+            Side = s.Side,
+            Kind = s.Kind,
+            Site = s.Site,
+            Buy = s.Buy,
+            Won = s.Won,
+            TeamId = s.TeamId,
+            TickRate = s.TickRate,
+            FreezeEndTick = s.FreezeEndTick,
+            AnchorTick = s.AnchorTick,
+            Anchors = s.Anchors,
+            Throws = grenades is null ? null : Throws(grenades, s)
+        });
+
+    private static List<MinedThrow> Throws(IReadOnlyList<MiningGrenade> grenades, CachedSignature s) =>
+    [
+        .. grenades
+            .Where(g => g.Grenade.Row.RoundNumber == s.Round && g.Grenade.Row.ThrowerTeam == s.Side
+                                                          && g.Grenade.Row.ReleaseTick >= s.ThrowFrom && g.Grenade.Row.ReleaseTick <= s.ThrowTo)
+            .OrderBy(g => g.Grenade.Row.ReleaseTick)
+            .ThenBy(g => g.Grenade.Row.Id, StringComparer.Ordinal)
+            .Select(g => new MinedThrow(g.Grenade.Kind, (g.Grenade.Row.ReleaseTick - s.AnchorTick) / (double)s.TickRate, g.Grenade.Landing,
+                g.Grenade.LandingPlace, g.Grenade.Origin, g.Grenade.Row.ThrowerSlot, g.LineupId))
+    ];
+
+    private static CachedSignature? Setup(Context c)
     {
         int contact = c.Round.FirstContactTick ?? int.MaxValue;
         List<IReadOnlyList<MinedPawn>> anchors = [];
@@ -178,7 +286,7 @@ public sealed class RoundSignatureBuilder
         return c.Signature(PatternKind.Setup, null, c.Round.FreezeEndTick, anchors, from, to);
     }
 
-    private static RoundSignature? Execute(Context c)
+    private static CachedSignature? Execute(Context c)
     {
         (string? site, int? take) = Take(c);
         if (site is null || take is not { } anchor)
@@ -252,15 +360,11 @@ public sealed class RoundSignatureBuilder
     }
 
     private sealed record Context(
-        string Path,
-        string? Sha,
-        string Map,
         RoundFacts.RoundFacts Round,
         int Side,
         int Rate,
         RoundPositionsDocument Positions,
         RoundPositionsRound Stored,
-        IReadOnlyList<MiningGrenade>? Grenades,
         Guid? Team)
     {
         private readonly HashSet<int> _ct = [.. Stored.Ct];
@@ -287,39 +391,13 @@ public sealed class RoundSignatureBuilder
         public int CountIn(int step, string place) =>
             Stored.At(step).Count(p => OnSide(p.Slot) && string.Equals(Positions.PlaceOf(p.PlaceId), place, StringComparison.Ordinal));
 
-        public RoundSignature Signature(PatternKind kind, string? site, int anchor, List<IReadOnlyList<MinedPawn>> anchors,
+        public CachedSignature Signature(PatternKind kind, string? site, int anchor, List<IReadOnlyList<MinedPawn>> anchors,
             int throwFrom, int throwTo)
         {
             SideFacts facts = Side == 3 ? Round.Ct : Round.T;
-            return new RoundSignature
-            {
-                DemoPath = Path,
-                Sha256 = Sha,
-                Round = Round.Number,
-                Map = Map,
-                Side = Side,
-                Kind = kind,
-                Site = site,
-                Buy = facts.BuyType,
-                Won = Round.WinnerSide is 2 or 3 ? Round.WinnerSide == Side : null,
-                TeamId = Team,
-                TickRate = Rate,
-                FreezeEndTick = Round.FreezeEndTick,
-                AnchorTick = anchor,
-                Anchors = anchors,
-                Throws = Grenades is null ? null : Throws(anchor, throwFrom, throwTo)
-            };
+            return new CachedSignature(Round.Number, Side, kind, site, facts.BuyType,
+                Round.WinnerSide is 2 or 3 ? Round.WinnerSide == Side : null, Team, Rate, Round.FreezeEndTick, anchor, anchors,
+                throwFrom, throwTo);
         }
-
-        private List<MinedThrow> Throws(int anchor, int from, int to) =>
-        [
-            .. Grenades!
-                .Where(g => g.Grenade.Row.RoundNumber == Round.Number && g.Grenade.Row.ThrowerTeam == Side
-                                                                    && g.Grenade.Row.ReleaseTick >= from && g.Grenade.Row.ReleaseTick <= to)
-                .OrderBy(g => g.Grenade.Row.ReleaseTick)
-                .ThenBy(g => g.Grenade.Row.Id, StringComparer.Ordinal)
-                .Select(g => new MinedThrow(g.Grenade.Kind, (g.Grenade.Row.ReleaseTick - anchor) / (double)Rate, g.Grenade.Landing,
-                    g.Grenade.LandingPlace, g.Grenade.Origin, g.Grenade.Row.ThrowerSlot, g.LineupId))
-        ];
     }
 }

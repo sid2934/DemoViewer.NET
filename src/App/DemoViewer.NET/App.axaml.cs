@@ -1090,7 +1090,9 @@ public class App : Application
             sp.GetRequiredService<TagStore>(),
             AppPaths.DemoCacheDir,
             AppPaths.ConfigRoot,
-            action => Dispatcher.UIThread.Post(action)));
+            action => Dispatcher.UIThread.Post(action),
+            heavy: sp.GetRequiredService<HeavyJobGate>(),
+            queue: sp.GetRequiredService<IDemoProcessingQueue>()));
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
