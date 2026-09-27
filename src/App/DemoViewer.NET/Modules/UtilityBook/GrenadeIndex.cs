@@ -585,7 +585,7 @@ public sealed class GrenadeIndex : IDisposable
     ///     <see cref="GrenadeLineup.Id" />: deterministic over the map, the kind, the landing cell and the
     ///     rounded origin, so the same throw position gets the same id from every process and every reindex,
     ///     with no row to persist. The first 16 bytes of a SHA-256 over the canonical string, the
-    ///     <see cref="LineupClipPlanner.FileStem" /> idiom, read back as a <see cref="Guid" />.
+    ///     <see cref="LineupClipPlanner.LegacyFileStem" /> idiom, read back as a <see cref="Guid" />.
     /// </summary>
     /// <param name="map">The map, as the demo header spells it.</param>
     /// <param name="kind">What is thrown.</param>

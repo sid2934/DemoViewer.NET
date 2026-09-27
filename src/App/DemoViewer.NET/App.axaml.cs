@@ -1214,7 +1214,9 @@ public class App : Application
                 () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
                 new LineupClipRenderer(sp.GetRequiredService<HeavyJobGate>(),
                     log: line => GrenadeIndexLog.LineupClip(log, line)),
-                log: line => GrenadeIndexLog.LineupClip(log, line));
+                log: line => GrenadeIndexLog.LineupClip(log, line),
+                complete: () => index.IsReady,
+                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L);
             index.Changed += () => clips.Plan();
             return clips;
         });
