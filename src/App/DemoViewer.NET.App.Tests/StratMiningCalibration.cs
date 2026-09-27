@@ -104,21 +104,30 @@ public class StratMiningCalibration
         string scratch = Path.Combine(Path.GetTempPath(), "dv-mine-cost-" + Guid.NewGuid().ToString("N"));
         try
         {
-            using StratMiningService service = new(demoCache, positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
-                scratch, null, run: a =>
-                {
-                    a();
-                    return Task.CompletedTask;
-                }) { QuietDelay = Timeout.InfiniteTimeSpan };
-            for (int pass = 1; pass <= 2; pass++)
+            // Passes 1 and 2 share a service; pass 3 is a restart that reads the signature file.
+            StratMiningService? service = null;
+            for (int pass = 1; pass <= 3; pass++)
             {
+                if (pass != 2)
+                {
+                    service?.Dispose();
+                    service = new StratMiningService(demoCache, positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
+                        scratch, null, run: a =>
+                        {
+                            a();
+                            return Task.CompletedTask;
+                        }) { QuietDelay = Timeout.InfiniteTimeSpan };
+                }
+
                 long allocated = GC.GetTotalAllocatedBytes(true);
                 Stopwatch watch = Stopwatch.StartNew();
-                await service.MineAsync();
+                await service!.MineAsync();
                 long ms = watch.ElapsedMilliseconds;
                 long bytes = GC.GetTotalAllocatedBytes(true) - allocated;
-                Console.WriteLine($"[mine-cost] pass {pass}: {ms} ms, {bytes / 1024.0 / 1024.0:0.0} MB allocated, {service.Patterns.Count} patterns, read {service.LastRead}, digest {Digest(service.Patterns)}");
+                Console.WriteLine($"[mine-cost] pass {pass}: {ms} ms, {bytes / 1024.0 / 1024.0:0.0} MB allocated, {service.Patterns.Count} patterns, read {service.LastRead}, digest {Digest(service.Patterns)}, cache {service.Signatures.LastBuild}");
             }
+
+            service?.Dispose();
         }
         finally
         {
