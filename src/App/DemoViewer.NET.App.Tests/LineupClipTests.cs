@@ -222,6 +222,37 @@ public class LineupClipTests
     }
 
     [Test]
+    public async Task AnOldPairOfAnotherThrow_IsNotAdopted_ItRendersAgainAndTheOldPairGoes()
+    {
+        GrenadeLineup lineup = WithTechniques();
+        string clips = TempClips();
+        try
+        {
+            string old = LineupClipPlanner.FileStem(Mirage, GrenadeKind.Smoke, IdOf("spot"));
+            WritePair(clips, old, 100, DateTime.UtcNow);
+            File.WriteAllText(Path.Combine(clips, old + LineupClipPlanner.SetposExtension),
+                "setpos 1.00 2.00 3.00; setang 0.00 0.00 0.00");
+            FileRenderer renderer = new();
+            using LineupClipService service = new(() => [Cluster(lineup)], clips, () => true, renderer);
+
+            await Assert.That(service.Plan()).IsEqualTo(2).Because("the old pair shows a different throw");
+            await service.WorkerTask;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(HasPair(clips, old + "-stand-jump-left")).IsTrue();
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(clips, old + "-stand-jump-left" + LineupClipPlanner.SetposExtension)))
+                    .IsEqualTo(Setpos + Environment.NewLine);
+                await Assert.That(HasPair(clips, old)).IsFalse().Because("the old pair goes once the new one exists");
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
     public async Task ALineupEvictedUnderItsOldName_StaysEvictedUnderItsTechniqueName()
     {
         GrenadeLineup lineup = WithTechniques();
