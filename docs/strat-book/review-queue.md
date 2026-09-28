@@ -165,23 +165,26 @@ automatically as `LineupClips` items of the processing queue, and the Utility Bo
 plays the clip for the lineup and technique that was clicked. The card reads the GIF only while it is
 open, decodes one frame at a time, and says "clip not rendered yet" or "no clip" when there is none.
 
-The one-time migration runs when the queue loads. It drops a clip only if it is a `lineup` clip with
+The one-time migration runs when the queue loads. It drops a clip only if it sits under a "Lineup
+clips, <map>" card (a clip the user moved, or whose card they renamed, is kept) and is a `lineup` clip with
 no question, not marked reviewed, and a note in the generated shape (`<title>. setpos x y z; setang p y
 r`), then drops "Lineup clips, <map>" cards left empty. The new file is written beside the old one,
-read back and compared by id. Only then is the old file copied to `review-queue.lineups.bak` and
-replaced. A refused file (newer schema, unreadable) is left alone. On the owner's copy: 4,792
+read back and compared by id, but only after the old file is copied to `review-queue.lineups.bak`;
+without that copy nothing migrates. If the rewrite fails after the copy, the migrated set stays in
+memory and the next ordinary save writes it, so the unmigrated set is never saved over a migrated file. A refused file (newer schema, unreadable) is left alone. On the owner's copy: 4,792
 dropped, 0 kept, 11 cards dropped. The 7 Dossier clips and their card stay.
 
-The first plan after upgrade renames the old pairs. Measured over a copy of the cache with the
-owner's 3,411 clip file names mirrored as empty files: 12,899 lineups plan 14,027 jobs (1,128 of them
-new technique clips), 1,334 old pairs are adopted, and that first `Plan` takes 1,162 ms on the UI
-thread against 793 ms for the next one. That is a one-time hitch on the first index change after the
-upgrade. The 793 ms steady cost of `Plan` (planning every lineup on every index change) predates this
-branch and is worth moving off the UI thread next. The byte cap, already full, decides how many of
-the new technique clips render.
+An old pair is adopted only when its setpos line is the new job's, since the old per-lineup clip
+showed the lineup's representative, which is not always the first technique's. Otherwise the clip
+renders again and the old pair is deleted once the new one exists. Planning runs on the pool: an index
+change calls `PlanSoon`, which waits 500 ms for more changes and runs one plan at a time. Measured over
+a copy of the cache with the owner's clip folder mirrored (GIFs empty, setpos lines copied): 12,899
+lineups plan 14,027 jobs, the index change costs its thread 0.08 ms, the first plan takes 2.1 s off
+it and adopts 309 pairs, and a steady plan takes 1.8 s off it. The byte cap, already full, decides
+how many of the new clips render.
 
-**B. Reviewed.** Each clip has Mark reviewed, and each title card marks its whole section reviewed
-(or unreviewed again once all of it is). Reviewed clips are hidden unless "show reviewed" is on.
+**B. Reviewed.** Each clip has Mark reviewed, and each title card marks its section reviewed (or
+unreviewed again once all of it is); with a filter or a search on, only the clips it shows. Reviewed clips are hidden unless "show reviewed" is on.
 Cards read "4 of 12 clips unreviewed", and the rail badge counts unreviewed clips. `reviewed` is
 written only when true: files without it read as before, and an older build keeps the field through
 `Extra`.
