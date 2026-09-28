@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.ViewModels.StratBook;
@@ -153,16 +154,55 @@ public class DetectedStratsTests
         }
 
         string previewed = Normalized(preview.Document);
-        vm.Detected.AddToBookCommand.Execute(null);
+        List<Guid> previewedSteps = [.. preview.Document.Steps.Select(s => s.Id)];
+        await vm.Detected.AddToBookCommand.ExecuteAsync(null);
         StratDocument saved = library.Strats.TryLoad(library.Strats.Index.Single().Id)!;
         using (Assert.Multiple())
         {
+            await Assert.That(saved.Steps.Select(s => s.Id)).IsEquivalentTo(previewedSteps)
+                .Because("Add to book saves the previewed document, not a rebuild");
+            await Assert.That(saved.Id).IsNotEqualTo(preview.Document.Id);
             await Assert.That(Normalized(saved)).IsEqualTo(previewed);
             await Assert.That(vm.IsDetectedView).IsFalse();
             await Assert.That(vm.Detected.Preview).IsNull();
             await Assert.That(canvas.HasDocument).IsFalse().Because("leaving Detected disposes the preview");
             await Assert.That(vm.SelectedStrat?.Id).IsEqualTo(saved.Id);
         }
+    }
+
+    [Test]
+    public async Task AddingAPreview_WhosePatternChanged_RefusesAndRebuilds()
+    {
+        using Library library = Library.Create();
+        using StratMiningService mining = library.Service();
+        using StratBookTabViewModel vm = Tab(library, mining);
+        DetectedRowViewModel row = SelectAExecute(vm);
+        await vm.Detected.PreviewStratCommand.ExecuteAsync(null);
+        StratPreviewViewModel before = vm.Detected.Preview!;
+
+        // A fifth A take joins the library and a re-mine grows the pattern under the same key.
+        library.Cache.Upsert(StratMiningServiceTests.Record(5, BombSite.A));
+        library.Positions.WritePositions("/d/m5.dem", StratMiningServiceTests.Positions(5, BombSite.A, 200));
+        await mining.MineAsync();
+        MinedPattern now = mining.Patterns.Single(p => p.Pattern.Key == row.Key).Pattern;
+        await Assert.That(now.Support).IsGreaterThan(before.Pattern.Support);
+        await Assert.That(vm.Detected.Preview).IsSameReferenceAs(before);
+
+        await vm.Detected.AddToBookCommand.ExecuteAsync(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(library.Strats.Index).IsEmpty();
+            await Assert.That(vm.Detected.StatusLine).IsEqualTo("This pattern changed; review again.");
+            await Assert.That(vm.Detected.Preview).IsNotSameReferenceAs(before);
+            await Assert.That(vm.Detected.Preview?.Notice).IsEqualTo("This pattern changed; review again.");
+            await Assert.That(vm.Detected.Preview?.Pattern.Support).IsEqualTo(now.Support);
+            await Assert.That(vm.IsDetectedView).IsTrue();
+        }
+
+        // Reviewed again: the rebuilt preview is what gets saved.
+        List<Guid> steps = [.. vm.Detected.Preview!.Document!.Steps.Select(s => s.Id)];
+        await vm.Detected.AddToBookCommand.ExecuteAsync(null);
+        await Assert.That(library.Strats.TryLoad(library.Strats.Index.Single().Id)!.Steps.Select(s => s.Id)).IsEquivalentTo(steps);
     }
 
     [Test]

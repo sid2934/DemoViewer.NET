@@ -17,6 +17,9 @@ namespace DemoViewer.NET.Services.Strats.Mining;
 /// <summary>A pattern as the inbox lists it: whether the user dismissed it, and the strat it became.</summary>
 public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId);
 
+/// <summary>A previewed strat's save: the strat, or null; PatternChanged when the pattern moved since the preview.</summary>
+public sealed record PromoteResult(StratDocument? Document, bool PatternChanged);
+
 /// <summary>
 ///     Strat Mining's inbox (owner, 2026-09-27): mines the library from cached files, keeps what it found, and turns
 ///     a pattern into a strat only when the user promotes it.
@@ -327,6 +330,47 @@ public sealed class StratMiningService : IDisposable
             return null;
         }
 
+        return Commit(pattern, doc);
+    }
+
+    /// <summary>
+    ///     Saves a previewed strat as it was shown, with a fresh id and stamps, in <paramref name="owner" />'s book.
+    ///     Refused with <see cref="PromoteResult.PatternChanged" /> when the pattern under the preview's key no
+    ///     longer has the medoid and rounds the preview was built from.
+    /// </summary>
+    /// <param name="previewed">The pattern as it was when the preview was built.</param>
+    /// <param name="built">The previewed document.</param>
+    /// <param name="owner">The book.</param>
+    /// <param name="nowUtc">The creation time; now when null.</param>
+    public PromoteResult Promote(MinedPattern previewed, StratDocument built, StratOwner owner, DateTime? nowUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(previewed);
+        ArgumentNullException.ThrowIfNull(built);
+        ArgumentNullException.ThrowIfNull(owner);
+        if (Patterns.FirstOrDefault(p => p.Pattern.Key == previewed.Key)?.Pattern is not { } current
+            || !SameRounds(previewed, current))
+        {
+            return new PromoteResult(null, true);
+        }
+
+        DateTime now = nowUtc ?? DateTime.UtcNow;
+        StratDocument doc = built.Clone();
+        doc.Id = Guid.NewGuid();
+        doc.CreatedUtc = now;
+        doc.ModifiedUtc = now;
+        doc.Owner = owner.Clone();
+        return new PromoteResult(Commit(current, doc), false);
+    }
+
+    private static bool SameRounds(MinedPattern a, MinedPattern b) =>
+        a.Medoid.DemoPath == b.Medoid.DemoPath && a.Medoid.Round == b.Medoid.Round
+                                               && a.Members.Select(RoundOf).Order(StringComparer.Ordinal)
+                                                   .SequenceEqual(b.Members.Select(RoundOf).Order(StringComparer.Ordinal));
+
+    private static string RoundOf(MinedMember m) => $"{m.DemoPath}#{m.Round}";
+
+    private StratDocument? Commit(MinedPattern pattern, StratDocument doc)
+    {
         StratSaveResult saved = _strats.Save(doc, [], $"promoted from {pattern.Support} mined rounds");
         if (!saved.Saved)
         {
@@ -334,7 +378,7 @@ public sealed class StratMiningService : IDisposable
         }
 
         WriteRuns(pattern, doc);
-        Mutate(state => state.Promoted[key] = doc.Id);
+        Mutate(state => state.Promoted[pattern.Key] = doc.Id);
         return doc;
     }
 
@@ -354,7 +398,15 @@ public sealed class StratMiningService : IDisposable
         StratDocument? built = null;
         if (_queue is null)
         {
-            await _run(() => built = Build(pattern, owner, nowUtc)).ConfigureAwait(false);
+            try
+            {
+                await _run(() => built = Build(pattern, owner, nowUtc, cancellationToken)).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+
             return cancellationToken.IsCancellationRequested ? null : built;
         }
 
@@ -363,7 +415,7 @@ public sealed class StratMiningService : IDisposable
             async job =>
             {
                 job.CancellationToken.ThrowIfCancellationRequested();
-                await _run(() => built = Build(pattern, owner, nowUtc)).ConfigureAwait(false);
+                await _run(() => built = Build(pattern, owner, nowUtc, job.CancellationToken)).ConfigureAwait(false);
             }));
         await using (cancellationToken.Register(handle.Cancel))
         {
@@ -377,18 +429,23 @@ public sealed class StratMiningService : IDisposable
     /// <param name="pattern">The pattern.</param>
     /// <param name="owner">The book.</param>
     /// <param name="nowUtc">The creation time.</param>
-    public StratDocument? Build(MinedPattern pattern, StratOwner owner, DateTime nowUtc)
+    /// <param name="cancellationToken">Checked between the file reads; a cancelled build throws.</param>
+    public StratDocument? Build(MinedPattern pattern, StratOwner owner, DateTime nowUtc, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(pattern);
         RoundSignature medoid = pattern.Medoid;
+        cancellationToken.ThrowIfCancellationRequested();
         if (_demoCache.TryLoadRecord(medoid.DemoPath) is not { RoundFacts: { } rows } record
             || rows.Rounds.FirstOrDefault(r => r.Number == medoid.Round) is not { } facts
+            || cancellationToken.IsCancellationRequested
             || _positions.TryReadPositions(medoid.DemoPath, _fingerprintFor(pattern.Map), record.Sha256) is not { } positions
             || positions.Round(medoid.Round) is not { } stored)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         List<GrenadeRow> grenades =
         [
             .. _grenadeIndex?.Rows(new GrenadeQuery(pattern.Map, DemoPaths: new HashSet<string>([medoid.DemoPath])))
@@ -396,6 +453,7 @@ public sealed class StratMiningService : IDisposable
                    .Where(r => r.RoundNumber == medoid.Round)
                ?? []
         ];
+        cancellationToken.ThrowIfCancellationRequested();
         Dictionary<int, (ulong, string)> players = [];
         foreach (CachedPlayerInfo player in record.Players)
         {
