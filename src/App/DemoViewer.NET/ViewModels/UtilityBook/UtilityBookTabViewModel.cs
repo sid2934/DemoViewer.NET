@@ -532,7 +532,8 @@ public sealed class LandingGroup
         Lineups = lineups;
         List<IndexedGrenade> throws = [.. lineups.SelectMany(l => l.Throws)];
         Landing = new WorldPoint(throws.Average(t => t.Landing.X), throws.Average(t => t.Landing.Y), throws.Average(t => t.Landing.Z));
-        Id = string.Create(CultureInfo.InvariantCulture, $"{cluster.Kind}:{cluster.Cell.X},{cluster.Cell.Y},{cluster.Cell.Z}");
+        // Not the landing cell: several landing groups can seed in one 256-unit cell.
+        Id = string.Create(CultureInfo.InvariantCulture, $"{cluster.Kind}:{cluster.Lineups[0].Id:N}");
     }
 
     public GrenadeCluster Cluster { get; }
