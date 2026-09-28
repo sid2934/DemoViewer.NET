@@ -322,6 +322,8 @@
                                 <Button Content="Back to detected" Classes="ghost" FontSize="11" Padding="10 5"
                                         Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.BackToDetectedCommand}" />
                             </StackPanel>
+                            <TextBlock Text="{Binding Notice}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" IsVisible="{Binding HasNotice}" />
                             <TextBlock Text="Building the strat from the most typical round's cached files…" FontSize="11"
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsLoading}" />
                             <TextBlock Text="{x:Static vm:StratPreviewViewModel.MissingLine}" FontSize="12" TextWrapping="Wrap"

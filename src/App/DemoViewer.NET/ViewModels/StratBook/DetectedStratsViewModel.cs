@@ -144,7 +144,9 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     ///     UI thread, and shows it read-only. Nothing is written.
     /// </summary>
     [RelayCommand]
-    private async Task PreviewStrat()
+    private Task PreviewStrat() => Rebuild(null);
+
+    private async Task Rebuild(string? notice)
     {
         if (_mining is null || SelectedRow is not { StratId: null } row
                             || _mining.Patterns.FirstOrDefault(p => p.Pattern.Key == row.Key)?.Pattern is not { } pattern)
@@ -154,7 +156,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
         ClosePreview();
         StratOwner owner = _targetBook() ?? StratOwner.Me();
-        StratPreviewViewModel preview = new(row.Key, row.Title, _mapLoader, _post);
+        StratPreviewViewModel preview = new(pattern, row.Title, _mapLoader, _post) { Notice = notice };
         CancellationTokenSource cancel = new();
         _previewCancel = cancel;
         Preview = preview;
@@ -194,14 +196,32 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     }
 
     [RelayCommand]
-    private void AddToBook()
+    private async Task AddToBook()
     {
         if (_mining is null || SelectedRow is not { StratId: null } row || _targetBook() is not { } book)
         {
             return;
         }
 
-        StratDocument? doc = _mining.Promote(row.Key, book);
+        StratDocument? doc;
+        if (Preview is { IsReady: true, Document: { } built } preview)
+        {
+            PromoteResult result = _mining.Promote(preview.Pattern, built, book);
+            if (result.PatternChanged)
+            {
+                const string changed = "This pattern changed; review again.";
+                StatusLine = changed;
+                await Rebuild(changed);
+                return;
+            }
+
+            doc = result.Document;
+        }
+        else
+        {
+            doc = _mining.Promote(row.Key, book);
+        }
+
         StatusLine = doc is null
             ? "Could not build this strat: the round's cached files are gone. Find strats again."
             : $"Added \"{doc.Name}\" to the book.";

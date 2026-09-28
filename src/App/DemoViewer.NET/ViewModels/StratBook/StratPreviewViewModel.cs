@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Strats.Mining;
 
 #endregion
 
@@ -38,19 +39,28 @@ public sealed partial class StratPreviewViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     private StratCanvasViewModel? _canvas;
 
-    /// <param name="key">The pattern's key.</param>
+    /// <param name="pattern">The pattern as it was when the preview was asked for.</param>
     /// <param name="title">The pattern's title, shown while it builds.</param>
     /// <param name="mapLoader">The canvas's map loader; the baked assets when null.</param>
     /// <param name="post">UI-thread marshal for the canvas session.</param>
-    public StratPreviewViewModel(string key, string title, Func<string?, LoadedMapAsset?>? mapLoader, Action<Action> post)
+    public StratPreviewViewModel(MinedPattern pattern, string title, Func<string?, LoadedMapAsset?>? mapLoader, Action<Action> post)
     {
-        Key = key;
+        Pattern = pattern;
+        Key = pattern.Key;
         Title = title;
         _mapLoader = mapLoader;
         _post = post;
     }
 
     public string Key { get; }
+
+    /// <summary>What the preview was built from; Add to book refuses when the pattern no longer matches it.</summary>
+    public MinedPattern Pattern { get; }
+
+    /// <summary>A line above the preview, such as why it was rebuilt; null for none.</summary>
+    public string? Notice { get; init; }
+
+    public bool HasNotice => !string.IsNullOrEmpty(Notice);
 
     public string Title { get; private set; }
 
