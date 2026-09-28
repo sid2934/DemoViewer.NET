@@ -2,6 +2,8 @@
 
 using System.Text.Json;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
@@ -114,6 +116,18 @@ public class BackgroundPlanRealDemoTests
         BuildResult build = DemoAnalysis.Build(parsed, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets));
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         outputs["highlights"] = JsonSerializer.Serialize(run.Highlights, Json);
+
+        // A forced rescan runs with snapshots and writes the scoreboard from them.
+        AnalysisRun forced = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
+        outputs["forced highlights"] = JsonSerializer.Serialize(forced.Highlights, Json);
+        MetricTable table = new PlayerGameStatsProjector { MatchId = Path.GetFileName(path) }
+            .Project(forced.Snapshots!, parsed).Single();
+        outputs["forced scoreboard"] = JsonSerializer.Serialize(new
+        {
+            rows = DemoCacheAnalysisProjector.ProjectScoreboard(table),
+            sides = DemoCacheAnalysisProjector.ComputeSideWins(table)
+        }, Json);
+        forced = null!;
 
         List<string> players = [.. parsed.Players.Values
             .Where(p => !p.IsBot && !p.IsHltv && !string.IsNullOrWhiteSpace(p.Name)).Select(p => p.Name).Distinct()];
