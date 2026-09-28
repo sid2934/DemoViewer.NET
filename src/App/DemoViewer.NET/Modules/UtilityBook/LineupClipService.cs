@@ -957,13 +957,19 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
     private readonly Func<string, LoadedMapAsset?> _loadMap;
     private readonly Action<string>? _log;
     private readonly Func<string, ParsedDemo> _parse;
+    private readonly Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task> _render;
+
+    /// <summary>Where a GIF is written until it is finished; the directory listing never sees it.</summary>
+    public const string PartialDirectoryName = ".rendering";
 
     /// <param name="parse">Reads and parses a demo; when null, mapped if <see cref="MapsFile" />, else read into a byte[].</param>
     /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
     /// <param name="log">Line sink for the encoder choice, ffmpeg's stderr and a failed clip.</param>
     /// <param name="time">The clock <see cref="MappedParsePolicy" /> judges a file settled by; the system clock when null.</param>
+    /// <param name="render">Renders one clip request; the 2D export's runner when null.</param>
     public LineupClipRenderer(Func<string, ParsedDemo>? parse = null,
-        Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null, TimeProvider? time = null)
+        Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null, TimeProvider? time = null,
+        Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task>? render = null)
     {
         TimeProvider clock = time ?? TimeProvider.System;
         _parse = parse ?? (path => MapsFile(path, clock, MappedParsePolicy.StatFile)
@@ -971,7 +977,13 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
             : DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
+        _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
+            static () => FfmpegDependency.ManagedDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
     }
+
+    /// <summary>The unfinished GIF's path for <paramref name="gifPath" />.</summary>
+    public static string PartialPathFor(string gifPath) =>
+        Path.Combine(Path.GetDirectoryName(gifPath)!, PartialDirectoryName, Path.GetFileName(gifPath));
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
@@ -989,9 +1001,6 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
 
         ExportSceneSetup setup = new(demo.Frames, demo.TickRate, jobs[0].Map, ScenePalette.Dark,
             LevelDisplayMode.Stacked, null, null, asset);
-        SceneExportRunner runner = new(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
-            static () => FfmpegDependency.ManagedDirectory, _log, EncoderProbeCache.Shared);
-
         List<LineupClipJob> rendered = [];
         foreach (LineupClipJob job in jobs)
         {
@@ -1002,16 +1011,23 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
                 continue;
             }
 
+            // Rendered aside and renamed on success: a GIF at GifPath is a finished one, which Plan relies on.
+            string partial = PartialPathFor(job.GifPath);
             try
             {
                 SceneExportSession.Validate(request.Core);
-                Directory.CreateDirectory(Path.GetDirectoryName(job.GifPath)!);
-                await runner.RunAsync(request, NoProgress.Instance, ct).ConfigureAwait(false);
+                Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
+                await _render(request with { OutputPath = partial }, setup, ct).ConfigureAwait(false);
+                File.Move(partial, job.GifPath, true);
                 rendered.Add(job);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _log?.Invoke($"lineup clips: {job.GifPath}: {ex.Message}");
+            }
+            finally
+            {
+                DeletePartial(partial);
             }
         }
 
@@ -1024,6 +1040,18 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
     /// </summary>
     internal static bool MapsFile(string path, TimeProvider time, Func<string, FileStat> stat) =>
         !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, time, stat);
+
+    private void DeletePartial(string partial)
+    {
+        try
+        {
+            File.Delete(partial);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log?.Invoke($"lineup clips: {partial}: {ex.Message}");
+        }
+    }
 
     private LoadedMapAsset? SafeLoad(string map)
     {

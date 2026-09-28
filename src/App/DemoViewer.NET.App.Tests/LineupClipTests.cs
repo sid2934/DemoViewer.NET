@@ -793,6 +793,72 @@ public class LineupClipTests
         await Assert.That(service.Pending).IsEmpty();
     }
 
+    [Test]
+    public async Task TheRenderer_WritesAside_AndRenamesOnlyAFinishedGif()
+    {
+        string clips = TempClips();
+        string source = Path.Combine(clips, "source.bin"); // RenderAsync only checks that the demo exists
+        File.WriteAllBytes(source, [0]);
+        try
+        {
+            LineupClipJob job = LineupClipPlanner.PlanEvery([TwoLineups()], clips)[0];
+            string partial = LineupClipRenderer.PartialPathFor(job.GifPath);
+            ParsedDemo demo = SyntheticParsedDemo.Create(Frames(0, 2000));
+            string? seenOutput = null;
+
+            LineupClipRenderer Renderer(Func<CancellationToken, Task> after) => new(_ => demo, _ => null,
+                render: async (request, _, ct) =>
+                {
+                    seenOutput = request.OutputPath;
+                    await File.WriteAllBytesAsync(request.OutputPath, new byte[64], CancellationToken.None);
+                    await after(ct);
+                });
+
+            using CancellationTokenSource cts = new();
+            bool cancelled = false;
+            try
+            {
+                await Renderer(_ =>
+                {
+                    cts.Cancel();
+                    cts.Token.ThrowIfCancellationRequested();
+                    return Task.CompletedTask;
+                }).RenderAsync(source, [job], cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(cancelled).IsTrue();
+                await Assert.That(seenOutput).IsEqualTo(partial).Because("the encoder never writes the real name");
+                await Assert.That(File.Exists(job.GifPath)).IsFalse().Because("a cut-short GIF must not look rendered");
+                await Assert.That(File.Exists(partial)).IsFalse();
+            }
+
+            IReadOnlyList<LineupClipJob> failed = await Renderer(_ => throw new IOException("disk full"))
+                .RenderAsync(source, [job], CancellationToken.None);
+            await Assert.That(failed).IsEmpty();
+            await Assert.That(File.Exists(job.GifPath)).IsFalse();
+            await Assert.That(File.Exists(partial)).IsFalse();
+
+            IReadOnlyList<LineupClipJob> done = await Renderer(_ => Task.CompletedTask)
+                .RenderAsync(source, [job], CancellationToken.None);
+            await Assert.That(done.Single()).IsEqualTo(job);
+            await Assert.That(new FileInfo(job.GifPath).Length).IsEqualTo(64);
+            await Assert.That(File.Exists(partial)).IsFalse();
+            await Assert.That(LineupClipPlanner.StemOf(partial)).IsEqualTo(job.Stem);
+            await Assert.That(System.IO.Directory.EnumerateFiles(clips).Any(f => f == partial)).IsFalse()
+                .Because("the clip directory's own listing does not see the partial");
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
     private sealed class FileRenderer : ILineupClipRenderer
     {
         public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls { get; } = [];
