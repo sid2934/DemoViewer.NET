@@ -108,6 +108,9 @@ added, they get it for free: only realized rows exist.
 
 ## Product shape: what a reviewer needs
 
+The owner decided these on 2026-09-28; what was built is under "Decisions, built" below. The
+options are kept as they were proposed.
+
 Built, since none of it needs a decision: sections with counts, collapsed big sections, a source
 filter, search across notes, questions, demo names and section titles, and Expand all / Collapse all.
 
@@ -168,6 +171,14 @@ r`), then drops "Lineup clips, <map>" cards left empty. The new file is written 
 read back and compared by id. Only then is the old file copied to `review-queue.lineups.bak` and
 replaced. A refused file (newer schema, unreadable) is left alone. On the owner's copy: 4,792
 dropped, 0 kept, 11 cards dropped. The 7 Dossier clips and their card stay.
+
+The first plan after upgrade renames the old pairs. Measured over a copy of the cache with the
+owner's 3,411 clip file names mirrored as empty files: 12,899 lineups plan 14,027 jobs (1,128 of them
+new technique clips), 1,334 old pairs are adopted, and that first `Plan` takes 1,162 ms on the UI
+thread against 793 ms for the next one. That is a one-time hitch on the first index change after the
+upgrade. The 793 ms steady cost of `Plan` (planning every lineup on every index change) predates this
+branch and is worth moving off the UI thread next. The byte cap, already full, decides how many of
+the new technique clips render.
 
 **B. Reviewed.** Each clip has Mark reviewed, and each title card marks its whole section reviewed
 (or unreviewed again once all of it is). Reviewed clips are hidden unless "show reviewed" is on.
