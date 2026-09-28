@@ -413,12 +413,14 @@ public sealed class LineupClipService : IDisposable
     }
 
     // A finished pair under an alias's or an older build's name becomes this lineup's pair.
+    // Only a pair of the same throw: its setpos line must be this job's. An old per-lineup pair shows the
+    // lineup's representative, which need not be this technique's; that one renders again instead.
     private bool Adopt(LineupClipJob job)
     {
         foreach (string former in job.FormerGifPaths)
         {
             string formerSetpos = LineupClipPlanner.SetposPathFor(former);
-            if (!File.Exists(former) || !File.Exists(formerSetpos))
+            if (!File.Exists(former) || !File.Exists(formerSetpos) || !SameThrow(formerSetpos, job))
             {
                 continue;
             }
@@ -849,6 +851,10 @@ public sealed class LineupClipService : IDisposable
         foreach (LineupClipJob done in rendered)
         {
             WriteSidecar(done);
+            if (File.Exists(done.SetposPath))
+            {
+                DeleteFormerPairs(done);
+            }
         }
 
         if (rendered.Count > 0)
@@ -857,6 +863,31 @@ public sealed class LineupClipService : IDisposable
         }
 
         job?.Report(batch.Count, batch.Count, string.Create(CultureInfo.InvariantCulture, $"{rendered.Count} written"));
+    }
+
+    private bool SameThrow(string setposPath, LineupClipJob job)
+    {
+        try
+        {
+            return string.Equals(File.ReadAllText(setposPath).Trim(), job.ConsoleText.Trim(), StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log?.Invoke($"lineup clips: {setposPath}: {ex.Message}");
+            return false;
+        }
+    }
+
+    // A pair left under an older name that was not adopted goes once this job's own pair exists.
+    private void DeleteFormerPairs(LineupClipJob job)
+    {
+        foreach (string former in job.FormerGifPaths)
+        {
+            if (File.Exists(former) || File.Exists(LineupClipPlanner.SetposPathFor(former)))
+            {
+                DeletePair(former);
+            }
+        }
     }
 
     private void WriteSidecar(LineupClipJob job)
