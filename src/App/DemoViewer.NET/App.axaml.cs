@@ -1207,8 +1207,8 @@ public class App : Application
         });
 
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
-        // Queue and rendered on a background slot. Planned whenever the index changes; a null directory (the
-        // browser) plans nothing.
+        // Queue and rendered one demo at a time as processing queue items. Planned whenever the index changes; a
+        // null directory (the browser) plans nothing.
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
@@ -1219,11 +1219,11 @@ public class App : Application
                 sp.GetRequiredService<ReviewQueue>(),
                 AppPaths.ConfigRoot is { } root ? Path.Combine(root, "lineup-clips") : null,
                 () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
-                new LineupClipRenderer(sp.GetRequiredService<HeavyJobGate>(),
-                    log: line => GrenadeIndexLog.LineupClip(log, line)),
+                new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
-                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L);
+                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
+                processing: sp.GetRequiredService<IDemoProcessingQueue>());
             index.Changed += () => clips.Plan();
             return clips;
         });
