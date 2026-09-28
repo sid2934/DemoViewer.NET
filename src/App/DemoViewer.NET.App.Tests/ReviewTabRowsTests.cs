@@ -158,6 +158,28 @@ public class ReviewTabRowsTests
         await Assert.That(queue.UnreviewedCount).IsEqualTo(3);
     }
 
+    [Test]
+    public async Task MarkSectionReviewed_UnderAFilter_MarksOnlyTheClipsItShows()
+    {
+        ReviewQueue queue = new(null);
+        queue.Add([Clip("/d/a.dem", 100, "one", ReviewSources.Dossier), Clip("/d/b.dem", 100, "two", ReviewSources.Dossier),
+            Clip("/d/c.dem", 100, "three")], "S");
+        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        tab.SelectedSource = ReviewSources.Dossier;
+        await Assert.That(tab.Rows[0].ReviewText).IsEqualTo("Mark 2 shown reviewed");
+
+        tab.Rows[0].ToggleReviewedCommand.Execute(null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Clips.Select(c => c.Reviewed)).IsEquivalentTo([true, true, false]);
+            await Assert.That(tab.Rows.Count(r => r.IsClip)).IsEqualTo(0);
+        }
+
+        tab.ShowReviewed = true;
+        await Assert.That(tab.Rows[0].ReviewText).IsEqualTo("Mark 2 unreviewed");
+    }
+
     // ── Map and team ──────────────────────────────────────────────────────────
 
     [Test]

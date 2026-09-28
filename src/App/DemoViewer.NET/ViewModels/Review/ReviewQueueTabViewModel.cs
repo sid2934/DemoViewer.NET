@@ -80,6 +80,9 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     private readonly HashSet<Guid> _collapsed = [];
     private readonly HashSet<Guid> _seenSections = [];
     private Dictionary<Guid, ReviewRowViewModel> _rowsById = [];
+
+    // Per title card, the clips the filters and the search leave (reviewed or not): what marking a section acts on.
+    private Dictionary<Guid, List<Guid>> _inScope = [];
     private bool _active = true;
     private bool _stale;
 
@@ -368,7 +371,8 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             return;
         }
 
-        IReadOnlyList<ReviewEntry> clips = _queue.ClipsUnder(row.Entry.Id);
+        HashSet<Guid> scope = _inScope.TryGetValue(row.Entry.Id, out List<Guid>? ids) ? [.. ids] : [];
+        List<ReviewEntry> clips = [.. _queue.ClipsUnder(row.Entry.Id).Where(c => scope.Contains(c.Id))];
         _queue.SetReviewed(clips.Select(c => c.Id), clips.Any(c => !c.Reviewed));
     }
 
@@ -542,6 +546,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         SortedSet<string> teams = new(StringComparer.OrdinalIgnoreCase);
 
         List<ReviewRowViewModel> visible = [];
+        Dictionary<Guid, List<Guid>> inScope = [];
         Dictionary<Guid, ReviewRowViewModel> rows = [];
         SortedSet<string> sources = new(StringComparer.Ordinal);
         HashSet<string> demos = new(StringComparer.OrdinalIgnoreCase);
@@ -575,6 +580,8 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             List<ReviewRowViewModel> shown = [];
             int matches = 0;
             int unreviewed = 0;
+            int unreviewedInScope = 0;
+            List<Guid> scope = [];
             for (int k = start; k < i; k++)
             {
                 ReviewEntry clip = entries[k];
@@ -586,9 +593,16 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
                 string team = TeamOf(clip);
                 maps.Add(map);
                 teams.Add(team);
-                if (!Matches(clip, source, titleMatches ? "" : search) || (clip.Reviewed && !ShowReviewed)
+                if (!Matches(clip, source, titleMatches ? "" : search)
                     || (mapFilter is not null && !string.Equals(map, mapFilter, StringComparison.OrdinalIgnoreCase))
                     || (teamFilter is not null && !string.Equals(team, teamFilter, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                scope.Add(clip.Id);
+                unreviewedInScope += clip.Reviewed ? 0 : 1;
+                if (clip.Reviewed && !ShowReviewed)
                 {
                     continue;
                 }
@@ -605,7 +619,9 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             if (card is not null && (!filtering || matches > 0))
             {
                 ReviewRowViewModel row = RowFor(card, rows);
-                row.SetSection(total, unreviewed, filtering ? matches : total, _collapsed.Contains(card.Id), filtering);
+                row.SetSection(total, unreviewed, filtering ? matches : total, _collapsed.Contains(card.Id), filtering,
+                    unreviewedInScope, scope.Count);
+                inScope[card.Id] = scope;
                 visible.Add(row);
             }
 
@@ -614,6 +630,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         }
 
         _rowsById = rows;
+        _inScope = inScope;
         // Ranged, not a Reset: a batch landing must not recreate the container of a text box being typed in.
         Rows.SyncTo(visible);
 
@@ -838,7 +855,8 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
         }
     }
 
-    internal void SetSection(int total, int unreviewed, int matching, bool collapsed, bool filtering)
+    internal void SetSection(int total, int unreviewed, int matching, bool collapsed, bool filtering,
+        int unreviewedInScope, int inScope)
     {
         string clips = string.Create(CultureInfo.InvariantCulture, $"{total} clip{(total == 1 ? "" : "s")}");
         string text = filtering
@@ -848,7 +866,12 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
                 : unreviewed == 0
                     ? $"all {clips} reviewed"
                     : string.Create(CultureInfo.InvariantCulture, $"{unreviewed} of {clips} unreviewed");
-        string reviewText = unreviewed == 0 && total > 0 ? "Mark unreviewed" : "Mark section reviewed";
+        // Under a filter the button acts on the clips the filter leaves, and says so.
+        string reviewText = filtering
+            ? unreviewedInScope == 0 && inScope > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"Mark {inScope} unreviewed")
+                : string.Create(CultureInfo.InvariantCulture, $"Mark {unreviewedInScope} shown reviewed")
+            : unreviewed == 0 && total > 0 ? "Mark unreviewed" : "Mark section reviewed";
         if (ReviewText != reviewText)
         {
             ReviewText = reviewText;
