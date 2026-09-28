@@ -306,13 +306,14 @@ public static class StratFromRound
             return null;
         }
 
-        string? actor = options.Tokens.GetValueOrDefault(moment.ActorSlot);
+        // The thrower by player; the slot is only the token's key.
+        CapturedPawn? thrower = moment.ActorPawn();
+        string? actor = options.Tokens.GetValueOrDefault(thrower?.PlayerSlot ?? moment.ActorSlot);
         if (moment.ActorTeam == 0 && actor is not null && !StratVocabulary.Slots.Contains(actor))
         {
             return null;
         }
 
-        CapturedPawn? thrower = moment.ActorSlot >= 0 ? moment.PawnIn(moment.ActorSlot) : null;
         double landingLevel = options.LevelMinZFor(moment.Position.Z);
         StratStep step = new()
         {

@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Utility;
@@ -678,6 +679,9 @@ public sealed class LineupInstanceRow(IndexedGrenade grenade, DateTime? date, IA
     public string Date { get; } = date is { } d ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
 
     public string DemoName { get; } = Path.GetFileNameWithoutExtension(grenade.Demo.Path);
+
+    /// <summary>Who threw it: the name at the time, sanitised; empty when the walk read no player.</summary>
+    public string PlayerText { get; } = grenade.Row.ThrowerName is { Length: > 0 } name ? DisplayText.Sanitize(name) : "";
 
     public string RoundText { get; } = grenade.Row.RoundNumber > 0
         ? string.Create(CultureInfo.InvariantCulture, $"round {grenade.Row.RoundNumber}")

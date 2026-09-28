@@ -307,7 +307,7 @@ public sealed class RoundSignatureBuilder
             .OrderBy(g => g.Grenade.Row.ReleaseTick)
             .ThenBy(g => g.Grenade.Row.Id, StringComparer.Ordinal)
             .Select(g => new MinedThrow(g.Grenade.Kind, (g.Grenade.Row.ReleaseTick - s.AnchorTick) / (double)s.TickRate, g.Grenade.Landing,
-                g.Grenade.LandingPlace, g.Grenade.Origin, g.Grenade.Row.ThrowerSlot, g.LineupId))
+                g.Grenade.LandingPlace, g.Grenade.Origin, g.Grenade.Row.ThrowerSteamId ?? 0, g.Grenade.Row.ThrowerName, g.LineupId))
     ];
 
     private static CachedSignature? Setup(Context c)

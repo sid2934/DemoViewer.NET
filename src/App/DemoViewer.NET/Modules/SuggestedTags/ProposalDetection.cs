@@ -148,7 +148,9 @@ internal static class DetectorMath
     internal static ProposalEvidence Evidence(PlacedEvent e) => new(
         "event",
         e.Tick,
-        e.ThrowerSlot >= 0
+        e.ThrowerName is { Length: > 0 } name
+            ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by {Library.DisplayText.Sanitize(name)} -> {e.Place ?? "unplaced"}")
+            : e.ThrowerSlot >= 0
             ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by slot {e.ThrowerSlot} -> {e.Place ?? "unplaced"}")
             : string.Create(CultureInfo.InvariantCulture, $"{e.Kind} -> {e.Place ?? "unplaced"}"));
 
