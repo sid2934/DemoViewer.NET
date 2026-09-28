@@ -143,10 +143,10 @@ public static class ForwardDemoPass
     ///     A build over <paramref name="docs" /> whose configured outputs are cut to <c>round_facts</c>. A
     ///     bare run cannot project a per-event output, and recording the other tables costs for nothing.
     /// </summary>
-    public static BuildResult Build(IDemoFrameSource source, IReadOnlyList<RulesetDoc> docs) =>
-        OnlyRoundFactsOutput(DemoAnalysis.Build(source, docs));
+    public static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, CancellationToken cancellationToken = default) =>
+        OnlyRoundFactsOutput(DemoAnalysis.Build(reader, docs, new AnalysisOptions { CancellationToken = cancellationToken }));
 
-    /// <inheritdoc cref="Build(IDemoFrameSource, IReadOnlyList{RulesetDoc})" />
+    /// <inheritdoc cref="Build(DemoReader, IReadOnlyList{RulesetDoc}, CancellationToken)" />
     public static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs) =>
         OnlyRoundFactsOutput(DemoAnalysis.Build(parsed, docs));
 
@@ -199,7 +199,7 @@ public static class ForwardDemoPass
 
         // Build before Configure: the build probes the dialect, which needs the reader unstarted.
         BuildResult? build = (needs & ForwardNeeds.Rules) != 0
-            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)))
+            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), cancellationToken)
             : null;
         reader.Configure(PlanFor(build, needs));
 

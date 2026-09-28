@@ -480,6 +480,17 @@ card as the retained parse, and the merged build's firings and Round Facts rows 
 builds'. A rules-only pass (what a round-facts-only entry runs) writes the same rows. The only changed field
 is `RoundFactsFingerprint`.
 
+The same comparison over owner-library demos read in place (`ForwardPass_ListedDemos`, paths in
+`FORWARD_PASS_DEMOS`): identical for a 430 MB matchmaking overtime demo (28 rounds), the 380 MB BLAST pro
+demo, the 751 MB PGL demo, and two tournament demos with no Round Facts rows on either path (eBot train, ESL
+nuke). One difference, on the 706 MB ESL demo (iem-krakw furia-vs-vitality m1 mirage), in the last round only
+(round 24, defused at 204707, `round_officially_ended` at 204900, last frame 207593): the retained evaluation
+never sees the win-status transition (end tick null, no winner, no reason), the forward one records it at
+207361 with CT winning by defuse (reason 7). The profile resolves the same on both paths
+(`Cs2GotvPreRestartProfile`) and the decode plan makes no difference (narrow, wide and the engine's own plan
+agree), so it is the engine's retained versus streaming evaluation of that last round. Highlights on that demo
+are identical. Upstream question for CS2DemoKit; the forward answer has the right winner.
+
 Same method as above (Release `AnalysisBench bg-run`, mapped, Workstation concurrent, compact after each
 job, `/usr/bin/time -l`), the five demos in `demos/benchmarks` (172-279 MB matchmaking, local disk, warm), two
 runs each, interleaved. `--read=app-retained` is the queue job before this branch: parse without user

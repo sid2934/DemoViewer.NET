@@ -39,9 +39,31 @@ public class ForwardPassRealDemoTests
     [Arguments(0)]
     [Arguments(1)]
     [Arguments(2)]
-    public async Task ForwardPass_WritesWhatTheRetainedParseWrites_AndMatchesTheSeparateBuilds(int which)
+    public async Task ForwardPass_WritesWhatTheRetainedParseWrites_AndMatchesTheSeparateBuilds(int which) =>
+        await Compare(BackgroundPlanRealDemoTests.SmallestDemo(which), true);
+
+    /// <summary>
+    ///     The same comparison over demos named in <c>FORWARD_PASS_DEMOS</c> (separated by <c>;</c>), read in
+    ///     place: large pro demos, overtime, dialects without <c>begin_new_match</c>, demos with no round facts rows.
+    /// </summary>
+    [Test]
+    public async Task ForwardPass_ListedDemos()
     {
-        string path = BackgroundPlanRealDemoTests.SmallestDemo(which);
+        string[] paths = (Environment.GetEnvironmentVariable("FORWARD_PASS_DEMOS") ?? "")
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (paths.Length == 0)
+        {
+            throw new TUnit.Core.Exceptions.SkipTestException("FORWARD_PASS_DEMOS names no demos");
+        }
+
+        foreach (string path in paths)
+        {
+            await Compare(path, false);
+        }
+    }
+
+    private static async Task Compare(string path, bool requireRows)
+    {
         MergedRulesBuild merged = new(ShippedRules);
 
         (Dictionary<string, string> retained, Dictionary<string, string> old) = Retained(path, merged);
@@ -61,15 +83,19 @@ public class ForwardPassRealDemoTests
             await Assert.That(forward["round facts"]).IsEqualTo(old["round facts"]).Because("merged build vs round_facts alone");
             // The engine's fingerprint hashes highlight definitions only, so adding round_facts leaves it as it was.
             await Assert.That(forward["highlight fingerprint"]).IsEqualTo(old["highlight fingerprint"]);
-            await Assert.That(forward["round facts fingerprint"]).IsNotEqualTo(old["round facts fingerprint"]);
+            if (forward["round facts"] != None)
+            {
+                await Assert.That(forward["round facts fingerprint"]).IsNotEqualTo(old["round facts fingerprint"]);
+            }
 
-            foreach (string key in new[] { "firings", "round facts", "record", "library" })
+            foreach (string key in requireRows ? new[] { "firings", "round facts", "record", "library" } : ["firings", "record", "library"])
             {
                 await Assert.That(forward[key].Length).IsGreaterThan(200).Because($"{key}: {forward[key]}");
             }
         }
 
-        Console.WriteLine($"{Path.GetFileName(path)}: " + string.Join(", ", forward.Select(kv => $"{kv.Key} {kv.Value.Length}")));
+        Console.WriteLine($"{Path.GetFileName(path)}: " + string.Join(", ", forward.Select(kv => $"{kv.Key} {kv.Value.Length}"))
+                          + $", rows {(forward["round facts"] == None ? "none" : "yes")}");
     }
 
     [Test]
@@ -113,15 +139,16 @@ public class ForwardPassRealDemoTests
         AnalysisRun factsRun = DemoAnalysis.Evaluate(parsed, factsOnly, new AnalysisOptions { CaptureSnapshots = false });
         MetricTable? table = factsRun.ProjectConfiguredOutputs(parsed)
             .FirstOrDefault(t => t.Name == EngineRoundFactsRowSource.TableName);
-        RoundFactsRows rows = RoundFactsProjection.Project(ClipRounds.Derive(parsed),
-            EngineRoundFactsRowSource.FromTable(table, EngineRoundFactsRowSource.ParametersOf(doc), ClipRounds.Derive(parsed)));
+        RoundFactsTable factsTable =
+            EngineRoundFactsRowSource.FromTable(table, EngineRoundFactsRowSource.ParametersOf(doc), ClipRounds.Derive(parsed));
+        RoundFactsRows rows = RoundFactsProjection.Project(ClipRounds.Derive(parsed), factsTable);
         rows.Clock = RoundFactsClock.From(FrameClock.IdentityFor(parsed));
 
         Dictionary<string, string> old = new()
         {
             ["firings"] = JsonSerializer.Serialize(
                 DemoAnalysis.Evaluate(parsed, highlightsOnly, new AnalysisOptions { CaptureSnapshots = false }).Highlights, Json),
-            ["round facts"] = WithoutSha(rows),
+            ["round facts"] = factsTable.Rows.Count == 0 ? None : WithoutSha(rows),
             ["highlight fingerprint"] = HighlightConfigFingerprint.Compute(
                 RoundFactsFingerprint.WithoutRoundFacts(rules), parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint,
             ["round facts fingerprint"] = RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema,
@@ -158,7 +185,7 @@ public class ForwardPassRealDemoTests
         });
         RulesRoundFactsRulesetIdentity identity = new(merged);
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(identity), identity).EvaluateForward(path, pass);
-        return WithoutSha(cache.TryLoadRecord(path)!.RoundFacts!);
+        return WithoutSha(cache.TryLoadRecord(path)?.RoundFacts);
     }
 
     private static Dictionary<string, string> Write(string path, MergedRulesBuild merged,
@@ -189,7 +216,7 @@ public class ForwardPassRealDemoTests
             return new Dictionary<string, string>
             {
                 ["record"] = recordJson.ToJsonString(),
-                ["round facts"] = WithoutSha(record.RoundFacts!),
+                ["round facts"] = WithoutSha(record.RoundFacts),
                 ["highlight fingerprint"] = record.ConfigFingerprint ?? "",
                 ["round facts fingerprint"] = record.RoundFactsFingerprint ?? "",
                 ["library"] = JsonSerializer.Serialize(new
@@ -213,8 +240,15 @@ public class ForwardPassRealDemoTests
         }
     }
 
-    private static string WithoutSha(RoundFactsRows rows)
+    private const string None = "none";
+
+    private static string WithoutSha(RoundFactsRows? rows)
     {
+        if (rows is null)
+        {
+            return None;
+        }
+
         JsonObject json = JsonSerializer.SerializeToNode(rows, Json)!.AsObject();
         json.Remove("DemoSha256");
         return json.ToJsonString();
