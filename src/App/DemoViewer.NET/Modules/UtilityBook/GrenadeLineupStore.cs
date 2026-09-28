@@ -57,14 +57,16 @@ public sealed class GrenadeLineupStore
     public const string FileName = "grenade-lineups.json.gz";
 
     private readonly string? _file;
-    private GrenadeLineupDocument _document;
+    private GrenadeLineupDocument? _loaded;
 
     /// <param name="cacheRoot">The demo cache root, or null to keep everything in memory.</param>
     public GrenadeLineupStore(string? cacheRoot)
     {
         _file = cacheRoot is null ? null : Path.Combine(cacheRoot, FileName);
-        _document = Read(_file) ?? new GrenadeLineupDocument();
     }
+
+    // Read on first use, not in the constructor: the file holds every flight and the index is built on the UI thread.
+    private GrenadeLineupDocument Doc => _loaded ??= Read(_file) ?? new GrenadeLineupDocument();
 
     /// <summary>The store for <paramref name="cache" />'s root.</summary>
     public static GrenadeLineupStore For(DemoCacheStore cache)
@@ -80,10 +82,10 @@ public sealed class GrenadeLineupStore
     public MapLineups For(string map)
     {
         ArgumentNullException.ThrowIfNull(map);
-        if (!_document.Maps.TryGetValue(map, out MapLineups? lineups))
+        if (!Doc.Maps.TryGetValue(map, out MapLineups? lineups))
         {
             lineups = new MapLineups();
-            _document.Maps[map] = lineups;
+            Doc.Maps[map] = lineups;
         }
 
         return lineups;
@@ -94,7 +96,7 @@ public sealed class GrenadeLineupStore
     {
         if (_file is not null)
         {
-            DemoCacheStore.WriteAtomicBytes(_file, SidecarJson.SerializeGzip(_document, GrenadeSidecar.JsonOptions));
+            DemoCacheStore.WriteAtomicBytes(_file, SidecarJson.SerializeGzip(Doc, GrenadeSidecar.JsonOptions));
         }
     }
 
@@ -107,8 +109,8 @@ public sealed class GrenadeLineupStore
         }
 
         GrenadeLineupDocument? back = Read(_file);
-        return back is not null && back.Maps.Count == _document.Maps.Count
-                                && back.Maps.All(m => _document.Maps.TryGetValue(m.Key, out MapLineups? mine)
+        return back is not null && back.Maps.Count == Doc.Maps.Count
+                                && back.Maps.All(m => Doc.Maps.TryGetValue(m.Key, out MapLineups? mine)
                                                       && mine.Anchors.Count == m.Value.Anchors.Count
                                                       && mine.Paths.Count == m.Value.Paths.Count
                                                       && mine.Aliases.Count == m.Value.Aliases.Count);

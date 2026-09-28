@@ -182,6 +182,9 @@ public sealed class GrenadeRow
     [JsonIgnore]
     public ulong? ThrowerSteamId => _throwerSteamId;
 
+    /// <summary>The thrower's name at the time of the throw, from the demo's player list; null when unknown.</summary>
+    public string? ThrowerName { get; set; }
+
     /// <summary>2 = T, 3 = CT, 0 when the thrower's pawn was not read.</summary>
     public int ThrowerTeam { get; set; }
 

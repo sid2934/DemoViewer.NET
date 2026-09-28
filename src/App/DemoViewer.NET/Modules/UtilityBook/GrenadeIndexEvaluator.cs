@@ -39,6 +39,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     private readonly Func<bool> _backgroundIndex;
     private readonly DemoCacheStore _demoCache;
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, List<TrajectoryPoint>>> _flights = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private readonly Func<string?> _openDemo;
     private readonly Action<Action> _post;
@@ -222,6 +223,17 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
             // Rows first, stamp last: a crash between them leaves the demo "not walked".
             GrenadeSidecar.WriteRows(_demoCache, path, rows);
+            lock (_gate)
+            {
+                // Nothing takes them when no index listens (a test, a host without the Utility Book).
+                if (_flights.Count >= 16)
+                {
+                    _flights.Clear();
+                }
+
+                _flights[path] = walk.Rows.ToDictionary(r => r.Id, r => r.Trajectory, StringComparer.Ordinal);
+            }
+
             _demoCache.UpdateExisting(path, r =>
             {
                 DemoCacheStore.StampGrenades(r);
@@ -253,6 +265,16 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         finally
         {
             ClearForced(path);
+        }
+    }
+
+    /// <summary>The flights of a demo this evaluator just walked, handed over once; null when there are none.</summary>
+    /// <param name="path">The demo's path.</param>
+    public IReadOnlyDictionary<string, List<TrajectoryPoint>>? TakeFlights(string path)
+    {
+        lock (_gate)
+        {
+            return _flights.Remove(path, out Dictionary<string, List<TrajectoryPoint>>? flights) ? flights : null;
         }
     }
 
