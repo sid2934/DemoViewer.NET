@@ -5,9 +5,13 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -23,6 +27,12 @@ namespace AnalysisBench;
 ///         <c>--compact=none|end|each</c>: the app's <c>HeapCompactor</c> sequence never, once after the last
 ///         demo (a queue drain), or after every demo. <c>--plan=&lt;name&gt;</c>: see <see cref="BackgroundPlans" />.
 ///     </para>
+///     <para>
+///         <c>--read=app-retained</c>: what the queue did per demo before the forward pass: a mapped parse
+///         without user commands, the highlights build, a separate round_facts build, the library's
+///         final-state replay and round derivation. <c>--read=app-forward</c>: the queue's forward pass for
+///         the same three consumers (<c>ForwardDemoPass</c>, one merged build). Both imply <c>--eval</c>.
+///     </para>
 ///     Emits one <c>@BGJOB</c> JSON line per demo and one <c>@BGRUN</c> line at the end.
 /// </summary>
 internal static class BackgroundRunCommand
@@ -35,7 +45,7 @@ internal static class BackgroundRunCommand
         string read = named.GetValueOrDefault("--read", "mmap");
         string compact = named.GetValueOrDefault("--compact", "none");
         string? plan = named.GetValueOrDefault("--plan");
-        bool eval = flags.Contains("--eval");
+        bool eval = flags.Contains("--eval") || read.StartsWith("app-", StringComparison.Ordinal);
 
         RuleConfigLoadResult? rules = null;
         if (eval)
@@ -125,6 +135,18 @@ internal static class BackgroundRunCommand
             CaptureSnapshots = false
         };
         long t = Stopwatch.GetTimestamp();
+        if (read == "app-forward")
+        {
+            using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
+            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules!.Rulesets);
+            return (Stopwatch.GetElapsedTime(t).TotalMilliseconds, pass.Run!.Highlights.Count);
+        }
+
+        if (read == "app-retained")
+        {
+            return AppRetained(path, rules!, t);
+        }
+
         if (read == "forward")
         {
             // The forward reader narrows the decode to the graph's own PlanDecode and keeps no frames.
@@ -145,6 +167,25 @@ internal static class BackgroundRunCommand
 
         BuildResult build = DemoAnalysis.Build(demo, rules.Rulesets);
         return (parseMs, DemoAnalysis.Evaluate(demo, build, bare).Highlights.Count);
+    }
+
+    // The pre-forward queue job: one retained parse, then each consumer on it in turn.
+    private static (double ParseMs, int Highlights) AppRetained(string path, RuleConfigLoadResult rules, long t)
+    {
+        AnalysisOptions bare = new() { CaptureSnapshots = false };
+        ParsedDemo demo = BackgroundPlans.Parse(path, "mmap", "no-usercmds");
+        double parseMs = Stopwatch.GetElapsedTime(t).TotalMilliseconds;
+
+        EntityTracker tracker = FinalTeamState.NewTracker();
+        tracker.ReplayToIndex(demo.Frames.Count - 1, demo.Frames);
+        _ = FinalTeamState.Read(tracker, demo.Players.Keys);
+        _ = ClipRounds.Derive(demo);
+
+        List<RulesetDoc> highlights = [.. rules.Rulesets.Where(r => r.Id != ForwardDemoPass.RoundFactsTable)];
+        int n = DemoAnalysis.Evaluate(demo, DemoAnalysis.Build(demo, highlights), bare).Highlights.Count;
+        RulesetDoc facts = rules.Rulesets.First(r => r.Id == ForwardDemoPass.RoundFactsTable);
+        _ = DemoAnalysis.Evaluate(demo, DemoAnalysis.Build(demo, [facts]), bare).ProjectConfiguredOutputs(demo);
+        return (parseMs, n);
     }
 
     private static void Compact()

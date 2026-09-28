@@ -99,6 +99,11 @@ public enum DemoQueueItemState
 ///     False when <see cref="OnParsed" /> never reads user commands. The parse leaves them out only when no
 ///     owner on the entry needs them.
 /// </param>
+/// <param name="OnForward">
+///     The owner's post-processing on a forward pass, or null when it needs the retained parse. The entry is
+///     read forward only when every owner on it supplies one.
+/// </param>
+/// <param name="ForwardNeeds">What the forward pass must produce for <see cref="OnForward" />.</param>
 public sealed record DemoProcessingRequest(
     string Path,
     string OwnerTag,
@@ -107,7 +112,9 @@ public sealed record DemoProcessingRequest(
     Action<ParsedDemo> OnParsed,
     Action<Exception>? OnFailed = null,
     string? DisplayName = null,
-    bool NeedsUserCommands = true);
+    bool NeedsUserCommands = true,
+    Action<ForwardDemoResult>? OnForward = null,
+    ForwardNeeds ForwardNeeds = ForwardNeeds.None);
 
 /// <summary>What a running <see cref="QueueJobRequest" /> body gets from the queue.</summary>
 public interface IQueueJobContext

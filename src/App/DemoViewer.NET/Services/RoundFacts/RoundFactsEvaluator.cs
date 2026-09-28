@@ -4,6 +4,7 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
@@ -14,9 +15,9 @@ namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
 ///     The evaluator that writes round facts: an <see cref="IDemoEvaluator" /> on the tier-2 fan-out, so
-///     it runs on the Library's held parse and costs no second parse. It evaluates ONLY the
-///     <c>round_facts</c> ruleset through its <see cref="IRoundFactsRowSource" />, projects the table onto
-///     the record and stores the rows in the Analysis tier under <see cref="RoundFactsFingerprint" />.
+///     it runs on the Library's pass (retained or forward) and costs no second parse. It reads the
+///     <c>round_facts</c> table out of the merged rules run through its <see cref="IRoundFactsRowSource" />,
+///     projects it onto the record and stores the rows in the Analysis tier under <see cref="RoundFactsFingerprint" />.
 ///     <para>
 ///         Registered after the highlight scanner and before the round index (overview correction 19):
 ///         the index reads these rows in the same pass.
@@ -105,6 +106,15 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// </remarks>
     public void OnParsedOpportunistically(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
+    /// <inheritdoc />
+    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
+
+    /// <inheritdoc />
+    public void EvaluateForward(string path, ForwardDemoResult pass) => Refresh(path, pass);
+
+    /// <inheritdoc />
+    public void OnForwardOpportunistically(string path, ForwardDemoResult pass) => Refresh(path, pass);
+
     /// <summary>
     ///     The demos whose rows are missing or stale under the current fingerprint: the coordinator's
     ///     candidate universe for this evaluator. Derived from the index, never stored.
@@ -126,12 +136,20 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
         ];
     }
 
-    private void Refresh(string path, ParsedDemo parsed)
+    private void Refresh(string path, ParsedDemo parsed) =>
+        Refresh(path, parsed.TickRate, () => _rows.Rows(parsed), () => ClipRounds.Derive(parsed),
+            () => FrameClock.IdentityFor(parsed));
+
+    private void Refresh(string path, ForwardDemoResult pass) =>
+        Refresh(path, pass.Demo.TickRate, () => _rows.Rows(pass), () => pass.Rounds, () => FrameClock.IdentityFor(pass));
+
+    private void Refresh(string path, int tickRate, Func<RoundFactsTable> rowsOf,
+        Func<IReadOnlyList<ClipRound>> roundsOf, Func<ClockIdentity> clockOf)
     {
         string fileName = Path.GetFileName(path);
         try
         {
-            string? fingerprint = TryFingerprint(parsed.TickRate);
+            string? fingerprint = TryFingerprint(tickRate);
             if (fingerprint is null)
             {
                 // No ruleset to run. Said once per process: with the ruleset disabled every tier-2 pass lands here.
@@ -149,7 +167,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
                 return;
             }
 
-            RoundFactsTable table = _rows.Rows(parsed);
+            RoundFactsTable table = rowsOf();
             foreach (string diagnostic in table.Diagnostics)
             {
                 RoundFactsLog.SourceDiagnostic(Log, fileName, diagnostic);
@@ -168,8 +186,8 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
                 return;
             }
 
-            RoundFactsRows rows = RoundFactsProjection.Project(ClipRounds.Derive(parsed), table);
-            rows.Clock = RoundFactsClock.From(FrameClock.IdentityFor(parsed));
+            RoundFactsRows rows = RoundFactsProjection.Project(roundsOf(), table);
+            rows.Clock = RoundFactsClock.From(clockOf());
             foreach (string warning in rows.Warnings)
             {
                 RoundFactsLog.ProjectionWarning(Log, fileName, warning);
