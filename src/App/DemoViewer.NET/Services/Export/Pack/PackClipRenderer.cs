@@ -45,7 +45,7 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
 
     /// <param name="gate">The heavy-job gate; each parse takes an interactive slot, since the user asked for this.</param>
     /// <param name="annotations">Where each demo's ink is read from, or null to render without ink.</param>
-    /// <param name="parse">Reads and parses a demo; <c>DemoParser.Parse</c> over the file when null.</param>
+    /// <param name="parse">Reads and parses a demo; an entity-replay <c>DemoParser.Parse</c> over the file when null.</param>
     /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
     /// <param name="surfaces">Builds the render surface; the CPU rasteriser when null.</param>
     /// <param name="log">Line sink for a missing bundle or an unreadable sidecar.</param>
@@ -55,7 +55,8 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
     {
         _gate = gate;
         _annotations = annotations;
-        _parse = parse ?? (path => DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
+        _parse = parse ?? (path => DemoParser.Parse(File.ReadAllBytes(path).AsMemory(),
+            new ParseOptions { Plan = DecodePlan.EntityReplay }));
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _surfaces = surfaces ?? RenderSurfaceProviderFactory.CreateCpu;
         _log = log;
