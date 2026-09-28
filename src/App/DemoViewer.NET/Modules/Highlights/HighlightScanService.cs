@@ -135,7 +135,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             }
 
             AnalysisRun run = _harvester.RunBareAnalysis(parsed);
-            WriteHarvest(path, parsed, run.Highlights, fingerprint, hashes);
+            WriteHarvest(path, HarvestFacts.From(parsed), run.Highlights, fingerprint, hashes);
             RaiseProgress();
         }
         catch (Exception)
@@ -239,7 +239,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
             if (harvested is not null)
             {
-                WriteHarvest(path, parsed, harvested);
+                WriteHarvest(path, HarvestFacts.From(parsed), harvested);
 
                 // Only when the run actually carried snapshots: a harvester that does not implement the full
                 // mode falls back to the bare run, which never produces snapshots, so having no scoreboard there is correct.
@@ -274,6 +274,84 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <inheritdoc />
+    public ForwardNeeds? ForwardFor(string path)
+    {
+        lock (_lifecycle)
+        {
+            // A forced scan runs with snapshots, which only the retained parse can feed.
+            return _forcedPaths.Contains(path) ? null : ForwardNeeds.Rules;
+        }
+    }
+
+    public void EvaluateForward(string path, ForwardDemoResult pass)
+    {
+        lock (_lifecycle)
+        {
+            // Forced after this entry was submitted: leave the flag, and the next poll submits it retained.
+            if (_forcedPaths.Contains(path))
+            {
+                return;
+            }
+        }
+
+        if (!NeedsScan(path))
+        {
+            return;
+        }
+
+        try
+        {
+            if (pass.Run is null)
+            {
+                MarkFailed(path);
+            }
+            else
+            {
+                WriteHarvest(path, HarvestFacts.From(pass), pass.Run.Highlights);
+            }
+        }
+        catch (Exception)
+        {
+            MarkFailed(path);
+        }
+        finally
+        {
+            _demoCache.SaveIndex();
+            RaiseProgress();
+        }
+    }
+
+    public void OnForwardOpportunistically(string path, ForwardDemoResult pass)
+    {
+        try
+        {
+            (string fingerprint, IReadOnlyDictionary<string, string> hashes) =
+                _harvester.ComputeFingerprint(pass.Demo.TickRate);
+            DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
+            if (entry is { AnalysisState: DemoAnalysisState.Indexed })
+            {
+                (long size, long modified) = SafeFileIdentity(path);
+                if (string.Equals(entry.ConfigFingerprint, fingerprint, StringComparison.Ordinal)
+                    && entry.ModifiedTicks == modified && entry.Size == size)
+                {
+                    return;
+                }
+            }
+
+            if (!_backgroundScanEnabled() || pass.Run is null)
+            {
+                return;
+            }
+
+            WriteHarvest(path, HarvestFacts.From(pass), pass.Run.Highlights, fingerprint, hashes);
+            RaiseProgress();
+        }
+        catch (Exception)
+        {
+            MarkFailed(path);
+        }
+    }
+
     public void OnFailed(string path)
     {
         lock (_lifecycle)
@@ -484,7 +562,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         {
             try
             {
-                WriteHarvest(path, parsed, run.Highlights);
+                WriteHarvest(path, HarvestFacts.From(parsed), run.Highlights);
                 RaiseProgress();
             }
             catch (Exception)
@@ -597,7 +675,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     ///         restate it. The Library owns it.
     ///     </para>
     /// </summary>
-    private void WriteHarvest(string path, ParsedDemo parsed, IReadOnlyList<HighlightFired> events,
+    private void WriteHarvest(string path, HarvestFacts parsed, IReadOnlyList<HighlightFired> events,
         string? knownFingerprint = null,
         IReadOnlyDictionary<string, string>? knownHashes = null)
     {
@@ -609,7 +687,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         // ClipRounds is the frame-clock round authority: round_freeze_end opens a
         // round, GameTick is the tick. CS2 emits no round_start. The string-matching walk this replaced
         // produced an EMPTY list on every CS2 demo, silently disabling the clip lead-in floor.
-        List<CachedRound> rounds = ClipRounds.Derive(parsed).ToCachedRounds();
+        List<CachedRound> rounds = parsed.Rounds.ToCachedRounds();
 
         _demoCache.UpdateExisting(path, record =>
         {
@@ -651,7 +729,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             // placeholder. A usable roster (any player with Slot >= 0) is the Library's and left untouched.
             List<CachedPlayerInfo> parsedRoster =
             [
-                .. parsed.Players.Values
+                .. parsed.Players
                     .Where(pl => !pl.IsBot && pl.Name.Length > 0)
                     .Select(pl => new CachedPlayerInfo
                     {
@@ -715,6 +793,22 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     ///         stored value and invalidates nothing.
     ///     </para>
     /// </summary>
+    // What a harvest reads off the demo besides the firings, from a held parse or a forward pass.
+    private sealed record HarvestFacts(
+        IReadOnlyList<ClipRound> Rounds,
+        IEnumerable<PlayerInfo> Players,
+        int TickRate,
+        int TickCount,
+        int ServerStartTick,
+        string? MapName)
+    {
+        public static HarvestFacts From(ParsedDemo parsed) => new(ClipRounds.Derive(parsed), parsed.Players.Values,
+            parsed.TickRate, parsed.TickCount, parsed.ServerStartTick, parsed.MapName);
+
+        public static HarvestFacts From(ForwardDemoResult pass) => new(pass.Rounds, pass.Demo.Players.Values,
+            pass.Demo.TickRate, pass.Demo.TickCount, pass.Demo.ServerStartTick, pass.Demo.MapName);
+    }
+
     private static (long Size, long ModifiedTicks) SafeFileIdentity(string path)
     {
         try

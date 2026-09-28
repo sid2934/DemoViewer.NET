@@ -688,11 +688,18 @@ public class App : Application
         // live AppSettings and re-applied on change (self-writes fire OnChange inline; external edits on a
         // threadpool thread, the queue setters are all lock-guarded, so either is safe). The OnChange
         // callback is rooted by the singleton IOptionsMonitor for the app's lifetime; nothing to dispose.
+        // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
+        // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
+        services.AddSingleton(_ => new MergedRulesBuild());
         services.AddSingleton(sp =>
         {
+            ForwardPassRunner? forward = OperatingSystem.IsBrowser()
+                ? null
+                : new ForwardPassRunner(sp.GetRequiredService<MergedRulesBuild>());
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                forwardPass: forward is null ? null : forward.Run);
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -738,7 +745,7 @@ public class App : Application
         // Highlights pipeline: the library-wide cache store and the
         // scanner over it. The scanner's library universe is the indexer's current entries; the D8
         // background-scan opt-in is read live from settings; UI marshalling via the dispatcher.
-        services.AddSingleton<IHighlightHarvester, RulesHighlightHarvester>();
+        services.AddSingleton<IHighlightHarvester>(sp => new RulesHighlightHarvester(sp.GetRequiredService<MergedRulesBuild>()));
         // The scan chip's mapper. A container singleton so the shell (which registers the chip into
         // the status strip) and the Reels tab (which shows the same state inline) share ONE instance.
         // The Reels tab VM is a container SINGLETON: the module framework already caches one instance per
@@ -801,7 +808,7 @@ public class App : Application
         // round_facts ruleset's own fingerprint, and the read API over those rows. The row source and the
         // identity share one read of the rules directories, so the rows are always stored under the
         // fingerprint of the doc that produced them.
-        services.AddSingleton<RulesRoundFactsRulesetIdentity>();
+        services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
         services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
         services.AddSingleton<IRoundFactsRowSource>(sp =>
             new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
