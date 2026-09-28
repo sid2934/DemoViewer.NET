@@ -195,13 +195,20 @@ public static class GrenadeSidecar
     {
         ArgumentNullException.ThrowIfNull(cache);
         if (cache.TryGetIndex(path) is not { } entry || !entry.IsGrenadesCurrent(GrenadeWalker.Version)
-                                                     || Read<GrenadeDocument>(cache, path, Suffix, LegacySuffix)
+                                                     || (ReadLog(cache, path) ?? Read<GrenadeDocument>(cache, path, Suffix, LegacySuffix))
                                                          is not { SchemaVersion: CurrentSchema } document)
         {
             return null;
         }
 
         return SameDemo(entry.Sha256, document.Demo.Sha256) ? document : null;
+    }
+
+    /// <summary>The throw log alone, or null when it is missing or does not decode.</summary>
+    public static GrenadeDocument? ReadLog(DemoCacheStore cache, string path)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        return cache.TryReadSiblingBytes(path, GrenadeThrowLog.Suffix) is { } bytes ? GrenadeThrowLog.TryDecode(bytes) : null;
     }
 
     /// <summary>A demo's trajectories, under the same rules as <see cref="TryReadRows" />.</summary>
@@ -221,31 +228,90 @@ public static class GrenadeSidecar
     }
 
     /// <summary>
-    ///     Writes both siblings gzipped, paths first. The caller stamps the record next and then calls
-    ///     <see cref="DeleteLegacy" />.
-    /// </summary>
-    public static void Write(DemoCacheStore cache, string path, GrenadeDocument rows, GrenadePathsDocument paths)
-    {
-        ArgumentNullException.ThrowIfNull(cache);
-        lock (cache.StripeFor(path))
-        {
-            cache.WriteSiblingBytes(path, PathsSuffix, SidecarJson.SerializeGzip(paths, JsonOptions));
-            cache.WriteSiblingBytes(path, Suffix, SidecarJson.SerializeGzip(rows, JsonOptions));
-        }
-    }
-
-    /// <summary>
-    ///     Writes the rows sibling gzipped and removes a paths sibling a previous walk left: nothing reads
-    ///     trajectories from disk. The caller stamps the record next and then calls <see cref="DeleteLegacy" />.
+    ///     Writes the throw log and removes a paths sibling a previous walk left: nothing reads trajectories
+    ///     from disk. The caller stamps the record next and then calls <see cref="DeleteLegacy" />.
     /// </summary>
     public static void WriteRows(DemoCacheStore cache, string path, GrenadeDocument rows)
     {
         ArgumentNullException.ThrowIfNull(cache);
         lock (cache.StripeFor(path))
         {
-            cache.WriteSiblingBytes(path, Suffix, SidecarJson.SerializeGzip(rows, JsonOptions));
+            cache.WriteSiblingBytes(path, GrenadeThrowLog.Suffix, GrenadeThrowLog.Encode(rows));
             cache.DeleteSibling(path, PathsSuffix);
             cache.DeleteSibling(path, LegacyPathsSuffix);
+        }
+    }
+
+    /// <summary>
+    ///     Rewrites a demo's JSON rows (gzipped or not) as its throw log, with each thrower's name from the
+    ///     record's player list, and deletes the JSON only after the log decodes to the same rows. The paths
+    ///     sibling is left for the lineup store's harvest.
+    /// </summary>
+    internal static SidecarConversion ConvertToLog(DemoCacheStore cache, string path)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        lock (cache.StripeFor(path))
+        {
+            if (cache.TryGetIndex(path) is not { } entry)
+            {
+                return SidecarConversion.None;
+            }
+
+            GrenadeDocument? json = Read<GrenadeDocument>(cache, path, Suffix, LegacySuffix);
+            if (json is null)
+            {
+                return SidecarConversion.None;
+            }
+
+            if (json.SchemaVersion != CurrentSchema || !SameDemo(entry.Sha256, json.Demo.Sha256))
+            {
+                return SidecarConversion.Failed;
+            }
+
+            Name(json, cache.TryLoadRecord(path)?.Players);
+            cache.WriteSiblingBytes(path, GrenadeThrowLog.Suffix, GrenadeThrowLog.Encode(json));
+            if (ReadLog(cache, path) is not { } existing || !GrenadeThrowLog.SameRows(existing.Grenades, json.Grenades))
+            {
+                cache.DeleteSibling(path, GrenadeThrowLog.Suffix);
+                return SidecarConversion.Failed;
+            }
+
+            cache.DeleteSibling(path, Suffix);
+            cache.DeleteSibling(path, LegacySuffix);
+            return SidecarConversion.Converted;
+        }
+    }
+
+    /// <summary>Fills each row's thrower name from the record's players, by SteamID and then by slot.</summary>
+    internal static void Name(GrenadeDocument document, IReadOnlyList<CachedPlayerInfo>? players)
+    {
+        if (players is null)
+        {
+            return;
+        }
+
+        Dictionary<string, string> bySteam = new(StringComparer.Ordinal);
+        Dictionary<int, string> bySlot = [];
+        foreach (CachedPlayerInfo player in players)
+        {
+            if (player.Name.Length == 0)
+            {
+                continue;
+            }
+
+            if (player.SteamId64.Length > 0)
+            {
+                bySteam.TryAdd(player.SteamId64, player.Name);
+            }
+
+            bySlot.TryAdd(player.Slot, player.Name);
+        }
+
+        foreach (GrenadeRow row in document.Grenades)
+        {
+            row.ThrowerName ??= row.ThrowerSteamId64 is { } steam && bySteam.TryGetValue(steam, out string? name) ? name
+                : row.ThrowerSlot >= 0 ? bySlot.GetValueOrDefault(row.ThrowerSlot)
+                : null;
         }
     }
 
@@ -259,10 +325,12 @@ public static class GrenadeSidecar
         lock (cache.StripeFor(path))
         {
             string? sha = cache.TryGetIndex(path)?.Sha256;
-            if (!Verify<GrenadeDocument>(cache, path, Suffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256))
+            if (ReadLog(cache, path) is not { } log || log.SchemaVersion != CurrentSchema || !SameDemo(sha, log.Demo.Sha256))
             {
                 return false;
             }
+
+            cache.DeleteSibling(path, Suffix);
 
             if (cache.TryReadSiblingBytes(path, PathsSuffix) is null
                 || Verify<GrenadePathsDocument>(cache, path, PathsSuffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256))

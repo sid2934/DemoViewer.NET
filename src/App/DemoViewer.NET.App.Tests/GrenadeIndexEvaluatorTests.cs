@@ -281,7 +281,7 @@ public class GrenadeIndexEvaluatorTests
             (DemoCacheStore memory, GrenadeIndexEvaluator inMemory) = Wire(background: true);
             onDisk.Evaluate(Demo, Parse());
             inMemory.Evaluate(Demo, Parse());
-            string rowsFile = disk.SiblingPathFor(Demo, GrenadeSidecar.Suffix)!;
+            string rowsFile = disk.SiblingPathFor(Demo, GrenadeThrowLog.Suffix)!;
             string pathsFile = disk.SiblingPathFor(Demo, GrenadeSidecar.PathsSuffix)!;
             await Assert.That(File.Exists(rowsFile)).IsTrue();
             await Assert.That(File.Exists(pathsFile)).IsFalse();
@@ -298,7 +298,7 @@ public class GrenadeIndexEvaluatorTests
                 await Assert.That(File.Exists(rowsFile)).IsFalse();
                 await Assert.That(File.Exists(pathsFile)).IsFalse();
                 await Assert.That(disk.TryReadSibling("/d/other.dem", GrenadeSidecar.Suffix)).IsEqualTo("{}");
-                await Assert.That(memory.TryReadSibling(Demo, GrenadeSidecar.Suffix)).IsNull();
+                await Assert.That(memory.TryReadSiblingBytes(Demo, GrenadeThrowLog.Suffix)).IsNull();
                 await Assert.That(memory.TryReadSibling(Demo, GrenadeSidecar.PathsSuffix)).IsNull();
             }
         }
