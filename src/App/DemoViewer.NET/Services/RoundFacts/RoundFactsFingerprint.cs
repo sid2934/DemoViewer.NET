@@ -14,9 +14,9 @@ namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
 ///     What decides whether cached round facts are current: <see cref="MergedRulesBuild.RoundFactsIdentity" />
-///     (the merged build's highlight fingerprint, the effective <c>round_facts</c> source and the engine
-///     version) folded with the payload schema. A highlight edit re-runs round facts in the same pass that
-///     re-scans highlights; a <c>round_facts</c> edit leaves the highlight rows current.
+///     (the effective <c>round_facts</c> composed alone, its source file and the engine version) folded
+///     with the payload schema. Editing a threshold re-runs round facts; the highlight scan and the roster
+///     parse never notice.
 /// </summary>
 public static class RoundFactsFingerprint
 {
@@ -34,7 +34,7 @@ public static class RoundFactsFingerprint
 
     /// <summary>Folds the payload schema into a ruleset identity hash.</summary>
     /// <param name="schema">The <see cref="RoundFactsRows.Schema" /> the rows would be written at.</param>
-    /// <param name="rulesetIdentity">The engine's resolved-identity hash of the merged rule set.</param>
+    /// <param name="rulesetIdentity">The <c>round_facts</c> identity from <see cref="MergedRulesBuild.RoundFactsIdentity" />.</param>
     public static string Combine(int schema, string rulesetIdentity)
     {
         ArgumentNullException.ThrowIfNull(rulesetIdentity);
@@ -59,8 +59,8 @@ public interface IRoundFactsRulesetIdentity
 
 /// <summary>
 ///     The real identity over the <see cref="MergedRulesBuild" />: null when the effective set carries no
-///     enabled <c>round_facts</c> (a user override with <c>enabled: false</c>), otherwise the merged
-///     set's fingerprint folded with the schema.
+///     enabled <c>round_facts</c> (a user override with <c>enabled: false</c>) or it does not compose,
+///     otherwise its identity folded with the schema.
 /// </summary>
 public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
 {

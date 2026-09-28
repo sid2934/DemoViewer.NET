@@ -460,22 +460,23 @@ foreground open, and a cancelled pass calls no owner (it is not a failure). A ne
 retained parses before this change (Round Index, Suggested Tags and grenades gate on the Parse stamp the
 library writes after its fan-out); now the first of the two is the forward pass.
 
-Highlights and Round Facts come out of one merged build (`MergedRulesBuild`) on both paths, from one rules
-read. Two things the merge turned up:
+Bare highlights and Round Facts come out of one merged build (`MergedRulesBuild`) on both paths, from one
+rules read; a forced scan's snapshot run stays on the highlight rulesets alone. Two things the merge turned up:
 
 - `HighlightConfigFingerprint` hashes highlight definitions only. Adding `round_facts` to the set leaves the
   highlight fingerprint unchanged, so highlights do not re-evaluate.
 - For the same reason the old Round Facts fingerprint was a constant: it hashed a one-ruleset set with no
-  highlights, so an edited buy threshold never re-ran the rows. The new one folds the merged highlight
-  fingerprint, the effective `round_facts` source file and the engine version into the schema. It differs from
-  every stored one, so each demo's Round Facts re-evaluate once, as forward entries through the queue at
-  Background priority and through the queue cap and backlog.
+  highlights, so an edited buy threshold never re-ran the rows (`RoundFactsIdentityTests`). The new one still
+  composes `round_facts` alone (a broken highlight file cannot block it) and adds the effective source file and
+  the engine version. It differs from every stored one, so each demo's Round Facts re-evaluate once, as forward
+  entries through the queue at Background priority and through the queue cap and backlog.
 
 Output check, `ForwardPassRealDemoTests` (RealDemo, skips without `DEMO_PATH`), the three smallest demos in
 `demos/benchmarks`: the forward pass writes the same cache record (roster, rounds, header fields, score,
 clans, SHA, highlights, Round Facts rows and both fingerprints, write stamps excluded) and the same library
 card as the retained parse, and the merged build's firings and Round Facts rows equal the two separate
-builds'. The only changed field is `RoundFactsFingerprint`.
+builds'. A rules-only pass (what a round-facts-only entry runs) writes the same rows. The only changed field
+is `RoundFactsFingerprint`.
 
 Same method as above (Release `AnalysisBench bg-run`, mapped, Workstation concurrent, compact after each
 job, `/usr/bin/time -l`), the five demos in `demos/benchmarks` (172-279 MB matchmaking, local disk, warm), two

@@ -60,7 +60,18 @@ public sealed class EngineRoundFactsRowSource : IRoundFactsRowSource
     }
 
     /// <inheritdoc />
-    public RoundFactsTable Rows(ParsedDemo parsed) => FromRun(_rules.Rules.BareRun(parsed), ClipRounds.Derive(parsed));
+    /// <remarks>Round facts is the last reader of the shared bare run, so the run is dropped here.</remarks>
+    public RoundFactsTable Rows(ParsedDemo parsed)
+    {
+        try
+        {
+            return FromRun(_rules.Rules.BareRun(parsed), ClipRounds.Derive(parsed));
+        }
+        finally
+        {
+            _rules.Rules.Forget(parsed);
+        }
+    }
 
     /// <inheritdoc />
     public RoundFactsTable Rows(ForwardDemoResult pass) =>
