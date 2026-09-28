@@ -331,6 +331,7 @@ public class PostPlantTests
         using (Assert.Multiple())
         {
             await Assert.That(queue.ClipCount).IsEqualTo(2);
+            await Assert.That(queue.Clips.All(c => c.TeamId == vm.SelectedTeam!.Id)).IsTrue().Because("a Dossier clip carries its team");
             await Assert.That(queue.Clips.All(c => c.Source == ReviewSources.Dossier)).IsTrue();
             await Assert.That(queue.Clips[0].Note).IsEqualTo("de_nuke T · plant A spot 1 (1050, 1000) · round 1");
             await Assert.That(queue.Clips[1].Note).IsEqualTo("de_nuke T · plant A spot 1 (1050, 1000) · round 2");

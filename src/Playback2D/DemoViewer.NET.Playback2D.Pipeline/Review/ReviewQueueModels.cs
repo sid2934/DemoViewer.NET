@@ -107,6 +107,9 @@ public sealed record ReviewEntry
     /// <summary>The Grenade Index lineup a Lineup Clip belongs to; null on every other clip and on clips queued before it existed.</summary>
     public Guid? LineupId { get; init; }
 
+    /// <summary>The Team Identity team the sending surface was about (a Dossier's team, a search's opponent); null when it had none.</summary>
+    public Guid? TeamId { get; init; }
+
     /// <summary>A reviewer has watched the clip. Written only when true, so older files and builds are unchanged.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Reviewed { get; init; }

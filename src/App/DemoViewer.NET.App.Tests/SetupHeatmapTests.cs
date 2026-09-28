@@ -267,6 +267,7 @@ public class SetupHeatmapTests
         using (Assert.Multiple())
         {
             await Assert.That(queue.ClipCount).IsEqualTo(3);
+            await Assert.That(queue.Clips.All(c => c.TeamId == vm.SelectedTeam!.Id)).IsTrue().Because("a Dossier clip carries its team");
             await Assert.That(queue.Clips.All(c => c.Source == ReviewSources.Dossier)).IsTrue();
             await Assert.That(queue.Clips.Select(c => c.FromTick)).IsEquivalentTo([10000, 20000, 40000]);
             await Assert.That(queue.Clips[0].Note).IsEqualTo("de_nuke · full buy · round 2");

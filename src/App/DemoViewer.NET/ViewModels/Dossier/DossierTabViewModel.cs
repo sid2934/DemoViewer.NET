@@ -442,13 +442,14 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <summary>The Review Queue clip for one of a heatmap's rounds: freeze end to the setup window's end plus the tail.</summary>
     /// <param name="heatmap">The heatmap.</param>
     /// <param name="round">One of its rounds.</param>
-    public static ReviewEntry ReviewClipFor(SetupHeatmap heatmap, SetupHeatmapRound round)
+    /// <param name="teamId">The dossier's team.</param>
+    public static ReviewEntry ReviewClipFor(SetupHeatmap heatmap, SetupHeatmapRound round, Guid? teamId = null)
     {
         ArgumentNullException.ThrowIfNull(heatmap);
         ArgumentNullException.ThrowIfNull(round);
         return ReviewEntry.Clip(round.DemoPath, round.FreezeEndTick, round.ClipEndTick,
             $"{heatmap.Map} · {SetupHeatmapViewModel.BuyLabelFor(heatmap.Buy)} · round {round.RoundNumber}",
-            ReviewSources.Dossier, round.TickRate, round.Sha256);
+            ReviewSources.Dossier, round.TickRate, round.Sha256) with { TeamId = teamId };
     }
 
     /// <summary>The section line for a finished build.</summary>
@@ -491,7 +492,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
         SetupHeatmap model = heatmap.Heatmap;
         string team = SelectedTeam?.Name ?? "";
-        int added = _review.Add(model.Rounds.Select(r => ReviewClipFor(model, r)),
+        Guid? teamId = SelectedTeam?.Id;
+        int added = _review.Add(model.Rounds.Select(r => ReviewClipFor(model, r, teamId)),
             $"Dossier · {team} · {model.Map} {heatmap.BuyLabel}", Plural(model.Rounds.Count, "CT round"));
         ReviewLine = added == 0 ? "already in Review" : $"{Plural(added, "round")} sent to Review";
         _selectTab?.Invoke(ReviewQueueModule.TabId);
