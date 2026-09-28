@@ -70,16 +70,21 @@
             <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextMid}" />
 
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRows}">
-                <ComboBox Grid.Column="0" ItemsSource="{Binding SourceFilters}" FontSize="11" MinWidth="130"
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRows}">
+                <ComboBox Grid.Column="0" ItemsSource="{Binding SourceFilters}" FontSize="11" MinWidth="120"
                           SelectedItem="{Binding SelectedSource}" ToolTip.Tip="Show clips from one source" />
-                <TextBox Grid.Column="1" Text="{Binding SearchText, Delay=150}" FontSize="11"
+                <ComboBox Grid.Column="1" ItemsSource="{Binding MapFilters}" FontSize="11" MinWidth="110"
+                          SelectedItem="{Binding SelectedMap}" ToolTip.Tip="Show clips on one map" />
+                <ComboBox Grid.Column="2" ItemsSource="{Binding TeamFilters}" FontSize="11" MinWidth="110"
+                          SelectedItem="{Binding SelectedTeam}"
+                          ToolTip.Tip="Show clips sent for one team; clips sent without a team are under no team" />
+                <TextBox Grid.Column="3" Text="{Binding SearchText, Delay=150}" FontSize="11"
                          PlaceholderText="Search notes, questions, demos and section titles" />
-                <CheckBox Grid.Column="2" Content="show reviewed" FontSize="11" IsChecked="{Binding ShowReviewed}"
+                <CheckBox Grid.Column="4" Content="show reviewed" FontSize="11" IsChecked="{Binding ShowReviewed}"
                           ToolTip.Tip="List clips already marked reviewed" />
-                <Button Grid.Column="3" Content="Expand all" Classes="ghost" FontSize="11" Padding="10 5"
+                <Button Grid.Column="5" Content="Expand all" Classes="ghost" FontSize="11" Padding="10 5"
                         Command="{Binding ExpandAllCommand}" />
-                <Button Grid.Column="4" Content="Collapse all" Classes="ghost" FontSize="11" Padding="10 5"
+                <Button Grid.Column="6" Content="Collapse all" Classes="ghost" FontSize="11" Padding="10 5"
                         Command="{Binding CollapseAllCommand}" />
             </Grid>
 

@@ -346,6 +346,8 @@ public class ReviewQueueTests
         ResultCardsViewModel cards = new(cache, sidecars, sources, () => null, new SituationThumbnailCache(),
             () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: queue);
         cache.Upsert(ParsedRecord("/d/a.dem"));
+        Guid opponent = Guid.NewGuid();
+        cards.SearchTeam = () => opponent;
 
         cards.Load(
         [
@@ -370,6 +372,7 @@ public class ReviewQueueTests
             await Assert.That(entries[1].Sha256).IsEqualTo("sha-a");
             await Assert.That(entries[1].Note).IsEqualTo("a · Round 4");
             await Assert.That(entries[2].Source).IsEqualTo(ReviewSources.Situation);
+            await Assert.That(entries.Skip(1).All(e => e.TeamId == opponent)).IsTrue().Because("the search's opponent at load");
             await Assert.That(cards.ReviewLine).IsEqualTo("2 rounds sent to Review");
         }
 

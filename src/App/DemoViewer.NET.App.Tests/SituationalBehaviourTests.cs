@@ -217,6 +217,7 @@ public class SituationalBehaviourTests
         {
             await Assert.That(queue.ClipCount).IsEqualTo(1);
             await Assert.That(queue.Clips[0].Source).IsEqualTo(ReviewSources.Dossier);
+            await Assert.That(queue.Clips.All(c => c.TeamId == vm.SelectedTeam!.Id)).IsTrue().Because("a Dossier clip carries its team");
             await Assert.That(queue.Clips[0].Note).IsEqualTo("de_nuke T · led 2-up · round 4");
             await Assert.That(vm.Situational.ReviewLine).IsEqualTo("1 round sent to Review");
             await Assert.That(shown).IsEquivalentTo(["review.queue"]);

@@ -158,6 +158,52 @@ public class ReviewTabRowsTests
         await Assert.That(queue.UnreviewedCount).IsEqualTo(3);
     }
 
+    // ── Map and team ──────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task TheMapAndTeamFilters_ComeFromTheQueue_AndOlderClipsSitUnderNoTeam()
+    {
+        Guid spirit = Guid.NewGuid(), deleted = Guid.NewGuid();
+        ReviewQueue queue = new(null);
+        queue.Add(
+        [
+            Clip("/d/nuke.dem", 100, "spirit nuke") with { TeamId = spirit },
+            Clip("/d/mirage.dem", 100, "spirit mirage") with { TeamId = spirit },
+            Clip("/d/nuke2.dem", 100, "old nuke"),
+            Clip("/d/gone.dem", 100, "deleted team") with { TeamId = deleted },
+            Clip("/d/unknown.dem", 100, "no demo")
+        ], "S");
+        int lookups = 0;
+        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false,
+            mapOf: c =>
+            {
+                lookups++;
+                return c.DemoPath.Contains("nuke", StringComparison.Ordinal) ? "de_nuke"
+                    : c.DemoPath.Contains("mirage", StringComparison.Ordinal) ? "de_mirage" : null;
+            },
+            teamName: id => id == spirit ? "Spirit" : null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(tab.MapFilters).IsEquivalentTo([ReviewQueueTabViewModel.AllMaps, "de_mirage", "de_nuke", ReviewQueueTabViewModel.NoMap]);
+            await Assert.That(tab.TeamFilters).IsEquivalentTo(
+                [ReviewQueueTabViewModel.AllTeams, "Spirit", ReviewQueueTabViewModel.NoTeam, ReviewQueueTabViewModel.UnknownTeam]);
+        }
+
+        tab.SelectedMap = "de_nuke";
+        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["spirit nuke", "old nuke"]);
+        tab.SelectedTeam = "Spirit";
+        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["spirit nuke"]);
+        tab.SelectedMap = ReviewQueueTabViewModel.AllMaps;
+        tab.SelectedTeam = ReviewQueueTabViewModel.NoTeam;
+        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["old nuke", "no demo"]);
+        await Assert.That(lookups).IsEqualTo(5).Because("one lookup per demo, not per clip per reconcile");
+
+        tab.SelectedMap = "de_mirage";
+        queue.Remove([queue.Clips[1].Id]);
+        await Assert.That(tab.SelectedMap).IsEqualTo(ReviewQueueTabViewModel.AllMaps).Because("no clip is on that map any more");
+    }
+
     [Test]
     [NotInParallel]
     [Category("Integration")]

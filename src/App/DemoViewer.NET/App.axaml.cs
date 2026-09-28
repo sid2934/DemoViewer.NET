@@ -919,6 +919,8 @@ public class App : Application
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
             IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
             Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
             if (!OperatingSystem.IsBrowser())
             {
@@ -941,7 +943,10 @@ public class App : Application
                 sp.GetRequiredService<ReviewQueue>(),
                 () => sp.GetService<ISituationPlayback>(),
                 exportPack: exportPack,
-                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory);
+                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory,
+                mapOf: clip => (clip.Sha256 is { } sha ? cache.TryGetIndexBySha256(sha) : null)?.Map
+                               ?? cache.TryGetIndex(clip.DemoPath)?.Map,
+                teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
         });
 
         // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run

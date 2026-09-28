@@ -58,6 +58,25 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     /// <summary>The source filter's "every source" value.</summary>
     public const string AllSources = "all sources";
 
+    /// <summary>The map filter's "every map" value.</summary>
+    public const string AllMaps = "all maps";
+
+    /// <summary>The map filter's value for a clip whose demo the cache does not know.</summary>
+    public const string NoMap = "no map";
+
+    /// <summary>The team filter's "every team" value.</summary>
+    public const string AllTeams = "all teams";
+
+    /// <summary>The team filter's value for a clip sent without a team, as every clip before teams were recorded.</summary>
+    public const string NoTeam = "no team";
+
+    /// <summary>The team filter's value for a clip whose team Team Identity no longer has.</summary>
+    public const string UnknownTeam = "unknown team";
+
+    private readonly Func<ReviewEntry, string?> _mapOf;
+    private readonly Dictionary<string, string> _maps = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<Guid, string?> _teamName;
+
     private readonly HashSet<Guid> _collapsed = [];
     private readonly HashSet<Guid> _seenSections = [];
     private Dictionary<Guid, ReviewRowViewModel> _rowsById = [];
@@ -112,6 +131,22 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     [ObservableProperty]
     private string _selectedSource = AllSources;
 
+    /// <summary>One of <see cref="MapFilters" />.</summary>
+    [ObservableProperty]
+    private string _selectedMap = AllMaps;
+
+    /// <summary><see cref="AllMaps" /> and every map a queued clip's demo is on.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _mapFilters = [AllMaps];
+
+    /// <summary>One of <see cref="TeamFilters" />.</summary>
+    [ObservableProperty]
+    private string _selectedTeam = AllTeams;
+
+    /// <summary><see cref="AllTeams" /> and every team a queued clip was sent for.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _teamFilters = [AllTeams];
+
     /// <summary>Reviewed clips are listed too; hidden by default.</summary>
     [ObservableProperty]
     private bool _showReviewed;
@@ -126,11 +161,16 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     /// <param name="exportPack">Renders a planned pack off the UI thread; null hides Export pack.</param>
     /// <param name="packDirectory">The folder a new pack's path starts in; the user's videos folder when null.</param>
     /// <param name="fileExists">The existence probe for a clip's demo; <see cref="File.Exists" /> when null.</param>
+    /// <param name="mapOf">A clip's map from the demo cache, by hash then path; no maps when null.</param>
+    /// <param name="teamName">A team's name from Team Identity, or null when it has none; no names when null.</param>
     public ReviewQueueTabViewModel(ReviewQueue queue, Func<ISituationPlayback?>? playback = null, bool? isBrowser = null,
         Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null,
-        string? packDirectory = null, Func<string, bool>? fileExists = null)
+        string? packDirectory = null, Func<string, bool>? fileExists = null, Func<ReviewEntry, string?>? mapOf = null,
+        Func<Guid, string?>? teamName = null)
     {
         ArgumentNullException.ThrowIfNull(queue);
+        _mapOf = mapOf ?? (static _ => null);
+        _teamName = teamName ?? (static _ => null);
         _queue = queue;
         _playback = playback ?? (() => null);
         _exportPack = exportPack;
@@ -301,6 +341,25 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
 
     partial void OnShowReviewedChanged(bool value) => Reconcile();
 
+    partial void OnSelectedMapChanged(string value) => Reconcile();
+
+    partial void OnSelectedTeamChanged(string value) => Reconcile();
+
+    // One cache lookup per demo, not per clip per reconcile; forgotten when the queue changes.
+    private string MapOf(ReviewEntry clip)
+    {
+        string key = clip.Sha256 ?? clip.DemoPath;
+        if (!_maps.TryGetValue(key, out string? map))
+        {
+            _maps[key] = map = _mapOf(clip) is { Length: > 0 } found ? found : NoMap;
+        }
+
+        return map;
+    }
+
+    private string TeamOf(ReviewEntry clip) =>
+        clip.TeamId is not { } id ? NoTeam : _teamName(id) is { Length: > 0 } name ? name : UnknownTeam;
+
     internal void ToggleReviewed(ReviewRowViewModel row)
     {
         if (row.IsClip)
@@ -460,6 +519,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     private void OnQueueChanged()
     {
         _queueChanged = true;
+        _maps.Clear();
         Reconcile();
     }
 
@@ -475,7 +535,11 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         IReadOnlyList<ReviewEntry> entries = _queue.Entries;
         string search = SearchText.Trim();
         string? source = SelectedSource == AllSources ? null : SelectedSource;
-        bool filtering = search.Length > 0 || source is not null;
+        string? mapFilter = SelectedMap == AllMaps ? null : SelectedMap;
+        string? teamFilter = SelectedTeam == AllTeams ? null : SelectedTeam;
+        bool filtering = search.Length > 0 || source is not null || mapFilter is not null || teamFilter is not null;
+        SortedSet<string> maps = new(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> teams = new(StringComparer.OrdinalIgnoreCase);
 
         List<ReviewRowViewModel> visible = [];
         Dictionary<Guid, ReviewRowViewModel> rows = [];
@@ -518,7 +582,13 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
                 sources.Add(clip.Source);
                 demos.Add(clip.DemoPath);
                 unreviewed += clip.Reviewed ? 0 : 1;
-                if (!Matches(clip, source, titleMatches ? "" : search) || (clip.Reviewed && !ShowReviewed))
+                string map = MapOf(clip);
+                string team = TeamOf(clip);
+                maps.Add(map);
+                teams.Add(team);
+                if (!Matches(clip, source, titleMatches ? "" : search) || (clip.Reviewed && !ShowReviewed)
+                    || (mapFilter is not null && !string.Equals(map, mapFilter, StringComparison.OrdinalIgnoreCase))
+                    || (teamFilter is not null && !string.Equals(team, teamFilter, StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }
@@ -559,6 +629,19 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             SourceFilters = filters;
         }
 
+        // The "none" values last, after the named ones.
+        List<string> mapFilters = [AllMaps, .. maps.Where(m => m != NoMap), .. maps.Where(m => m == NoMap)];
+        if (!mapFilters.SequenceEqual(MapFilters))
+        {
+            MapFilters = mapFilters;
+        }
+
+        List<string> teamFilters = [AllTeams, .. teams.Where(t => t is not (NoTeam or UnknownTeam)), .. teams.Where(t => t is NoTeam or UnknownTeam)];
+        if (!teamFilters.SequenceEqual(TeamFilters))
+        {
+            TeamFilters = teamFilters;
+        }
+
         if (!HasRows)
         {
             ShowClearConfirm = false;
@@ -574,10 +657,20 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         ClearCommand.NotifyCanExecuteChanged();
         ExportPackCommand.NotifyCanExecuteChanged();
 
-        // Last, since the setter reconciles again.
+        // Last, since each setter reconciles again.
         if (Gone(SelectedSource, SourceFilters, AllSources))
         {
             SelectedSource = AllSources;
+        }
+
+        if (Gone(SelectedMap, MapFilters, AllMaps))
+        {
+            SelectedMap = AllMaps;
+        }
+
+        if (Gone(SelectedTeam, TeamFilters, AllTeams))
+        {
+            SelectedTeam = AllTeams;
         }
     }
 
