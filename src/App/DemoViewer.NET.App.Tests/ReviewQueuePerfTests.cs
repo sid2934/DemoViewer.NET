@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -145,10 +146,16 @@ public class ReviewQueuePerfTests
 
                 // What LineupClipService.Plan does after an index change: one Merge per map, 20 new clips
                 // each. Once as ten bare merges, once inside Defer as Plan now does.
+                Guid? topBefore = TopRow(view, scroller);
+                Vector offsetBefore = scroller?.Offset ?? default;
                 sw.Restart();
                 MergeBatch(queue, 100_000);
                 Settle();
                 double bare = sw.Elapsed.TotalMilliseconds;
+                Guid? topAfter = TopRow(view, scroller);
+                Console.WriteLine($"[review-perf] reading position across a batch: offset {offsetBefore.Y:F0} to "
+                                  + $"{scroller?.Offset.Y ?? 0:F0}, top row kept={topBefore == topAfter}");
+                await Assert.That(topAfter).IsEqualTo(topBefore).Because("a batch landing must not move what the reviewer is reading");
                 sw.Restart();
                 using (queue.Defer())
                 {
@@ -179,6 +186,22 @@ public class ReviewQueuePerfTests
     }
 
     private static int TextBoxes(Visual view) => view.GetVisualDescendants().OfType<TextBox>().Count();
+
+    // The row whose top edge is nearest the viewport's top.
+    private static Guid? TopRow(Visual view, ScrollViewer? scroller)
+    {
+        if (scroller is null)
+        {
+            return null;
+        }
+
+        return view.GetVisualDescendants().OfType<ContentPresenter>()
+            .Where(c => c.DataContext is ReviewRowViewModel && c.IsVisible && c.TranslatePoint(default, scroller) is { Y: >= -1 })
+            .OrderBy(c => c.TranslatePoint(default, scroller)!.Value.Y)
+            .Select(c => ((ReviewRowViewModel)c.DataContext!).Entry.Id)
+            .Cast<Guid?>()
+            .FirstOrDefault();
+    }
 
     private static void MergeBatch(ReviewQueue queue, int first)
     {

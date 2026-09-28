@@ -73,7 +73,7 @@
             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRows}">
                 <ComboBox Grid.Column="0" ItemsSource="{Binding SourceFilters}" FontSize="11" MinWidth="130"
                           SelectedItem="{Binding SelectedSource}" ToolTip.Tip="Show clips from one source" />
-                <TextBox Grid.Column="1" Text="{Binding SearchText}" FontSize="11"
+                <TextBox Grid.Column="1" Text="{Binding SearchText, Delay=150}" FontSize="11"
                          PlaceholderText="Search notes, questions, demos and section titles" />
                 <Button Grid.Column="2" Content="Expand all" Classes="ghost" FontSize="11" Padding="10 5"
                         Command="{Binding ExpandAllCommand}" />
@@ -142,9 +142,9 @@
                                                     Command="{Binding ToggleCommand}"
                                                     ToolTip.Tip="Show or hide this section's clips" />
                                             <Button Content="▲" Classes="ghost" FontSize="11" Padding="6 3"
-                                                    Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
+                                                    Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" IsVisible="{Binding !IsCollapsed}" />
                                             <Button Content="▼" Classes="ghost" FontSize="11" Padding="6 3"
-                                                    Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
+                                                    Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" IsVisible="{Binding !IsCollapsed}" />
                                             <Button Content="✕" Classes="ghost" FontSize="11" Padding="6 3"
                                                     Command="{Binding RemoveCommand}"
                                                     ToolTip.Tip="Remove the title card; its clips join the section above" />

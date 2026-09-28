@@ -47,16 +47,25 @@ by the lineup count, which still grows with the corpus.
 
 | Step | Before | After |
 |---|---|---|
-| Read and deserialize the file | 41 ms, on the UI thread | 44 ms, on a worker |
+| Read and deserialize the file | 41 ms, on the UI thread | 44 ms, started on a worker (the rail badge reads the clip count at registration, so startup may still wait for it) |
 | Build the view model | 15 ms | 1 ms |
 | Show the section | 24,294 ms | 76 ms (reopen with every section expanded: 87 ms) |
 | Text boxes realized | 19,245 | 28 |
 | Scroll, one wheel-sized step (300 px) | not measurable (everything was already realized) | 15 ms average, 31 ms worst |
-| Scroll, 40 jumps across the whole list | 251 ms | about 2.5 s (60 to 100 ms a jump) |
+| Scroll, 40 jumps across the whole list (thumb drag) | 251 ms | Debug about 2.5 s (60 to 100 ms a jump); Release 1,479 ms (37 ms a jump, 102 ms worst) |
 | Ten-map lineup batch (`Plan` after an index change) | 58,618 ms | 51 ms (108 ms without `Defer`) |
 
 The Before open was measured cold. After is measured with the controls warmed up the way the shell
-has them. A cold After open measured 380 to 1,750 ms.
+has them. A cold After open measured 380 to 1,750 ms. Wheel scrolling is smooth. A thumb jump
+realizes a whole new screen of rows and costs 37 ms on average in Release, which is noticeable but
+not a freeze. If it matters, the next step is a template per row kind: each container still carries
+both the title-card and the clip layout. A batch that lands while the reviewer reads an expanded
+section keeps the top row in place (the harness asserts this).
+
+The Before render was checked by eye and then overwritten by the After run. It showed seven clip
+rows per screen under an expanded "Lineup clips, de_mirage" card. The After renders are
+`review-queue-owner-open.png`, `-scrolled.png` and `-collapsed.png` under
+`$TMPDIR/demoviewer-uitests/`.
 
 Causes, largest first:
 
@@ -80,13 +89,16 @@ added, they get it for free: only realized rows exist.
 
 - `ReviewQueueTabView`: the list is an `ItemsControl` over a `VirtualizingStackPanel` inside its own
   `ScrollViewer`. The filter row has a source picker, a search box, and Expand all / Collapse all.
-  Each title card has Show/Hide.
+  Each title card has Show/Hide. A collapsed card hides ▲ and ▼: moving it one entry would move a
+  single hidden clip into the neighbouring section. The search box waits 150 ms after typing stops.
 - `ReviewQueueTabViewModel`: row view models exist only for shown rows. A section with more than 50
   clips starts collapsed. Collapse state is per session and never written to the file. The source
   filter and the search narrow the list, and a search opens the sections it matches. A structural
   change swaps the visible list in with one `Reset`. An in-place edit keeps its row and its
   container, so focus and caret survive. Positions count every clip, shown or not. While the tab is
-  deactivated, a queue change only marks the rows stale.
+  deactivated, a queue change only marks the rows stale; `TabSectionHost` activates the section
+  every time it is shown. `PackSummary` is recomputed only when the queue changes, not when a
+  filter, a toggle or the search changes.
 - `ReviewQueue`: the file is read on a worker, and the first member access waits for it. Saves are
   debounced (300 ms) and written on a worker. `Flush()` writes what is pending, and the shutdown
   handler calls it. `Defer()` holds `Changed` and the save until the scope ends. `Add` and `Merge`
