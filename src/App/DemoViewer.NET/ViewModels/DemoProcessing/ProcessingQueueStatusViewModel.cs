@@ -101,7 +101,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     public ObservableCollection<DemoQueueRowViewModel> Rows { get; } = [];
 
     /// <summary>Pause / Resume button caption, reflecting <see cref="IsPaused" />.</summary>
-    public string PauseResumeLabel => IsPaused ? "Resume background" : "Pause background";
+    public string PauseResumeLabel => IsPaused ? "Resume queue" : "Pause queue";
 
     /// <summary>Whether the flyout's "Background processing settings" link is shown (an opener was supplied).</summary>
     public bool CanOpenSettings => _openSettings is not null;
