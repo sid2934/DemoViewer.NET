@@ -295,4 +295,7 @@ internal static partial class GrenadeIndexLog
     [LoggerMessage(EventId = 7, Level = LogLevel.Debug,
         Message = "{fileName}: parse carried no user commands; grenades left for a full parse")]
     public static partial void NoUserCommands(ILogger logger, string fileName);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Warning, Message = "the lineup store was not saved")]
+    public static partial void LineupsNotSaved(ILogger logger, Exception exception);
 }

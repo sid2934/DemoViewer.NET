@@ -31,8 +31,8 @@ public class GrenadesV2Probe
     [Category("Probe")]
     [Category("Render")]
     [Category("Integration")]
-    [Arguments(GrenadeGrouping.Grid, "grid")]
-    [Arguments(GrenadeGrouping.Density, "density")]
+    [Arguments(GrenadeGrouping.Grid, "before")]
+    [Arguments(GrenadeGrouping.Lineups, "after")]
     public async Task TheUtilityMap_OnARealCache(GrenadeGrouping grouping, string name)
     {
         string root = Environment.GetEnvironmentVariable("GV2_CACHE") ?? "";
