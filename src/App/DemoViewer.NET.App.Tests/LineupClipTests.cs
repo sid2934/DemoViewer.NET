@@ -222,6 +222,35 @@ public class LineupClipTests
     }
 
     [Test]
+    public async Task PlanSoon_CoalescesABurstOfIndexChanges_IntoOnePlanOffTheCallingThread()
+    {
+        int calls = 0;
+        int callerThread = Environment.CurrentManagedThreadId;
+        int planThread = callerThread;
+        FakeRenderer renderer = new();
+        using LineupClipService service = new(() =>
+            {
+                Interlocked.Increment(ref calls);
+                planThread = Environment.CurrentManagedThreadId;
+                return [TwoLineups()];
+            }, Directory, () => true, renderer, _ => false, (_, _) => { }, planDebounce: TimeSpan.FromMilliseconds(50));
+
+        Task first = service.PlanSoon();
+        Task second = service.PlanSoon();
+        Task third = service.PlanSoon();
+        await Task.WhenAll(first, second, third);
+        await service.WorkerTask;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(ReferenceEquals(second, first)).IsTrue();
+            await Assert.That(calls).IsEqualTo(1);
+            await Assert.That(planThread).IsNotEqualTo(callerThread);
+            await Assert.That(renderer.Calls.Count).IsEqualTo(2);
+        }
+    }
+
+    [Test]
     public async Task AnOldPairOfAnotherThrow_IsNotAdopted_ItRendersAgainAndTheOldPairGoes()
     {
         GrenadeLineup lineup = WithTechniques();

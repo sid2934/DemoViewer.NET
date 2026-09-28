@@ -59,7 +59,9 @@ public interface ILineupClipRenderer
 ///         <see cref="Request" />.
 ///     </para>
 ///     <para>
-///         <b>Threading.</b> <see cref="Plan" /> runs on the UI thread. Renders run one demo at a time as <see cref="QueueJobKind.LineupClips" /> items of
+///         <b>Threading.</b> <see cref="PlanSoon" /> is what an index change calls: it coalesces a burst of
+///         changes and runs <see cref="Plan" /> on the pool, one plan at a time, so planning every lineup never
+///         blocks the UI thread. Renders run one demo at a time as <see cref="QueueJobKind.LineupClips" /> items of
 ///         the processing queue, which runs them exclusively; the sweep runs on the pool.
 ///     </para>
 /// </summary>
@@ -99,6 +101,13 @@ public sealed class LineupClipService : IDisposable
     private readonly ILineupClipRenderer _renderer;
     private readonly object _sweepGate = new();
 
+    // One plan at a time: Plan and Request share _planned, _ranks and the directory listing.
+    private readonly object _planLock = new();
+    private readonly object _soonGate = new();
+    private readonly TimeSpan _planDebounce;
+    private bool _soonScheduled;
+    private Task _soon = Task.CompletedTask;
+
     // Held by EnforceCap from its listing to its last delete, and by Request while it saves a pair, so a
     // pair asked for mid-pass is either seen as just used or evicted and then un-evicted.
     private readonly object _capGate = new();
@@ -124,11 +133,14 @@ public sealed class LineupClipService : IDisposable
     /// <param name="processing">
     ///     The processing queue each demo's batch runs in; null renders on a worker of this service (tests).
     /// </param>
+    /// <param name="planDebounce">How long <see cref="PlanSoon" /> waits for more index changes; 500 ms when null.</param>
     public LineupClipService(Func<IReadOnlyList<GrenadeCluster>> clusters, string? directory,
         Func<bool> enabled, ILineupClipRenderer renderer, Func<string, bool>? fileExists = null,
         Action<string, string>? writeText = null, Action<string>? log = null, Func<bool>? complete = null,
-        Func<long>? maxBytes = null, TimeSpan? orphanGrace = null, IDemoProcessingQueue? processing = null)
+        Func<long>? maxBytes = null, TimeSpan? orphanGrace = null, IDemoProcessingQueue? processing = null,
+        TimeSpan? planDebounce = null)
     {
+        _planDebounce = planDebounce ?? TimeSpan.FromMilliseconds(500);
         ArgumentNullException.ThrowIfNull(clusters);
         ArgumentNullException.ThrowIfNull(enabled);
         ArgumentNullException.ThrowIfNull(renderer);
@@ -191,11 +203,55 @@ public sealed class LineupClipService : IDisposable
 
     /// <summary>
     ///     Plans every clip the index calls for that has no pair on disk, was not evicted, and was not
-    ///     planned earlier this session with the same representative, and starts the worker. A pair left under an alias or a pre-lineup-id name is renamed rather than
-    ///     rendered again. UI thread.
+    ///     planned earlier this session with the same representative, and starts the worker. A pair of the
+    ///     same throw left under an older name is renamed rather than rendered again. Any thread; one plan
+    ///     runs at a time.
     /// </summary>
     /// <returns>How many clips were planned.</returns>
     public int Plan()
+    {
+        lock (_planLock)
+        {
+            return PlanLocked();
+        }
+    }
+
+    /// <summary>
+    ///     Plans on the pool once index changes stop arriving for a moment. Returns the pending run, so a
+    ///     test can await it; a call while one is scheduled joins it.
+    /// </summary>
+    public Task PlanSoon()
+    {
+        lock (_soonGate)
+        {
+            if (_soonScheduled)
+            {
+                return _soon;
+            }
+
+            _soonScheduled = true;
+            _soon = Task.Run(async () =>
+            {
+                await Task.Delay(_planDebounce).ConfigureAwait(false);
+                lock (_soonGate)
+                {
+                    _soonScheduled = false;
+                }
+
+                try
+                {
+                    Plan();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+                {
+                    _log?.Invoke($"lineup clips: plan: {ex.Message}");
+                }
+            });
+            return _soon;
+        }
+    }
+
+    private int PlanLocked()
     {
         if (_disposed || _directory is null || !_enabled())
         {
@@ -273,12 +329,20 @@ public sealed class LineupClipService : IDisposable
 
     /// <summary>
     ///     A lineup's clip is wanted now: an evicted pair is un-evicted and planned again, and a pair on disk
-    ///     counts as just used, so the cap evicts it last. UI thread.
+    ///     counts as just used, so the cap evicts it last. Any thread.
     /// </summary>
     /// <param name="lineupId"><see cref="GrenadeLineup.Id" /> or one of its aliases.</param>
     /// <param name="techniqueKey">The technique; the lineup's first when null.</param>
     /// <returns>How many clips were planned.</returns>
     public int Request(Guid lineupId, string? techniqueKey = null)
+    {
+        lock (_planLock)
+        {
+            return RequestLocked(lineupId, techniqueKey);
+        }
+    }
+
+    private int RequestLocked(Guid lineupId, string? techniqueKey)
     {
         if (_disposed || _directory is null)
         {

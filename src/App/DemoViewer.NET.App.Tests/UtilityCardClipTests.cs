@@ -122,29 +122,42 @@ public class UtilityCardClipTests
         string clips = Directory.CreateTempSubdirectory("dv-upgrade-clips-").FullName;
         try
         {
+            // GIFs as empty files; setpos lines copied, since adoption compares them.
             foreach (string file in Directory.EnumerateFiles(source))
             {
-                await File.WriteAllBytesAsync(Path.Combine(clips, Path.GetFileName(file)), []);
+                string target = Path.Combine(clips, Path.GetFileName(file));
+                if (file.EndsWith(LineupClipPlanner.SetposExtension, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(file, target);
+                }
+                else
+                {
+                    await File.WriteAllBytesAsync(target, []);
+                }
             }
 
             DemoCacheStore cache = new(root);
             using GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource());
             index.Load();
-            List<GrenadeCluster> clusters = [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))];
-            IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(clusters, clips);
+            IReadOnlyList<GrenadeCluster> Clusters() => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))];
+            IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(Clusters(), clips);
             int lineups = every.Select(j => j.LineupId).Distinct().Count();
             NeverRenders renderer = new();
-            using LineupClipService service = new(() => clusters, clips, () => true, renderer, complete: () => false);
+            using LineupClipService service = new(Clusters, clips, () => true, renderer, complete: () => false,
+                planDebounce: TimeSpan.Zero);
 
+            // What an index change costs the thread that raises it, and what the plan costs off it.
             System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-            int planned = service.Plan();
+            Task run = service.PlanSoon();
+            double caller = watch.Elapsed.TotalMilliseconds;
+            await run;
             long first = watch.ElapsedMilliseconds;
             watch.Restart();
-            service.Plan();
+            await service.PlanSoon();
             long second = watch.ElapsedMilliseconds;
             int adopted = every.Count(j => File.Exists(j.GifPath));
             Console.WriteLine($"[upgrade-plan] {Directory.GetFiles(source).Length} files, {lineups} lineups, {every.Count} jobs; "
-                              + $"first plan {first} ms adopted {adopted}, planned {planned}; second plan {second} ms");
+                              + $"caller {caller:F2} ms; first plan {first} ms off-thread, adopted {adopted}; second plan {second} ms");
             await Assert.That(adopted).IsGreaterThan(0);
         }
         finally

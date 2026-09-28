@@ -1241,7 +1241,7 @@ public class App : Application
                 complete: () => index.IsReady,
                 maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
                 processing: sp.GetRequiredService<IDemoProcessingQueue>());
-            index.Changed += () => clips.Plan();
+            index.Changed += () => clips.PlanSoon();
             return clips;
         });
 
