@@ -86,7 +86,7 @@ public class GrenadeIndexEvaluatorTests
     }
 
     [Test]
-    public async Task Evaluate_WritesBothSiblingsThenTheStamp_AndTheIndexMirrorsIt()
+    public async Task Evaluate_WritesTheRowsThenTheStamp_NoPaths_AndTheIndexMirrorsIt()
     {
         (DemoCacheStore cache, GrenadeIndexEvaluator evaluator) = Wire(background: true);
         List<string> indexed = [];
@@ -97,9 +97,9 @@ public class GrenadeIndexEvaluatorTests
         DemoCacheIndexEntry entry = cache.TryGetIndex(Demo)!;
         DemoCacheRecord record = cache.TryLoadRecord(Demo)!;
         GrenadeDocument rows = GrenadeSidecar.TryReadRows(cache, Demo)!;
-        GrenadePathsDocument paths = GrenadeSidecar.TryReadPaths(cache, Demo)!;
         using (Assert.Multiple())
         {
+            await Assert.That(GrenadeSidecar.TryReadPaths(cache, Demo)).IsNull().Because("trajectories are not written to disk");
             await Assert.That(indexed).IsEquivalentTo(new[] { Demo });
             await Assert.That(entry.GrenadeSchema).IsEqualTo(DemoCacheRecord.GrenadeSchema);
             await Assert.That(entry.GrenadeState).IsEqualTo(DemoAnalysisState.Indexed);
@@ -119,9 +119,6 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(rows.Source.TrajectoryStride).IsEqualTo(4);
             await Assert.That(rows.Grenades.Single().Trajectory).IsEmpty().Because("the rows file carries no paths");
             await Assert.That(rows.Grenades.Single().ReleaseEyeYaw).IsEqualTo(-15.3f);
-            await Assert.That(paths.Paths["g120-7"].Count).IsEqualTo(2);
-            await Assert.That(paths.Paths["g120-7"][1]).IsEqualTo(new TrajectoryPoint(140, 10.3f, 20, 30, 1))
-                .Because("paths are written at one decimal");
         }
     }
 
@@ -286,7 +283,8 @@ public class GrenadeIndexEvaluatorTests
             inMemory.Evaluate(Demo, Parse());
             string rowsFile = disk.SiblingPathFor(Demo, GrenadeSidecar.Suffix)!;
             string pathsFile = disk.SiblingPathFor(Demo, GrenadeSidecar.PathsSuffix)!;
-            await Assert.That(File.Exists(rowsFile) && File.Exists(pathsFile)).IsTrue();
+            await Assert.That(File.Exists(rowsFile)).IsTrue();
+            await Assert.That(File.Exists(pathsFile)).IsFalse();
 
             // Another demo's files in the same folder must survive.
             disk.Upsert(RoundIndexTestData.ParsedRecord("/d/other.dem"));
