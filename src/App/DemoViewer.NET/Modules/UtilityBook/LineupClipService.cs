@@ -64,7 +64,7 @@ public interface ILineupClipRenderer
 ///     <para>
 ///         <b>Threading.</b> <see cref="Plan" /> and the queue's <c>Changed</c> run on the UI thread (the
 ///         queue's own rule). Renders run one demo at a time as <see cref="QueueJobKind.LineupClips" /> items of
-///         the processing queue, one item at a time; the sweep runs on the pool.
+///         the processing queue, which runs them exclusively; the sweep runs on the pool.
 ///     </para>
 /// </summary>
 public sealed class LineupClipService : IDisposable
