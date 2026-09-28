@@ -760,6 +760,38 @@ public class DemoProcessingQueueTests
         }
     }
 
+    [Test]
+    public async Task Coordinator_OnAnIdleQueue_ParsesOnceWithTheUnion()
+    {
+        Dictionary<string, DecodePlan> plans = [];
+        int parses = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parseBytes: _ => SyntheticDemo(),
+            compactHeap: NoCompact, timeProvider: new ManualClock(), parseFileWithPlan: (path, plan) =>
+            {
+                Interlocked.Increment(ref parses);
+                Thread.Sleep(50);
+                lock (plans)
+                {
+                    plans[path] = plan;
+                }
+
+                return SyntheticParsedDemo.Create(plan: plan);
+            });
+        PlanEvaluator library = new("library", false) { Wanted = { "a.dem" } };
+        PlanEvaluator grenades = new("grenades", true) { Wanted = { "a.dem" } };
+        using DemoEvaluationCoordinator coordinator = new([library, grenades], queue, () => []);
+
+        coordinator.Consider("a.dem");
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 1 && !coordinator.HasOutstanding("grenades"),
+            "drain");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Volatile.Read(ref parses)).IsEqualTo(1);
+            await Assert.That(plans["a.dem"].DecodesEverything).IsTrue();
+        }
+    }
+
     private sealed class PlanEvaluator(string id, bool readsUserCommands) : IDemoEvaluator
     {
         public HashSet<string> Wanted { get; } = [];
