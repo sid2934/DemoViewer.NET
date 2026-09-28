@@ -530,7 +530,8 @@ public class DemoProcessingQueueTests
         await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
 
         clock.Advance(TimeSpan.FromSeconds(1)); // window ends 30 s after the first compaction
-        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(2);
+        // The compaction is a queue item, so the timer only submits it.
+        await WaitForAsync(() => Volatile.Read(ref compactions) == 2, "the deferred compaction");
         await Assert.That(clock.PendingTimers).IsEqualTo(0);
     }
 

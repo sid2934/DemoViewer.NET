@@ -29,6 +29,28 @@ public enum DemoJobPriority
     Foreground = 2
 }
 
+/// <summary>What a queue item does. Every heavy background job in the app is one of these.</summary>
+public enum QueueJobKind
+{
+    /// <summary>A demo parse and its owners' post-processing (<see cref="IDemoProcessingQueue.SubmitBackground" />).</summary>
+    DemoProcessing,
+
+    /// <summary>A user-started Pack Export.</summary>
+    PackExport,
+
+    /// <summary>The one-off re-encode of pre-gzip sidecars.</summary>
+    SidecarMigration,
+
+    /// <summary>A Strat Mining pass over the library's cached files.</summary>
+    StratMining,
+
+    /// <summary>One demo's batch of Lineup Clip GIFs.</summary>
+    LineupClips,
+
+    /// <summary>The heap compaction after the queue drains.</summary>
+    HeapCompaction
+}
+
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
 public enum DemoQueueItemState
 {
@@ -82,6 +104,50 @@ public sealed record DemoProcessingRequest(
     Action<Exception>? OnFailed = null,
     string? DisplayName = null);
 
+/// <summary>What a running <see cref="QueueJobRequest" /> body gets from the queue.</summary>
+public interface IQueueJobContext
+{
+    /// <summary>Fires when the user cancels the item or the app shuts down.</summary>
+    CancellationToken CancellationToken { get; }
+
+    /// <summary>Progress for the list: <paramref name="done" /> of <paramref name="total" />, and a short detail.</summary>
+    void Report(int done, int total, string? detail = null);
+
+    /// <summary>
+    ///     Releases the heavy-job slot, waits until a background slot is free again (an interactive open, a reel
+    ///     or an export goes first) and takes it back. Call between batches of a long job.
+    /// </summary>
+    Task StepAsideAsync();
+
+    /// <summary>
+    ///     Gives the slot up for the rest of the item, for a body that takes its own gate slots. The item still
+    ///     counts as the one running job.
+    /// </summary>
+    void ReleaseSlot();
+}
+
+/// <summary>
+///     A queue item that is not a demo parse: it runs <see cref="RunAsync" /> on the queue worker, holding a
+///     background heavy-job slot, one item at a time with every other kind.
+/// </summary>
+/// <param name="Kind">What it is.</param>
+/// <param name="Title">The line the queue list shows.</param>
+/// <param name="OwnerTag">Submitting module.</param>
+/// <param name="Priority"><see cref="DemoJobPriority.Background" /> or <see cref="DemoJobPriority.UserRequested" />.</param>
+/// <param name="RunAsync">The work. Must not take a heavy-job gate slot while it holds the queue's.</param>
+/// <param name="Key">A submit with the same kind and key while one is still queued joins it instead of adding another.</param>
+/// <param name="Target">A file the item is about (the row tooltip), or null.</param>
+/// <param name="OrderHint">Within a priority and kind, higher = sooner.</param>
+public sealed record QueueJobRequest(
+    QueueJobKind Kind,
+    string Title,
+    string OwnerTag,
+    DemoJobPriority Priority,
+    Func<IQueueJobContext, Task> RunAsync,
+    string? Key = null,
+    string? Target = null,
+    long OrderHint = 0);
+
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
 ///     without touching the UI-thread-bound <see cref="IDemoProcessingQueue.Items" /> mirror).
@@ -93,7 +159,10 @@ public sealed record DemoQueueItemSnapshot(
     IReadOnlyList<string> Owners,
     DemoJobPriority Priority,
     DemoQueueItemState State,
-    string? Error);
+    string? Error,
+    QueueJobKind Kind = QueueJobKind.DemoProcessing,
+    double? Progress = null,
+    string? Detail = null);
 
 /// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
@@ -155,6 +224,9 @@ public interface IDemoProcessingQueue
 
     /// <summary>Items being parsed right now.</summary>
     int RunningCount { get; }
+
+    /// <summary>Queued plus running items of one kind.</summary>
+    int ActiveCount(QueueJobKind kind);
     // ── Foreground (awaitable, highest priority) ──────────────────────────────
 
     /// <summary>
@@ -178,6 +250,12 @@ public interface IDemoProcessingQueue
     ///     queued/running (Foreground/UserRequested never rejected).
     /// </summary>
     IDemoQueueHandle SubmitBackground(DemoProcessingRequest request);
+
+    /// <summary>
+    ///     Submits a job that is not a demo parse. It is never rejected for size, obeys pause and cancel, and runs
+    ///     alone like every other item.
+    /// </summary>
+    IDemoQueueHandle SubmitJob(QueueJobRequest request);
 
     /// <summary>A thread-safe immutable snapshot of every item (state reads off the UI thread).</summary>
     IReadOnlyList<DemoQueueItemSnapshot> Snapshot();

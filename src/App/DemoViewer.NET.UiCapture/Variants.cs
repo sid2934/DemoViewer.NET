@@ -4224,6 +4224,10 @@ public static class Variants
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) =>
             throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
+
+        public int ActiveCount(QueueJobKind kind) => 0;
+
         public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
 
         public void CancelOwned(string ownerTag, string path)
