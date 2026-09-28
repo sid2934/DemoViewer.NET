@@ -21,9 +21,9 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
-///     The one rules read and the one build that highlights and round facts share: every effective
+///     The one rules read and the one bare build that highlights and round facts share: every effective
 ///     ruleset, <c>round_facts</c> included, evaluated together. Highlights are stamped with
-///     <see cref="Fingerprint" />, round facts with <see cref="RoundFactsIdentity" />, which folds that in.
+///     <see cref="Fingerprint" />, round facts with <see cref="RoundFactsIdentity" />.
 /// </summary>
 public sealed class MergedRulesBuild
 {
@@ -94,28 +94,69 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     What the round facts rows are stored under, before the schema is folded in. The engine's
-    ///     fingerprint hashes highlight definitions only, so the <c>round_facts</c> source and the engine
-    ///     version are added here; without them an edited buy threshold would never re-run.
+    ///     What the round facts rows are stored under, before the schema is folded in. Composes
+    ///     <c>round_facts</c> alone, so a broken highlight file never blocks it, and throws when it does
+    ///     not compose. The engine's fingerprint hashes highlight definitions only, which a ruleset without
+    ///     highlights has none of, so the source and the engine version carry the identity.
     /// </summary>
     public string RoundFactsIdentity(int tickRate)
     {
-        string highlights = Fingerprint(tickRate).Fingerprint;
+        RulesetDoc doc = RoundFactsDoc ?? throw new InvalidOperationException("no enabled round_facts ruleset");
+        string composed = HighlightConfigFingerprint.Compute([doc], tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;
         string source;
         lock (_gate)
         {
-            source = _roundFactsSource ??= SourceIdentity(RoundFactsDoc);
+            source = _roundFactsSource ??= SourceIdentity(doc);
         }
 
         string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
-        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{highlights}\n{source}\n{engine}")));
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{composed}\n{source}\n{engine}")));
     }
 
-    /// <summary>The bare run over a held parse, evaluated once however many consumers ask.</summary>
-    public AnalysisRun BareRun(ParsedDemo parsed) => Run(parsed, false);
+    /// <summary>
+    ///     The bare run over a held parse, evaluated once however many consumers ask until
+    ///     <see cref="Forget" />.
+    /// </summary>
+    public AnalysisRun BareRun(ParsedDemo parsed)
+    {
+        lock (_gate)
+        {
+            if (_runs.TryGetValue(parsed, out AnalysisRun? cached))
+            {
+                return cached;
+            }
+        }
 
-    /// <summary>The snapshot run a forced scan asks for. Cached like <see cref="BareRun" />, which it also serves.</summary>
-    public AnalysisRun FullRun(ParsedDemo parsed) => Run(parsed, true);
+        BuildResult build = ForwardDemoPass.Build(parsed, Docs);
+        RulesetExclusionReport.Report(Log, build);
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
+        lock (_gate)
+        {
+            _runs.AddOrUpdate(parsed, run);
+        }
+
+        return run;
+    }
+
+    /// <summary>Drops the cached bare run, so an open demo does not keep it for the session.</summary>
+    public void Forget(ParsedDemo parsed)
+    {
+        lock (_gate)
+        {
+            _runs.Remove(parsed);
+        }
+    }
+
+    /// <summary>
+    ///     The snapshot run a forced scan asks for, over the highlight rulesets only: the scoreboard is
+    ///     projected from these snapshots, and <c>round_facts</c> would add nodes and memory to both.
+    /// </summary>
+    public AnalysisRun FullRun(ParsedDemo parsed)
+    {
+        BuildResult build = DemoAnalysis.Build(parsed, RoundFactsFingerprint.WithoutRoundFacts(Docs));
+        RulesetExclusionReport.Report(Log, build);
+        return DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
+    }
 
     /// <summary>Drops the cached read so the next call re-reads the rules directories.</summary>
     public void Invalidate()
@@ -127,27 +168,6 @@ public sealed class MergedRulesBuild
             _fingerprints.Clear();
             _runs.Clear();
         }
-    }
-
-    private AnalysisRun Run(ParsedDemo parsed, bool snapshots)
-    {
-        lock (_gate)
-        {
-            if (_runs.TryGetValue(parsed, out AnalysisRun? cached) && (!snapshots || cached.Snapshots is not null))
-            {
-                return cached;
-            }
-        }
-
-        BuildResult build = ForwardDemoPass.Build(parsed, Docs);
-        RulesetExclusionReport.Report(Log, build);
-        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = snapshots });
-        lock (_gate)
-        {
-            _runs.AddOrUpdate(parsed, run);
-        }
-
-        return run;
     }
 
     // The file the effective doc was read from; the doc's JSON where there is no readable file (Browser).

@@ -46,6 +46,7 @@ public class ForwardPassRealDemoTests
 
         (Dictionary<string, string> retained, Dictionary<string, string> old) = Retained(path, merged);
         Dictionary<string, string> forward = Forward(path, merged);
+        string rulesOnly = RulesOnlyRoundFacts(path, merged);
 
         using (Assert.Multiple())
         {
@@ -55,6 +56,7 @@ public class ForwardPassRealDemoTests
                 await Assert.That(forward[key]).IsEqualTo(value).Because($"{key}, forward vs retained, {Path.GetFileName(path)}");
             }
 
+            await Assert.That(rulesOnly).IsEqualTo(forward["round facts"]).Because("the first-launch pass reads rules only");
             await Assert.That(forward["firings"]).IsEqualTo(old["firings"]).Because("merged build vs highlights alone");
             await Assert.That(forward["round facts"]).IsEqualTo(old["round facts"]).Because("merged build vs round_facts alone");
             // The engine's fingerprint hashes highlight definitions only, so adding round_facts leaves it as it was.
@@ -140,6 +142,23 @@ public class ForwardPassRealDemoTests
         });
         written["firings"] = JsonSerializer.Serialize(pass.Run!.Highlights, Json);
         return written;
+    }
+
+    // What a round-facts-only entry runs: no final-state tracker, the build's own plan plus the freeze ends.
+    private static string RulesOnlyRoundFacts(string path, MergedRulesBuild merged)
+    {
+        using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs);
+        DemoCacheStore cache = new(null);
+        cache.Upsert(new DemoCacheRecord
+        {
+            Path = path,
+            Size = new FileInfo(path).Length,
+            Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
+        });
+        RulesRoundFactsRulesetIdentity identity = new(merged);
+        new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(identity), identity).EvaluateForward(path, pass);
+        return WithoutSha(cache.TryLoadRecord(path)!.RoundFacts!);
     }
 
     private static Dictionary<string, string> Write(string path, MergedRulesBuild merged,
