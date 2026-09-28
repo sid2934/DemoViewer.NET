@@ -63,6 +63,9 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     private Dictionary<Guid, ReviewRowViewModel> _rowsById = [];
     private bool _active = true;
     private bool _stale;
+
+    // PackSummary re-plans the whole pack; only a queue change can move it, not a filter or a toggle.
+    private bool _queueChanged = true;
     private string _headerLine = "";
 
     private readonly Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? _exportPack;
@@ -133,7 +136,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
             : packDirectory;
         _packOutputPath = Path.Combine(directory, DefaultPackName(DateTime.Now, ExportFormats.Mp4));
-        _queue.Changed += Reconcile;
+        _queue.Changed += OnQueueChanged;
         Reconcile();
     }
 
@@ -231,7 +234,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     public void OnDeactivated() => _active = false;
 
     /// <inheritdoc />
-    public void Dispose() => _queue.Changed -= Reconcile;
+    public void Dispose() => _queue.Changed -= OnQueueChanged;
 
     /// <summary>Opens 2D playback at the clip's first tick; a title card opens nothing.</summary>
     /// <param name="row">The row clicked.</param>
@@ -436,6 +439,12 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     private static string Plural(int count, string noun) =>
         string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? "" : "s")}");
 
+    private void OnQueueChanged()
+    {
+        _queueChanged = true;
+        Reconcile();
+    }
+
     private void Reconcile()
     {
         if (!_active)
@@ -537,7 +546,11 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
 
         OnPropertyChanged(nameof(HasRows));
         OnPropertyChanged(nameof(HeaderLine));
-        OnPropertyChanged(nameof(PackSummary));
+        if (_queueChanged)
+        {
+            _queueChanged = false;
+            OnPropertyChanged(nameof(PackSummary));
+        }
         ClearCommand.NotifyCanExecuteChanged();
         ExportPackCommand.NotifyCanExecuteChanged();
     }
