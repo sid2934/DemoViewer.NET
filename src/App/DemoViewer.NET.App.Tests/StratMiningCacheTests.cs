@@ -334,6 +334,43 @@ public class StratMiningCacheTests
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
 
+        public int ActiveCount(QueueJobKind kind) => kind == QueueJobKind.DemoProcessing ? QueuedCount + RunningCount : 0;
+
+        public int Jobs { get; private set; }
+
+        // Runs the job at once, as a queue with nothing else in it would.
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request)
+        {
+            Jobs++;
+            return new DoneHandle(request.RunAsync(new InlineContext()));
+        }
+
+        private sealed class InlineContext : IQueueJobContext
+        {
+            public CancellationToken CancellationToken => CancellationToken.None;
+
+            public void Report(int done, int total, string? detail = null)
+            {
+            }
+
+            public Task StepAsideAsync() => Task.CompletedTask;
+
+            public void ReleaseSlot()
+            {
+            }
+        }
+
+        private sealed class DoneHandle(Task completion) : IDemoQueueHandle
+        {
+            public Guid Id { get; } = Guid.NewGuid();
+            public DemoQueueItemState State => completion.IsCompleted ? DemoQueueItemState.Completed : DemoQueueItemState.Running;
+            public Task Completion => completion;
+
+            public void Cancel()
+            {
+            }
+        }
+
         public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
 
         public void RemoveByUser(Guid itemId)

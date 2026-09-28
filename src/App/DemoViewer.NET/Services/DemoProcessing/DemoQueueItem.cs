@@ -34,9 +34,21 @@ public partial class DemoQueueItem : ObservableObject
     [ObservableProperty]
     private DemoQueueItemState _state;
 
+    /// <summary>What the item does.</summary>
+    [ObservableProperty]
+    private QueueJobKind _kind;
+
+    /// <summary>Fraction done, 0 to 1, or null when the job does not know.</summary>
+    [ObservableProperty]
+    private double? _progress;
+
+    /// <summary>The job's latest progress detail, or null.</summary>
+    [ObservableProperty]
+    private string? _detail;
+
     /// <summary>Stable item identity (the <see cref="IDemoProcessingQueue.RemoveByUser" /> key).</summary>
     public required Guid Id { get; init; }
 
-    /// <summary>The .dem path (identity for coalescing).</summary>
+    /// <summary>The .dem path (identity for coalescing), or the file a job is about, or empty.</summary>
     public required string Path { get; init; }
 }
