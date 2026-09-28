@@ -81,6 +81,9 @@ public sealed class LineupClipService : IDisposable
     private readonly Func<IReadOnlyList<GrenadeCluster>> _clusters;
     private readonly Func<bool> _complete;
     private readonly CancellationTokenSource _cts = new();
+
+    // Read once: a batch's continuation may run after Dispose has disposed the source.
+    private readonly CancellationToken _ct;
     private readonly string? _directory;
     private readonly Func<bool> _enabled;
     private readonly Func<string, bool>? _fileExists;
@@ -147,6 +150,7 @@ public sealed class LineupClipService : IDisposable
         _maxBytes = maxBytes ?? (static () => 0);
         _orphanGrace = orphanGrace ?? DefaultOrphanGrace;
         _processing = processing;
+        _ct = _cts.Token;
         _queue.Changed += OnQueueChanged;
     }
 
@@ -785,8 +789,7 @@ public sealed class LineupClipService : IDisposable
         WorkerTask = idle.Task;
         if (_processing is null)
         {
-            CancellationToken ct = _cts.Token;
-            _ = Task.Run(() => DrainAsync(ct), CancellationToken.None);
+            _ = Task.Run(() => DrainAsync(_ct), CancellationToken.None);
         }
         else
         {
@@ -816,7 +819,7 @@ public sealed class LineupClipService : IDisposable
 
         string title = string.Create(CultureInfo.InvariantCulture,
             $"Lineup clips: {demo.Map}, {demo.Count} {(demo.Count == 1 ? "clip" : "clips")} from {Path.GetFileName(demo.Path)}");
-        CancellationToken ct = _cts.Token;
+        CancellationToken ct = _ct;
         IDemoQueueHandle handle = processing.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips, title,
             "lineup-clips", demo.Requested ? DemoJobPriority.UserRequested : DemoJobPriority.Background,
             job => RenderBatchAsync(demo.Path, job, ct), "lineup-clips", demo.Path));
