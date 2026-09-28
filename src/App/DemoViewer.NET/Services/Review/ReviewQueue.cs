@@ -546,13 +546,13 @@ public sealed class ReviewQueue
         public static readonly SameClip Instance = new();
 
         public bool Equals(ReviewEntry? x, ReviewEntry? y) =>
-            x is not null && y is not null
+            x is { Kind: ReviewEntryKind.Clip } && y is { Kind: ReviewEntryKind.Clip }
                           && x.FromTick == y.FromTick && x.ToTick == y.ToTick
                           && string.Equals(x.DemoPath, y.DemoPath, StringComparison.OrdinalIgnoreCase)
                           && Equals(x.Highlight, y.Highlight);
 
         public int GetHashCode(ReviewEntry obj) =>
-            HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(obj.DemoPath), obj.FromTick, obj.ToTick, obj.Highlight);
+            HashCode.Combine(obj.Kind, StringComparer.OrdinalIgnoreCase.GetHashCode(obj.DemoPath), obj.FromTick, obj.ToTick, obj.Highlight);
     }
 
     private sealed class DeferScope(ReviewQueue queue) : IDisposable
