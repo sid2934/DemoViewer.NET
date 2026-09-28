@@ -313,7 +313,11 @@ public sealed class GrenadeIndex : IDisposable
 
     /// <summary>The query's grenades clustered by landing cell with their origins deduplicated.</summary>
     /// <param name="query">The filters.</param>
-    public IReadOnlyList<GrenadeCluster> Query(GrenadeQuery query) => Cluster(Rows(query));
+    public IReadOnlyList<GrenadeCluster> Query(GrenadeQuery query) =>
+        Grouping == GrenadeGrouping.Density ? GrenadeDensityGrouping.Cluster(Rows(query)) : Cluster(Rows(query));
+
+    /// <summary>Which grouping <see cref="Query" /> runs. Prototype seam for grenades-v2.md; the app keeps Grid.</summary>
+    public GrenadeGrouping Grouping { get; init; } = GrenadeGrouping.Grid;
 
     /// <summary>
     ///     The grenades the query keeps, in input order. Pure, so a caller holding rows of its own (a test,
