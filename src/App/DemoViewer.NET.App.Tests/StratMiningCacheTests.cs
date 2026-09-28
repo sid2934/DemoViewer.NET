@@ -208,49 +208,61 @@ public class StratMiningCacheTests
     {
         using Library library = Library.Create();
         FakeQueue queue = new() { RunningCount = 1 };
-        int mines = 0;
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
             library.Strats, library.Tags, null, null, run: a =>
             {
-                Interlocked.Increment(ref mines);
                 a();
                 return Task.CompletedTask;
             }, queue: queue) { QuietDelay = Timeout.InfiniteTimeSpan };
 
         await service.MineAsync();
-        await Assert.That(mines).IsEqualTo(1).Because("a user mine runs while the queue is busy");
+        await Assert.That(queue.Jobs).IsEqualTo(1).Because("a user mine is submitted while the queue is busy");
 
         service.OnQuiet();
-        await Assert.That(mines).IsEqualTo(1).Because("the quiet re-mine holds while a demo is parsing");
+        await Assert.That(queue.Jobs).IsEqualTo(1).Because("the quiet re-mine holds while a demo is parsing");
 
         queue.RunningCount = 0;
         queue.QueuedCount = 2;
         queue.Raise();
         service.OnQuiet();
-        await Assert.That(mines).IsEqualTo(1).Because("queued work holds it too");
+        await Assert.That(queue.Jobs).IsEqualTo(1).Because("queued work holds it too");
 
         service.QuietDelay = TimeSpan.FromMilliseconds(20);
         queue.QueuedCount = 0;
         queue.Raise();
-        for (int i = 0; i < 200 && Volatile.Read(ref mines) < 2; i++)
+        for (int i = 0; i < 200 && queue.Jobs < 2; i++)
         {
             await Task.Delay(25);
         }
 
-        await Assert.That(mines).IsEqualTo(2).Because("the drain re-arms the quiet timer and it fires");
+        await Assert.That(queue.Jobs).IsEqualTo(2).Because("the drain re-arms the quiet timer and it fires");
 
         queue.Raise();
         await Task.Delay(200);
-        await Assert.That(mines).IsEqualTo(2).Because("a drain with nothing held back mines nothing");
+        await Assert.That(queue.Jobs).IsEqualTo(2).Because("a drain with nothing held back mines nothing");
     }
 
+    // The drain compaction item may still hold the slot for a moment after the mine completes.
+    private static async Task Idle(DemoProcessingQueue queue)
+    {
+        for (int i = 0; i < 200 && queue.ActiveWorkerCount > 0; i++)
+        {
+            await Task.Delay(10);
+        }
+    }
+
+    private static DemoProcessingQueue RealQueue(HeavyJobGate gate) =>
+        new(gate, a => a(), _ => throw new NotSupportedException(), _ => throw new NotSupportedException(),
+            () => Task.CompletedTask);
+
     [Test]
-    public async Task AMine_HoldsTheHeavyJobGate()
+    public async Task AMine_IsAQueueItem_ThatWaitsForTheSlotInUse()
     {
         using Library library = Library.Create();
         using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = RealQueue(gate);
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
-            library.Strats, library.Tags, null, null, heavy: gate) { QuietDelay = Timeout.InfiniteTimeSpan };
+            library.Strats, library.Tags, null, null, queue: queue) { QuietDelay = Timeout.InfiniteTimeSpan };
 
         Task mine;
         using (await gate.AcquireBackgroundAsync())
@@ -258,10 +270,19 @@ public class StratMiningCacheTests
             mine = service.MineAsync();
             await Task.Delay(300);
             await Assert.That(mine.IsCompleted).IsFalse().Because("a parse holds the only slot");
+            await Assert.That(service.IsMining).IsTrue();
+            DemoQueueItemSnapshot item = queue.Snapshot().Single();
+            await Assert.That(item.Kind).IsEqualTo(QueueJobKind.StratMining);
+            await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
+            await Assert.That(item.State).IsEqualTo(DemoQueueItemState.Queued);
         }
 
         await mine.WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(service.MinedUtc).IsNotNull();
+        await Assert.That(service.IsMining).IsFalse();
+        await Assert.That(queue.Snapshot().Single(s => s.Kind == QueueJobKind.StratMining).State)
+            .IsEqualTo(DemoQueueItemState.Completed);
+        await Idle(queue);
         await Assert.That(gate.InFlight).IsEqualTo(0).Because("the slot is released after the mine");
     }
 
@@ -270,11 +291,12 @@ public class StratMiningCacheTests
     {
         using Library library = Library.Create();
         using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = RealQueue(gate);
         TaskCompletionSource inBatch = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource proceed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int steps = 0;
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
-            library.Strats, library.Tags, null, null, heavy: gate, run: a => Task.Run(async () =>
+            library.Strats, library.Tags, null, null, queue: queue, run: a => Task.Run(async () =>
             {
                 a();
                 // Step 1 is Begin, step 2 the first batch, run while the mine holds the slot.
@@ -305,6 +327,7 @@ public class StratMiningCacheTests
 
             await mine.WaitAsync(TimeSpan.FromSeconds(10));
             await Assert.That(service.Signatures.LastBuild.Reused + service.Signatures.LastBuild.Built).IsEqualTo(4);
+            await Idle(queue);
             await Assert.That(gate.InFlight).IsEqualTo(0);
         }
     }
@@ -333,6 +356,43 @@ public class StratMiningCacheTests
             throw new NotSupportedException();
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
+
+        public int ActiveCount(QueueJobKind kind) => kind == QueueJobKind.DemoProcessing ? QueuedCount + RunningCount : 0;
+
+        public int Jobs { get; private set; }
+
+        // Runs the job at once, as a queue with nothing else in it would.
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request)
+        {
+            Jobs++;
+            return new DoneHandle(request.RunAsync(new InlineContext()));
+        }
+
+        private sealed class InlineContext : IQueueJobContext
+        {
+            public CancellationToken CancellationToken => CancellationToken.None;
+
+            public void Report(int done, int total, string? detail = null)
+            {
+            }
+
+            public Task StepAsideAsync() => Task.CompletedTask;
+
+            public void ReleaseSlot()
+            {
+            }
+        }
+
+        private sealed class DoneHandle(Task completion) : IDemoQueueHandle
+        {
+            public Guid Id { get; } = Guid.NewGuid();
+            public DemoQueueItemState State => completion.IsCompleted ? DemoQueueItemState.Completed : DemoQueueItemState.Running;
+            public Task Completion => completion;
+
+            public void Cancel()
+            {
+            }
+        }
 
         public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
 

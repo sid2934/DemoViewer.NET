@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -898,25 +899,30 @@ public class App : Application
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
         // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
-        // saved ink, one encode for the whole pack. It marks an export session on the heavy-job gate for its
-        // run, as a 2D export does; the browser has no ffmpeg and no files, so it gets no pack row.
+        // saved ink, one encode for the whole pack. A user-requested processing queue item that marks an export
+        // session on the heavy-job gate for its run, as a 2D export does; the browser has no ffmpeg and no
+        // files, so it gets no pack row.
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
+            IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
             Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
             if (!OperatingSystem.IsBrowser())
             {
                 ILogger log = DiagnosticsLog.CreateLogger(PackExportLog.Category);
-                exportPack = (plan, progress, ct) => Task.Run(async () =>
-                {
-                    using IDisposable session = await gate.EnterExportSessionAsync(ct).ConfigureAwait(false);
-                    using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
-                        log: line => PackExportLog.Line(log, line));
-                    PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
-                        log: line => PackExportLog.Line(log, line));
-                    return await exporter.ExportAsync(plan, progress, ct).ConfigureAwait(false);
-                }, ct);
+                exportPack = (plan, progress, ct) => PackExportQueue.RunAsync(queue,
+                    string.Create(CultureInfo.InvariantCulture,
+                        $"Pack export: {plan.Segments.Count} segments to {Path.GetFileName(plan.Settings.OutputPath)}"),
+                    plan.Settings.OutputPath, async (relay, token) =>
+                    {
+                        using IDisposable session = await gate.EnterExportSessionAsync(token).ConfigureAwait(false);
+                        using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
+                            log: line => PackExportLog.Line(log, line));
+                        PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
+                            log: line => PackExportLog.Line(log, line));
+                        return await exporter.ExportAsync(plan, relay, token).ConfigureAwait(false);
+                    }, progress, ct);
             }
 
             return new ReviewQueueTabViewModel(
@@ -1091,7 +1097,6 @@ public class App : Application
             AppPaths.DemoCacheDir,
             AppPaths.ConfigRoot,
             action => Dispatcher.UIThread.Post(action),
-            heavy: sp.GetRequiredService<HeavyJobGate>(),
             queue: sp.GetRequiredService<IDemoProcessingQueue>()));
         services.AddSingleton(sp =>
         {
@@ -1202,8 +1207,8 @@ public class App : Application
         });
 
         // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
-        // Queue and rendered on a background slot. Planned whenever the index changes; a null directory (the
-        // browser) plans nothing.
+        // Queue and rendered one demo at a time as processing queue items. Planned whenever the index changes; a
+        // null directory (the browser) plans nothing.
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
@@ -1214,11 +1219,11 @@ public class App : Application
                 sp.GetRequiredService<ReviewQueue>(),
                 AppPaths.ConfigRoot is { } root ? Path.Combine(root, "lineup-clips") : null,
                 () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
-                new LineupClipRenderer(sp.GetRequiredService<HeavyJobGate>(),
-                    log: line => GrenadeIndexLog.LineupClip(log, line)),
+                new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
-                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L);
+                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
+                processing: sp.GetRequiredService<IDemoProcessingQueue>());
             index.Changed += () => clips.Plan();
             return clips;
         });
@@ -1302,16 +1307,16 @@ public class App : Application
         _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
         // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
         provider.GetRequiredService<TagFactsRefresher>();
-        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a background slot per batch,
-        // marker-gated once a pass converts everything it found.
+        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
+        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
+        // 30 s so startup loads are not competing for the disk.
         if (!OperatingSystem.IsBrowser())
         {
             DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
-            HeavyJobGate gate = provider.GetRequiredService<HeavyJobGate>();
-            _ = Task.Run(() => SidecarFormatMigration.RunAsync(demoCache,
-                [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)],
-                gate.AcquireBackgroundAsync,
-                TimeSpan.FromSeconds(30)));
+            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => SidecarFormatMigration.Submit(queue, demoCache,
+                    [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]),
+                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
         }
         Services = provider;
         return provider;

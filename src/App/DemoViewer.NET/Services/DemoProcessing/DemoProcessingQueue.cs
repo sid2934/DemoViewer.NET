@@ -86,8 +86,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     <c>DemoParser.Parse</c>).
     /// </param>
     /// <param name="compactHeap">
-    ///     Test seam: the compaction run when the queue drains (default <see cref="HeapCompactor.CompactAsync" />
-    ///     inside a background gate slot).
+    ///     Test seam: the compaction run when the queue drains, as a queue item (default
+    ///     <see cref="HeapCompactor.CompactAsync" />).
     /// </param>
     /// <param name="timeProvider">Test seam: the clock for the drain-compaction throttle.</param>
     public DemoProcessingQueue(
@@ -102,7 +102,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
         _parseFile = parseFile ?? ParseFileDefault;
         _parseBytes = parseBytes ?? (bytes => DemoParser.Parse(bytes));
-        _compactHeap = compactHeap ?? CompactInBackgroundSlotAsync;
+        _compactHeap = compactHeap ?? HeapCompactor.CompactAsync;
         _time = timeProvider ?? TimeProvider.System;
         _shutdownToken = _shutdown.Token;
         Items = new ReadOnlyObservableCollection<DemoQueueItem>(_items);
@@ -172,6 +172,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    public int ActiveCount(QueueJobKind kind)
+    {
+        lock (_sync)
+        {
+            return _entries.Count(e => e.Kind == kind && IsActive(e));
+        }
+    }
+
     public int MaxConcurrency
     {
         get
@@ -233,10 +241,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             lock (_sync)
             {
                 _backgroundEnabled = value;
-                if (value)
-                {
-                    PumpLocked();
-                }
+                PumpLocked();
             }
 
             RaiseChanged();
@@ -280,7 +285,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             lock (_sync)
             {
                 Entry? running = _entries.FirstOrDefault(e =>
-                    e.State == DemoQueueItemState.Running && !e.Finalizing && PathEquals(e.Path, path));
+                    e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && !e.Finalizing
+                    && PathEquals(e.Path, path));
                 if (running is not null)
                 {
                     TaskCompletionSource<ParsedDemo> waiter = new(
@@ -319,7 +325,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             Entry? existing = _entries.FirstOrDefault(e =>
-                IsActive(e) && !e.Finalizing && PathEquals(e.Path, request.Path));
+                e.Kind == QueueJobKind.DemoProcessing && IsActive(e) && !e.Finalizing && PathEquals(e.Path, request.Path));
             if (existing is not null)
             {
                 // Coalesce: one parse, every owner's post-processing; bump priority/order to the max seen.
@@ -364,11 +370,70 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         return handle;
     }
 
+    public IDemoQueueHandle SubmitJob(QueueJobRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Kind == QueueJobKind.DemoProcessing)
+        {
+            throw new ArgumentException("A demo parse goes through SubmitBackground.", nameof(request));
+        }
+
+        Handle handle;
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return new Handle(this, Guid.Empty, request.OwnerTag, "", Task.CompletedTask, true);
+            }
+
+            Entry? existing = request.Key is null
+                ? null
+                : _entries.FirstOrDefault(e => e.Kind == request.Kind && e.State == DemoQueueItemState.Queued
+                                               && string.Equals(e.Key, request.Key, StringComparison.Ordinal));
+            if (existing is not null)
+            {
+                existing.DisplayName = request.Title;
+                existing.Priority = (DemoJobPriority)Math.Max((int)existing.Priority, (int)request.Priority);
+                existing.OrderHint = Math.Max(existing.OrderHint, request.OrderHint);
+                PumpLocked();
+                handle = new Handle(this, existing.Id, request.OwnerTag, existing.Path, existing.Completion.Task);
+            }
+            else
+            {
+                Entry entry = SubmitJobLocked(request);
+                handle = new Handle(this, entry.Id, request.OwnerTag, entry.Path, entry.Completion.Task);
+            }
+        }
+
+        RaiseChanged();
+        return handle;
+    }
+
+    private Entry SubmitJobLocked(QueueJobRequest request)
+    {
+        Entry entry = new()
+        {
+            Kind = request.Kind,
+            Key = request.Key,
+            Job = request.RunAsync,
+            JobOwner = request.OwnerTag,
+            Path = request.Target ?? "",
+            DisplayName = request.Title,
+            Priority = request.Priority,
+            OrderHint = request.OrderHint,
+            Seq = _seq++
+        };
+        _entries.Add(entry);
+        PumpLocked();
+        return entry;
+    }
+
     // ── Removal ─────────────────────────────────────────────────────────
 
     public void RemoveByUser(Guid itemId)
     {
         bool freedQueueSlot = false;
+        CancellationTokenSource? cancel = null;
         lock (_sync)
         {
             Entry? e = _entries.FirstOrDefault(x => x.Id == itemId);
@@ -380,16 +445,18 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             if (e.State == DemoQueueItemState.Queued)
             {
                 SetTerminalLocked(e, DemoQueueItemState.Cancelled, null);
-                freedQueueSlot = true;
+                freedQueueSlot = e.Kind != QueueJobKind.HeapCompaction;
             }
             else if (e.State == DemoQueueItemState.Running)
             {
-                // The parse is not abortable: mark it so FinishEntry discards the result and runs no
-                // post-processing when it completes.
+                // A parse is not abortable: FinishEntry discards its result and runs no post-processing. A
+                // job is told through its token.
                 e.CancelRequested = true;
+                cancel = e.Cancel;
             }
         }
 
+        CancelQuietly(cancel);
         RaiseChanged();
         if (freedQueueSlot)
         {
@@ -403,7 +470,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         bool freedQueueSlot = false;
         lock (_sync)
         {
-            Entry? e = _entries.FirstOrDefault(x => IsActive(x) && !x.Finalizing && PathEquals(x.Path, path));
+            Entry? e = _entries.FirstOrDefault(x =>
+                x.Kind == QueueJobKind.DemoProcessing && IsActive(x) && !x.Finalizing && PathEquals(x.Path, path));
             if (e is null)
             {
                 return;
@@ -466,13 +534,19 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // MaxConcurrency. A worker self-terminates when no work remains; the next submit/resume respawns.
     private void PumpLocked()
     {
-        if (_disposed || _paused || !_backgroundEnabled)
+        if (_disposed || _paused)
         {
             return;
         }
 
-        int runnable = _entries.Count(IsActive); // Queued + Running
-        int want = Math.Min(_maxConcurrency, runnable);
+        int running = _entries.Count(e => e.State == DemoQueueItemState.Running);
+        int want = running;
+        if (NextStartableLocked() is { } next)
+        {
+            want = next.Kind == QueueJobKind.DemoProcessing
+                ? Math.Min(_maxConcurrency, running + _entries.Count(e => e.Kind == QueueJobKind.DemoProcessing && IsStartableLocked(e)))
+                : 1;
+        }
         while (_activeWorkers < want)
         {
             _activeWorkers++;
@@ -488,7 +562,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 lock (_sync)
                 {
-                    if (_disposed || _paused || !_backgroundEnabled || !_entries.Any(e => e.State == DemoQueueItemState.Queued))
+                    if (_disposed || _paused || NextStartableLocked() is null)
                     {
                         return; // nothing to do → exit; respawned on next submit/resume/grow
                     }
@@ -497,12 +571,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 // Acquire a background slot (yields to interactive/reel; respects the hard cap). Between
                 // demos the worker re-acquires, so it steps aside at each demo boundary, exactly like
                 // the historical per-consumer loops.
-                using IDisposable slot = await _gate.AcquireBackgroundAsync(_shutdownToken).ConfigureAwait(false);
+                using SlotLease slot = new(_gate, await _gate.AcquireBackgroundAsync(_shutdownToken).ConfigureAwait(false));
 
                 Entry? entry;
                 lock (_sync)
                 {
-                    entry = _disposed || _paused || !_backgroundEnabled ? null : PickNextQueuedLocked();
+                    entry = _disposed || _paused ? null : PickNextQueuedLocked();
                 }
 
                 if (entry is null)
@@ -510,8 +584,20 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     continue; // work vanished / paused after the top check, re-evaluate, maybe exit
                 }
 
-                RunEntry(entry);
-                CompactIfDrained();
+                if (entry.Kind == QueueJobKind.DemoProcessing)
+                {
+                    RunEntry(entry);
+                }
+                else
+                {
+                    await RunJobAsync(entry, slot).ConfigureAwait(false);
+                }
+
+                // A compaction that failed must not queue the next one; the next drain retries.
+                if (entry.Kind != QueueJobKind.HeapCompaction)
+                {
+                    CompactIfDrained();
+                }
             }
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
@@ -552,6 +638,60 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    private async Task RunJobAsync(Entry entry, SlotLease slot)
+    {
+        CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken);
+        Func<IQueueJobContext, Task>? job;
+        string title;
+        lock (_sync)
+        {
+            title = entry.DisplayName ?? "";
+            entry.Cancel = cancel;
+            job = entry.Job;
+            if (entry.CancelRequested)
+            {
+                cancel.Cancel();
+            }
+        }
+
+        DemoQueueItemState state = DemoQueueItemState.Completed;
+        string? error = null;
+        try
+        {
+            if (job is not null)
+            {
+                await job(new JobContext(this, entry, slot, cancel.Token)).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            state = DemoQueueItemState.Cancelled;
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(DiagLog, title, ex);
+            state = DemoQueueItemState.Failed;
+            error = ex.Message;
+        }
+
+        lock (_sync)
+        {
+            if (state == DemoQueueItemState.Completed && entry.CancelRequested)
+            {
+                state = DemoQueueItemState.Cancelled;
+            }
+
+            entry.Cancel = null;
+            if (entry.Kind != QueueJobKind.HeapCompaction)
+            {
+                _jobsSinceCompact++;
+            }
+        }
+
+        cancel.Dispose();
+        SetTerminal(entry, state, error);
+    }
+
     // Never call from inside RunEntry or FinishEntry: the finished demo must be off every stack frame.
     // At most once per MinDrainCompactInterval, and only if a job finished since the last compaction.
     // A drain inside the window schedules one compaction for when it ends; a job start cancels it.
@@ -574,7 +714,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             // A drain during an in-flight compaction leaves its jobs counted for the next drain.
-            if (_disposed || _compacting || _jobsSinceCompact == 0 || _entries.Any(IsActive))
+            if (_disposed || _compacting || _jobsSinceCompact == 0
+                || _entries.Any(e => IsActive(e) && e.Kind != QueueJobKind.HeapCompaction))
             {
                 return;
             }
@@ -596,9 +737,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             _compacting = true;
             jobs = _jobsSinceCompact;
             startedAt = now;
+            SubmitJobLocked(new QueueJobRequest(QueueJobKind.HeapCompaction, "Heap compaction", "queue",
+                DemoJobPriority.Background, _ => CompactAsync(jobs, startedAt)));
         }
 
-        _ = CompactSafeAsync(jobs, startedAt);
+        RaiseChanged();
     }
 
     private void CancelDeferredCompactLocked()
@@ -608,63 +751,45 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // The throttle is recorded only on success, so a failed compaction leaves the next drain free to run.
-    private async Task CompactSafeAsync(int jobs, DateTimeOffset startedAt)
+    // _compacting is cleared when the item goes terminal, which also covers a cancel before it ran.
+    private async Task CompactAsync(int jobs, DateTimeOffset startedAt)
     {
-        bool succeeded = false;
-        try
+        await _compactHeap().ConfigureAwait(false);
+        lock (_sync)
         {
-            await _compactHeap().ConfigureAwait(false);
-            succeeded = true;
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
-        {
-            // Shutdown while waiting for the slot.
-        }
-        catch (Exception ex)
-        {
-            AppLog.OperationFailed(DiagLog, "Queue drain heap compaction", ex);
-        }
-        finally
-        {
-            lock (_sync)
-            {
-                _compacting = false;
-                if (succeeded)
-                {
-                    _jobsSinceCompact -= jobs;
-                    _lastCompact = startedAt;
-                }
-            }
+            _jobsSinceCompact -= jobs;
+            _lastCompact = startedAt;
         }
     }
 
-    // The blocking gen2 takes a background slot so it yields to an interactive open, a reel or an export.
-    private async Task CompactInBackgroundSlotAsync()
-    {
-        using IDisposable slot = await _gate.AcquireBackgroundAsync(_shutdownToken).ConfigureAwait(false);
-        await HeapCompactor.CompactAsync().ConfigureAwait(false);
-    }
-
-    // Highest priority, then newest OrderHint, then FIFO seq. Marks the winner Running under the lock.
-    private Entry? PickNextQueuedLocked()
+    // Highest priority, then kind (demo parses first, so later kinds see a complete index), then newest
+    // OrderHint, then FIFO seq; null when that item may not start yet. Demo parses may run side by side up to
+    // MaxConcurrency, but any other job runs exclusively: it starts only on an idle queue, and nothing starts
+    // while it runs, even after it hands its slot back.
+    private Entry? NextStartableLocked()
     {
         Entry? best = null;
+        bool anyRunning = false, jobRunning = false;
         foreach (Entry e in _entries)
         {
-            if (e.State != DemoQueueItemState.Queued)
+            if (e.State == DemoQueueItemState.Running)
             {
-                continue;
+                anyRunning = true;
+                jobRunning |= e.Kind != QueueJobKind.DemoProcessing;
             }
-
-            if (best is null
-                || e.Priority > best.Priority
-                || e.Priority == best.Priority && e.OrderHint > best.OrderHint
-                || e.Priority == best.Priority && e.OrderHint == best.OrderHint && e.Seq < best.Seq)
+            else if (IsStartableLocked(e) && (best is null || Compare(e, best) < 0))
             {
                 best = e;
             }
         }
 
+        return best is null || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
+    }
+
+    // Marks the next startable item Running under the lock.
+    private Entry? PickNextQueuedLocked()
+    {
+        Entry? best = NextStartableLocked();
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
@@ -740,9 +865,20 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         entry.State = state;
         entry.Error = error;
         entry.Completion.TrySetResult();
-        // A waiter's task holds the ParsedDemo; history entries must not keep it reachable.
+        // A waiter's task holds the ParsedDemo, a job's body its closure; history must not keep either.
         entry.ForegroundWaiters.Clear();
+        entry.Job = null;
+        if (entry.Kind == QueueJobKind.HeapCompaction)
+        {
+            _compacting = false;
+            if (state == DemoQueueItemState.Completed)
+            {
+                _entries.Remove(entry); // one per drain; only a failure is worth keeping in the list
+            }
+        }
+
         PruneTerminalHistoryLocked();
+        PumpLocked(); // an exclusive job ending may let several demo parses start
     }
 
     // Keep the mirror bounded: drop the oldest terminal entries beyond the history cap.
@@ -828,6 +964,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                         item.Priority = s.Priority;
                         item.State = s.State;
                         item.Error = s.Error;
+                        item.Progress = s.Progress;
+                        item.Detail = s.Detail;
                     }
                     else
                     {
@@ -839,7 +977,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                             Owners = string.Join(", ", s.Owners),
                             Priority = s.Priority,
                             State = s.State,
-                            Error = s.Error
+                            Error = s.Error,
+                            Kind = s.Kind,
+                            Progress = s.Progress,
+                            Detail = s.Detail
                         });
                     }
                 }
@@ -852,15 +993,59 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private static bool IsActive(Entry e) =>
         e.State is DemoQueueItemState.Queued or DemoQueueItemState.Running;
 
-    private int BackgroundTierCountLocked() => _entries.Count(IsActive);
+    // The size cap is for demo parses; jobs are few and keyed.
+    private int BackgroundTierCountLocked() =>
+        _entries.Count(e => e.Kind == QueueJobKind.DemoProcessing && IsActive(e));
+
+    // Pause stops every start; the disable switch stops only Background-priority work.
+    private bool IsStartableLocked(Entry e) =>
+        e.State == DemoQueueItemState.Queued && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested);
+
+    private static int KindRank(QueueJobKind kind) => kind switch
+    {
+        QueueJobKind.DemoProcessing or QueueJobKind.PackExport => 0,
+        QueueJobKind.SidecarMigration => 1,
+        QueueJobKind.StratMining => 2,
+        QueueJobKind.LineupClips => 3,
+        _ => 4
+    };
+
+    // Negative when a runs before b.
+    private static int Compare(Entry a, Entry b)
+    {
+        if (a.Priority != b.Priority)
+        {
+            return b.Priority.CompareTo(a.Priority);
+        }
+
+        int rank = KindRank(a.Kind).CompareTo(KindRank(b.Kind));
+        if (rank != 0)
+        {
+            return rank;
+        }
+
+        return a.OrderHint != b.OrderHint ? b.OrderHint.CompareTo(a.OrderHint) : a.Seq.CompareTo(b.Seq);
+    }
+
+    private static void CancelQuietly(CancellationTokenSource? cancel)
+    {
+        try
+        {
+            cancel?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The job finished between the lookup and the cancel.
+        }
+    }
 
     private static bool PathEquals(string a, string b) =>
         string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     private static DemoQueueItemSnapshot ToSnapshot(Entry e) => new(
         e.Id, e.Path, e.DisplayName,
-        e.Attachments.Select(a => a.OwnerTag).Distinct(StringComparer.Ordinal).ToList(),
-        e.Priority, e.State, e.Error);
+        e.JobOwner is { } owner ? [owner] : e.Attachments.Select(a => a.OwnerTag).Distinct(StringComparer.Ordinal).ToList(),
+        e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail);
 
     private static void SafeInvoke(Action action)
     {
@@ -888,12 +1073,83 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public Guid Id => id;
         public Task Completion => completion;
         public DemoQueueItemState State => rejected ? DemoQueueItemState.Rejected : queue.GetState(id);
-        public void Cancel() => queue.CancelOwned(ownerTag, path);
+        public void Cancel()
+        {
+            if (queue.KindOf(id) is { } kind && kind != QueueJobKind.DemoProcessing)
+            {
+                queue.RemoveByUser(id);
+            }
+            else
+            {
+                queue.CancelOwned(ownerTag, path);
+            }
+        }
+    }
+
+    private QueueJobKind? KindOf(Guid id)
+    {
+        lock (_sync)
+        {
+            return _entries.FirstOrDefault(e => e.Id == id)?.Kind;
+        }
+    }
+
+    private void ReportProgress(Entry entry, int done, int total, string? detail)
+    {
+        lock (_sync)
+        {
+            entry.Progress = total > 0 ? Math.Clamp((double)done / total, 0, 1) : null;
+            entry.Detail = detail;
+        }
+
+        RaiseChanged();
+    }
+
+    // The worker's slot, which a job may hand back for a moment or for good.
+    private sealed class SlotLease(HeavyJobGate gate, IDisposable held) : IDisposable
+    {
+        private IDisposable? _held = held;
+
+        public void Dispose() => Release();
+
+        public void Release() => Interlocked.Exchange(ref _held, null)?.Dispose();
+
+        public async Task RetakeAsync(CancellationToken ct)
+        {
+            Release();
+            _held = await gate.AcquireBackgroundAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    private sealed class JobContext(DemoProcessingQueue queue, Entry entry, SlotLease slot, CancellationToken ct)
+        : IQueueJobContext
+    {
+        private bool _released;
+
+        public CancellationToken CancellationToken => ct;
+
+        public void Report(int done, int total, string? detail = null) =>
+            queue.ReportProgress(entry, done, total, detail);
+
+        public Task StepAsideAsync() => _released ? Task.CompletedTask : slot.RetakeAsync(ct);
+
+        public void ReleaseSlot()
+        {
+            _released = true;
+            slot.Release();
+        }
     }
 
     private sealed class Entry
     {
         public Guid Id { get; } = Guid.NewGuid();
+        public QueueJobKind Kind { get; init; }
+        public string? Key { get; init; }
+        public string? JobOwner { get; init; }
+        public Func<IQueueJobContext, Task>? Job { get; set; }
+        public CancellationTokenSource? Cancel { get; set; }
+        public double? Progress { get; set; }
+        public string? Detail { get; set; }
         public required string Path { get; init; }
         public string? DisplayName { get; set; }
         public DemoJobPriority Priority { get; set; }

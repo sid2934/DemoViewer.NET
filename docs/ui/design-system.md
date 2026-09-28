@@ -916,7 +916,13 @@ hidden for consumers).
 - **Flyout:** header + live status line ("N running · M queued", + " · paused" / " · background disabled"), a
   transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then the item `ListBox`
   (`data-list`), one row per `DemoQueueItem`: **state dot + name (trim, path tooltip) + owner chip(s) +
-  priority chip (only when elevated) + per-item ✕** (`icon-btn` → `RemoveByUser(Id)`). Empty ⇒ "No demos queued."
+  priority chip (only when elevated) + per-item ✕** (`icon-btn` → `RemoveByUser(Id)`). Empty ⇒ "Nothing queued."
+- **Every kind of background job is a row** (header "BACKGROUND WORK", Pause/Resume queue): a job that is not a
+  demo parse (lineup clips, strat mining, pack export, sidecar migration, heap compaction) shows its title, a
+  `badge` kind chip in place of the owner chip, and while running a 3px determinate `ProgressBar`
+  (`AccentInteractive`) under the title plus its `mono` detail ("48 of 366 demos") after the state word. ✕ on a
+  running job cancels it at its next step. Render check: `ProcessingQueueViewTests` writes
+  `queue-flyout-mixed.png`.
 - **`DemoQueueRowViewModel`, the reuse win:** the six lifecycle states map onto the **existing five semantic
   `Ellipse.dot.*` states** (`Queued`/`Running`→`Working` [Running also `.pulsing`]; `Completed`→`Good`;
   `Failed`→`Error`; `Rejected`→`Degraded`; `Cancelled`→`Off`). **Zero new tokens, zero new styles.** The state

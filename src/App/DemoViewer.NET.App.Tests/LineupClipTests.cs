@@ -585,8 +585,9 @@ public class LineupClipTests
         {
             IReadOnlyList<LineupClipJob> jobs = LineupClipPlanner.PlanEvery([cluster], clips);
 
-            // The first lineup's pair is the oldest on disk; the second is rendered and pushes it over the cap.
-            WritePair(clips, jobs[0].Stem, 1000, DateTime.UtcNow.AddHours(-1));
+            // The first lineup's pair is the oldest on disk; the second fits the room left, is rendered larger
+            // than the pairs on disk, and pushes it over the cap.
+            WritePair(clips, jobs[0].Stem, 600, DateTime.UtcNow.AddHours(-1));
             FileRenderer renderer = new() { Bytes = 1000 };
             using LineupClipService service = new(() => [cluster], new ReviewQueue(null), clips, () => true, renderer,
                 maxBytes: () => 1500);
@@ -670,6 +671,191 @@ public class LineupClipTests
             await Assert.That(string.Join("|", queue.Entries.Select(e => e.Kind == ReviewEntryKind.Section ? e.Title : e.Note)))
                 .IsEqualTo("Lineup clips, de_mirage|a2|b|c|Other|x");
             await Assert.That(queue.Clips[0].Id).IsEqualTo(a.Id);
+        }
+    }
+
+    // ── Rank and cap: most thrown first, and a full cap stops rather than trades ──
+
+    // A lineup thrown `times` times, all in one demo.
+    private static GrenadeLineup Thrown(string demo, string id, int times) =>
+        Lineup([.. Enumerable.Range(0, times).Select(i => Throw(demo, Row(i == 0 ? id : $"{id}-{i}", 1000 + (i * 500), 1100 + (i * 500))))]);
+
+    [Test]
+    public async Task ThePlan_RendersTheMostThrownLineupsFirst()
+    {
+        ReviewQueue queue = new(null);
+        FakeRenderer renderer = new();
+        GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5), Thrown("/d/three.dem", "h", 3));
+        using LineupClipService service = new(() => [cluster], queue, Directory, () => true, renderer, _ => false, (_, _) => { });
+
+        await Assert.That(service.Plan()).IsEqualTo(3);
+        await service.WorkerTask;
+
+        await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo)))
+            .IsEqualTo("/d/five.dem,/d/three.dem,/d/two.dem");
+    }
+
+    [Test]
+    public async Task AFullCap_StopsScheduling_UnlessALineupOutranksTheLowestKeptPair()
+    {
+        string clips = TempClips();
+        try
+        {
+            GrenadeLineup keptOld = Thrown("/d/a.dem", "a", 3), keptNew = Thrown("/d/b.dem", "b", 3);
+            GrenadeLineup lower = Thrown("/d/c.dem", "c", 2), equal = Thrown("/d/d.dem", "d", 3);
+            GrenadeLineup higher = Thrown("/d/e.dem", "e", 5);
+            List<GrenadeLineup> lineups = [keptOld, keptNew, lower, equal];
+            GrenadeCluster Current() => Cluster([.. lineups]);
+
+            Dictionary<Guid, string> stems = LineupClipPlanner.PlanEvery([Cluster(keptOld, keptNew, lower, equal, higher)], clips)
+                .ToDictionary(j => j.LineupId, j => j.Stem);
+            DateTime now = DateTime.UtcNow;
+            WritePair(clips, stems[keptOld.Id], 1000, now.AddHours(-2));
+            WritePair(clips, stems[keptNew.Id], 1000, now.AddHours(-1));
+            long cap = new System.IO.DirectoryInfo(clips).EnumerateFiles().Sum(f => f.Length) + 100; // less than one more pair
+
+            FileRenderer renderer = new() { Bytes = 1000 };
+            using LineupClipService service = new(() => [Current()], new ReviewQueue(null), clips, () => true, renderer,
+                maxBytes: () => cap);
+
+            await Assert.That(service.Plan()).IsEqualTo(0).Because("the cap is full and nothing outranks a kept pair");
+            await Assert.That(renderer.Calls).IsEmpty();
+
+            lineups.Add(higher);
+            await Assert.That(service.Plan()).IsEqualTo(1);
+            await service.WorkerTask;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(renderer.Calls.Single().Jobs.Single().LineupId).IsEqualTo(higher.Id);
+                await Assert.That(HasPair(clips, stems[higher.Id])).IsTrue();
+                await Assert.That(HasPair(clips, stems[keptOld.Id])).IsFalse().Because("the lowest rank, then the oldest, goes");
+                await Assert.That(HasPair(clips, stems[keptNew.Id])).IsTrue();
+                await Assert.That(service.Evicted).IsEquivalentTo([stems[keptOld.Id]]);
+            }
+
+            // Still full: the equal and the lower lineup never displace a kept pair, so nothing churns.
+            await Assert.That(service.Plan()).IsEqualTo(0);
+            await Assert.That(renderer.Calls.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task WithAProcessingQueue_EachDemosBatch_IsALineupClipsItem_OneAtATime()
+    {
+        using DemoViewer.NET.Services.HeavyJobGate gate = new();
+        using DemoProcessingQueue processing = new(gate, a => a(), _ => throw new NotSupportedException(),
+            _ => throw new NotSupportedException(), () => Task.CompletedTask);
+        processing.Pause();
+        FakeRenderer renderer = new();
+        GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
+        using LineupClipService service = new(() => [cluster], new ReviewQueue(null), Directory, () => true, renderer,
+            _ => false, (_, _) => { }, processing: processing);
+
+        await Assert.That(service.Plan()).IsEqualTo(2);
+        DemoQueueItemSnapshot first = processing.Snapshot().Single();
+        await Assert.That(first.Kind).IsEqualTo(QueueJobKind.LineupClips);
+        await Assert.That(first.DisplayName).IsEqualTo("Lineup clips: de_mirage, 1 clip from five.dem");
+        await Assert.That(first.State).IsEqualTo(DemoQueueItemState.Queued).Because("a paused queue starts nothing");
+        await Assert.That(renderer.Calls).IsEmpty();
+
+        processing.Resume();
+        await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
+
+        List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.Kind == QueueJobKind.LineupClips).ToList();
+        await Assert.That(items.Count).IsEqualTo(2);
+        await Assert.That(items.All(i => i.State == DemoQueueItemState.Completed)).IsTrue();
+        await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/five.dem,/d/two.dem");
+    }
+
+    [Test]
+    public async Task CancellingABatchInTheQueue_DropsThatDemosClips_AndTheNextDemoGoesOn()
+    {
+        using DemoViewer.NET.Services.HeavyJobGate gate = new();
+        using DemoProcessingQueue processing = new(gate, a => a(), _ => throw new NotSupportedException(),
+            _ => throw new NotSupportedException(), () => Task.CompletedTask);
+        processing.Pause();
+        FakeRenderer renderer = new();
+        GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
+        using LineupClipService service = new(() => [cluster], new ReviewQueue(null), Directory, () => true, renderer,
+            _ => false, (_, _) => { }, processing: processing);
+
+        service.Plan();
+        processing.RemoveByUser(processing.Snapshot().Single().Id);
+        processing.Resume();
+        await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/two.dem");
+        await Assert.That(service.Pending).IsEmpty();
+    }
+
+    [Test]
+    public async Task TheRenderer_WritesAside_AndRenamesOnlyAFinishedGif()
+    {
+        string clips = TempClips();
+        string source = Path.Combine(clips, "source.bin"); // RenderAsync only checks that the demo exists
+        File.WriteAllBytes(source, [0]);
+        try
+        {
+            LineupClipJob job = LineupClipPlanner.PlanEvery([TwoLineups()], clips)[0];
+            string partial = LineupClipRenderer.PartialPathFor(job.GifPath);
+            ParsedDemo demo = SyntheticParsedDemo.Create(Frames(0, 2000));
+            string? seenOutput = null;
+
+            LineupClipRenderer Renderer(Func<CancellationToken, Task> after) => new(_ => demo, _ => null,
+                render: async (request, _, ct) =>
+                {
+                    seenOutput = request.OutputPath;
+                    await File.WriteAllBytesAsync(request.OutputPath, new byte[64], CancellationToken.None);
+                    await after(ct);
+                });
+
+            using CancellationTokenSource cts = new();
+            bool cancelled = false;
+            try
+            {
+                await Renderer(_ =>
+                {
+                    cts.Cancel();
+                    cts.Token.ThrowIfCancellationRequested();
+                    return Task.CompletedTask;
+                }).RenderAsync(source, [job], cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(cancelled).IsTrue();
+                await Assert.That(seenOutput).IsEqualTo(partial).Because("the encoder never writes the real name");
+                await Assert.That(File.Exists(job.GifPath)).IsFalse().Because("a cut-short GIF must not look rendered");
+                await Assert.That(File.Exists(partial)).IsFalse();
+            }
+
+            IReadOnlyList<LineupClipJob> failed = await Renderer(_ => throw new IOException("disk full"))
+                .RenderAsync(source, [job], CancellationToken.None);
+            await Assert.That(failed).IsEmpty();
+            await Assert.That(File.Exists(job.GifPath)).IsFalse();
+            await Assert.That(File.Exists(partial)).IsFalse();
+
+            IReadOnlyList<LineupClipJob> done = await Renderer(_ => Task.CompletedTask)
+                .RenderAsync(source, [job], CancellationToken.None);
+            await Assert.That(done.Single()).IsEqualTo(job);
+            await Assert.That(new FileInfo(job.GifPath).Length).IsEqualTo(64);
+            await Assert.That(File.Exists(partial)).IsFalse();
+            await Assert.That(LineupClipPlanner.StemOf(partial)).IsEqualTo(job.Stem);
+            await Assert.That(System.IO.Directory.EnumerateFiles(clips).Any(f => f == partial)).IsFalse()
+                .Because("the clip directory's own listing does not see the partial");
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
         }
     }
 
