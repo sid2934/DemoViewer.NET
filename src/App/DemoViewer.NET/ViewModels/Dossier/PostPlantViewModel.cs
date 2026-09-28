@@ -45,6 +45,7 @@ public sealed partial class PostPlantSectionViewModel : ObservableObject, IDispo
     private string _reviewLine = "";
 
     private string _teamName = "";
+    private Guid? _teamId;
 
     /// <param name="service">Builds the section; null hides it.</param>
     /// <param name="review">The Review Queue a number's rounds are sent to; null says so on open.</param>
@@ -84,6 +85,7 @@ public sealed partial class PostPlantSectionViewModel : ObservableObject, IDispo
         ReviewLine = "";
         OnPropertyChanged(nameof(HasBlocks));
         _teamName = teamName;
+        _teamId = teamId;
         if (_service is null || teamId is not { } id)
         {
             Line = "";
@@ -140,7 +142,7 @@ public sealed partial class PostPlantSectionViewModel : ObservableObject, IDispo
             return;
         }
 
-        int added = _review.Add(link.Bucket.Rounds.Select(r => OpeningTendenciesSectionViewModel.ReviewClipFor(link, r)),
+        int added = _review.Add(link.Bucket.Rounds.Select(r => OpeningTendenciesSectionViewModel.ReviewClipFor(link, r, _teamId)),
             $"Dossier · {_teamName} · {link.Title}", OpeningTendenciesSectionViewModel.Plural(link.Count, "round"));
         ReviewLine = added == 0 ? "already in Review" : $"{OpeningTendenciesSectionViewModel.Plural(added, "round")} sent to Review";
         _selectTab?.Invoke(ReviewQueueModule.TabId);

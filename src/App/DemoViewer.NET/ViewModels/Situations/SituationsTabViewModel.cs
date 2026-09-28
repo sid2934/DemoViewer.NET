@@ -141,6 +141,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         Results = results ?? new ResultCardsViewModel(demoCache, sidecars ?? new RoundIndexStore(null, demoCache),
             sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review);
         Canvas.Searched += Results.Load;
+        Results.SearchTeam ??= () => Canvas.Filters.Opponent.Value;
         Canvas.PropertyChanged += OnCanvasPropertyChanged;
 
         // The saved list saves from and re-runs onto this canvas. A host that passes no service gets

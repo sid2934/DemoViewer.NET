@@ -39,7 +39,7 @@ public static class ReviewSources
     /// <summary>Picked by hand at the playhead.</summary>
     public const string Manual = "manual";
 
-    /// <summary>A Lineup Card's throw, queued with its GIF by Lineup Clip Render.</summary>
+    /// <summary>A lineup clip an earlier build queued; Lineup Clip Render no longer queues them.</summary>
     public const string Lineup = "lineup";
 
     /// <summary>A round a Dossier section stacks, opened from that section (a Setup Heatmap's rounds).</summary>
@@ -106,6 +106,13 @@ public sealed record ReviewEntry
 
     /// <summary>The Grenade Index lineup a Lineup Clip belongs to; null on every other clip and on clips queued before it existed.</summary>
     public Guid? LineupId { get; init; }
+
+    /// <summary>The Team Identity team the sending surface was about (a Dossier's team, a search's opponent); null when it had none.</summary>
+    public Guid? TeamId { get; init; }
+
+    /// <summary>A reviewer has watched the clip. Written only when true, so older files and builds are unchanged.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Reviewed { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }

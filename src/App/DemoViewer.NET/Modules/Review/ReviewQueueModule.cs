@@ -26,8 +26,9 @@ namespace DemoViewer.NET.Modules.Review;
 ///         the composition root supplies the queue and the seek seam; the module references no shell.
 ///     </para>
 ///     <para>
-///         <b>The badge</b> is the clip count, driven by the queue rather than the VM, so clips sent
-///         from another surface show on the rail item before the Review section is ever opened.
+///         <b>The badge</b> is the count of clips nobody has marked reviewed, driven by the queue rather than
+///         the VM, so clips sent from another surface show on the rail item before the Review section is ever
+///         opened.
 ///     </para>
 /// </summary>
 public sealed class ReviewQueueModule : IWorkspaceModule
@@ -50,8 +51,8 @@ public sealed class ReviewQueueModule : IWorkspaceModule
         _queue = queue;
     }
 
-    /// <summary>"12", or null with nothing queued.</summary>
-    /// <param name="clipCount">Clips in the queue.</param>
+    /// <summary>"12", or null with nothing to review.</summary>
+    /// <param name="clipCount">Unreviewed clips in the queue.</param>
     public static string? BadgeFor(int clipCount) => clipCount > 0 ? clipCount.ToString(CultureInfo.InvariantCulture) : null;
 
     public string Id => "net.demoviewer.review";
@@ -74,8 +75,8 @@ public sealed class ReviewQueueModule : IWorkspaceModule
         // descriptor's life and needs no unsubscribe.
         if (_queue is { } queue)
         {
-            tab.Badge = BadgeFor(queue.ClipCount);
-            queue.Changed += () => tab.Badge = BadgeFor(queue.ClipCount);
+            tab.Badge = BadgeFor(queue.UnreviewedCount);
+            queue.Changed += () => tab.Badge = BadgeFor(queue.UnreviewedCount);
         }
 
         yield return tab;

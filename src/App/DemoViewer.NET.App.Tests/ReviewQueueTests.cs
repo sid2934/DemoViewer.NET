@@ -107,6 +107,7 @@ public class ReviewQueueTests
             queue.Add([ReviewEntry.Clip("/d/a.dem", 640, 1280, "a", ReviewSources.Highlight, 64, "abc",
                 new ReviewHighlightRef("r", "ace", 1000, 3))], "Aces");
             queue.SetQuestion(queue.Clips[0].Id, "what did he see first?");
+            queue.Flush();
 
             string path = Path.Combine(root, ReviewQueue.FileName);
             using (JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(path)))
@@ -289,6 +290,7 @@ public class ReviewQueueTests
             before.Stage(b, b.Highlights[0]);
             before.Stage(a, a.Highlights[0]);
             object? session = before.SnapshotState();
+            first.Flush();
 
             // The restart: a fresh queue over the same file, a fresh tray over it.
             ReviewQueue second = new(root);
@@ -344,6 +346,8 @@ public class ReviewQueueTests
         ResultCardsViewModel cards = new(cache, sidecars, sources, () => null, new SituationThumbnailCache(),
             () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: queue);
         cache.Upsert(ParsedRecord("/d/a.dem"));
+        Guid opponent = Guid.NewGuid();
+        cards.SearchTeam = () => opponent;
 
         cards.Load(
         [
@@ -368,6 +372,7 @@ public class ReviewQueueTests
             await Assert.That(entries[1].Sha256).IsEqualTo("sha-a");
             await Assert.That(entries[1].Note).IsEqualTo("a · Round 4");
             await Assert.That(entries[2].Source).IsEqualTo(ReviewSources.Situation);
+            await Assert.That(entries.Skip(1).All(e => e.TeamId == opponent)).IsTrue().Because("the search's opponent at load");
             await Assert.That(cards.ReviewLine).IsEqualTo("2 rounds sent to Review");
         }
 
@@ -392,9 +397,9 @@ public class ReviewQueueTests
         using (Assert.Multiple())
         {
             await Assert.That(tab.Rows.Count).IsEqualTo(3);
-            await Assert.That(tab.HeaderLine).IsEqualTo("2 clips · 1 section · 2 demos");
+            await Assert.That(tab.HeaderLine).IsEqualTo("2 clips, 2 unreviewed · 1 section · 2 demos");
             await Assert.That(tab.Rows[0].IsSection).IsTrue();
-            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("2 clips");
+            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("2 of 2 clips unreviewed");
             await Assert.That(tab.Rows[1].Position).IsEqualTo(1);
             await Assert.That(tab.Rows[1].DemoLabel).IsEqualTo("a.dem");
             await Assert.That(tab.Rows[1].RangeText).IsEqualTo("0:10 to 0:30 · 20 s");
@@ -462,6 +467,128 @@ public class ReviewQueueTests
             await Assert.That(feature!.Scope).IsEqualTo(FeatureScope.Tab);
             await Assert.That(ShellModuleFeatureGate.DesktopOnlyIds).DoesNotContain("tab.review")
                 .Because("the tab renders on the browser and keeps the queue for the session");
+        }
+    }
+
+    // ── Thousands of rows ─────────────────────────────────────────────────────
+
+    [Test]
+    public async Task Defer_RaisesOneChange_AndTheSaveWaitsForFlush()
+    {
+        string root = TempRoot();
+        try
+        {
+            ReviewQueue queue = new(root, TimeSpan.FromHours(1));
+            int changes = 0;
+            queue.Changed += () => changes++;
+            using (queue.Defer())
+            {
+                queue.Add([Clip("/d/a.dem", 1, 2)], "A");
+                queue.Merge([Clip("/d/b.dem", 1, 2)], "B", static (_, _) => false);
+                await Assert.That(changes).IsEqualTo(0);
+            }
+
+            string path = Path.Combine(root, ReviewQueue.FileName);
+            using (Assert.Multiple())
+            {
+                await Assert.That(changes).IsEqualTo(1).Because("a deferred batch is one change");
+                await Assert.That(File.Exists(path)).IsFalse().Because("the write waits out its delay off the UI thread");
+            }
+
+            queue.Flush();
+            ReviewQueue reread = new(root);
+            await reread.Loaded;
+            await Assert.That(reread.Clips.Select(c => c.DemoPath)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task MergeByKey_ReplacesTheKeyedClipInPlace_AndAppendsTheRest()
+    {
+        ReviewQueue queue = new(null);
+        Guid lineup = Guid.NewGuid();
+        queue.Merge([Clip("/d/a.dem", 1, 2, source: ReviewSources.Lineup) with { LineupId = lineup }], "Lineups",
+            static (_, _) => false);
+        Guid id = queue.Clips[0].Id;
+        queue.SetQuestion(id, "why here?");
+
+        int count = queue.MergeByKey(
+            [
+                Clip("/d/a.dem", 5, 9, "moved", ReviewSources.Lineup) with { LineupId = lineup },
+                Clip("/d/c.dem", 1, 2, source: ReviewSources.Lineup) with { LineupId = Guid.NewGuid() }
+            ], "Lineups", static e => e.LineupId);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(count).IsEqualTo(2);
+            await Assert.That(queue.Clips[0].Id).IsEqualTo(id);
+            await Assert.That(queue.Clips[0].FromTick).IsEqualTo(5);
+            await Assert.That(queue.Clips[0].Question).IsEqualTo("why here?");
+            await Assert.That(queue.Clips[1].DemoPath).IsEqualTo("/d/c.dem");
+            await Assert.That(queue.Entries.Count(e => e.Kind == ReviewEntryKind.Section)).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task ABigSectionStartsCollapsed_AndTheFilterAndSearchNarrowTheRows()
+    {
+        ReviewQueue queue = new(null);
+        queue.Add(Enumerable.Range(0, ReviewQueueTabViewModel.CollapseAbove + 1)
+            .Select(i => Clip($"/d/{i}.dem", i, i + 1, $"smoke {i}", ReviewSources.Lineup)), "Lineup clips, de_mirage");
+        queue.Add([Clip("/d/x.dem", 1, 2, "a plant", ReviewSources.Dossier)], "Dossier");
+        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+
+        ReviewRowViewModel card = tab.Rows[0];
+        using (Assert.Multiple())
+        {
+            await Assert.That(tab.Rows.Count).IsEqualTo(3).Because("the big section shows only its card");
+            await Assert.That(card.IsCollapsed).IsTrue();
+            await Assert.That(tab.Rows[2].Position).IsEqualTo(ReviewQueueTabViewModel.CollapseAbove + 2)
+                .Because("positions count every clip, shown or not");
+            await Assert.That(tab.SourceFilters).IsEquivalentTo([ReviewQueueTabViewModel.AllSources, "dossier", "lineup"]);
+        }
+
+        card.ToggleCommand.Execute(null);
+        await Assert.That(tab.Rows.Count).IsEqualTo(ReviewQueueTabViewModel.CollapseAbove + 4);
+
+        tab.SelectedSource = ReviewSources.Dossier;
+        await Assert.That(tab.Rows.Select(r => r.IsSection ? r.Entry.Title : r.Entry.Note)).IsEquivalentTo(["Dossier", "a plant"]);
+
+        tab.SelectedSource = ReviewQueueTabViewModel.AllSources;
+        card.ToggleCommand.Execute(null);
+        tab.SearchText = "smoke 7";
+        using (Assert.Multiple())
+        {
+            await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Entry.Note)).IsEquivalentTo(["smoke 7"])
+                .Because("a search opens the collapsed section it finds a clip in");
+            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("1 of 51 clips match");
+        }
+    }
+
+    [Test]
+    public async Task AnEditInPlace_KeepsTheRowInstance()
+    {
+        ReviewQueue queue = new(null);
+        queue.Add([Clip("/d/a.dem", 1, 2), Clip("/d/b.dem", 1, 2)], "A");
+        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        ReviewRowViewModel row = tab.Rows[1];
+        int resets = 0;
+        tab.Rows.CollectionChanged += (_, _) => resets++;
+
+        queue.SetNote(row.Entry.Id, "edited");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(tab.Rows[1]).IsSameReferenceAs(row);
+            await Assert.That(row.Note).IsEqualTo("edited");
+            await Assert.That(resets).IsEqualTo(0).Because("the text box being typed in keeps its container");
         }
     }
 
