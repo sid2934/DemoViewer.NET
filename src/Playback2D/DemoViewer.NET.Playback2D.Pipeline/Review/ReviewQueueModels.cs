@@ -107,6 +107,10 @@ public sealed record ReviewEntry
     /// <summary>The Grenade Index lineup a Lineup Clip belongs to; null on every other clip and on clips queued before it existed.</summary>
     public Guid? LineupId { get; init; }
 
+    /// <summary>A reviewer has watched the clip. Written only when true, so older files and builds are unchanged.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Reviewed { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
 

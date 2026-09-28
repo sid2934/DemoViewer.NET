@@ -5,7 +5,9 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.ViewModels.Review;
 using DemoViewer.NET.Views.Review;
@@ -86,6 +88,74 @@ public class ReviewTabRowsTests
             await Assert.That(tab.SelectedSource).IsEqualTo(ReviewQueueTabViewModel.AllSources);
             await Assert.That(tab.Rows.Count).IsEqualTo(1);
         }
+    }
+
+    // ── Reviewed ──────────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task AReviewedMark_PersistsOnlyWhenSet_AndIsOneChange()
+    {
+        string root = Directory.CreateTempSubdirectory("dv-review-reviewed-").FullName;
+        try
+        {
+            ReviewQueue queue = new(root);
+            queue.Add([Clip("/d/a.dem", 100), Clip("/d/b.dem", 100), Clip("/d/c.dem", 100)], "S");
+            int changes = 0;
+            queue.Changed += () => changes++;
+
+            int marked = queue.SetReviewed([queue.Clips[0].Id, queue.Clips[1].Id, queue.Entries[0].Id], true);
+            queue.Flush();
+            string json = await File.ReadAllTextAsync(Path.Combine(root, ReviewQueue.FileName));
+            ReviewQueue reread = new(root);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(marked).IsEqualTo(2).Because("a title card has no mark");
+                await Assert.That(changes).IsEqualTo(1);
+                await Assert.That(json.Split("\"reviewed\": true").Length - 1).IsEqualTo(2);
+                await Assert.That(json).DoesNotContain("\"reviewed\": false").Because("older files and builds see no new field");
+                await Assert.That(reread.Clips.Select(c => c.Reviewed)).IsEquivalentTo([true, true, false]);
+                await Assert.That(reread.UnreviewedCount).IsEqualTo(1);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task ReviewedClips_HideByDefault_TheSectionCountsUnreviewed_AndTheBadgeFollows()
+    {
+        ReviewQueue queue = new(null);
+        queue.Add([Clip("/d/a.dem", 100, "one"), Clip("/d/b.dem", 100, "two"), Clip("/d/c.dem", 100, "three")], "S");
+        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        WorkspaceTabDescriptor badge = new ReviewQueueModule(() => tab, queue).CreateTabs(null!).Single();
+
+        tab.Rows[1].ToggleReviewedCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["two", "three"]);
+            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("2 of 3 clips unreviewed");
+            await Assert.That(tab.Rows[1].Position).IsEqualTo(2).Because("positions count every clip");
+            await Assert.That(badge.Badge).IsEqualTo("2");
+        }
+
+        tab.ShowReviewed = true;
+        await Assert.That(tab.Rows.Count).IsEqualTo(4);
+        await Assert.That(tab.Rows[1].ReviewText).IsEqualTo("Reviewed");
+
+        tab.Rows[0].ToggleReviewedCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.UnreviewedCount).IsEqualTo(0).Because("mark section reviewed marks every clip under the card");
+            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("all 3 clips reviewed");
+            await Assert.That(tab.Rows[0].ReviewText).IsEqualTo("Mark unreviewed");
+            await Assert.That(badge.Badge).IsNull();
+        }
+
+        tab.Rows[0].ToggleReviewedCommand.Execute(null);
+        await Assert.That(queue.UnreviewedCount).IsEqualTo(3);
     }
 
     [Test]

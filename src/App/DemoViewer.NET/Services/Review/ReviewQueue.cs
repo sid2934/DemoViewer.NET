@@ -113,6 +113,49 @@ public sealed class ReviewQueue
     /// <summary>How many clips are queued.</summary>
     public int ClipCount => List.Count(e => e.Kind == ReviewEntryKind.Clip);
 
+    /// <summary>How many queued clips nobody has marked reviewed.</summary>
+    public int UnreviewedCount => List.Count(e => e.Kind == ReviewEntryKind.Clip && !e.Reviewed);
+
+    /// <summary>Marks clips reviewed or not, in one change and one save; ids of title cards are ignored.</summary>
+    /// <param name="ids">The clips.</param>
+    /// <param name="reviewed">The mark.</param>
+    /// <returns>How many clips changed.</returns>
+    public int SetReviewed(IEnumerable<Guid> ids, bool reviewed)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        HashSet<Guid> wanted = [.. ids];
+        int changed = 0;
+        for (int i = 0; i < List.Count; i++)
+        {
+            ReviewEntry e = List[i];
+            if (e.Kind == ReviewEntryKind.Clip && e.Reviewed != reviewed && wanted.Contains(e.Id))
+            {
+                List[i] = e with { Reviewed = reviewed };
+                changed++;
+            }
+        }
+
+        if (changed > 0)
+        {
+            Commit();
+        }
+
+        return changed;
+    }
+
+    /// <summary>The clips under a title card, up to the next card.</summary>
+    /// <param name="cardId">The card.</param>
+    public IReadOnlyList<ReviewEntry> ClipsUnder(Guid cardId)
+    {
+        int card = IndexOf(cardId);
+        if (card < 0 || List[card].Kind != ReviewEntryKind.Section)
+        {
+            return [];
+        }
+
+        return List.GetRange(card + 1, SectionEnd(card) - card - 1);
+    }
+
     /// <summary>Raised on the calling thread after every mutation that changed something.</summary>
     public event Action? Changed;
 
@@ -282,7 +325,7 @@ public sealed class ReviewQueue
             int old = supersededAt(clip);
             if (old >= 0)
             {
-                List[old] = clip with { Id = List[old].Id, Question = List[old].Question };
+                List[old] = clip with { Id = List[old].Id, Question = List[old].Question, Reviewed = List[old].Reviewed };
             }
             else
             {
