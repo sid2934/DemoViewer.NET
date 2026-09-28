@@ -1091,7 +1091,6 @@ public class App : Application
             AppPaths.DemoCacheDir,
             AppPaths.ConfigRoot,
             action => Dispatcher.UIThread.Post(action),
-            heavy: sp.GetRequiredService<HeavyJobGate>(),
             queue: sp.GetRequiredService<IDemoProcessingQueue>()));
         services.AddSingleton(sp =>
         {

@@ -28,9 +28,9 @@ public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid?
 ///     <para>
 ///         After the first mine, a change to the demo cache or the Grenade Index re-mines once things go quiet
 ///         for <see cref="QuietDelay" />: the quiet re-mine after new demos finish indexing. It waits while the
-///         processing queue has work and is re-armed when the queue drains. Every mine holds a background
-///         <see cref="HeavyJobGate" /> slot, and reads files only for demos whose inputs changed
-///         (<see cref="SignatureCache" />).
+///         processing queue has demo parses and is re-armed when the queue drains. Every mine is an item of the
+///         processing queue, stepping aside for a demo open between batches, and reads files only for demos whose
+///         inputs changed (<see cref="SignatureCache" />).
 ///     </para>
 /// </summary>
 public sealed class StratMiningService : IDisposable
@@ -54,7 +54,6 @@ public sealed class StratMiningService : IDisposable
     private readonly Func<string?, string> _fingerprintFor;
     private readonly object _gate = new();
     private readonly GrenadeIndex? _grenadeIndex;
-    private readonly HeavyJobGate? _heavy;
     private readonly RoundIndexStore _positions;
     private readonly Action<Action> _post;
     private readonly IDemoProcessingQueue? _queue;
@@ -81,11 +80,13 @@ public sealed class StratMiningService : IDisposable
     /// <param name="configRoot">The config root; null keeps dismissals and promotions in memory.</param>
     /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
     /// <param name="run">Runs a mine off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
-    /// <param name="heavy">The machine-wide heavy-job gate a mine takes a background slot of; null takes none.</param>
-    /// <param name="queue">The processing queue whose pending work holds back the quiet re-mine; null never holds it.</param>
+    /// <param name="queue">
+    ///     The processing queue a mine runs in, and whose pending demo parses hold back the quiet re-mine; null mines
+    ///     on <paramref name="run" /> directly.
+    /// </param>
     public StratMiningService(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
-        string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null, HeavyJobGate? heavy = null,
+        string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
         IDemoProcessingQueue? queue = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -103,7 +104,6 @@ public sealed class StratMiningService : IDisposable
         _statePath = configRoot is null ? null : Path.Combine(configRoot, "strat-mining.json");
         _post = post ?? (action => action());
         _run = run ?? Task.Run;
-        _heavy = heavy;
         _queue = queue;
         _signatures = new RoundSignatureBuilder(demoCache, positions, fingerprintFor,
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
@@ -168,9 +168,8 @@ public sealed class StratMiningService : IDisposable
     public event Action? Changed;
 
     /// <summary>
-    ///     Mines the library for the user. A call while a mine runs queues one more pass of it and returns at once.
-    ///     Takes the gate as an interactive job, so it waits for at most the parse in flight rather than the
-    ///     whole queue; the quiet re-mine takes a background slot.
+    ///     Mines the library for the user: a user-requested queue item, so it starts after the job in flight rather
+    ///     than the whole queue. A call while one is still queued joins it; one while a mine runs queues another.
     /// </summary>
     public Task MineAsync() => MineAsync(user: true);
 
@@ -181,7 +180,7 @@ public sealed class StratMiningService : IDisposable
     {
         lock (_gate)
         {
-            if (_running)
+            if (_queue is null && _running)
             {
                 _rerun = true;
                 return Task.CompletedTask;
@@ -190,74 +189,63 @@ public sealed class StratMiningService : IDisposable
             _running = true;
         }
 
-        return _heavy is null ? _run(MineLoop) : MineGatedAsync(_heavy, user);
+        if (_queue is null)
+        {
+            return _run(MineLoop);
+        }
+
+        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: library",
+            "strat-mining", user ? DemoJobPriority.UserRequested : DemoJobPriority.Background, MineQueuedAsync,
+            Key: "strat-mining"));
+        return handle.Completion.ContinueWith(_ =>
+        {
+            lock (_gate)
+            {
+                _running = _queue.ActiveCount(QueueJobKind.StratMining) > 0;
+            }
+
+            _post(() => Changed?.Invoke());
+        }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
     }
 
-    // The gate is taken per batch of demos and again for the clustering, never across a whole mine, so a demo
-    // open waits for one batch at most.
-    private async Task MineGatedAsync(HeavyJobGate heavy, bool user)
+    // One pass as a queue item. Steps aside between batches, so a demo open waits for one batch at most.
+    private async Task MineQueuedAsync(IQueueJobContext job)
     {
-        while (true)
-        {
-            IReadOnlyList<RoundSignature> signatures = [];
-            IReadOnlyList<MinedPattern> patterns = [];
-            try
-            {
-                RoundSignatureBuilder.BuildSession? session = null;
-                await _run(() => session = _signatures.Begin()).ConfigureAwait(false);
-                for (int from = 0; from < session!.Count; from += BatchSize)
-                {
-                    int start = from;
-                    using (await AcquireAsync(heavy, user).ConfigureAwait(false))
-                    {
-                        await _run(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false);
-                    }
-                }
-
-                using (await AcquireAsync(heavy, user).ConfigureAwait(false))
-                {
-                    await _run(() =>
-                    {
-                        signatures = _signatures.Finish(session);
-                        patterns = StratMiner.Mine(signatures);
-                        Save(patterns);
-                    }).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-            {
-                // A file mid-write: the next mine reads it.
-            }
-
-            if (!Completed(signatures, patterns))
-            {
-                return;
-            }
-        }
-    }
-
-    private static async Task<IDisposable> AcquireAsync(HeavyJobGate heavy, bool user)
-    {
-        if (!user)
-        {
-            return await heavy.AcquireBackgroundAsync().ConfigureAwait(false);
-        }
-
-        // Interactive acquisitions do not yield to each other; step aside for a demo open already waiting.
-        while (heavy.IsInteractivePending)
-        {
-            await Task.Delay(50).ConfigureAwait(false);
-        }
-
+        IReadOnlyList<RoundSignature> signatures = [];
+        IReadOnlyList<MinedPattern> patterns = [];
         try
         {
-            return await heavy.AcquireInteractiveAsync().ConfigureAwait(false);
+            RoundSignatureBuilder.BuildSession? session = null;
+            await _run(() => session = _signatures.Begin()).ConfigureAwait(false);
+            int count = session!.Count;
+            for (int from = 0; from < count; from += BatchSize)
+            {
+                job.CancellationToken.ThrowIfCancellationRequested();
+                job.Report(from, count, $"{from} of {count} demos");
+                if (from > 0)
+                {
+                    await job.StepAsideAsync().ConfigureAwait(false);
+                }
+
+                int start = from;
+                await _run(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false);
+            }
+
+            job.Report(count, count, "grouping rounds");
+            await job.StepAsideAsync().ConfigureAwait(false);
+            await _run(() =>
+            {
+                signatures = _signatures.Finish(session);
+                patterns = StratMiner.Mine(signatures);
+                Save(patterns);
+            }).ConfigureAwait(false);
         }
-        catch (ReelInProgressException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            // A reel refuses interactive work; the mine waits for it to end instead.
-            return await heavy.AcquireBackgroundAsync().ConfigureAwait(false);
+            // A file mid-write: the next mine reads it.
         }
+
+        Published(signatures, patterns);
     }
 
     private void MineLoop()
@@ -284,8 +272,7 @@ public sealed class StratMiningService : IDisposable
         }
     }
 
-    // Publishes a pass; true when another pass was asked for while it ran.
-    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    private void Published(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
     {
         int demos = signatures.Select(s => s.DemoPath).Distinct(StringComparer.Ordinal).Count();
         _post(() =>
@@ -295,7 +282,12 @@ public sealed class StratMiningService : IDisposable
             CarryState([.. Patterns.Select(p => p.Pattern)], patterns);
             Publish(patterns);
         });
+    }
 
+    // Publishes a pass; true when another pass was asked for while it ran.
+    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    {
+        Published(signatures, patterns);
         lock (_gate)
         {
             if (!_rerun)
@@ -522,7 +514,8 @@ public sealed class StratMiningService : IDisposable
         }
     }
 
-    private bool QueueBusy => _queue is { } queue && queue.QueuedCount + queue.RunningCount > 0;
+    // Demo parses only: the queue's other jobs (clips, this mine) must not hold the re-mine back forever.
+    private bool QueueBusy => _queue is { } queue && queue.ActiveCount(QueueJobKind.DemoProcessing) > 0;
 
     /// <summary>The quiet timer: re-mines unless the processing queue has work, in which case it waits for the drain.</summary>
     internal void OnQuiet()
