@@ -91,6 +91,8 @@ public class UtilityCardClipTests
                     await Assert.That(vm.Detail!.ClipPath).IsNotNull();
                     await Assert.That(gif.FrameCount).IsGreaterThan(1);
                     await Assert.That(gif.CurrentFrame).IsGreaterThan(0).Because("the clip plays");
+                    await Assert.That(vm.Detail.Instances.Count(r => r.PlayerText.Length > 0)).IsGreaterThan(vm.Detail.Instances.Count / 2)
+                        .Because("throw rows name the thrower");
                 }
 
                 vm.Back();
@@ -104,6 +106,58 @@ public class UtilityCardClipTests
         finally
         {
             Directory.Delete(clips, true);
+        }
+    }
+
+    // Throw rows name the thrower before the grenades migration (JSON rows, named from the record on read)
+    // and after it (the throw log). Runs the migration on a second copy of the cache copy.
+    [Test]
+    public async Task ThrowRows_NameTheThrower_BeforeAndAfterTheGrenadesMigration()
+    {
+        string root = Environment.GetEnvironmentVariable("GV2_CACHE") ?? "";
+        if (!Directory.Exists(root))
+        {
+            throw new SkipTestException("GV2_CACHE is not set to a cache copy");
+        }
+
+        string copy = Directory.CreateTempSubdirectory("dv-names-cache-").FullName;
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            {
+                string target = Path.Combine(copy, Path.GetRelativePath(root, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target);
+            }
+
+            (int Named, int Rows) Names(string cacheRoot)
+            {
+                using GrenadeIndex index = new(new DemoCacheStore(cacheRoot), new AssetZonePlaceResolverSource());
+                index.Load();
+                List<IndexedGrenade> rows = [.. index.Rows(new GrenadeQuery("de_mirage"))];
+                return (rows.Count(r => r.Row.ThrowerName is { Length: > 0 }), rows.Count);
+            }
+
+            (int named, int rows) before = Names(copy);
+            DemoCacheStore cache = new(copy);
+            using (GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource()))
+            {
+                index.Load();
+                GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
+                Console.WriteLine($"[names] migration {result}");
+            }
+
+            (int named, int rows) after = Names(copy);
+            Console.WriteLine($"[names] mirage rows named: before migration {before.named}/{before.rows}, after {after.named}/{after.rows}");
+            using (Assert.Multiple())
+            {
+                await Assert.That(before.named).IsGreaterThan(before.rows * 9 / 10);
+                await Assert.That(after.named).IsGreaterThan(after.rows * 9 / 10);
+            }
+        }
+        finally
+        {
+            Directory.Delete(copy, true);
         }
     }
 
