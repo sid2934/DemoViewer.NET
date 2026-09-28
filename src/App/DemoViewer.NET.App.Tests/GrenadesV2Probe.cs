@@ -92,6 +92,13 @@ public class GrenadesV2Probe
                 vm.FocusLanding(target.Id);
                 Capture(window, $"gv2-{map}-{name}-focus.png");
                 report.AppendLine(CultureInfo.InvariantCulture, $"  focus: {vm.FocusLine}");
+                vm.ClickThrow(UtilityBookTabViewModel.LineupKey(target.Lineups[0]));
+                if (vm.Detail is { } card)
+                {
+                    Capture(window, $"gv2-{map}-{name}-card.png");
+                    report.AppendLine(CultureInfo.InvariantCulture,
+                        $"  card: {card.StyleLine} | {card.UsedLine} | {card.TechniquesLine} | {card.ConsoleText} | first: {card.Instances.FirstOrDefault()?.PlayerText}");
+                }
             }
 
             window.Close();
