@@ -85,6 +85,12 @@ public sealed record GrenadeLineup(WorldPoint Origin, bool JumpThrow, IReadOnlyL
     /// </summary>
     public IReadOnlyList<Guid> AliasIds { get; init; } = [];
 
+    /// <summary>The ways this lineup is thrown, most thrown first; one per lineup under the grid grouping.</summary>
+    public IReadOnlyList<LineupTechnique> Techniques { get; init; } = [];
+
+    /// <summary>The throw a card and a clip use: the most thrown technique's medoid, or the first throw.</summary>
+    public IndexedGrenade Representative => Techniques.Count > 0 ? Techniques[0].Representative : Throws[0];
+
     /// <summary>True when <paramref name="id" /> names this lineup, directly or through a merged neighbour.</summary>
     /// <param name="id">A stored lineup id.</param>
     public bool Answers(Guid id) => Id == id || AliasIds.Contains(id);
@@ -162,6 +168,9 @@ public sealed class GrenadeIndex : IDisposable
     private readonly Dictionary<string, LoadedDemo> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<Action> _post;
     private readonly IZonePlaceResolverSource _zones;
+    private readonly GrenadeLineupStore _lineups;
+    private readonly Dictionary<string, Dictionary<string, Guid>> _assignments = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<Guid, List<Guid>>> _reverseAliases = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _ready;
 
@@ -171,11 +180,13 @@ public sealed class GrenadeIndex : IDisposable
     /// <param name="zones">Where a map's zone resolver comes from; none when omitted.</param>
     /// <param name="evaluator">The writer, whose <c>Indexed</c> merges a demo; null in a read-only host.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
+    /// <param name="lineups">The lineup store; the one in the cache root when null.</param>
     public GrenadeIndex(DemoCacheStore demoCache, IZonePlaceResolverSource? zones = null,
-        GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null)
+        GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null, GrenadeLineupStore? lineups = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         _demoCache = demoCache;
+        _lineups = lineups ?? GrenadeLineupStore.For(demoCache);
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
         _evaluator = evaluator;
         _post = post ?? (a => a());
@@ -263,6 +274,12 @@ public sealed class GrenadeIndex : IDisposable
         {
             _ready = true;
             demos = _loaded.Count;
+            InvalidateLocked(null);
+            foreach (string map in DistinctDemosLocked().Select(d => d.Map).Where(m => m.Length > 0)
+                         .Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+            {
+                EnsureAssignedLocked(map);
+            }
         }
 
         GrenadeIndexLog.Loaded(Log, demos, watch.ElapsedMilliseconds);
@@ -313,11 +330,117 @@ public sealed class GrenadeIndex : IDisposable
 
     /// <summary>The query's grenades clustered by landing cell with their origins deduplicated.</summary>
     /// <param name="query">The filters.</param>
-    public IReadOnlyList<GrenadeCluster> Query(GrenadeQuery query) =>
-        Grouping == GrenadeGrouping.Density ? GrenadeDensityGrouping.Cluster(Rows(query)) : Cluster(Rows(query));
+    public IReadOnlyList<GrenadeCluster> Query(GrenadeQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        if (Grouping == GrenadeGrouping.Grid)
+        {
+            return Cluster(Rows(query));
+        }
 
-    /// <summary>Which grouping <see cref="Query" /> runs. Prototype seam for grenades-v2.md; the app keeps Grid.</summary>
-    public GrenadeGrouping Grouping { get; init; } = GrenadeGrouping.Grid;
+        lock (_gate)
+        {
+            RefreshPlacesLocked(query.Map);
+            Dictionary<string, Guid> assignment = EnsureAssignedLocked(query.Map);
+            Dictionary<Guid, List<Guid>> aliases = _reverseAliases.GetValueOrDefault(query.Map) ?? [];
+            return GrenadeLineups.Group(Filter(DistinctDemosLocked().SelectMany(d => d.Grenades), query),
+                g => assignment.TryGetValue(g.Key, out Guid id) ? id : GrenadeLineups.SingleId(g.Key),
+                id => aliases.TryGetValue(id, out List<Guid>? old) ? old : []);
+        }
+    }
+
+    /// <summary>Which grouping <see cref="Query" /> runs: stored lineups, or the v1 grid for a comparison.</summary>
+    public GrenadeGrouping Grouping { get; init; } = GrenadeGrouping.Lineups;
+
+    /// <summary>The stored representative flight of a lineup's technique (or the lineup), or null.</summary>
+    /// <param name="lineup">The lineup.</param>
+    /// <param name="technique">The technique, or null for the lineup's most thrown one.</param>
+    public IReadOnlyList<TrajectoryPoint>? PathFor(GrenadeLineup lineup, LineupTechnique? technique)
+    {
+        ArgumentNullException.ThrowIfNull(lineup);
+        if ((technique ?? (lineup.Techniques.Count > 0 ? lineup.Techniques[0] : null)) is not { } chosen
+            || lineup.Throws.Count == 0)
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return _lineups.For(lineup.Throws[0].Map).Paths.TryGetValue(PathKey(lineup.Id, chosen.Key), out LineupPath? path)
+                ? path.Points
+                : null;
+        }
+    }
+
+    /// <summary>The store key of a lineup technique's representative flight.</summary>
+    public static string PathKey(Guid lineupId, string technique) =>
+        lineupId.ToString("N", CultureInfo.InvariantCulture) + "/" + technique;
+
+    /// <summary>The lineup store this index assigns against.</summary>
+    public GrenadeLineupStore LineupStore => _lineups;
+
+    // A map's throw-to-lineup assignment, minting anchors and building the alias map once the library has
+    // loaded; cached until a demo on the map comes or goes. Under _gate.
+    private Dictionary<string, Guid> EnsureAssignedLocked(string map)
+    {
+        if (_assignments.TryGetValue(map, out Dictionary<string, Guid>? cached))
+        {
+            return cached;
+        }
+
+        List<IndexedGrenade> all =
+        [
+            .. DistinctDemosLocked().Where(d => string.Equals(d.Map, map, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(d => d.Grenades)
+        ];
+        MapLineups lineups = _lineups.For(map);
+        (Dictionary<string, Guid> assignment, bool changed) = GrenadeLineups.Assign(map, all, lineups, _ready);
+        if (_ready && !lineups.AliasesBuilt && all.Count > 0)
+        {
+            foreach ((Guid old, Guid now) in GrenadeLineups.BuildAliases(all, assignment))
+            {
+                lineups.Aliases.TryAdd(old, now);
+            }
+
+            lineups.AliasesBuilt = true;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            SaveLineupsLocked();
+        }
+
+        _assignments[map] = assignment;
+        _reverseAliases[map] = lineups.Aliases.GroupBy(a => a.Value)
+            .ToDictionary(g => g.Key, g => g.Select(a => a.Key).Order().ToList());
+        return assignment;
+    }
+
+    private void SaveLineupsLocked()
+    {
+        try
+        {
+            _lineups.Save();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            GrenadeIndexLog.LineupsNotSaved(Log, ex);
+        }
+    }
+
+    // Drops cached assignments: one map's, or every map's when null. Under _gate.
+    private void InvalidateLocked(string? map)
+    {
+        if (map is null)
+        {
+            _assignments.Clear();
+        }
+        else
+        {
+            _assignments.Remove(map);
+        }
+    }
 
     /// <summary>
     ///     The grenades the query keeps, in input order. Pure, so a caller holding rows of its own (a test,
@@ -643,7 +766,7 @@ public sealed class GrenadeIndex : IDisposable
 
     private static LineupSummary Describe(GrenadeCluster cluster, GrenadeLineup lineup) =>
         new(lineup.Id, LineupClipPlanner.Title(cluster), cluster.Kind, cluster.LandingPlace, lineup.Throws.Count,
-            GrenadeConsole.Format(lineup.Throws[0].Row));
+            GrenadeConsole.Format(lineup.Representative.Row));
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 
@@ -702,6 +825,7 @@ public sealed class GrenadeIndex : IDisposable
         lock (_gate)
         {
             _loaded[entry.Path] = new LoadedDemo(demo, map, zones?.ZonesVersion, grenades);
+            InvalidateLocked(map);
         }
 
         return true;
@@ -783,6 +907,7 @@ public sealed class GrenadeIndex : IDisposable
                 if (_loaded.ContainsKey(loaded) && !IsLoadable(_demoCache.TryGetIndex(loaded)))
                 {
                     changed |= _loaded.Remove(loaded);
+                    InvalidateLocked(null);
                 }
             }
         }
