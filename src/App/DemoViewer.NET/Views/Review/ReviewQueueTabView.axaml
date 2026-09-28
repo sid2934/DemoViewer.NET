@@ -70,14 +70,16 @@
             <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextMid}" />
 
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRows}">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRows}">
                 <ComboBox Grid.Column="0" ItemsSource="{Binding SourceFilters}" FontSize="11" MinWidth="130"
                           SelectedItem="{Binding SelectedSource}" ToolTip.Tip="Show clips from one source" />
                 <TextBox Grid.Column="1" Text="{Binding SearchText, Delay=150}" FontSize="11"
                          PlaceholderText="Search notes, questions, demos and section titles" />
-                <Button Grid.Column="2" Content="Expand all" Classes="ghost" FontSize="11" Padding="10 5"
+                <CheckBox Grid.Column="2" Content="show reviewed" FontSize="11" IsChecked="{Binding ShowReviewed}"
+                          ToolTip.Tip="List clips already marked reviewed" />
+                <Button Grid.Column="3" Content="Expand all" Classes="ghost" FontSize="11" Padding="10 5"
                         Command="{Binding ExpandAllCommand}" />
-                <Button Grid.Column="3" Content="Collapse all" Classes="ghost" FontSize="11" Padding="10 5"
+                <Button Grid.Column="4" Content="Collapse all" Classes="ghost" FontSize="11" Padding="10 5"
                         Command="{Binding CollapseAllCommand}" />
             </Grid>
 
@@ -138,6 +140,9 @@
                                                        Foreground="{DynamicResource TextMid}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+                                            <Button Content="{Binding ReviewText}" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding ToggleReviewedCommand}"
+                                                    ToolTip.Tip="Mark every clip in this section reviewed, or all of them unreviewed again" />
                                             <Button Content="{Binding ToggleText}" Classes="ghost" FontSize="11" Padding="8 3"
                                                     Command="{Binding ToggleCommand}"
                                                     ToolTip.Tip="Show or hide this section's clips" />
@@ -175,6 +180,9 @@
                                             <Button Content="Open" Classes="ghost" FontSize="11" Padding="8 3"
                                                     Command="{Binding OpenCommand}"
                                                     ToolTip.Tip="Open 2D playback at the clip's first tick" />
+                                            <Button Content="{Binding ReviewText}" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding ToggleReviewedCommand}"
+                                                    ToolTip.Tip="Mark the clip reviewed; reviewed clips are hidden unless show reviewed is on" />
                                             <Button Content="▲" Classes="ghost" FontSize="11" Padding="6 3"
                                                     Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
                                             <Button Content="▼" Classes="ghost" FontSize="11" Padding="6 3"

@@ -37,6 +37,7 @@ public static partial class ReviewQueueMigration
         return entry.Kind == ReviewEntryKind.Clip
                && string.Equals(entry.Source, LineupSource, StringComparison.Ordinal)
                && entry.Question.Length == 0
+               && !entry.Reviewed
                && GeneratedNote().IsMatch(entry.Note);
     }
 

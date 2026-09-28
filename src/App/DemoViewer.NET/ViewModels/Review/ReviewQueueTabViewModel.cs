@@ -112,6 +112,10 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     [ObservableProperty]
     private string _selectedSource = AllSources;
 
+    /// <summary>Reviewed clips are listed too; hidden by default.</summary>
+    [ObservableProperty]
+    private bool _showReviewed;
+
     /// <summary><see cref="AllSources" /> and every source a queued clip has.</summary>
     [ObservableProperty]
     private IReadOnlyList<string> _sourceFilters = [AllSources];
@@ -295,6 +299,20 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
 
     partial void OnSelectedSourceChanged(string value) => Reconcile();
 
+    partial void OnShowReviewedChanged(bool value) => Reconcile();
+
+    internal void ToggleReviewed(ReviewRowViewModel row)
+    {
+        if (row.IsClip)
+        {
+            _queue.SetReviewed([row.Entry.Id], !row.Entry.Reviewed);
+            return;
+        }
+
+        IReadOnlyList<ReviewEntry> clips = _queue.ClipsUnder(row.Entry.Id);
+        _queue.SetReviewed(clips.Select(c => c.Id), clips.Any(c => !c.Reviewed));
+    }
+
     internal void Move(ReviewRowViewModel row, int delta) => _queue.Move(row.Entry.Id, delta);
 
     internal void Remove(ReviewRowViewModel row) => _queue.Remove([row.Entry.Id]);
@@ -463,6 +481,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         Dictionary<Guid, ReviewRowViewModel> rows = [];
         SortedSet<string> sources = new(StringComparer.Ordinal);
         HashSet<string> demos = new(StringComparer.OrdinalIgnoreCase);
+        int unreviewedAll = 0;
         int position = 0;
         int sections = 0;
         int i = 0;
@@ -491,13 +510,15 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             bool collapsed = card is not null && _collapsed.Contains(card.Id) && search.Length == 0;
             List<ReviewRowViewModel> shown = [];
             int matches = 0;
+            int unreviewed = 0;
             for (int k = start; k < i; k++)
             {
                 ReviewEntry clip = entries[k];
                 position++;
                 sources.Add(clip.Source);
                 demos.Add(clip.DemoPath);
-                if (!Matches(clip, source, titleMatches ? "" : search))
+                unreviewed += clip.Reviewed ? 0 : 1;
+                if (!Matches(clip, source, titleMatches ? "" : search) || (clip.Reviewed && !ShowReviewed))
                 {
                     continue;
                 }
@@ -514,11 +535,12 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             if (card is not null && (!filtering || matches > 0))
             {
                 ReviewRowViewModel row = RowFor(card, rows);
-                row.SetSection(total, filtering ? matches : total, _collapsed.Contains(card.Id), filtering);
+                row.SetSection(total, unreviewed, filtering ? matches : total, _collapsed.Contains(card.Id), filtering);
                 visible.Add(row);
             }
 
             visible.AddRange(shown);
+            unreviewedAll += unreviewed;
         }
 
         _rowsById = rows;
@@ -529,7 +551,7 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         _headerLine = entries.Count == 0
             ? ""
             : string.Create(CultureInfo.InvariantCulture,
-                $"{Plural(clips, "clip")} · {Plural(sections, "section")} · {Plural(demos.Count, "demo")}");
+                $"{Plural(clips, "clip")}, {unreviewedAll} unreviewed · {Plural(sections, "section")} · {Plural(demos.Count, "demo")}");
         HasRows = entries.Count > 0;
         List<string> filters = [AllSources, .. sources.Where(s => s.Length > 0)];
         if (!filters.SequenceEqual(SourceFilters))
@@ -642,11 +664,17 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
     /// <summary>The clip's number in the queue, one-based, counting clips only; 0 on a title card.</summary>
     public int Position { get; private set; }
 
-    /// <summary>"4 clips" under a title card; "3 of 40 clips match" under a filter.</summary>
+    /// <summary>"4 of 12 clips unreviewed" under a title card; "3 of 40 clips match" under a filter.</summary>
     public string ClipCountText { get; private set; } = "";
 
     /// <summary>A title card whose clips are hidden.</summary>
     public bool IsCollapsed { get; private set; }
+
+    /// <summary>The reviewed button's label: a clip's state, or what a title card's button does to its section.</summary>
+    public string ReviewText { get; private set; } = "";
+
+    /// <summary>The clip has been marked reviewed.</summary>
+    public bool IsReviewed => Entry.Reviewed;
 
     /// <summary>The toggle's label on a title card.</summary>
     public string ToggleText => IsCollapsed ? "Show" : "Hide";
@@ -700,6 +728,12 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
         OnPropertyChanged(nameof(DemoLabel));
         OnPropertyChanged(nameof(RangeText));
         OnPropertyChanged(nameof(SourceText));
+        OnPropertyChanged(nameof(IsReviewed));
+        if (IsClip)
+        {
+            ReviewText = entry.Reviewed ? "Reviewed" : "Mark reviewed";
+            OnPropertyChanged(nameof(ReviewText));
+        }
     }
 
     internal void SetPosition(int position)
@@ -711,12 +745,23 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
         }
     }
 
-    internal void SetSection(int total, int matching, bool collapsed, bool filtering)
+    internal void SetSection(int total, int unreviewed, int matching, bool collapsed, bool filtering)
     {
         string clips = string.Create(CultureInfo.InvariantCulture, $"{total} clip{(total == 1 ? "" : "s")}");
         string text = filtering
             ? string.Create(CultureInfo.InvariantCulture, $"{matching} of {clips} match")
-            : clips;
+            : total == 0
+                ? clips
+                : unreviewed == 0
+                    ? $"all {clips} reviewed"
+                    : string.Create(CultureInfo.InvariantCulture, $"{unreviewed} of {clips} unreviewed");
+        string reviewText = unreviewed == 0 && total > 0 ? "Mark unreviewed" : "Mark section reviewed";
+        if (ReviewText != reviewText)
+        {
+            ReviewText = reviewText;
+            OnPropertyChanged(nameof(ReviewText));
+        }
+
         if (ClipCountText != text)
         {
             ClipCountText = text;
@@ -733,6 +778,9 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
 
     [RelayCommand]
     private void Toggle() => _owner.Toggle(this);
+
+    [RelayCommand]
+    private void ToggleReviewed() => _owner.ToggleReviewed(this);
 
     partial void OnTitleChanged(string value) => Write(ReviewTextField.Title, value);
 

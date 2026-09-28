@@ -394,9 +394,9 @@ public class ReviewQueueTests
         using (Assert.Multiple())
         {
             await Assert.That(tab.Rows.Count).IsEqualTo(3);
-            await Assert.That(tab.HeaderLine).IsEqualTo("2 clips · 1 section · 2 demos");
+            await Assert.That(tab.HeaderLine).IsEqualTo("2 clips, 2 unreviewed · 1 section · 2 demos");
             await Assert.That(tab.Rows[0].IsSection).IsTrue();
-            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("2 clips");
+            await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("2 of 2 clips unreviewed");
             await Assert.That(tab.Rows[1].Position).IsEqualTo(1);
             await Assert.That(tab.Rows[1].DemoLabel).IsEqualTo("a.dem");
             await Assert.That(tab.Rows[1].RangeText).IsEqualTo("0:10 to 0:30 · 20 s");
