@@ -966,6 +966,13 @@ public sealed class GrenadeIndex : IDisposable
             return false;
         }
 
+        // Rows written before names were stored (the JSON the grenades migration has not converted yet)
+        // take them from the record, as the migration does.
+        if (document.Grenades.Any(r => r.ThrowerName is null))
+        {
+            GrenadeSidecar.Name(document, _demoCache.TryLoadRecord(entry.Path)?.Players);
+        }
+
         string map = entry.Map ?? "";
         DemoRef demo = DemoRef.From(entry);
         IZonePlaceResolver? zones = map.Length > 0 ? _zones.TryGet(map) : null;
