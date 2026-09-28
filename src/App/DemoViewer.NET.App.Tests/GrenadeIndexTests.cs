@@ -152,6 +152,28 @@ public class GrenadeIndexTests
         new HashSet<GrenadeKind> { GrenadeKind.Smoke }, new HashSet<string> { "CTSpawn" }, DemoPaths: demos);
 
     [Test]
+    public async Task TwoLandingGroupsSeededInOneCell_BothReachTheMap()
+    {
+        // (20, 20) and (220, 220) share the 256-unit cell (0, 0) and are 283 units apart: two groups.
+        DemoCacheStore cache = new(null);
+        for (int n = 1; n <= 2; n++)
+        {
+            Indexed(cache, DemoPath(n), Mirage, $"sha{n}",
+            [
+                Row("big1", GrenadeKind.Smoke, new Vector3(1200, 0, -160), new Vector3(20, 20, -170)),
+                Row("big2", GrenadeKind.Smoke, new Vector3(1200, 0, -160), new Vector3(22, 18, -170), releaseTick: 2000),
+                Row("small", GrenadeKind.Smoke, new Vector3(-400, 900, -160), new Vector3(220, 220, -170), releaseTick: 3000)
+            ]);
+        }
+
+        using GrenadeIndex index = Loaded(cache);
+        using UtilityBookTabViewModel vm = new(index, isBrowser: false, loadMapAsset: _ => null);
+        vm.SelectedMap = Mirage;
+        await Assert.That(index.Query(vm.CurrentQuery()!).Select(c => c.Cell).Distinct().Count()).IsEqualTo(1);
+        await Assert.That(vm.Groups.Select(g => g.ThrowCount)).IsEquivalentTo([4, 2]);
+    }
+
+    [Test]
     public async Task EverySmokeIntoMirageCt_InTheNineDemos_ReturnsClusteredOrigins()
     {
         using GrenadeIndex index = Loaded(Library());
