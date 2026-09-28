@@ -341,7 +341,7 @@ public sealed class DemoCacheRecord
     public int SuggestionCount { get; set; }
 
     // ── Grenade walk ─────────────────────────────────────────────────────────
-    // The rows live in the .grenades.json.gz and .grenades.paths.json.gz siblings of this sidecar
+    // The rows live in the .grenades.log.gz sibling of this sidecar (.grenades.json.gz before the v3 migration)
     // (grenade-walk.md §3.9); only the stamp rides the record. A stamp beside the tiers rather than a
     // tier: the walk depends on the parse, not on the analysis run, so a rules change must not
     // invalidate it.
