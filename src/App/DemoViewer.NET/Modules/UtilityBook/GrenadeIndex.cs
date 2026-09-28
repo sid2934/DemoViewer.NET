@@ -464,12 +464,16 @@ public sealed class GrenadeIndex : IDisposable
 
     /// <summary>
     ///     Fills the store's missing flights from the demos' old paths siblings (the one-off migration), trying
-    ///     each technique's three throws released nearest its mean. Reads each needed file once, outside the
-    ///     lock, and saves the store. Returns how many positions got a flight.
+    ///     each technique's three throws released nearest its mean. Reads every snapshot demo's file once,
+    ///     outside the lock, and saves the store.
     /// </summary>
-    /// <param name="readPaths">A demo's paths sibling, or null.</param>
-    public int HarvestStoredPaths(Func<string, GrenadePathsDocument?> readPaths)
+    /// <param name="snapshot">The demos whose paths files are read.</param>
+    /// <param name="readPaths">A demo's paths sibling, or null when it is missing or does not read.</param>
+    /// <returns>How many positions got a flight, and the snapshot demos whose file read.</returns>
+    public (int Filled, HashSet<string> Readable) HarvestStoredPaths(IReadOnlyList<string> snapshot,
+        Func<string, GrenadePathsDocument?> readPaths)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(readPaths);
         List<(string Map, string Key, List<IndexedGrenade> Candidates)> needs = [];
         lock (_gate)
@@ -503,9 +507,16 @@ public sealed class GrenadeIndex : IDisposable
         }
 
         Dictionary<string, List<TrajectoryPoint>> found = new(StringComparer.Ordinal);
-        foreach ((string demo, HashSet<string> ids) in wanted)
+        HashSet<string> readable = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string demo in snapshot.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (readPaths(demo) is not { } document)
+            {
+                continue;
+            }
+
+            readable.Add(demo);
+            if (!wanted.TryGetValue(demo, out HashSet<string>? ids))
             {
                 continue;
             }
@@ -534,7 +545,30 @@ public sealed class GrenadeIndex : IDisposable
             SaveLineupsLocked();
         }
 
-        return filled;
+        return (filled, readable);
+    }
+
+    /// <summary>
+    ///     True when every anchored lineup technique a demo's throws belong to has its flight in the store:
+    ///     the demo's paths file holds nothing the store still needs.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public bool FlightsCovered(string demoPath)
+    {
+        ArgumentNullException.ThrowIfNull(demoPath);
+        lock (_gate)
+        {
+            if (!_loaded.TryGetValue(demoPath, out LoadedDemo? demo) || demo.Map.Length == 0)
+            {
+                return true;
+            }
+
+            Dictionary<string, Guid> assignment = EnsureAssignedLocked(demo.Map);
+            MapLineups lineups = _lineups.For(demo.Map);
+            HashSet<Guid> anchored = [.. lineups.Anchors.Select(a => a.Id)];
+            return demo.Grenades.All(g => !assignment.TryGetValue(g.Key, out Guid id) || !anchored.Contains(id)
+                                          || lineups.Paths.ContainsKey(PathKey(id, GrenadeLineups.TechniqueKey(g.Row))));
+        }
     }
 
     private static float Distance(WorldPoint a, WorldPoint b) =>

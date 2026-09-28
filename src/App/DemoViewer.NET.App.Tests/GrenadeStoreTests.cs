@@ -168,6 +168,83 @@ public class GrenadeStoreTests
     }
 
     [Test]
+    public async Task ACorruptPathsFile_IsKept_AndWithholdsTheMarker_UntilItIsGivenUp()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore cache = new(root);
+            OldFormat(cache, "/d/a.dem", "sha-a", Smoke("g1-1", 1300, 3, "76561198000000003"));
+            OldFormat(cache, "/d/b.dem", "sha-b", Smoke("g1-1", 1305, 3, "76561198000000003"));
+            cache.WriteSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix, [0x1F, 0x8B, 1, 2, 3]);
+            using GrenadeIndex index = new(cache);
+            index.Load();
+
+            GrenadeStoreMigrationResult first = await GrenadeStoreMigration.RunAsync(cache, index);
+            using (Assert.Multiple())
+            {
+                await Assert.That(first.Converted).IsEqualTo(2).Because("the rows are good");
+                await Assert.That(first.Completed).IsFalse();
+                await Assert.That(first.PathFilesKept).IsEqualTo(1);
+                await Assert.That(cache.TryReadSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix)).IsNotNull();
+                await Assert.That(cache.TryReadSiblingBytes("/d/a.dem", GrenadeSidecar.PathsSuffix)).IsNull()
+                    .Because("a's file read and the lineup's flight came from it");
+                await Assert.That(File.Exists(Path.Combine(root, GrenadeStoreMigration.MarkerFileName))).IsFalse();
+            }
+
+            GrenadeStoreMigrationResult last = first;
+            for (int pass = 2; pass <= GrenadeStoreMigration.MaxAttempts; pass++)
+            {
+                last = await GrenadeStoreMigration.RunAsync(cache, index);
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(last.PathFilesGivenUp).IsEqualTo(1);
+                await Assert.That(last.Completed).IsTrue().Because("a file that never reads stops blocking the marker");
+                await Assert.That(cache.TryReadSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix)).IsNotNull().Because("it is kept, not deleted");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task APathsFileWhoseLineupsGotTheirFlightElsewhere_IsDeleted()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore cache = new(root);
+            OldFormat(cache, "/d/a.dem", "sha-a", Smoke("g1-1", 1300, 3, "76561198000000003"));
+            OldFormat(cache, "/d/b.dem", "sha-b", Smoke("g1-1", 1305, 3, "76561198000000003"));
+
+            // b's file reads but holds no flight for its throw: the lineup's flight can only come from a.
+            GrenadePathsDocument empty = new() { Demo = new GrenadeDemoHeader { Sha256 = "sha-b", StableKey = DemoCacheStore.StableKey("/d/b.dem") } };
+            cache.WriteSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix, SidecarJson.SerializeGzip(empty, GrenadeSidecar.JsonOptions));
+            using GrenadeIndex index = new(cache);
+            index.Load();
+
+            GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
+            GrenadeLineup lineup = index.Query(new GrenadeQuery(Map))[0].Lineups[0];
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(result.PathFilesDeleted).IsEqualTo(2);
+                await Assert.That(index.LineupStore.For(Map).Paths.Values.Single().Throw).StartsWith("sha-a");
+                await Assert.That(lineup.Throws.Count).IsEqualTo(2);
+                await Assert.That(cache.TryReadSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix)).IsNull();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task ARowsFileThatDoesNotRead_IsKept_AndNoMarkerIsWritten()
     {
         string root = TempRoot();
