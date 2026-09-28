@@ -96,6 +96,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     [ObservableProperty]
     private string _statusLine = "";
 
+    private readonly string? _clipDirectory;
     private string? _focusedId;
     private string? _selectedLineupId;
 
@@ -108,10 +109,12 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
     ///     post in the app, inline in a test.
     /// </param>
+    /// <param name="clipDirectory">Where Lineup Clip Render writes its pairs; the card shows no clip when null.</param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
         Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
-        Action<Action>? retire = null)
+        Action<Action>? retire = null, string? clipDirectory = null)
     {
+        _clipDirectory = clipDirectory;
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
@@ -459,7 +462,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             ? ""
             : string.Create(CultureInfo.InvariantCulture,
                 $"{focused.Title}: {focused.ThrowCount} {(focused.ThrowCount == 1 ? "throw" : "throws")} from {focused.Lineups.Count} {(focused.Lineups.Count == 1 ? "lineup" : "lineups")}. Click a position for its details; Escape steps back.");
-        Detail = selected is null ? null : new LineupDetail(focused!, selected.Lineup, _demoDate, WatchAsync, CopyAsync, selected.Technique);
+        Detail = selected is null
+            ? null
+            : new LineupDetail(focused!, selected.Lineup, _demoDate, WatchAsync, CopyAsync, selected.Technique, _clipDirectory);
         OnPropertyChanged(nameof(FocusedGroup));
         OnPropertyChanged(nameof(HasFocus));
     }
@@ -605,8 +610,10 @@ public sealed partial class LineupDetail : ObservableObject
     /// <param name="watch">Opens one throw in 2D Playback.</param>
     /// <param name="copy">Writes the console line to the clipboard.</param>
     /// <param name="technique">The position clicked, or null for the lineup as a whole.</param>
+    /// <param name="clipDirectory">Where the position's clip pair lives; no clip when null.</param>
     public LineupDetail(LandingGroup group, GrenadeLineup lineup, Func<string, DateTime?> demoDate,
-        Func<IndexedGrenade, Task> watch, Func<string, Task> copy, LineupTechnique? technique = null)
+        Func<IndexedGrenade, Task> watch, Func<string, Task> copy, LineupTechnique? technique = null,
+        string? clipDirectory = null)
     {
         Lineup = lineup;
         Technique = technique;
@@ -622,6 +629,17 @@ public sealed partial class LineupDetail : ObservableObject
         TechniquesLine = lineup.Techniques.Count > 1
             ? string.Join(" · ", lineup.Techniques.Select(t => string.Create(CultureInfo.InvariantCulture, $"{t.Label} {t.Throws.Count}")))
             : "";
+        if (clipDirectory is not null)
+        {
+            LineupTechnique? shown = technique ?? (lineup.Techniques.Count > 0 ? lineup.Techniques[0] : null);
+            ClipPath = LineupClipPlanner.FinishedGif(clipDirectory, first.Map, first.Kind, lineup.Id, shown?.Key);
+            ClipLine = ClipPath is not null
+                ? ""
+                : LineupClipPlanner.Plan(lineup, shown, Title, clipDirectory) is null
+                    ? "no clip: a position gets one once it is thrown twice"
+                    : "clip not rendered yet: it renders in the processing queue";
+        }
+
         ConsoleText = GrenadeConsole.Format(first.Row) ?? UtilityBookTabViewModel.NoConsoleText;
         HasConsole = GrenadeConsole.Format(first.Row) is not null;
         foreach (IndexedGrenade grenade in throws
@@ -654,6 +672,16 @@ public sealed partial class LineupDetail : ObservableObject
     public string ConsoleText { get; }
 
     public bool HasConsole { get; }
+
+    /// <summary>The position's finished clip GIF, or null while it has none.</summary>
+    public string? ClipPath { get; }
+
+    public bool HasClip => ClipPath is not null;
+
+    /// <summary>Why there is no clip, or empty.</summary>
+    public string ClipLine { get; } = "";
+
+    public bool HasClipLine => ClipLine.Length > 0;
 
     /// <summary>Every throw from this position, newest demo first.</summary>
     public ObservableCollection<LineupInstanceRow> Instances { get; } = [];

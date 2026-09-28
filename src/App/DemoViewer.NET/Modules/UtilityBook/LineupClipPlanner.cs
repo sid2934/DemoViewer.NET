@@ -10,7 +10,6 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services.Review;
 using SkiaSharp;
 
 #endregion
@@ -59,12 +58,16 @@ public sealed record LineupClipJob(
 
     /// <summary>How often the lineup was thrown: its rank for render order and for the byte cap.</summary>
     public int Throws { get; init; }
+
+    /// <summary>The <see cref="LineupTechnique.Key" /> the clip shows, or null for a lineup without techniques.</summary>
+    public string? TechniqueKey { get; init; }
 }
 
 /// <summary>
-///     Lineup Clip Render's planning (plan.md §3, Phase 4): which Lineup Cards get a clip, what range and
-///     camera it renders with, where the pair lands, and the Review Queue entry that carries it. Pure: no
-///     parse, no render, no file written; <see cref="LineupClipService" /> runs what this plans.
+///     Lineup Clip Render's planning (plan.md §3, Phase 4): which throw positions get a clip, what range and
+///     camera it renders with, and where the pair lands. One clip per lineup and technique: every throw of
+///     one technique from one spot looks the same, so one representative stands for them. Pure: no parse,
+///     no render, no file written; <see cref="LineupClipService" /> runs what this plans.
 /// </summary>
 public static class LineupClipPlanner
 {
@@ -84,12 +87,12 @@ public static class LineupClipPlanner
     public const double MaxSeconds = 12.0;
 
     /// <summary>
-    ///     A position has to be thrown this often to get a clip. A throw seen once is a moment rather than
-    ///     a lineup, and one clip per one-off throw would bury the Review Queue under a single demo.
+    ///     A lineup has to be thrown this often to get a clip, and a technique other than the lineup's most
+    ///     thrown one needs this many throws of its own. A throw seen once is a moment rather than a lineup.
     /// </summary>
     public const int MinThrows = 2;
 
-    /// <summary>The section title the queued clips sit under, with the map after it.</summary>
+    /// <summary>The section title earlier builds queued lineup clips under, with the map after it.</summary>
     public const string SectionPrefix = "Lineup clips";
 
     /// <summary>The sidecar's extension, after the GIF's stem.</summary>
@@ -105,17 +108,30 @@ public static class LineupClipPlanner
     /// <param name="lineup">The throw position.</param>
     /// <param name="title">The card's cluster title.</param>
     /// <param name="directory">Where clips are written.</param>
-    public static LineupClipJob? Plan(GrenadeLineup lineup, string title, string directory)
+    public static LineupClipJob? Plan(GrenadeLineup lineup, string title, string directory) =>
+        Plan(lineup, lineup.Techniques.Count > 0 ? lineup.Techniques[0] : null, title, directory);
+
+    /// <summary>
+    ///     The job for one technique of a lineup, or null when it gets none: a lineup under
+    ///     <see cref="MinThrows" />, a technique other than the first under it, or a representative whose
+    ///     release state was not read.
+    /// </summary>
+    /// <param name="lineup">The throw position.</param>
+    /// <param name="technique">One of its techniques, or null for a lineup without techniques.</param>
+    /// <param name="title">The card's cluster title.</param>
+    /// <param name="directory">Where clips are written.</param>
+    public static LineupClipJob? Plan(GrenadeLineup lineup, LineupTechnique? technique, string title, string directory)
     {
         ArgumentNullException.ThrowIfNull(lineup);
         ArgumentNullException.ThrowIfNull(directory);
 
-        if (lineup.Throws.Count < MinThrows)
+        bool first = technique is null || (lineup.Techniques.Count > 0 && ReferenceEquals(lineup.Techniques[0], technique));
+        if (lineup.Throws.Count < MinThrows || (!first && technique!.Throws.Count < MinThrows))
         {
             return null;
         }
 
-        IndexedGrenade representative = lineup.Representative;
+        IndexedGrenade representative = technique?.Representative ?? lineup.Representative;
         GrenadeRow row = representative.Row;
         if (GrenadeConsole.Format(row) is not { } console)
         {
@@ -124,12 +140,20 @@ public static class LineupClipPlanner
 
         int rate = representative.TickRate > 0 ? representative.TickRate : 64;
         (int from, int to) = Range(row, rate);
-        string stem = FileStem(representative.Map, representative.Kind, lineup.Id);
-        // Deferred: only a lineup with no pair on disk pays for a hash per throw.
+        string map = representative.Map;
+        GrenadeKind kind = representative.Kind;
+        string? key = technique?.Key;
+        string stem = FileStem(map, kind, lineup.Id, key);
+        // The first technique's clip is the one earlier builds rendered per lineup (their representative
+        // was Techniques[0]'s), so it adopts their pairs. Deferred: a hash per throw only without a pair.
         IEnumerable<string> former = lineup.AliasIds.Where(a => a != lineup.Id)
-            .Select(a => FileStem(representative.Map, representative.Kind, a))
-            .Concat(lineup.Throws.Select(LegacyFileStem))
+            .Select(a => FileStem(map, kind, a, key))
+            .Concat(first && key is not null
+                ? lineup.AliasIds.Append(lineup.Id).Select(a => FileStem(map, kind, a))
+                : [])
+            .Concat(first ? lineup.Throws.Select(LegacyFileStem) : [])
             .Distinct(StringComparer.Ordinal)
+            .Where(s => !string.Equals(s, stem, StringComparison.Ordinal))
             .Select(s => Path.Combine(directory, s + GifExtension));
         ulong? steamId = ulong.TryParse(row.ThrowerSteamId64, NumberStyles.None, CultureInfo.InvariantCulture,
             out ulong id) && id != 0
@@ -139,10 +163,10 @@ public static class LineupClipPlanner
         return new LineupClipJob(representative.Key, lineup.Id, representative.Demo.Path, representative.Demo.Sha256,
             representative.Map, title, from, to, rate, steamId, console,
             Path.Combine(directory, stem + GifExtension), Path.Combine(directory, stem + SetposExtension),
-            lineup.AliasIds, former) { Throws = lineup.Throws.Count };
+            lineup.AliasIds, former) { Throws = technique?.Throws.Count ?? lineup.Throws.Count, TechniqueKey = key };
     }
 
-    /// <summary>The job for every lineup that gets one, whatever is on disk, one per lineup, in cluster order.</summary>
+    /// <summary>The job for every lineup and technique that gets one, whatever is on disk, in cluster order.</summary>
     /// <param name="clusters">The index's clusters.</param>
     /// <param name="directory">Where clips are written.</param>
     public static IReadOnlyList<LineupClipJob> PlanEvery(IEnumerable<GrenadeCluster> clusters, string directory)
@@ -156,9 +180,27 @@ public static class LineupClipPlanner
             string title = Title(cluster);
             foreach (GrenadeLineup lineup in cluster.Lineups)
             {
-                if (Plan(lineup, title, directory) is { } job && ids.Add(job.LineupId))
+                if (!ids.Add(lineup.Id))
                 {
-                    jobs.Add(job);
+                    continue;
+                }
+
+                if (lineup.Techniques.Count == 0)
+                {
+                    if (Plan(lineup, null, title, directory) is { } only)
+                    {
+                        jobs.Add(only);
+                    }
+
+                    continue;
+                }
+
+                foreach (LineupTechnique technique in lineup.Techniques)
+                {
+                    if (Plan(lineup, technique, title, directory) is { } job)
+                    {
+                        jobs.Add(job);
+                    }
                 }
             }
         }
@@ -221,18 +263,22 @@ public static class LineupClipPlanner
         return (from, Math.Min(to, from + (int)Math.Round(MaxSeconds * rate)));
     }
 
-    /// <summary>The Review Queue clip for a job: the demo range, the title and the console line as its note.</summary>
-    /// <param name="job">The planned clip.</param>
-    public static ReviewEntry ToReviewEntry(LineupClipJob job)
-    {
-        ArgumentNullException.ThrowIfNull(job);
-        return ReviewEntry.Clip(job.DemoPath, job.FromTick, job.ToTick, $"{job.Title}. {job.ConsoleText}",
-            ReviewSources.Lineup, job.TickRate, job.Sha256) with { LineupId = job.LineupId };
-    }
-
-    /// <summary>The section title a map's clips are queued under.</summary>
+    /// <summary>The section title earlier builds queued a map's clips under.</summary>
     /// <param name="map">The map.</param>
     public static string SectionTitle(string map) => $"{SectionPrefix}, {map}";
+
+    /// <summary>The pair a lineup's technique has on disk, or null while either half is missing.</summary>
+    /// <param name="directory">Where clips are written.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="kind">What is thrown.</param>
+    /// <param name="lineupId">The lineup's id.</param>
+    /// <param name="techniqueKey">The technique, or null for a lineup without techniques.</param>
+    public static string? FinishedGif(string directory, string map, GrenadeKind kind, Guid lineupId, string? techniqueKey)
+    {
+        ArgumentNullException.ThrowIfNull(directory);
+        string gif = Path.Combine(directory, FileStem(map, kind, lineupId, techniqueKey) + GifExtension);
+        return File.Exists(gif) && File.Exists(SetposPathFor(gif)) ? gif : null;
+    }
 
     /// <summary>
     ///     The export request for a job over its demo's parsed frames: a GIF at <see cref="Fps" />, square,
@@ -286,11 +332,13 @@ public static class LineupClipPlanner
     /// <param name="map">The map.</param>
     /// <param name="kind">What is thrown.</param>
     /// <param name="lineupId"><see cref="GrenadeLineup.Id" /> or one of its aliases.</param>
-    public static string FileStem(string map, GrenadeKind kind, Guid lineupId)
+    /// <param name="techniqueKey">The technique, appended when given: "...-&lt;id&gt;-stand-jump-left".</param>
+    public static string FileStem(string map, GrenadeKind kind, Guid lineupId, string? techniqueKey = null)
     {
         ArgumentNullException.ThrowIfNull(map);
-        return string.Create(CultureInfo.InvariantCulture,
+        string stem = string.Create(CultureInfo.InvariantCulture,
             $"{SafeMap(map)}-{kind.ToString().ToLowerInvariant()}-{lineupId:N}");
+        return techniqueKey is null ? stem : stem + "-" + SafeMap(techniqueKey);
     }
 
     // The stem before lineup ids: twelve hex of a hash of the representative throw's key. Read only, to adopt

@@ -46,7 +46,7 @@ public class ReviewQueuePerfTests
             ReviewQueue seed = new(null);
             foreach ((string map, int count) in Maps())
             {
-                seed.Merge(Enumerable.Range(0, count).Select(i => LineupClip(map, i)), "Lineup clips, " + map,
+                seed.Merge(Enumerable.Range(0, count).Select(i => SyntheticClip(map, i)), "Situations, " + map,
                     static (_, _) => false);
             }
 
@@ -144,8 +144,8 @@ public class ReviewQueuePerfTests
                 int realizedScrolled = TextBoxes(view);
                 Save(window, $"review-queue-{label}-scrolled.png");
 
-                // What LineupClipService.Plan does after an index change: one Merge per map, 20 new clips
-                // each. Once as ten bare merges, once inside Defer as Plan now does.
+                // A background producer's batch landing while the section is open: one Merge per map, 20 new clips
+                // each. Once as ten bare merges, once inside one Defer.
                 Guid? topBefore = TopRow(view, scroller);
                 Vector offsetBefore = scroller?.Offset ?? default;
                 sw.Restart();
@@ -207,7 +207,7 @@ public class ReviewQueuePerfTests
     {
         foreach ((string map, int _) in Maps())
         {
-            queue.Merge(Enumerable.Range(first, 20).Select(i => LineupClip(map, i)), "Lineup clips, " + map,
+            queue.Merge(Enumerable.Range(first, 20).Select(i => SyntheticClip(map, i)), "Situations, " + map,
                 static (_, _) => false);
         }
     }
@@ -218,10 +218,10 @@ public class ReviewQueuePerfTests
         ("de_overpass", 330), ("de_train", 190), ("de_cache", 170), ("de_anubis", 160), ("de_vertigo", 60)
     ];
 
-    private static ReviewEntry LineupClip(string map, int i) =>
+    private static ReviewEntry SyntheticClip(string map, int i) =>
         ReviewEntry.Clip($"/demos/{map}-{i % 37}.dem", i * 400, i * 400 + 270,
             $"Smoke into {map} spot {i}. setpos -613.43 615.90 -78.98; setang -51.19 -169.10 0.00",
-            ReviewSources.Lineup, 64, "sha-" + i) with { LineupId = Guid.NewGuid() };
+            ReviewSources.Situation, 64, "sha-" + i);
 
     private static void Settle()
     {
