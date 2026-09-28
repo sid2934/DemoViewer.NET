@@ -1,10 +1,10 @@
 #region
 
-using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Services.Export.Pack;
@@ -27,6 +27,12 @@ namespace DemoViewer.NET.ViewModels.Review;
 ///         the list.
 ///     </para>
 ///     <para>
+///         <b>Thousands of rows.</b> Only the rows on screen get a row view model: a section over
+///         <see cref="CollapseAbove" /> clips starts collapsed, the source filter and the search hide the
+///         rest, and a structural change swaps the visible list in with one reset. While the tab is
+///         deactivated a queue change only marks the rows stale.
+///     </para>
+///     <para>
 ///         <b>A manual pick</b> is a clip around the playhead of the demo the workspace has open, read
 ///         from the module context the tab was last activated with; with no demo open there is nothing
 ///         to pick and the action says so.
@@ -45,6 +51,19 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
 
     /// <summary>How far either side of the playhead a manual pick reaches.</summary>
     public const int PickSeconds = 5;
+
+    /// <summary>A section with more clips than this starts collapsed.</summary>
+    public const int CollapseAbove = 50;
+
+    /// <summary>The source filter's "every source" value.</summary>
+    public const string AllSources = "all sources";
+
+    private readonly HashSet<Guid> _collapsed = [];
+    private readonly HashSet<Guid> _seenSections = [];
+    private Dictionary<Guid, ReviewRowViewModel> _rowsById = [];
+    private bool _active = true;
+    private bool _stale;
+    private string _headerLine = "";
 
     private readonly Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? _exportPack;
     private readonly Func<string, bool> _fileExists;
@@ -82,6 +101,18 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     [ObservableProperty]
     private string _statusLine = "";
 
+    /// <summary>Text a clip's note, question or demo, or a section's title, must contain; empty shows all.</summary>
+    [ObservableProperty]
+    private string _searchText = "";
+
+    /// <summary>One of <see cref="SourceFilters" />.</summary>
+    [ObservableProperty]
+    private string _selectedSource = AllSources;
+
+    /// <summary><see cref="AllSources" /> and every source a queued clip has.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _sourceFilters = [AllSources];
+
     /// <param name="queue">The shared queue.</param>
     /// <param name="playback">The seek seam a clip opens through; null on a host with no 2D tab.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
@@ -109,29 +140,14 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     /// <summary>True on the WASM head: the queue lives for the session only.</summary>
     public bool IsBrowser { get; }
 
-    /// <summary>The queue, in order: title cards and clips.</summary>
-    public ObservableCollection<ReviewRowViewModel> Rows { get; } = [];
+    /// <summary>The rows on screen, in queue order: title cards, and the clips of expanded sections that pass the filter.</summary>
+    public BulkObservableCollection<ReviewRowViewModel> Rows { get; } = [];
 
     /// <summary>There is anything queued.</summary>
-    public bool HasRows => Rows.Count > 0;
+    public bool HasRows { get; private set; }
 
     /// <summary>"12 clips · 3 sections · 4 demos", or empty with nothing queued.</summary>
-    public string HeaderLine
-    {
-        get
-        {
-            List<ReviewRowViewModel> clips = [.. Rows.Where(r => r.IsClip)];
-            if (Rows.Count == 0)
-            {
-                return "";
-            }
-
-            int sections = Rows.Count - clips.Count;
-            int demos = clips.Select(r => r.Entry.DemoPath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
-            return string.Create(CultureInfo.InvariantCulture,
-                $"{Plural(clips.Count, "clip")} · {Plural(sections, "section")} · {Plural(demos, "demo")}");
-        }
-    }
+    public string HeaderLine => _headerLine;
 
     /// <summary>The formats a pack can be written as. MP4 is the one every phone plays.</summary>
     public IReadOnlyList<string> PackFormats { get; } = [ExportFormats.Mp4, ExportFormats.WebM, ExportFormats.Gif];
@@ -184,8 +200,13 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         string.Create(CultureInfo.InvariantCulture, $"review-pack-{now:yyyyMMdd-HHmm}.{formatId}");
 
     /// <summary>The pack the queue plans to right now, at the tab's format and path.</summary>
-    public PackPlan PlanPack() =>
-        PackPlanner.Plan(_queue.Entries, PackSettings.For(PackOutputPath, SelectedPackFormat), _fileExists);
+    public PackPlan PlanPack()
+    {
+        // Thousands of clips share a few hundred demos; probe each path once per plan.
+        Dictionary<string, bool> probed = new(StringComparer.Ordinal);
+        return PackPlanner.Plan(_queue.Entries, PackSettings.For(PackOutputPath, SelectedPackFormat),
+            path => probed.TryGetValue(path, out bool exists) ? exists : probed[path] = _fileExists(path));
+    }
 
     /// <summary>Why the queue file was not read, or null; while set the file is left alone.</summary>
     public string? FileProblem => _queue.FileProblem;
@@ -197,13 +218,17 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
     public void OnActivated(IModuleContext context)
     {
         _context = context;
+        _active = true;
+        if (_stale)
+        {
+            Reconcile();
+        }
+
         AddAtPlayheadCommand.NotifyCanExecuteChanged();
     }
 
     /// <inheritdoc />
-    public void OnDeactivated()
-    {
-    }
+    public void OnDeactivated() => _active = false;
 
     /// <inheritdoc />
     public void Dispose() => _queue.Changed -= Reconcile;
@@ -236,6 +261,36 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
             StatusLine = $"could not open {file}: {ex.Message}";
         }
     }
+
+    internal void Toggle(ReviewRowViewModel row)
+    {
+        if (!_collapsed.Remove(row.Entry.Id))
+        {
+            _collapsed.Add(row.Entry.Id);
+        }
+
+        Reconcile();
+    }
+
+    /// <summary>Opens every section.</summary>
+    [RelayCommand]
+    private void ExpandAll()
+    {
+        _collapsed.Clear();
+        Reconcile();
+    }
+
+    /// <summary>Closes every section to its title card.</summary>
+    [RelayCommand]
+    private void CollapseAll()
+    {
+        _collapsed.UnionWith(_queue.Entries.Where(e => e.Kind == ReviewEntryKind.Section).Select(e => e.Id));
+        Reconcile();
+    }
+
+    partial void OnSearchTextChanged(string value) => Reconcile();
+
+    partial void OnSelectedSourceChanged(string value) => Reconcile();
 
     internal void Move(ReviewRowViewModel row, int delta) => _queue.Move(row.Entry.Id, delta);
 
@@ -383,45 +438,99 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
 
     private void Reconcile()
     {
+        if (!_active)
+        {
+            _stale = true;
+            return;
+        }
+
+        _stale = false;
         IReadOnlyList<ReviewEntry> entries = _queue.Entries;
-        bool sameShape = entries.Count == Rows.Count && entries.Select(e => e.Id).SequenceEqual(Rows.Select(r => r.Entry.Id));
-        if (sameShape)
-        {
-            for (int i = 0; i < entries.Count; i++)
-            {
-                Rows[i].Apply(entries[i]);
-            }
-        }
-        else
-        {
-            Rows.Clear();
-            foreach (ReviewEntry entry in entries)
-            {
-                Rows.Add(new ReviewRowViewModel(this, entry));
-            }
-        }
+        string search = SearchText.Trim();
+        string? source = SelectedSource == AllSources ? null : SelectedSource;
+        bool filtering = search.Length > 0 || source is not null;
 
-        // Positions and section counts move with any structural change, and are cheap to recompute.
+        List<ReviewRowViewModel> visible = [];
+        Dictionary<Guid, ReviewRowViewModel> rows = [];
+        SortedSet<string> sources = new(StringComparer.Ordinal);
+        HashSet<string> demos = new(StringComparer.OrdinalIgnoreCase);
         int position = 0;
-        ReviewRowViewModel? section = null;
-        int inSection = 0;
-        foreach (ReviewRowViewModel row in Rows)
+        int sections = 0;
+        int i = 0;
+        while (i < entries.Count)
         {
-            if (row.IsSection)
+            ReviewEntry? card = entries[i].Kind == ReviewEntryKind.Section ? entries[i++] : null;
+            int start = i;
+            while (i < entries.Count && entries[i].Kind == ReviewEntryKind.Clip)
             {
-                section?.SetClipCount(inSection);
-                section = row;
-                inSection = 0;
-                continue;
+                i++;
             }
 
-            row.SetPosition(++position);
-            inSection++;
+            int total = i - start;
+            bool titleMatches = card is not null && search.Length > 0
+                                                 && card.Title.Contains(search, StringComparison.OrdinalIgnoreCase);
+            if (card is not null)
+            {
+                sections++;
+                if (_seenSections.Add(card.Id) && total > CollapseAbove)
+                {
+                    _collapsed.Add(card.Id);
+                }
+            }
+
+            // A search opens what it finds; a collapsed section otherwise shows only its card.
+            bool collapsed = card is not null && _collapsed.Contains(card.Id) && search.Length == 0;
+            List<ReviewRowViewModel> shown = [];
+            int matches = 0;
+            for (int k = start; k < i; k++)
+            {
+                ReviewEntry clip = entries[k];
+                position++;
+                sources.Add(clip.Source);
+                demos.Add(clip.DemoPath);
+                if (!Matches(clip, source, titleMatches ? "" : search))
+                {
+                    continue;
+                }
+
+                matches++;
+                if (!collapsed)
+                {
+                    ReviewRowViewModel row = RowFor(clip, rows);
+                    row.SetPosition(position);
+                    shown.Add(row);
+                }
+            }
+
+            if (card is not null && (!filtering || matches > 0))
+            {
+                ReviewRowViewModel row = RowFor(card, rows);
+                row.SetSection(total, filtering ? matches : total, _collapsed.Contains(card.Id), filtering);
+                visible.Add(row);
+            }
+
+            visible.AddRange(shown);
         }
 
-        section?.SetClipCount(inSection);
+        _rowsById = rows;
+        if (!visible.SequenceEqual(Rows))
+        {
+            Rows.ReplaceAll(visible);
+        }
 
-        if (Rows.Count == 0)
+        int clips = position;
+        _headerLine = entries.Count == 0
+            ? ""
+            : string.Create(CultureInfo.InvariantCulture,
+                $"{Plural(clips, "clip")} · {Plural(sections, "section")} · {Plural(demos.Count, "demo")}");
+        HasRows = entries.Count > 0;
+        List<string> filters = [AllSources, .. sources.Where(s => s.Length > 0)];
+        if (!filters.SequenceEqual(SourceFilters))
+        {
+            SourceFilters = filters;
+        }
+
+        if (!HasRows)
         {
             ShowClearConfirm = false;
         }
@@ -432,6 +541,31 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         ClearCommand.NotifyCanExecuteChanged();
         ExportPackCommand.NotifyCanExecuteChanged();
     }
+
+    private ReviewRowViewModel RowFor(ReviewEntry entry, Dictionary<Guid, ReviewRowViewModel> rows)
+    {
+        if (_rowsById.TryGetValue(entry.Id, out ReviewRowViewModel? row))
+        {
+            if (!ReferenceEquals(row.Entry, entry))
+            {
+                row.Apply(entry);
+            }
+        }
+        else
+        {
+            row = new ReviewRowViewModel(this, entry);
+        }
+
+        rows[entry.Id] = row;
+        return row;
+    }
+
+    private static bool Matches(ReviewEntry clip, string? source, string search) =>
+        (source is null || string.Equals(clip.Source, source, StringComparison.Ordinal))
+        && (search.Length == 0
+            || clip.Note.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || clip.Question.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || Path.GetFileName(clip.DemoPath).Contains(search, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>Which text a row edit writes.</summary>
@@ -487,8 +621,14 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
     /// <summary>The clip's number in the queue, one-based, counting clips only; 0 on a title card.</summary>
     public int Position { get; private set; }
 
-    /// <summary>"4 clips" under a title card.</summary>
+    /// <summary>"4 clips" under a title card; "3 of 40 clips match" under a filter.</summary>
     public string ClipCountText { get; private set; } = "";
+
+    /// <summary>A title card whose clips are hidden.</summary>
+    public bool IsCollapsed { get; private set; }
+
+    /// <summary>The toggle's label on a title card.</summary>
+    public string ToggleText => IsCollapsed ? "Show" : "Hide";
 
     /// <summary>The demo's file name.</summary>
     public string DemoLabel => Path.GetFileName(Entry.DemoPath);
@@ -550,15 +690,28 @@ public sealed partial class ReviewRowViewModel : ViewModelBase
         }
     }
 
-    internal void SetClipCount(int count)
+    internal void SetSection(int total, int matching, bool collapsed, bool filtering)
     {
-        string text = string.Create(CultureInfo.InvariantCulture, $"{count} clip{(count == 1 ? "" : "s")}");
+        string clips = string.Create(CultureInfo.InvariantCulture, $"{total} clip{(total == 1 ? "" : "s")}");
+        string text = filtering
+            ? string.Create(CultureInfo.InvariantCulture, $"{matching} of {clips} match")
+            : clips;
         if (ClipCountText != text)
         {
             ClipCountText = text;
             OnPropertyChanged(nameof(ClipCountText));
         }
+
+        if (IsCollapsed != collapsed)
+        {
+            IsCollapsed = collapsed;
+            OnPropertyChanged(nameof(IsCollapsed));
+            OnPropertyChanged(nameof(ToggleText));
+        }
     }
+
+    [RelayCommand]
+    private void Toggle() => _owner.Toggle(this);
 
     partial void OnTitleChanged(string value) => Write(ReviewTextField.Title, value);
 

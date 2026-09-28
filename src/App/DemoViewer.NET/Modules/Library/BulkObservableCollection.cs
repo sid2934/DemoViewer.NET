@@ -17,6 +17,20 @@ namespace DemoViewer.NET.Modules.Library;
 /// </summary>
 public sealed class BulkObservableCollection<T> : ObservableCollection<T>
 {
+    /// <summary>Replaces the whole contents with <paramref name="items" /> under a single Reset notification.</summary>
+    public void ReplaceAll(IEnumerable<T> items)
+    {
+        Items.Clear();
+        foreach (T item in items)
+        {
+            Items.Add(item);
+        }
+
+        OnPropertyChanged(new PropertyChangedEventArgs("Count"));
+        OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+        OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
+
     /// <summary>Appends <paramref name="items" /> with a single Reset notification (no-op when empty).</summary>
     public void AddRange(IEnumerable<T> items)
     {

@@ -317,6 +317,7 @@ public class App : Application
                 // its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
                 services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown();
                 services.GetService<TagStore>()?.SaveIndex();
+                services.GetService<ReviewQueue>()?.Flush();
 
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
