@@ -107,6 +107,8 @@
                                                     <TextBlock Text="{Binding DemoName}" FontSize="11" TextTrimming="CharacterEllipsis"
                                                                Foreground="{DynamicResource TextValue}" />
                                                     <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding PlayerText}" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextValue}" />
                                                         <TextBlock Text="{Binding Date}" FontSize="10" Foreground="{DynamicResource TextMid}" />
                                                         <TextBlock Text="{Binding RoundText}" FontSize="10" Foreground="{DynamicResource TextMid}" />
                                                         <TextBlock Text="{Binding SideText}" FontSize="10" Foreground="{DynamicResource TextMid}" />

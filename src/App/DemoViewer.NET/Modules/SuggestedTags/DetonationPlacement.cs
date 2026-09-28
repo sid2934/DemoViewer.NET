@@ -23,7 +23,10 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 /// <param name="Side">The thrower's side in the round (2 or 3), or 0 when it has none.</param>
 /// <param name="Position">Where it went off.</param>
 /// <param name="Place">The resolved place, or null when nothing was near enough.</param>
-public sealed record PlacedEvent(int Tick, string Kind, int ThrowerSlot, int Side, Vector3 Position, string? Place);
+/// <param name="ThrowerSteamId">The thrower's SteamID64 from the demo's player list, or 0.</param>
+/// <param name="ThrowerName">The thrower's name, or null.</param>
+public sealed record PlacedEvent(int Tick, string Kind, int ThrowerSlot, int Side, Vector3 Position, string? Place,
+    ulong ThrowerSteamId = 0, string? ThrowerName = null);
 
 /// <summary>Reads the detonations out of a held parse.</summary>
 public static class DetonationEvents
@@ -72,6 +75,14 @@ public static class DetonationEvents
         }
 
         events.Sort((a, b) => a.Tick.CompareTo(b.Tick));
+        for (int i = 0; i < events.Count; i++)
+        {
+            if (events[i].ThrowerSlot >= 0 && demo.Players.TryGetValue(events[i].ThrowerSlot, out PlayerInfo? player))
+            {
+                events[i] = events[i] with { ThrowerSteamId = player.SteamId64, ThrowerName = player.Name };
+            }
+        }
+
         return events;
     }
 
