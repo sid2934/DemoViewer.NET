@@ -699,7 +699,8 @@ public class App : Application
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
                 action => Dispatcher.UIThread.Post(action),
-                forwardPass: forward is null ? null : forward.Run);
+                forwardPass: forward is null ? null : forward.Run,
+                parseReleased: sp.GetRequiredService<MergedRulesBuild>().Forget);
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -1262,7 +1263,8 @@ public class App : Application
                     .Concat(suggestedTags.PendingPaths())
                     .Concat(grenades.PendingPaths())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList());
+                    .ToList(),
+                sp.GetRequiredService<MergedRulesBuild>().Forget);
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
             roundIndex.Coordinator = coordinator;
