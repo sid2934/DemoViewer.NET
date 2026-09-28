@@ -539,8 +539,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return;
         }
 
-        int runnable = _entries.Count(e => e.State == DemoQueueItemState.Running || IsStartableLocked(e));
-        int want = Math.Min(_maxConcurrency, runnable);
+        int running = _entries.Count(e => e.State == DemoQueueItemState.Running);
+        int want = running;
+        if (NextStartableLocked() is { } next)
+        {
+            want = next.Kind == QueueJobKind.DemoProcessing
+                ? Math.Min(_maxConcurrency, running + _entries.Count(e => e.Kind == QueueJobKind.DemoProcessing && IsStartableLocked(e)))
+                : 1;
+        }
         while (_activeWorkers < want)
         {
             _activeWorkers++;
@@ -556,7 +562,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 lock (_sync)
                 {
-                    if (_disposed || _paused || !_entries.Any(IsStartableLocked))
+                    if (_disposed || _paused || NextStartableLocked() is null)
                     {
                         return; // nothing to do → exit; respawned on next submit/resume/grow
                     }
@@ -757,23 +763,33 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // Highest priority, then kind (demo parses first, so later kinds see a complete index), then newest
-    // OrderHint, then FIFO seq. Marks the winner Running under the lock.
-    private Entry? PickNextQueuedLocked()
+    // OrderHint, then FIFO seq; null when that item may not start yet. Demo parses may run side by side up to
+    // MaxConcurrency, but any other job runs exclusively: it starts only on an idle queue, and nothing starts
+    // while it runs, even after it hands its slot back.
+    private Entry? NextStartableLocked()
     {
         Entry? best = null;
+        bool anyRunning = false, jobRunning = false;
         foreach (Entry e in _entries)
         {
-            if (!IsStartableLocked(e))
+            if (e.State == DemoQueueItemState.Running)
             {
-                continue;
+                anyRunning = true;
+                jobRunning |= e.Kind != QueueJobKind.DemoProcessing;
             }
-
-            if (best is null || Compare(e, best) < 0)
+            else if (IsStartableLocked(e) && (best is null || Compare(e, best) < 0))
             {
                 best = e;
             }
         }
 
+        return best is null || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
+    }
+
+    // Marks the next startable item Running under the lock.
+    private Entry? PickNextQueuedLocked()
+    {
+        Entry? best = NextStartableLocked();
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
@@ -862,6 +878,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         PruneTerminalHistoryLocked();
+        PumpLocked(); // an exclusive job ending may let several demo parses start
     }
 
     // Keep the mirror bounded: drop the oldest terminal entries beyond the history cap.

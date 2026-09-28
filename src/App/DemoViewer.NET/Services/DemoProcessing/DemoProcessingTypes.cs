@@ -128,14 +128,18 @@ public interface IQueueJobContext
 
 /// <summary>
 ///     A queue item that is not a demo parse: it runs <see cref="RunAsync" /> on the queue worker, holding a
-///     background heavy-job slot, one item at a time with every other kind.
+///     background heavy-job slot. It runs exclusively: it starts only when nothing else is running, and nothing
+///     starts while it runs, whatever MaxConcurrency allows demo parses.
 /// </summary>
 /// <param name="Kind">What it is.</param>
 /// <param name="Title">The line the queue list shows.</param>
 /// <param name="OwnerTag">Submitting module.</param>
 /// <param name="Priority"><see cref="DemoJobPriority.Background" /> or <see cref="DemoJobPriority.UserRequested" />.</param>
 /// <param name="RunAsync">The work. Must not take a heavy-job gate slot while it holds the queue's.</param>
-/// <param name="Key">A submit with the same kind and key while one is still queued joins it instead of adding another.</param>
+/// <param name="Key">
+///     A submit with the same kind and key while one is still queued joins it instead of adding another; while
+///     one is running it queues one rerun, which later submits join.
+/// </param>
 /// <param name="Target">A file the item is about (the row tooltip), or null.</param>
 /// <param name="OrderHint">Within a priority and kind, higher = sooner.</param>
 public sealed record QueueJobRequest(
@@ -253,7 +257,7 @@ public interface IDemoProcessingQueue
 
     /// <summary>
     ///     Submits a job that is not a demo parse. It is never rejected for size, obeys pause and cancel, and runs
-    ///     alone like every other item.
+    ///     exclusively: never beside another item, even when demo parses may run side by side.
     /// </summary>
     IDemoQueueHandle SubmitJob(QueueJobRequest request);
 

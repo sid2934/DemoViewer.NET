@@ -385,4 +385,155 @@ public class QueueJobTests
         await Assert.That(await EndsCancelledAsync(removed)).IsTrue();
         await Assert.That(started).IsFalse();
     }
+
+    // ── MaxConcurrency > 1: demo parses side by side, every other job exclusive ──
+
+    [Test]
+    [Arguments(2)]
+    [Arguments(3)]
+    public async Task AtHigherConcurrency_DemoParsesOverlap_ButAJobNeverRunsBesideAnything(int concurrency)
+    {
+        using HeavyJobGate gate = new();
+        int active = 0, jobs = 0, demos = 0, demoPeak = 0, violations = 0;
+
+        using DemoProcessingQueue queue = NewQueue(gate, _ =>
+        {
+            if (Volatile.Read(ref jobs) > 0)
+            {
+                Interlocked.Increment(ref violations);
+            }
+
+            Interlocked.Increment(ref active);
+            int now = Interlocked.Increment(ref demos);
+            int seen;
+            while (now > (seen = Volatile.Read(ref demoPeak)) && Interlocked.CompareExchange(ref demoPeak, now, seen) != seen)
+            {
+            }
+
+            Thread.Sleep(60);
+            Interlocked.Decrement(ref demos);
+            Interlocked.Decrement(ref active);
+            return SyntheticDemo();
+        });
+        queue.MaxConcurrency = concurrency;
+
+        Func<IQueueJobContext, Task> Exclusive(bool handBack) => async ctx =>
+        {
+            if (Interlocked.Increment(ref active) > 1)
+            {
+                Interlocked.Increment(ref violations);
+            }
+
+            Interlocked.Increment(ref jobs);
+            if (handBack)
+            {
+                ctx.ReleaseSlot();
+            }
+
+            await Task.Delay(40, ctx.CancellationToken);
+            Interlocked.Decrement(ref jobs);
+            Interlocked.Decrement(ref active);
+        };
+
+        queue.Pause();
+        List<IDemoQueueHandle> handles = [];
+        handles.Add(queue.SubmitJob(Job(QueueJobKind.PackExport, "pack", Exclusive(true), DemoJobPriority.UserRequested)));
+        for (int i = 0; i < 6; i++)
+        {
+            handles.Add(queue.SubmitBackground(new DemoProcessingRequest($"/d/{i}.dem", "library",
+                DemoJobPriority.Background, i, _ => { })));
+        }
+
+        handles.Add(queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", Exclusive(false), key: "mine")));
+        handles.Add(queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", Exclusive(false), key: "clips")));
+        handles.Add(queue.SubmitJob(Job(QueueJobKind.SidecarMigration, "migrate", Exclusive(true), key: "migrate")));
+        queue.Resume();
+
+        await Task.WhenAll(handles.Select(h => h.Completion)).WaitAsync(TimeSpan.FromSeconds(15));
+        using (Assert.Multiple())
+        {
+            await Assert.That(violations).IsEqualTo(0);
+            await Assert.That(demoPeak).IsGreaterThan(1).Because("demo parses still run side by side");
+            await Assert.That(handles.All(h => h.State == DemoQueueItemState.Completed)).IsTrue();
+        }
+    }
+
+    [Test]
+    [Arguments(2)]
+    [Arguments(3)]
+    public async Task APackExport_ThatHandsItsSlotBack_StillHoldsTheQueue(int concurrency)
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        queue.MaxConcurrency = concurrency;
+        TaskCompletionSource running = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task<int> export = PackExportQueue.RunAsync(queue, "Pack export", null, async (_, ct) =>
+        {
+            using (await gate.AcquireInteractiveAsync(ct))
+            {
+                running.SetResult();
+                await release.Task.WaitAsync(ct);
+            }
+
+            return 1;
+        }, null, CancellationToken.None);
+        await running.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        IDemoQueueHandle demo = queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "library",
+            DemoJobPriority.Background, 1, _ => { }));
+        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", _ => Task.CompletedTask));
+        await Task.Delay(300);
+        using (Assert.Multiple())
+        {
+            await Assert.That(demo.State).IsEqualTo(DemoQueueItemState.Queued);
+            await Assert.That(clips.State).IsEqualTo(DemoQueueItemState.Queued);
+            await Assert.That(gate.InFlight).IsEqualTo(1).Because("only the export's own interactive slot");
+        }
+
+        release.SetResult();
+        await Assert.That(await export.WaitAsync(TimeSpan.FromSeconds(5))).IsEqualTo(1);
+        await Task.WhenAll(demo.Completion, clips.Completion).WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(demo.State).IsEqualTo(DemoQueueItemState.Completed);
+    }
+
+    [Test]
+    public async Task ASubmitWhileItsKeyRuns_QueuesOneRerun_ThatStartsAfterIt()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        queue.MaxConcurrency = 3;
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int runs = 0;
+
+        IDemoQueueHandle first = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", async _ =>
+        {
+            Interlocked.Increment(ref runs);
+            started.SetResult();
+            await release.Task;
+        }, key: "mine"));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        IDemoQueueHandle rerun = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", _ =>
+        {
+            Interlocked.Increment(ref runs);
+            return Task.CompletedTask;
+        }, key: "mine"));
+        IDemoQueueHandle joined = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", _ => Task.CompletedTask, key: "mine"));
+        await Task.Delay(200);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(joined.Id).IsEqualTo(rerun.Id);
+            await Assert.That(rerun.Id).IsNotEqualTo(first.Id);
+            await Assert.That(rerun.State).IsEqualTo(DemoQueueItemState.Queued).Because("it waits for the running pass");
+            await Assert.That(queue.ActiveCount(QueueJobKind.StratMining)).IsEqualTo(2);
+        }
+
+        release.SetResult();
+        await rerun.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(runs).IsEqualTo(2);
+    }
 }
