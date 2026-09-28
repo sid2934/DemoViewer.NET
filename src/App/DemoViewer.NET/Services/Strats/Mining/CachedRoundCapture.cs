@@ -66,7 +66,7 @@ public static class CachedRoundCapture
             }
 
             stops.Add(new CaptureMoment(tick, CaptureTrigger.Utility, PawnsAt(tick), kind, row.ThrowerSlot, row.ThrowerTeam,
-                landing.ToVector(), row.ReleasePosition?.ToVector()));
+                landing.ToVector(), row.ReleasePosition?.ToVector(), row.ThrowerSteamId ?? 0));
         }
 
         if (facts.PlantTick is { } plant && plant >= freezeEnd && plant <= end)

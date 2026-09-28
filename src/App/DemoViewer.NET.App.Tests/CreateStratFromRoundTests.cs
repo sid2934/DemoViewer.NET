@@ -116,6 +116,23 @@ public class CreateStratFromRoundTests
     }
 
     [Test]
+    public async Task AThrow_FindsItsThrowerByPlayer_BeforeTheSlot()
+    {
+        // The row's slot says 3; the player (SteamID 101) is in slot 1 at this tick: the player wins.
+        List<CapturedPawn> pawns = Everyone(s => s == 1 ? (100, 200) : (s * 1000, 0));
+        RoundCapture capture = Round(new CaptureMoment(At(12), CaptureTrigger.Utility, pawns, "flash", 3, 2, new Vector3(900, 800, 300),
+            ActorSteamId: 101));
+
+        StratCaptureOptions options = Options(capture);
+        StratStep step = StratFromRound.Steps(capture, options)[1];
+        using (Assert.Multiple())
+        {
+            await Assert.That(step.Actor).IsEqualTo(options.Tokens[1]);
+            await Assert.That(capture.Moments[1].ActorPawn()!.Value.PlayerSlot).IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task AThrowArrow_RunsFromTheThrowerToTheLanding_OnTheThrowersFloor()
     {
         List<CapturedPawn> pawns = Everyone(s => s == 1 ? (100, 200) : (s * 1000, 0));

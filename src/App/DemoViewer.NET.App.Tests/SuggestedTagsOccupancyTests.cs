@@ -308,9 +308,16 @@ public class SuggestedTagsOccupancyTests
         ]);
 
         List<PlacedEvent> events = DetonationEvents.From(demo);
+        ParsedDemo named = SyntheticParsedDemo.Create(allGameEvents: demo.AllGameEvents,
+            players: new Dictionary<int, PlayerInfo> { [6] = new(6, "window guy", 76561198000000006UL, 6, 2, false) });
+        PlacedEvent smoke = DetonationEvents.From(named)[0];
 
         using (Assert.Multiple())
         {
+            await Assert.That(smoke.ThrowerSteamId).IsEqualTo(76561198000000006UL).Because("the thrower is the player; the slot stays for the side join");
+            await Assert.That(smoke.ThrowerName).IsEqualTo("window guy");
+            await Assert.That(DetectorMath.Evidence(smoke).Text).Contains("by window guy");
+            await Assert.That(events[0].ThrowerSteamId).IsEqualTo(0UL);
             await Assert.That(events.Select(e => e.Kind)).IsEquivalentTo(
                 [DetonationEvents.Smoke, DetonationEvents.Flash, DetonationEvents.He, DetonationEvents.Inferno, DetonationEvents.Decoy]);
             await Assert.That(events[0].ThrowerSlot).IsEqualTo(6);

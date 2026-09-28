@@ -1323,8 +1323,15 @@ public class App : Application
         {
             DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
             IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
-            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => SidecarFormatMigration.Submit(queue, demoCache,
-                    [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]),
+            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
+                {
+                    SidecarFormatMigration.Submit(queue, demoCache,
+                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
+
+                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
+                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
+                },
                 CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
         }
         Services = provider;
