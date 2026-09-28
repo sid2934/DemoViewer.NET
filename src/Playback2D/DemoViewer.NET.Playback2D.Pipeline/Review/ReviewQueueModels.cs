@@ -39,7 +39,7 @@ public static class ReviewSources
     /// <summary>Picked by hand at the playhead.</summary>
     public const string Manual = "manual";
 
-    /// <summary>A Lineup Card's throw, queued with its GIF by Lineup Clip Render.</summary>
+    /// <summary>A lineup clip an earlier build queued; Lineup Clip Render no longer queues them.</summary>
     public const string Lineup = "lineup";
 
     /// <summary>A round a Dossier section stacks, opened from that section (a Setup Heatmap's rounds).</summary>

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.ViewModels.UtilityBook"
              xmlns:utility="using:DemoViewer.NET.Modules.UtilityBook"
+             xmlns:controls="using:DemoViewer.NET.Controls"
              x:Class="DemoViewer.NET.Views.UtilityBook.UtilityBookTabView"
              x:DataType="vm:UtilityBookTabViewModel">
 
@@ -82,6 +83,11 @@
                             <TextBlock Text="{Binding StyleLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
                             <TextBlock Text="{Binding UsedLine}" FontSize="12" Foreground="{DynamicResource TextValue}" />
                             <TextBlock Text="{Binding TechniquesLine}" IsVisible="{Binding HasTechniques}" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <!-- The position's clip: read only while the card is open, released when it closes. -->
+                            <controls:GifView Source="{Binding ClipPath}" IsVisible="{Binding HasClip}" MaxHeight="220"
+                                              HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding ClipLine}" IsVisible="{Binding HasClipLine}" FontSize="11"
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <TextBox Grid.Column="0" Text="{Binding ConsoleText}" IsReadOnly="True" FontSize="11"

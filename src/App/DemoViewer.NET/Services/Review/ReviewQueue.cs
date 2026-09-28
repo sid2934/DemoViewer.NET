@@ -48,6 +48,7 @@ public sealed class ReviewQueue
     private int _deferDepth;
     private bool _deferredChange;
     private string? _fileProblem;
+    private Dictionary<string, JsonElement>? _fileExtra;
     private ReviewEntry[]? _pendingSave;
     private bool _refused;
 
@@ -59,6 +60,19 @@ public sealed class ReviewQueue
         _saveDelay = saveDelay ?? TimeSpan.FromMilliseconds(300);
         _load = _path is null ? Task.CompletedTask : Task.Run(Load);
     }
+
+    /// <summary>What the load's lineup-clip migration dropped, or null when it had nothing to do.</summary>
+    public ReviewQueueMigrationResult? Migration
+    {
+        get
+        {
+            _ = List;
+            return _migration;
+        }
+        private set => _migration = value;
+    }
+
+    private ReviewQueueMigrationResult? _migration;
 
     /// <summary>Completes when the file has been read (or refused).</summary>
     public Task Loaded => _load;
@@ -643,8 +657,12 @@ public sealed class ReviewQueue
                 return;
             }
 
+            _fileExtra = file.Extra;
+            IReadOnlyList<ReviewEntry> entries = ReviewQueueMigration.MigrateFile(_path, file, out ReviewQueueMigrationResult? migrated);
+            Migration = migrated;
+
             // An entry with no id cannot be named by any mutation; give it one rather than drop it.
-            _loaded.AddRange(file.Entries.Select(e => e.Id == Guid.Empty ? e with { Id = Guid.NewGuid() } : e));
+            _loaded.AddRange(entries.Select(e => e.Id == Guid.Empty ? e with { Id = Guid.NewGuid() } : e));
         }
         catch (Exception ex)
         {
@@ -689,7 +707,7 @@ public sealed class ReviewQueue
     {
         try
         {
-            ReviewQueueFile file = new() { Entries = [.. snapshot] };
+            ReviewQueueFile file = new() { Entries = [.. snapshot], Extra = _fileExtra };
             DemoCacheStore.WriteAtomic(_path!, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
         }
         catch (Exception)
