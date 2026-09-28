@@ -235,6 +235,21 @@ public static class GrenadeSidecar
     }
 
     /// <summary>
+    ///     Writes the rows sibling gzipped and removes a paths sibling a previous walk left: nothing reads
+    ///     trajectories from disk. The caller stamps the record next and then calls <see cref="DeleteLegacy" />.
+    /// </summary>
+    public static void WriteRows(DemoCacheStore cache, string path, GrenadeDocument rows)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        lock (cache.StripeFor(path))
+        {
+            cache.WriteSiblingBytes(path, Suffix, SidecarJson.SerializeGzip(rows, JsonOptions));
+            cache.DeleteSibling(path, PathsSuffix);
+            cache.DeleteSibling(path, LegacyPathsSuffix);
+        }
+    }
+
+    /// <summary>
     ///     Removes the pre-gzip siblings of one demo once the new ones read back. Call after the new pair is
     ///     written and stamped. False when a new file did not verify; the legacy files are then kept.
     /// </summary>
@@ -244,13 +259,17 @@ public static class GrenadeSidecar
         lock (cache.StripeFor(path))
         {
             string? sha = cache.TryGetIndex(path)?.Sha256;
-            if (!Verify<GrenadeDocument>(cache, path, Suffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256)
-                || !Verify<GrenadePathsDocument>(cache, path, PathsSuffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256))
+            if (!Verify<GrenadeDocument>(cache, path, Suffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256))
             {
                 return false;
             }
 
-            cache.DeleteSibling(path, LegacyPathsSuffix);
+            if (cache.TryReadSiblingBytes(path, PathsSuffix) is null
+                || Verify<GrenadePathsDocument>(cache, path, PathsSuffix, sha, d => d.SchemaVersion, d => d.Demo.Sha256))
+            {
+                cache.DeleteSibling(path, LegacyPathsSuffix);
+            }
+
             cache.DeleteSibling(path, LegacySuffix);
             return true;
         }
