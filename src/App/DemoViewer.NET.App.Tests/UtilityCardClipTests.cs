@@ -107,6 +107,58 @@ public class UtilityCardClipTests
         }
     }
 
+    // The first plan after the per-technique names land: every first-technique pair is adopted by rename.
+    // The clip folder is mirrored as empty files, so nothing real is renamed and nothing is rendered.
+    [Test]
+    public async Task TheFirstPlanAfterUpgrade_AdoptsTheOldPairs()
+    {
+        string root = Environment.GetEnvironmentVariable("GV2_CACHE") ?? "";
+        string source = Environment.GetEnvironmentVariable("GV2_CLIPS") ?? "";
+        if (!Directory.Exists(root) || !Directory.Exists(source))
+        {
+            throw new SkipTestException("GV2_CACHE and GV2_CLIPS are not set to copies");
+        }
+
+        string clips = Directory.CreateTempSubdirectory("dv-upgrade-clips-").FullName;
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(source))
+            {
+                await File.WriteAllBytesAsync(Path.Combine(clips, Path.GetFileName(file)), []);
+            }
+
+            DemoCacheStore cache = new(root);
+            using GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource());
+            index.Load();
+            List<GrenadeCluster> clusters = [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))];
+            IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(clusters, clips);
+            int lineups = every.Select(j => j.LineupId).Distinct().Count();
+            NeverRenders renderer = new();
+            using LineupClipService service = new(() => clusters, clips, () => true, renderer, complete: () => false);
+
+            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+            int planned = service.Plan();
+            long first = watch.ElapsedMilliseconds;
+            watch.Restart();
+            service.Plan();
+            long second = watch.ElapsedMilliseconds;
+            int adopted = every.Count(j => File.Exists(j.GifPath));
+            Console.WriteLine($"[upgrade-plan] {Directory.GetFiles(source).Length} files, {lineups} lineups, {every.Count} jobs; "
+                              + $"first plan {first} ms adopted {adopted}, planned {planned}; second plan {second} ms");
+            await Assert.That(adopted).IsGreaterThan(0);
+        }
+        finally
+        {
+            Directory.Delete(clips, true);
+        }
+    }
+
+    private sealed class NeverRenders : ILineupClipRenderer
+    {
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+            CancellationToken ct) => Task.FromResult<IReadOnlyList<LineupClipJob>>([]);
+    }
+
     private static void Settle()
     {
         Dispatcher.UIThread.RunJobs();
