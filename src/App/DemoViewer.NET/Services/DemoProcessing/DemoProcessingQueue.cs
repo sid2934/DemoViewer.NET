@@ -59,6 +59,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
+    private readonly Action<ParsedDemo>? _parseReleased;
     private readonly Action<Action> _post;
     private readonly CancellationTokenSource _shutdown = new();
 
@@ -99,6 +100,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     /// <param name="parseFileWithPlan">
     ///     Test seam: the background parse given the entry's plan; wins over <paramref name="parseFile" />.
     /// </param>
+    /// <param name="parseReleased">Called once every owner of a background parse has run on it.</param>
     /// <param name="forwardPass">
     ///     The forward read for an entry whose every owner can take one. Null keeps every entry on the
     ///     retained parse.
@@ -111,13 +113,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Func<Task>? compactHeap = null,
         TimeProvider? timeProvider = null,
         Func<string, DecodePlan, ParsedDemo>? parseFileWithPlan = null,
-        Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? forwardPass = null)
+        Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? forwardPass = null,
+        Action<ParsedDemo>? parseReleased = null)
     {
         _gate = gate;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
         _parseFile = parseFileWithPlan ?? (parseFile is null ? ParseFileDefault : (path, _) => parseFile(path));
         _parseBytes = parseBytes ?? (bytes => DemoParser.Parse(bytes));
         _forwardPass = forwardPass;
+        _parseReleased = parseReleased;
         _compactHeap = compactHeap ?? HeapCompactor.CompactAsync;
         _time = timeProvider ?? TimeProvider.System;
         _shutdownToken = _shutdown.Token;
@@ -336,6 +340,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         ArgumentNullException.ThrowIfNull(request);
 
         Handle handle;
+        CancellationTokenSource? supersededCancel = null;
         lock (_sync)
         {
             if (_disposed)
@@ -374,6 +379,33 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 PumpLocked(); // priority may have changed the pick order
                 handle = new Handle(this, existing.Id, request.OwnerTag, request.Path, existing.Completion.Task);
             }
+            else if (_entries.FirstOrDefault(e =>
+                         e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && e.Forward
+                         && !e.Finalizing && !e.CancelRequested && PathEquals(e.Path, request.Path)) is { } forward)
+            {
+                // The running forward pass cannot serve this owner: stop it and move its owners onto one entry
+                // that runs next, so the demo is still read once and no owner waits behind other demos.
+                Entry entry = new()
+                {
+                    Path = request.Path,
+                    DisplayName = forward.DisplayName ?? request.DisplayName,
+                    Priority = request.Priority > forward.Priority ? request.Priority : forward.Priority,
+                    OrderHint = Math.Max(request.OrderHint, forward.OrderHint),
+                    Seq = forward.Seq,
+                    UserCommands = request.NeedsUserCommands,
+                    Needs = forward.Needs | request.ForwardNeeds,
+                    Front = true
+                };
+                entry.Attachments.AddRange(forward.Attachments);
+                entry.Attachments.Add(new Attachment(request.OwnerTag, request.OnParsed, request.OnFailed, request.OnForward));
+                forward.Attachments.Clear();
+                forward.CancelRequested = true;
+                forward.Superseded = true;
+                supersededCancel = forward.Cancel;
+                _entries.Add(entry);
+                PumpLocked();
+                handle = new Handle(this, entry.Id, request.OwnerTag, request.Path, entry.Completion.Task);
+            }
             else if (request.Priority < DemoJobPriority.UserRequested && BackgroundTierCountLocked() >= _maxQueueSize)
             {
                 // The size cap governs the BACKGROUND tier only; UserRequested/Foreground bypass it.
@@ -398,6 +430,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
         }
 
+        CancelQuietly(supersededCancel);
         RaiseChanged();
         return handle;
     }
@@ -750,7 +783,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         lock (_sync)
         {
             _jobsSinceCompact++;
-            _parsesSinceCompact++;
+            if (!entry.Superseded)
+            {
+                _parsesSinceCompact++;
+            }
         }
     }
 
@@ -1013,6 +1049,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
         }
 
+        if (_parseReleased is { } released)
+        {
+            SafeInvoke(() => released(parsed!));
+        }
+
         SetTerminal(entry, cancelled ? DemoQueueItemState.Cancelled : DemoQueueItemState.Completed, null);
     }
 
@@ -1187,6 +1228,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return aCompacts ? -1 : 1;
         }
 
+        // Takes the place of the forward pass it stopped, which was already running.
+        if (a.Front != b.Front)
+        {
+            return a.Front ? -1 : 1;
+        }
+
         if (a.Priority != b.Priority)
         {
             return b.Priority.CompareTo(a.Priority);
@@ -1351,6 +1398,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // What a forward pass produces: the union of the owners' needs.
         public ForwardNeeds Needs { get; set; }
+
+        // Stopped because an owner it could not serve arrived; its owners moved to the Front entry.
+        public bool Superseded { get; set; }
+
+        // Replaces a superseded forward pass and runs before any other demo.
+        public bool Front { get; init; }
 
         // A job body reported a demo parse through its context.
         public bool ParsedDemo { get; set; }

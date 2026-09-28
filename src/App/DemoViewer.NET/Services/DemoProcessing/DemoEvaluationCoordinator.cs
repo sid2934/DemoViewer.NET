@@ -25,7 +25,8 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         Per entry, one pass: forward when every owner on the entry can take one
 ///         (<see cref="IDemoEvaluator.ForwardFor" />), retained otherwise, with every owner run on that one
 ///         retained parse. Two passes back to back peak at the retained one and cost both, so a mixed entry
-///         never splits.
+///         never splits; an owner that arrives while a forward pass it cannot join is running stops that pass
+///         (the queue moves its owners onto the entry that replaces it).
 ///     </para>
 ///     <para>
 ///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider" /> may be
@@ -44,6 +45,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     // (evaluatorId, path) currently submitted and not yet terminal, never re-submitted while present.
     private readonly HashSet<(string Eval, string Path)> _outstanding = [];
     private readonly IDemoProcessingQueue _queue;
+    private readonly Action<ParsedDemo>? _parseReleased;
 
     private bool _disposed;
 
@@ -53,11 +55,14 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     Yields the current universe of demo paths to (re-)poll: typically the
     ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
     /// </param>
+    /// <param name="parseReleased">Called after <see cref="FanOutParsed" /> has handed a parse to every evaluator.</param>
     public DemoEvaluationCoordinator(
         IReadOnlyList<IDemoEvaluator> evaluators,
         IDemoProcessingQueue queue,
-        Func<IEnumerable<string>> candidatePaths)
+        Func<IEnumerable<string>> candidatePaths,
+        Action<ParsedDemo>? parseReleased = null)
     {
+        _parseReleased = parseReleased;
         _evaluators = evaluators;
         _queue = queue;
         _candidatePaths = candidatePaths;
@@ -193,6 +198,15 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             {
                 // Isolated: a misbehaving hand-off handler must not fail the trigger or the other evaluators.
             }
+        }
+
+        try
+        {
+            _parseReleased?.Invoke(parsed);
+        }
+        catch (Exception)
+        {
+            // Releasing a cache must not fail the trigger.
         }
     }
 

@@ -455,8 +455,10 @@ walk and forced (snapshot) highlights stay on the retained parse. Browser keeps 
 Per-entry rule: an entry is read forward when every owner on it can take a forward pass
 (`IDemoEvaluator.ForwardFor` non-null), and retained otherwise, with every owner run on that one retained
 parse. Two passes run back to back peak at the retained one and cost the sum of both times, so a mixed entry
-never splits. A running forward pass takes only forward owners whose needs it already covers, never a
-foreground open, and a cancelled pass calls no owner (it is not a failure). A new demo already took two
+never splits. A running forward pass takes forward owners whose needs it already covers. An owner it cannot
+serve (one that needs the retained parse, or wider forward needs) stops it and moves its owners onto one
+entry that runs next, ahead of other demos, so the demo is still read once. A foreground open never joins a
+forward pass, and a cancelled pass calls no owner (it is not a failure). A new demo already took two
 retained parses before this change (Round Index, Suggested Tags and grenades gate on the Parse stamp the
 library writes after its fan-out); now the first of the two is the forward pass.
 

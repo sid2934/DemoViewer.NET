@@ -138,7 +138,10 @@ public sealed class MergedRulesBuild
         return run;
     }
 
-    /// <summary>Drops the cached bare run, so an open demo does not keep it for the session.</summary>
+    /// <summary>
+    ///     Drops the cached bare run. The queue calls it when every owner of a parse has run, the coordinator
+    ///     after a fan-out, so an open demo does not keep the run for the session.
+    /// </summary>
     public void Forget(ParsedDemo parsed)
     {
         lock (_gate)

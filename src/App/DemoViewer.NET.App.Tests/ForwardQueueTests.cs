@@ -122,7 +122,7 @@ public class ForwardQueueTests
     }
 
     [Test]
-    public async Task ARunningForwardPass_IsJoinedOnlyByForwardOwnersItCovers()
+    public async Task ARunningForwardPass_TakesOwnersItCovers_ButNotAForegroundOpen()
     {
         using ManualResetEventSlim block = new(false);
         int byteParses = 0;
@@ -140,8 +140,6 @@ public class ForwardQueueTests
         await WaitForAsync(() => queue.RunningCount == 1, "forward running");
 
         IDemoQueueHandle covered = queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules));
-        IDemoQueueHandle retained = queue.SubmitBackground(
-            new DemoProcessingRequest("a.dem", "roundindex", DemoJobPriority.Background, 1, _ => { }, NeedsUserCommands: false));
         Task<ParsedDemo> open = queue.RequestForegroundAsync("a.dem", ReadOnlyMemory<byte>.Empty);
         block.Set();
         await open;
@@ -149,27 +147,130 @@ public class ForwardQueueTests
         using (Assert.Multiple())
         {
             await Assert.That(covered.Id).IsEqualTo(running.Id);
-            await Assert.That(retained.Id).IsNotEqualTo(running.Id).Because("a forward pass holds no frames to hand it");
-            await Assert.That(byteParses).IsEqualTo(1).Because("the open parsed its own bytes");
+            await Assert.That(byteParses).IsEqualTo(1).Because("a forward pass holds no frames to hand an open");
+        }
+    }
+
+    // Runs until its token is cancelled, like the real pass.
+    private static ForwardDemoResult UntilCancelled(ManualResetEventSlim started, CancellationToken token)
+    {
+        started.Set();
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            Thread.Sleep(2);
         }
     }
 
     [Test]
-    public async Task ARunningForwardPass_DoesNotTakeAWiderNeed()
+    public async Task ARetainedOwner_StopsTheRunningForwardPass_AndEveryOwnerRunsOnOneParseBeforeOtherDemos()
     {
-        using ManualResetEventSlim block = new(false);
-        using DemoProcessingQueue queue = Queue((_, _, _, _) =>
+        using ManualResetEventSlim started = new(false);
+        List<string> parses = [];
+        int forwardCalls = 0;
+        using DemoProcessingQueue queue = Queue(
+            (path, _, _, token) =>
+            {
+                Interlocked.Increment(ref forwardCalls);
+                return path == "a.dem" ? UntilCancelled(started, token) : Pass();
+            },
+            (path, plan) =>
+            {
+                lock (parses)
+                {
+                    parses.Add(path);
+                }
+
+                return SyntheticParsedDemo.Create(plan: plan);
+            });
+        List<string> ran = [];
+        int forwarded = 0, failed = 0;
+
+        DemoProcessingRequest Owner(string owner, ForwardNeeds? needs) => new("a.dem", owner, DemoJobPriority.Background, 1,
+            _ =>
+            {
+                lock (ran)
+                {
+                    ran.Add(owner);
+                }
+            }, _ => failed++, "a.dem", false, needs is null ? null : _ => forwarded++, needs ?? ForwardNeeds.None);
+
+        IDemoQueueHandle library = queue.SubmitBackground(Owner("library", ForwardNeeds.FinalState | ForwardNeeds.Rules));
+        queue.SubmitBackground(Owner("roundfacts", ForwardNeeds.Rules));
+        started.Wait(TimeSpan.FromSeconds(5));
+        // Queued behind, newer: before the fold it would have waited for a.dem's parse to finish.
+        queue.SubmitBackground(new DemoProcessingRequest("b.dem", "roundindex", DemoJobPriority.Background, 99, _ => { },
+            NeedsUserCommands: false));
+        IDemoQueueHandle index = queue.SubmitBackground(Owner("roundindex", null));
+        await WaitForAsync(() => ran.Count == 3 && parses.Count == 2 && queue.ActiveWorkerCount == 0, "both demos");
+
+        using (Assert.Multiple())
         {
-            block.Wait(CancellationToken.None);
-            return Pass();
+            await Assert.That(ran).IsEquivalentTo(["library", "roundfacts", "roundindex"]);
+            await Assert.That(parses).IsEquivalentTo(["a.dem", "b.dem"]).Because("a.dem is parsed once, and first");
+            await Assert.That(parses[0]).IsEqualTo("a.dem");
+            await Assert.That(forwarded).IsEqualTo(0);
+            await Assert.That(failed).IsEqualTo(0);
+            await Assert.That(index.Id).IsNotEqualTo(library.Id);
+            await Assert.That(library.State).IsEqualTo(DemoQueueItemState.Cancelled).Because("the stopped pass");
+            await Assert.That(forwardCalls).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task AWiderForwardNeed_StopsTheNarrowPass_AndOneFullPassServesBoth()
+    {
+        using ManualResetEventSlim started = new(false);
+        List<ForwardNeeds> passes = [];
+        using DemoProcessingQueue queue = Queue((_, needs, _, token) =>
+        {
+            lock (passes)
+            {
+                passes.Add(needs);
+            }
+
+            return needs == ForwardNeeds.Rules ? UntilCancelled(started, token) : Pass();
         });
+        int facts = 0, library = 0;
 
-        IDemoQueueHandle running = queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules));
-        await WaitForAsync(() => queue.RunningCount == 1, "forward running");
-        IDemoQueueHandle wider = queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState | ForwardNeeds.Rules));
-        block.Set();
+        queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules, _ => facts++));
+        started.Wait(TimeSpan.FromSeconds(5));
+        queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState | ForwardNeeds.Rules, _ => library++));
+        await WaitForAsync(() => facts + library == 2 && queue.ActiveWorkerCount == 0, "both owners");
 
-        await Assert.That(wider.Id).IsNotEqualTo(running.Id);
+        using (Assert.Multiple())
+        {
+            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.Rules, ForwardNeeds.FinalState | ForwardNeeds.Rules]);
+            await Assert.That(facts).IsEqualTo(1);
+            await Assert.That(library).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task ParseReleased_RunsOnceAfterEveryOwner()
+    {
+        List<string> calls = [];
+        ParsedDemo? released = null;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), compactHeap: () => Task.CompletedTask,
+            parseFileWithPlan: (_, plan) => SyntheticParsedDemo.Create(plan: plan),
+            parseReleased: p =>
+            {
+                calls.Add("released");
+                released = p;
+            });
+        ParsedDemo? seen = null;
+        queue.SubmitBackground(new DemoProcessingRequest("a.dem", "one", DemoJobPriority.Background, 1, p =>
+        {
+            calls.Add("one");
+            seen = p;
+        }));
+        IDemoQueueHandle two = queue.SubmitBackground(
+            new DemoProcessingRequest("a.dem", "two", DemoJobPriority.Background, 1, _ => calls.Add("two")));
+        await two.Completion;
+
+        await Assert.That(calls).IsEquivalentTo(["one", "two", "released"]);
+        await Assert.That(calls[^1]).IsEqualTo("released");
+        await Assert.That(ReferenceEquals(released, seen)).IsTrue();
     }
 
     [Test]
