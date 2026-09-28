@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -48,5 +49,15 @@ public static class FrameClock
             frames.Count,
             frames.Count > 0 ? frames[0].ServerTick : 0,
             frames.Count > 0 ? frames[^1].ServerTick : 0);
+    }
+
+    /// <summary>The header for a forward pass, by the same definition: the pass counts the frames it read.</summary>
+    public static ClockIdentity IdentityFor(ForwardDemoResult pass)
+    {
+        ArgumentNullException.ThrowIfNull(pass);
+
+        return new ClockIdentity(ClockIdentity.DvFrameClock,
+            pass.Demo.TickRate > 0 ? pass.Demo.TickRate : 64,
+            pass.FrameCount, pass.FirstServerTick, pass.LastServerTick);
     }
 }

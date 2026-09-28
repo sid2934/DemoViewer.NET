@@ -1,14 +1,8 @@
 #region
 
 using CS2DemoKit.Analysis;
-using CS2DemoKit.Analysis.Diagnostics;
-using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
-using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.ViewModels.Diagnostics;
-using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -55,8 +49,8 @@ public interface IHighlightHarvester
 }
 
 /// <summary>
-///     The real harvester: the same shipped+user-overlay rule load the Analysis tab uses
-///     (<c>AnalysisViewModel.BuildFromConfig</c>), cached until invalidated.
+///     The real harvester over the <see cref="MergedRulesBuild" />: highlights come out of the same build
+///     as round facts, and are stamped with that build's fingerprint.
 /// </summary>
 public sealed class RulesHighlightHarvester : IHighlightHarvester
 {
@@ -67,79 +61,32 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     /// </summary>
     public const string GotvProfileId = "Cs2GotvProfile";
 
-    private static ILogger? _diagLog;
+    private readonly MergedRulesBuild _rules;
 
-    private readonly object _gate = new();
-    private RuleConfigLoadResult? _rules;
-
-    // Static, like the queue's: the harvester is constructed per scan and the seam it reads is
-    // ambient and process-wide, so an instance field would just re-resolve the same logger.
-    private static ILogger HarvestLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
-
-    private RuleConfigLoadResult Rules
+    /// <summary>A harvester over its own read of the shipped-plus-user rules.</summary>
+    public RulesHighlightHarvester() : this(new MergedRulesBuild())
     {
-        get
-        {
-            lock (_gate)
-            {
-                if (_rules is null)
-                {
-                    string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
-                    string? userDir = OperatingSystem.IsBrowser()
-                        ? null
-                        : RuleSetLocator.EnsureUserRulesDirectory(shippedDir);
-                    _rules = YamlConfigLoader.LoadWithOverlay(shippedDir, userDir);
-                }
+    }
 
-                return _rules;
-            }
-        }
+    /// <param name="rules">The shared rules read, so the fingerprint matches the one round facts are stored under.</param>
+    public RulesHighlightHarvester(MergedRulesBuild rules)
+    {
+        _rules = rules;
     }
 
     /// <inheritdoc />
     public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
     {
-        HighlightConfigFingerprint.Result result =
-            HighlightConfigFingerprint.Compute(RoundFactsFingerprint.WithoutRoundFacts(Rules.Rulesets), tickRate, GotvProfileId);
+        HighlightConfigFingerprint.Result result = _rules.Fingerprint(tickRate);
         return (result.Fingerprint, result.HighlightHashes);
     }
 
     /// <inheritdoc />
-    public AnalysisRun RunBareAnalysis(ParsedDemo demo)
-    {
-        RuleConfigLoadResult rules = Rules;
-        BuildResult build = DemoAnalysis.Build(demo, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets));
-        RulesetExclusionReport.Report(HarvestLog, build);
-        return DemoAnalysis.Evaluate(
-            demo,
-            build,
-            new AnalysisOptions
-            {
-                CaptureSnapshots = false
-            });
-    }
+    public AnalysisRun RunBareAnalysis(ParsedDemo demo) => _rules.BareRun(demo);
 
     /// <inheritdoc />
-    public AnalysisRun RunFullAnalysis(ParsedDemo demo)
-    {
-        RuleConfigLoadResult rules = Rules;
-        BuildResult build = DemoAnalysis.Build(demo, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets));
-        RulesetExclusionReport.Report(HarvestLog, build);
-        return DemoAnalysis.Evaluate(
-            demo,
-            build,
-            new AnalysisOptions
-            {
-                CaptureSnapshots = true
-            });
-    }
+    public AnalysisRun RunFullAnalysis(ParsedDemo demo) => _rules.FullRun(demo);
 
     /// <inheritdoc />
-    public void InvalidateRules()
-    {
-        lock (_gate)
-        {
-            _rules = null;
-        }
-    }
+    public void InvalidateRules() => _rules.Invalidate();
 }

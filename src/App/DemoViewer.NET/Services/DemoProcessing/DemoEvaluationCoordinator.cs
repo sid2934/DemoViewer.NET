@@ -22,6 +22,13 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         feature plugs in by registering an evaluator: no new parse path.
 ///     </para>
 ///     <para>
+///         Per entry, one pass: forward when every owner on the entry can take one
+///         (<see cref="IDemoEvaluator.ForwardFor" />), retained otherwise, with every owner run on that one
+///         retained parse. Two passes back to back peak at the retained one and cost both, so a mixed entry
+///         never splits; an owner that arrives while a forward pass it cannot join is running stops that pass
+///         (the queue moves its owners onto the entry that replaces it).
+///     </para>
+///     <para>
 ///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider" /> may be
 ///         called from the rescan thread and from the (posted) capacity handler.
 ///     </para>
@@ -38,6 +45,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     // (evaluatorId, path) currently submitted and not yet terminal, never re-submitted while present.
     private readonly HashSet<(string Eval, string Path)> _outstanding = [];
     private readonly IDemoProcessingQueue _queue;
+    private readonly Action<ParsedDemo>? _parseReleased;
 
     private bool _disposed;
 
@@ -47,11 +55,14 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     Yields the current universe of demo paths to (re-)poll: typically the
     ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
     /// </param>
+    /// <param name="parseReleased">Called after <see cref="FanOutParsed" /> has handed a parse to every evaluator.</param>
     public DemoEvaluationCoordinator(
         IReadOnlyList<IDemoEvaluator> evaluators,
         IDemoProcessingQueue queue,
-        Func<IEnumerable<string>> candidatePaths)
+        Func<IEnumerable<string>> candidatePaths,
+        Action<ParsedDemo>? parseReleased = null)
     {
+        _parseReleased = parseReleased;
         _evaluators = evaluators;
         _queue = queue;
         _candidatePaths = candidatePaths;
@@ -102,6 +113,8 @@ public sealed class DemoEvaluationCoordinator : IDisposable
 
         // Every request carries the union: the first one may start parsing before the next is submitted.
         bool userCommands = wanting.Any(SafeReadsUserCommands);
+        Dictionary<IDemoEvaluator, ForwardNeeds?> forward = wanting.ToDictionary(e => e, e => SafeForwardFor(e, path));
+        ForwardNeeds needs = forward.Values.Aggregate(ForwardNeeds.None, (all, n) => all | (n ?? ForwardNeeds.None));
         foreach (IDemoEvaluator evaluator in wanting)
         {
             (string Id, string path) key = (evaluator.Id, path);
@@ -116,7 +129,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
                 _backlog.Remove(key);
             }
 
-            Submit(evaluator, path, key, userCommands);
+            Submit(evaluator, path, key, userCommands, forward[evaluator] is not null, needs);
         }
     }
 
@@ -186,9 +199,19 @@ public sealed class DemoEvaluationCoordinator : IDisposable
                 // Isolated: a misbehaving hand-off handler must not fail the trigger or the other evaluators.
             }
         }
+
+        try
+        {
+            _parseReleased?.Invoke(parsed);
+        }
+        catch (Exception)
+        {
+            // Releasing a cache must not fail the trigger.
+        }
     }
 
-    private void Submit(IDemoEvaluator evaluator, string path, (string Eval, string Path) key, bool userCommands)
+    private void Submit(IDemoEvaluator evaluator, string path, (string Eval, string Path) key, bool userCommands,
+        bool forward, ForwardNeeds needs)
     {
         IDemoQueueHandle handle = _queue.SubmitBackground(new DemoProcessingRequest(
             path,
@@ -198,7 +221,9 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             parsed => Complete(key, () => evaluator.Evaluate(path, parsed)),
             _ => Complete(key, () => evaluator.OnFailed(path)),
             Path.GetFileName(path),
-            userCommands));
+            userCommands,
+            forward ? pass => Complete(key, () => evaluator.EvaluateForward(path, pass)) : null,
+            forward ? needs : ForwardNeeds.None));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
@@ -230,6 +255,42 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     }
 
     private void OnCapacityAvailable() => ConsiderAll();
+
+    /// <summary>
+    ///     <see cref="FanOutParsed" /> for a forward pass: the library's tier-2 pass hands its result to the
+    ///     other evaluators that can read one.
+    /// </summary>
+    public void FanOutForward(string path, ForwardDemoResult pass, IReadOnlySet<string>? skip = null)
+    {
+        foreach (IDemoEvaluator evaluator in _evaluators)
+        {
+            if (skip is not null && skip.Contains(evaluator.Id))
+            {
+                continue;
+            }
+
+            try
+            {
+                evaluator.OnForwardOpportunistically(path, pass);
+            }
+            catch (Exception)
+            {
+                // Isolated, like FanOutParsed.
+            }
+        }
+    }
+
+    private static ForwardNeeds? SafeForwardFor(IDemoEvaluator evaluator, string path)
+    {
+        try
+        {
+            return evaluator.ForwardFor(path);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 
     private static DemoJobPriority SafePriority(IDemoEvaluator evaluator, string path)
     {

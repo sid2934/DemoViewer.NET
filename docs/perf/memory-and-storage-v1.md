@@ -442,6 +442,78 @@ Lineup clip parses over the same list (parse only, no render):
 Not measured: the app itself under `dotnet-counters` during a queue run, and the cost of each compaction with
 the app's live indexes resident (estimated 100-300 ms above).
 
+### S1 item 3: the forward pass (branch `feature/strat-book-perf-forward`)
+
+Built: library tier 2, bare highlights and Round Facts read a demo once through `DemoReader` and never
+materialize a `ParsedDemo`. `ForwardDemoPass` builds the merged rules against the unstarted reader (the build
+probes the dialect), configures the reader to the build's `PlanDecode` widened by what the library reads
+(schema, entities, `round_freeze_end`), and evaluates through a tap that, inside each `TryReadNext`, counts
+frames for the frame clock, keeps the freeze-end events for `ClipRounds` and steps a tracker that stores only
+`CCSTeam` and `CCSPlayerController` for the final score and coaches. Round Index, Suggested Tags, the grenade
+walk and forced (snapshot) highlights stay on the retained parse. Browser keeps the retained path.
+
+Per-entry rule: an entry is read forward when every owner on it can take a forward pass
+(`IDemoEvaluator.ForwardFor` non-null), and retained otherwise, with every owner run on that one retained
+parse. Two passes run back to back peak at the retained one and cost the sum of both times, so a mixed entry
+never splits. A running forward pass takes forward owners whose needs it already covers. An owner it cannot
+serve (one that needs the retained parse, or wider forward needs) stops it and moves its owners onto one
+entry that runs next, ahead of other demos, so the demo is still read once. A foreground open never joins a
+forward pass, and a cancelled pass calls no owner (it is not a failure). A new demo already took two
+retained parses before this change (Round Index, Suggested Tags and grenades gate on the Parse stamp the
+library writes after its fan-out); now the first of the two is the forward pass.
+
+Bare highlights and Round Facts come out of one merged build (`MergedRulesBuild`) on both paths, from one
+rules read; a forced scan's snapshot run stays on the highlight rulesets alone. Two things the merge turned up:
+
+- `HighlightConfigFingerprint` hashes highlight definitions only. Adding `round_facts` to the set leaves the
+  highlight fingerprint unchanged, so highlights do not re-evaluate.
+- For the same reason the old Round Facts fingerprint was a constant: it hashed a one-ruleset set with no
+  highlights, so an edited buy threshold never re-ran the rows (`RoundFactsIdentityTests`). The new one still
+  composes `round_facts` alone (a broken highlight file cannot block it) and adds the effective source file and
+  the engine version. It differs from every stored one, so each demo's Round Facts re-evaluate once, as forward
+  entries through the queue at Background priority and through the queue cap and backlog.
+
+Output check, `ForwardPassRealDemoTests` (RealDemo, skips without `DEMO_PATH`), the three smallest demos in
+`demos/benchmarks`: the forward pass writes the same cache record (roster, rounds, header fields, score,
+clans, SHA, highlights, Round Facts rows and both fingerprints, write stamps excluded) and the same library
+card as the retained parse, and the merged build's firings and Round Facts rows equal the two separate
+builds'. A rules-only pass (what a round-facts-only entry runs) writes the same rows. The only changed field
+is `RoundFactsFingerprint`.
+
+The same comparison over owner-library demos read in place (`ForwardPass_ListedDemos`, paths in
+`FORWARD_PASS_DEMOS`): identical for a 430 MB matchmaking overtime demo (28 rounds), the 380 MB BLAST pro
+demo, the 751 MB PGL demo, and two tournament demos with no Round Facts rows on either path (eBot train, ESL
+nuke). One difference, on the 706 MB ESL demo (iem-krakw furia-vs-vitality m1 mirage), in the last round only
+(round 24, defused at 204707, `round_officially_ended` at 204900, last frame 207593): the retained evaluation
+never sees the win-status transition (end tick null, no winner, no reason), the forward one records it at
+207361 with CT winning by defuse (reason 7). The profile resolves the same on both paths
+(`Cs2GotvPreRestartProfile`) and the decode plan makes no difference (narrow, wide and the engine's own plan
+agree), so it is the engine's retained versus streaming evaluation of that last round. Highlights on that demo
+are identical. Upstream question for CS2DemoKit; the forward answer has the right winner.
+
+Same method as above (Release `AnalysisBench bg-run`, mapped, Workstation concurrent, compact after each
+job, `/usr/bin/time -l`), the five demos in `demos/benchmarks` (172-279 MB matchmaking, local disk, warm), two
+runs each, interleaved. `--read=app-retained` is the queue job before this branch: parse without user
+commands, the highlights build, a separate `round_facts` build, the library's final-state replay.
+`--read=app-forward` is the forward pass with the merged build.
+
+| Path | Peak fp | Max RSS | Peak heap | Wall s (5 demos) | Per demo s | gen2 | GC pause | Alloc | Highlights |
+|---|---|---|---|---|---|---|---|---|---|
+| Before: retained, two builds | 553 / 563 MB | 669 / 683 MB | 518 / 536 MB | 15.1 / 17.0 | 2.6-4.2 | 21 / 23 | 2.1 / 2.1 s | 2.74 GB | 185 / 281 / 252 / 345 / 268 |
+| After: forward, merged build | 218 / 247 MB | 532 / 537 MB | 203 / 242 MB | 11.3 / 11.7 | 1.9-3.6 | 44 / 44 | 1.3 / 1.3 s | 2.27-2.29 GB | same |
+
+Peak footprint -56% to -61%, and flat across the 172-279 MB demos; wall time -23% to -33%, because one merged
+evaluation replaces two and the tap's replay rides the same read. Max RSS stays high because it counts the
+mapped file's clean pages. The first demo of each forward run paid 2.7-3.6 s of warm-up.
+
+First launch after this branch: every indexed demo's Round Facts re-evaluate once, forward, needing the rules
+run only. At the 1.9-2.5 s measured per warm 250 MB demo that is 12-16 min for ~380 demos; the library is on
+NFS, where a cold 270 MB read took 6-8 s above, so 40-50 min is the realistic figure. It runs at Background
+priority behind anything the user asks for, and pause and cancel apply.
+
+Not measured: the 380 MB pro and 750 MB demos on this path (the §7 forward-reader rows put both at ~200-220 MB),
+a real queue run inside the app, and cold NFS reads.
+
 ### Recommendations
 
 **GC (Q1, S7).** Keep Workstation concurrent. Do not ship Server + DATAS: it keeps 1.5 GB committed even
@@ -473,7 +545,7 @@ Grenade walk is on the shared fan-out today and reads user commands. That sets t
    -44% (Big), LOH -80%, parse 10-20% faster, identical highlights. Owner call: the per-job condition
    (the queue has to know before parsing whether Grenade walk will run). Check that the other five
    consumers' sidecars come out byte-identical before shipping. The open-demo parse stays full.
-3. **Library tier 2, Highlights (bare) and Round Facts on the forward reader.** Peak ~200-220 MB whatever
+3. **Library tier 2, Highlights (bare) and Round Facts on the forward reader.** Built; see "S1 item 3" above. Peak ~200-220 MB whatever
    the demo size, against 0.72-1.84 GB retained (-72% to -89%), identical highlights; cost +1.2 s on the
    276 MB demo, +0.4 s Pro, none on Big. Large: the queue's handler contract changes from `ParsedDemo` to
    a path or reader. Owner calls: drop the fan-out for these consumers; two rules passes or one merged
@@ -486,6 +558,6 @@ Grenade walk is on the shared fan-out today and reads user commands. That sets t
 5. **Grenade walk last.** Random frame access and user commands: a two-pass redesign, or keep the full
    parse when the owner enables the background sweep.
 
-Commands: `AnalysisBench bg-run --list=<file> [--read=mmap|bytes|forward] [--eval]
+Commands: `AnalysisBench bg-run --list=<file> [--read=mmap|bytes|forward|app-retained|app-forward] [--eval]
 [--compact=none|end|each] [--plan=everything|no-usercmds|replay|events|structure]`, GC from the
 environment, peak from `/usr/bin/time -l`.
