@@ -309,7 +309,7 @@ Warm cache, reps 2-5 (rep 1 of each mapped run was the first read of the file):
 
 Cold over NFS, 10 different unread MM demos of 251-299 MB, alternating: mmap 6.4 / 6.6 / 7.1 / 7.3 / 7.7 s,
 bytes 7.3 / 7.2 / 7.2 / 7.2 / 6.2 s; footprint mmap 507-583 MB, bytes 766-836 MB. Three warm runs hit
-6.8-7.2 s with no pattern by mode (NFS revalidation, not the read path).
+6.8-7.2 s with no pattern by mode (likely NFS revalidation; not isolated).
 
 Max RSS is identical for both modes (856 / 1,168 / 2,330 MB): the mapped pages are resident, but clean
 and evictable.
@@ -318,7 +318,9 @@ and evictable.
 
 Mapped parse plus bare rules evaluation per demo, back to back. Two reps each, shown as rep 1 / rep 2 or
 as a range. "During" is over the 14 per-job samples; "before drain" is after the last job, "after drain"
-after `HeapCompactor`. MB unless marked.
+after `HeapCompactor`. MB unless marked. The per-job sample follows the last GC, which in the
+"compact after every job" row is the forced compaction, so that row's "during" columns are the floor each
+job leaves for the next, not the level inside a job; compare it on peak footprint.
 
 | Config | Eval s | Peak fp | Committed during, max / median | LOH free during, max / median | Before drain: committed / LOH / LOH free | After drain committed | gen2 | GC pause |
 |---|---|---|---|---|---|---|---|---|
@@ -340,8 +342,9 @@ Reading:
   1.5 GB mid-run even in this bench, where nothing else is resident.
 - ConserveMemory 7 cuts mid-run committed by 28% at the peak and 40% at the median and keeps LOH free at
   0 for most jobs, for +4% eval and +14% pause. ConserveMemory 5 barely moves it.
-- Compacting after every job holds committed at 73-229 MB throughout and cuts peak footprint by a third,
-  at no measurable eval cost here. The bench's live heap between jobs is ~50 MB; in the app it is the
+- Compacting after every job cuts peak footprint 1,573-1,613 to 995-1,004 MB (-37%) at no measurable
+  eval cost here, and leaves ~50-80 MB committed for the next job instead of 0.9-1.5 GB of mostly
+  fragmented heap. That carried-over fragmentation is what grew to 3.5-4.9 GB in the live app. The bench's live heap between jobs is ~50 MB; in the app it is the
   library indexes plus UI (a few hundred MB), so each compaction costs more there, likely 100-300 ms of
   blocking gen2 per 5-10 s job (estimated, not measured).
 - Server + DATAS evaluates 22% faster but commits 2.5 GB mid-run and keeps **1.5 GB committed after the
@@ -353,7 +356,7 @@ Reading:
 
 | Demo | Total s (warm) | Peak heap | Peak RSS | Live while open | After close: committed / RSS |
 |---|---|---|---|---|---|
-| MM 276 MB | 3.2 | 1,044-1,108 MB | 1,046-1,090 MB | 795 MB | 106-124 / 207-227 MB |
+| MM 276 MB | 3.2 (rep 2 read cold: 9.5) | 1,044-1,108 MB | 1,046-1,090 MB | 795 MB | 106-124 / 207-227 MB |
 | Pro 380 MB | 3.7-3.9 | 1,492 MB | 1,481-1,491 MB | 1,095 MB | 23-25 / 130-131 MB |
 | Big 750 MB | 4.5-4.6 | 2,716 MB | 2,687 MB | 2,208 MB | 18 / 128 MB |
 
@@ -403,7 +406,8 @@ Parse plus bare rules evaluation (the highlights path), same demos:
 **GC (Q1, S7).** Keep Workstation concurrent. Do not ship Server + DATAS: it keeps 1.5 GB committed even
 after an explicit compaction. Compact after each background parse job instead of only on drain (the
 queue's existing `HeapCompaction` item, with the 30 s throttle dropped or shortened when the previous job
-was a parse): mid-run committed goes from ~1.5 GB to ~0.23 GB in the bench. If a blocking gen2 per job is
+was a parse): peak footprint -37% in the bench, and each job starts from ~50-80 MB committed instead of
+0.9-1.5 GB. If a blocking gen2 per job is
 unwelcome, `System.GC.ConserveMemory=7` in the Desktop csproj is the config-only fallback (-28% peak,
 -40% median committed, +4% eval). Keep the drain compaction either way. Owner call: which of the two.
 Re-measure in the app afterwards (`dotnet-counters` on committed and LOH free during a queue run).
@@ -414,15 +418,20 @@ Re-measure in the app afterwards (`dotnet-counters` on committed and LOH free du
 **S1, ranked.** None of these needs a new `ParseOptions` or `DecodePlan` member, so none touches the
 protected `DemoParser.cs`.
 
-1. **Shared background parse without user commands** while `Grenades.BackgroundIndex` is off:
+The owner's settings have `Grenades.BackgroundIndex: true` (and `Situations.BackgroundIndex: true`), so
+Grenade walk is on the shared fan-out today and reads user commands. That sets the order.
+
+1. **Lineup and pack clips on `EntityReplay`.** Parse footprint 558 to 261 MB (MM), 767 to 399 (Pro),
+   1,556 to 584 (Big): -47% to -62%, and faster. Two call sites, no contract change, unconditional.
+   Measured on the parse only; the renderer's tracker replay and GIF output need a byte or visual A/B
+   before shipping. No owner call beyond approval.
+2. **Drop user commands from the shared background parse when no consumer needs them:**
    `Plan = DecodePlan.Everything with { Categories = MessageCategories.All & ~MessageCategories.UserCmds }`
-   on the queue's background parse. Parse+eval footprint -29% (MM), -31% (Pro), -44% (Big), LOH -80%,
-   parse 10-20% faster, identical highlights. One call site. Owner call: a background parse can then never
-   feed Grenade walk (it would need its own full parse when enabled); the open-demo parse stays full.
-   Check that the other five consumers' sidecars come out byte-identical before shipping.
-2. **Lineup and pack clips on `EntityReplay`.** Parse footprint 558 to 261 MB (MM), 767 to 399 (Pro),
-   1,556 to 584 (Big): -47% to -62%, and faster. Two call sites. Measured on the parse only; the renderer's
-   tracker replay and GIF output need a byte or visual A/B before shipping. No owner call beyond approval.
+   when `Grenades.BackgroundIndex` is off or the demo's grenade sidecar is already current (the case for
+   every re-processed demo once the walk has caught up). Parse+eval footprint -29% (MM), -31% (Pro),
+   -44% (Big), LOH -80%, parse 10-20% faster, identical highlights. Owner call: the per-job condition
+   (the queue has to know before parsing whether Grenade walk will run). Check that the other five
+   consumers' sidecars come out byte-identical before shipping. The open-demo parse stays full.
 3. **Library tier 2, Highlights (bare) and Round Facts on the forward reader.** Peak ~200-220 MB whatever
    the demo size, against 0.72-1.84 GB retained (-72% to -89%), identical highlights; cost +1.2 s on the
    276 MB demo, +0.4 s Pro, none on Big. Large: the queue's handler contract changes from `ParsedDemo` to
