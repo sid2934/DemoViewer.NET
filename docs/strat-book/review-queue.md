@@ -146,3 +146,42 @@ Open questions, with a recommendation for each. **(owner)** marks the ones that 
 Recommendation, in order: option A, then the reviewed flag, then the map filter. With lineups out,
 the queue returns to tens of deliberate clips, the size it was designed for. The virtualization and
 batching above stay as the guard for when it grows again.
+
+## Owner decisions, built (2026-09-28)
+
+**Rows under background sends.** Queue changes now reach the list as ranged removes and adds
+(`BulkObservableCollection.SyncTo`), so a row whose Note or Question is being typed in keeps its
+container, its focus and its uncommitted text. A Reset is left only for a reorder the user made.
+
+**A. Lineup clips leave the queue.** Lineup Clip Render plans one clip per lineup and technique. The
+lineup's first technique (its most thrown) gets a clip under the old rule, a lineup thrown at least
+twice. Every other technique needs two throws of its own. No lineup loses the clip it had: the first
+technique's job adopts the old per-lineup pair (the lineup id, its aliases, the legacy hash names) by
+renaming it, and a stem evicted under the old name stays evicted under the new one. Clips render
+automatically as `LineupClips` items of the processing queue, and the Utility Book's position card
+plays the clip for the lineup and technique that was clicked. The card reads the GIF only while it is
+open, decodes one frame at a time, and says "clip not rendered yet" or "no clip" when there is none.
+
+The one-time migration runs when the queue loads. It drops a clip only if it is a `lineup` clip with
+no question, not marked reviewed, and a note in the generated shape (`<title>. setpos x y z; setang p y
+r`), then drops "Lineup clips, <map>" cards left empty. The new file is written beside the old one,
+read back and compared by id. Only then is the old file copied to `review-queue.lineups.bak` and
+replaced. A refused file (newer schema, unreadable) is left alone. On the owner's copy: 4,792
+dropped, 0 kept, 11 cards dropped. The 7 Dossier clips and their card stay.
+
+**B. Reviewed.** Each clip has Mark reviewed, and each title card marks its whole section reviewed
+(or unreviewed again once all of it is). Reviewed clips are hidden unless "show reviewed" is on.
+Cards read "4 of 12 clips unreviewed", and the rail badge counts unreviewed clips. `reviewed` is
+written only when true: files without it read as before, and an older build keeps the field through
+`Extra`.
+
+**C. Map and team filters.** Map comes from the demo cache by hash, then by path, once per demo;
+unknown demos are "no map". `teamId` is written by the Dossier sections (the dossier's team) and by
+Situations (the Opponent filter's team, when it names one, read when the results load). Clips without
+one are "no team". A team Team Identity no longer has, and that was not merged into another, is
+"unknown team". No team is inferred for an older clip.
+
+Renders, all headless from copies: Review before `review-queue-owner-*.png` and after
+`review-after-owner-open.png` / `review-after-synthetic-scrolled.png`; Utility Book card before
+`utility-card-before.png` and after `utility-card-after.png` (the Smoke into SnipersNest
+jump-throw clip, 194 frames, playing).
