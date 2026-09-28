@@ -14,8 +14,8 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 ///     The evaluator that walks a demo's grenades (grenade-walk.md §3.8): an <see cref="IDemoEvaluator" />
 ///     on the same one-parse fan-out as the others, registered last because it reads nothing they write.
 ///     Per demo the work is one <see cref="GrenadeWalker.Walk" /> on the parse the queue already paid for,
-///     the paths sibling then the rows sibling, then one record stamp, the stamp last so a crash between
-///     them leaves "not walked" and never a stamp without both files.
+///     the rows sibling, then one record stamp, the stamp last so a crash between them leaves "not walked"
+///     and never a stamp without its file.
 ///     <para>
 ///         <b>Background indexing is off by default</b> (D4, the <c>HighlightsSettings.BackgroundScan</c>
 ///         precedent: two to three seconds per demo is half an hour over a large library). Off, the demo
@@ -39,6 +39,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     private readonly Func<bool> _backgroundIndex;
     private readonly DemoCacheStore _demoCache;
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, List<TrajectoryPoint>>> _flights = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private readonly Func<string?> _openDemo;
     private readonly Action<Action> _post;
@@ -218,11 +219,21 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             GrenadeWalk walk = _walk?.Invoke(parsed)
                                ?? GrenadeWalker.Walk(parsed, new GrenadeWalkOptions(TrajectoryStride: Math.Max(1, _stride())));
             DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-            (GrenadeDocument rows, GrenadePathsDocument paths) = GrenadeSidecar.Build(path, record, parsed, walk);
+            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, record, parsed, walk);
 
-            // Paths first, rows second, stamp last: a crash between any two leaves "not walked" or a file
-            // nothing reads, never rows whose cards have no path to draw.
-            GrenadeSidecar.Write(_demoCache, path, rows, paths);
+            // Rows first, stamp last: a crash between them leaves the demo "not walked".
+            GrenadeSidecar.WriteRows(_demoCache, path, rows);
+            lock (_gate)
+            {
+                // Nothing takes them when no index listens (a test, a host without the Utility Book).
+                if (_flights.Count >= 16)
+                {
+                    _flights.Clear();
+                }
+
+                _flights[path] = walk.Rows.ToDictionary(r => r.Id, r => r.Trajectory, StringComparer.Ordinal);
+            }
+
             _demoCache.UpdateExisting(path, r =>
             {
                 DemoCacheStore.StampGrenades(r);
@@ -254,6 +265,16 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         finally
         {
             ClearForced(path);
+        }
+    }
+
+    /// <summary>The flights of a demo this evaluator just walked, handed over once; null when there are none.</summary>
+    /// <param name="path">The demo's path.</param>
+    public IReadOnlyDictionary<string, List<TrajectoryPoint>>? TakeFlights(string path)
+    {
+        lock (_gate)
+        {
+            return _flights.Remove(path, out Dictionary<string, List<TrajectoryPoint>>? flights) ? flights : null;
         }
     }
 
@@ -296,4 +317,7 @@ internal static partial class GrenadeIndexLog
     [LoggerMessage(EventId = 7, Level = LogLevel.Debug,
         Message = "{fileName}: parse carried no user commands; grenades left for a full parse")]
     public static partial void NoUserCommands(ILogger logger, string fileName);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Warning, Message = "the lineup store was not saved")]
+    public static partial void LineupsNotSaved(ILogger logger, Exception exception);
 }

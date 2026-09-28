@@ -115,7 +115,7 @@ public static class LineupClipPlanner
             return null;
         }
 
-        IndexedGrenade representative = lineup.Throws[0];
+        IndexedGrenade representative = lineup.Representative;
         GrenadeRow row = representative.Row;
         if (GrenadeConsole.Format(row) is not { } console)
         {

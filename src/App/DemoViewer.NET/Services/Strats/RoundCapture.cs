@@ -53,6 +53,7 @@ public readonly record struct CapturedPawn(
 /// <param name="ActorSlot">The thrower or planter's controller slot, or -1 when the wire does not name one.</param>
 /// <param name="ActorTeam">The actor's team, or 0 when it is unknown.</param>
 /// <param name="Position">Where the utility went off; zero for other triggers.</param>
+/// <param name="ActorSteamId">The actor's SteamID64, or 0: joins the actor to a pawn ahead of the slot.</param>
 /// <param name="ThrowOrigin">
 ///     The grenade's release point (<c>m_vInitialPosition</c>), when <see cref="ProjectileThrowerMatch" /> found the
 ///     projectile behind this detonation; null when none matched, and the thrower's position at the stop stands in.
@@ -65,8 +66,26 @@ public sealed record CaptureMoment(
     int ActorSlot = -1,
     int ActorTeam = 0,
     Vector3 Position = default,
-    Vector3? ThrowOrigin = null)
+    Vector3? ThrowOrigin = null,
+    ulong ActorSteamId = 0)
 {
+    /// <summary>The actor's live pawn: by player when the moment names one, else by slot; null when neither is live.</summary>
+    public CapturedPawn? ActorPawn()
+    {
+        if (ActorSteamId != 0)
+        {
+            foreach (CapturedPawn pawn in Pawns)
+            {
+                if (pawn.SteamId == ActorSteamId)
+                {
+                    return pawn;
+                }
+            }
+        }
+
+        return ActorSlot >= 0 ? PawnIn(ActorSlot) : null;
+    }
+
     /// <summary>The live pawn in a slot at this tick, or null.</summary>
     /// <param name="playerSlot">A controller slot.</param>
     public CapturedPawn? PawnIn(int playerSlot)
@@ -365,7 +384,16 @@ public static class RoundCaptureWalker
             team = CoerceInt(controller["m_iTeamNum"]);
         }
 
-        return new CaptureMoment(stop.Tick, stop.Trigger, pawns, source.Kind, slot, team, source.Position, matched?.InitialPosition);
+        ulong steamId = 0;
+        foreach (CapturedPawn pawn in pawns)
+        {
+            if (pawn.PlayerSlot == slot)
+            {
+                steamId = pawn.SteamId;
+            }
+        }
+
+        return new CaptureMoment(stop.Tick, stop.Trigger, pawns, source.Kind, slot, team, source.Position, matched?.InitialPosition, steamId);
     }
 
     // The strat's utility spelling (Source.Kind) to the projectile class it flies as, or null for a plant.

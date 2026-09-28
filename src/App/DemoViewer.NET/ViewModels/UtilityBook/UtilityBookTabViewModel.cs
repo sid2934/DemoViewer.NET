@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Utility;
@@ -429,7 +430,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private void Project()
     {
         LandingGroup? focused = FocusedGroup;
-        GrenadeLineup? selected = focused?.Lineups.FirstOrDefault(l => string.Equals(LineupKey(l), _selectedLineupId, StringComparison.Ordinal));
+        ThrowPosition? selected = focused is null
+            ? null
+            : Positions(focused).FirstOrDefault(p => string.Equals(p.Key, _selectedLineupId, StringComparison.Ordinal));
         if (selected is null)
         {
             _selectedLineupId = null;
@@ -446,38 +449,64 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             ? []
             :
             [
-                .. focused.Lineups.OrderBy(l => l.Throws.Count)
-                    .Select(l => new UtilityThrow(LineupKey(l), l.Origin.X, l.Origin.Y, l.Origin.Z, TeamOf(l), l.JumpThrow,
-                        ReferenceEquals(l, selected), Flight(l, focused.Landing)))
+                .. Positions(focused).OrderBy(p => p.Throws.Count)
+                    .Select(p => new UtilityThrow(p.Key, p.Origin.X, p.Origin.Y, p.Origin.Z, TeamOf(p.Throws), p.JumpThrow,
+                        p.Key == selected?.Key, Flight(p, focused.Landing)))
             ];
         Document.Set(landings, throws);
 
         FocusLine = focused is null
             ? ""
             : string.Create(CultureInfo.InvariantCulture,
-                $"{focused.Title}: {focused.ThrowCount} {(focused.ThrowCount == 1 ? "throw" : "throws")} from {focused.Lineups.Count} {(focused.Lineups.Count == 1 ? "position" : "positions")}. Click a position for its details; Escape steps back.");
-        Detail = selected is null ? null : new LineupDetail(focused!, selected, _demoDate, WatchAsync, CopyAsync);
+                $"{focused.Title}: {focused.ThrowCount} {(focused.ThrowCount == 1 ? "throw" : "throws")} from {focused.Lineups.Count} {(focused.Lineups.Count == 1 ? "lineup" : "lineups")}. Click a position for its details; Escape steps back.");
+        Detail = selected is null ? null : new LineupDetail(focused!, selected.Lineup, _demoDate, WatchAsync, CopyAsync, selected.Technique);
         OnPropertyChanged(nameof(FocusedGroup));
         OnPropertyChanged(nameof(HasFocus));
     }
 
-    /// <summary>The key a throw position is clicked by: the lineup's stable id.</summary>
+    /// <summary>The key the lineup's most thrown position is clicked by.</summary>
     /// <param name="lineup">The lineup.</param>
-    public static string LineupKey(GrenadeLineup lineup) => lineup.Id.ToString("N", CultureInfo.InvariantCulture);
+    public static string LineupKey(GrenadeLineup lineup) =>
+        lineup.Techniques.Count > 0 ? PositionKey(lineup, lineup.Techniques[0]) : lineup.Id.ToString("N", CultureInfo.InvariantCulture);
 
-    private static int TeamOf(GrenadeLineup lineup) =>
-        lineup.Throws.GroupBy(t => t.Row.ThrowerTeam).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
+    /// <summary>The key one technique of a lineup is clicked by: the lineup's stable id and the technique.</summary>
+    public static string PositionKey(GrenadeLineup lineup, LineupTechnique technique) =>
+        lineup.Id.ToString("N", CultureInfo.InvariantCulture) + "/" + technique.Key;
 
-    // The first throw's recorded flight, else a straight line from the position to the group's landing.
-    private static IReadOnlyList<GrenadeTrailPoint> Flight(GrenadeLineup lineup, WorldPoint landing)
+    /// <summary>Every position a landing group draws: one per technique of each lineup.</summary>
+    public static IEnumerable<ThrowPosition> Positions(LandingGroup group)
     {
-        IndexedGrenade first = lineup.Throws[0];
-        if (first.Row.Trajectory is { Count: >= 2 } path)
+        ArgumentNullException.ThrowIfNull(group);
+        foreach (GrenadeLineup lineup in group.Lineups)
+        {
+            if (lineup.Techniques.Count == 0)
+            {
+                yield return new ThrowPosition(LineupKey(lineup), lineup, null, lineup.Origin, lineup.JumpThrow, lineup.Throws,
+                    lineup.Representative);
+                continue;
+            }
+
+            foreach (LineupTechnique technique in lineup.Techniques)
+            {
+                yield return new ThrowPosition(PositionKey(lineup, technique), lineup, technique, technique.Origin, technique.JumpThrow,
+                    technique.Throws, technique.Representative);
+            }
+        }
+    }
+
+    private static int TeamOf(IReadOnlyList<IndexedGrenade> throws) =>
+        throws.GroupBy(t => t.Row.ThrowerTeam).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
+
+    // The representative throw's recorded flight, else the stored one, else a straight line to the group's landing.
+    private IReadOnlyList<GrenadeTrailPoint> Flight(ThrowPosition position, WorldPoint landing)
+    {
+        if ((position.Representative.Row.Trajectory is { Count: >= 2 } own ? own : _index.PathFor(position.Lineup, position.Technique))
+            is { Count: >= 2 } path)
         {
             return [.. path.Select(p => new GrenadeTrailPoint(p.X, p.Y, p.Z))];
         }
 
-        return [new GrenadeTrailPoint(lineup.Origin.X, lineup.Origin.Y, lineup.Origin.Z), new GrenadeTrailPoint(landing.X, landing.Y, landing.Z)];
+        return [new GrenadeTrailPoint(position.Origin.X, position.Origin.Y, position.Origin.Z), new GrenadeTrailPoint(landing.X, landing.Y, landing.Z)];
     }
 
     private async Task WatchAsync(IndexedGrenade grenade)
@@ -520,6 +549,16 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         }
     }
 }
+
+/// <summary>One position drawn on the map: a lineup's technique, or the whole lineup under the grid grouping.</summary>
+public sealed record ThrowPosition(
+    string Key,
+    GrenadeLineup Lineup,
+    LineupTechnique? Technique,
+    WorldPoint Origin,
+    bool JumpThrow,
+    IReadOnlyList<IndexedGrenade> Throws,
+    IndexedGrenade Representative);
 
 /// <summary>One landing group on the map: a cluster with the lineups the filters leave.</summary>
 public sealed class LandingGroup
@@ -565,20 +604,27 @@ public sealed partial class LineupDetail : ObservableObject
     /// <param name="demoDate">A demo's date, or null.</param>
     /// <param name="watch">Opens one throw in 2D Playback.</param>
     /// <param name="copy">Writes the console line to the clipboard.</param>
+    /// <param name="technique">The position clicked, or null for the lineup as a whole.</param>
     public LineupDetail(LandingGroup group, GrenadeLineup lineup, Func<string, DateTime?> demoDate,
-        Func<IndexedGrenade, Task> watch, Func<string, Task> copy)
+        Func<IndexedGrenade, Task> watch, Func<string, Task> copy, LineupTechnique? technique = null)
     {
         Lineup = lineup;
+        Technique = technique;
         _copy = copy;
-        IndexedGrenade first = lineup.Throws[0];
+        IndexedGrenade first = technique?.Representative ?? lineup.Representative;
+        IReadOnlyList<IndexedGrenade> throws = technique?.Throws ?? lineup.Throws;
+        string how = technique?.Label ?? (lineup.JumpThrow ? "jump-throw" : "standard throw");
         Title = group.Title;
         StyleLine = string.Create(CultureInfo.InvariantCulture,
-            $"{first.Kind} · {(lineup.JumpThrow ? "jump-throw" : "standard throw")} · {first.Row.Movement} · {first.AirTimeSeconds:0.0}s air time");
+            $"{first.Kind} · {how} · {first.Row.Movement} · {first.AirTimeSeconds:0.0}s air time");
         UsedLine = string.Create(CultureInfo.InvariantCulture,
             $"Used {lineup.Throws.Count} {(lineup.Throws.Count == 1 ? "time" : "times")} in {lineup.DemoCount} {(lineup.DemoCount == 1 ? "demo" : "demos")}");
+        TechniquesLine = lineup.Techniques.Count > 1
+            ? string.Join(" · ", lineup.Techniques.Select(t => string.Create(CultureInfo.InvariantCulture, $"{t.Label} {t.Throws.Count}")))
+            : "";
         ConsoleText = GrenadeConsole.Format(first.Row) ?? UtilityBookTabViewModel.NoConsoleText;
         HasConsole = GrenadeConsole.Format(first.Row) is not null;
-        foreach (IndexedGrenade grenade in lineup.Throws
+        foreach (IndexedGrenade grenade in throws
                      .OrderByDescending(t => demoDate(t.Demo.Path) ?? DateTime.MinValue)
                      .ThenBy(t => t.Demo.Path, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(t => t.Row.ReleaseTick))
@@ -588,6 +634,14 @@ public sealed partial class LineupDetail : ObservableObject
     }
 
     public GrenadeLineup Lineup { get; }
+
+    /// <summary>The position shown, or null for the whole lineup.</summary>
+    public LineupTechnique? Technique { get; }
+
+    /// <summary>Every way the lineup is thrown with its count, when there is more than one; else empty.</summary>
+    public string TechniquesLine { get; }
+
+    public bool HasTechniques => TechniquesLine.Length > 0;
 
     public string Title { get; }
 
@@ -625,6 +679,9 @@ public sealed class LineupInstanceRow(IndexedGrenade grenade, DateTime? date, IA
     public string Date { get; } = date is { } d ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
 
     public string DemoName { get; } = Path.GetFileNameWithoutExtension(grenade.Demo.Path);
+
+    /// <summary>Who threw it: the name at the time, sanitised; empty when the walk read no player.</summary>
+    public string PlayerText { get; } = grenade.Row.ThrowerName is { Length: > 0 } name ? DisplayText.Sanitize(name) : "";
 
     public string RoundText { get; } = grenade.Row.RoundNumber > 0
         ? string.Create(CultureInfo.InvariantCulture, $"round {grenade.Row.RoundNumber}")

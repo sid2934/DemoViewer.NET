@@ -9,6 +9,7 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Utility;
 using DemoViewer.NET.Views.UtilityBook;
 using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
@@ -152,6 +153,94 @@ public class GrenadeIndexTests
         new HashSet<GrenadeKind> { GrenadeKind.Smoke }, new HashSet<string> { "CTSpawn" }, DemoPaths: demos);
 
     [Test]
+    public async Task ALineupId_SurvivesARestart_AndALaterDemoJoinsItRatherThanMintingAnother()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-lineups-{Guid.NewGuid():N}");
+        try
+        {
+            DemoCacheStore cache = Library();
+            Guid first;
+            using (GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: new GrenadeLineupStore(root)))
+            {
+                index.Load();
+                first = index.Query(SmokesIntoCt(NineDemos.ToHashSet()))[0].Lineups[0].Id;
+            }
+
+            // A tenth demo throws A from 20 units off the old mean: inside the spot radius of the stored anchor.
+            Indexed(cache, DemoPath(10), Mirage, "sha10",
+                [Row("a", GrenadeKind.Smoke, new Vector3(532, 288, -160), new Vector3(-1400, -1400, -170))]);
+            GrenadeLineupStore reread = new(root);
+            int anchors = reread.For(Mirage).Anchors.Count;
+            using GrenadeIndex again = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: reread);
+            again.Load();
+            GrenadeLineup a = again.Query(SmokesIntoCt())[0].Lineups[0];
+            using (Assert.Multiple())
+            {
+                await Assert.That(a.Id).IsEqualTo(first).Because("the anchor is read back, not re-derived");
+                await Assert.That(a.Throws.Select(t => t.Demo.Path)).Contains(DemoPath(10));
+                await Assert.That(reread.For(Mirage).Anchors.Count).IsEqualTo(anchors).Because("the new throw joined an anchor");
+                await Assert.That(File.Exists(Path.Combine(root, GrenadeLineupStore.FileName))).IsTrue();
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task EveryOldGridId_ResolvesToExactlyOneLineup()
+    {
+        using GrenadeIndex index = Loaded(Library());
+        List<GrenadeLineup> lineups = [.. index.Query(new GrenadeQuery(Mirage)).SelectMany(c => c.Lineups)];
+        List<Guid> gridIds = [.. GrenadeIndex.Cluster(index.Rows(new GrenadeQuery(Mirage))).SelectMany(c => c.Lineups).SelectMany(l => l.AliasIds.Append(l.Id)).Distinct()];
+        using (Assert.Multiple())
+        {
+            foreach (Guid id in gridIds)
+            {
+                await Assert.That(lineups.Count(l => l.Answers(id))).IsEqualTo(1).Because($"grid id {id} names one lineup");
+                await Assert.That(index.DescribeLineup(Mirage, id)).IsNotNull();
+            }
+        }
+    }
+
+    [Test]
+    public async Task BeforeTheLoadFinishes_NothingIsMinted()
+    {
+        DemoCacheStore cache = Library();
+        GrenadeLineupStore store = new(null);
+        using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
+        index.Query(new GrenadeQuery(Mirage));
+        await Assert.That(store.For(Mirage).Anchors).IsEmpty().Because("an index that has not loaded sees a partial library");
+    }
+
+    [Test]
+    public async Task ACoveredLandingIcon_IsFoldedIntoTheBadgeOfTheOneOnTop_UnlessFocused()
+    {
+        // Draw order is smallest first. 1 sits inside 3's disc; 0 sits inside 1's, which is itself covered;
+        // 2 is clear of everything; 4 is inside 3 but focused.
+        UtilityMapLayer.Disc[] discs =
+        [
+            new(100, 100, 11, false),
+            new(104, 100, 11, false),
+            new(300, 300, 11, false),
+            new(110, 100, 17, false),
+            new(125, 100, 11, true)
+        ];
+        (bool[] hidden, int[] counts) = UtilityMapLayer.Declutter(discs);
+        using (Assert.Multiple())
+        {
+            await Assert.That(string.Join(",", hidden)).IsEqualTo("True,True,False,False,False");
+            await Assert.That(counts[3]).IsEqualTo(3).Because("the top icon stands for itself and the two under it");
+            await Assert.That(counts[2]).IsEqualTo(1);
+            await Assert.That(counts[4]).IsEqualTo(1).Because("the focused icon is always drawn");
+        }
+    }
+
+    [Test]
     public async Task TwoLandingGroupsSeededInOneCell_BothReachTheMap()
     {
         // (20, 20) and (220, 220) share the 256-unit cell (0, 0) and are 283 units apart: two groups.
@@ -189,7 +278,7 @@ public class GrenadeIndexTests
             await Assert.That(spawn.LandingPlace).IsEqualTo("CTSpawn");
             await Assert.That(spawn.Cell).IsEqualTo((-6, -6, -2));
             await Assert.That(spawn.ThrowCount).IsEqualTo(15).Because("nine from A, four jump-throws from B, two standing from B");
-            await Assert.That(spawn.Lineups.Count).IsEqualTo(3);
+            await Assert.That(spawn.Lineups.Count).IsEqualTo(2).Because("B's jump-throws and standing throws are one lineup");
 
             GrenadeLineup a = spawn.Lineups[0];
             await Assert.That(a.Throws.Count).IsEqualTo(9).Because("five units of jitter rounds to one position");
@@ -197,13 +286,13 @@ public class GrenadeIndexTests
             await Assert.That(a.JumpThrow).IsFalse();
             await Assert.That(a.Origin).IsEqualTo(new WorldPoint(512, 288, -160));
 
-            GrenadeLineup jump = spawn.Lineups[1];
-            await Assert.That(jump.Throws.Count).IsEqualTo(4);
-            await Assert.That(jump.JumpThrow).IsTrue().Because("the same spot thrown another way is its own lineup");
-            GrenadeLineup standing = spawn.Lineups[2];
-            await Assert.That(standing.Throws.Count).IsEqualTo(2);
-            await Assert.That(standing.JumpThrow).IsFalse();
-            await Assert.That(GrenadeIndex.RoundedOrigin(standing.Origin)).IsEqualTo(GrenadeIndex.RoundedOrigin(jump.Origin));
+            GrenadeLineup b = spawn.Lineups[1];
+            await Assert.That(b.Throws.Count).IsEqualTo(6);
+            await Assert.That(b.JumpThrow).IsTrue().Because("its most thrown technique is the jump-throw");
+            await Assert.That(b.Techniques.Select(t => (t.Key, t.Throws.Count)))
+                .IsEquivalentTo(new[] { ("stand-jump-left", 4), ("stand-throw-left", 2) })
+                .Because("the same spot thrown another way is another position of the same lineup");
+            await Assert.That(GrenadeIndex.RoundedOrigin(b.Techniques[1].Origin)).IsEqualTo(GrenadeIndex.RoundedOrigin(b.Techniques[0].Origin));
 
             await Assert.That(north.Cell).IsEqualTo((-5, -5, -2));
             await Assert.That(north.LandingPlace).IsEqualTo("CTSpawn");
@@ -426,19 +515,21 @@ public class GrenadeIndexTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.HasFocus).IsTrue();
-            await Assert.That(vm.Document.Throws.Count).IsEqualTo(top.Lineups.Count);
+            await Assert.That(vm.Document.Throws.Count).IsEqualTo(top.Lineups.Sum(l => l.Techniques.Count)).Because("one position per technique");
             await Assert.That(vm.Document.Throws.All(t => t.Trajectory.Count >= 2)).IsTrue().Because("a straight flight stands in for a missing path");
             await Assert.That(vm.FocusLine).StartsWith("Smoke into CTSpawn:");
         }
 
         GrenadeLineup jump = top.Lineups.First(l => l.JumpThrow);
-        vm.ClickThrow(UtilityBookTabViewModel.LineupKey(jump));
+        LineupTechnique jumping = jump.Techniques.First(t => t.JumpThrow);
+        vm.ClickThrow(UtilityBookTabViewModel.PositionKey(jump, jumping));
         LineupDetail detail = vm.Detail!;
         using (Assert.Multiple())
         {
             await Assert.That(detail.UsedLine).IsEqualTo($"Used {jump.Throws.Count} times in {jump.DemoCount} demos");
             await Assert.That(detail.StyleLine).Contains("jump-throw");
-            await Assert.That(detail.Instances.Count).IsEqualTo(jump.Throws.Count);
+            await Assert.That(detail.TechniquesLine).IsEqualTo("jump-throw, left click 4 · standing throw, left click 2");
+            await Assert.That(detail.Instances.Count).IsEqualTo(jumping.Throws.Count).Because("the card lists the clicked position's throws");
             await Assert.That(detail.ConsoleText).IsEqualTo(UtilityBookTabViewModel.NoConsoleText)
                 .Because("the fixture rows never set release eye angles");
             await Assert.That(detail.HasConsole).IsFalse();
@@ -532,7 +623,7 @@ public class GrenadeIndexTests
         using (Assert.Multiple())
         {
             await Assert.That(detail.UsedLine).IsEqualTo("Used 2 times in 2 demos");
-            await Assert.That(detail.StyleLine).IsEqualTo("Smoke · standard throw · Running · 1.8s air time");
+            await Assert.That(detail.StyleLine).IsEqualTo("Smoke · running throw, left click · Running · 1.8s air time");
             await Assert.That(copied).IsEqualTo("setpos 512.00 288.00 -160.00; setang -18.12 -15.30 0.00")
                 .Because("the console line is copy-pasteable at this exact shape");
             await Assert.That(detail.CopyStatus).IsEqualTo("copied");
@@ -563,7 +654,7 @@ public class GrenadeIndexTests
         using (Assert.Multiple())
         {
             await Assert.That(lineup.Throws.Count).IsEqualTo(2).Because("one standing spot, split only by the grid");
-            await Assert.That(lineup.AliasIds.Count).IsEqualTo(2);
+            await Assert.That(lineup.AliasIds.Count).IsEqualTo(3).Because("its own id and both grid ids");
             foreach (Guid id in lineup.AliasIds)
             {
                 await Assert.That(index.DescribeLineup(Mirage, id)?.Id).IsEqualTo(lineup.Id).Because("a strat step that stored either id still resolves");
@@ -616,7 +707,7 @@ public class GrenadeIndexTests
                     host.Click((float)origin.X, (float)origin.Y);
                     if (vm.Detail is { } open)
                     {
-                        reached.Add(UtilityBookTabViewModel.LineupKey(open.Lineup));
+                        reached.Add(UtilityBookTabViewModel.PositionKey(open.Lineup, open.Technique!));
                     }
                 }
 

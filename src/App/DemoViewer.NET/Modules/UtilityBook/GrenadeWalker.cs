@@ -240,11 +240,17 @@ public static class GrenadeWalker
         ArgumentNullException.ThrowIfNull(players);
 
         Dictionary<int, ulong> steamBySlot = [];
+        Dictionary<int, string> nameBySlot = [];
         foreach (PlayerInfo player in players)
         {
             if (player.SteamId64 != 0)
             {
                 steamBySlot.TryAdd(player.Slot, player.SteamId64);
+            }
+
+            if (!string.IsNullOrEmpty(player.Name))
+            {
+                nameBySlot.TryAdd(player.Slot, player.Name);
             }
         }
 
@@ -285,6 +291,7 @@ public static class GrenadeWalker
                 ThrowerSteamId64 = slot >= 0 && steamBySlot.TryGetValue(slot, out ulong steam)
                     ? steam.ToString(CultureInfo.InvariantCulture)
                     : null,
+                ThrowerName = slot >= 0 ? nameBySlot.GetValueOrDefault(slot) : null,
                 ThrowerTeam = atSpawn is { Team: > 0 } spawned ? spawned.Team : release?.Team ?? 0,
                 ThrowerSource = slot >= 0 ? plan.ThrowerSource : ThrowerSource.None,
                 RoundNumber = GrenadeRules.RoundAt(rounds, track.SpawnTick),

@@ -107,7 +107,7 @@ public sealed class OpeningTendenciesService
         int withoutGrenades = 0;
         int withoutPositions = 0;
 
-        foreach ((DemoRef demo, _, _) in _teams.SidesOf(teamId))
+        foreach ((DemoRef demo, int endSide, TeamAssignment assignment) in _teams.SidesOf(teamId))
         {
             if (!seen.Add(demo.Path)
                 || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
@@ -142,7 +142,8 @@ public sealed class OpeningTendenciesService
                 names[player.Slot] = DisplayText.Sanitize(player.Name);
             }
 
-            DemoContext context = new(demo.Path, record.Sha256, rate, names, grenades.Count > 0 ? grenades : null, positions);
+            HashSet<string> roster = new(assignment.Side(endSide).Key, StringComparer.Ordinal);
+            DemoContext context = new(demo.Path, record.Sha256, rate, names, grenades.Count > 0 ? grenades : null, positions, roster);
             foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) is not { } side)
@@ -304,7 +305,14 @@ public sealed class OpeningTendenciesService
         int Rate,
         IReadOnlyDictionary<int, string> Names,
         IReadOnlyList<IndexedGrenade>? Grenades,
-        RoundPositionsDocument? Positions);
+        RoundPositionsDocument? Positions,
+        IReadOnlySet<string>? Roster = null)
+    {
+        // The team's own players by SteamID; the side at the throw only when the row names no player.
+        public bool Throws(IndexedGrenade g, int side) =>
+            g.Row.ThrowerSteamId64 is { } steam && Roster is { Count: > 0 } roster ? roster.Contains(steam) && g.Row.ThrowerTeam == side
+                : g.Row.ThrowerTeam == side;
+    }
 
     // Rounds per label, in first-seen order until a list asks for its own order.
     private sealed class Buckets
@@ -389,7 +397,7 @@ public sealed class OpeningTendenciesService
             {
                 _utilityRounds++;
                 IndexedGrenade? first = grenades
-                    .Where(g => g.Row.RoundNumber == round.Number && g.Row.ThrowerTeam == side && g.Row.ReleaseTick >= freezeEnd)
+                    .Where(g => g.Row.RoundNumber == round.Number && demo.Throws(g, side) && g.Row.ReleaseTick >= freezeEnd)
                     .OrderBy(g => g.Row.ReleaseTick)
                     .FirstOrDefault();
                 if (first is null)

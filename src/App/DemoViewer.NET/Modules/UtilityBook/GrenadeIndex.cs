@@ -85,6 +85,12 @@ public sealed record GrenadeLineup(WorldPoint Origin, bool JumpThrow, IReadOnlyL
     /// </summary>
     public IReadOnlyList<Guid> AliasIds { get; init; } = [];
 
+    /// <summary>The ways this lineup is thrown, most thrown first; one per lineup under the grid grouping.</summary>
+    public IReadOnlyList<LineupTechnique> Techniques { get; init; } = [];
+
+    /// <summary>The throw a card and a clip use: the most thrown technique's medoid, or the first throw.</summary>
+    public IndexedGrenade Representative => Techniques.Count > 0 ? Techniques[0].Representative : Throws[0];
+
     /// <summary>True when <paramref name="id" /> names this lineup, directly or through a merged neighbour.</summary>
     /// <param name="id">A stored lineup id.</param>
     public bool Answers(Guid id) => Id == id || AliasIds.Contains(id);
@@ -162,6 +168,10 @@ public sealed class GrenadeIndex : IDisposable
     private readonly Dictionary<string, LoadedDemo> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<Action> _post;
     private readonly IZonePlaceResolverSource _zones;
+    private readonly GrenadeLineupStore _lineups;
+    private readonly TaskCompletionSource _loadedOnce = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Dictionary<string, Dictionary<string, Guid>> _assignments = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<Guid, List<Guid>>> _reverseAliases = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _ready;
 
@@ -171,11 +181,13 @@ public sealed class GrenadeIndex : IDisposable
     /// <param name="zones">Where a map's zone resolver comes from; none when omitted.</param>
     /// <param name="evaluator">The writer, whose <c>Indexed</c> merges a demo; null in a read-only host.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
+    /// <param name="lineups">The lineup store; the one in the cache root when null.</param>
     public GrenadeIndex(DemoCacheStore demoCache, IZonePlaceResolverSource? zones = null,
-        GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null)
+        GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null, GrenadeLineupStore? lineups = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         _demoCache = demoCache;
+        _lineups = lineups ?? GrenadeLineupStore.For(demoCache);
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
         _evaluator = evaluator;
         _post = post ?? (a => a());
@@ -263,11 +275,21 @@ public sealed class GrenadeIndex : IDisposable
         {
             _ready = true;
             demos = _loaded.Count;
+            InvalidateLocked(null);
+            foreach (string map in DistinctDemosLocked().Select(d => d.Map).Where(m => m.Length > 0)
+                         .Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+            {
+                EnsureAssignedLocked(map);
+            }
         }
 
         GrenadeIndexLog.Loaded(Log, demos, watch.ElapsedMilliseconds);
+        _loadedOnce.TrySetResult();
         _post(() => Changed?.Invoke());
     }
+
+    /// <summary>Completes when the first <see cref="Load" /> has finished.</summary>
+    public Task WhenLoaded => _loadedOnce.Task;
 
     /// <summary>The maps with at least one loaded grenade, sorted.</summary>
     public IReadOnlyList<string> Maps()
@@ -313,7 +335,269 @@ public sealed class GrenadeIndex : IDisposable
 
     /// <summary>The query's grenades clustered by landing cell with their origins deduplicated.</summary>
     /// <param name="query">The filters.</param>
-    public IReadOnlyList<GrenadeCluster> Query(GrenadeQuery query) => Cluster(Rows(query));
+    public IReadOnlyList<GrenadeCluster> Query(GrenadeQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        if (Grouping == GrenadeGrouping.Grid)
+        {
+            return Cluster(Rows(query));
+        }
+
+        lock (_gate)
+        {
+            RefreshPlacesLocked(query.Map);
+            Dictionary<string, Guid> assignment = EnsureAssignedLocked(query.Map);
+            Dictionary<Guid, List<Guid>> aliases = _reverseAliases.GetValueOrDefault(query.Map) ?? [];
+            return GrenadeLineups.Group(Filter(DistinctDemosLocked().SelectMany(d => d.Grenades), query),
+                g => assignment.TryGetValue(g.Key, out Guid id) ? id : GrenadeLineups.SingleId(g.Key),
+                id => aliases.TryGetValue(id, out List<Guid>? old) ? old : []);
+        }
+    }
+
+    /// <summary>Which grouping <see cref="Query" /> runs: stored lineups, or the v1 grid for a comparison.</summary>
+    public GrenadeGrouping Grouping { get; init; } = GrenadeGrouping.Lineups;
+
+    /// <summary>The stored representative flight of a lineup's technique (or the lineup), or null.</summary>
+    /// <param name="lineup">The lineup.</param>
+    /// <param name="technique">The technique, or null for the lineup's most thrown one.</param>
+    public IReadOnlyList<TrajectoryPoint>? PathFor(GrenadeLineup lineup, LineupTechnique? technique)
+    {
+        ArgumentNullException.ThrowIfNull(lineup);
+        if ((technique ?? (lineup.Techniques.Count > 0 ? lineup.Techniques[0] : null)) is not { } chosen
+            || lineup.Throws.Count == 0)
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return _lineups.For(lineup.Throws[0].Map).Paths.TryGetValue(PathKey(lineup.Id, chosen.Key), out LineupPath? path)
+                ? path.Points
+                : null;
+        }
+    }
+
+    /// <summary>The store key of a lineup technique's representative flight.</summary>
+    public static string PathKey(Guid lineupId, string technique) =>
+        lineupId.ToString("N", CultureInfo.InvariantCulture) + "/" + technique;
+
+    /// <summary>The lineup store this index assigns against.</summary>
+    public GrenadeLineupStore LineupStore => _lineups;
+
+    // A map's throw-to-lineup assignment, minting anchors and building the alias map once the library has
+    // loaded; cached until a demo on the map comes or goes. Under _gate.
+    private Dictionary<string, Guid> EnsureAssignedLocked(string map)
+    {
+        if (_assignments.TryGetValue(map, out Dictionary<string, Guid>? cached))
+        {
+            return cached;
+        }
+
+        List<IndexedGrenade> all =
+        [
+            .. DistinctDemosLocked().Where(d => string.Equals(d.Map, map, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(d => d.Grenades)
+        ];
+        MapLineups lineups = _lineups.For(map);
+        (Dictionary<string, Guid> assignment, bool changed) = GrenadeLineups.Assign(map, all, lineups, _ready);
+        if (_ready)
+        {
+            changed |= FillPaths(all, assignment, lineups);
+        }
+
+        if (_ready && !lineups.AliasesBuilt && all.Count > 0)
+        {
+            foreach ((Guid old, Guid now) in GrenadeLineups.BuildAliases(all, assignment))
+            {
+                lineups.Aliases.TryAdd(old, now);
+            }
+
+            lineups.AliasesBuilt = true;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            SaveLineupsLocked();
+        }
+
+        _assignments[map] = assignment;
+        _reverseAliases[map] = lineups.Aliases.GroupBy(a => a.Value)
+            .ToDictionary(g => g.Key, g => g.Select(a => a.Key).Order().ToList());
+        return assignment;
+    }
+
+    // Anchored lineup techniques that have no stored flight, with their throws and mean origin.
+    private static IEnumerable<(string Key, WorldPoint Origin, List<IndexedGrenade> Throws)> Unpathed(
+        IReadOnlyList<IndexedGrenade> all, Dictionary<string, Guid> assignment, MapLineups lineups)
+    {
+        HashSet<Guid> anchored = [.. lineups.Anchors.Select(a => a.Id)];
+        foreach (IGrouping<string, IndexedGrenade> group in all
+                     .Where(g => assignment.TryGetValue(g.Key, out Guid id) && anchored.Contains(id))
+                     .GroupBy(g => PathKey(assignment[g.Key], GrenadeLineups.TechniqueKey(g.Row)), StringComparer.Ordinal))
+        {
+            if (!lineups.Paths.ContainsKey(group.Key))
+            {
+                List<IndexedGrenade> throws = [.. group];
+                yield return (group.Key, Mean(throws.Select(t => t.Origin)), throws);
+            }
+        }
+    }
+
+    // Stores one in-memory flight per anchored technique that has none: the one released nearest the mean.
+    private static bool FillPaths(IReadOnlyList<IndexedGrenade> all, Dictionary<string, Guid> assignment, MapLineups lineups)
+    {
+        bool changed = false;
+        foreach ((string key, WorldPoint origin, List<IndexedGrenade> throws) in Unpathed(all, assignment, lineups).ToList())
+        {
+            List<IndexedGrenade> flown = [.. throws.Where(t => t.Row.Trajectory.Count >= 2)];
+            if (flown.Count > 0)
+            {
+                IndexedGrenade best = GrenadeLineups.Medoid(flown, origin);
+                lineups.Paths[key] = new LineupPath(best.Key, [.. best.Row.Trajectory]);
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    ///     Fills the store's missing flights from the demos' old paths siblings (the one-off migration), trying
+    ///     each technique's three throws released nearest its mean. Reads every snapshot demo's file once,
+    ///     outside the lock, and saves the store.
+    /// </summary>
+    /// <param name="snapshot">The demos whose paths files are read.</param>
+    /// <param name="readPaths">A demo's paths sibling, or null when it is missing or does not read.</param>
+    /// <returns>How many positions got a flight, and the snapshot demos whose file read.</returns>
+    public (int Filled, HashSet<string> Readable) HarvestStoredPaths(IReadOnlyList<string> snapshot,
+        Func<string, GrenadePathsDocument?> readPaths)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(readPaths);
+        List<(string Map, string Key, List<IndexedGrenade> Candidates)> needs = [];
+        lock (_gate)
+        {
+            foreach (string map in DistinctDemosLocked().Select(d => d.Map).Where(m => m.Length > 0)
+                         .Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+            {
+                Dictionary<string, Guid> assignment = EnsureAssignedLocked(map);
+                List<IndexedGrenade> all =
+                [
+                    .. DistinctDemosLocked().Where(d => string.Equals(d.Map, map, StringComparison.OrdinalIgnoreCase))
+                        .SelectMany(d => d.Grenades)
+                ];
+                foreach ((string key, WorldPoint origin, List<IndexedGrenade> throws) in Unpathed(all, assignment, _lineups.For(map)))
+                {
+                    needs.Add((map, key, [.. throws.OrderBy(t => Distance(t.Origin, origin)).Take(3)]));
+                }
+            }
+        }
+
+        Dictionary<string, HashSet<string>> wanted = new(StringComparer.OrdinalIgnoreCase);
+        foreach (IndexedGrenade g in needs.SelectMany(n => n.Candidates))
+        {
+            if (!wanted.TryGetValue(g.Demo.Path, out HashSet<string>? ids))
+            {
+                ids = new HashSet<string>(StringComparer.Ordinal);
+                wanted[g.Demo.Path] = ids;
+            }
+
+            ids.Add(g.Row.Id);
+        }
+
+        Dictionary<string, List<TrajectoryPoint>> found = new(StringComparer.Ordinal);
+        HashSet<string> readable = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string demo in snapshot.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (readPaths(demo) is not { } document)
+            {
+                continue;
+            }
+
+            readable.Add(demo);
+            if (!wanted.TryGetValue(demo, out HashSet<string>? ids))
+            {
+                continue;
+            }
+
+            foreach (string id in ids)
+            {
+                if (document.Paths.TryGetValue(id, out List<TrajectoryPoint>? points) && points.Count >= 2)
+                {
+                    found[demo + "|" + id] = points;
+                }
+            }
+        }
+
+        int filled = 0;
+        lock (_gate)
+        {
+            foreach ((string map, string key, List<IndexedGrenade> candidates) in needs)
+            {
+                if (candidates.FirstOrDefault(c => found.ContainsKey(c.Demo.Path + "|" + c.Row.Id)) is { } best)
+                {
+                    _lineups.For(map).Paths[key] = new LineupPath(best.Key, found[best.Demo.Path + "|" + best.Row.Id]);
+                    filled++;
+                }
+            }
+
+            SaveLineupsLocked();
+        }
+
+        return (filled, readable);
+    }
+
+    /// <summary>
+    ///     True when every anchored lineup technique a demo's throws belong to has its flight in the store:
+    ///     the demo's paths file holds nothing the store still needs.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public bool FlightsCovered(string demoPath)
+    {
+        ArgumentNullException.ThrowIfNull(demoPath);
+        lock (_gate)
+        {
+            if (!_loaded.TryGetValue(demoPath, out LoadedDemo? demo) || demo.Map.Length == 0)
+            {
+                return true;
+            }
+
+            Dictionary<string, Guid> assignment = EnsureAssignedLocked(demo.Map);
+            MapLineups lineups = _lineups.For(demo.Map);
+            HashSet<Guid> anchored = [.. lineups.Anchors.Select(a => a.Id)];
+            return demo.Grenades.All(g => !assignment.TryGetValue(g.Key, out Guid id) || !anchored.Contains(id)
+                                          || lineups.Paths.ContainsKey(PathKey(id, GrenadeLineups.TechniqueKey(g.Row))));
+        }
+    }
+
+    private static float Distance(WorldPoint a, WorldPoint b) =>
+        MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z));
+
+    private void SaveLineupsLocked()
+    {
+        try
+        {
+            _lineups.Save();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            GrenadeIndexLog.LineupsNotSaved(Log, ex);
+        }
+    }
+
+    // Drops cached assignments: one map's, or every map's when null. Under _gate.
+    private void InvalidateLocked(string? map)
+    {
+        if (map is null)
+        {
+            _assignments.Clear();
+        }
+        else
+        {
+            _assignments.Remove(map);
+        }
+    }
 
     /// <summary>
     ///     The grenades the query keeps, in input order. Pure, so a caller holding rows of its own (a test,
@@ -639,7 +923,7 @@ public sealed class GrenadeIndex : IDisposable
 
     private static LineupSummary Describe(GrenadeCluster cluster, GrenadeLineup lineup) =>
         new(lineup.Id, LineupClipPlanner.Title(cluster), cluster.Kind, cluster.LandingPlace, lineup.Throws.Count,
-            GrenadeConsole.Format(lineup.Throws[0].Row));
+            GrenadeConsole.Format(lineup.Representative.Row));
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 
@@ -673,7 +957,7 @@ public sealed class GrenadeIndex : IDisposable
 
     // Reads one rows sibling and replaces whatever the demo contributed before. False when the file is
     // missing, unreadable, or another demo's (the sidecar reader's rules).
-    private bool Merge(DemoCacheIndexEntry entry)
+    private bool Merge(DemoCacheIndexEntry entry, IReadOnlyDictionary<string, List<TrajectoryPoint>>? flights = null)
     {
         if (GrenadeSidecar.TryReadRows(_demoCache, entry.Path) is not { } document)
         {
@@ -689,6 +973,12 @@ public sealed class GrenadeIndex : IDisposable
         List<IndexedGrenade> grenades = [];
         foreach (GrenadeRow row in document.Grenades)
         {
+            // A demo walked this session keeps its flights in memory; the lineup store takes one per position.
+            if (flights is not null && flights.TryGetValue(row.Id, out List<TrajectoryPoint>? flight))
+            {
+                row.Trajectory = flight;
+            }
+
             if (From(demo, map, row, zones, tickRate) is { } grenade)
             {
                 grenades.Add(grenade);
@@ -698,6 +988,7 @@ public sealed class GrenadeIndex : IDisposable
         lock (_gate)
         {
             _loaded[entry.Path] = new LoadedDemo(demo, map, zones?.ZonesVersion, grenades);
+            InvalidateLocked(map);
         }
 
         return true;
@@ -756,7 +1047,7 @@ public sealed class GrenadeIndex : IDisposable
 
     private void OnIndexed(string path)
     {
-        if (_demoCache.TryGetIndex(path) is { } entry && IsLoadable(entry) && Merge(entry))
+        if (_demoCache.TryGetIndex(path) is { } entry && IsLoadable(entry) && Merge(entry, _evaluator?.TakeFlights(path)))
         {
             _post(() => Changed?.Invoke());
         }
@@ -779,6 +1070,7 @@ public sealed class GrenadeIndex : IDisposable
                 if (_loaded.ContainsKey(loaded) && !IsLoadable(_demoCache.TryGetIndex(loaded)))
                 {
                     changed |= _loaded.Remove(loaded);
+                    InvalidateLocked(null);
                 }
             }
         }

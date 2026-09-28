@@ -39,7 +39,7 @@ public class StratMinerTests
         };
 
     private static MinedThrow Smoke(float x, float y, double seconds, Guid? lineup = null) =>
-        new(GrenadeKind.Smoke, seconds, new WorldPoint(x, y, 0), "Stairs", new WorldPoint(0, 0, 0), 0, lineup);
+        new(GrenadeKind.Smoke, seconds, new WorldPoint(x, y, 0), "Stairs", new WorldPoint(0, 0, 0), 0, null, lineup);
 
     private static (float X, float Y)[] Shift((float X, float Y)[] players, float by) => [.. players.Select(p => (p.X + by, p.Y))];
 

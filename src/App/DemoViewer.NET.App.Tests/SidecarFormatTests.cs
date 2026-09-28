@@ -302,25 +302,23 @@ public class SidecarFormatTests
                 await Assert.That(legacyPaths!.Paths["g1"].Count).IsEqualTo(2);
             }
 
-            (GrenadeDocument rows, GrenadePathsDocument paths) = Documents(Row("g2", null), Row("g3", "76561198000000003"));
-            GrenadeSidecar.Write(cache, Demo, rows, paths);
+            (GrenadeDocument rows, _) = Documents(Row("g2", null), Row("g3", "76561198000000003"));
+            GrenadeSidecar.WriteRows(cache, Demo, rows);
             Stamp(cache);
             GrenadeSidecar.DeleteLegacy(cache, Demo);
 
             GrenadeDocument? newRows = GrenadeSidecar.TryReadRows(cache, Demo);
-            GrenadePathsDocument? newPaths = GrenadeSidecar.TryReadPaths(cache, Demo);
             using (Assert.Multiple())
             {
-                await Assert.That(IsGzipFile(cache.SiblingPathFor(Demo, GrenadeSidecar.Suffix)!)).IsTrue();
-                await Assert.That(IsGzipFile(cache.SiblingPathFor(Demo, GrenadeSidecar.PathsSuffix)!)).IsTrue();
+                await Assert.That(IsGzipFile(cache.SiblingPathFor(Demo, GrenadeThrowLog.Suffix)!)).IsTrue();
+                await Assert.That(GrenadeSidecar.TryReadPaths(cache, Demo)).IsNull().Because("a walk writes no paths");
                 await Assert.That(File.Exists(cache.SiblingPathFor(Demo, GrenadeSidecar.LegacySuffix)!)).IsFalse();
                 await Assert.That(File.Exists(cache.SiblingPathFor(Demo, GrenadeSidecar.LegacyPathsSuffix)!)).IsFalse();
                 await Assert.That(newRows!.Grenades.Select(g => g.Id)).IsEquivalentTo(["g2", "g3"]);
                 await Assert.That(newRows.Grenades[0].ThrowerSteamId64).IsNull();
                 await Assert.That(newRows.Grenades[1].ThrowerSteamId64).IsEqualTo("76561198000000003");
                 await Assert.That(newRows.Grenades[1].ThrowerSteamId).IsEqualTo(76561198000000003UL);
-                await Assert.That(newRows.Grenades[1].Trajectory).IsEmpty().Because("the rows file carries no paths");
-                await Assert.That(newPaths!.Paths["g3"].Count).IsEqualTo(2);
+                await Assert.That(newRows.Grenades[1].Trajectory).IsEmpty().Because("the throw log carries no paths");
             }
         }
         finally
