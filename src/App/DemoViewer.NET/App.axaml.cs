@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -898,25 +899,30 @@ public class App : Application
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
         // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
-        // saved ink, one encode for the whole pack. It marks an export session on the heavy-job gate for its
-        // run, as a 2D export does; the browser has no ffmpeg and no files, so it gets no pack row.
+        // saved ink, one encode for the whole pack. A user-requested processing queue item that marks an export
+        // session on the heavy-job gate for its run, as a 2D export does; the browser has no ffmpeg and no
+        // files, so it gets no pack row.
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
+            IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
             Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
             if (!OperatingSystem.IsBrowser())
             {
                 ILogger log = DiagnosticsLog.CreateLogger(PackExportLog.Category);
-                exportPack = (plan, progress, ct) => Task.Run(async () =>
-                {
-                    using IDisposable session = await gate.EnterExportSessionAsync(ct).ConfigureAwait(false);
-                    using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
-                        log: line => PackExportLog.Line(log, line));
-                    PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
-                        log: line => PackExportLog.Line(log, line));
-                    return await exporter.ExportAsync(plan, progress, ct).ConfigureAwait(false);
-                }, ct);
+                exportPack = (plan, progress, ct) => PackExportQueue.RunAsync(queue,
+                    string.Create(CultureInfo.InvariantCulture,
+                        $"Pack export: {plan.Segments.Count} segments to {Path.GetFileName(plan.Settings.OutputPath)}"),
+                    plan.Settings.OutputPath, async (relay, token) =>
+                    {
+                        using IDisposable session = await gate.EnterExportSessionAsync(token).ConfigureAwait(false);
+                        using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
+                            log: line => PackExportLog.Line(log, line));
+                        PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
+                            log: line => PackExportLog.Line(log, line));
+                        return await exporter.ExportAsync(plan, relay, token).ConfigureAwait(false);
+                    }, progress, ct);
             }
 
             return new ReviewQueueTabViewModel(
