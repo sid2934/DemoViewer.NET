@@ -212,6 +212,8 @@ public sealed class LineupClipService : IDisposable
             return 0;
         }
 
+        // One queue change and one save for every map's merge and the prune, not one per step.
+        using IDisposable batch = _queue.Defer();
         IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(_clusters(), _directory);
         HashSet<string> listing = Listing(_directory);
         Func<string, bool> exists = _fileExists ?? listing.Contains;
@@ -272,9 +274,8 @@ public sealed class LineupClipService : IDisposable
 
         foreach (IGrouping<string, LineupClipJob> map in jobs.GroupBy(j => j.Map, StringComparer.OrdinalIgnoreCase))
         {
-            _queue.Merge(map.Select(LineupClipPlanner.ToReviewEntry), LineupClipPlanner.SectionTitle(map.Key),
-                static (queued, incoming) => string.Equals(queued.Source, ReviewSources.Lineup, StringComparison.Ordinal)
-                                             && queued.LineupId is { } id && id == incoming.LineupId);
+            _queue.MergeByKey(map.Select(LineupClipPlanner.ToReviewEntry), LineupClipPlanner.SectionTitle(map.Key),
+                static e => string.Equals(e.Source, ReviewSources.Lineup, StringComparison.Ordinal) ? e.LineupId : null);
         }
 
         // Found rather than taken from what was merged: a clip queued in an earlier session is skipped as a
