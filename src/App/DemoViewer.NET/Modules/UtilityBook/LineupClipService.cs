@@ -973,9 +973,7 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
         Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task>? render = null)
     {
         TimeProvider clock = time ?? TimeProvider.System;
-        _parse = parse ?? (path => MapsFile(path, clock, MappedParsePolicy.StatFile)
-            ? MemoryMappedDemoSource.ParseFile(path)
-            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
+        _parse = parse ?? (path => ParseForReplay(path, clock, MappedParsePolicy.StatFile));
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
         _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
@@ -1041,6 +1039,18 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
     /// </summary>
     internal static bool MapsFile(string path, TimeProvider time, Func<string, FileStat> stat) =>
         !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, time, stat);
+
+    /// <summary>
+    ///     The clip parse: entity replay only, since a clip draws entities and reads no events or user
+    ///     commands. Mapped when <see cref="MapsFile" /> allows it.
+    /// </summary>
+    internal static ParsedDemo ParseForReplay(string path, TimeProvider time, Func<string, FileStat> stat)
+    {
+        ParseOptions options = new() { Plan = DecodePlan.EntityReplay };
+        return MapsFile(path, time, stat)
+            ? MemoryMappedDemoSource.ParseFile(path, options)
+            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory(), options);
+    }
 
     private void DeletePartial(string partial)
     {
