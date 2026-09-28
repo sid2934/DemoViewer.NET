@@ -25,43 +25,52 @@
 
         <!-- Tools. The same glyphs as the 2D tab's annotation toolbar; the token tool is this canvas's own. -->
         <WrapPanel Grid.Row="0" Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="0 0 0 6">
-            <ToggleButton Padding="8,2" Content="✋"
+            <ToggleButton Padding="8,2" Content="✋" IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsPanZoomSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectPanZoomCommand}"
                           ToolTip.Tip="Pan / zoom" />
             <ToggleButton Padding="8,2" Content="◉"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding IsTokenToolSelected, Mode=OneWay}"
                           Command="{Binding SelectTokenToolCommand}"
                           ToolTip.Tip="{Binding TokenToolTip}" />
             <ToggleButton Padding="8,2" Content="✎"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsDrawSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectDrawCommand}"
                           ToolTip.Tip="{Binding Annotations.DrawToolTip}" />
             <ToggleButton Padding="8,2" Content="⌫"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsEraseSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectEraseCommand}"
                           ToolTip.Tip="{Binding Annotations.EraseToolTip}" />
             <ToggleButton Padding="8,2" Content="➚"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsArrowSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectArrowCommand}"
                           ToolTip.Tip="{Binding Annotations.ArrowToolTip}" />
             <ToggleButton Padding="8,2" Content="T"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsTextSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectTextCommand}"
                           ToolTip.Tip="{Binding Annotations.TextToolTip}" />
             <ToggleButton Padding="8,2" Content="╱"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsLineSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectLineCommand}"
                           ToolTip.Tip="{Binding Annotations.LineToolTip}" />
             <ToggleButton Padding="8,2" Content="▭"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsRectSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectRectCommand}"
                           ToolTip.Tip="{Binding Annotations.RectToolTip}" />
             <ToggleButton Padding="8,2" Content="◯"
+                          IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsEllipseSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectEllipseCommand}"
                           ToolTip.Tip="{Binding Annotations.EllipseToolTip}" />
-            <Button Content="Place tokens" Classes="ghost" FontSize="11" Padding="8 3"
+            <Button Content="Place tokens"
+                    IsVisible="{Binding !IsReadOnly}" Classes="ghost" FontSize="11" Padding="8 3"
                     Command="{Binding PlaceTokensCommand}"
                     ToolTip.Tip="Put every token the strat has not placed yet on the map at the active step, to drag from there" />
             <Button Content="Fit" Classes="ghost" FontSize="11" Padding="8 3" Click="OnFitClick"
@@ -78,11 +87,11 @@
                        Foreground="{DynamicResource TextValue}" />
             <TextBlock Text="{Binding SpeedText}" FontSize="11" VerticalAlignment="Center"
                        Foreground="{DynamicResource TextMid}" ToolTip.Tip="Speed (↑ / ↓)" />
-            <Button Content="Add step" Classes="ghost" FontSize="11" Padding="8 3" Command="{Binding AddStepCommand}"
+            <Button Content="Add step" Classes="ghost" FontSize="11" Padding="8 3" IsVisible="{Binding !IsReadOnly}" Command="{Binding AddStepCommand}"
                     ToolTip.Tip="Insert a step after the active one at the playhead's time (Shift+N)" />
-            <Button Content="Duplicate" Classes="ghost" FontSize="11" Padding="8 3" Command="{Binding DuplicateStepCommand}"
+            <Button Content="Duplicate" Classes="ghost" FontSize="11" Padding="8 3" IsVisible="{Binding !IsReadOnly}" Command="{Binding DuplicateStepCommand}"
                     ToolTip.Tip="Copy the active step's positions and strokes into a new step 5 s later (Ctrl+D)" />
-            <Button Content="Delete step" Classes="ghost" FontSize="11" Padding="8 3" Command="{Binding DeleteStepCommand}"
+            <Button Content="Delete step" Classes="ghost" FontSize="11" Padding="8 3" IsVisible="{Binding !IsReadOnly}" Command="{Binding DeleteStepCommand}"
                     ToolTip.Tip="Delete the active step and the branches that name it (Ctrl+Delete)" />
             <ComboBox ItemsSource="{Binding PathOptions}" SelectedItem="{Binding SelectedPath}" FontSize="11"
                       MinWidth="160" IsVisible="{Binding HasBranches}"

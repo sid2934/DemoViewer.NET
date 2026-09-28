@@ -338,6 +338,41 @@ public sealed class StratMiningService : IDisposable
         return doc;
     }
 
+    /// <summary>
+    ///     <see cref="Build" /> for the Detected preview, as a user-requested queue item off the UI thread. Writes
+    ///     nothing. Null when the medoid's files are gone or the preview was cancelled.
+    /// </summary>
+    /// <param name="pattern">The pattern.</param>
+    /// <param name="owner">The book it would go into.</param>
+    /// <param name="nowUtc">The creation time.</param>
+    /// <param name="cancellationToken">Cancels a preview the user moved away from.</param>
+    public async Task<StratDocument?> PreviewAsync(MinedPattern pattern, StratOwner owner, DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+        ArgumentNullException.ThrowIfNull(owner);
+        StratDocument? built = null;
+        if (_queue is null)
+        {
+            await _run(() => built = Build(pattern, owner, nowUtc)).ConfigureAwait(false);
+            return cancellationToken.IsCancellationRequested ? null : built;
+        }
+
+        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratPreview,
+            $"Strat preview: {MinedStratBuilder.Name(pattern)}", "strat-mining", DemoJobPriority.UserRequested,
+            async job =>
+            {
+                job.CancellationToken.ThrowIfCancellationRequested();
+                await _run(() => built = Build(pattern, owner, nowUtc)).ConfigureAwait(false);
+            }));
+        await using (cancellationToken.Register(handle.Cancel))
+        {
+            await handle.Completion.ConfigureAwait(false);
+        }
+
+        return cancellationToken.IsCancellationRequested ? null : built;
+    }
+
     /// <summary>The strat a pattern would become, without saving it. Null when the medoid's files are gone.</summary>
     /// <param name="pattern">The pattern.</param>
     /// <param name="owner">The book.</param>

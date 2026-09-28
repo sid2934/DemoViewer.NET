@@ -58,6 +58,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     {
         QueueJobKind.LineupClips => "clips",
         QueueJobKind.StratMining => "mining",
+        QueueJobKind.StratPreview => "preview",
         QueueJobKind.SidecarMigration => "migration",
         QueueJobKind.PackExport => "pack export",
         QueueJobKind.HeapCompaction => "memory",
