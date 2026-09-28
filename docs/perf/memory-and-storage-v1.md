@@ -257,3 +257,12 @@ S1 (narrower background parse plans), S7 (Server GC with DATAS), and the gc-swee
 `ConserveMemory` beats the drain compaction. Nothing shows the lineup clips in the app today, so rendering
 them on demand instead of in the background would remove their parses at no visible cost; that is an owner
 call.
+
+Follow-up, same day: after the owner's library finished processing, the queue list was empty while
+`LineupClipService` kept rendering on its own worker (92% CPU, 71 GIFs in three minutes, a 1 GB cap full
+with 4,361 clips evicted). Owner rule: all background work is reported and managed by the one queue.
+`feature/strat-book-bg-queue` makes demo processing, lineup clips (one item per demo), strat mining, the
+sidecar migration, pack export and heap compaction queue items with a title, state and progress; pause,
+cancel and priority apply to all of them, and non-parse jobs run alone at any concurrency. Clips still render
+in the background, most-thrown lineups first, and stop at the cap unless a lineup outranks the lowest kept
+clip; a clip is written to a temp file and renamed only when it finishes.
