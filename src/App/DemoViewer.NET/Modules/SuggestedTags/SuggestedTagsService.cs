@@ -174,6 +174,9 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <inheritdoc />
     public string Id => EvaluatorId;
 
+    /// <inheritdoc />
+    public bool ReadsUserCommands => false;
+
     /// <summary>A demo's proposals or verdicts changed. Raised through the post delegate with its path.</summary>
     public event Action<string>? Changed;
 

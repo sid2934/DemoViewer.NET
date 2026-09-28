@@ -76,6 +76,9 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     public string Id => EvaluatorId;
 
     /// <inheritdoc />
+    public bool ReadsUserCommands => false;
+
+    /// <inheritdoc />
     /// <remarks>
     ///     Interested in a demo the Library has already parsed whose rows are missing or were written
     ///     under another fingerprint. A demo the cache has never seen is the Library's to parse first;

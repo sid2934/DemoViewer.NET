@@ -902,6 +902,7 @@ public sealed class LineupClipService : IDisposable
             job?.CancellationToken ?? CancellationToken.None);
         job?.Report(0, batch.Count, string.Create(CultureInfo.InvariantCulture, $"rendering {batch.Count}"));
         IReadOnlyList<LineupClipJob> rendered;
+        job?.NoteDemoParsed();
         try
         {
             rendered = await _renderer.RenderAsync(demoPath, batch, linked.Token).ConfigureAwait(false);
