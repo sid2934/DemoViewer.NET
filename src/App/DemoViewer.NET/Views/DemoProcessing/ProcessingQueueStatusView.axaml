@@ -6,7 +6,8 @@
              MinWidth="300" MaxWidth="340">
 
     <!--
-        Demo-processing-queue flyout body (docs/demo-processing-queue.md). Hosted inside the StatusChip's
+        Background-work queue flyout body (docs/demo-processing-queue.md): demo parses and every other heavy
+        job (lineup clips, strat mining, pack export, sidecar migration, heap compaction). Hosted inside the StatusChip's
         Border.card-flyout (which supplies the surface + rounding), so this view provides only inner padding
         + content. Everything is reactive (bound), theme-driven ({DynamicResource} + the shared Ellipse.dot.*
         state→token styles from Styles/Primitives.axaml) — no code-behind, no inline hex.
@@ -15,7 +16,7 @@
     <StackPanel Margin="14" Spacing="10">
 
         <!-- Header: title + live status line -->
-        <TextBlock Text="DEMO PROCESSING" Classes="col-label"
+        <TextBlock Text="BACKGROUND WORK" Classes="col-label"
                    Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
         <TextBlock Text="{Binding StatusLine}" Classes="mono" FontSize="11"
                    Foreground="{DynamicResource TextMid}" />
@@ -32,7 +33,7 @@
         <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Content="{Binding PauseResumeLabel}" Classes="ghost" Padding="12 5"
                     Command="{Binding TogglePauseCommand}"
-                    ToolTip.Tip="Pause or resume background processing (transient — the app always starts un-paused). In-flight parses finish; opening a demo is never paused." />
+                    ToolTip.Tip="Pause or resume the queue (transient, the app always starts un-paused). Nothing new starts while paused; the job in flight finishes. Opening a demo is never paused." />
             <Button Content="Settings" Classes="ghost" Padding="12 5"
                     IsVisible="{Binding CanOpenSettings}"
                     Command="{Binding OpenSettingsCommand}"
@@ -42,10 +43,10 @@
         <Rectangle Classes="divider" Height="1" />
 
         <!-- Empty state -->
-        <TextBlock Text="No demos queued." FontSize="11" Foreground="{DynamicResource TextDim}"
+        <TextBlock Text="Nothing queued." FontSize="11" Foreground="{DynamicResource TextDim}"
                    IsVisible="{Binding IsEmpty}" />
 
-        <!-- Item list: display name / owner chip(s) / priority / state badge + per-item remove (✕) -->
+        <!-- Item list: title / kind or owner chip / priority / state + detail, progress rail + per-item remove (✕) -->
         <ListBox Classes="data-list" MaxHeight="300"
                  IsVisible="{Binding !IsEmpty}"
                  ItemsSource="{Binding Rows}"
@@ -71,10 +72,24 @@
                                        Foreground="{DynamicResource TextValue}" FontSize="12"
                                        TextTrimming="CharacterEllipsis"
                                        ToolTip.Tip="{Binding Path}" />
+                            <ProgressBar Minimum="0" Maximum="1" Height="3" MinHeight="3"
+                                         Value="{Binding ProgressValue}"
+                                         Foreground="{DynamicResource AccentInteractive}"
+                                         IsVisible="{Binding HasProgress}" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="{Binding StateLabel}" FontSize="10"
                                            Foreground="{DynamicResource TextDim}"
                                            VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Detail}" FontSize="10" Classes="mono"
+                                           Foreground="{DynamicResource TextDim}"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding HasDetail}" />
+                                <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                        IsVisible="{Binding HasKind}">
+                                    <TextBlock Classes="mono" FontSize="9"
+                                               Foreground="{DynamicResource TextChainBadge}"
+                                               Text="{Binding KindLabel}" />
+                                </Border>
                                 <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
                                         IsVisible="{Binding HasOwners}">
                                     <TextBlock Classes="mono" FontSize="9"
@@ -95,7 +110,7 @@
                                 AutomationProperties.Name="Remove from queue"
                                 VerticalAlignment="Center"
                                 Command="{Binding RemoveCommand}"
-                                ToolTip.Tip="Remove this demo from the queue." />
+                                ToolTip.Tip="Remove from the queue. A running job stops at its next step." />
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>
