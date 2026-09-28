@@ -15,6 +15,10 @@
       takes 2D playback to the clip's first tick. The pack row under the actions exports the whole
       queue as one video, sections as title cards (Pack Export); a host with no exporter hides it.
 
+      The list is virtualized (a VirtualizingStackPanel under the ItemsControl's own ScrollViewer): the
+      owner's queue passed 4,800 clips, and a StackPanel under an outer ScrollViewer realized every row.
+      A section over 50 clips starts collapsed; the filter row narrows by source and text.
+
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
     -->
 
@@ -66,6 +70,24 @@
             <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextMid}" />
 
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRows}">
+                <ComboBox Grid.Column="0" ItemsSource="{Binding SourceFilters}" FontSize="11" MinWidth="120"
+                          SelectedItem="{Binding SelectedSource}" ToolTip.Tip="Show clips from one source" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding MapFilters}" FontSize="11" MinWidth="110"
+                          SelectedItem="{Binding SelectedMap}" ToolTip.Tip="Show clips on one map" />
+                <ComboBox Grid.Column="2" ItemsSource="{Binding TeamFilters}" FontSize="11" MinWidth="110"
+                          SelectedItem="{Binding SelectedTeam}"
+                          ToolTip.Tip="Show clips sent for one team; clips sent without a team are under no team" />
+                <TextBox Grid.Column="3" Text="{Binding SearchText, Delay=150}" FontSize="11"
+                         PlaceholderText="Search notes, questions, demos and section titles" />
+                <CheckBox Grid.Column="4" Content="show reviewed" FontSize="11" IsChecked="{Binding ShowReviewed}"
+                          ToolTip.Tip="List clips already marked reviewed" />
+                <Button Grid.Column="5" Content="Expand all" Classes="ghost" FontSize="11" Padding="10 5"
+                        Command="{Binding ExpandAllCommand}" />
+                <Button Grid.Column="6" Content="Collapse all" Classes="ghost" FontSize="11" Padding="10 5"
+                        Command="{Binding CollapseAllCommand}" />
+            </Grid>
+
             <!-- Export pack: the whole queue as one video, sections as title cards. -->
             <Border Classes="reviewCard" IsVisible="{Binding CanPack}">
                 <StackPanel Spacing="6">
@@ -74,7 +96,7 @@
                                   SelectedItem="{Binding SelectedPackFormat}" IsEnabled="{Binding !IsPackRunning}"
                                   ToolTip.Tip="mp4 plays on any phone; gif writes one file per clip into a folder" />
                         <TextBox Grid.Column="1" Text="{Binding PackOutputPath, UpdateSourceTrigger=LostFocus}" FontSize="11"
-                                 IsEnabled="{Binding !IsPackRunning}" Watermark="Where the pack goes" />
+                                 IsEnabled="{Binding !IsPackRunning}" PlaceholderText="Where the pack goes" />
                         <Button Grid.Column="2" Content="Export pack" Classes="ghost" FontSize="11" Padding="10 5"
                                 Command="{Binding ExportPackCommand}"
                                 ToolTip.Tip="Render every queued clip into one video, each section's title card before its clips, each demo's saved annotations burned in" />
@@ -94,8 +116,19 @@
                        Foreground="{DynamicResource TextMid}"
                        Text="Nothing queued. Send clips here from the Reels tray, from Situation Search's result cards, or pick one at the playhead." />
 
-            <ScrollViewer IsVisible="{Binding HasRows}" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl Name="RowsList" ItemsSource="{Binding Rows}" IsVisible="{Binding HasRows}">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ReviewRowViewModel">
                             <Panel>
@@ -105,17 +138,23 @@
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <StackPanel Grid.Column="0" Spacing="4">
                                             <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" FontSize="14"
-                                                     FontWeight="SemiBold" Watermark="Section title" />
+                                                     FontWeight="SemiBold" PlaceholderText="Section title" />
                                             <TextBox Text="{Binding Note, UpdateSourceTrigger=LostFocus}" FontSize="11"
-                                                     Watermark="A line under the title" />
+                                                     PlaceholderText="A line under the title" />
                                             <TextBlock Text="{Binding ClipCountText}" FontSize="11"
                                                        Foreground="{DynamicResource TextMid}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+                                            <Button Content="{Binding ReviewText}" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding ToggleReviewedCommand}"
+                                                    ToolTip.Tip="Mark this section's clips reviewed, or unreviewed again once all are. With a filter or a search on, only the clips it shows" />
+                                            <Button Content="{Binding ToggleText}" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding ToggleCommand}"
+                                                    ToolTip.Tip="Show or hide this section's clips" />
                                             <Button Content="▲" Classes="ghost" FontSize="11" Padding="6 3"
-                                                    Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
+                                                    Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" IsVisible="{Binding !IsCollapsed}" />
                                             <Button Content="▼" Classes="ghost" FontSize="11" Padding="6 3"
-                                                    Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
+                                                    Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" IsVisible="{Binding !IsCollapsed}" />
                                             <Button Content="✕" Classes="ghost" FontSize="11" Padding="6 3"
                                                     Command="{Binding RemoveCommand}"
                                                     ToolTip.Tip="Remove the title card; its clips join the section above" />
@@ -138,14 +177,17 @@
                                                            Foreground="{DynamicResource TextMid}" />
                                             </StackPanel>
                                             <TextBox Text="{Binding Note, UpdateSourceTrigger=LostFocus}" FontSize="11"
-                                                     Watermark="What this clip is" />
+                                                     PlaceholderText="What this clip is" />
                                             <TextBox Text="{Binding Question, UpdateSourceTrigger=LostFocus}" FontSize="12"
-                                                     Watermark="One question to answer while watching" />
+                                                     PlaceholderText="One question to answer while watching" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
                                             <Button Content="Open" Classes="ghost" FontSize="11" Padding="8 3"
                                                     Command="{Binding OpenCommand}"
                                                     ToolTip.Tip="Open 2D playback at the clip's first tick" />
+                                            <Button Content="{Binding ReviewText}" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding ToggleReviewedCommand}"
+                                                    ToolTip.Tip="Mark the clip reviewed; reviewed clips are hidden unless show reviewed is on" />
                                             <Button Content="▲" Classes="ghost" FontSize="11" Padding="6 3"
                                                     Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
                                             <Button Content="▼" Classes="ghost" FontSize="11" Padding="6 3"
@@ -158,8 +200,7 @@
                             </Panel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+            </ItemsControl>
         </Panel>
     </DockPanel>
 </UserControl>

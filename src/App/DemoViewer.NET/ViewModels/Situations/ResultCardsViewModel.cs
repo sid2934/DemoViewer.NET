@@ -72,6 +72,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     private readonly Action<Action> _post;
     private readonly Func<SituationThumbnailRenderer> _renderer;
     private readonly ReviewQueue? _review;
+    private Guid? _searchTeam;
     private readonly RoundIndexPlaceSources _sources;
     private readonly RoundIndexStore _store;
 
@@ -194,6 +195,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(hits);
 
         int generation = Interlocked.Increment(ref _generation);
+        _searchTeam = SearchTeam?.Invoke();
         Cards.Clear();
         DropOverlay();
         foreach (SituationHit hit in hits)
@@ -309,19 +311,23 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         SendToReviewCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>The search's opponent when it names exactly one team, read when a result set loads.</summary>
+    public Func<Guid?>? SearchTeam { get; set; }
+
     /// <summary>
     ///     The Review Queue clip for one card: from the card's seek tick (the moment a click opens) to
     ///     <see cref="ReviewTailSeconds" /> past the last matched tick, in the card's tick rate.
     /// </summary>
     /// <param name="card">The card.</param>
-    public static ReviewEntry ReviewClipFor(ResultCardViewModel card)
+    /// <param name="teamId">The search's single opponent, or null.</param>
+    public static ReviewEntry ReviewClipFor(ResultCardViewModel card, Guid? teamId = null)
     {
         ArgumentNullException.ThrowIfNull(card);
         SituationHit hit = card.Hit;
         int rate = card.TickRate > 0 ? card.TickRate : 64;
         int to = Math.Max(hit.FirstMatchTick, hit.LastMatchTick) + ReviewTailSeconds * rate;
         return ReviewEntry.Clip(hit.DemoPath, card.SeekTick, to, $"{card.MatchLabel} · {card.RoundLabel}",
-            ReviewSources.Situation, rate, hit.DemoSha256);
+            ReviewSources.Situation, rate, hit.DemoSha256) with { TeamId = teamId };
     }
 
     /// <summary>
@@ -336,7 +342,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             return;
         }
 
-        int added = _review.Add(Cards.Select(ReviewClipFor), $"Situations · {Cards[0].Map}",
+        Guid? team = _searchTeam;
+        int added = _review.Add(Cards.Select(c => ReviewClipFor(c, team)), $"Situations · {Cards[0].Map}",
             Cards.Count == 1 ? "1 round" : $"{Cards.Count} rounds");
         ReviewLine = added switch
         {

@@ -46,6 +46,7 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
     private string _reviewLine = "";
 
     private string _teamName = "";
+    private Guid? _teamId;
 
     /// <param name="service">Builds the tendencies; null hides the section.</param>
     /// <param name="review">The Review Queue a number's rounds are sent to; null says so on open.</param>
@@ -85,6 +86,7 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
         ReviewLine = "";
         OnPropertyChanged(nameof(HasBlocks));
         _teamName = teamName;
+        _teamId = teamId;
         if (_service is null || teamId is not { } id)
         {
             Line = "";
@@ -129,12 +131,14 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
     /// <summary>The Review Queue clip for one round behind a number.</summary>
     /// <param name="link">The number.</param>
     /// <param name="round">One of its rounds.</param>
-    public static ReviewEntry ReviewClipFor(TendencyLinkViewModel link, TendencyRound round)
+    /// <param name="teamId">The dossier's team.</param>
+    public static ReviewEntry ReviewClipFor(TendencyLinkViewModel link, TendencyRound round, Guid? teamId = null)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(round);
         return ReviewEntry.Clip(round.DemoPath, round.FromTick, round.ToTick,
-            $"{link.Title} · round {round.RoundNumber}", ReviewSources.Dossier, round.TickRate, round.Sha256);
+            $"{link.Title} · round {round.RoundNumber}", ReviewSources.Dossier, round.TickRate, round.Sha256)
+            with { TeamId = teamId };
     }
 
     /// <summary>
@@ -156,7 +160,7 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
             return;
         }
 
-        int added = _review.Add(link.Bucket.Rounds.Select(r => ReviewClipFor(link, r)),
+        int added = _review.Add(link.Bucket.Rounds.Select(r => ReviewClipFor(link, r, _teamId)),
             $"Dossier · {_teamName} · {link.Title}", Plural(link.Count, "round"));
         ReviewLine = added == 0 ? "already in Review" : $"{Plural(added, "round")} sent to Review";
         _selectTab?.Invoke(ReviewQueueModule.TabId);

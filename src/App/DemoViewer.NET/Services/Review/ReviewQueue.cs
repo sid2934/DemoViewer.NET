@@ -18,15 +18,18 @@ namespace DemoViewer.NET.Services.Review;
 ///     (plan F8: the tray was already cross-demo, and this is its generalisation rather than a second
 ///     subsystem beside it).
 ///     <para>
-///         <b>Threading.</b> UI thread only, like the Reels tray it replaced: every caller is a view
+    ///         <b>Threading.</b> UI thread only, like the Reels tray it replaced: every caller is a view
 ///         model reacting to a click, and <see cref="Changed" /> fires synchronously after each mutation
-///         so a client re-reads a list that is already final.
+///         (or once at the end of a <see cref="Defer" /> scope) so a client re-reads a list that is
+///         already final.
 ///     </para>
 ///     <para>
 ///         <b>Persistence.</b> <c>review-queue.json</c> under the config root, written whole through
-///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation (a queue is tens of rows, not
-///         thousands). A null root keeps the queue for the session: the browser host and tests. A file
-///         that cannot be read, or is at a newer schema, is refused and never overwritten.
+///         <see cref="DemoCacheStore.WriteAtomic" />. The file is read on a worker at construction and the
+///         first access waits for it; writes are debounced onto a worker, and <see cref="Flush" /> writes
+///         what is pending (shutdown calls it). The owner's queue reached thousands of rows, so neither
+///         runs on the UI thread. A null root keeps the queue for the session: the browser host and
+///         tests. A file that cannot be read, or is at a newer schema, is refused and never overwritten.
 ///     </para>
 /// </summary>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
@@ -36,38 +39,159 @@ public sealed class ReviewQueue
     /// <summary>The file under the config root.</summary>
     public const string FileName = "review-queue.json";
 
-    private readonly List<ReviewEntry> _entries = [];
+    private readonly List<ReviewEntry> _loaded = [];
+    private readonly Task _load;
     private readonly string? _path;
+    private readonly TimeSpan _saveDelay;
+    private readonly Lock _saveGate = new();
+    private readonly Lock _writeGate = new();
+    private int _deferDepth;
+    private bool _deferredChange;
+    private string? _fileProblem;
+    private Dictionary<string, JsonElement>? _fileExtra;
+    private ReviewEntry[]? _pendingSave;
     private bool _refused;
 
     /// <param name="configRoot">The app config root, or null for a session-only queue (the browser, tests).</param>
-    public ReviewQueue(string? configRoot)
+    /// <param name="saveDelay">How long a write waits for more mutations; 300 ms when null.</param>
+    public ReviewQueue(string? configRoot, TimeSpan? saveDelay = null)
     {
         _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
-        Load();
+        _saveDelay = saveDelay ?? TimeSpan.FromMilliseconds(300);
+        _load = _path is null ? Task.CompletedTask : Task.Run(Load);
+    }
+
+    /// <summary>What the load's lineup-clip migration dropped, or null when it had nothing to do.</summary>
+    public ReviewQueueMigrationResult? Migration
+    {
+        get
+        {
+            _ = List;
+            return _migration;
+        }
+        private set => _migration = value;
+    }
+
+    private ReviewQueueMigrationResult? _migration;
+
+    /// <summary>Completes when the file has been read (or refused).</summary>
+    public Task Loaded => _load;
+
+    // Every member reads the list through here, so nothing sees it before the file is in.
+    private List<ReviewEntry> List
+    {
+        get
+        {
+            if (!_load.IsCompleted)
+            {
+                _load.GetAwaiter().GetResult();
+            }
+
+            return _loaded;
+        }
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
     public bool IsSessionOnly => _path is null;
 
     /// <summary>Why the file could not be read, or null. While set the file is never written.</summary>
-    public string? FileProblem { get; private set; }
+    public string? FileProblem
+    {
+        get
+        {
+            _ = List;
+            return _fileProblem;
+        }
+    }
 
     /// <summary>The queue in order, title cards and clips together. A copy: the caller may hold it.</summary>
-    public IReadOnlyList<ReviewEntry> Entries => [.. _entries];
+    public IReadOnlyList<ReviewEntry> Entries => [.. List];
 
     /// <summary>The clips in order, without the title cards.</summary>
-    public IReadOnlyList<ReviewEntry> Clips => [.. _entries.Where(e => e.Kind == ReviewEntryKind.Clip)];
+    public IReadOnlyList<ReviewEntry> Clips => [.. List.Where(e => e.Kind == ReviewEntryKind.Clip)];
 
     /// <summary>How many clips are queued.</summary>
-    public int ClipCount => _entries.Count(e => e.Kind == ReviewEntryKind.Clip);
+    public int ClipCount => List.Count(e => e.Kind == ReviewEntryKind.Clip);
+
+    /// <summary>How many queued clips nobody has marked reviewed.</summary>
+    public int UnreviewedCount => List.Count(e => e.Kind == ReviewEntryKind.Clip && !e.Reviewed);
+
+    /// <summary>Marks clips reviewed or not, in one change and one save; ids of title cards are ignored.</summary>
+    /// <param name="ids">The clips.</param>
+    /// <param name="reviewed">The mark.</param>
+    /// <returns>How many clips changed.</returns>
+    public int SetReviewed(IEnumerable<Guid> ids, bool reviewed)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        HashSet<Guid> wanted = [.. ids];
+        int changed = 0;
+        for (int i = 0; i < List.Count; i++)
+        {
+            ReviewEntry e = List[i];
+            if (e.Kind == ReviewEntryKind.Clip && e.Reviewed != reviewed && wanted.Contains(e.Id))
+            {
+                List[i] = e with { Reviewed = reviewed };
+                changed++;
+            }
+        }
+
+        if (changed > 0)
+        {
+            Commit();
+        }
+
+        return changed;
+    }
+
+    /// <summary>The clips under a title card, up to the next card.</summary>
+    /// <param name="cardId">The card.</param>
+    public IReadOnlyList<ReviewEntry> ClipsUnder(Guid cardId)
+    {
+        int card = IndexOf(cardId);
+        if (card < 0 || List[card].Kind != ReviewEntryKind.Section)
+        {
+            return [];
+        }
+
+        return List.GetRange(card + 1, SectionEnd(card) - card - 1);
+    }
 
     /// <summary>Raised on the calling thread after every mutation that changed something.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    ///     Holds <see cref="Changed" /> and the save until the returned scope is disposed, then raises one
+    ///     change for everything inside it. Scopes nest; the outermost one raises.
+    /// </summary>
+    /// <returns>The scope.</returns>
+    public IDisposable Defer()
+    {
+        _deferDepth++;
+        return new DeferScope(this);
+    }
+
+    /// <summary>Writes a pending save now, on the calling thread. Returns once the file is on disk.</summary>
+    public void Flush()
+    {
+        lock (_writeGate)
+        {
+            ReviewEntry[]? snapshot;
+            lock (_saveGate)
+            {
+                snapshot = _pendingSave;
+                _pendingSave = null;
+            }
+
+            if (snapshot is not null)
+            {
+                Write(snapshot);
+            }
+        }
+    }
+
     /// <summary>The entry with this id, or null.</summary>
     /// <param name="id">The entry's id.</param>
-    public ReviewEntry? Find(Guid id) => _entries.FirstOrDefault(e => e.Id == id);
+    public ReviewEntry? Find(Guid id) => List.FirstOrDefault(e => e.Id == id);
 
     /// <summary>
     ///     The title of the section a clip sits in: the nearest title card above it, or null when the
@@ -79,9 +203,9 @@ public sealed class ReviewQueue
         int index = IndexOf(id);
         for (int i = index - 1; i >= 0; i--)
         {
-            if (_entries[i].Kind == ReviewEntryKind.Section)
+            if (List[i].Kind == ReviewEntryKind.Section)
             {
-                return _entries[i].Title;
+                return List[i].Title;
             }
         }
 
@@ -103,12 +227,13 @@ public sealed class ReviewQueue
         ArgumentNullException.ThrowIfNull(entries);
 
         List<ReviewEntry> batch = [];
+        HashSet<ReviewEntry> queued = ClipIndex();
         int clips = 0;
         foreach (ReviewEntry entry in entries)
         {
             if (entry.Kind == ReviewEntryKind.Clip)
             {
-                if (_entries.Any(e => SameClip(e, entry)) || batch.Any(e => SameClip(e, entry)))
+                if (!queued.Add(entry))
                 {
                     continue;
                 }
@@ -126,10 +251,10 @@ public sealed class ReviewQueue
 
         if (sectionTitle is not null)
         {
-            _entries.Add(ReviewEntry.Section(sectionTitle, sectionSubtitle));
+            List.Add(ReviewEntry.Section(sectionTitle, sectionSubtitle));
         }
 
-        _entries.AddRange(batch);
+        List.AddRange(batch);
         Commit();
         return clips;
     }
@@ -147,25 +272,60 @@ public sealed class ReviewQueue
     /// <returns>How many clips were added or replaced.</returns>
     public int Merge(IEnumerable<ReviewEntry> clips, string sectionTitle, Func<ReviewEntry, ReviewEntry, bool> supersedes)
     {
+        ArgumentNullException.ThrowIfNull(supersedes);
+        return Merge(clips, sectionTitle, () => clip => List.FindIndex(e => e.Kind == ReviewEntryKind.Clip && supersedes(e, clip)));
+    }
+
+    /// <summary>
+    ///     <see cref="Merge(IEnumerable{ReviewEntry}, string, Func{ReviewEntry, ReviewEntry, bool})" /> for a
+    ///     supersede rule that is key equality: a queued clip and an incoming one with the same non-null key
+    ///     are the same clip. Looked up by hash, so a batch of thousands does not scan the queue per clip.
+    /// </summary>
+    /// <param name="clips">The clips.</param>
+    /// <param name="sectionTitle">The section's title card.</param>
+    /// <param name="supersedeKey">A clip's key, or null for a clip nothing supersedes.</param>
+    /// <returns>How many clips were added or replaced.</returns>
+    public int MergeByKey<TKey>(IEnumerable<ReviewEntry> clips, string sectionTitle, Func<ReviewEntry, TKey?> supersedeKey)
+        where TKey : struct
+    {
+        ArgumentNullException.ThrowIfNull(supersedeKey);
+        return Merge(clips, sectionTitle, () =>
+        {
+            Dictionary<TKey, int> at = [];
+            for (int i = 0; i < List.Count; i++)
+            {
+                if (List[i].Kind == ReviewEntryKind.Clip && supersedeKey(List[i]) is { } key)
+                {
+                    at.TryAdd(key, i);
+                }
+            }
+
+            return clip => supersedeKey(clip) is { } key && at.TryGetValue(key, out int index) ? index : -1;
+        });
+    }
+
+    // `lookup` is built after the fold, which moves entries; replacements keep positions, so it stays valid.
+    private int Merge(IEnumerable<ReviewEntry> clips, string sectionTitle, Func<Func<ReviewEntry, int>> lookup)
+    {
         ArgumentNullException.ThrowIfNull(clips);
         ArgumentNullException.ThrowIfNull(sectionTitle);
-        ArgumentNullException.ThrowIfNull(supersedes);
 
         bool changed = FoldSections(sectionTitle);
+        Func<ReviewEntry, int> supersededAt = lookup();
+        HashSet<ReviewEntry> queued = ClipIndex();
         List<ReviewEntry> appended = [];
         int count = 0;
         foreach (ReviewEntry clip in clips)
         {
-            if (clip.Kind != ReviewEntryKind.Clip
-                || _entries.Any(e => SameClip(e, clip)) || appended.Any(e => SameClip(e, clip)))
+            if (clip.Kind != ReviewEntryKind.Clip || !queued.Add(clip))
             {
                 continue;
             }
 
-            int old = _entries.FindIndex(e => e.Kind == ReviewEntryKind.Clip && supersedes(e, clip));
+            int old = supersededAt(clip);
             if (old >= 0)
             {
-                _entries[old] = clip with { Id = _entries[old].Id, Question = _entries[old].Question };
+                List[old] = clip with { Id = List[old].Id, Question = List[old].Question, Reviewed = List[old].Reviewed };
             }
             else
             {
@@ -177,15 +337,15 @@ public sealed class ReviewQueue
 
         if (appended.Count > 0)
         {
-            int card = _entries.FindIndex(e => IsCard(e, sectionTitle));
+            int card = List.FindIndex(e => IsCard(e, sectionTitle));
             if (card < 0)
             {
-                _entries.Add(ReviewEntry.Section(sectionTitle));
-                _entries.AddRange(appended);
+                List.Add(ReviewEntry.Section(sectionTitle));
+                List.AddRange(appended);
             }
             else
             {
-                _entries.InsertRange(SectionEnd(card), appended);
+                List.InsertRange(SectionEnd(card), appended);
             }
         }
 
@@ -209,8 +369,8 @@ public sealed class ReviewQueue
     {
         ArgumentNullException.ThrowIfNull(map);
         int changed = 0;
-        List<ReviewEntry> kept = new(_entries.Count);
-        foreach (ReviewEntry entry in _entries)
+        List<ReviewEntry> kept = new(List.Count);
+        foreach (ReviewEntry entry in List)
         {
             if (map(entry) is not { } mapped)
             {
@@ -242,8 +402,8 @@ public sealed class ReviewQueue
 
         if (changed > 0)
         {
-            _entries.Clear();
-            _entries.AddRange(kept);
+            List.Clear();
+            List.AddRange(kept);
             Commit();
         }
 
@@ -257,7 +417,7 @@ public sealed class ReviewQueue
     public ReviewEntry AddSection(string title, int? index = null)
     {
         ReviewEntry card = ReviewEntry.Section(title);
-        _entries.Insert(Math.Clamp(index ?? _entries.Count, 0, _entries.Count), card);
+        List.Insert(Math.Clamp(index ?? List.Count, 0, List.Count), card);
         Commit();
         return card;
     }
@@ -269,7 +429,7 @@ public sealed class ReviewQueue
     {
         ArgumentNullException.ThrowIfNull(ids);
         HashSet<Guid> doomed = [.. ids];
-        int removed = _entries.RemoveAll(e => doomed.Contains(e.Id));
+        int removed = List.RemoveAll(e => doomed.Contains(e.Id));
         if (removed > 0)
         {
             Commit();
@@ -281,12 +441,12 @@ public sealed class ReviewQueue
     /// <summary>Empties the queue.</summary>
     public void Clear()
     {
-        if (_entries.Count == 0)
+        if (List.Count == 0)
         {
             return;
         }
 
-        _entries.Clear();
+        List.Clear();
         Commit();
     }
 
@@ -313,15 +473,15 @@ public sealed class ReviewQueue
             return;
         }
 
-        int to = Math.Clamp(index, 0, _entries.Count - 1);
+        int to = Math.Clamp(index, 0, List.Count - 1);
         if (to == from)
         {
             return;
         }
 
-        ReviewEntry entry = _entries[from];
-        _entries.RemoveAt(from);
-        _entries.Insert(to, entry);
+        ReviewEntry entry = List[from];
+        List.RemoveAt(from);
+        List.Insert(to, entry);
         Commit();
     }
 
@@ -338,13 +498,13 @@ public sealed class ReviewQueue
 
         List<ReviewEntry> ordered = [.. orderedIds.Select(Find).OfType<ReviewEntry>().Distinct()];
         HashSet<Guid> members = [.. ordered.Select(e => e.Id)];
-        List<int> slots = [.. Enumerable.Range(0, _entries.Count).Where(i => members.Contains(_entries[i].Id))];
+        List<int> slots = [.. Enumerable.Range(0, List.Count).Where(i => members.Contains(List[i].Id))];
         bool changed = false;
         for (int i = 0; i < slots.Count; i++)
         {
-            if (_entries[slots[i]].Id != ordered[i].Id)
+            if (List[slots[i]].Id != ordered[i].Id)
             {
-                _entries[slots[i]] = ordered[i];
+                List[slots[i]] = ordered[i];
                 changed = true;
             }
         }
@@ -368,14 +528,14 @@ public sealed class ReviewQueue
             return false;
         }
 
-        ReviewEntry old = _entries[index];
+        ReviewEntry old = List[index];
         ReviewEntry updated = edit(old) with { Id = old.Id, Kind = old.Kind };
         if (updated == old)
         {
             return true;
         }
 
-        _entries[index] = updated;
+        List[index] = updated;
         Commit();
         return true;
     }
@@ -421,14 +581,56 @@ public sealed class ReviewQueue
             instance.Sha256);
     }
 
+    private HashSet<ReviewEntry> ClipIndex()
+    {
+        HashSet<ReviewEntry> index = new(SameClip.Instance);
+        foreach (ReviewEntry e in List)
+        {
+            if (e.Kind == ReviewEntryKind.Clip)
+            {
+                index.Add(e);
+            }
+        }
+
+        return index;
+    }
+
     // Two clips are the same when a second send could only duplicate the first: the demo (paths compare
     // the way the library does, case-insensitively), the range and the highlight identity. The note and
     // the question are not identity; a reviewer may have written one already.
-    private static bool SameClip(ReviewEntry a, ReviewEntry b) =>
-        a.Kind == ReviewEntryKind.Clip && b.Kind == ReviewEntryKind.Clip
-                                       && a.FromTick == b.FromTick && a.ToTick == b.ToTick
-                                       && string.Equals(a.DemoPath, b.DemoPath, StringComparison.OrdinalIgnoreCase)
-                                       && Equals(a.Highlight, b.Highlight);
+    private sealed class SameClip : IEqualityComparer<ReviewEntry>
+    {
+        public static readonly SameClip Instance = new();
+
+        public bool Equals(ReviewEntry? x, ReviewEntry? y) =>
+            x is { Kind: ReviewEntryKind.Clip } && y is { Kind: ReviewEntryKind.Clip }
+                          && x.FromTick == y.FromTick && x.ToTick == y.ToTick
+                          && string.Equals(x.DemoPath, y.DemoPath, StringComparison.OrdinalIgnoreCase)
+                          && Equals(x.Highlight, y.Highlight);
+
+        public int GetHashCode(ReviewEntry obj) =>
+            HashCode.Combine(obj.Kind, StringComparer.OrdinalIgnoreCase.GetHashCode(obj.DemoPath), obj.FromTick, obj.ToTick, obj.Highlight);
+    }
+
+    private sealed class DeferScope(ReviewQueue queue) : IDisposable
+    {
+        private bool _done;
+
+        public void Dispose()
+        {
+            if (_done)
+            {
+                return;
+            }
+
+            _done = true;
+            if (--queue._deferDepth == 0 && queue._deferredChange)
+            {
+                queue._deferredChange = false;
+                queue.Commit();
+            }
+        }
+    }
 
     private static bool IsCard(ReviewEntry e, string title) =>
         e.Kind == ReviewEntryKind.Section && string.Equals(e.Title, title, StringComparison.Ordinal);
@@ -436,14 +638,14 @@ public sealed class ReviewQueue
     // The index after the last entry of the section whose card is at `card`.
     private int SectionEnd(int card)
     {
-        int next = _entries.FindIndex(card + 1, e => e.Kind == ReviewEntryKind.Section);
-        return next < 0 ? _entries.Count : next;
+        int next = List.FindIndex(card + 1, e => e.Kind == ReviewEntryKind.Section);
+        return next < 0 ? List.Count : next;
     }
 
     // Moves every later same-titled section's entries under the first card and drops the later cards.
     private bool FoldSections(string title)
     {
-        int first = _entries.FindIndex(e => IsCard(e, title));
+        int first = List.FindIndex(e => IsCard(e, title));
         if (first < 0)
         {
             return false;
@@ -451,12 +653,12 @@ public sealed class ReviewQueue
 
         bool changed = false;
         int later;
-        while ((later = _entries.FindIndex(first + 1, e => IsCard(e, title))) >= 0)
+        while ((later = List.FindIndex(first + 1, e => IsCard(e, title))) >= 0)
         {
             int end = SectionEnd(later);
-            List<ReviewEntry> moved = _entries.GetRange(later + 1, end - later - 1);
-            _entries.RemoveRange(later, end - later);
-            _entries.InsertRange(SectionEnd(first), moved);
+            List<ReviewEntry> moved = List.GetRange(later + 1, end - later - 1);
+            List.RemoveRange(later, end - later);
+            List.InsertRange(SectionEnd(first), moved);
             changed = true;
         }
 
@@ -466,10 +668,16 @@ public sealed class ReviewQueue
     private static string OneLine(string? text) =>
         (text ?? "").ReplaceLineEndings(" ").Trim();
 
-    private int IndexOf(Guid id) => _entries.FindIndex(e => e.Id == id);
+    private int IndexOf(Guid id) => List.FindIndex(e => e.Id == id);
 
     private void Commit()
     {
+        if (_deferDepth > 0)
+        {
+            _deferredChange = true;
+            return;
+        }
+
         Save();
         Changed?.Invoke();
     }
@@ -492,8 +700,17 @@ public sealed class ReviewQueue
                 return;
             }
 
+            _fileExtra = file.Extra;
+            IReadOnlyList<ReviewEntry> entries = ReviewQueueMigration.MigrateFile(_path, file, out ReviewQueueMigrationResult? migrated);
+            Migration = migrated;
+
             // An entry with no id cannot be named by any mutation; give it one rather than drop it.
-            _entries.AddRange(file.Entries.Select(e => e.Id == Guid.Empty ? e with { Id = Guid.NewGuid() } : e));
+            _loaded.AddRange(entries.Select(e => e.Id == Guid.Empty ? e with { Id = Guid.NewGuid() } : e));
+            if (migrated is { Written: false })
+            {
+                // The backup is taken; write the migrated set the way any save goes.
+                QueueWrite([.. _loaded]);
+            }
         }
         catch (Exception ex)
         {
@@ -504,8 +721,8 @@ public sealed class ReviewQueue
     private void Refuse(string problem)
     {
         _refused = true;
-        FileProblem = problem;
-        _entries.Clear();
+        _fileProblem = problem;
+        _loaded.Clear();
     }
 
     private void Save()
@@ -515,10 +732,35 @@ public sealed class ReviewQueue
             return;
         }
 
+        // Entries are immutable records, so the array is a consistent snapshot for the worker.
+        QueueWrite([.. List]);
+    }
+
+    private void QueueWrite(ReviewEntry[] snapshot)
+    {
+        bool start;
+        lock (_saveGate)
+        {
+            start = _pendingSave is null;
+            _pendingSave = snapshot;
+        }
+
+        if (start)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(_saveDelay).ConfigureAwait(false);
+                Flush();
+            });
+        }
+    }
+
+    private void Write(ReviewEntry[] snapshot)
+    {
         try
         {
-            ReviewQueueFile file = new() { Entries = [.. _entries] };
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
+            ReviewQueueFile file = new() { Entries = [.. snapshot], Extra = _fileExtra };
+            DemoCacheStore.WriteAtomic(_path!, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
         }
         catch (Exception)
         {

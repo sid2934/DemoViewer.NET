@@ -69,6 +69,9 @@ namespace DemoViewer.NET;
 /// <summary>App.</summary>
 public class App : Application
 {
+    /// <summary>Lineup Clip Render's folder under the config root.</summary>
+    public const string LineupClipDirectoryName = "lineup-clips";
+
     // Re-entrancy tripwire for BuildShell. Deliberately NOT [ThreadStatic]: the recursion it guards
     // against HOPS THREADS (ServiceProvider's StackGuard.RunOnEmptyStack moves to a fresh thread as the
     // stack deepens), so a per-thread flag would never see it. The shell is resolved on the UI thread, so
@@ -317,6 +320,7 @@ public class App : Application
                 // its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
                 services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown();
                 services.GetService<TagStore>()?.SaveIndex();
+                services.GetService<ReviewQueue>()?.Flush();
 
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
@@ -915,6 +919,8 @@ public class App : Application
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
             IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
             Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
             if (!OperatingSystem.IsBrowser())
             {
@@ -937,7 +943,10 @@ public class App : Application
                 sp.GetRequiredService<ReviewQueue>(),
                 () => sp.GetService<ISituationPlayback>(),
                 exportPack: exportPack,
-                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory);
+                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory,
+                mapOf: clip => (clip.Sha256 is { } sha ? cache.TryGetIndexBySha256(sha) : null)?.Map
+                               ?? cache.TryGetIndex(clip.DemoPath)?.Map,
+                teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
         });
 
         // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
@@ -1168,7 +1177,8 @@ public class App : Application
             return new UtilityBookTabViewModel(
                 sp.GetRequiredService<GrenadeIndex>(),
                 sp.GetRequiredService<ISituationPlayback>(),
-                demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null);
+                demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
+                clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null);
         });
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
@@ -1214,9 +1224,9 @@ public class App : Application
                 notes: sp.GetRequiredService<DossierNotesStore>());
         });
 
-        // Lineup Clip Render: every repeated throw position gets a GIF and its setpos line, queued in the Review
-        // Queue and rendered one demo at a time as processing queue items. Planned whenever the index changes; a
-        // null directory (the browser) plans nothing.
+        // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,
+        // rendered one demo at a time as processing queue items and shown on the Utility Book's position card.
+        // Planned whenever the index changes; a null directory (the browser) plans nothing.
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
@@ -1224,15 +1234,14 @@ public class App : Application
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                sp.GetRequiredService<ReviewQueue>(),
-                AppPaths.ConfigRoot is { } root ? Path.Combine(root, "lineup-clips") : null,
+                AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
                 () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
                 new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
                 maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
                 processing: sp.GetRequiredService<IDemoProcessingQueue>());
-            index.Changed += () => clips.Plan();
+            index.Changed += () => clips.PlanSoon();
             return clips;
         });
 

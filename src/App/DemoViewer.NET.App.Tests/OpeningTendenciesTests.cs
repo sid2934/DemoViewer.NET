@@ -320,6 +320,7 @@ public class OpeningTendenciesTests
             await Assert.That(queue.Clips.All(c => c.Source == ReviewSources.Dossier)).IsTrue();
             await Assert.That(queue.Clips[0].Note).IsEqualTo("de_nuke T · first utility 5-10 s · round 1");
             await Assert.That(queue.Clips[1].Note).IsEqualTo("de_nuke T · first utility 5-10 s · round 2");
+            await Assert.That(queue.Clips.All(c => c.TeamId == vm.SelectedTeam!.Id)).IsTrue().Because("a Dossier clip carries its team");
             await Assert.That(queue.SectionOf(queue.Clips[0].Id)).IsNotNull();
             await Assert.That(vm.Openings.ReviewLine).IsEqualTo("2 rounds sent to Review");
             await Assert.That(shown).IsEquivalentTo(["review.queue"]);
