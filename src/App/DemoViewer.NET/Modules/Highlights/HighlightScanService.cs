@@ -152,6 +152,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     public string Id => "highlights";
 
     /// <inheritdoc />
+    public bool ReadsUserCommands => false;
+
+    /// <inheritdoc />
     /// <remarks>
     ///     Interested when the row is Pending AND either it was manually forced or the opt-in is
     ///     on. Forced rows flow regardless of the opt-in, auto rows only while it holds.

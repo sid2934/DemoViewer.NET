@@ -205,6 +205,14 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     private void Refresh(string path, ParsedDemo parsed)
     {
         string fileName = Path.GetFileName(path);
+        // A parse without user commands would stamp rows current with no inputs. The demo stays wanted,
+        // so the next pass submits it on a full parse.
+        if ((parsed.Plan.Categories & MessageCategories.UserCmds) == 0)
+        {
+            GrenadeIndexLog.NoUserCommands(Log, fileName);
+            return;
+        }
+
         try
         {
             GrenadeWalk walk = _walk?.Invoke(parsed)
@@ -284,4 +292,8 @@ internal static partial class GrenadeIndexLog
     [LoggerMessage(EventId = 6, Level = LogLevel.Warning,
         Message = "{fileName}: new grenade sidecars did not read back; pre-gzip files kept")]
     public static partial void LegacyKept(ILogger logger, string fileName);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Debug,
+        Message = "{fileName}: parse carried no user commands; grenades left for a full parse")]
+    public static partial void NoUserCommands(ILogger logger, string fileName);
 }
