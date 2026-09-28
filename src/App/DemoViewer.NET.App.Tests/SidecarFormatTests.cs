@@ -5,7 +5,9 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 
@@ -354,6 +356,47 @@ public class SidecarFormatTests
     private static Task<SidecarFormatResult> Pass(DemoCacheStore cache) =>
         SidecarFormatMigration.RunAsync(cache,
             [cache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(cache, path)], batchSize: 2);
+
+    [Test]
+    public async Task ConversionPass_RunsAsAQueueItem_AndIsNotQueuedOnceDone()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore seed = new(root);
+            foreach (string path in (string[])["/d/a.dem", "/d/b.dem", "/d/c.dem"])
+            {
+                seed.Upsert(BigRecord(path));
+            }
+
+            seed.SaveIndex();
+            DemoCacheRecord aRecord = seed.TryLoadRecord("/d/a.dem")!;
+            File.WriteAllText(seed.LegacySidecarPathFor("/d/a.dem")!, JsonSerializer.Serialize(aRecord, _indented));
+            File.Delete(seed.SidecarPathFor("/d/a.dem")!);
+
+            DemoCacheStore cache = new(root);
+            using HeavyJobGate gate = new();
+            using DemoProcessingQueue queue = new(gate, a => a(), _ => throw new NotSupportedException(),
+                _ => throw new NotSupportedException(), () => Task.CompletedTask);
+            IReadOnlyList<Func<string, SidecarConversion>> converters =
+                [cache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(cache, path)];
+
+            IDemoQueueHandle? handle = SidecarFormatMigration.Submit(queue, cache, converters, batchSize: 1);
+            await Assert.That(handle).IsNotNull();
+            await handle!.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+
+            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.Id == handle.Id);
+            await Assert.That(item.Kind).IsEqualTo(QueueJobKind.SidecarMigration);
+            await Assert.That(item.State).IsEqualTo(DemoQueueItemState.Completed);
+            await Assert.That(File.Exists(seed.LegacySidecarPathFor("/d/a.dem")!)).IsFalse();
+            await Assert.That(File.Exists(Path.Combine(root, SidecarFormatMigration.MarkerFileName))).IsTrue();
+            await Assert.That(SidecarFormatMigration.Submit(queue, cache, converters)).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 
     [Test]
     public async Task ConversionPass_ConvertsMixedFiles_KeepsBadOnes_AndMarksDoneOnceClean()
