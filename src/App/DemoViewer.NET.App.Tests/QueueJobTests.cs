@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Export.Pack;
 
 #endregion
 
@@ -311,5 +312,77 @@ public class QueueJobTests
 
         await Assert.That(opened).IsNotNull();
         await Assert.That(byteParses).IsEqualTo(1);
+    }
+
+    private static async Task<bool> EndsCancelledAsync(Task task)
+    {
+        try
+        {
+            await task.WaitAsync(TimeSpan.FromSeconds(5));
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return true;
+        }
+    }
+
+    [Test]
+    public async Task APackExport_IsAUserRequestedItem_ThatTakesItsOwnInteractiveSlot_AndCancelsFromEitherSide()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        List<PackProgress> seen = [];
+        Progress<PackProgress> sink = new(p =>
+        {
+            lock (seen)
+            {
+                seen.Add(p);
+            }
+        });
+
+        int result = await PackExportQueue.RunAsync(queue, "Pack export: 2 segments to pack.mp4", "/out/pack.mp4",
+            async (progress, ct) =>
+            {
+                using (await gate.AcquireInteractiveAsync(ct).WaitAsync(TimeSpan.FromSeconds(5), ct))
+                {
+                    progress.Report(new PackProgress(1, 2, "clip one"));
+                }
+
+                return 7;
+            }, sink, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Assert.That(result).IsEqualTo(7);
+        DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.Kind == QueueJobKind.PackExport);
+        await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
+        await Assert.That(item.State).IsEqualTo(DemoQueueItemState.Completed);
+        await Assert.That(item.Progress).IsEqualTo(0.5);
+        await Assert.That(item.Path).IsEqualTo("/out/pack.mp4");
+
+        // Cancelled by the caller while queued: the export never starts.
+        queue.Pause();
+        using CancellationTokenSource cts = new();
+        bool started = false;
+        Task<int> queued = PackExportQueue.RunAsync(queue, "Pack export", null, (_, _) =>
+        {
+            started = true;
+            return Task.FromResult(1);
+        }, null, cts.Token);
+        cts.Cancel();
+        await Assert.That(await EndsCancelledAsync(queued)).IsTrue();
+        queue.Resume();
+
+        // Cancelled from the queue list while running: the export's token fires.
+        TaskCompletionSource running = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<int> removed = PackExportQueue.RunAsync(queue, "Pack export", null, async (_, ct) =>
+        {
+            running.SetResult();
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }, null, CancellationToken.None);
+        await running.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        queue.RemoveByUser(queue.Snapshot().Single(s => s.State == DemoQueueItemState.Running).Id);
+        await Assert.That(await EndsCancelledAsync(removed)).IsTrue();
+        await Assert.That(started).IsFalse();
     }
 }
