@@ -706,6 +706,11 @@ public sealed class ReviewQueue
 
             // An entry with no id cannot be named by any mutation; give it one rather than drop it.
             _loaded.AddRange(entries.Select(e => e.Id == Guid.Empty ? e with { Id = Guid.NewGuid() } : e));
+            if (migrated is { Written: false })
+            {
+                // The backup is taken; write the migrated set the way any save goes.
+                QueueWrite([.. _loaded]);
+            }
         }
         catch (Exception ex)
         {
@@ -728,7 +733,11 @@ public sealed class ReviewQueue
         }
 
         // Entries are immutable records, so the array is a consistent snapshot for the worker.
-        ReviewEntry[] snapshot = [.. List];
+        QueueWrite([.. List]);
+    }
+
+    private void QueueWrite(ReviewEntry[] snapshot)
+    {
         bool start;
         lock (_saveGate)
         {

@@ -11,7 +11,8 @@ namespace DemoViewer.NET.Services.Review;
 /// <param name="Dropped">Generated lineup clips taken out.</param>
 /// <param name="Kept">Lineup clips kept because someone wrote on them.</param>
 /// <param name="CardsDropped">"Lineup clips, &lt;map&gt;" title cards left empty and taken out.</param>
-public sealed record ReviewQueueMigrationResult(int Dropped, int Kept, int CardsDropped);
+/// <param name="Written">False when the rewrite did not land; the queue writes the migrated set on its next save.</param>
+public sealed record ReviewQueueMigrationResult(int Dropped, int Kept, int CardsDropped, bool Written = true);
 
 /// <summary>
 ///     Lineup clips left the Review Queue: the Utility Book's position card shows them. Earlier builds queued
@@ -49,9 +50,16 @@ public static partial class ReviewQueueMigration
         ArgumentNullException.ThrowIfNull(entries);
         List<ReviewEntry> kept = new(entries.Count);
         int dropped = 0, keptLineups = 0;
+        bool underLineupCard = false;
         foreach (ReviewEntry entry in entries)
         {
-            if (IsGeneratedLineupClip(entry))
+            if (entry.Kind == ReviewEntryKind.Section)
+            {
+                underLineupCard = entry.Title.StartsWith(LineupCardPrefix, StringComparison.Ordinal);
+            }
+
+            // A clip the user moved under another card, or whose card they renamed, is theirs now.
+            if (underLineupCard && IsGeneratedLineupClip(entry))
             {
                 dropped++;
                 continue;
@@ -82,14 +90,16 @@ public static partial class ReviewQueueMigration
     }
 
     /// <summary>
-    ///     Rewrites <paramref name="path" /> without the generated lineup clips: the new file is written beside
-    ///     it, read back and compared, the old one is copied to <see cref="BackupFileName" />, and only then
-    ///     replaced. Returns the entries to use; on any failure the file is left as it was and the entries are
-    ///     returned unchanged.
+    ///     Rewrites <paramref name="path" /> without the generated lineup clips. The old file is copied to
+    ///     <see cref="BackupFileName" /> first; the new one is written beside it, read back and compared, and
+    ///     only then moved over it. Without a backup nothing changes: the file's own entries come back and
+    ///     the next load tries again. Once the backup exists the migrated entries come back whatever happens
+    ///     after, and <see cref="ReviewQueueMigrationResult.Written" /> says whether the caller still has to
+    ///     write them; the unmigrated set is never handed back to be saved over a migrated file.
     /// </summary>
     /// <param name="path">The queue file.</param>
     /// <param name="file">What was read from it.</param>
-    /// <param name="result">What was dropped, or null when nothing was or the rewrite did not check out.</param>
+    /// <param name="result">What was dropped, or null when nothing was or no backup could be taken.</param>
     public static IReadOnlyList<ReviewEntry> MigrateFile(string path, ReviewQueueFile file, out ReviewQueueMigrationResult? result)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -97,6 +107,15 @@ public static partial class ReviewQueueMigration
         result = null;
         List<ReviewEntry> kept = DropGeneratedLineupClips(file.Entries, out ReviewQueueMigrationResult tally);
         if (tally.Dropped == 0)
+        {
+            return file.Entries;
+        }
+
+        try
+        {
+            File.Copy(path, Path.Combine(Path.GetDirectoryName(path) ?? "", BackupFileName), true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return file.Entries;
         }
@@ -110,10 +129,10 @@ public static partial class ReviewQueueMigration
             if (back is null || !back.Entries.Select(e => e.Id).SequenceEqual(kept.Select(e => e.Id)))
             {
                 File.Delete(next);
-                return file.Entries;
+                result = tally with { Written = false };
+                return kept;
             }
 
-            File.Copy(path, Path.Combine(Path.GetDirectoryName(path) ?? "", BackupFileName), true);
             File.Move(next, path, true);
             result = tally;
             return kept;
@@ -126,10 +145,11 @@ public static partial class ReviewQueueMigration
             }
             catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
             {
-                // Left behind; the next load writes it again.
+                // Left behind; overwritten by the next attempt.
             }
 
-            return file.Entries;
+            result = tally with { Written = false };
+            return kept;
         }
     }
 
