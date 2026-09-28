@@ -522,10 +522,8 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         }
 
         _rowsById = rows;
-        if (!visible.SequenceEqual(Rows))
-        {
-            Rows.ReplaceAll(visible);
-        }
+        // Ranged, not a Reset: a batch landing must not recreate the container of a text box being typed in.
+        Rows.SyncTo(visible);
 
         int clips = position;
         _headerLine = entries.Count == 0
@@ -553,7 +551,17 @@ public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceT
         }
         ClearCommand.NotifyCanExecuteChanged();
         ExportPackCommand.NotifyCanExecuteChanged();
+
+        // Last, since the setter reconciles again.
+        if (Gone(SelectedSource, SourceFilters, AllSources))
+        {
+            SelectedSource = AllSources;
+        }
     }
+
+    // A picked filter value no queued clip has any more.
+    private static bool Gone(string selected, IReadOnlyList<string> options, string all) =>
+        !string.Equals(selected, all, StringComparison.Ordinal) && !options.Contains(selected, StringComparer.Ordinal);
 
     private ReviewRowViewModel RowFor(ReviewEntry entry, Dictionary<Guid, ReviewRowViewModel> rows)
     {
