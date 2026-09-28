@@ -56,6 +56,9 @@ public sealed record LineupClipJob(
 {
     /// <summary>The pair's shared file name, without extension.</summary>
     public string Stem => Path.GetFileNameWithoutExtension(GifPath);
+
+    /// <summary>How often the lineup was thrown: its rank for render order and for the byte cap.</summary>
+    public int Throws { get; init; }
 }
 
 /// <summary>
@@ -136,7 +139,7 @@ public static class LineupClipPlanner
         return new LineupClipJob(representative.Key, lineup.Id, representative.Demo.Path, representative.Demo.Sha256,
             representative.Map, title, from, to, rate, steamId, console,
             Path.Combine(directory, stem + GifExtension), Path.Combine(directory, stem + SetposExtension),
-            lineup.AliasIds, former);
+            lineup.AliasIds, former) { Throws = lineup.Throws.Count };
     }
 
     /// <summary>The job for every lineup that gets one, whatever is on disk, one per lineup, in cluster order.</summary>
