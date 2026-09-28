@@ -54,6 +54,12 @@ public interface IDemoEvaluator
     /// </summary>
     DemoJobPriority PriorityFor(string path) => DemoJobPriority.Background;
 
+    /// <summary>
+    ///     Whether <see cref="Evaluate" /> reads the parse's user commands. The shared background parse drops
+    ///     them when no evaluator on the demo does.
+    /// </summary>
+    bool ReadsUserCommands => true;
+
     /// <summary>Within-tier ordering hint, higher = sooner (typically the file's mtime ticks, newest first).</summary>
     long OrderHint(string path) => 0;
 

@@ -401,6 +401,47 @@ Parse plus bare rules evaluation (the highlights path), same demos:
 | Retained, minus `UserCmds` | 502-510 MB / 2.8-3.0 | 714-720 MB / 3.4-3.5 | 1,031-1,037 MB / 4.2-4.6 | same |
 | Forward reader (`DemoAnalysis.Run(path)`) | 204 MB / 4.2 | 199-205 MB / 3.9 | 206-223 MB / 4.3 | same |
 
+### After the owner decisions (branch `feature/strat-book-perf-narrow`)
+
+Built: a compaction queued after every background parse (a demo processing entry, or a lineup clip item),
+ahead of every other item; the 30 s throttle and drain rule stay for non-parse jobs. The shared background
+parse drops `UserCmds` when no evaluator on the entry reads them (only the grenade walk does; it is attached
+only while `Grenades.BackgroundIndex` is on and its sidecar is stale). Lineup and pack clips parse with
+`DecodePlan.EntityReplay`. The foreground open stays full.
+
+Output checks, the three smallest demos in `demos/benchmarks` (003816248937665266002, 003816809596253634708,
+003816798820180689112), RealDemo tests that skip without `DEMO_PATH`:
+
+- `BackgroundPlanRealDemoTests`: Round Facts rows, Round Index sidecar and positions, Suggested Tags proposals,
+  bare highlights and library tier-2 fields serialize identically from the full and the no-`UserCmds` parse.
+- `ClipReplayPlanRealDemoTests`: three lineup GIFs per demo byte-identical, one pack clip per demo
+  (86-120 frames) pixel-identical, same frame clock identity.
+
+Same method as above, same 14-demo list, mapped, Workstation concurrent, two reps in reversed order. The
+bench runs the policy (`--compact`, `--plan`), not the app's queue. MB unless marked.
+
+Background run (parse plus bare rules evaluation):
+
+| Config | Eval s | Peak fp | Committed during, max / median | LOH free during, max | After last job committed | gen2 | GC pause | Alloc |
+|---|---|---|---|---|---|---|---|---|
+| Before: `Everything`, compact at drain | 17.9 / 17.4 | 2,027 / 1,526 | 1,315-1,447 / 1,088-1,121 | 340-550 | 1,121-1,279 (153-164 after drain) | 27 / 29 | 6.2 / 6.2 s | 10.8 GB |
+| After, sweep on: `Everything`, compact each | 17.4 / 18.0 | 1,001 / 999 | 225-231 / 95-96 | 0 | 48 | 71 / 71 | 6.4 / 6.5 s | 10.8 GB |
+| After, sweep off or current: no `UserCmds`, compact each | 18.1 / 17.9 | 663 / 661 | 223-224 / 93-99 | 0 | 50-53 | 57 / 57 | 6.7 / 6.5 s | 7.6 GB |
+
+All three produced the same 3,848 highlights. Peak footprint -51% (sweep on) and -63% (sweep off) against
+this session's baseline; the baseline's own two reps spread 1,526-2,027. Parse seconds swung 39-106 s with
+NFS caching and are left out.
+
+Lineup clip parses over the same list (parse only, no render):
+
+| Config | Peak fp | Committed during, max / median | After last job | GC pause | Alloc |
+|---|---|---|---|---|---|
+| Before: `Everything`, compact at end | 1,746 / 1,266 | 1,221-1,717 / 1,098-1,137 | 1,061-1,074 before the compaction | 3.3 / 3.3 s | 7.1 GB |
+| After: `EntityReplay`, compact each | 392 / 391 | 165-168 / 17 | 16-22 | 2.5 / 2.6 s | 3.1 GB |
+
+Not measured: the app itself under `dotnet-counters` during a queue run, and the cost of each compaction with
+the app's live indexes resident (estimated 100-300 ms above).
+
 ### Recommendations
 
 **GC (Q1, S7).** Keep Workstation concurrent. Do not ship Server + DATAS: it keeps 1.5 GB committed even

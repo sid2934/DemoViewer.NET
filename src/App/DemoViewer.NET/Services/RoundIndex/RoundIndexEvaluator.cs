@@ -97,6 +97,9 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     public string Id => EvaluatorId;
 
     /// <inheritdoc />
+    public bool ReadsUserCommands => false;
+
+    /// <inheritdoc />
     /// <remarks>
     ///     From the index row alone: a parsed demo with Round Facts rows whose index is missing or
     ///     stale under the fingerprint for its map, and either the background sweep is on or the demo

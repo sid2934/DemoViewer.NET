@@ -80,6 +80,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// <summary>Polls every evaluator for one path and submits for each interested, not-outstanding one.</summary>
     public void Consider(string path)
     {
+        List<IDemoEvaluator> wanting = [];
         foreach (IDemoEvaluator evaluator in _evaluators)
         {
             bool wants;
@@ -93,11 +94,16 @@ public sealed class DemoEvaluationCoordinator : IDisposable
                 continue;
             }
 
-            if (!wants)
+            if (wants)
             {
-                continue;
+                wanting.Add(evaluator);
             }
+        }
 
+        // Every request carries the union: the first one may start parsing before the next is submitted.
+        bool userCommands = wanting.Any(SafeReadsUserCommands);
+        foreach (IDemoEvaluator evaluator in wanting)
+        {
             (string Id, string path) key = (evaluator.Id, path);
             lock (_lock)
             {
@@ -110,7 +116,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
                 _backlog.Remove(key);
             }
 
-            Submit(evaluator, path, key);
+            Submit(evaluator, path, key, userCommands);
         }
     }
 
@@ -182,7 +188,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         }
     }
 
-    private void Submit(IDemoEvaluator evaluator, string path, (string Eval, string Path) key)
+    private void Submit(IDemoEvaluator evaluator, string path, (string Eval, string Path) key, bool userCommands)
     {
         IDemoQueueHandle handle = _queue.SubmitBackground(new DemoProcessingRequest(
             path,
@@ -191,7 +197,8 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             SafeOrderHint(evaluator, path),
             parsed => Complete(key, () => evaluator.Evaluate(path, parsed)),
             _ => Complete(key, () => evaluator.OnFailed(path)),
-            Path.GetFileName(path)));
+            Path.GetFileName(path),
+            userCommands));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
@@ -233,6 +240,18 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         catch (Exception)
         {
             return DemoJobPriority.Background;
+        }
+    }
+
+    private static bool SafeReadsUserCommands(IDemoEvaluator evaluator)
+    {
+        try
+        {
+            return evaluator.ReadsUserCommands;
+        }
+        catch (Exception)
+        {
+            return true;
         }
     }
 

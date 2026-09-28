@@ -41,8 +41,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // How many terminal items linger in the mirror for UI feedback before the oldest are pruned.
     private const int TerminalHistoryCap = 30;
 
-    // A drain followed at once by more work must not pay a blocking full GC per job.
+    // Throttles the drain compaction after non-parse jobs only; a finished parse compacts at once.
     private static readonly TimeSpan MinDrainCompactInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>The shared background plan when no owner on the entry reads user commands.</summary>
+    public static DecodePlan WithoutUserCommands { get; } =
+        DecodePlan.Everything with { Categories = MessageCategories.All & ~MessageCategories.UserCmds };
 
     // Diagnostics-pillar logger (v0.6.0: replaced Console.WriteLine). Lazy (the ambient factory is
     // wired after construction) and static so the static SafeInvoke helper can log through it.
@@ -53,7 +57,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly HeavyJobGate _gate;
     private readonly ObservableCollection<DemoQueueItem> _items = [];
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
-    private readonly Func<string, ParsedDemo> _parseFile; // background: read file at path → parse
+    private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Action<Action> _post;
     private readonly CancellationTokenSource _shutdown = new();
 
@@ -67,6 +71,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private bool _disposed;
     private bool _compacting;
     private int _jobsSinceCompact;
+    private int _parsesSinceCompact;
     private ITimer? _deferredCompact;
     private long _deferredGeneration;
     private DateTimeOffset? _lastCompact;
@@ -90,17 +95,21 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     <see cref="HeapCompactor.CompactAsync" />).
     /// </param>
     /// <param name="timeProvider">Test seam: the clock for the drain-compaction throttle.</param>
+    /// <param name="parseFileWithPlan">
+    ///     Test seam: the background parse given the entry's plan; wins over <paramref name="parseFile" />.
+    /// </param>
     public DemoProcessingQueue(
         HeavyJobGate gate,
         Action<Action>? post = null,
         Func<string, ParsedDemo>? parseFile = null,
         Func<ReadOnlyMemory<byte>, ParsedDemo>? parseBytes = null,
         Func<Task>? compactHeap = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<string, DecodePlan, ParsedDemo>? parseFileWithPlan = null)
     {
         _gate = gate;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
-        _parseFile = parseFile ?? ParseFileDefault;
+        _parseFile = parseFileWithPlan ?? (parseFile is null ? ParseFileDefault : (path, _) => parseFile(path));
         _parseBytes = parseBytes ?? (bytes => DemoParser.Parse(bytes));
         _compactHeap = compactHeap ?? HeapCompactor.CompactAsync;
         _time = timeProvider ?? TimeProvider.System;
@@ -117,10 +126,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     Browser has no memory mapping, and a file that may still be written is read into a byte[]:
     ///     truncating a mapped file under the parse is a fatal access violation, not an exception.
     /// </summary>
-    private ParsedDemo ParseFileDefault(string path) =>
-        !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, _time, MappedParsePolicy.StatFile)
-            ? MemoryMappedDemoSource.ParseFile(path)
-            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory());
+    private ParsedDemo ParseFileDefault(string path, DecodePlan plan)
+    {
+        ParseOptions options = new() { Plan = plan };
+        return !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, _time, MappedParsePolicy.StatFile)
+            ? MemoryMappedDemoSource.ParseFile(path, options)
+            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory(), options);
+    }
 
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }
 
@@ -286,7 +298,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 Entry? running = _entries.FirstOrDefault(e =>
                     e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && !e.Finalizing
-                    && PathEquals(e.Path, path));
+                    && e.UserCommands && PathEquals(e.Path, path));
                 if (running is not null)
                 {
                     TaskCompletionSource<ParsedDemo> waiter = new(
@@ -324,12 +336,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 return RejectedHandle(request);
             }
 
+            // A running parse without user commands cannot serve an owner that reads them.
             Entry? existing = _entries.FirstOrDefault(e =>
-                e.Kind == QueueJobKind.DemoProcessing && IsActive(e) && !e.Finalizing && PathEquals(e.Path, request.Path));
+                e.Kind == QueueJobKind.DemoProcessing && IsActive(e) && !e.Finalizing && PathEquals(e.Path, request.Path)
+                && (e.State == DemoQueueItemState.Queued || e.UserCommands || !request.NeedsUserCommands));
             if (existing is not null)
             {
                 // Coalesce: one parse, every owner's post-processing; bump priority/order to the max seen.
                 existing.Attachments.Add(new Attachment(request.OwnerTag, request.OnParsed, request.OnFailed));
+                existing.UserCommands |= request.NeedsUserCommands;
                 if (request.Priority > existing.Priority)
                 {
                     existing.Priority = request.Priority;
@@ -357,7 +372,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     DisplayName = request.DisplayName,
                     Priority = request.Priority,
                     OrderHint = request.OrderHint,
-                    Seq = _seq++
+                    Seq = _seq++,
+                    UserCommands = request.NeedsUserCommands
                 };
                 entry.Attachments.Add(new Attachment(request.OwnerTag, request.OnParsed, request.OnFailed));
                 _entries.Add(entry);
@@ -461,7 +477,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (freedQueueSlot)
         {
             RaiseCapacityAvailable(); // a queued slot opened → feeders may re-submit their backlog
-            CompactIfDrained();
+            CompactIfDue();
         }
     }
 
@@ -499,7 +515,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (freedQueueSlot)
         {
             RaiseCapacityAvailable();
-            CompactIfDrained();
+            CompactIfDue();
         }
     }
 
@@ -593,10 +609,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     await RunJobAsync(entry, slot).ConfigureAwait(false);
                 }
 
-                // A compaction that failed must not queue the next one; the next drain retries.
+                // A compaction that failed must not queue the next one; the next job retries.
                 if (entry.Kind != QueueJobKind.HeapCompaction)
                 {
-                    CompactIfDrained();
+                    CompactIfDue();
                 }
             }
         }
@@ -621,20 +637,31 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         ParsedDemo? parsed = null;
         Exception? failure = null;
+        DecodePlan plan;
+        lock (_sync)
+        {
+            plan = entry.UserCommands ? DecodePlan.Everything : WithoutUserCommands;
+        }
+
         try
         {
-            parsed = _parseFile(entry.Path);
+            parsed = _parseFile(entry.Path, plan);
         }
         catch (Exception ex)
         {
             failure = ex;
         }
 
+        bool didParse = parsed is not null;
         FinishEntry(entry, parsed, failure); // runs handlers OUTSIDE _sync, still inside the slot
 
         lock (_sync)
         {
             _jobsSinceCompact++;
+            if (didParse)
+            {
+                _parsesSinceCompact++;
+            }
         }
     }
 
@@ -685,6 +712,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             if (entry.Kind != QueueJobKind.HeapCompaction)
             {
                 _jobsSinceCompact++;
+                if (entry.ParsedDemo)
+                {
+                    _parsesSinceCompact++;
+                }
             }
         }
 
@@ -693,11 +724,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // Never call from inside RunEntry or FinishEntry: the finished demo must be off every stack frame.
-    // At most once per MinDrainCompactInterval, and only if a job finished since the last compaction.
-    // A drain inside the window schedules one compaction for when it ends; a job start cancels it.
-    private void CompactIfDrained(long? deferredGeneration = null)
+    // After a parse: at once, ahead of the next queued item. Otherwise only on a drain, at most once per
+    // MinDrainCompactInterval; a drain inside the window schedules one compaction, a job start cancels it.
+    private void CompactIfDue(long? deferredGeneration = null)
     {
-        int jobs;
         DateTimeOffset startedAt;
         lock (_sync)
         {
@@ -713,20 +743,24 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 CancelDeferredCompactLocked();
             }
 
-            // A drain during an in-flight compaction leaves its jobs counted for the next drain.
-            if (_disposed || _compacting || _jobsSinceCompact == 0
-                || _entries.Any(e => IsActive(e) && e.Kind != QueueJobKind.HeapCompaction))
+            if (_disposed || _compacting || _jobsSinceCompact == 0)
+            {
+                return;
+            }
+
+            bool afterParse = _parsesSinceCompact > 0;
+            if (!afterParse && _entries.Any(e => IsActive(e) && e.Kind != QueueJobKind.HeapCompaction))
             {
                 return;
             }
 
             DateTimeOffset now = _time.GetUtcNow();
-            if (!deferredDue && _lastCompact is { } last && now - last < MinDrainCompactInterval)
+            if (!afterParse && !deferredDue && _lastCompact is { } last && now - last < MinDrainCompactInterval)
             {
                 if (_deferredCompact is null)
                 {
                     long generation = ++_deferredGeneration;
-                    _deferredCompact = _time.CreateTimer(_ => CompactIfDrained(generation), null,
+                    _deferredCompact = _time.CreateTimer(_ => CompactIfDue(generation), null,
                         last + MinDrainCompactInterval - now, Timeout.InfiniteTimeSpan);
                 }
 
@@ -735,10 +769,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
             CancelDeferredCompactLocked();
             _compacting = true;
-            jobs = _jobsSinceCompact;
             startedAt = now;
             SubmitJobLocked(new QueueJobRequest(QueueJobKind.HeapCompaction, "Heap compaction", "queue",
-                DemoJobPriority.Background, _ => CompactAsync(jobs, startedAt)));
+                DemoJobPriority.Background, _ => CompactAsync(startedAt)));
         }
 
         RaiseChanged();
@@ -752,12 +785,21 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // The throttle is recorded only on success, so a failed compaction leaves the next drain free to run.
     // _compacting is cleared when the item goes terminal, which also covers a cancel before it ran.
-    private async Task CompactAsync(int jobs, DateTimeOffset startedAt)
+    // Counts are taken when it starts: it runs alone, so every job counted by then has finished.
+    private async Task CompactAsync(DateTimeOffset startedAt)
     {
+        int jobs, parses;
+        lock (_sync)
+        {
+            jobs = _jobsSinceCompact;
+            parses = _parsesSinceCompact;
+        }
+
         await _compactHeap().ConfigureAwait(false);
         lock (_sync)
         {
             _jobsSinceCompact -= jobs;
+            _parsesSinceCompact -= parses;
             _lastCompact = startedAt;
         }
     }
@@ -999,7 +1041,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // Pause stops every start; the disable switch stops only Background-priority work.
     private bool IsStartableLocked(Entry e) =>
-        e.State == DemoQueueItemState.Queued && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested);
+        e.State == DemoQueueItemState.Queued
+        && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction);
 
     private static int KindRank(QueueJobKind kind) => kind switch
     {
@@ -1010,9 +1053,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _ => 4
     };
 
-    // Negative when a runs before b.
+    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting.
     private static int Compare(Entry a, Entry b)
     {
+        bool aCompacts = a.Kind == QueueJobKind.HeapCompaction, bCompacts = b.Kind == QueueJobKind.HeapCompaction;
+        if (aCompacts != bCompacts)
+        {
+            return aCompacts ? -1 : 1;
+        }
+
         if (a.Priority != b.Priority)
         {
             return b.Priority.CompareTo(a.Priority);
@@ -1094,6 +1143,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    private void NoteDemoParsed(Entry entry)
+    {
+        lock (_sync)
+        {
+            entry.ParsedDemo = true;
+        }
+    }
+
     private void ReportProgress(Entry entry, int done, int total, string? detail)
     {
         lock (_sync)
@@ -1138,6 +1195,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             _released = true;
             slot.Release();
         }
+
+        public void NoteDemoParsed() => queue.NoteDemoParsed(entry);
     }
 
     private sealed class Entry
@@ -1158,6 +1217,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public DemoQueueItemState State { get; set; } = DemoQueueItemState.Queued;
         public string? Error { get; set; }
         public bool CancelRequested { get; set; }
+
+        // Whether this parse decodes user commands; fixed once it runs.
+        public bool UserCommands { get; set; } = true;
+
+        // A job body reported a demo parse through its context.
+        public bool ParsedDemo { get; set; }
 
         // Set under _sync the instant FinishEntry captures its waiter/attachment snapshot, BEFORE it
         // releases the lock to run the (multi-second) handlers. The entry stays Running across that
