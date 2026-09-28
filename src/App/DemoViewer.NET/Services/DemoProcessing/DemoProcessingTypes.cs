@@ -95,6 +95,10 @@ public enum DemoQueueItemState
 /// <param name="OnParsed">Runs inside the slot after a successful parse (the owner's post-processing).</param>
 /// <param name="OnFailed">Runs on a parse failure (the owner marks its own row failed). Optional.</param>
 /// <param name="DisplayName">Human label for the UI (e.g. file name). Optional.</param>
+/// <param name="NeedsUserCommands">
+///     False when <see cref="OnParsed" /> never reads user commands. The parse leaves them out only when no
+///     owner on the entry needs them.
+/// </param>
 public sealed record DemoProcessingRequest(
     string Path,
     string OwnerTag,
@@ -102,7 +106,8 @@ public sealed record DemoProcessingRequest(
     long OrderHint,
     Action<ParsedDemo> OnParsed,
     Action<Exception>? OnFailed = null,
-    string? DisplayName = null);
+    string? DisplayName = null,
+    bool NeedsUserCommands = true);
 
 /// <summary>What a running <see cref="QueueJobRequest" /> body gets from the queue.</summary>
 public interface IQueueJobContext
@@ -124,6 +129,11 @@ public interface IQueueJobContext
     ///     counts as the one running job.
     /// </summary>
     void ReleaseSlot();
+
+    /// <summary>Tells the queue this item parsed a demo, so it compacts the heap after it.</summary>
+    void NoteDemoParsed()
+    {
+    }
 }
 
 /// <summary>

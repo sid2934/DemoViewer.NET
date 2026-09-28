@@ -126,6 +126,30 @@ public class GrenadeIndexEvaluatorTests
     }
 
     [Test]
+    public async Task AParseWithoutUserCommands_IsNotWalked_AndTheDemoStaysWanted()
+    {
+        int walks = 0;
+        (DemoCacheStore cache, GrenadeIndexEvaluator evaluator) = Wire(background: true, walk: d =>
+        {
+            walks++;
+            return OneSmoke(d);
+        });
+        ParsedDemo narrowed = SyntheticParsedDemo.Create(tickCount: 5000, plan: DemoProcessingQueue.WithoutUserCommands);
+
+        evaluator.Evaluate(Demo, narrowed);
+        evaluator.OnParsedOpportunistically(Demo, narrowed);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(walks).IsEqualTo(0);
+            await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull();
+            await Assert.That(cache.TryGetIndex(Demo)!.GrenadeState).IsNotEqualTo(DemoAnalysisState.Failed);
+            await Assert.That(evaluator.Wants(Demo)).IsTrue();
+            await Assert.That(((IDemoEvaluator)evaluator).ReadsUserCommands).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task TheOpenDemo_IsWalkedOnItsOwnParseWithoutTheOptIn_AndNoOtherDemoIs()
     {
         (DemoCacheStore cache, GrenadeIndexEvaluator evaluator) = Wire(open: "/D/MATCH.dem");

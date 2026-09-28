@@ -193,6 +193,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     public string Id => "library";
 
     /// <inheritdoc />
+    public bool ReadsUserCommands => false;
+
+    /// <inheritdoc />
     /// <remarks>
     ///     Cheap membership test against the tier-2 backlog recorded at reconcile. The coordinator
     ///     re-polls this on every CapacityAvailable, so it MUST go false once processed, which

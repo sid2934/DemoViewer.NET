@@ -191,7 +191,8 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             SafeOrderHint(evaluator, path),
             parsed => Complete(key, () => evaluator.Evaluate(path, parsed)),
             _ => Complete(key, () => evaluator.OnFailed(path)),
-            Path.GetFileName(path)));
+            Path.GetFileName(path),
+            SafeReadsUserCommands(evaluator)));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
@@ -233,6 +234,18 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         catch (Exception)
         {
             return DemoJobPriority.Background;
+        }
+    }
+
+    private static bool SafeReadsUserCommands(IDemoEvaluator evaluator)
+    {
+        try
+        {
+            return evaluator.ReadsUserCommands;
+        }
+        catch (Exception)
+        {
+            return true;
         }
     }
 
