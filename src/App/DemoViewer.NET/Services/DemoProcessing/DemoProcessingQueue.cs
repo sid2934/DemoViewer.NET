@@ -1214,7 +1214,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         QueueJobKind.DemoProcessing or QueueJobKind.PackExport => 0,
         QueueJobKind.SidecarMigration => 1,
-        QueueJobKind.StratMining => 2,
+        QueueJobKind.StratMining or QueueJobKind.StratPreview => 2,
         QueueJobKind.LineupClips => 3,
         _ => 4
     };

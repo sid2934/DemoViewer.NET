@@ -126,9 +126,9 @@ public class StratMiningServiceTests
         public required TagStore Tags { get; init; }
         public required string Root { get; init; }
 
-        public StratMiningService Service() =>
+        public StratMiningService Service(Func<Action, Task>? run = null) =>
             new(Cache, Positions, _sources.FingerprintFor, null, null, Strats, Tags,
-                Path.Combine(Root, "cache"), Root, run: _inline) { QuietDelay = Timeout.InfiniteTimeSpan };
+                Path.Combine(Root, "cache"), Root, run: run ?? _inline) { QuietDelay = Timeout.InfiniteTimeSpan };
 
         public void Dispose()
         {
