@@ -173,19 +173,77 @@ public sealed class UtilityMapLayer : ISceneLayer
             }
         }
 
+        List<int> here = [];
+        List<Disc> discs = [];
         for (int i = 0; i < _document.Landings.Count; i++)
         {
             UtilityLanding landing = _document.Landings[i];
             if (ctx.BelongsHere(landing.Z))
             {
-                byte alpha = focus && !landing.Focused ? (byte)90 : (byte)255;
-                DrawLanding(canvas, landing, alpha, in ctx);
-                if (i == LastStacked(_document.Landings, i, in ctx) && Stacked(_document.Landings, i, in ctx) is > 1 and var count)
+                (double x, double y) = ctx.Transform.WorldToScreen(landing.X, landing.Y);
+                here.Add(i);
+                discs.Add(new Disc((float)x, (float)y, RadiusFor(landing.Throws), landing.Focused));
+            }
+        }
+
+        (bool[] hidden, int[] counts) = Declutter(discs);
+        for (int k = 0; k < here.Count; k++)
+        {
+            if (hidden[k])
+            {
+                continue;
+            }
+
+            UtilityLanding landing = _document.Landings[here[k]];
+            byte alpha = focus && !landing.Focused ? (byte)90 : (byte)255;
+            DrawLanding(canvas, landing, alpha, in ctx);
+            if (counts[k] > 1)
+            {
+                DrawBadge(canvas, landing.X, landing.Y, RadiusFor(landing.Throws), counts[k], alpha, in ctx);
+            }
+        }
+    }
+
+    /// <summary>One landing icon on screen: centre, radius, and whether it must stay drawn (the focused one).</summary>
+    public readonly record struct Disc(float X, float Y, float Radius, bool Keep);
+
+    /// <summary>
+    ///     Which landing icons a bigger one covers at this zoom. Discs come in draw order (smallest first); one
+    ///     whose centre lies inside a later disc at least as big is not drawn, and that disc's badge counts it. The hit
+    ///     test still finds a hidden icon under its cover, so repeated clicks reach it.
+    /// </summary>
+    /// <param name="discs">The icons on this pane in draw order.</param>
+    /// <returns>Per disc: hidden, and how many icons its badge stands for (itself included).</returns>
+    public static (bool[] Hidden, int[] Counts) Declutter(IReadOnlyList<Disc> discs)
+    {
+        ArgumentNullException.ThrowIfNull(discs);
+        bool[] hidden = new bool[discs.Count];
+        int[] counts = new int[discs.Count];
+        for (int i = 0; i < discs.Count; i++)
+        {
+            counts[i] = 1;
+        }
+
+        // Top-down: covers are decided before what they cover, and a hidden disc covers nothing.
+        for (int i = discs.Count - 1; i >= 0; i--)
+        {
+            if (discs[i].Keep)
+            {
+                continue;
+            }
+
+            for (int j = discs.Count - 1; j > i; j--)
+            {
+                if (!hidden[j] && discs[j].Radius >= discs[i].Radius && Square(discs[i].X - discs[j].X) + Square(discs[i].Y - discs[j].Y) <= Square(discs[j].Radius))
                 {
-                    DrawBadge(canvas, landing.X, landing.Y, RadiusFor(landing.Throws), count, alpha, in ctx);
+                    hidden[i] = true;
+                    counts[j] += counts[i];
+                    break;
                 }
             }
         }
+
+        return (hidden, counts);
     }
 
     // How many items on this pane draw within a disc of item i, i included; a badge on the topmost of them

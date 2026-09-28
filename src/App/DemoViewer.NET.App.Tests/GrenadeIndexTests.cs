@@ -9,6 +9,7 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Utility;
 using DemoViewer.NET.Views.UtilityBook;
 using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
@@ -214,6 +215,29 @@ public class GrenadeIndexTests
         using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
         index.Query(new GrenadeQuery(Mirage));
         await Assert.That(store.For(Mirage).Anchors).IsEmpty().Because("an index that has not loaded sees a partial library");
+    }
+
+    [Test]
+    public async Task ACoveredLandingIcon_IsFoldedIntoTheBadgeOfTheOneOnTop_UnlessFocused()
+    {
+        // Draw order is smallest first. 1 sits inside 3's disc; 0 sits inside 1's, which is itself covered;
+        // 2 is clear of everything; 4 is inside 3 but focused.
+        UtilityMapLayer.Disc[] discs =
+        [
+            new(100, 100, 11, false),
+            new(104, 100, 11, false),
+            new(300, 300, 11, false),
+            new(110, 100, 17, false),
+            new(125, 100, 11, true)
+        ];
+        (bool[] hidden, int[] counts) = UtilityMapLayer.Declutter(discs);
+        using (Assert.Multiple())
+        {
+            await Assert.That(string.Join(",", hidden)).IsEqualTo("True,True,False,False,False");
+            await Assert.That(counts[3]).IsEqualTo(3).Because("the top icon stands for itself and the two under it");
+            await Assert.That(counts[2]).IsEqualTo(1);
+            await Assert.That(counts[4]).IsEqualTo(1).Because("the focused icon is always drawn");
+        }
     }
 
     [Test]
