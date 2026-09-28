@@ -61,6 +61,12 @@ if (positional is ["gc-sweep-probe", ..])
     return GcSweepCommand.RunProbe(positional.Skip(1).ToArray());
 }
 
+// `bg-run --list=<file>`: sequential background parses under the process's own GC environment.
+if (positional is ["bg-run", ..])
+{
+    return BackgroundRunCommand.Run(namedArgs, flags);
+}
+
 bool suiteMode = flags.Contains("--suite");
 bool listSuite = flags.Contains("--list-suite");
 // --no-golden suppresses WriteGoldenStatsFiles so verification runs don't clobber the
