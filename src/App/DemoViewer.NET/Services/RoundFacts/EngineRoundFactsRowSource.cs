@@ -2,20 +2,20 @@
 
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Clips;
-using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
 namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
-///     The engine-backed row source: evaluates the effective <c>round_facts</c> ruleset (the shipped one,
-///     or a user's same-id override) on its own through <c>DemoAnalysis</c> on the forward path, and turns
-///     its <c>round_facts</c> table into the two-rows-per-round shape the projection reads. Everything the
+///     The engine-backed row source: reads the <c>round_facts</c> table out of the merged rules run (the
+///     shipped ruleset or a user's same-id override, built with every other ruleset), and turns it into the
+///     two-rows-per-round shape the projection reads. Everything the
 ///     record knows comes out of that table; the few things the rules language cannot say (see
 ///     <see cref="FromTable" />) are read off the same rows, never off the demo.
 /// </summary>
@@ -60,7 +60,16 @@ public sealed class EngineRoundFactsRowSource : IRoundFactsRowSource
     }
 
     /// <inheritdoc />
-    public RoundFactsTable Rows(ParsedDemo parsed)
+    public RoundFactsTable Rows(ParsedDemo parsed) => FromRun(_rules.Rules.BareRun(parsed), ClipRounds.Derive(parsed));
+
+    /// <inheritdoc />
+    public RoundFactsTable Rows(ForwardDemoResult pass) =>
+        pass.Run is { } run
+            ? FromRun(run, pass.Rounds)
+            : RoundFactsTable.Unavailable("round_facts: the forward pass ran no rules");
+
+    // The run is the merged build's, so only the round_facts ruleset's own exclusion blanks the rows.
+    private RoundFactsTable FromRun(AnalysisRun run, IReadOnlyList<ClipRound> rounds)
     {
         RulesetDoc? doc = _rules.EffectiveDoc();
         if (doc is null)
@@ -68,22 +77,17 @@ public sealed class EngineRoundFactsRowSource : IRoundFactsRowSource
             return RoundFactsTable.Unavailable(NoRulesetDiagnostic);
         }
 
-        BuildResult build = DemoAnalysis.Build(parsed, [doc]);
-        if (build.ExcludedRulesets.Count > 0)
+        ExcludedRuleset? excluded = run.Build.ExcludedRulesets
+            .FirstOrDefault(r => string.Equals(r.Id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal));
+        if (excluded is not null)
         {
-            IEnumerable<RulesetCompositionDiagnostic> why = build.ExcludedRulesets.SelectMany(r => r.Diagnostics);
             return RoundFactsTable.Unavailable(
-                "round_facts: the ruleset did not compose: " + string.Join("; ", why.Take(5).Select(d => $"[{d.Code}] {d.Message}")));
+                "round_facts: the ruleset did not compose: " + string.Join("; ", excluded.Diagnostics.Take(5).Select(d => $"[{d.Code}] {d.Message}")));
         }
 
-        // Snapshots off: 0.13 projects configured tables from the forward run alone.
-        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions
-        {
-            CaptureSnapshots = false
-        });
-        MetricTable? table = run.ProjectConfiguredOutputs(parsed)
+        MetricTable? table = run.ProjectConfiguredOutputs()
             .FirstOrDefault(t => string.Equals(t.Name, TableName, StringComparison.Ordinal));
-        return FromTable(table, ParametersOf(doc), ClipRounds.Derive(parsed));
+        return FromTable(table, ParametersOf(doc), rounds);
     }
 
     /// <summary>The ruleset's <c>params:</c> as it resolved: a user override's defaults are the values in force.</summary>

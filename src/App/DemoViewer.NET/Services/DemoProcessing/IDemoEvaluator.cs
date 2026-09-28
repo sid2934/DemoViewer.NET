@@ -60,6 +60,25 @@ public interface IDemoEvaluator
     /// </summary>
     bool ReadsUserCommands => true;
 
+    /// <summary>
+    ///     What a forward pass must produce for <see cref="EvaluateForward" /> on <paramref name="path" />, or
+    ///     null when this evaluator needs the retained parse. The queue reads a demo forward only when every
+    ///     owner on the entry can take it.
+    /// </summary>
+    ForwardNeeds? ForwardFor(string path) => null;
+
+    /// <summary>Like <see cref="Evaluate" />, on a forward pass. Only called when <see cref="ForwardFor" /> was non-null.</summary>
+    void EvaluateForward(string path, ForwardDemoResult pass)
+    {
+        // no-op by default
+    }
+
+    /// <summary>Like <see cref="OnParsedOpportunistically" />, for a forward pass another evaluator produced.</summary>
+    void OnForwardOpportunistically(string path, ForwardDemoResult pass)
+    {
+        // no-op by default
+    }
+
     /// <summary>Within-tier ordering hint, higher = sooner (typically the file's mtime ticks, newest first).</summary>
     long OrderHint(string path) => 0;
 
