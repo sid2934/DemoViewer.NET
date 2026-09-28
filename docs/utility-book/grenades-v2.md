@@ -106,7 +106,7 @@ Some of that is real, since matchmaking throws a lot of one-off smokes. Some of 
 
 ## 2. Proposed grouping
 
-Prototype: `GrenadeDensityGrouping` (behind `GrenadeIndex.Grouping`; the app keeps `Grid`), and
+Prototype (research branch): `GrenadeDensityGrouping`, since replaced by `GrenadeLineups` (§9), and
 `tools/GrenadesV2Analysis/dens.py`, which gives the same numbers.
 
 **Lineups first, then landing groups.** A lineup is one spot, one technique, one outcome.
@@ -223,7 +223,9 @@ feed only the jump-throw flag (`ReconstructedInputSource` keeps commands inside 
 window), and they are most of the parse's LOH (§7 of `docs/perf/memory-and-storage-v1.md`). The pawn reads
 (release position, eye angles, flags, throw strength) come from entities.
 
-Prototype: `GrenadeWalker.WalkForward` (`Modules/UtilityBook/GrenadeWalkerForward.cs`).
+Prototype: `GrenadeWalker.WalkForward` (`Modules/UtilityBook/GrenadeWalkerForward.cs`), on the research
+branch `feature/strat-book-grenades-v2` only (commit `0b702929`). The owner deferred it; the build branch
+does not carry it.
 
 - **Pass 1**, `DemoReader` with Header, StringTables, Schema, Entities and GameEvents. A tap records every
   frame's tick and every decoded game event while `ProjectileSampler.Walk(IDemoFrameSource)` (present in
@@ -323,5 +325,66 @@ positions stack under count badges. Neither hides data, but the map needs a decl
 - Renders: `GV2_CACHE=<copy> dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release -- --treenode-filter "/*/*/GrenadesV2Probe/*"`.
   The store writes the copy's index, so never point it at the live cache. Output lands in
   `$TMPDIR/demoviewer-uitests/gv2-*`.
-- Walk bench: `DOTNET_gcServer=0 artifacts/bin/AnalysisBench/release/AnalysisBench grenade-walk --mode=retained|forward --out=rows.json <demo>`,
+- Walk bench (research branch only): `DOTNET_gcServer=0 artifacts/bin/AnalysisBench/release/AnalysisBench grenade-walk --mode=retained|forward --out=rows.json <demo>`,
   one mode per process, then `cmp` the two row files.
+
+## 9. Build (`feature/strat-book-grenades-v2-build`)
+
+Owner decisions of 2026-09-28: one lineup per spot and landing with its techniques as positions under
+one icon and card; full detail for every throw with no cap, stored compactly; throws keyed by player;
+old ids resolve forever through a one-to-one alias map; the two-pass walk not now.
+
+What landed, one commit per slice:
+
+1. **Paths files off.** A walk writes no paths sibling and removes one an earlier walk left.
+2. **Lineups by spot and landing** (`GrenadeLineups`, `GrenadeLineupStore`). A throw joins the nearest
+   stored anchor that accepts it: release within 24 units in the plane (64 for a running throw) and 64 in
+   height, landing within 192 and 96. Leftovers cluster in density order; a cluster of two or more mints
+   an anchor once the library has loaded, its id a hash of the map, kind and seed throw. Anchors never
+   move. Each v1 grid id maps to exactly one lineup, the one that took most of its throws, built once per
+   map and then frozen. Techniques (standing or running, jump-throw or not, left, both or right click) are
+   positions under the lineup: the map draws one disc per technique, the card lists the techniques with
+   counts and the clicked position's throws, and the console line and clip use the technique's medoid.
+   Everything lives in `<cache>/grenade-lineups.json.gz`.
+3. **Throw log and lineup store.** Rows become `.grenades.log.gz`: binary, every field, positions in
+   hundredths (what the JSON kept), angles as floats, one string table. Rows gain `ThrowerName`. The
+   store keeps one flight per lineup technique; a demo walked in the session hands its flights to the
+   index. `GrenadeStoreMigration` does the one-off conversion.
+4. **Player identity.** Mined throws carry SteamID64 and name; strat capture finds the thrower's pawn by
+   player before slot; Opening Tendencies takes a side's first throw from the team's own SteamIDs;
+   Suggested Tags detonations carry the player, and the evidence line names them; the Utility card
+   lists who threw each instance. The slot stays where a round's side or position join needs it.
+5. **Map declutter.** A landing icon whose centre sits inside an icon at least as big that draws after it
+   is folded into that icon's count badge at the current zoom. The hit test is unchanged.
+
+**First launch.** 30 s after start, with the sidecar pass, the queue gets "Grenades: compact stored
+throws". It waits for the grenade index to load, converts each current demo's JSON rows to a throw log
+with names from the record, and deletes the JSON only when the log decodes to the same rows. Then the
+index reloads, the lineup store takes one flight per technique from the old paths files (the three
+throws nearest each technique's mean are tried), and the paths files are deleted only after the store
+reads back with them. A pass with no failures writes `grenades-v3.done`; otherwise the next launch
+retries what is left. Anchors and the alias map are built when the index first loads, before the
+migration runs.
+
+On a copy of the owner's cache (381 demos, 95,583 throws):
+
+| | Before | After |
+|---|---|---|
+| Rows | 11.8 MB gzipped JSON | 8.3 MB throw logs |
+| Paths | 39.3 MB, never read | 0 |
+| Lineup store | none | 12.5 MB (21,385 flights, all maps) |
+| Total | 51.1 MB | 20.8 MB (-59%) |
+| Migration | | 381 converted, 0 failed, 6.8 s |
+
+The first pass on that copy failed three demos: rows with a coordinate of negative zero came back as
+0, and the check kept their JSON. Negative zeros now keep their sign. Mirage after the migration:
+2,168 anchors, 11,709 aliases, 3,304 flights, and every throw named.
+
+Mirage smokes, default filters: before 74 landing spots, 402 lineups, 2,420 throws, 2,103 single
+positions hidden; after 90 spots, 543 lineups, 3,419 throws, 1,104 hidden. Window: before 559 throws
+from 25 positions, top 146; after 629 throws from 40 lineups, top 165 (31 demos). Renders in
+`grenades-v2/`: `build-before-map.png`, `build-before-window-card.png` (feature/strat-book at
+`3c26fa07` on the unmigrated copy), `build-after-map.png`, `build-after-window-card.png`.
+
+Not done here: the flights are stored as JSON arrays and could be a third of the size in a binary
+form; the store is read on first use and then held.
