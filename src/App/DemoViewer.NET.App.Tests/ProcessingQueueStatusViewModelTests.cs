@@ -65,7 +65,7 @@ public class ProcessingQueueStatusViewModelTests
         await Assert.That(vm.Chip.DotState).IsEqualTo(StatusChipDotState.Off);
         await Assert.That(vm.Chip.Label).IsEqualTo("Queue paused");
         await Assert.That(vm.IsPaused).IsTrue();
-        await Assert.That(vm.PauseResumeLabel).IsEqualTo("Resume background");
+        await Assert.That(vm.PauseResumeLabel).IsEqualTo("Resume queue");
         await Assert.That(vm.StatusLine).Contains("paused");
     }
 
@@ -205,6 +205,10 @@ public class ProcessingQueueStatusViewModelTests
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) =>
             throw new NotSupportedException();
+
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
+
+        public int ActiveCount(QueueJobKind kind) => 0;
 
         public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
 
