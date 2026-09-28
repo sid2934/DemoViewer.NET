@@ -266,3 +266,176 @@ sidecar migration, pack export and heap compaction queue items with a title, sta
 cancel and priority apply to all of them, and non-parse jobs run alone at any concurrency. Clips still render
 in the background, most-thrown lineups first, and stop at the cap unless a lineup outranks the lowest kept
 clip; a clip is written to a temp file and renamed only when it finishes.
+
+## 7. Measurements, 2026-09-27
+
+### Method
+
+- Branch `feature/strat-book-perf-measure` off `feature/strat-book` at e7ea8c09. Release build of
+  `tools/AnalysisBench`, new verb `bg-run --list=<file>` (`BackgroundRunCommand.cs`, `BackgroundPlans.cs`).
+  It parses each listed demo, optionally runs the highlights harvester's snapshot-free rules evaluation
+  (`--eval`, all shipped rulesets including round_facts), drops it, and reports committed heap, LOH size
+  and LOH free after every job. `--compact=end` runs the app's `HeapCompactor` sequence once after the
+  last demo (a queue drain) and reports the state before and after it; `--compact=each` runs it after
+  every job. `--read=mmap|bytes|forward`, `--plan=<preset>`.
+- One process per run, GC chosen by `DOTNET_*` env vars (`GCSettings.IsServerGC` confirmed per run).
+  Workstation runs use `DOTNET_gcServer=0 DOTNET_gcConcurrent=1`, the Desktop app's config.
+- Peak memory from `/usr/bin/time -l`. "Peak memory footprint" (fp) excludes clean file-backed pages, so
+  it is the right number for mapped parses; max RSS counts resident mapped pages and makes the two read
+  paths look the same. Peak heap from a 20 ms sampler.
+- Configurations interleaved, order reversed between repetitions. The owner's app was not running
+  during any measurement.
+- **The library is on NFS** (`/Users/austingray/Demos` is `192.168.1.7:/mnt/user/Demos`). A cold
+  ~270 MB demo takes 6-8 s to parse against ~1 s warm, so cold wall time is network-bound. The GC
+  comparison uses eval seconds (job time minus parse time) as its cost figure for that reason.
+- Open-demo peak: the existing `gc-sweep` probe, Workstation concurrent config only (`ReadAllBytes`,
+  parse, build, snapshot evaluation, then the close compaction), 2 reps per demo.
+
+Demos: MM is a 276 MB matchmaking demo, Pro a 380 MB BLAST demo, Big the largest in the library (750 MB,
+PGL). The sequential run is 14 demos (11 MM, 3 pro, 188-392 MB, 3.9 GB total, fixed seed).
+
+### Q9: mapped parse vs `ReadAllBytes` (parse only, Workstation)
+
+Warm cache, reps 2-5 (rep 1 of each mapped run was the first read of the file):
+
+| Demo | Read | Parse s | Peak footprint | Peak heap | Committed after parse | LOH after parse |
+|---|---|---|---|---|---|---|
+| MM 276 MB | mmap | 0.8-1.0 | 557 MB | 733 MB | 524 MB | 276 MB |
+| | bytes | 0.8-0.9 | 831 MB | 1,005 MB | 797 MB | 554 MB |
+| Pro 380 MB | mmap | 1.1-1.2 | 766 MB | 786 MB | 729 MB | 397 MB |
+| | bytes | 0.9-1.4 | 1,148 MB | 1,167 MB | 1,111 MB | 776 MB |
+| Big 750 MB | mmap | 1.5-1.7 | 1,558 MB | 1,572 MB | 1,543 MB | 979 MB |
+| | bytes | 1.6-1.9 | 2,306 MB | 2,332 MB | 2,290 MB | 1,729 MB |
+
+Cold over NFS, 10 different unread MM demos of 251-299 MB, alternating: mmap 6.4 / 6.6 / 7.1 / 7.3 / 7.7 s,
+bytes 7.3 / 7.2 / 7.2 / 7.2 / 6.2 s; footprint mmap 507-583 MB, bytes 766-836 MB. Three warm runs hit
+6.8-7.2 s with no pattern by mode (NFS revalidation, not the read path).
+
+Max RSS is identical for both modes (856 / 1,168 / 2,330 MB): the mapped pages are resident, but clean
+and evictable.
+
+### Q1 and S7: GC configurations over a 14-demo background run
+
+Mapped parse plus bare rules evaluation per demo, back to back. Two reps each, shown as rep 1 / rep 2 or
+as a range. "During" is over the 14 per-job samples; "before drain" is after the last job, "after drain"
+after `HeapCompactor`. MB unless marked.
+
+| Config | Eval s | Peak fp | Committed during, max / median | LOH free during, max / median | Before drain: committed / LOH / LOH free | After drain committed | gen2 | GC pause |
+|---|---|---|---|---|---|---|---|---|
+| Workstation (today) | 16.3 / 16.2 | 1,573 / 1,613 | 1,469-1,508 / 1,069-1,082 | 357-427 / 253-270 | 896-1,168 / 504-532 / 276-311 | 99 / 148 | 30 / 28 | 5.6 / 5.5 s |
+| + ConserveMemory 5 | 16.0 / 16.1 | 1,481 / 1,468 | 1,312-1,326 / 840-943 | 247-341 / 97-132 | 522-1,061 / 220-467 / 0-247 | 83 / 21 | 31 / 32 | 5.5 / 5.7 s |
+| + ConserveMemory 7 | 16.7 / 17.0 | 1,464 / 1,453 | 1,066-1,070 / 629-648 | 128-134 / 0 | 525-566 / 219-220 / 0 | 22 / 49 | 38 / 37 | 6.3 / 6.3 s |
+| + compact after every job | 16.3 / 15.5 | 1,004 / 995 | 228-229 / 73-81 | 0 / 0 | 50 / 2 / 0 | 50 / 50 | 68 / 71 | 5.7 / 5.6 s |
+| Server + DATAS | 12.7 / 12.7 | 2,671 / 2,700 | 2,467-2,477 / 1,928-1,960 | 616-632 / 288-335 | 2,140-2,148 / 606-607 / 288-369 | **1,538 / 1,545** | 13 / 14 | 0.4 / 0.4 s |
+
+All configs produced the same 3,848 highlights and allocated 10.8 GB. Wall time was 102-135 s, of which
+86-119 s was parse. The parse sum tracked the config in both orders (compact every job 86-88 s, CM7
+94-95 s, CM5 108-109 s, Workstation 114-119 s, DATAS 113-119 s). The cause is not isolated; plausibly
+page-cache pressure on the NFS-backed mapped pages. It is not GC cost.
+
+Reading:
+
+- The drain compaction the queue does today works at the drain: 896-1,168 MB down to 99-148 MB. It does
+  nothing during the run, which is where the live app sat at 3.5-4.9 GB. Committed heap peaks near
+  1.5 GB mid-run even in this bench, where nothing else is resident.
+- ConserveMemory 7 cuts mid-run committed by 28% at the peak and 40% at the median and keeps LOH free at
+  0 for most jobs, for +4% eval and +14% pause. ConserveMemory 5 barely moves it.
+- Compacting after every job holds committed at 73-229 MB throughout and cuts peak footprint by a third,
+  at no measurable eval cost here. The bench's live heap between jobs is ~50 MB; in the app it is the
+  library indexes plus UI (a few hundred MB), so each compaction costs more there, likely 100-300 ms of
+  blocking gen2 per 5-10 s job (estimated, not measured).
+- Server + DATAS evaluates 22% faster but commits 2.5 GB mid-run and keeps **1.5 GB committed after the
+  compaction**: it does not give memory back. Rejected.
+
+### Open-demo peak under Workstation GC
+
+`gc-sweep` probe, Workstation concurrent, `ReadAllBytes` then parse, build, snapshot evaluation:
+
+| Demo | Total s (warm) | Peak heap | Peak RSS | Live while open | After close: committed / RSS |
+|---|---|---|---|---|---|
+| MM 276 MB | 3.2 | 1,044-1,108 MB | 1,046-1,090 MB | 795 MB | 106-124 / 207-227 MB |
+| Pro 380 MB | 3.7-3.9 | 1,492 MB | 1,481-1,491 MB | 1,095 MB | 23-25 / 130-131 MB |
+| Big 750 MB | 4.5-4.6 | 2,716 MB | 2,687 MB | 2,208 MB | 18 / 128 MB |
+
+The "5-7 GB, Server GC" note is stale: the analysis path peaks at 1.1-2.7 GB and close returns to
+~130-230 MB. Not covered: the open fan-out (`MainViewModel.cs:3968`: Round Facts, Round Index, Suggested
+Tags and Grenades on the same parse), the Playback2D tracker and the UI. Those need the app itself on a
+scratch config.
+
+### S1: narrower background parses
+
+Consumer survey against the pinned 0.13.0-beta0001 API (read with ilspycmd). The queue parses once and
+fans the `ParsedDemo` out to `[library, highlights, roundFacts, roundIndex, suggestedTags, grenades]`
+(`App.axaml.cs:1248-1249`, `DemoEvaluationCoordinator.cs:165`), so a narrower shared plan has to cover the
+union. `ParsedDemo` has no entity layer: every entity consumer replays `Frames` through its own tracker.
+
+| Consumer | Reads | Fits |
+|---|---|---|
+| Library tier 2 (`DemoLibraryService.cs:1140-1169`) | roster, header, final-state entity replay (CCSTeam, CCSPlayerController) | forward reader + `EntityReplay` with `player_team` events |
+| Highlights, bare (`RulesHighlightHarvester.cs:108-119`) | rules run, no snapshots | forward `DemoAnalysis.Run` / `Evaluate(IDemoFrameSource)`, which applies `PlanDecode` itself |
+| Round Facts (`EngineRoundFactsRowSource.cs:71-86`) | round_facts rules run, `ClipRounds.Derive(events)` | same as highlights; a second pass unless merged into one build |
+| Round Index (`RoundIndexEvaluator.cs:289`) | `PositionSampler.Walk(ParsedDemo)`, every frame | forward only with a reader-side sampler; `PositionSampler` has no `IDemoFrameSource` overload |
+| Suggested Tags (`SuggestedTagsService.cs:678-697`) | positions walk, `ProjectileSampler.Walk`, all events | forward; `ProjectileSampler.Walk(IDemoFrameSource)` exists |
+| Grenade walk (`GrenadeWalker.cs:124-138`) | projectiles, events, random frame access, user commands | full parse or a two-pass redesign; the only reader of `svc_UserCmds`; background sweep off by default (`Grenades.BackgroundIndex`) |
+| Lineup clips (`LineupClipService.cs:975-1008`, `PackClipRenderer.cs:58`) | own parse; entity frames with FullPacket seek, no events, no user commands | `ParseFile(path, new ParseOptions { Plan = DecodePlan.EntityReplay })`; the reader cannot seek |
+
+Parse only, mapped, Workstation, warm, 2 reps (within 1% of each other). fp / committed / LOH in MB:
+
+| Plan | MM | Pro | Big | Parse s (MM / Pro / Big) |
+|---|---|---|---|---|
+| `Everything` (today) | 558 / 525 / 277 | 767 / 730 / 396 | 1,556 / 1,541 / 979 | 0.9 / 1.3 / 1.5 |
+| All minus `UserCmds` | 336 / 298 / 57 | 453 / 414 / 78 | 742 / 701 / 135 | 0.6-0.8 / 1.0 / 1.2-1.3 |
+| `EntityReplay` | 261 / 233 / 58 | 399 / 369 / 78 | 584 / 550 / 135 | 0.6 / 0.8-0.9 / 1.1-1.2 |
+| `GameEventsOnly` | 138 / 101 / 57 | 190 / 150 / 78 | 280 / 239 / 135 | 0.3 / 0.5 / 0.7-0.9 |
+
+User commands are most of the parse's LOH: 220-845 MB of it.
+
+Parse plus bare rules evaluation (the highlights path), same demos:
+
+| Path | MM fp / s | Pro fp / s | Big fp / s | Highlights |
+|---|---|---|---|---|
+| Retained, `Everything` | 720-728 MB / 3.0 | 1,029-1,035 MB / 3.5 | 1,835-1,845 MB / 4.5 | 292 / 330 / 345 |
+| Retained, minus `UserCmds` | 502-510 MB / 2.8-3.0 | 714-720 MB / 3.4-3.5 | 1,031-1,037 MB / 4.2-4.6 | same |
+| Forward reader (`DemoAnalysis.Run(path)`) | 204 MB / 4.2 | 199-205 MB / 3.9 | 206-223 MB / 4.3 | same |
+
+### Recommendations
+
+**GC (Q1, S7).** Keep Workstation concurrent. Do not ship Server + DATAS: it keeps 1.5 GB committed even
+after an explicit compaction. Compact after each background parse job instead of only on drain (the
+queue's existing `HeapCompaction` item, with the 30 s throttle dropped or shortened when the previous job
+was a parse): mid-run committed goes from ~1.5 GB to ~0.23 GB in the bench. If a blocking gen2 per job is
+unwelcome, `System.GC.ConserveMemory=7` in the Desktop csproj is the config-only fallback (-28% peak,
+-40% median committed, +4% eval). Keep the drain compaction either way. Owner call: which of the two.
+Re-measure in the app afterwards (`dotnet-counters` on committed and LOH free during a queue run).
+
+**Q9.** Keep the mapped parse. It takes exactly the file's size off committed heap and footprint
+(276 / 382 / 748 MB) at no time cost, warm or cold over NFS.
+
+**S1, ranked.** None of these needs a new `ParseOptions` or `DecodePlan` member, so none touches the
+protected `DemoParser.cs`.
+
+1. **Shared background parse without user commands** while `Grenades.BackgroundIndex` is off:
+   `Plan = DecodePlan.Everything with { Categories = MessageCategories.All & ~MessageCategories.UserCmds }`
+   on the queue's background parse. Parse+eval footprint -29% (MM), -31% (Pro), -44% (Big), LOH -80%,
+   parse 10-20% faster, identical highlights. One call site. Owner call: a background parse can then never
+   feed Grenade walk (it would need its own full parse when enabled); the open-demo parse stays full.
+   Check that the other five consumers' sidecars come out byte-identical before shipping.
+2. **Lineup and pack clips on `EntityReplay`.** Parse footprint 558 to 261 MB (MM), 767 to 399 (Pro),
+   1,556 to 584 (Big): -47% to -62%, and faster. Two call sites. Measured on the parse only; the renderer's
+   tracker replay and GIF output need a byte or visual A/B before shipping. No owner call beyond approval.
+3. **Library tier 2, Highlights (bare) and Round Facts on the forward reader.** Peak ~200-220 MB whatever
+   the demo size, against 0.72-1.84 GB retained (-72% to -89%), identical highlights; cost +1.2 s on the
+   276 MB demo, +0.4 s Pro, none on Big. Large: the queue's handler contract changes from `ParsedDemo` to
+   a path or reader. Owner calls: drop the fan-out for these consumers; two rules passes or one merged
+   build (changes fingerprint and exclusion semantics). Forced (snapshot) highlights keep the full parse.
+4. **Round Index and Suggested Tags positions on the same forward pass.** Needs a reader-side position
+   sampler: an app shim from public parts (`EntityTrackerFactory.CreateCurated`, `PawnLookup`,
+   `PositionUtil`), or an upstream ask for `PositionSampler.Walk(IDemoFrameSource)` in the CS2DemoKit
+   parser package (not `DemoParser.cs`). Owner call: shim or upstream. With 3 and 4 done no background job
+   retains frames, so the ~200 MB of item 3 is the whole job (estimated).
+5. **Grenade walk last.** Random frame access and user commands: a two-pass redesign, or keep the full
+   parse when the owner enables the background sweep.
+
+Commands: `AnalysisBench bg-run --list=<file> [--read=mmap|bytes|forward] [--eval]
+[--compact=none|end|each] [--plan=everything|no-usercmds|replay|events|structure]`, GC from the
+environment, peak from `/usr/bin/time -l`.
