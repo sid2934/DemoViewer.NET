@@ -70,6 +70,88 @@ public class ReviewQueueMigrationTests
     }
 
     [Test]
+    public async Task AGeneratedClipTheUserMovedOrWhoseCardTheyRenamed_IsKept()
+    {
+        ReviewEntry moved = Lineup("Smoke into CT. " + ConsoleLine);
+        ReviewEntry renamed = Lineup("Flash into B. " + ConsoleLine);
+        List<ReviewEntry> kept = ReviewQueueMigration.DropGeneratedLineupClips(
+        [
+            ReviewEntry.Section("Lineup clips, de_mirage"), Lineup("Smoke into Jungle. " + ConsoleLine),
+            ReviewEntry.Section("Mine"), moved,
+            ReviewEntry.Section("B flashes to learn"), renamed
+        ], out ReviewQueueMigrationResult result);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(result).IsEqualTo(new ReviewQueueMigrationResult(1, 2, 1));
+            await Assert.That(kept.Select(e => e.Kind == ReviewEntryKind.Section ? e.Title : e.Note))
+                .IsEquivalentTo(["Mine", moved.Note, "B flashes to learn", renamed.Note]);
+        }
+    }
+
+    [Test]
+    public async Task AFailedRewrite_KeepsTheMigratedSet_AndTheNextSaveWritesIt()
+    {
+        string root = Root();
+        try
+        {
+            Write(root, [ReviewEntry.Section("Lineup clips, de_nuke"), Lineup("Smoke into Outside. " + ConsoleLine),
+                ReviewEntry.Section("Dossier"), ReviewEntry.Clip("/d/x.dem", 1, 2, "plant", ReviewSources.Dossier)]);
+            string path = Path.Combine(root, ReviewQueue.FileName);
+            string original = await File.ReadAllTextAsync(path);
+            Directory.CreateDirectory(path + ".migrating"); // the rewrite cannot be written
+
+            ReviewQueue queue = new(root, TimeSpan.FromHours(1));
+            await queue.Loaded;
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.Migration).IsEqualTo(new ReviewQueueMigrationResult(1, 0, 1, false));
+                await Assert.That(queue.Entries.Count).IsEqualTo(2).Because("the migrated set stays in memory");
+                await Assert.That(await File.ReadAllTextAsync(path)).IsEqualTo(original);
+            }
+
+            queue.Flush();
+            ReviewQueue reread = new(root);
+            await reread.Loaded;
+            using (Assert.Multiple())
+            {
+                await Assert.That(reread.Clips.Select(c => c.Note)).IsEquivalentTo(["plant"]);
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(root, ReviewQueueMigration.BackupFileName))).IsEqualTo(original);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task WithoutABackup_NothingIsMigrated()
+    {
+        string root = Root();
+        try
+        {
+            Write(root, [ReviewEntry.Section("Lineup clips, de_nuke"), Lineup("Smoke into Outside. " + ConsoleLine)]);
+            string path = Path.Combine(root, ReviewQueue.FileName);
+            string original = await File.ReadAllTextAsync(path);
+            Directory.CreateDirectory(Path.Combine(root, ReviewQueueMigration.BackupFileName));
+
+            ReviewQueue queue = new(root);
+            await queue.Loaded;
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.Migration).IsNull();
+                await Assert.That(queue.Clips.Count).IsEqualTo(1);
+                await Assert.That(await File.ReadAllTextAsync(path)).IsEqualTo(original);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task ARefusedFile_IsNotMigrated()
     {
         string root = Root();
