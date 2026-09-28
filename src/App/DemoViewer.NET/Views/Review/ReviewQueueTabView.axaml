@@ -147,7 +147,7 @@
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
                                             <Button Content="{Binding ReviewText}" Classes="ghost" FontSize="11" Padding="8 3"
                                                     Command="{Binding ToggleReviewedCommand}"
-                                                    ToolTip.Tip="Mark every clip in this section reviewed, or all of them unreviewed again" />
+                                                    ToolTip.Tip="Mark this section's clips reviewed, or unreviewed again once all are. With a filter or a search on, only the clips it shows" />
                                             <Button Content="{Binding ToggleText}" Classes="ghost" FontSize="11" Padding="8 3"
                                                     Command="{Binding ToggleCommand}"
                                                     ToolTip.Tip="Show or hide this section's clips" />
