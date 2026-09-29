@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.ViewModels.StratBook;
 
 #endregion
 
@@ -22,8 +23,14 @@ public sealed class StratBookHubViewModel : IWorkspaceTabViewModel
     /// <summary>The hub's tab id. A persisted key; never renamed.</summary>
     public const string TabId = "stratbook.hub";
 
+    /// <param name="layout">The collapsed panes, shared with the Strats section; a fresh one when omitted.</param>
+    public StratBookHubViewModel(StratBookLayout? layout = null) => Layout = layout ?? new StratBookLayout();
+
     /// <summary>The sections and the selection. Bound by the hub view's rail.</summary>
     public TabSectionHost Sections { get; } = new(autoSelectFirst: true);
+
+    /// <summary>Whether the rail and the strat list are collapsed. The shell persists it.</summary>
+    public StratBookLayout Layout { get; }
 
     public void OnActivated(IModuleContext context) => Sections.OnHostActivated(context);
 

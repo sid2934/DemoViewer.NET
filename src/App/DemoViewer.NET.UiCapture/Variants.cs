@@ -69,7 +69,7 @@ namespace DemoViewer.NET.UiCapture;
 ///     (no ParsedDemo, no heavy VM) so captures are fast and deterministic. Add variants here as the
 ///     UI/UX work needs them (a panel, a proposed layout, a component in a given state).
 /// </summary>
-public static class Variants
+public static partial class Variants
 {
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     //  NavStrip visual redesign: dependency-free inline vector icons.
@@ -229,7 +229,9 @@ public static class Variants
             // than draw two empty teams.
             ["match-overview-cached-nosplit"] = () => MatchOverviewCached(DemoCacheTier.Parse, teamSplit: false),
             ["match-overview-cached-failed"] = () =>
-                MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed)
+                MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
+            ["strat-editor"] = () => StratEditor(false, false),
+            ["strat-editor-collapsed"] = () => StratEditor(true, true)
         };
 
     private static readonly (string Event, string Tick, string Hits)[] _dataRows =

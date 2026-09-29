@@ -30,6 +30,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.Views.StratBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
@@ -510,6 +511,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Demo Provenance Labels, for the Library card's label chip. Null (designer, most tests) → no
     ///     chip.
     /// </param>
+    /// <param name="stratBookLayout">
+    ///     The Strat Book's collapsed panes, shared with the Strats section and kept in the session file.
+    ///     Null (most tests) builds one the hub alone reads.
+    /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -521,8 +526,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
         TeamIdentityService? teams = null,
-        IDemoProvenanceSource? provenance = null)
+        IDemoProvenanceSource? provenance = null,
+        StratBookLayout? stratBookLayout = null)
     {
+        StratBookHub = new StratBookHubViewModel(stratBookLayout);
         _demoCache = demoCache;
         _windowService = windowService;
         _settingsService = settingsService;
@@ -1044,7 +1051,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     it holds stay as lazy as any module tab. Its strip descriptor exists only when a module
     ///     contributed a section.
     /// </summary>
-    public StratBookHubViewModel StratBookHub { get; } = new();
+    public StratBookHubViewModel StratBookHub { get; }
 
     /// <summary>
     ///     The workspace tab strip. ItemsSource-driven; the four built-in tabs are registered
@@ -4460,6 +4467,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        StratBookHub.Layout.Restore(p.StratBook);
         RestoreActiveTab(p);
         // Never restore an owned panel OPEN when its chrome is gated off for the current
         // category: otherwise a drawer/rail a developer left open would return open at startup with its
@@ -4564,7 +4572,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Output.IsVisible,
         PersistedActiveTabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
-        WindowBounds);
+        WindowBounds,
+        StratBookHub.Layout.Snapshot());
 
     /// <summary>
     ///     Collects session state from MODULE-contributed tabs. The framework has always declared

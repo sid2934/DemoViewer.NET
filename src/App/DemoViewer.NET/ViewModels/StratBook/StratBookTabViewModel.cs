@@ -90,6 +90,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>True while the list pane shows the Detected inbox instead of the book.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowBookList))]
+    [NotifyPropertyChangedFor(nameof(CollapsedListLabel))]
     private bool _isDetectedView;
 
     [ObservableProperty]
@@ -122,13 +123,16 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// </param>
     /// <param name="mining">Strat Mining, for the Detected inbox; null says the host has no demo cache.</param>
     /// <param name="playback">Opens a detected pattern's round in 2D Playback, resolved at click time.</param>
+    /// <param name="layout">The collapsed panes, shared with the hub rail; a fresh one when omitted.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
-        GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null)
+        GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
+        StratBookLayout? layout = null)
     {
         ArgumentNullException.ThrowIfNull(store);
+        Layout = layout ?? new StratBookLayout();
         _store = store;
         _teams = teams;
         _post = post ?? (action => action());
@@ -199,6 +203,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     public StratSession Session { get; }
 
     public StratEditorViewModel Editor { get; }
+
+    /// <summary>Whether the strat list (and the hub rail) are collapsed; shared with the hub.</summary>
+    public StratBookLayout Layout { get; }
+
+    /// <summary>What the collapsed list's strip reads: the pane it hides.</summary>
+    public string CollapsedListLabel => IsDetectedView ? "DETECTED" : "STRATS";
 
     /// <summary>The alias table editor for the selected book and map (Callout Aliases, strat-model.md §3.7).</summary>
     public CalloutsEditorViewModel Callouts { get; }
