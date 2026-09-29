@@ -109,6 +109,47 @@ public class StratEditorRoomTests
             window.Close();
         });
 
+    [Test]
+    public async Task WithTheListCollapsed_ThePickerSwitchesStrats_AndSurvivesARefresh() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratBookLayout layout = new() { IsListCollapsed = true };
+            using StratBookTabViewModel vm = new(new StratStore(null), null, null, false, layout: layout);
+            vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
+            vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
+            vm.SelectedMap = "de_mirage";
+            vm.NewStratCommand.Execute(null);
+            Guid first = vm.Session.Document!.Id;
+            vm.NewStratCommand.Execute(null);
+            Guid second = vm.Session.Document!.Id;
+
+            StratBookTabView view = new() { DataContext = vm };
+            Window window = new() { Width = 1280, Height = 800, Content = view };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            ComboBox picker = view.FindControl<Grid>("StratPicker")!.GetVisualDescendants().OfType<ComboBox>().Single();
+            await Assert.That(((StratListRow)picker.SelectedItem!).Id).IsEqualTo(second);
+
+            picker.SelectedItem = vm.Strats.Single(r => r.Id == first);
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(vm.Session.Document!.Id).IsEqualTo(first);
+
+            vm.Editor.Name = "renamed";
+            vm.SaveCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.HasOpenStrat).IsTrue().Because("a list refresh must not close the open strat");
+                await Assert.That(vm.Session.Document!.Id).IsEqualTo(first);
+                await Assert.That(vm.SelectedStrat?.Id).IsEqualTo(first);
+                await Assert.That((picker.SelectedItem as StratListRow)?.Id).IsEqualTo(first);
+                await Assert.That((picker.SelectedItem as StratListRow)?.Name).IsEqualTo("renamed");
+            }
+
+            window.Close();
+        });
+
     private static StratBookTabViewModel Seeded(StratBookLayout layout)
     {
         StratBookTabViewModel vm = new(new StratStore(null), null, null, false, layout: layout);
