@@ -60,11 +60,19 @@ public class DetectedStratsTests
         }
 
         vm.IsDetectedView = true;
+        Guid added = library.Strats.Index.Single().Id;
+        await Assert.That(vm.Detected.Rows.Any(r => r.StratId == added)).IsFalse().Because("an added pattern leaves the default view");
+        await Assert.That(vm.Detected.SettledLabel).IsEqualTo("Show settled (1)");
+        vm.Detected.ShowSettled = true;
+        await Assert.That(vm.Detected.Rows.Single(r => r.StratId == added).IsInBook).IsTrue();
+        vm.Detected.ShowSettled = false;
+
+        vm.IsDetectedView = true;
         DetectedRowViewModel first = vm.Detected.Rows.First(r => r.CanAdd);
         vm.Detected.SelectedRow = first;
         vm.Detected.DismissCommand.Execute(null);
         await Assert.That(vm.Detected.Rows.Select(r => r.Key)).DoesNotContain(first.Key);
-        vm.Detected.ShowDismissed = true;
+        vm.Detected.ShowSettled = true;
         await Assert.That(vm.Detected.Rows.Single(r => r.Key == first.Key).IsDismissed).IsTrue();
     }
 
@@ -292,7 +300,7 @@ public class DetectedStratsTests
 
         await vm.Detected.PreviewStratCommand.ExecuteAsync(null);
         StratPreviewViewModel first = vm.Detected.Preview!;
-        vm.Detected.ShowDismissed = true;
+        vm.Detected.ShowSettled = true;
         await Assert.That(vm.Detected.Preview).IsSameReferenceAs(first).Because("a refresh reselects the same pattern");
 
         vm.Detected.SelectedRow = vm.Detected.Rows.First(r => r.Key != first.Key);
