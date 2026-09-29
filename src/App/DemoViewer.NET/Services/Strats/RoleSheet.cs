@@ -52,7 +52,8 @@ public static class StratStepPhrasing
         string? to = !lines && step.To?.Place is { } t ? StratDiffPhrasing.Place(t, callouts) : null;
         if (from is not null || to is not null)
         {
-            sentence.Append(' ');
+            // With lines the places are the lines'; a bare place here would read as the destination.
+            sentence.Append(lines ? " from " : " ");
             if (from is not null)
             {
                 sentence.Append(from);

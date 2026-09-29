@@ -32,7 +32,7 @@ public class StratAssignmentsExportTests
         string sheet = StratTextExporter.CallSheet(WithLines());
 
         await Assert.That(sheet).Contains("""
-                                          - **1:05** B, C, D move T Ramp
+                                          - **1:05** B, C, D move from T Ramp
                                             - B → Palace Interior, watching Bombsite A, CT Spawn
                                             - C → Connector, watching Stairs
                                             - D → Stairs, watching T Ramp
@@ -86,7 +86,7 @@ public class StratAssignmentsExportTests
         [
             "context: B throws T Ramp → Bombsite A",
             "context: C throws T Ramp → Bombsite A",
-            "context: B, C, D move T Ramp: B → Palace Interior, watching Bombsite A, CT Spawn; C → Connector, watching Stairs; D → Stairs, watching T Ramp",
+            "context: B, C, D move from T Ramp: B → Palace Interior, watching Bombsite A, CT Spawn; C → Connector, watching Stairs; D → Stairs, watching T Ramp",
             "own: E moves Connector → Bombsite A"
         ]);
     }
@@ -128,7 +128,7 @@ public class StratAssignmentsExportTests
                 .IsEqualTo("B, C, D's move: B to Palace Interior → Jungle");
             await Assert.That(StratDiffPhrasing.Summary(null,
                     [PatchOp.AddOp("/steps/0", JsonSerializer.SerializeToNode(document.Steps[2], StratJsonContext.Default.StratStep))]))
-                .IsEqualTo("step added: B, C, D move to T Ramp at 1:05");
+                .IsEqualTo("step added: B, C, D move from T Ramp at 1:05");
         }
     }
 }
