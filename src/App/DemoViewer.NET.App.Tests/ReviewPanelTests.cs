@@ -61,6 +61,32 @@ public class ReviewPanelTests
     };
 
     [Test]
+    public async Task TheLabelsTab_ListsMachineWrittenLabels_ApartFromHandMadeOnes()
+    {
+        (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel();
+        TagInstance hand = Tag("A execute", 11_000, 11_500);
+        TagInstance accepted = Tag("Retake", 12_000, 12_500);
+        accepted.Source = TagSources.Suggested;
+        accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
+        TagInstance run = Tag("Default", 1_000, 2_000);
+        run.Source = TagSources.Suggested;
+        run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
+        session.Apply(new TagDelta.Add(hand));
+        session.Apply(new TagDelta.Add(accepted));
+        session.Apply(new TagDelta.Add(run));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(panel.Labels.Count).IsEqualTo(3);
+            await Assert.That(panel.HandLabels.Select(r => r.Id)).IsEquivalentTo([hand.Id]);
+            await Assert.That(panel.MachineLabels.Select(r => r.Id)).IsEquivalentTo([run.Id, accepted.Id]);
+            await Assert.That(panel.MachineLabels.Select(r => r.SourceText)).IsEquivalentTo(["strat run", "suggested: retake"]);
+            await Assert.That(panel.HandHeader).IsEqualTo("Yours (1)");
+            await Assert.That(panel.MachineHeader).IsEqualTo("From suggestions (2)");
+        }
+    }
+
+    [Test]
     public async Task ALabel_IsListed_EditedInEveryField_Deleted_AndTheDeleteUndone()
     {
         (TagSession session, ReviewPanelViewModel panel, List<int> seeks, _) = await Panel();
