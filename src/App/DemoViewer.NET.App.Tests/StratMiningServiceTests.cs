@@ -262,7 +262,7 @@ public class StratMiningServiceTests
         }
     }
 
-    private static MinedPattern Pattern(string key, params int[] rounds)
+    internal static MinedPattern Pattern(string key, params int[] rounds)
     {
         List<MinedMember> members = [.. rounds.Select(r => new MinedMember($"/d/m{r}.dem", Sha(r % 20), r, null, true, BuyType.Full, 0, 0, Rate, 0))];
         return new MinedPattern

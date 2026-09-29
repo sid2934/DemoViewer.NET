@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
 
@@ -88,7 +89,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     public ObservableCollection<DetectedRowViewModel> Rows { get; } = [];
 
     /// <summary>Patterns shown and not dismissed: the count on the toggle.</summary>
-    public int NewCount => Rows.Count(r => !r.IsDismissed && r.StratId is null);
+    public int NewCount => Rows.Count(r => r.State == GeneratedState.New);
 
     public void Dispose()
     {
@@ -286,7 +287,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         List<DetectedRowViewModel> rows =
         [
             .. _mining.Patterns
-                .Where(p => ShowDismissed || !p.Dismissed)
+                .Where(p => new GeneratedFilter(Reviewed: false, Dismissed: ShowDismissed, Accepted: true).Shows(p.State))
                 .Where(p => Matches(p.Pattern))
                 .OrderBy(p => p.Pattern.UtilityCompared ? 0 : 1)
                 .ThenByDescending(p => p.Pattern.Support)
@@ -354,6 +355,7 @@ public sealed class DetectedRowViewModel
         MinedPattern p = detected.Pattern;
         Key = p.Key;
         IsDismissed = detected.Dismissed;
+        State = detected.State;
         StratId = detected.StratId;
         Title = MinedStratBuilder.Name(p);
         string side = p.Side == 2 ? "T" : "CT";
@@ -401,6 +403,8 @@ public sealed class DetectedRowViewModel
     public string TimingLine { get; }
 
     public bool IsDismissed { get; }
+
+    public GeneratedState State { get; }
 
     public Guid? StratId { get; }
 
