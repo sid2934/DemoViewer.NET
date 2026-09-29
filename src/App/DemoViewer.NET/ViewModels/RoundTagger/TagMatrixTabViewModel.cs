@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -243,7 +244,10 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         _active = true;
         if (_dirty)
         {
-            Refresh();
+            using (QueueWork.UserAction())
+            {
+                Refresh();
+            }
         }
     }
 
@@ -410,7 +414,10 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     {
         if (!_applying && value is not null)
         {
-            Refresh();
+            using (QueueWork.UserAction())
+            {
+                Refresh();
+            }
         }
     }
 
@@ -418,7 +425,10 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     {
         if (!_applying)
         {
-            Refresh();
+            using (QueueWork.UserAction())
+            {
+                Refresh();
+            }
         }
     }
 

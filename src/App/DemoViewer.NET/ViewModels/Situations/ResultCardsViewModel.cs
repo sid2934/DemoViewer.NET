@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media.Imaging;
@@ -291,7 +292,11 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         }
 
         List<ResultCardViewModel> snapshot = [.. Cards];
-        BatchTask = _run("fill")(() => Fill(generation, snapshot));
+        // Only a search loads a set: the user is waiting on it.
+        using (QueueWork.UserAction())
+        {
+            BatchTask = _run("fill")(() => Fill(generation, snapshot));
+        }
     }
 
     /// <summary>The last batch's worker, so a test can await the fill instead of polling the cards.</summary>
@@ -460,7 +465,10 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         List<SituationHit> hits = [.. Cards.Select(c => c.Hit)];
         IsOverlayBuilding = true;
         OverlayLine = "stacking the rounds";
-        OverlayTask = _run("overlay")(() => BuildOverlay(generation, hits));
+        using (QueueWork.UserAction())
+        {
+            OverlayTask = _run("overlay")(() => BuildOverlay(generation, hits));
+        }
     }
 
     /// <summary>Takes the heatmap off the canvas. The cards stay.</summary>

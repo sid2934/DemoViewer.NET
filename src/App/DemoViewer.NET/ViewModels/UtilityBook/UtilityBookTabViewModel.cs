@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -195,7 +196,16 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     public void OnActivated(IModuleContext context)
     {
         _shown = true;
-        Refresh();
+        RefreshForUser();
+    }
+
+    // A click or a showing: the read goes to the front of the queue.
+    private void RefreshForUser()
+    {
+        using (QueueWork.UserAction())
+        {
+            Refresh();
+        }
     }
 
     /// <inheritdoc />
@@ -388,16 +398,16 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     {
         _focusedId = null;
         _selectedLineupId = null;
-        Refresh();
+        RefreshForUser();
     }
 
-    partial void OnSelectedKindChanged(UtilityBookOption<GrenadeKind>? value) => Refresh();
+    partial void OnSelectedKindChanged(UtilityBookOption<GrenadeKind>? value) => RefreshForUser();
 
-    partial void OnSelectedPlaceChanged(string? value) => Refresh();
+    partial void OnSelectedPlaceChanged(string? value) => RefreshForUser();
 
-    partial void OnSelectedSideChanged(UtilityBookOption<int>? value) => Refresh();
+    partial void OnSelectedSideChanged(UtilityBookOption<int>? value) => RefreshForUser();
 
-    partial void OnShowSingleThrowsChanged(bool value) => Refresh();
+    partial void OnShowSingleThrowsChanged(bool value) => RefreshForUser();
 
     partial void OnDetailChanged(LineupDetail? value) => OnPropertyChanged(nameof(HasDetail));
 

@@ -18,9 +18,14 @@ public static class QueueWork
         Action<CancellationToken> work, DemoJobPriority priority = DemoJobPriority.Background, string? key = null)
     {
         ArgumentNullException.ThrowIfNull(work);
-        if (queue is null)
+        if (queue is null || Bypass)
         {
             return Task.Run(() => work(CancellationToken.None));
+        }
+
+        if (_userAction.Value && priority < DemoJobPriority.UserRequested)
+        {
+            priority = DemoJobPriority.UserRequested;
         }
 
         IDemoQueueHandle handle = queue.SubmitJob(new QueueJobRequest(kind, title, owner, priority, ctx =>
@@ -31,6 +36,28 @@ public static class QueueWork
 
         // A disposed queue refuses without running; the work still has to happen.
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(CancellationToken.None)) : handle.Completion;
+    }
+
+    private static readonly AsyncLocal<bool> _userAction = new();
+
+    /// <summary>
+    ///     Marks the work submitted inside the scope, and in what it awaits, as asked for by the user: it
+    ///     goes to the front of the queue. Section builds use one runner for a click and for a store
+    ///     change; the click's handler opens the scope.
+    /// </summary>
+    public static IDisposable UserAction()
+    {
+        bool outer = _userAction.Value;
+        _userAction.Value = true;
+        return new Scope(() => _userAction.Value = outer);
+    }
+
+    /// <summary>Test seam: runs everything on the pool, the behaviour before the queue took this work.</summary>
+    internal static bool Bypass { get; set; }
+
+    private sealed class Scope(Action end) : IDisposable
+    {
+        public void Dispose() => end();
     }
 
     /// <summary>

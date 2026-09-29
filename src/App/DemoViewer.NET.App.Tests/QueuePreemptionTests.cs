@@ -200,6 +200,57 @@ public class QueuePreemptionTests
     }
 
     [Test]
+    public async Task WorkSubmittedInAUserAction_GoesFirst_AndRunsBesideABackgroundSaveThatCannotStop()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        using ManualResetEventSlim saving = new();
+        using ManualResetEventSlim finishSave = new();
+        Task save = QueueWork.Run(queue, QueueJobKind.StoreSave, "save", "t", _ =>
+        {
+            saving.Set();
+            finishSave.Wait(TimeSpan.FromSeconds(10), CancellationToken.None); // a write ignores its token
+        });
+        saving.Wait(TimeSpan.FromSeconds(5));
+
+        int concurrent = 0, peak = 0;
+        using CountdownEvent started = new(4);
+        List<Task> sections;
+        using (QueueWork.UserAction())
+        {
+            sections = [.. Enumerable.Range(0, 4).Select(i => QueueWork.Run(queue, QueueJobKind.SectionCompute, "section", "t", _ =>
+            {
+                int now = Interlocked.Increment(ref concurrent);
+                InterlockedMax(ref peak, now);
+                started.Signal();
+                started.Wait(TimeSpan.FromSeconds(5), CancellationToken.None);
+                Interlocked.Decrement(ref concurrent);
+            }, key: "s" + i))];
+        }
+
+        Task background = QueueWork.Run(queue, QueueJobKind.SectionCompute, "background", "t", _ => { });
+        await Task.WhenAll(sections).WaitAsync(TimeSpan.FromSeconds(10));
+        bool saveStillRunning = !save.IsCompleted;
+        bool backgroundWaited = !background.IsCompleted;
+        finishSave.Set();
+        await Task.WhenAll(save, background).WaitAsync(TimeSpan.FromSeconds(10));
+        using (Assert.Multiple())
+        {
+            await Assert.That(peak).IsEqualTo(4).Because("the user is waiting on all four, as on the pool");
+            await Assert.That(saveStillRunning).IsTrue();
+            await Assert.That(backgroundWaited).IsTrue().Because("background light work stays one at a time");
+        }
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int seen;
+        while ((seen = Volatile.Read(ref target)) < value && Interlocked.CompareExchange(ref target, value, seen) != seen)
+        {
+        }
+    }
+
+    [Test]
     public async Task AKeyedSubmit_WithReplacePending_RunsTheNewestWork()
     {
         using HeavyJobGate gate = new();
