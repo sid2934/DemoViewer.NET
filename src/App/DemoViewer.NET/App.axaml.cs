@@ -1135,7 +1135,10 @@ public class App : Application
                 {
                     await shell.LoadDemoFromPathAsync(path);
                 }
-            }));
+            },
+            command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
+                "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested),
+            post: action => Dispatcher.UIThread.Post(action)));
 
         // The Strat Book's store: one folder per book under <config>/strats. One per process, because CheckOut's
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps

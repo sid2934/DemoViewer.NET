@@ -31,6 +31,22 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     private readonly TeamIdentityService _teams;
     private bool _disposed;
 
+    private readonly Func<string, Action, Task> _command;
+    private readonly Action<Action> _post;
+    private int _running;
+
+    /// <summary>What the tab is waiting on: the teams being read, or a change being applied; empty when idle.</summary>
+    [ObservableProperty]
+    private string _busyLine = "";
+
+    /// <summary>True while a change the user asked for is still being applied.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsIdle))]
+    private bool _isBusy;
+
+    /// <summary>The actions are enabled only between changes.</summary>
+    public bool IsIdle => !IsBusy;
+
     [ObservableProperty]
     private string _activeRosterLine = "";
 
@@ -77,15 +93,28 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     /// <param name="demoCache">The index rows, for a demo's map and file name.</param>
     /// <param name="openDemo">Opens a demo in the workspace; null when the host has no shell.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    public TeamsTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, Func<string, Task>? openDemo = null, bool? isBrowser = null)
+    /// <param name="command">
+    ///     Runs a team change the user asked for: a queue item at the front in the app, inline when null. The
+    ///     tab shows it as busy until it lands.
+    /// </param>
+    /// <param name="post">Brings a finished command back to the UI thread; inline when null.</param>
+    public TeamsTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, Func<string, Task>? openDemo = null, bool? isBrowser = null,
+        Func<string, Action, Task>? command = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
+        _command = command ?? ((_, action) =>
+        {
+            action();
+            return Task.CompletedTask;
+        });
+        _post = post ?? (action => action());
         _teams = teams;
         _demoCache = demoCache;
         _openDemo = openDemo;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         _teams.Changed += Refresh;
+        _busyLine = LoadingLine;
         Refresh();
     }
 
@@ -175,12 +204,32 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
 
     // ── Actions ──────────────────────────────────────────────────────────────────────────────────
 
+    // Every change recomputes the teams and writes two files, so it runs through the command runner and
+    // the tab stays responsive, showing what it is doing until the change lands.
+    private void Apply(string what, Action change)
+    {
+        _running++;
+        IsBusy = true;
+        BusyLine = what;
+        _command(what, change).ContinueWith(_ => _post(() =>
+        {
+            if (--_running == 0)
+            {
+                IsBusy = false;
+                BusyLine = LoadingLine;
+            }
+        }), TaskScheduler.Default);
+    }
+
+    private string LoadingLine => _teams.IsLoaded ? "" : "Reading teams…";
+
     [RelayCommand]
     private void Rename()
     {
         if (SelectedTeam is { } team && !string.IsNullOrWhiteSpace(RenameText))
         {
-            _teams.Rename(team.Id, RenameText);
+            string name = RenameText;
+            Apply("Renaming the team…", () => _teams.Rename(team.Id, name));
         }
     }
 
@@ -189,7 +238,8 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (SelectedTeam is { } team)
         {
-            _teams.SetUs(team.IsUs ? null : team.Id);
+            Guid? us = team.IsUs ? null : team.Id;
+            Apply("Setting your team…", () => _teams.SetUs(us));
         }
     }
 
@@ -198,7 +248,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (SelectedTeam is { } into && MergeTarget is { } from && into.Id != from.Id)
         {
-            _teams.Merge(into.Id, from.Id);
+            Apply("Merging the teams…", () => _teams.Merge(into.Id, from.Id));
         }
     }
 
@@ -214,7 +264,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         List<DemoSideRef> sides = [.. Demos.Where(d => d.IsChecked).Select(d => new DemoSideRef(d.Path, d.Side))];
         if (sides.Count > 0)
         {
-            _teams.Split(team.Id, sides, null);
+            Apply("Splitting the team…", () => _teams.Split(team.Id, sides, null));
         }
     }
 
@@ -224,7 +274,8 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (SelectedTeam is { } team && SelectedDemo is { } demo)
         {
-            _teams.StartRoster(team.Id, TeamClusterer.DateOf(demo.OrderTicks), null);
+            DateOnly since = TeamClusterer.DateOf(demo.OrderTicks);
+            Apply("Starting a roster…", () => _teams.StartRoster(team.Id, since, null));
         }
     }
 
@@ -233,7 +284,8 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (SelectedTeam is { } team)
         {
-            _teams.SetHidden(team.Id, !team.Hidden);
+            bool hide = !team.Hidden;
+            Apply(hide ? "Hiding the team…" : "Showing the team…", () => _teams.SetHidden(team.Id, hide));
         }
     }
 
@@ -243,7 +295,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (SelectedDemo is { } demo)
         {
-            _teams.Override(demo.Path, demo.Side, null);
+            Apply("Taking the side out of every team…", () => _teams.Override(demo.Path, demo.Side, null));
         }
     }
 
@@ -256,7 +308,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (SelectedDemo is { } demo && MoveTarget is { } target)
         {
-            _teams.Override(demo.Path, demo.Side, target.Id);
+            Apply("Moving the demo…", () => _teams.Override(demo.Path, demo.Side, target.Id));
         }
     }
 
@@ -346,6 +398,11 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
 
     private void Refresh()
     {
+        if (!IsBusy)
+        {
+            BusyLine = LoadingLine;
+        }
+
         Guid? keep = SelectedTeam?.Id;
         Teams.Clear();
         foreach (Team team in ShowHidden ? _teams.AllTeams : _teams.Teams)
