@@ -4,6 +4,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Dossier;
@@ -175,16 +176,32 @@ public class DossierModuleTests
         cache.Upsert(Record("/d/s6.dem", 40, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15), "de_ancient",
             ctScore: 4, tScore: 13, ctSideWins: 4, tSideWins: 13));
         await teams.Idle;
-        bool stale = vm.IsStale;
         string hiddenLine = vm.SampleSizeLine;
         vm.OnActivated(null!);
         using (Assert.Multiple())
         {
             await Assert.That(kept).IsTrue().Because("nothing the projection reads changed");
-            await Assert.That(stale).IsTrue();
-            await Assert.That(hiddenLine).Contains("5 demos");
-            await Assert.That(vm.IsStale).IsFalse();
+            await Assert.That(hiddenLine).Contains("5 demos").Because("a hidden tab does not re-project");
             await Assert.That(vm.SampleSizeLine).Contains("6 demos");
+            await Assert.That(vm.SelectedTeam?.Id).IsEqualTo(teamA);
+        }
+    }
+
+    [Test]
+    public async Task TheGrenadeIndexFinishingItsLoad_ReProjectsTheSelectedTeam()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
+        using GrenadeIndex grenades = new(cache);
+        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false, grenades: grenades);
+        vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
+        MapPoolRowViewModel before = vm.Maps[0];
+        vm.OnActivated(null!);
+        bool keptWhileLoading = ReferenceEquals(vm.Maps[0], before);
+        grenades.Load();
+        using (Assert.Multiple())
+        {
+            await Assert.That(keptWhileLoading).IsTrue();
+            await Assert.That(vm.Maps[0]).IsNotSameReferenceAs(before).Because("the openings read the index that just loaded");
             await Assert.That(vm.SelectedTeam?.Id).IsEqualTo(teamA);
         }
     }

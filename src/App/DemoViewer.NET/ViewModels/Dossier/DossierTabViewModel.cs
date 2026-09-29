@@ -12,6 +12,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
@@ -52,6 +53,9 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
     private readonly DemoCacheStore _demoCache;
+
+    // The Opening Tendencies read it; its load and merges land after the page may have rendered.
+    private readonly GrenadeIndex? _grenades;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly SetupHeatmapService? _heatmaps;
     private readonly Action<Action> _post;
@@ -62,7 +66,6 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     private readonly VetoHistoryStore _vetoes;
     private bool _disposed;
     private bool _shown = true;
-    private bool _stale;
 
     // What the shown projection was built from; a Refresh that finds the same inputs keeps it.
     private string? _projectedKey;
@@ -121,6 +124,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="openings">Builds the Opening Tendencies; null hides the section.</param>
     /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
     /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
+    /// <param name="grenades">The grenade index the Opening Tendencies read; its changes re-project the team.</param>
     /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
@@ -134,8 +138,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         PostPlantService? postPlant = null,
         SituationalBehaviourService? situational = null,
         DossierNotesStore? notes = null,
-        Func<string, string, string, string?>? export = null)
+        Func<string, string, string, string?>? export = null,
+        GrenadeIndex? grenades = null)
     {
+        _grenades = grenades;
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(vetoes);
@@ -158,6 +164,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Situational.PropertyChanged += OnSectionChanged;
         _teams.Changed += Refresh;
         _vetoes.Changed += ProjectVetoes;
+        if (_grenades is not null)
+        {
+            _grenades.Changed += Refresh;
+        }
         Refresh();
     }
 
@@ -231,8 +241,6 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <inheritdoc />
     public void OnDeactivated() => _shown = false;
 
-    /// <summary>True while a hidden tab has missed a Team Identity change; the next activation catches up.</summary>
-    public bool IsStale => _stale;
 
     /// <inheritdoc />
     public void Dispose()
@@ -253,6 +261,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Situational.PropertyChanged -= OnSectionChanged;
         _teams.Changed -= Refresh;
         _vetoes.Changed -= ProjectVetoes;
+        if (_grenades is not null)
+        {
+            _grenades.Changed -= Refresh;
+        }
     }
 
     partial void OnSelectedTeamChanged(DossierTeamRow? value)
@@ -349,11 +361,9 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     {
         if (!_shown)
         {
-            _stale = true;
             return;
         }
 
-        _stale = false;
         List<DossierTeamRow> rows = [.. _teams.Teams.Select(t => new DossierTeamRow(t))];
         if (rows.Count == Teams.Count && rows.Zip(Teams).All(p => p.First.SameAs(p.Second)))
         {
@@ -388,13 +398,14 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     {
         StringBuilder key = new();
         key.Append(JsonSerializer.Serialize(_teams.AllTeams.FirstOrDefault(t => t.Id == row.Id)));
+        key.Append(CultureInfo.InvariantCulture, $"|grenades:{_grenades?.IsReady}");
         foreach ((DemoRef demo, int side, TeamAssignment assignment) in _teams.SidesOf(row.Id))
         {
             key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
             if (_demoCache.TryGetIndex(demo.Path) is { } entry)
             {
                 key.Append(CultureInfo.InvariantCulture,
-                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsFingerprint}/{entry.RoundIndexFingerprint}/{entry.RoundIndexComputedAtTicks}/{entry.GrenadeState}/{entry.GrenadeCount}/{entry.GrenadeWalker}");
+                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsFingerprint}/{entry.RoundIndexFingerprint}/{entry.RoundIndexComputedAtTicks}/{entry.GrenadeState}/{entry.GrenadeCount}/{entry.GrenadeWalker}/{_grenades?.IsLoaded(demo.Path)}");
             }
         }
 

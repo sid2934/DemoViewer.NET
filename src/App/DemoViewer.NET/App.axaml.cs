@@ -1255,7 +1255,8 @@ public class App : Application
                 situational: new SituationalBehaviourService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     sp.GetRequiredService<DemoCacheStore>()),
-                notes: sp.GetRequiredService<DossierNotesStore>());
+                notes: sp.GetRequiredService<DossierNotesStore>(),
+                grenades: sp.GetRequiredService<GrenadeIndex>());
         });
 
         // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,

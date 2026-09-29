@@ -217,6 +217,16 @@ public sealed class GrenadeIndex : IDisposable
         }
     }
 
+    /// <summary>Whether <paramref name="demoPath" />'s rows are loaded.</summary>
+    /// <param name="demoPath">The demo.</param>
+    public bool IsLoaded(string demoPath)
+    {
+        lock (_gate)
+        {
+            return _loaded.ContainsKey(demoPath);
+        }
+    }
+
     /// <summary>Demos whose rows are loaded, a copied demo counted once.</summary>
     public int DemoCount
     {
