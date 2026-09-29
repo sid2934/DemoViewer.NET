@@ -91,7 +91,7 @@ public sealed class StratSession : IDisposable
         {
             if (Document is { } document && _issuesVersion != Version)
             {
-                _issues = StratValidator.Validate(document, index: _store.Index);
+                _issues = StratValidator.Validate(document, index: _store.Index, lineupExists: LineupLookup?.Invoke(document.Map));
                 _issuesVersion = Version;
             }
 
@@ -103,6 +103,15 @@ public sealed class StratSession : IDisposable
             _issuesVersion = Version;
         }
     }
+
+    /// <summary>
+    ///     Per map, whether a lineup id resolves there, or null while that map's lineups are not known yet (the
+    ///     validator then says the lineup was not checked). Must answer from memory: it runs on the UI thread.
+    /// </summary>
+    public Func<string, Func<string, Guid, bool>?>? LineupLookup { get; set; }
+
+    /// <summary>Validates again on the next read: what <see cref="LineupLookup" /> answers has changed.</summary>
+    public void InvalidateIssues() => _issuesVersion = -1;
 
     /// <summary>Bumped on every edit, undo and redo. Never goes backwards.</summary>
     public int Version { get; private set; }
@@ -193,7 +202,7 @@ public sealed class StratSession : IDisposable
         _checkOut = _store.CheckOut(id, this);
         Document = document;
         RecoveredPending = recovered.Count > 0;
-        Issues = StratValidator.Validate(document, index: _store.Index);
+        _issuesVersion = -1;
         _commitFailure = null;
         _writeFailed = false;
 
@@ -403,7 +412,7 @@ public sealed class StratSession : IDisposable
             _saveSerializer.Release();
         }
 
-        Issues = result.Issues;
+        _issuesVersion = -1;
         RecoveredPending &= !result.Saved;
         StatusText = Describe();
         Changed?.Invoke();

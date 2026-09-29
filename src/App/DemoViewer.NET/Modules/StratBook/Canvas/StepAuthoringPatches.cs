@@ -171,6 +171,29 @@ public static class StepAuthoringPatches
     }
 
     /// <summary>
+    ///     <see cref="AddStep" /> with every token placed where it stands at the step it follows
+    ///     (<see cref="StratStepCarry" />), and no strokes: what both Add step buttons insert.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="afterIndex">The step it follows, or -1 to insert first.</param>
+    /// <param name="atSeconds">The wanted time; clamped between the neighbours.</param>
+    /// <param name="id">The new step's id.</param>
+    /// <param name="throwOrigins">The projection's resolver, so a thrower carries at its lineup origin.</param>
+    public static PatchOp AddCarriedStep(StratDocument document, int afterIndex, double atSeconds, Guid id,
+        ThrowOriginResolver? throwOrigins)
+    {
+        PatchOp op = AddStep(document, afterIndex, atSeconds, id);
+        List<StepPosition> carried = StratStepCarry.PositionsAt(document, afterIndex, throwOrigins);
+        if (carried.Count > 0 && op.Value is JsonObject node)
+        {
+            node["positions"] = new JsonArray(carried
+                .Select(p => JsonSerializer.SerializeToNode(p, StratJsonContext.Default.StepPosition)).ToArray());
+        }
+
+        return op;
+    }
+
+    /// <summary>
     ///     A copy of a step's positions and strokes as a new step <see cref="DuplicateOffsetSeconds" /> later,
     ///     right after it. The strokes get new ids: two elements with one id cannot both be on the canvas.
     /// </summary>
