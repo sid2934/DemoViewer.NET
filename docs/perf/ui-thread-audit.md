@@ -105,9 +105,15 @@ The owner's rule (2026-09-28) has two parts:
 
 - The heavy lane works as before. It holds parses, forward passes, clip renders, mining, migrations,
   pack export and library scans. It runs one job at a time and holds the heavy-job slot.
-- The light lane runs `StoreSave`, `StoreLoad`, `SectionCompute` and `TeamsCommand` items. It runs
-  one at a time, beside the heavy lane, with no slot. A save or a section build never waits behind a
-  parse, a reel or an export.
+- The light lane runs `StoreSave`, `StoreLoad`, `SectionCompute` and `TeamsCommand` items beside
+  the heavy lane, with no slot. A save or a section build never waits behind a parse, a reel or an
+  export.
+- Background light items run one at a time. Items a user is waiting on run beside them, up to four
+  at once (62a86efe). A save cannot stop mid-write, and a Dossier team builds four sections, which
+  ran together on the pool.
+- `QueueWork.UserAction()` marks what a click submits, and what it awaits, as `UserRequested`. It
+  covers a Utility filter or map, a Dossier team or activation, a Situations search and overlay, and
+  a Tag matrix field. Store-change paths stay `Background`.
 - Light items and `LibraryScan` run with the background switch off.
 - Pause stops both lanes. The shutdown flush does not depend on the queue.
 
@@ -131,7 +137,23 @@ build is the one that runs, and a store has one pending save item.
 **UI cost (2876503a).** One pending UI update covers every queue change before it runs. Over the
 whole audit walk, 640 updates averaged 0.03 ms of reconcile and 0.003 ms of `Changed` handlers.
 
-Time from submit to done for a 5 ms section build (`QueueLatency_AndItsUiCost`):
+Time from click until the result is applied, over the owner's copy (`TimeToResult_PoolAgainstQueue`).
+Each row gives two runs each way. "Pool" is the same code with `QueueWork.Bypass` set, which is how
+this work ran before it moved into the queue:
+
+| Click | Pool | Queue |
+|---|---|---|
+| Dossier: select a team, until all four sections have built | 471 to 611 ms | 457 to 460 ms |
+| Utility Book: switch map, until the groups are applied | 66 to 83 ms | 91 to 107 ms |
+| The same, while a 1.1 s lineup save holds the light lane | 41 to 62 ms | 44 ms |
+| Situations: empty-draft search, until every card is filled | 3.5 s | 3.6 s |
+
+Before 62a86efe, the Dossier row in the queue was 798 to 843 ms, because its four builds ran one
+after another. The Situations fill renders a thumbnail for every one of the 1,256 cards, shown or
+not; see proposal 1.
+
+Synthetic probe: time from submit to done for a 5 ms section build in a bare queue
+(`QueueLatency_AndItsUiCost`):
 
 | Queue state | Time to result |
 |---|---|
@@ -159,8 +181,6 @@ there is no queue: tests, the browser, or a disposed queue.
 |---|---|---|
 | StoreSave, keyed | grenade lineup store | `GrenadeIndex` via `CoalescedWriter` |
 | StoreSave, keyed | Review queue, after its 300 ms debounce timer | `ReviewQueue` |
-| StoreSave | strat working copy | `StratSession` |
-| StoreSave | tag document | `TagSession` |
 | StoreSave | tag round facts refresh | `TagFactsRefresher` |
 | StoreSave | open demo's highlight harvest | `HighlightScanService.OnOpenDemoEvaluated` |
 | StoreSave | old lineup clip sweep | `LineupClipService` |
@@ -189,6 +209,7 @@ run under their own job control.
 | Visibility engine build, 2D Playback engine load | `VisibilityEngineCache`, `Playback2DTabViewModel.cs:3030` | Built for the open demo's map on first use |
 | 2D video export | `ExportJobService` | Has its own job service, running under an export session on the heavy-job gate |
 | Tag session SHA-256 of a .dem | `TagSession.cs:198` | Part of attaching the open demo |
+| A strat's working-copy save, a tag document's save | `StratSession`, `TagSession` | The idle commit, shutdown and Detach wait for these on the UI thread. As queue items, a paused queue would hang them. A few kilobytes each, under the small-work exemption (e48e7b6b) |
 | Reels clip picker record read | `HighlightsTabViewModel.cs:729` | About 300 ms cold, one click. The next one to convert |
 | Timers and clocks: playback, live-sync position, perf, idle, progress animation, GIF frames, mining quiet delay, log pump | various | Not work, or must stay real time |
 
@@ -223,6 +244,21 @@ Checked and clear:
 - The Situations view needs no realized container. The Dossier's only focus call is the inline-edit
   reclaim above.
 - `GrenadeIndex` is the only reader of `grenade-lineups.json.gz`.
+
+Deviations from the request:
+
+- D and G share one commit.
+- The cache index and library.json still load synchronously (owner call 3).
+- The Dossier has no "reading teams" state while the teams load; only the Teams tab has one. Until
+  the read lands, the Dossier's team list is empty.
+- `DemoLibraryServiceTests` was not run. It symlinks a real demo into a temp folder, and demos are
+  never linked.
+
+## Proposals
+
+1. **Fill only the shown Situations cards.** Send to Review reads each card's tick rate from the
+   fill, so a fill limited to the shown page would need to fill the rest before a send. That would
+   take "search to filled" from 3.6 s to about 0.6 s on de_ancient.
 
 ## Owner calls
 
