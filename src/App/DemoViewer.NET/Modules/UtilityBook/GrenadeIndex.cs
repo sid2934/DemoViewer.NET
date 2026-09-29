@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using Microsoft.Extensions.Logging;
 
@@ -174,6 +175,7 @@ public sealed class GrenadeIndex : IDisposable
     private readonly Dictionary<string, Dictionary<Guid, List<Guid>>> _reverseAliases = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _ready;
+    private readonly CoalescedWriter<GrenadeLineupDocument> _lineupWriter;
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
@@ -182,12 +184,16 @@ public sealed class GrenadeIndex : IDisposable
     /// <param name="evaluator">The writer, whose <c>Indexed</c> merges a demo; null in a read-only host.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="lineups">The lineup store; the one in the cache root when null.</param>
+    /// <param name="scheduleSave">Runs a lineup save later: a processing-queue item in the app, the pool when null.</param>
     public GrenadeIndex(DemoCacheStore demoCache, IZonePlaceResolverSource? zones = null,
-        GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null, GrenadeLineupStore? lineups = null)
+        GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null, GrenadeLineupStore? lineups = null,
+        Func<Action, Task>? scheduleSave = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         _demoCache = demoCache;
         _lineups = lineups ?? GrenadeLineupStore.For(demoCache);
+        _lineupWriter = new CoalescedWriter<GrenadeLineupDocument>(_lineups.Write,
+            ex => GrenadeIndexLog.LineupsNotSaved(Log, ex), scheduleSave ?? (drain => Task.Run(drain)));
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
         _evaluator = evaluator;
         _post = post ?? (a => a());
@@ -208,6 +214,16 @@ public sealed class GrenadeIndex : IDisposable
             {
                 return _ready;
             }
+        }
+    }
+
+    /// <summary>Whether <paramref name="demoPath" />'s rows are loaded.</summary>
+    /// <param name="demoPath">The demo.</param>
+    public bool IsLoaded(string demoPath)
+    {
+        lock (_gate)
+        {
+            return _loaded.ContainsKey(demoPath);
         }
     }
 
@@ -253,6 +269,7 @@ public sealed class GrenadeIndex : IDisposable
         }
 
         _demoCache.Changed -= OnCacheChanged;
+        FlushLineups(TimeSpan.FromSeconds(10));
     }
 
     /// <summary>The startup load on a worker: the composition root calls this and never awaits it on the UI thread.</summary>
@@ -545,6 +562,8 @@ public sealed class GrenadeIndex : IDisposable
             SaveLineupsLocked();
         }
 
+        // The migration reads the file back right after this returns.
+        FlushLineups();
         return (filled, readable);
     }
 
@@ -574,17 +593,16 @@ public sealed class GrenadeIndex : IDisposable
     private static float Distance(WorldPoint a, WorldPoint b) =>
         MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z));
 
-    private void SaveLineupsLocked()
-    {
-        try
-        {
-            _lineups.Save();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            GrenadeIndexLog.LineupsNotSaved(Log, ex);
-        }
-    }
+    // Under _gate. Only the copy is taken here; the gzip and write of the whole file (over a second on a
+    // big library) run as the writer's scheduled item, outside the lock.
+    private void SaveLineupsLocked() => _lineupWriter.Post(_lineups.Snapshot());
+
+    /// <summary>
+    ///     Writes any pending lineup save on the calling thread, waiting at most <paramref name="timeout" />
+    ///     for one in progress. Never throws; false when it could not.
+    /// </summary>
+    /// <param name="timeout">The wait for a write in progress; infinite when null.</param>
+    public bool FlushLineups(TimeSpan? timeout = null) => _lineupWriter.Flush(timeout);
 
     // Drops cached assignments: one map's, or every map's when null. Under _gate.
     private void InvalidateLocked(string? map)

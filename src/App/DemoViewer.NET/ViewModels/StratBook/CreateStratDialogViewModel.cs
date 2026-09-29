@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -98,7 +99,12 @@ public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposa
         // Off the UI thread: the walk is O(frames before the round) and a late round takes seconds (§3.9).
         CancellationToken ct = _cancel.Token;
         Progress = new WalkProgress(this);
-        Walking = Task.Run(() => walk(Progress, ct), ct).ContinueWith(t => _post(() => OnWalked(t)), TaskScheduler.Default);
+        // A queue item at the front: the user asked for it.
+        Walking = QueueWork.RunAsync<RoundCapture?>(QueueWork.Ambient, QueueJobKind.SectionCompute, "Strats: read the round",
+                "strats", () => walk(Progress, ct), null, DemoJobPriority.UserRequested)
+            .ContinueWith(t => t.Result ?? throw new OperationCanceledException(ct), ct,
+                TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
+            .ContinueWith(t => _post(() => OnWalked(t)), TaskScheduler.Default);
     }
 
     /// <summary>The pane's title.</summary>

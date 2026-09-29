@@ -3791,7 +3791,7 @@ public static class Variants
         [
             ("Running (1) — pulsing", StatusChipDotState.Working, true, "Processing 1"),
             ("Queued (5), none running", StatusChipDotState.Working, false, "5 queued"),
-            ("Paused", StatusChipDotState.Off, false, "Queue paused")
+            ("Paused", StatusChipDotState.Off, false, "Background paused")
         ];
 
         StackPanel col = new()

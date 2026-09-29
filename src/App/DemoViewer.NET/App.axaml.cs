@@ -300,6 +300,34 @@ public class App : Application
             // exit while CS2 kill / install restore is still mid-flight.
             bool csvgTornDown = false;
             bool csvgTeardownStarted = false;
+
+            // Runs only on the request that really exits, after any CSVG or export teardown: a store that
+            // throws or hangs here must never cost the machine its restored CS2 install.
+            static void FlushStores(ServiceProvider services)
+            {
+                // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
+                // their index to it: the Strat Book writes its own, and the Tag Store's is written here, the
+                // call its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
+                Action[] flushes =
+                [
+                    () => services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown(),
+                    () => services.GetService<TagStore>()?.SaveIndex(),
+                    () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
+                    () => services.GetService<GrenadeIndex>()?.FlushLineups(TimeSpan.FromSeconds(5))
+                ];
+                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+                foreach (Action flush in flushes)
+                {
+                    try
+                    {
+                        flush();
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog.OperationFailed(log, "shutdown flush", ex);
+                    }
+                }
+            }
             desktop.ShutdownRequested += (_, e) =>
             {
                 // Geometry snapshot first (idempotent: this handler can re-fire after a cancelled
@@ -316,13 +344,6 @@ public class App : Application
 
                 viewModel.SaveSession();
 
-                // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
-                // their index to it: the Strat Book writes its own, and the Tag Store's is written here, the call
-                // its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
-                services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown();
-                services.GetService<TagStore>()?.SaveIndex();
-                services.GetService<ReviewQueue>()?.Flush();
-
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
                 // A running 2D export owns an ffmpeg subprocess and a half-written video file. Exiting
@@ -333,6 +354,7 @@ public class App : Application
 
                 if (csvgTornDown || liveSync is null && !reelRunning && !exportRunning)
                 {
+                    FlushStores(services);
                     return;
                 }
 
@@ -625,6 +647,11 @@ public class App : Application
     ///         starts a <c>DispatcherTimer</c>) at build time.
     ///     </para>
     /// </summary>
+    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
+        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
+            DemoJobPriority.UserRequested);
+
     internal static ServiceProvider BuildServices(IWindowService windowService)
     {
         ServiceCollection services = new();
@@ -902,13 +929,18 @@ public class App : Application
                 // The canvas shows the "us" team's callouts (Callout Aliases, strat-model.md §3.7) over
                 // the stored canonical place names; no team marked falls back to the me book, same as the
                 // Strat Book's own default.
-                callouts: sp.GetRequiredService<CalloutResolverSource>());
+                callouts: sp.GetRequiredService<CalloutResolverSource>(),
+                run: part => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
+                    QueueJobKind.SectionCompute, "Situations: " + part, "situations", _ => work(), key: "section:situations:" + part,
+                    preemptible: true));
         });
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
-        services.AddSingleton(_ => new ReviewQueue(AppPaths.ConfigRoot));
+        services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
+            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
+            scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
         // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
@@ -955,6 +987,8 @@ public class App : Application
             sp.GetRequiredService<SuggestedTagsService>(),
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IDemoProcessingQueue>(),
+            run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
+                "Suggested: read a demo", "suggested", _ => work()),
             post: action => Dispatcher.UIThread.Post(action)));
         services.AddSingleton(sp => new SuggestedInboxViewModel(
             sp.GetService<SuggestedInboxService>(),
@@ -985,7 +1019,9 @@ public class App : Application
             return new TagFactsRefresher(
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
-                path => cache.TryGetIndex(path)?.Sha256);
+                path => cache.TryGetIndex(path)?.Sha256,
+                background: work => _ = QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreSave,
+                    "Tags: round facts", "tags", _ => work()));
         });
 
         // The Matrix: tag instances pivoted over the store, a container singleton resolved lazily on first
@@ -1000,7 +1036,9 @@ public class App : Application
                 cache.TryGetIndexBySha256,
                 sp.GetRequiredService<TeamIdentityService>(),
                 tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
+                    "Tags: matrix", "tags", _ => work(), key: "section:tag-matrix", preemptible: true));
         });
 
         // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
@@ -1063,7 +1101,10 @@ public class App : Application
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
+                    "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
+                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"));
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
@@ -1095,7 +1136,11 @@ public class App : Application
                 {
                     await shell.LoadDemoFromPathAsync(path);
                 }
-            }));
+            },
+            command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
+                "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested,
+                serial: TeamIdentityService.QueueSerial),
+            post: action => Dispatcher.UIThread.Post(action)));
 
         // The Strat Book's store: one folder per book under <config>/strats. One per process, because CheckOut's
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
@@ -1170,8 +1215,7 @@ public class App : Application
                 sp.GetRequiredService<DemoCacheStore>(),
                 () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
                 () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
-                action => Dispatcher.UIThread.Post(action));
+                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4);
         });
 
         // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the
@@ -1181,7 +1225,9 @@ public class App : Application
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IZonePlaceResolverSource>(),
             sp.GetRequiredService<GrenadeIndexEvaluator>(),
-            action => Dispatcher.UIThread.Post(action)));
+            action => Dispatcher.UIThread.Post(action),
+            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups", "utility",
+                "save:grenade-lineups")));
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
@@ -1189,7 +1235,10 @@ public class App : Application
                 sp.GetRequiredService<GrenadeIndex>(),
                 sp.GetRequiredService<ISituationPlayback>(),
                 demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
-                clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null);
+                clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
+                background: QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility",
+                    "section:utility"),
+                post: work => Dispatcher.UIThread.Post(work));
         });
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
@@ -1232,7 +1281,11 @@ public class App : Application
                 situational: new SituationalBehaviourService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     sp.GetRequiredService<DemoCacheStore>()),
-                notes: sp.GetRequiredService<DossierNotesStore>());
+                notes: sp.GetRequiredService<DossierNotesStore>(),
+                grenades: sp.GetRequiredService<GrenadeIndex>(),
+                runSection: section => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
+                    QueueJobKind.SectionCompute, "Dossier: " + section, "dossier", _ => work(), key: "section:dossier:" + section,
+                    preemptible: true));
         });
 
         // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,
@@ -1321,14 +1374,17 @@ public class App : Application
         {
             ValidateOnBuild = true
         });
+        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
         // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
         // any rescan, independent of ValidateOnBuild's eager-construction behavior.
         provider.GetRequiredService<DemoEvaluationCoordinator>();
-        // The situation index's startup load: every current sidecar, off the UI thread (2 ms per demo
-        // measured). Queries before it finishes answer empty with IsReady false and the strip says so.
-        _ = provider.GetRequiredService<SituationIndex>().StartLoadAsync();
-        // The grenade index's startup load: every current rows sibling, off the UI thread.
-        _ = provider.GetRequiredService<GrenadeIndex>().StartLoadAsync();
+        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
+        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
+        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
+        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
+        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
+        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
         // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
         provider.GetRequiredService<LineupClipService>();
         // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,

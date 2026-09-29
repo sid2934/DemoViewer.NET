@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -40,25 +41,37 @@ public sealed class ReviewQueue
     public const string FileName = "review-queue.json";
 
     private readonly List<ReviewEntry> _loaded = [];
-    private readonly Task _load;
+    private readonly LoadOnce _load;
     private readonly string? _path;
     private readonly TimeSpan _saveDelay;
-    private readonly Lock _saveGate = new();
-    private readonly Lock _writeGate = new();
+    private readonly CoalescedWriter<ReviewEntry[]> _writer;
     private int _deferDepth;
     private bool _deferredChange;
     private string? _fileProblem;
     private Dictionary<string, JsonElement>? _fileExtra;
-    private ReviewEntry[]? _pendingSave;
     private bool _refused;
 
     /// <param name="configRoot">The app config root, or null for a session-only queue (the browser, tests).</param>
     /// <param name="saveDelay">How long a write waits for more mutations; 300 ms when null.</param>
-    public ReviewQueue(string? configRoot, TimeSpan? saveDelay = null)
+    /// <param name="scheduleSave">Runs a save after the delay: a processing-queue item in the app, the pool when null.</param>
+    /// <param name="scheduleLoad">Runs the file read: a processing-queue item in the app, the pool when null.</param>
+    public ReviewQueue(string? configRoot, TimeSpan? saveDelay = null, Func<Action, Task>? scheduleSave = null,
+        Func<Action, Task>? scheduleLoad = null)
     {
         _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
         _saveDelay = saveDelay ?? TimeSpan.FromMilliseconds(300);
-        _load = _path is null ? Task.CompletedTask : Task.Run(Load);
+        Func<Action, Task> schedule = scheduleSave ?? (drain => Task.Run(drain));
+        _writer = new CoalescedWriter<ReviewEntry[]>(Write, _ => { },
+            drain => Task.Delay(_saveDelay).ContinueWith(_ => schedule(drain), TaskScheduler.Default).Unwrap());
+        _load = new LoadOnce(_path is null ? () => { } : Load);
+        if (_path is null)
+        {
+            _load.Ensure();
+        }
+        else
+        {
+            _ = (scheduleLoad ?? (load => Task.Run(load)))(_load.Ensure);
+        }
     }
 
     /// <summary>What the load's lineup-clip migration dropped, or null when it had nothing to do.</summary>
@@ -75,18 +88,15 @@ public sealed class ReviewQueue
     private ReviewQueueMigrationResult? _migration;
 
     /// <summary>Completes when the file has been read (or refused).</summary>
-    public Task Loaded => _load;
+    public Task Loaded => _load.Completion;
 
     // Every member reads the list through here, so nothing sees it before the file is in.
     private List<ReviewEntry> List
     {
         get
         {
-            if (!_load.IsCompleted)
-            {
-                _load.GetAwaiter().GetResult();
-            }
-
+            // A caller that gets here before the queue has run the read does it now.
+            _load.Ensure();
             return _loaded;
         }
     }
@@ -170,24 +180,12 @@ public sealed class ReviewQueue
         return new DeferScope(this);
     }
 
-    /// <summary>Writes a pending save now, on the calling thread. Returns once the file is on disk.</summary>
-    public void Flush()
-    {
-        lock (_writeGate)
-        {
-            ReviewEntry[]? snapshot;
-            lock (_saveGate)
-            {
-                snapshot = _pendingSave;
-                _pendingSave = null;
-            }
-
-            if (snapshot is not null)
-            {
-                Write(snapshot);
-            }
-        }
-    }
+    /// <summary>
+    ///     Writes a pending save now, waiting at most <paramref name="timeout" /> for one in progress. Never
+    ///     throws; false when it could not.
+    /// </summary>
+    /// <param name="timeout">The wait for a write in progress; infinite when null.</param>
+    public bool Flush(TimeSpan? timeout = null) => _writer.Flush(timeout);
 
     /// <summary>The entry with this id, or null.</summary>
     /// <param name="id">The entry's id.</param>
@@ -736,35 +734,12 @@ public sealed class ReviewQueue
         QueueWrite([.. List]);
     }
 
-    private void QueueWrite(ReviewEntry[] snapshot)
-    {
-        bool start;
-        lock (_saveGate)
-        {
-            start = _pendingSave is null;
-            _pendingSave = snapshot;
-        }
+    private void QueueWrite(ReviewEntry[] snapshot) => _writer.Post(snapshot);
 
-        if (start)
-        {
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(_saveDelay).ConfigureAwait(false);
-                Flush();
-            });
-        }
-    }
-
+    // A failure is dropped: the in-memory queue stands for the session and the next mutation retries.
     private void Write(ReviewEntry[] snapshot)
     {
-        try
-        {
-            ReviewQueueFile file = new() { Entries = [.. snapshot], Extra = _fileExtra };
-            DemoCacheStore.WriteAtomic(_path!, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
-        }
-        catch (Exception)
-        {
-            // Best effort: the in-memory queue stands for the session and the next mutation retries.
-        }
+        ReviewQueueFile file = new() { Entries = [.. snapshot], Extra = _fileExtra };
+        DemoCacheStore.WriteAtomic(_path!, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
     }
 }

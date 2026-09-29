@@ -112,7 +112,7 @@ public class ProcessingQueueViewTests
                 await Assert.That(mine.ProgressValue).IsEqualTo(48.0 / 366);
                 await Assert.That(mine.Detail).IsEqualTo("48 of 366 demos");
                 await Assert.That(vm.Rows.Single(r => r.StateLabel == "Failed").Error).IsEqualTo("no map bundle for de_nuke");
-                await Assert.That(vm.StatusLine).IsEqualTo("1 running · 4 queued · paused");
+                await Assert.That(vm.StatusLine).IsEqualTo("1 running · 4 queued · paused: background work held");
             }
 
             // The row's remove cancels the running job through its token.

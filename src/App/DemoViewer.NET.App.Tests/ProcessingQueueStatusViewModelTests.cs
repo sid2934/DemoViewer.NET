@@ -63,9 +63,9 @@ public class ProcessingQueueStatusViewModelTests
         ProcessingQueueStatusViewModel vm = new(q);
 
         await Assert.That(vm.Chip.DotState).IsEqualTo(StatusChipDotState.Off);
-        await Assert.That(vm.Chip.Label).IsEqualTo("Queue paused");
+        await Assert.That(vm.Chip.Label).IsEqualTo("Background paused");
         await Assert.That(vm.IsPaused).IsTrue();
-        await Assert.That(vm.PauseResumeLabel).IsEqualTo("Resume queue");
+        await Assert.That(vm.PauseResumeLabel).IsEqualTo("Resume background work");
         await Assert.That(vm.StatusLine).Contains("paused");
     }
 
@@ -136,7 +136,7 @@ public class ProcessingQueueStatusViewModelTests
         vm.TogglePauseCommand.Execute(null);
         await Assert.That(q.IsPaused).IsTrue();
         await Assert.That(vm.IsPaused).IsTrue();
-        await Assert.That(vm.Chip.Label).IsEqualTo("Queue paused");
+        await Assert.That(vm.Chip.Label).IsEqualTo("Background paused");
 
         vm.TogglePauseCommand.Execute(null);
         await Assert.That(q.IsPaused).IsFalse();

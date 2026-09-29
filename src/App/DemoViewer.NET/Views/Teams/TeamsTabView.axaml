@@ -179,10 +179,14 @@
                     BorderThickness="1" CornerRadius="6" Padding="12 10">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="10">
+                        <!-- A change in progress or the first read of the teams; the actions wait for it. -->
+                        <TextBlock Text="{Binding BusyLine}" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextValue}"
+                                   IsVisible="{Binding BusyLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         <TextBlock Text="select a team" FontSize="11" Foreground="{DynamicResource TextMid}"
                                    IsVisible="{Binding !HasSelection}" />
 
-                        <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
+                        <StackPanel Spacing="10" IsVisible="{Binding HasSelection}" IsEnabled="{Binding IsIdle}">
                             <TextBlock Text="{Binding ActiveRosterLine}" FontSize="11" TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextMid}" />
 

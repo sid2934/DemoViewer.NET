@@ -527,6 +527,8 @@ public sealed class StratSession : IDisposable
                 return; // a commit or a newer snapshot already reached the store
             }
 
+            // Not a queue item: the idle commit and shutdown wait for this write on the UI thread, and a
+            // paused or busy queue would hold them. A few kilobytes, well under the small-work bar.
             bool written = await Task.Run(() => _store.WriteWorkingCopy(snapshot, pending)).ConfigureAwait(false);
             if (written)
             {

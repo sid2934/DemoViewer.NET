@@ -69,6 +69,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly object _sync = new();
     private readonly TimeProvider _time;
     private int _activeWorkers;
+    private int _activeLightWorkers;
     private bool _backgroundEnabled = true;
     private bool _disposed;
     private bool _compacting;
@@ -376,6 +377,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 }
 
                 existing.DisplayName ??= request.DisplayName;
+                if (existing.State == DemoQueueItemState.Queued)
+                {
+                    supersededCancel = PreemptForLocked(existing);
+                }
+
                 PumpLocked(); // priority may have changed the pick order
                 handle = new Handle(this, existing.Id, request.OwnerTag, request.Path, existing.Completion.Task);
             }
@@ -425,6 +431,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 };
                 entry.Attachments.Add(new Attachment(request.OwnerTag, request.OnParsed, request.OnFailed, request.OnForward));
                 _entries.Add(entry);
+                supersededCancel = PreemptForLocked(entry);
                 PumpLocked();
                 handle = new Handle(this, entry.Id, request.OwnerTag, request.Path, entry.Completion.Task);
             }
@@ -444,6 +451,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         Handle handle;
+        CancellationTokenSource? preempted = null;
         lock (_sync)
         {
             if (_disposed)
@@ -460,16 +468,24 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 existing.DisplayName = request.Title;
                 existing.Priority = (DemoJobPriority)Math.Max((int)existing.Priority, (int)request.Priority);
                 existing.OrderHint = Math.Max(existing.OrderHint, request.OrderHint);
+                if (request.ReplacePending)
+                {
+                    existing.Job = request.RunAsync;
+                }
+
+                preempted = PreemptForLocked(existing);
                 PumpLocked();
                 handle = new Handle(this, existing.Id, request.OwnerTag, existing.Path, existing.Completion.Task);
             }
             else
             {
                 Entry entry = SubmitJobLocked(request);
+                preempted = PreemptForLocked(entry);
                 handle = new Handle(this, entry.Id, request.OwnerTag, entry.Path, entry.Completion.Task);
             }
         }
 
+        CancelQuietly(preempted);
         RaiseChanged();
         return handle;
     }
@@ -486,7 +502,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             DisplayName = request.Title,
             Priority = request.Priority,
             OrderHint = request.OrderHint,
-            Seq = _seq++
+            Seq = _seq++,
+            Preemptible = request.Preemptible,
+            Serial = request.Serial,
+            ReplacePending = request.ReplacePending
         };
         _entries.Add(entry);
         PumpLocked();
@@ -594,6 +613,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         _shutdown.Cancel();
         _shutdown.Dispose();
+        if (ReferenceEquals(QueueWork.Ambient, this))
+        {
+            QueueWork.Ambient = null;
+        }
     }
 
     // ── The pump + workers ───────────────────────────────────────────────
@@ -602,14 +625,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // MaxConcurrency. A worker self-terminates when no work remains; the next submit/resume respawns.
     private void PumpLocked()
     {
-        if (_disposed || _paused)
+        if (_disposed)
         {
             return;
         }
 
-        int running = _entries.Count(e => e.State == DemoQueueItemState.Running);
+        int running = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e.Kind));
         int want = running;
-        if (NextStartableLocked() is { } next)
+        if (NextStartableLocked(false) is { } next)
         {
             want = next.Kind == QueueJobKind.DemoProcessing
                 ? Math.Min(_maxConcurrency, running + _entries.Count(e => e.Kind == QueueJobKind.DemoProcessing && IsStartableLocked(e)))
@@ -620,6 +643,92 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             _activeWorkers++;
             _ = Task.Run(() => WorkerLoopAsync());
         }
+
+        int lightRunning = _entries.Count(e => e.State == DemoQueueItemState.Running && IsLight(e.Kind));
+        int wantLight = Math.Min(1 + MaxUserLight, lightRunning + (NextStartableLocked(true) is not null ? 1 : 0));
+        while (_activeLightWorkers < wantLight)
+        {
+            _activeLightWorkers++;
+            _ = Task.Run(() => LightWorkerLoopAsync());
+        }
+    }
+
+    // The light lane: saves, loads, section builds and Team Identity commands. One at a time, beside the
+    // heavy lane, with no heavy slot, so a store save or a section never waits behind a demo parse or a reel.
+    private async Task LightWorkerLoopAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                Entry? entry;
+                lock (_sync)
+                {
+                    entry = _disposed ? null : PickNextQueuedLocked(true);
+                    PumpLocked(); // another user item may start beside this one
+                }
+
+                if (entry is null)
+                {
+                    return;
+                }
+
+                using SlotLease none = new(_gate, null, true);
+                await RunJobAsync(entry, none).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _activeLightWorkers--;
+                PumpLocked();
+            }
+        }
+    }
+
+    // Light items a user is waiting on that may run at once; the pool gave a Dossier's four builds this.
+    private const int MaxUserLight = 4;
+
+    private static bool IsLight(QueueJobKind kind) =>
+        kind is QueueJobKind.StoreSave or QueueJobKind.StoreLoad or QueueJobKind.SectionCompute or QueueJobKind.TeamsCommand;
+
+    // Under _sync. A user's item stops the Background job or forward pass running in its lane; that item goes
+    // back in the queue, first within its priority, so it runs again once the user's item is done. A retained
+    // parse cannot be stopped (the parser takes no token), so the user's item simply runs next.
+    private CancellationTokenSource? PreemptForLocked(Entry incoming)
+    {
+        if (incoming.Priority < DemoJobPriority.UserRequested || incoming.State != DemoQueueItemState.Queued)
+        {
+            return null;
+        }
+
+        bool light = IsLight(incoming.Kind);
+        Entry? victim = _entries.FirstOrDefault(e =>
+            e.State == DemoQueueItemState.Running && IsLight(e.Kind) == light && e.Priority == DemoJobPriority.Background
+            && e.Preemptible && !e.Preempted && !e.CancelRequested && !e.Finalizing && e.Kind != QueueJobKind.HeapCompaction
+            && (e.Kind != QueueJobKind.DemoProcessing || e.Forward));
+        if (victim is null)
+        {
+            return null;
+        }
+
+        victim.Preempted = true;
+        return victim.Cancel;
+    }
+
+    // Under _sync. Puts a preempted item back in the queue with the same id and an unfinished Completion.
+    private void RequeueLocked(Entry entry)
+    {
+        entry.State = DemoQueueItemState.Queued;
+        entry.Preempted = false;
+        entry.Requeued = true;
+        entry.Finalizing = false;
+        entry.Cancel = null;
+        PumpLocked();
     }
 
     private async Task WorkerLoopAsync()
@@ -630,7 +739,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 lock (_sync)
                 {
-                    if (_disposed || _paused || NextStartableLocked() is null)
+                    if (_disposed || NextStartableLocked(false) is null)
                     {
                         return; // nothing to do → exit; respawned on next submit/resume/grow
                     }
@@ -644,7 +753,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 Entry? entry;
                 lock (_sync)
                 {
-                    entry = _disposed || _paused ? null : PickNextQueuedLocked();
+                    entry = _disposed ? null : PickNextQueuedLocked(false);
                 }
 
                 if (entry is null)
@@ -741,7 +850,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             entry.Cancel = cancel;
             needs = entry.Needs;
-            if (entry.CancelRequested)
+            if (entry.CancelRequested || entry.Preempted)
             {
                 cancel.Cancel();
             }
@@ -796,9 +905,23 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         List<Attachment> attachments;
         lock (_sync)
         {
-            entry.Finalizing = true;
-            cancelled |= entry.CancelRequested;
-            attachments = [.. entry.Attachments];
+            if (cancelled && entry.Preempted && !entry.CancelRequested)
+            {
+                RequeueLocked(entry);
+                attachments = [];
+            }
+            else
+            {
+                entry.Finalizing = true;
+                cancelled |= entry.CancelRequested;
+                attachments = [.. entry.Attachments];
+            }
+        }
+
+        if (entry.Requeued && entry.State == DemoQueueItemState.Queued)
+        {
+            RaiseChanged();
+            return;
         }
 
         if (cancelled)
@@ -836,7 +959,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             title = entry.DisplayName ?? "";
             entry.Cancel = cancel;
             job = entry.Job;
-            if (entry.CancelRequested)
+            if (entry.CancelRequested || entry.Preempted)
             {
                 cancel.Cancel();
             }
@@ -862,6 +985,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             error = ex.Message;
         }
 
+        bool requeued = false;
         lock (_sync)
         {
             if (state == DemoQueueItemState.Completed && entry.CancelRequested)
@@ -870,7 +994,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             entry.Cancel = null;
-            if (entry.Kind != QueueJobKind.HeapCompaction)
+            if (entry.Kind != QueueJobKind.HeapCompaction && !IsLight(entry.Kind))
             {
                 _jobsSinceCompact++;
                 if (entry.ParsedDemo)
@@ -878,9 +1002,30 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     _parsesSinceCompact++;
                 }
             }
+
+            // Stopped for a user's item, not by anyone asking it to stop: it runs again later. A job that
+            // returned normally despite the stop is taken at its word and completes.
+            if (state == DemoQueueItemState.Cancelled && entry.Preempted && !entry.CancelRequested)
+            {
+                // A newer build of the same key is already waiting and replaces this one's work.
+                bool replaced = entry.ReplacePending && entry.Key is not null && _entries.Any(e =>
+                    e.State == DemoQueueItemState.Queued && e.Kind == entry.Kind
+                    && string.Equals(e.Key, entry.Key, StringComparison.Ordinal));
+                if (!replaced)
+                {
+                    RequeueLocked(entry);
+                    requeued = true;
+                }
+            }
         }
 
         cancel.Dispose();
+        if (requeued)
+        {
+            RaiseChanged();
+            return;
+        }
+
         SetTerminal(entry, state, error);
     }
 
@@ -969,15 +1114,22 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // OrderHint, then FIFO seq; null when that item may not start yet. Demo parses may run side by side up to
     // MaxConcurrency, but any other job runs exclusively: it starts only on an idle queue, and nothing starts
     // while it runs, even after it hands its slot back.
-    private Entry? NextStartableLocked()
+    private Entry? NextStartableLocked(bool light)
     {
         Entry? best = null;
         bool anyRunning = false, jobRunning = false;
+        int userRunning = 0;
         foreach (Entry e in _entries)
         {
+            if (IsLight(e.Kind) != light)
+            {
+                continue;
+            }
+
             if (e.State == DemoQueueItemState.Running)
             {
                 anyRunning = true;
+                userRunning += e.Priority >= DemoJobPriority.UserRequested ? 1 : 0;
                 jobRunning |= e.Kind != QueueJobKind.DemoProcessing;
             }
             else if (IsStartableLocked(e) && (best is null || Compare(e, best) < 0))
@@ -986,13 +1138,20 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
         }
 
+        if (light)
+        {
+            // Background light items run one at a time. Items a user is waiting on run beside them, up to
+            // MaxUserLight at once: a save cannot stop mid-write, and a Dossier team builds four sections.
+            return !anyRunning || best is { Priority: >= DemoJobPriority.UserRequested } && userRunning < MaxUserLight ? best : null;
+        }
+
         return best is null || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
     }
 
     // Marks the next startable item Running under the lock.
-    private Entry? PickNextQueuedLocked()
+    private Entry? PickNextQueuedLocked(bool light)
     {
-        Entry? best = NextStartableLocked();
+        Entry? best = NextStartableLocked(light);
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
@@ -1076,6 +1235,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // A waiter's task holds the ParsedDemo, a job's body its closure; history must not keep either.
         entry.ForegroundWaiters.Clear();
         entry.Job = null;
+        if (IsLight(entry.Kind) && state == DemoQueueItemState.Completed)
+        {
+            _entries.Remove(entry); // a finished save or section build is not history worth showing
+        }
+
         if (entry.Kind == QueueJobKind.HeapCompaction)
         {
             _compacting = false;
@@ -1120,10 +1284,23 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // ── UI mirror reconcile (posted) ──────────────────────────────────────────
 
+    // One pending UI update covers every change made before it runs, since it reads the state when it
+    // runs. A burst of section builds would otherwise post a mirror reconcile and a Changed per step.
+    private int _changePending;
+
     private void RaiseChanged()
     {
-        PostReconcile();
-        _post(() => Changed?.Invoke());
+        if (Interlocked.Exchange(ref _changePending, 1) == 1)
+        {
+            return;
+        }
+
+        _post(() =>
+        {
+            Interlocked.Exchange(ref _changePending, 0);
+            Reconcile();
+            Changed?.Invoke();
+        });
     }
 
     private void RaiseCapacityAvailable()
@@ -1142,58 +1319,55 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // Reconcile the bound mirror to the current snapshot by id (create/update/remove) so item identity
     // and selection survive. Runs on the post thread; guarded so concurrent inline posts (tests) are safe.
-    private void PostReconcile()
+    private void Reconcile()
     {
-        _post(() =>
+        // Snapshot INSIDE the posted action, not before it. Posts run FIFO on the UI thread, so
+        // taking the snapshot here makes the LAST-enqueued reconcile read the LATEST state:
+        // capturing before the post let two concurrent RaiseChanged calls enqueue in one order
+        // while their older/newer snapshots landed in the reverse, leaving the mirror stale.
+        IReadOnlyList<DemoQueueItemSnapshot> snapshot = Snapshot();
+        lock (_items)
         {
-            // Snapshot INSIDE the posted action, not before it. Posts run FIFO on the UI thread, so
-            // taking the snapshot here makes the LAST-enqueued reconcile read the LATEST state:
-            // capturing before the post let two concurrent RaiseChanged calls enqueue in one order
-            // while their older/newer snapshots landed in the reverse, leaving the mirror stale.
-            IReadOnlyList<DemoQueueItemSnapshot> snapshot = Snapshot();
-            lock (_items)
+            Dictionary<Guid, DemoQueueItemSnapshot> wanted = snapshot.ToDictionary(s => s.Id);
+            for (int i = _items.Count - 1; i >= 0; i--)
             {
-                Dictionary<Guid, DemoQueueItemSnapshot> wanted = snapshot.ToDictionary(s => s.Id);
-                for (int i = _items.Count - 1; i >= 0; i--)
+                if (!wanted.ContainsKey(_items[i].Id))
                 {
-                    if (!wanted.ContainsKey(_items[i].Id))
-                    {
-                        _items.RemoveAt(i);
-                    }
-                }
-
-                Dictionary<Guid, DemoQueueItem> present = _items.ToDictionary(x => x.Id);
-                foreach (DemoQueueItemSnapshot s in snapshot)
-                {
-                    if (present.TryGetValue(s.Id, out DemoQueueItem? item))
-                    {
-                        item.DisplayName = s.DisplayName;
-                        item.Owners = string.Join(", ", s.Owners);
-                        item.Priority = s.Priority;
-                        item.State = s.State;
-                        item.Error = s.Error;
-                        item.Progress = s.Progress;
-                        item.Detail = s.Detail;
-                    }
-                    else
-                    {
-                        _items.Add(new DemoQueueItem
-                        {
-                            Id = s.Id,
-                            Path = s.Path,
-                            DisplayName = s.DisplayName,
-                            Owners = string.Join(", ", s.Owners),
-                            Priority = s.Priority,
-                            State = s.State,
-                            Error = s.Error,
-                            Kind = s.Kind,
-                            Progress = s.Progress,
-                            Detail = s.Detail
-                        });
-                    }
+                    _items.RemoveAt(i);
                 }
             }
-        });
+
+            Dictionary<Guid, DemoQueueItem> present = _items.ToDictionary(x => x.Id);
+            foreach (DemoQueueItemSnapshot s in snapshot)
+            {
+                if (present.TryGetValue(s.Id, out DemoQueueItem? item))
+                {
+                    item.DisplayName = s.DisplayName;
+                    item.Owners = string.Join(", ", s.Owners);
+                    item.Priority = s.Priority;
+                    item.State = s.State;
+                    item.Error = s.Error;
+                    item.Progress = s.Progress;
+                    item.Detail = s.Detail;
+                }
+                else
+                {
+                    _items.Add(new DemoQueueItem
+                    {
+                        Id = s.Id,
+                        Path = s.Path,
+                        DisplayName = s.DisplayName,
+                        Owners = string.Join(", ", s.Owners),
+                        Priority = s.Priority,
+                        State = s.State,
+                        Error = s.Error,
+                        Kind = s.Kind,
+                        Progress = s.Progress,
+                        Detail = s.Detail
+                    });
+                }
+            }
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1208,7 +1382,32 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // Pause stops every start; the disable switch stops only Background-priority work.
     private bool IsStartableLocked(Entry e) =>
         e.State == DemoQueueItemState.Queued
-        && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction);
+        && (!_paused || e.Priority >= DemoJobPriority.UserRequested)
+        && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
+            || IsLight(e.Kind) || e.Kind == QueueJobKind.LibraryScan)
+        && !BlockedLocked(e);
+
+    // A keyed item waits while one with its key runs (a same-key submit then reruns once, never beside
+    // it), and items sharing a serial never run together.
+    private bool BlockedLocked(Entry e)
+    {
+        if (e.Key is null && e.Serial is null)
+        {
+            return false;
+        }
+
+        foreach (Entry r in _entries)
+        {
+            if (r.State == DemoQueueItemState.Running && !ReferenceEquals(r, e)
+                && ((e.Key is not null && r.Kind == e.Kind && string.Equals(r.Key, e.Key, StringComparison.Ordinal))
+                    || (e.Serial is not null && string.Equals(r.Serial, e.Serial, StringComparison.Ordinal))))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static int KindRank(QueueJobKind kind) => kind switch
     {
@@ -1237,6 +1436,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (a.Priority != b.Priority)
         {
             return b.Priority.CompareTo(a.Priority);
+        }
+
+        // A preempted item resumes before anything else of its priority.
+        if (a.Requeued != b.Requeued)
+        {
+            return a.Requeued ? -1 : 1;
         }
 
         int rank = KindRank(a.Kind).CompareTo(KindRank(b.Kind));
@@ -1335,7 +1540,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // The worker's slot, which a job may hand back for a moment or for good.
-    private sealed class SlotLease(HeavyJobGate gate, IDisposable held) : IDisposable
+    private sealed class SlotLease(HeavyJobGate gate, IDisposable? held, bool light = false) : IDisposable
     {
         private IDisposable? _held = held;
 
@@ -1345,6 +1550,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         public async Task RetakeAsync(CancellationToken ct)
         {
+            if (light)
+            {
+                return; // the light lane holds no slot to hand back
+            }
+
             Release();
             _held = await gate.AcquireBackgroundAsync(ct).ConfigureAwait(false);
         }
@@ -1389,6 +1599,18 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public DemoQueueItemState State { get; set; } = DemoQueueItemState.Queued;
         public string? Error { get; set; }
         public bool CancelRequested { get; set; }
+
+        // Stopped for a user's item; it goes back in the queue instead of ending.
+        public bool Preempted { get; set; }
+
+        // Came back from a preemption; runs first within its priority.
+        public bool Requeued { get; set; }
+
+        public bool Preemptible { get; init; } = true;
+
+        public string? Serial { get; init; }
+
+        public bool ReplacePending { get; init; }
 
         // Whether this parse decodes user commands; fixed once it runs.
         public bool UserCommands { get; set; } = true;
