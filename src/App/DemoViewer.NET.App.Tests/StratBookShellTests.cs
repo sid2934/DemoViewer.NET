@@ -312,6 +312,71 @@ public class StratBookShellTests
         }
     }
 
+    [Test]
+    public async Task CollapsedPanes_SurviveRestarts_WithoutADemo_AndWithoutOpeningTheStratBook()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+
+                MainViewModel vm1 = NewShell(null, svc, new SectionsModule());
+                vm1.TrySelectTab("stratbook.browser");
+                vm1.StratBookHub.Layout.IsRailCollapsed = true;
+                vm1.StratBookHub.Layout.IsListCollapsed = true;
+                vm1.SaveSession();
+                vm1.Dispose();
+
+                // The next session never opens the Strat Book and loads no demo.
+                svc.SaveSession(svc.LoadSession()! with { ActiveTabId = "builtin.library" });
+                MainViewModel vm2 = NewShell(null, svc, new SectionsModule());
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm2.SelectedTab!.TabId).IsNotEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm2.StratBookHub.Layout.IsRailCollapsed).IsTrue();
+                    await Assert.That(vm2.StratBookHub.Layout.IsListCollapsed).IsTrue();
+                }
+
+                vm2.SaveSession();
+                vm2.Dispose();
+
+                MainViewModel vm3 = NewShell(null, svc, new SectionsModule());
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm3.StratBookHub.Layout.IsRailCollapsed).IsTrue()
+                        .Because("a session that never opened the Strat Book still writes its panes back");
+                    await Assert.That(vm3.StratBookHub.Layout.IsListCollapsed).IsTrue();
+                }
+
+                vm3.Dispose();
+
+                // A file from before the panes collapsed opens both.
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, "stratbook.browser"));
+                MainViewModel vm4 = NewShell(null, svc, new SectionsModule());
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm4.StratBookHub.Layout.IsRailCollapsed).IsFalse();
+                    await Assert.That(vm4.StratBookHub.Layout.IsListCollapsed).IsFalse();
+                }
+
+                vm4.Dispose();
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
     /// <summary>
     ///     Three rail sections under the shipped feature ids (out of rail order, to pin the sort) and the
     ///     Library-hosted Teams view.

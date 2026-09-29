@@ -378,7 +378,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle), `ViewModels/Shell/StratBookHubViewModel.cs`
   and `Views/StratBook/StratBookHubView.axaml` (the rail), the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
 - **Purpose:** a module tab that belongs to a workflow rather than the strip. `TabPlacement.StratBook` puts a
-  descriptor on the Strat Book tab's left rail (164px, `PanelHeaderBg`, `sectionHeader` band "STRAT BOOK",
+  descriptor on the Strat Book tab's left rail (164px, collapsible to a 32px strip, `PanelHeaderBg`, `sectionHeader` band "STRAT BOOK",
   `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
   `TabPlacement.Library` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from
   four tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
@@ -388,6 +388,57 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   AND its host tab is, so the one-realized-View invariant holds one level down. The hub tab exists only
   when a section was contributed and hides when the gate turns every section off.
 - **Do not:** add a Main-strip tab for a Strat Book feature; add a section.
+
+### Collapsible side pane (the Strat Book rail and the strat list)
+- **Files:** `ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle commands),
+  `Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the `StratPicker` row in
+  `Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in `Styles/Primitives.axaml`.
+- **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
+  1280 wide with the rail (164) and the strat list (280) open.
+- **Contract:** the pane's own header carries `«` (a `Button.pane-toggle`, 24 px). Collapsed, the pane becomes a
+  32 px strip: `»` at the top, then either the pane's items read top to bottom (the rail keeps every section and
+  its badge, rotated 90 degrees in a `LayoutTransformControl`, same `ItemsSource` and `SelectedItem`) or the
+  pane's name when its items cannot be read that way (the list strip reads STRATS or DETECTED). Whatever the
+  pane was the only way to reach moves next to the content while it is collapsed: the list's strats become a
+  "Strat" combo box in the editor header. The column is `Auto`; the open pane sets its own `Width`.
+- **State:** one `StratBookLayout` is shared by the hub and the Strats section (a DI singleton, passed to both)
+  and lives in the session file as `SessionPayload.StratBook`. It is restored with the active tab in
+  `RestoreSession`, not through module-tab state, because module-tab state waits for a demo load and a
+  descriptor's VM is built only on activation, so a collapsed pane would reopen whenever the user did not
+  open a demo or the Strat Book that session.
+- **Do not:** hide a pane without leaving the strip and its `»`; drive the collapse from a view-local flag
+  (it would not persist); add a second copy of a pane's items unless the strip shows them.
+
+### Strat step row (the Strats editor)
+- **Files:** the `StepRows` template in `Views/StratBook/StratBookTabView.axaml`, `StratStepRow` in
+  `ViewModels/StratBook/StratEditorViewModel.cs`, the table in `Services/Strats/StratStepFields.cs`.
+- **Layout:** line one is `#`, at, actor and verb in fixed columns (20, 56, 64, 84) with move up, move down and
+  remove (`.icon-btn`) on the right; line two is a `WrapPanel` of label-over-field pairs indented under "at".
+  The editor's `ScrollViewer` has `HorizontalScrollBarVisibility="Disabled"`; every row in it must wrap or
+  shrink (metadata is a `WrapPanel` of 132 px pairs, slots are `44,*,Auto,*`, record rows `*,32,...,64`).
+  `StratEditorRoomTests` walks the editor's fields at 1280 wide and fails on any right edge past the viewport.
+- **Fields by verb** (note is always there; a member the verb does not use still shows while it holds a
+  value, so nothing an export prints is hidden):
+
+  | Verb | Fields | `to` reads |
+  |---|---|---|
+  | move | from, to (the validator warns on a move without `to`) | to |
+  | rotate | from, to | to |
+  | hold, peek | to | at |
+  | plant, defuse | to (`StratFromRound` writes a plant's place there) | site |
+  | throw | utility, then lineup, then lands at only while no lineup is picked | |
+  | fake | to, utility | at |
+  | wait, call | note only | |
+  | other, or a verb outside the vocabulary | from, to, utility | to |
+
+- **Verb change:** one undo entry holding the verb and a remove for each member the new verb does not use and
+  the step actually has. Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and
+  LAN print print whatever is set, which is why the clear is not optional.
+- **Utility edits:** a kind change replaces `kind` and removes `lineupId` and `technique` (they belong to the
+  old kind) but keeps the landing; typing "lands at" writes `landing/place` only, so a captured landing point
+  survives. A lineup id the lookup does not offer is added to the row's options as its raw id (a combo box
+  shows nothing for a selection outside its items).
+- **Room for the lineup picker:** the "pick on map" button goes beside the lineup combo, inside the same wrap.
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,
@@ -1153,6 +1204,7 @@ Each class was rendered + read this pass (variant in the last column; see §7).
 | `.nav-btn` | Button | Fixed 28px centered ghost nav button (CLOCK/JUMP groups). | `TextMid`, `PanelHeaderHover` | `primitives`, `chrome`, `navstrip-real` |
 | `.bp-btn` | Button | Amber tint modifier for the dev-only TO-BREAKPOINT cluster (compose with `.nav-btn`). | `AccentAmber` | `primitives`, `chrome` |
 | `.icon-btn` | Button | Small square glyph button (toggle dot, ✕); deeper hover for dense rows. | `TextFrameInfo`, `PanelHeaderHoverDeep` | `primitives` |
+| `.pane-toggle` | Button | 24 px `«`/`»` that collapses and reopens a side pane (see Collapsible side pane). | `TextMid`, `PanelHeaderHoverDeep` | `strat-editor`, `strat-editor-collapsed` |
 | `.ctx-action` | Button | Left-aligned, stretched flyout/menu action row. | `TextDim`, `PanelHeaderHover` | `chrome` |
 | `.shell-tab` | TabItem | On-theme monospace tab header (mirrors MainView's local tab look, for module/sub-tab bars). | None (mono/size) | `primitives` |
 | `.mono` | TextBox, ComboBox, Button, TextBlock | The Consolas/Menlo monospace family: the single most-repeated inline attribute (~200 sites). | — | `primitives`, `tables` |
@@ -1745,6 +1797,19 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
 ---
 
 ## 6. Decisions log + open questions
+
+### Decisions (Strat editor room and steps, feature/strat-book-editor-room, 2026-09-29)
+- **The step row was the overflow, not the panes.** Its fixed columns summed to about 1100 px, and the metadata
+  grid, slot rows and record rows also overflowed the 315 px editor at 1280 with both panes open. All of them
+  now wrap or use star columns; collapsing panes is extra room, not the fix.
+- **Kept the editor and canvas at `*,1.3*`.** The canvas needs the width for the map; the editor fits 315 px.
+- **Collapsed rail shows its sections rotated, not an icon strip.** There are no section icons, and two
+  sections start with S. Rotated labels keep one-click navigation and the badges.
+- **Rail badge text is `LibraryCardTextBright`.** The badge fill (`LibraryCardBadgeBg`) is dark in both bases;
+  the default foreground put dark text on it in Light.
+- **Layout persists in `SessionPayload`, not module-tab state** (see Collapsible side pane).
+- **Open:** UiCapture fails with a cross-thread error for any custom theme (`--theme high-contrast`,
+  `egirl`), including `primitives`, so the new chrome was captured in Light and Dark only.
 
 ### Decisions (Reels dashboard, plan step 7, feature/v0.5.3, 2026-07-28)
 - **D-RD1. The tray renders from the plan builder, not a parallel model.** `ReelConfig.ClipGroups` is both
