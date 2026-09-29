@@ -88,6 +88,13 @@ public static class FeatureCatalog
             "One queue of clips from any demo: staged highlights, situation search results and picks at the "
             + "playhead, in sections with a question per clip.",
             null, null, false, Defaults(true, true, true)),
+        // The Strat Book's Suggested section: every demo's tag suggestions in one inbox. Default-visible like
+        // Review. Only the id is a persisted key; the label is display text.
+        new(
+            "tab.suggested", FeatureScope.Tab, "Suggested",
+            "Every demo's tag suggestions in one list: accept them into the demo's tags, dismiss them, or open "
+            + "one in 2D Playback.",
+            null, null, false, Defaults(true, true, true)),
         // The Round Tagger's Matrix tab: codes by labels across the library's tags. Default-visible like
         // Situations and Teams. The module ships ahead of the tab, so until The Matrix lands this row
         // gates nothing it can show. Only the id is a persisted key; the label is display text.

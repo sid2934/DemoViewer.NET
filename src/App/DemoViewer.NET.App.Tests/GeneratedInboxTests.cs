@@ -1,9 +1,14 @@
 #region
 
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Media.Imaging;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.ViewModels.Teams;
+using DemoViewer.NET.Views.SuggestedTags;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -82,6 +87,76 @@ public class GeneratedInboxTests
 
         return (service, cache);
     }
+
+    private static readonly Func<Action, Task> _inline = a =>
+    {
+        a();
+        return Task.CompletedTask;
+    };
+
+    [Test]
+    public async Task TheSuggestedSection_ListsTheLibrary_Filters_AndAcceptsDismissesAndRestores()
+    {
+        using SuggestedTagsReviewHarness h = new();
+        h.Build();
+        using SuggestedInboxService inbox = new(h.Service, h.Cache, run: _inline);
+        using SuggestedInboxViewModel vm = new(inbox);
+        await Assert.That(inbox.IsLoaded).IsFalse().Because("nothing is read until the section is first shown");
+        vm.OnActivated(null!);
+        await inbox.LoadAsync();
+
+        int pending = h.Service.Load(DemoPath).Pending.Count;
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Rows.Count).IsEqualTo(pending);
+            await Assert.That(inbox.PendingCount).IsEqualTo(pending).Because("the badge reads the index");
+            await Assert.That(vm.Maps).Contains(SuggestedTagsTestData.Map);
+            await Assert.That(vm.StatusLine).StartsWith($"{pending} new suggestion");
+        }
+
+        vm.DetectorFilter = "execute";
+        await Assert.That(vm.Rows.All(r => r.DetectorText == "execute")).IsTrue();
+        vm.DetectorFilter = SuggestedInboxViewModel.AllDetectors;
+
+        SuggestedInboxRow execute = vm.Rows.Single(r => r.Item.Entry.Proposal.Id == ExecuteId);
+        vm.AcceptCommand.Execute(execute);
+        SuggestedInboxRow opener = vm.Rows.Single(r => r.Item.Entry.Proposal.Id == DefaultId);
+        vm.DismissCommand.Execute(opener);
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Single().Code).IsEqualTo(execute.Item.Entry.Proposal.Code)
+                .Because("Accept writes into that demo's tag document");
+            await Assert.That(vm.Rows.Count).IsEqualTo(pending - 2).Because("settled suggestions leave the default view");
+            await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (2)");
+        }
+
+        vm.ShowSettled = true;
+        vm.RestoreCommand.Execute(vm.Rows.Single(r => r.Item.Entry.Proposal.Id == DefaultId));
+        vm.ShowSettled = false;
+        await Assert.That(vm.Rows.Any(r => r.Item.Entry.Proposal.Id == DefaultId)).IsTrue();
+    }
+
+    [Test]
+    [Category("Integration")]
+    public async Task TheSuggestedSection_Renders() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using SuggestedTagsReviewHarness h = new();
+            h.Build();
+            using SuggestedInboxService inbox = new(h.Service, h.Cache, run: _inline);
+            using SuggestedInboxViewModel vm = new(inbox);
+            await inbox.LoadAsync();
+            h.Service.Reject(DemoPath, DefaultId);
+            vm.ShowSettled = true;
+            SuggestedInboxView view = new() { DataContext = vm };
+            Window window = new() { Width = 1100, Height = 700, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "suggested-section.png"), new PngBitmapEncoderOptions());
+            ItemsControl list = view.FindControl<ItemsControl>("RowsList")!;
+            await Assert.That(list.IsEffectivelyVisible).IsTrue();
+            window.Close();
+        });
 
     [Test]
     public async Task TheSuggestedQueue_ShowsNewOnly_AndSettledBehindTheToggle()

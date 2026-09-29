@@ -129,6 +129,30 @@ public class DetectedStratsTests
             window.Close();
         });
 
+    [Test]
+    [Category("Integration")]
+    public async Task TheView_RendersTheSettledToggle_WithAnAddedAndADismissedPattern() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Library library = Library.Create();
+            using StratMiningService mining = library.Service();
+            using StratBookTabViewModel vm = Tab(library, mining);
+            SelectAExecute(vm);
+            vm.Detected.AddToBookCommand.Execute(null);
+            vm.IsDetectedView = true;
+            vm.Detected.SelectedRow = vm.Detected.Rows.First();
+            vm.Detected.DismissCommand.Execute(null);
+            vm.Detected.ShowSettled = true;
+            vm.Detected.SelectedRow = vm.Detected.Rows.First(r => r.IsInBook);
+            StratBookTabView view = new() { DataContext = vm };
+            Window window = new() { Width = 1400, Height = 800, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "strat-detected-settled.png"), new PngBitmapEncoderOptions());
+            await Assert.That(vm.Detected.SettledLabel).IsEqualTo("Show settled (2)");
+            window.Close();
+        });
+
     private static DetectedRowViewModel SelectAExecute(StratBookTabViewModel vm)
     {
         vm.IsDetectedView = true;
