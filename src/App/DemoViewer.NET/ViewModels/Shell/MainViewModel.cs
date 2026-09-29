@@ -3815,6 +3815,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private async Task LoadDemoFromBytesAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
     {
+        // An open item left active holds every heavy item until restart.
+        try
+        {
+            await LoadDemoFromBytesCoreAsync(rawBytes, localPath, fileName, open);
+        }
+        catch (Exception ex)
+        {
+            open.Fail(ex);
+            throw;
+        }
+    }
+
+    private async Task LoadDemoFromBytesCoreAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
+    {
         UnloadDemoState();
 
         IsLoading = true;

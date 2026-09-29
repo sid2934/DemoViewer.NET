@@ -264,6 +264,26 @@ public class DemoOpenQueueTests
     }
 
     [Test]
+    public async Task AFailedOpen_LetsBackgroundWorkRunAgain()
+    {
+        using Rig rig = new();
+        int ran = 0;
+        IDemoOpenTicket open = rig.Queue.BeginOpen("/d/a.dem", "a.dem");
+        rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "mine", "test", DemoJobPriority.Background,
+            _ =>
+            {
+                Interlocked.Increment(ref ran);
+                return Task.CompletedTask;
+            }));
+        await Task.Delay(100);
+        await Assert.That(ran).IsEqualTo(0);
+
+        open.Fail(new InvalidOperationException("the tab switch threw"));
+        await WaitForAsync(() => Volatile.Read(ref ran) == 1, "the mine to run after the failed open");
+        await Assert.That(rig.Open.State).IsEqualTo(DemoQueueItemState.Failed);
+    }
+
+    [Test]
     public async Task RemovingAnOpen_CancelsItsWait()
     {
         using Rig rig = new();

@@ -401,7 +401,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Task<ParsedDemo>? joined = null;
         lock (_sync)
         {
-            ct.ThrowIfCancellationRequested();
+            ThrowIfOpenEndedLocked(entry, ct);
             if (entry.Path.Length > 0 && JoinableParseLocked(entry.Path) is { } running)
             {
                 TaskCompletionSource<ParsedDemo> waiter = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -439,13 +439,22 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             lock (_sync)
             {
-                ct.ThrowIfCancellationRequested();
+                ThrowIfOpenEndedLocked(entry, ct);
                 entry.State = DemoQueueItemState.Running;
                 entry.Detail = "Parsing";
             }
 
             RaiseChanged();
             return await Task.Run(() => _parseBytes(bytes), ct).ConfigureAwait(false);
+        }
+    }
+
+    // Under _sync. A replaced open is ended here before its token is cancelled, outside the lock.
+    private static void ThrowIfOpenEndedLocked(Entry entry, CancellationToken ct)
+    {
+        if (entry.CancelRequested || !IsActive(entry))
+        {
+            throw new OperationCanceledException(ct);
         }
     }
 
