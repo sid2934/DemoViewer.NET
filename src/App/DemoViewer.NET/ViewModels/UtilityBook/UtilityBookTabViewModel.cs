@@ -103,6 +103,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private string _statusLine = "";
 
     private readonly string? _clipDirectory;
+    private readonly string? _lockedMap;
+    private (Guid Id, string? Technique)? _pendingReveal;
+    private IReadOnlySet<GrenadeKind>? _queryKinds;
     private string? _focusedId;
     private string? _selectedLineupId;
 
@@ -118,11 +121,17 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     /// <param name="clipDirectory">Where Lineup Clip Render writes its pairs; the card shows no clip when null.</param>
     /// <param name="background">Runs a refresh's index reads: the thread pool in the app, inline in a test.</param>
     /// <param name="post">Brings a refresh's result back: the UI dispatcher in the app, inline in a test.</param>
+    /// <param name="lockedMap">
+    ///     Shows this map and no other, even when it has no grenades: the Strat Book's lineup picker. Null for the
+    ///     tab, which falls back to the first indexed map.
+    /// </param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
         Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
         Action<Action>? retire = null, string? clipDirectory = null, Action<Action>? background = null,
-        Action<Action>? post = null)
+        Action<Action>? post = null, string? lockedMap = null)
     {
+        _lockedMap = lockedMap;
+        _selectedMap = lockedMap;
         _background = background ?? (work => work());
         _post = post ?? (work => work());
         _clipDirectory = clipDirectory;
@@ -152,6 +161,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
     /// <summary>True on the WASM head.</summary>
     public bool IsBrowser { get; }
+
+    /// <summary>Whether <see cref="Dispose" /> ran. For tests of an owner that must dispose it.</summary>
+    internal bool IsDisposed => _disposed;
 
     public ObservableCollection<string> Maps { get; } = [];
 
@@ -188,6 +200,35 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
     /// <summary>Writes text to the clipboard; the view sets it, since the clipboard needs the visual tree.</summary>
     public Func<string, Task>? Clipboard { get; set; }
+
+    /// <summary>
+    ///     The kinds the query takes instead of <see cref="SelectedKind" />, or null to use it: the lineup picker
+    ///     asks for a strat utility kind, which can be two grenade kinds (molotov and incendiary).
+    /// </summary>
+    public IReadOnlySet<GrenadeKind>? QueryKinds
+    {
+        get => _queryKinds;
+        set
+        {
+            _queryKinds = value;
+            _focusedId = null;
+            _selectedLineupId = null;
+            RefreshForUser();
+        }
+    }
+
+    /// <summary>
+    ///     Focuses the group holding the lineup <paramref name="lineupId" /> answers to (an alias id included) and
+    ///     selects its position for <paramref name="technique" />, the most thrown one when null. Applied when the
+    ///     next refresh lands; a lineup thrown from once turns the single throws on.
+    /// </summary>
+    /// <param name="lineupId">A stored lineup id.</param>
+    /// <param name="technique">A technique key, or null.</param>
+    public void Reveal(Guid lineupId, string? technique)
+    {
+        _pendingReveal = (lineupId, technique);
+        RefreshForUser();
+    }
 
     /// <summary>Raised when the bound map or its bundle changes, so the host rebinds the radar.</summary>
     public event Action? MapChanged;
@@ -257,14 +298,14 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         int version = ++_refreshVersion;
         string? map = SelectedMap;
         string? place = SelectedPlace;
-        GrenadeKind? kind = SelectedKind?.Value;
+        IReadOnlySet<GrenadeKind>? kinds = _queryKinds ?? (SelectedKind?.Value is { } k ? new HashSet<GrenadeKind> { k } : null);
         int? side = SelectedSide?.Value;
         _background(() =>
         {
             RefreshResult result;
             try
             {
-                result = Compute(map, place, kind, side);
+                result = Compute(map, place, kinds, side);
             }
             catch (Exception ex) when (!QueueWork.IsStop(ex))
             {
@@ -287,10 +328,10 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         IReadOnlyList<GrenadeCluster> Clusters, bool Ready, int Demos, int Grenades);
 
     // Everything Refresh reads from the index. Takes the index's lock, so the app runs it off the UI thread.
-    private RefreshResult Compute(string? selectedMap, string? selectedPlace, GrenadeKind? kind, int? side)
+    private RefreshResult Compute(string? selectedMap, string? selectedPlace, IReadOnlySet<GrenadeKind>? kinds, int? side)
     {
-        IReadOnlyList<string> maps = _index.Maps();
-        string? map = selectedMap is not null && maps.Contains(selectedMap) ? selectedMap : maps.Count > 0 ? maps[0] : null;
+        IReadOnlyList<string> maps = _lockedMap is { } locked ? [locked] : _index.Maps();
+        string? map = _lockedMap ?? (selectedMap is not null && maps.Contains(selectedMap) ? selectedMap : maps.Count > 0 ? maps[0] : null);
         QueueWork.ThrowIfStopped();
         List<string> places = [AnyPlace, .. map is not null ? _index.LandingPlaces(map) : []];
         QueueWork.ThrowIfStopped();
@@ -298,7 +339,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         IReadOnlyList<GrenadeCluster> clusters = map is not { Length: > 0 }
             ? []
             : _index.Query(new GrenadeQuery(map,
-                kind is { } k ? new HashSet<GrenadeKind> { k } : null,
+                kinds,
                 place != AnyPlace ? new HashSet<string>(StringComparer.Ordinal) { place } : null,
                 side));
         return new RefreshResult(maps, map, places, place, clusters, _index.IsReady, _index.DemoCount, _index.GrenadeCount);
@@ -314,12 +355,43 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             Sync(Places, result.Places);
             SelectedPlace = result.Place;
             RebindMap();
+            // A lineup thrown from once is hidden by default; revealing one shows the singles.
+            if (_pendingReveal is { } reveal && !ShowSingleThrows && NeedsSingles(result.Clusters, reveal.Id))
+            {
+                ShowSingleThrows = true;
+            }
+
             BuildGroups(result.Clusters);
+            if (_pendingReveal is { } pending)
+            {
+                _pendingReveal = null;
+                ApplyReveal(pending.Id, pending.Technique);
+            }
+
             StatusLine = StatusFor(result.Ready, result.Demos, result.Grenades, SelectedMap is not null);
         }
         finally
         {
             _refreshing = false;
+        }
+    }
+
+    private static bool NeedsSingles(IReadOnlyList<GrenadeCluster> clusters, Guid lineupId) =>
+        clusters.SelectMany(c => c.Lineups).FirstOrDefault(l => l.Answers(lineupId)) is { } lineup && lineup.Throws.Count < LineupMinThrows;
+
+    private void ApplyReveal(Guid lineupId, string? technique)
+    {
+        foreach (LandingGroup group in _groups.Values)
+        {
+            if (group.Lineups.FirstOrDefault(l => l.Answers(lineupId)) is not { } lineup)
+            {
+                continue;
+            }
+
+            _focusedId = group.Id;
+            _selectedLineupId = GrenadeLineups.TechniqueFor(lineup, technique) is { } chosen ? PositionKey(lineup, chosen) : LineupKey(lineup);
+            Project();
+            return;
         }
     }
 
