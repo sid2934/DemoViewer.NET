@@ -39,7 +39,7 @@
                            ToolTip.Tip="Suggestions and verdicts live in memory on this host and are gone when the tab closes" />
                 <Button Grid.Column="3" Content="Review" Padding="6,1" Margin="0,0,4,0" Focusable="False"
                         Command="{Binding ReviewCommand}"
-                        ToolTip.Tip="Select the first suggestion: J and K then walk the queue, Y accepts, N rejects, Enter edits" />
+                        ToolTip.Tip="Select the first suggestion: J and K then walk the queue, Y accepts, N dismisses, Enter edits" />
                 <Button Grid.Column="4" Content="Detect" Padding="6,1" Focusable="False"
                         Command="{Binding DetectCommand}"
                         ToolTip.Tip="Run the detectors over this demo now" />
@@ -59,6 +59,9 @@
                         Value="{Binding MinConfidence}"
                         ToolTip.Tip="Hide suggestions below this confidence; Ctrl+Y accepts only what is shown" />
             </Grid>
+
+            <CheckBox Content="{Binding SettledLabel}" FontSize="11" Focusable="False" IsChecked="{Binding ShowSettled}"
+                      ToolTip.Tip="Also list the suggestions you accepted or dismissed" />
 
             <CheckBox Content="Detect for every demo in the background" FontSize="11" Focusable="False"
                       IsChecked="{Binding IsBackgroundOn}" IsVisible="{Binding !IsSessionOnly}"
@@ -95,13 +98,20 @@
                                                Text="{Binding ConfidenceText}" FontFamily="Consolas,Menlo,monospace"
                                                FontSize="11" Margin="6,0" VerticalAlignment="Center"
                                                ToolTip.Tip="{Binding FactorsText}" />
-                                    <Button Grid.Row="0" Grid.Column="2" Content="✓" Padding="4,0" Focusable="False"
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding StateText}" FontSize="10" Margin="0,0,4,0"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource Pb2dTextDim}"
+                                               IsVisible="{Binding !IsNew}" />
+                                    <Button Grid.Row="0" Grid.Column="3" Content="Restore" Padding="4,0" Focusable="False" FontSize="10"
+                                            IsVisible="{Binding IsDismissed}"
+                                            Command="{Binding $parent[ItemsControl].((vm:SuggestionQueueViewModel)DataContext).RestoreRowCommand}"
+                                            CommandParameter="{Binding}" ToolTip.Tip="Offer this suggestion again" />
+                                    <Button Grid.Row="0" Grid.Column="2" Content="✓" Padding="4,0" Focusable="False" IsVisible="{Binding IsNew}"
                                             Command="{Binding $parent[ItemsControl].((vm:SuggestionQueueViewModel)DataContext).AcceptRowCommand}"
                                             CommandParameter="{Binding}" ToolTip.Tip="Accept (Y)" />
                                     <Button Grid.Row="0" Grid.Column="3" Content="✕" Padding="4,0" Margin="2,0,0,0"
-                                            Focusable="False"
+                                            Focusable="False" IsVisible="{Binding IsNew}"
                                             Command="{Binding $parent[ItemsControl].((vm:SuggestionQueueViewModel)DataContext).RejectRowCommand}"
-                                            CommandParameter="{Binding}" ToolTip.Tip="Reject (N)" />
+                                            CommandParameter="{Binding}" ToolTip.Tip="Dismiss (N)" />
                                     <!-- Why it fired in plain words; the score's factors stay in the chip's hover. -->
                                     <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Text="{Binding ReasonText}"
                                                TextWrapping="Wrap" FontSize="10" IsVisible="{Binding HasReason}"

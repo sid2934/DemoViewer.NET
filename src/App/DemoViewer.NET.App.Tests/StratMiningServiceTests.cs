@@ -262,7 +262,7 @@ public class StratMiningServiceTests
         }
     }
 
-    private static MinedPattern Pattern(string key, params int[] rounds)
+    internal static MinedPattern Pattern(string key, params int[] rounds)
     {
         List<MinedMember> members = [.. rounds.Select(r => new MinedMember($"/d/m{r}.dem", Sha(r % 20), r, null, true, BuyType.Full, 0, 0, Rate, 0))];
         return new MinedPattern
@@ -306,5 +306,163 @@ public class StratMiningServiceTests
         await Assert.That(second.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsTrue();
         second.Restore(key);
         await Assert.That(second.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsFalse();
+    }
+
+    [Test]
+    [Arguments("{ not json")]
+    [Arguments("{\"SchemaVersion\":99,\"Dismissed\":[\"x\"],\"Promoted\":{}}")]
+    public async Task AnUnreadableOrNewerStateFile_IsRefused_AndNeverOverwritten(string content)
+    {
+        using Library library = Library.Create();
+        string file = Path.Combine(library.Root, "strat-mining.json");
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(file, content);
+
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        string key = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute).Key;
+        service.Dismiss(key);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(service.StateProblem).IsNotNull();
+            await Assert.That(service.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsTrue()
+                .Because("the dismissal holds for the session");
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(content)
+                .Because("a dismissal must not save an empty state over the ones the file holds");
+            await Assert.That(service.Promote(key, StratOwner.Me())).IsNull()
+                .Because("a promotion the file cannot record would be offered, and promoted, again");
+            await Assert.That(library.Strats.Index).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task AStateFileFromBeforeTheSchemaField_ReadsAsSchemaOne()
+    {
+        using Library library = Library.Create();
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(Path.Combine(library.Root, "strat-mining.json"), "{\"Dismissed\":[\"k\"],\"Promoted\":{}}");
+
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        service.Dismiss(service.Patterns[0].Pattern.Key);
+
+        string written = await File.ReadAllTextAsync(Path.Combine(library.Root, "strat-mining.json"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(service.StateProblem).IsNull();
+            await Assert.That(written).Contains("\"k\"").Because("the earlier dismissal is kept");
+            await Assert.That(written).Contains("\"SchemaVersion\":1");
+        }
+    }
+
+    [Test]
+    public async Task AStateFileThatCannotBeOpened_IsRetried_AndKeepsTheSessionsDismissals()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using Library library = Library.Create();
+        string file = Path.Combine(library.Root, "strat-mining.json");
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(file, "{\"Dismissed\":[\"earlier\"],\"Promoted\":{}}");
+        File.SetUnixFileMode(file, UnixFileMode.None);
+        try
+        {
+            using StratMiningService service = library.Service();
+            await service.MineAsync();
+            string key = service.Patterns[0].Pattern.Key;
+            service.Dismiss(key);
+            await Assert.That(service.StateProblem).Contains("could not be opened");
+            await Assert.That(service.Promote(key, StratOwner.Me())).IsNull();
+
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            await service.MineAsync();
+            using (Assert.Multiple())
+            {
+                await Assert.That(service.StateProblem).IsNull().Because("the next mine read the file");
+                await Assert.That(service.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsTrue();
+            }
+
+            service.Restore(key);
+            service.Dismiss(key);
+            string written = await File.ReadAllTextAsync(file);
+            await Assert.That(written).Contains("\"earlier\"").Because("the file's own dismissals are kept");
+            await Assert.That(written).Contains(key);
+        }
+        finally
+        {
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
+    [Test]
+    public async Task DeletingAMinedStrat_MakesItsPatternNewAgain_AndRemovesOnlyItsRuns()
+    {
+        using Library library = Library.Create();
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
+        StratDocument doc = service.Promote(execute.Key, StratOwner.Me())!;
+
+        // A hand-made label of the same strat is the user's and stays.
+        library.Tags.Update(Sha(1), d => d.Instances.Add(new TagInstance
+        {
+            Id = Guid.NewGuid(), Code = "A execute", FromTick = 1, ToTick = 2, Source = TagSources.Human,
+            Labels = [new TagLabel(TagStore.StratGroup, doc.Id.ToString())]
+        }));
+
+        await Assert.That(library.Strats.Delete(doc.Id)).IsTrue();
+        await service.LastRunRemoval;
+        using (Assert.Multiple())
+        {
+            DetectedPattern pattern = service.Patterns.Single(p => p.Pattern.Key == execute.Key);
+            await Assert.That(pattern.StratId).IsNull();
+            await Assert.That(pattern.State).IsEqualTo(Services.Generated.GeneratedState.New);
+            await Assert.That(Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count(i => i.Source == TagSources.Suggested)))
+                .IsEqualTo(0).Because("the three runs the promotion wrote are gone");
+            await Assert.That(library.Tags.TryLoad(Sha(1))!.Instances.Single().Source).IsEqualTo(TagSources.Human);
+        }
+
+        using StratMiningService again = library.Service();
+        await Assert.That(again.Patterns.Single(p => p.Pattern.Key == execute.Key).StratId).IsNull().Because("the file forgot the promotion");
+    }
+
+    [Test]
+    public async Task AQueuedRunRemoval_DoesNothing_WhenTheStratWasPutBackFirst()
+    {
+        using Library library = Library.Create();
+        List<Action> held = [];
+        bool hold = false;
+        using StratMiningService service = library.Service(a =>
+        {
+            if (hold)
+            {
+                held.Add(a);
+            }
+            else
+            {
+                a();
+            }
+
+            return Task.CompletedTask;
+        });
+        await service.MineAsync();
+        MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
+        StratDocument doc = service.Promote(execute.Key, StratOwner.Me())!;
+        int runs = Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count);
+
+        hold = true;
+        await Assert.That(library.Strats.Delete(doc.Id)).IsTrue();
+        await Assert.That(library.Strats.Save(doc, [], "put back").Saved).IsTrue();
+        foreach (Action a in held)
+        {
+            a();
+        }
+
+        await Assert.That(Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count)).IsEqualTo(runs)
+            .Because("the strat was back in the store when the removal ran");
     }
 }
