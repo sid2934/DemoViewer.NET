@@ -151,6 +151,16 @@ public sealed class InputToolRouter
 
         IPointerTool tool = divert ? _panZoom : ToolForButton(e.Button);
 
+        // Under pan, a left press on a token drags the token; the token tool refuses a miss, and with no token
+        // editor (the 2D tab) it refuses everything, so the press pans.
+        if (ReferenceEquals(tool, _panZoom) && !divert && e.Button == ToolPointerButton.Left
+            && _tools.TryGetValue(ToolKind.Token, out IPointerTool? token) && token.OnPressed(in e, _services))
+        {
+            GestureTool = token;
+            _gestureButton = e.Button;
+            return true;
+        }
+
         if (!tool.OnPressed(in e, _services))
         {
             return false;

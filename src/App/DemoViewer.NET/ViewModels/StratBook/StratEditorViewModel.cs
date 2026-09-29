@@ -943,6 +943,10 @@ public sealed partial class StratStepRow : ObservableObject
 
     private int _index;
 
+    /// <summary>The canvas's active step (<see cref="StratStepSelection" />); display only, never written to the strat.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     [ObservableProperty]
     private string _landingText = "";
 
