@@ -274,14 +274,11 @@ public class GrenadeIndexTests
         vm.Refresh();
         vm.SelectedMap = Mirage;
         int whileHidden = reads;
-        bool stale = vm.IsStale;
         vm.OnActivated(null!);
         using (Assert.Multiple())
         {
             await Assert.That(whileHidden).IsEqualTo(afterOpen);
-            await Assert.That(stale).IsTrue();
-            await Assert.That(reads).IsEqualTo(afterOpen + 1);
-            await Assert.That(vm.IsStale).IsFalse();
+            await Assert.That(reads).IsEqualTo(afterOpen + 1).Because("activation catches up with one read");
             await Assert.That(vm.SelectedMap).IsEqualTo(Mirage);
             await Assert.That(vm.HasGroups).IsTrue();
         }

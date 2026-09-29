@@ -65,7 +65,6 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private bool _disposed;
     private bool _refreshing;
     private bool _shown = true;
-    private bool _stale;
     private int _refreshVersion;
 
     /// <summary>True when the card opens over the map's left edge, because the selected position is on the right.</summary>
@@ -242,11 +241,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
         if (!_shown)
         {
-            _stale = true;
             return;
         }
 
-        _stale = false;
         int version = ++_refreshVersion;
         string? map = SelectedMap;
         string? place = SelectedPlace;
@@ -275,9 +272,6 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             });
         });
     }
-
-    /// <summary>True while a hidden section has missed an index change; the next activation refreshes it.</summary>
-    public bool IsStale => _stale;
 
     private sealed record RefreshResult(IReadOnlyList<string> Maps, string? Map, IReadOnlyList<string> Places, string Place,
         IReadOnlyList<GrenadeCluster> Clusters, bool Ready, int Demos, int Grenades);
