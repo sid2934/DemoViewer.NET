@@ -63,7 +63,7 @@ public sealed class StepTrack : ITimelineTrack
                 List<StratBranch> forks = document?.Branches.Where(b => b.AfterStepId == step.Id).ToList() ?? [];
 
                 string number = (i + 1).ToString(CultureInfo.InvariantCulture);
-                StringBuilder tooltip = new(StratClock.Format(step.AtSeconds) + "  " + StratStepPhrasing.Phrase(step, callouts));
+                StringBuilder tooltip = new(StratClock.Format(step.AtSeconds) + "  " + StratStepPhrasing.PhraseWithLines(step, callouts));
                 foreach (StratBranch fork in forks)
                 {
                     tooltip.Append('\n').Append(ForkGlyph + " if " + fork.Condition.Text);

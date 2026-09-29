@@ -466,6 +466,26 @@ public static class StratDiffPhrasing
                 } + StepSentence(op.Op == PatchOp.Replace ? op.Value : step, callouts);
             case ["steps", var index, "atSeconds"] when op.Op == PatchOp.Replace && Number(op.From) is { } from && Number(op.Value) is { } to:
                 return $"{StepName(StratHistory.ValueAt(tree, "/steps/" + index))} moved from {StratClock.Format(from)} to {StratClock.Format(to)}";
+            case ["steps", var index, "assignments"]:
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + op.Op switch
+                {
+                    PatchOp.Add => "lines added",
+                    PatchOp.Remove => "lines removed",
+                    _ => "lines replaced"
+                };
+            case ["steps", var index, "assignments", _]:
+                JsonNode? line = op.Op == PatchOp.Add ? op.Value : StratHistory.ValueAt(tree, op.Path) ?? op.From;
+                string slot = Text(line?["slot"]) ?? "a player";
+                string? lineTo = Text(line?["to"]?["place"]);
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + op.Op switch
+                {
+                    PatchOp.Add => slot + " added" + (lineTo is null ? "" : " → " + Place(lineTo, callouts)),
+                    PatchOp.Remove => slot + " removed",
+                    _ => slot + "'s line replaced"
+                };
+            case ["steps", var index, "assignments", var lineIndex, .. var rest]:
+                string who = Text(StratHistory.ValueAt(tree, $"/steps/{index}/assignments/{lineIndex}/slot")) ?? "a player";
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + who + " " + LineChange(tree, rest, op, callouts);
             case ["steps", var index, .. var rest]:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + FieldChange(rest, op, callouts);
             case ["branches", _]:
@@ -524,6 +544,33 @@ public static class StratDiffPhrasing
         };
     }
 
+    // "watching added: Jungle", "view angle set to 135°", "to A site → B site".
+    private static string LineChange(JsonNode? tree, string[] rest, PatchOp op, CalloutResolver? callouts)
+    {
+        switch (rest)
+        {
+            case ["watch", "places", _]:
+                string? place = Text(op.Op == PatchOp.Remove ? StratHistory.ValueAt(tree, op.Path) ?? op.From : op.Value);
+                string shown = place is null ? "a place" : Place(place, callouts);
+                return op.Op switch
+                {
+                    PatchOp.Add => "watching added: " + shown,
+                    PatchOp.Remove => "watching removed: " + shown,
+                    _ => Text(op.From) is { } before ? $"watching {Place(before, callouts)} → {shown}" : "watching set to " + shown
+                };
+            case ["watch", "yawDegrees"]:
+                return op.Op == PatchOp.Remove || Number(op.Value) is not { } yaw
+                    ? "view angle cleared"
+                    : "view angle set to " + yaw.ToString("0.#", CultureInfo.InvariantCulture) + "°";
+            case ["watch"] or ["watch", "places"]:
+                JsonNode? watched = rest.Length == 1 ? op.Value?["places"] : op.Value;
+                string[] names = watched is JsonArray list ? [.. list.Select(Text).OfType<string>().Select(p => Place(p, callouts))] : [];
+                return op.Op == PatchOp.Remove || names.Length == 0 ? "watching cleared" : "watching set to " + string.Join(", ", names);
+            default:
+                return FieldChange(rest, op, callouts);
+        }
+    }
+
     // Scalars print; a place object prints its place; anything else (a position, a stroke) is just "changed".
     private static string? ValueText(JsonNode? value, CalloutResolver? callouts)
     {
@@ -556,6 +603,11 @@ public static class StratDiffPhrasing
 
         string actor = Text(obj["actor"]) ?? StratVocabulary.ActorAll;
         string verb = Text(obj["verb"]) ?? "move";
+        if (LineSlots(obj) is { } slots)
+        {
+            actor = slots.Length == StratVocabulary.Slots.Count ? StratVocabulary.ActorAll : string.Join(", ", slots);
+        }
+
         return actor == StratVocabulary.ActorAll ? "the team's " + verb : $"{actor}'s {verb}";
     }
 
@@ -570,10 +622,21 @@ public static class StratDiffPhrasing
         string actor = Text(obj["actor"]) ?? StratVocabulary.ActorAll;
         string verb = Text(obj["verb"]) ?? "move";
         string? utility = Text(obj["utility"]?["kind"]);
-        string? target = Text(obj["utility"]?["landing"]?["place"]) ?? Text(obj["to"]?["place"]) ?? Text(obj["from"]?["place"]);
+        string? to = Text(obj["to"]?["place"]);
+        bool plural = actor == StratVocabulary.ActorAll;
+        if (LineSlots(obj) is { } slots)
+        {
+            // Lines replace the step's actor and to; a single line's place is the step's destination.
+            actor = slots.Length == StratVocabulary.Slots.Count ? StratVocabulary.ActorAll : string.Join(", ", slots);
+            plural = slots.Length > 1;
+            to = slots.Length == 1 ? Text(obj["assignments"]?[0]?["to"]?["place"]) : null;
+        }
+
+        bool lines = LineSlots(obj) is not null;
+        string? target = Text(obj["utility"]?["landing"]?["place"]) ?? to ?? (lines ? null : Text(obj["from"]?["place"]));
 
         StringBuilder sentence = new(actor);
-        sentence.Append(' ').Append(actor == StratVocabulary.ActorAll ? verb : ThirdPerson(verb));
+        sentence.Append(' ').Append(plural ? verb : ThirdPerson(verb));
         if (utility is not null)
         {
             sentence.Append(' ').Append(utility);
@@ -591,6 +654,10 @@ public static class StratDiffPhrasing
                 };
             sentence.Append(preposition).Append(Place(target, callouts));
         }
+        else if (lines && Text(obj["from"]?["place"]) is { } from)
+        {
+            sentence.Append(" from ").Append(Place(from, callouts));
+        }
 
         if (Number(obj["atSeconds"]) is { } at)
         {
@@ -599,6 +666,10 @@ public static class StratDiffPhrasing
 
         return sentence.ToString();
     }
+
+    // The slots of a step's lines in line order, or null for a step without lines.
+    private static string[]? LineSlots(JsonObject step) =>
+        step["assignments"] is JsonArray { Count: > 0 } lines ? [.. lines.Select(l => Text(l?["slot"]) ?? "?")] : null;
 
     // Internal rather than private: RoleSheet and StratTextExporter phrase steps the same way (§3.13,
     // §3.14) and share these two rather than growing their own copies.

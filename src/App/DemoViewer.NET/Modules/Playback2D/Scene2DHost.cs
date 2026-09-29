@@ -91,6 +91,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     private CameraMode _mode = CameraMode.Fit;
     private ScenePalette _palette = ScenePalette.Dark;
     private TimeSpan _prevFrameTime;
+    private MarkerLayer _markerLayer;
     private RadarLayer _radarLayer;
     private bool _released;
     private long _submissionId;
@@ -418,7 +419,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///         host that could only be born once renders nothing for the rest of the session.
     ///     </para>
     /// </summary>
-    [MemberNotNull(nameof(_compositor), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
+    [MemberNotNull(nameof(_compositor), nameof(_markerLayer), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
     private void BuildScene()
     {
         _text = new TextBlobCache();
@@ -434,7 +435,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _compositor.Add(new TrailLayer());
         _compositor.Add(new AreaEffectLayer());
         _compositor.Add(_visionLayer);
-        _compositor.Add(new MarkerLayer(_smoother, _text));
+        _markerLayer = new MarkerLayer(_smoother, _text);
+        _compositor.Add(_markerLayer);
         _compositor.Add(new BombLayer());
         _compositor.Add(new FloorLabelLayer(_text));
 
@@ -1080,6 +1082,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _compositor.SetEnabled(SceneLayerIds.AreaEffects, vm.ShowAreaEffects);
         _compositor.SetEnabled(SceneLayerIds.Vision, vm.ShowVision);
         _compositor.SetEnabled(SceneLayerIds.Bomb, vm.ShowBombRing);
+        _markerLayer.DrawViewCones = vm.ShowViewCones;
 
         BindAnnotations(vm.AnnotationSession);
         _compositor.SetEnabled(SceneLayerIds.Annotations, vm.IsAnnotationsEnabled);

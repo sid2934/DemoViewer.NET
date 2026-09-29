@@ -7,7 +7,9 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.Views.StratBook;
@@ -92,10 +94,73 @@ public static partial class Variants
         return view;
     }
 
+    // A 1:05 move that sends B, C and D to three places, each watching something, D at a set angle: three lines
+    // in the row, and three cones on the canvas facing what they watch. Selected once the view is up, C's line with it.
+    // listCollapsed false is the narrowest editor, 315 px at 1280.
+    private static StratBookHubView StratEditorLines(bool listCollapsed)
+    {
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(false, listCollapsed, configure: vm =>
+        {
+            strats = vm;
+            AddLinesStep(vm);
+        });
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            StratStepRow row = strats!.Editor.Steps.Last(r => r.HasStoredLines);
+            strats.StepSelection.SelectLine(row.Id, "C");
+            if (view.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault(c => c.Name == "StepRows") is { } rows
+                && rows.ContainerFromIndex(strats.Editor.Steps.IndexOf(row)) is { } container)
+            {
+                container.BringIntoView();
+            }
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
+    // Each token stands at its line's place and turns to what it watches.
+    private static void AddLinesStep(StratBookTabViewModel vm)
+    {
+        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        (double X, double Y) Near(string place, double dx, double dy) =>
+            zones?.PlaceCentre(place, 0) is { } c ? (Math.Round(c.X + dx), Math.Round(c.Y + dy)) : (dx, dy);
+
+        StratDocument document = vm.Session.Document!;
+        double level = document.Steps.SelectMany(s => s.Positions).FirstOrDefault()?.LevelMinZ ?? 0;
+        StepPosition At(string slot, (double X, double Y) p) => new() { Slot = slot, X = p.X, Y = p.Y, LevelMinZ = level };
+        StratStep step = new()
+        {
+            Id = Guid.NewGuid(),
+            AtSeconds = document.Steps.Count > 0 ? Math.Min(65, document.Steps[^1].AtSeconds - 5) : 65,
+            Actor = StratVocabulary.ActorAll,
+            Verb = "move",
+            From = new PlaceRef { Place = "TRamp" },
+            Assignments =
+            [
+                new StepAssignment
+                {
+                    Slot = "B", To = new PlaceRef { Place = "PalaceInterior" },
+                    Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn"] }
+                },
+                new StepAssignment { Slot = "C", To = new PlaceRef { Place = "Connector" }, Watch = new StepWatch { Places = ["Stairs"] } },
+                new StepAssignment
+                {
+                    Slot = "D", To = new PlaceRef { Place = "Stairs" }, Watch = new StepWatch { Places = ["TRamp"], YawDegrees = 135 }
+                }
+            ],
+            Positions =
+            [
+                At("B", Near("PalaceInterior", 0, 0)), At("C", Near("Connector", 0, 0)), At("D", Near("Stairs", 0, 0))
+            ]
+        };
+        vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(step, StratJsonContext.Default.StratStep)));
+    }
+
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
     {
         StratStore store = new(null);
-        StratBookTabViewModel vm = new(store, null, null, false, layout: layout);
+        StratBookTabViewModel vm = new(store, null, null, false, layout: layout,
+            canvasPlaces: map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)));
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = "de_mirage";

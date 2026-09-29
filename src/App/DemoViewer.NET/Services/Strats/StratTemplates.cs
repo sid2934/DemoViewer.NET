@@ -15,8 +15,15 @@ namespace DemoViewer.NET.Services.Strats;
 /// <param name="To">The <c>to</c> place, or null.</param>
 /// <param name="Utility">The grenade kind of a throw or fake, or null.</param>
 /// <param name="Note">What the author fills in.</param>
+/// <param name="Lines">
+///     Who goes where, for a step several players take different parts in; <paramref name="Actor" /> and
+///     <paramref name="To" /> are then <see cref="StratStepLines.ActorFor" /> of the lines and null.
+/// </param>
 public sealed record StratTemplateStep(double AtSeconds, string Actor, string Verb, string? To = null, string? Utility = null,
-    string? Note = null);
+    string? Note = null, IReadOnlyList<StratTemplateLine>? Lines = null);
+
+/// <summary>One line of a template step: a slot and its place, or null for none.</summary>
+public sealed record StratTemplateLine(string Slot, string? To = null);
 
 /// <summary>A skeleton a new strat starts from: its type, side, site, slot roles and steps.</summary>
 /// <param name="Id">A stable key, for the menus.</param>
@@ -80,6 +87,11 @@ public static class StratTemplates
     public static List<StratStep> BuildSteps(StratTemplate template, double roundSeconds = StratClock.DefaultRoundSeconds)
     {
         ArgumentNullException.ThrowIfNull(template);
+        if (template.Steps.FirstOrDefault(s => s.Lines is not null && s.To is not null) is { } mixed)
+        {
+            throw new InvalidOperationException($"template {template.Id}: the step at {mixed.AtSeconds} has lines and a step-level to");
+        }
+
         return
         [
             .. template.Steps.Select(s => new StratStep
@@ -90,7 +102,10 @@ public static class StratTemplates
                 Verb = s.Verb,
                 To = s.To is null ? null : new PlaceRef { Place = s.To },
                 Utility = s.Utility is null ? null : new UtilityRef { Kind = s.Utility },
-                Note = s.Note
+                Note = s.Note,
+                Assignments = s.Lines is null
+                    ? null
+                    : [.. s.Lines.Select(l => new StepAssignment { Slot = l.Slot, To = l.To is null ? null : new PlaceRef { Place = l.To } })]
             })
         ];
     }
@@ -142,6 +157,7 @@ public static class StratTemplates
                && string.Equals(first.Actor, All, StringComparison.Ordinal)
                && string.Equals(first.Verb, "hold", StringComparison.Ordinal)
                && first.From is null && first.To is null && first.Utility is null
+               && !StratStepLines.HasLines(first)
                && string.IsNullOrEmpty(first.Note);
     }
 
@@ -223,13 +239,13 @@ public static class StratTemplates
         "split-" + site.ToLowerInvariant(), "Split", site, "split", StratVocabulary.SideT, site,
         ["entry", "support", "smokes", "split entry", "split support"],
         [
-            new(80, "D", "hold", Note: "split group: set up on the second route"),
-            new(80, "A", "hold", Note: "main group: set up on the main route"),
+            new(80, All, "hold", Note: "A: main group on the main route; D: split group on the second route",
+                Lines: [new("A"), new("D")]),
             new(62, "C", "throw", Utility: "smoke", Note: "main group: CT-side smoke"),
             new(60, "B", "throw", Utility: "flash", Note: "main group: entry flash"),
             new(58, "E", "throw", Utility: "flash", Note: "split group: flash from the other side"),
-            new(55, "A", "move", Site(site), Note: "main entry"),
-            new(55, "D", "move", Site(site), Note: "split entry at the same time"),
+            new(55, All, "move", Note: "main and split entries at the same time",
+                Lines: [new("A", Site(site)), new("D", Site(site))]),
             new(48, "C", "plant", Site(site)),
             new(42, All, "hold", Note: "post-plant")
         ]);
@@ -272,11 +288,8 @@ public static class StratTemplates
         "setup", "Setup", "2-1-2 hold", "setup", StratVocabulary.SideCt, null,
         ["A anchor", "A support", "rotator", "B anchor", "B support"],
         [
-            new(115, "A", "hold", Site("A"), Note: "anchor"),
-            new(115, "B", "hold", Site("A"), Note: "second angle"),
-            new(115, "C", "hold", Note: "middle: hold, then rotate on the call"),
-            new(115, "D", "hold", Site("B"), Note: "anchor"),
-            new(115, "E", "hold", Site("B"), Note: "second angle"),
+            new(115, All, "hold", Note: "A and D anchor, B and E take the second angles, C holds the middle and rotates on the call",
+                Lines: [new("A", Site("A")), new("B", Site("A")), new("C"), new("D", Site("B")), new("E", Site("B"))]),
             new(105, "C", "throw", Utility: "smoke", Note: "early smoke to slow the push"),
             new(100, "D", "throw", Utility: "molotov", Note: "stall an early rush"),
             new(75, All, "call", Note: "call the rotation on first contact")

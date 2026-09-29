@@ -13,7 +13,7 @@ public enum TokenGrip
     /// <summary>The disc: a drag moves the token.</summary>
     Body,
 
-    /// <summary>The heading stub: a drag turns the token toward the pointer instead of moving it.</summary>
+    /// <summary>The heading stub, or the view cone where one is drawn: a drag turns the token toward the pointer instead of moving it.</summary>
     Heading
 }
 
@@ -97,7 +97,8 @@ public static class TokenHitTest
     /// <param name="yawDegrees">Token yaw.</param>
     /// <param name="world">The point, world space.</param>
     /// <param name="worldRadius">The marker radius in world units (<see cref="WorldRadius" />).</param>
-    public static TokenGrip? Classify(float tokenX, float tokenY, float yawDegrees, SKPoint world, float worldRadius)
+    /// <param name="cone">Whether the marker draws a view cone, whose whole wedge turns the token.</param>
+    public static TokenGrip? Classify(float tokenX, float tokenY, float yawDegrees, SKPoint world, float worldRadius, bool cone = false)
     {
         double dx = world.X - (double)tokenX;
         double dy = world.Y - (double)tokenY;
@@ -109,6 +110,13 @@ public static class TokenHitTest
         double tip = worldRadius * (1 + SceneDefaults.MarkerHeadingLength / SceneDefaults.MarkerRadius);
 
         if (along > worldRadius && along <= tip + slop && across <= slop)
+        {
+            return TokenGrip.Heading;
+        }
+
+        double coneTip = worldRadius * (1 + SceneDefaults.MarkerConeLength / SceneDefaults.MarkerRadius);
+        if (cone && along > worldRadius && along <= coneTip + slop
+            && across <= along * Math.Tan(SceneDefaults.MarkerConeHalfAngle * Math.PI / 180.0) + slop)
         {
             return TokenGrip.Heading;
         }

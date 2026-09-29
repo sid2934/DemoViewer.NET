@@ -91,7 +91,8 @@ public sealed class StratSession : IDisposable
         {
             if (Document is { } document && _issuesVersion != Version)
             {
-                _issues = StratValidator.Validate(document, index: _store.Index, lineupExists: LineupLookup?.Invoke(document.Map));
+                _issues = StratValidator.Validate(document, PlaceLookup?.Invoke(document.Map), _store.Index,
+                    LineupLookup?.Invoke(document.Map));
                 _issuesVersion = Version;
             }
 
@@ -109,6 +110,12 @@ public sealed class StratSession : IDisposable
     ///     validator then says the lineup was not checked). Must answer from memory: it runs on the UI thread.
     /// </summary>
     public Func<string, Func<string, Guid, bool>?>? LineupLookup { get; set; }
+
+    /// <summary>
+    ///     Per map, its places for the place warnings, or null while they are not loaded (no place is warned about
+    ///     then). Must answer from memory: it runs on the UI thread.
+    /// </summary>
+    public Func<string, CalloutResolver?>? PlaceLookup { get; set; }
 
     /// <summary>Validates again on the next read: what <see cref="LineupLookup" /> answers has changed.</summary>
     public void InvalidateIssues() => _issuesVersion = -1;

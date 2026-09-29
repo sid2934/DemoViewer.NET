@@ -179,11 +179,12 @@ public static class StepAuthoringPatches
     /// <param name="atSeconds">The wanted time; clamped between the neighbours.</param>
     /// <param name="id">The new step's id.</param>
     /// <param name="throwOrigins">The projection's resolver, so a thrower carries at its lineup origin.</param>
+    /// <param name="placeCentres">The projection's place centres, so a watching token carries its facing.</param>
     public static PatchOp AddCarriedStep(StratDocument document, int afterIndex, double atSeconds, Guid id,
-        ThrowOriginResolver? throwOrigins)
+        ThrowOriginResolver? throwOrigins, PlaceCentreResolver? placeCentres = null)
     {
         PatchOp op = AddStep(document, afterIndex, atSeconds, id);
-        List<StepPosition> carried = StratStepCarry.PositionsAt(document, afterIndex, throwOrigins);
+        List<StepPosition> carried = StratStepCarry.PositionsAt(document, afterIndex, throwOrigins, placeCentres);
         if (carried.Count > 0 && op.Value is JsonObject node)
         {
             node["positions"] = new JsonArray(carried

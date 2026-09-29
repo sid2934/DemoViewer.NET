@@ -66,6 +66,11 @@ public static class StratTextExporter
         {
             md.Append("- **").Append(StratClock.Format(step.AtSeconds)).Append("** ")
                 .Append(StratStepPhrasing.Phrase(step, callouts, lineupTitle)).Append('\n');
+            foreach (StepAssignment line in step.Assignments ?? [])
+            {
+                md.Append("  - ").Append(StratStepPhrasing.PhraseLine(line, step.Verb, callouts)).Append('\n');
+            }
+
             if (!branchesAfter.TryGetValue(step.Id, out List<StratBranch>? branches))
             {
                 continue;
