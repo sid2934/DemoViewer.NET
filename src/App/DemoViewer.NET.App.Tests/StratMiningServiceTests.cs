@@ -397,4 +397,36 @@ public class StratMiningServiceTests
             File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
     }
+
+    [Test]
+    public async Task DeletingAMinedStrat_MakesItsPatternNewAgain_AndRemovesOnlyItsRuns()
+    {
+        using Library library = Library.Create();
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
+        StratDocument doc = service.Promote(execute.Key, StratOwner.Me())!;
+
+        // A hand-made label of the same strat is the user's and stays.
+        library.Tags.Update(Sha(1), d => d.Instances.Add(new TagInstance
+        {
+            Id = Guid.NewGuid(), Code = "A execute", FromTick = 1, ToTick = 2, Source = TagSources.Human,
+            Labels = [new TagLabel(TagStore.StratGroup, doc.Id.ToString())]
+        }));
+
+        await Assert.That(library.Strats.Delete(doc.Id)).IsTrue();
+        await service.LastRunRemoval;
+        using (Assert.Multiple())
+        {
+            DetectedPattern pattern = service.Patterns.Single(p => p.Pattern.Key == execute.Key);
+            await Assert.That(pattern.StratId).IsNull();
+            await Assert.That(pattern.State).IsEqualTo(Services.Generated.GeneratedState.New);
+            await Assert.That(Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count(i => i.Source == TagSources.Suggested)))
+                .IsEqualTo(0).Because("the three runs the promotion wrote are gone");
+            await Assert.That(library.Tags.TryLoad(Sha(1))!.Instances.Single().Source).IsEqualTo(TagSources.Human);
+        }
+
+        using StratMiningService again = library.Service();
+        await Assert.That(again.Patterns.Single(p => p.Pattern.Key == execute.Key).StratId).IsNull().Because("the file forgot the promotion");
+    }
 }

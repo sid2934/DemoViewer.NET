@@ -125,6 +125,7 @@ public sealed class StratMiningService : IDisposable
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
             new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
         Load();
+        _strats.Deleted += OnStratDeleted;
         _demoCache.Changed += OnSourceChanged;
         if (_grenadeIndex is not null)
         {
@@ -173,6 +174,7 @@ public sealed class StratMiningService : IDisposable
 
     public void Dispose()
     {
+        _strats.Deleted -= OnStratDeleted;
         _demoCache.Changed -= OnSourceChanged;
         if (_grenadeIndex is not null)
         {
@@ -539,6 +541,61 @@ public sealed class StratMiningService : IDisposable
                 record.RoundFacts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
         }
     }
+
+    /// <summary>The last run removal a deleted strat started; for tests.</summary>
+    internal Task LastRunRemoval { get; private set; } = Task.CompletedTask;
+
+    // A promoted strat deleted from its book: the pattern is new again, and the runs its promotion wrote go.
+    private void OnStratDeleted(Guid id)
+    {
+        string? key;
+        lock (_gate)
+        {
+            key = _state.Promoted.FirstOrDefault(p => p.Value == id).Key;
+        }
+
+        if (key is null)
+        {
+            return;
+        }
+
+        Mutate(state => state.Promoted.Remove(key));
+        LastRunRemoval = _queue is null
+            ? _run(() => RemoveRuns(id))
+            : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: remove a deleted strat's runs",
+                "strat-mining", DemoJobPriority.UserRequested, _ =>
+                {
+                    RemoveRuns(id);
+                    return Task.CompletedTask;
+                }, Key: "strat-runs:" + id.ToString("N"))).Completion;
+    }
+
+    /// <summary>
+    ///     Removes the runs a promotion wrote for <paramref name="stratId" />: suggested instances whose provenance
+    ///     detector is <see cref="Detector" /> and whose strat label is that strat. Nothing else is touched.
+    /// </summary>
+    /// <returns>How many were removed.</returns>
+    internal int RemoveRuns(Guid stratId)
+    {
+        if (_tags is null)
+        {
+            return 0;
+        }
+
+        string value = stratId.ToString();
+        int removed = 0;
+        foreach (TagDocument document in _tags.LoadDocuments(e => e.StratIds.Contains(value, StringComparer.Ordinal)))
+        {
+            _tags.Update(document.Demo.Sha256, d => removed += d.Instances.RemoveAll(i => IsRunOf(i, value)));
+        }
+
+        return removed;
+    }
+
+    private static bool IsRunOf(TagInstance instance, string stratId) =>
+        instance.Source == TagSources.Suggested
+        && instance.Provenance?["detector"] is JsonValue detector && detector.TryGetValue(out string? name) && name == Detector
+        && instance.Labels.Any(l => l.Group == TagStore.StratGroup && l.Value == stratId);
 
     // The window the strat covers in that round: the setup's opening, or the take from 10 s before to the plant.
     private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts.RoundFacts? facts)
