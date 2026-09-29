@@ -324,6 +324,35 @@ public class SuggestedTagsReviewTests
     }
 
     [Test]
+    public async Task AnAccept_WhoseVerdictCannotBeWritten_TakesItsTagBack()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-st-{Guid.NewGuid():N}");
+        try
+        {
+            using SuggestedTagsReviewHarness h = new(tagsRoot: root);
+            h.Build();
+            // A directory where the verdicts file goes: reads as no verdicts, and every write fails.
+            Directory.CreateDirectory(h.Tags.VerdictsPathFor(Sha)!);
+
+            await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsFalse();
+            await Assert.That(h.Tags.TryLoad(Sha)?.Instances ?? []).IsEmpty()
+                .Because("the proposal is still pending, so a kept tag would be written again on the next accept");
+            await Assert.That(h.Service.Load(DemoPath).Pending.Select(e => e.Proposal.Id)).Contains(ExecuteId);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, true);
+            }
+            catch (IOException)
+            {
+                // Best effort.
+            }
+        }
+    }
+
+    [Test]
     public async Task AVerdictKey_KeepsItsFirstVerdict()
     {
         TagStore tags = new(null);
