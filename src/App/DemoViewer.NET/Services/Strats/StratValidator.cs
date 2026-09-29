@@ -262,6 +262,18 @@ public static class StratValidator
                     {
                         issues.Add(Warn(pointer + "/utility/lineupId", $"lineup {lineupId} was not found on {document.Map}"));
                     }
+
+                    if (string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal))
+                    {
+                        issues.Add(Warn(pointer + "/actor",
+                            "a lineup thrown by every slot has no one to stand at its throw position; name the thrower"));
+                    }
+                }
+
+                if (utility.Technique is { } technique && !StratVocabulary.Techniques.Contains(technique))
+                {
+                    issues.Add(Warn(pointer + "/utility/technique",
+                        $"technique '{technique}' is not a lineup technique; the most thrown one is used"));
                 }
             }
 
