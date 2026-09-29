@@ -1189,7 +1189,8 @@ public class App : Application
                 mining: sp.GetRequiredService<StratMiningService>(),
                 playback: () => sp.GetService<ISituationPlayback>(),
                 spawns: new StratSpawnSource(),
-                layout: sp.GetRequiredService<StratBookLayout>());
+                layout: sp.GetRequiredService<StratBookLayout>(),
+                lineupMap: map => UtilityBookFor(sp, map));
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
@@ -1231,18 +1232,7 @@ public class App : Application
             action => Dispatcher.UIThread.Post(action),
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups", "utility",
                 "save:grenade-lineups")));
-        services.AddSingleton(sp =>
-        {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
-            return new UtilityBookTabViewModel(
-                sp.GetRequiredService<GrenadeIndex>(),
-                sp.GetRequiredService<ISituationPlayback>(),
-                demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
-                clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
-                background: QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility",
-                    "section:utility"),
-                post: work => Dispatcher.UIThread.Post(work));
-        });
+        services.AddSingleton(sp => UtilityBookFor(sp, null));
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
         // config root (the browser) keeps entries in memory for the session.
@@ -1489,6 +1479,23 @@ public class App : Application
         {
             _shellUnderConstruction = false;
         }
+    }
+
+    // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
+    // clip directory and queue section, so the picker shows what the tab shows.
+    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap)
+    {
+        DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+        return new UtilityBookTabViewModel(
+            sp.GetRequiredService<GrenadeIndex>(),
+            sp.GetRequiredService<ISituationPlayback>(),
+            demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
+            clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
+            background: lockedMap is null
+                ? QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility", "section:utility")
+                : QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Lineup picker", "utility", "section:lineup-picker"),
+            post: work => Dispatcher.UIThread.Post(work),
+            lockedMap: lockedMap);
     }
 
     // The first-party module registry. BuiltInTabsModule is auto-registered by the

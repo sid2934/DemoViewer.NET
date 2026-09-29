@@ -279,6 +279,8 @@
             <SolidColorBrush x:Key="Pb2dGridSplitter" Color="#22272E" />
             <SolidColorBrush x:Key="Pb2dHudDivider" Color="#33404A" />
             <SolidColorBrush x:Key="Pb2dOverlayBg" Color="#CC15181C" />
+            <!-- Dims the tab behind a modal panel (the Strat Book lineup picker). -->
+            <SolidColorBrush x:Key="ModalScrim" Color="#B3000008" />
             <SolidColorBrush x:Key="Pb2dKillFeedBg" Color="#E6090B0E" />
             <SolidColorBrush x:Key="Pb2dKillFeedBorder" Color="#33FFFFFF" />
 
@@ -626,6 +628,8 @@
             <SolidColorBrush x:Key="Pb2dGridSplitter" Color="#D2D7DE" />
             <SolidColorBrush x:Key="Pb2dHudDivider" Color="#C6CCD4" />
             <SolidColorBrush x:Key="Pb2dOverlayBg" Color="#E6EDEFF3" />
+            <!-- Dims the tab behind a modal panel (the Strat Book lineup picker). -->
+            <SolidColorBrush x:Key="ModalScrim" Color="#80101020" />
             <SolidColorBrush x:Key="Pb2dKillFeedBg" Color="#F0EDEFF3" />
             <SolidColorBrush x:Key="Pb2dKillFeedBorder" Color="#22202020" />
             <SolidColorBrush x:Key="Pb2dTextDim" Color="#6A727C" />

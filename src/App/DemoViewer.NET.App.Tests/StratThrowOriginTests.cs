@@ -304,7 +304,7 @@ public class StratThrowOriginTests
     }
 
     // Five demos: three standing throws and two jump-throws from one spot into one landing, one lineup of two techniques.
-    private static (GrenadeIndex Index, GrenadeLineup Lineup) Indexed()
+    internal static (GrenadeIndex Index, GrenadeLineup Lineup) Indexed()
     {
         DemoCacheStore cache = new(null);
         for (int n = 1; n <= 5; n++)

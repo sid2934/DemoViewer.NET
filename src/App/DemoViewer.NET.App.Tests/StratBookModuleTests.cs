@@ -269,7 +269,7 @@ public class StratBookModuleTests
 
         Guid smokeLineupId = Guid.NewGuid();
         StratLineupOption smokeOption = new(smokeLineupId, "Smoke into CTSpawn");
-        StratEditorViewModel editor = new(session, (_, kind) => kind == "smoke" ? [smokeOption] : []);
+        StratEditorViewModel editor = new(session, new OneLineupCatalog(smokeOption));
         session.Changed += editor.Project;
         editor.Project();
 
@@ -402,5 +402,13 @@ public class StratBookModuleTests
             await Assert.That(vm.IsBrowser).IsTrue();
             await Assert.That(vm.StatusLine).IsEqualTo(StratBookTabViewModel.BrowserNote);
         }
+    }
+
+    private sealed class OneLineupCatalog(StratLineupOption smoke) : IStratLineupCatalog
+    {
+        public IReadOnlyList<StratLineupOption> Options(string map, string utilityKind) => utilityKind == "smoke" ? [smoke] : [];
+
+        public StratLineupChoice? Resolve(string map, Guid lineupId) =>
+            lineupId == smoke.Id ? new StratLineupChoice(lineupId, smoke.Label, "smoke", []) : null;
     }
 }
