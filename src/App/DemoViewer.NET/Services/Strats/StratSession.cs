@@ -3,7 +3,6 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -528,8 +527,9 @@ public sealed class StratSession : IDisposable
                 return; // a commit or a newer snapshot already reached the store
             }
 
-            bool written = await QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.StoreSave, "Save: strat working copy",
-                "strats", () => _store.WriteWorkingCopy(snapshot, pending), false).ConfigureAwait(false);
+            // Not a queue item: the idle commit and shutdown wait for this write on the UI thread, and a
+            // paused or busy queue would hold them. A few kilobytes, well under the small-work bar.
+            bool written = await Task.Run(() => _store.WriteWorkingCopy(snapshot, pending)).ConfigureAwait(false);
             if (written)
             {
                 _lastSavedVersion = version;

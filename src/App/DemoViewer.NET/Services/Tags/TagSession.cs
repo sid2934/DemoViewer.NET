@@ -3,7 +3,6 @@
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -688,8 +687,9 @@ public sealed class TagSession : IDisposable
                 return; // a newer snapshot already reached the store; this one would undo it
             }
 
-            bool saved = await QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.StoreSave, "Save: tags", "tags",
-                () => _store.Save(snapshot), false).ConfigureAwait(false);
+            // Not a queue item: Detach waits for this write on the UI thread, and a paused or busy queue
+            // would hold it. One demo's tag document, well under the small-work bar.
+            bool saved = await Task.Run(() => _store.Save(snapshot)).ConfigureAwait(false);
             if (saved)
             {
                 _lastSavedVersion = version;
