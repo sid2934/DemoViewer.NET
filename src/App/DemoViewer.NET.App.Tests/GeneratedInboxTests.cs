@@ -250,7 +250,29 @@ public class GeneratedInboxTests
 
         service.RestoreSuggestion(squad.Id);
         await Assert.That(service.Suggestions.Select(s => s.Id)).Contains(squad.Id)
-            .Because("Restore lifts every dismissal holding it, the carried one included");
+            .Because("Restore lifts the dismissal holding it");
+    }
+
+    [Test]
+    public async Task DriftDoesNotCompound_EachHopIsJudgedAgainstTheOriginalDismissal()
+    {
+        TeamsFile teams = new() { Me = new MeAccounts { SteamIds = ["ME"] }, DismissedSuggestions = ["squad:ME,A,B"] };
+        TeamSuggestion Offer(string id) => new() { Id = id, Kind = TeamSuggestionKind.Squad };
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(TeamSuggestions.IsDismissed(Offer("squad:ME,A,C"), teams)).IsTrue().Because("one hop: A stays");
+            await Assert.That(TeamSuggestions.IsDismissed(Offer("squad:ME,C,D"), teams)).IsFalse()
+                .Because("two hops share no player with the squad that was dismissed");
+        }
+
+        (TeamIdentityService service, _) = await Teams();
+        TeamSuggestion squad = service.Suggestions.Single(s => s.Kind == TeamSuggestionKind.Squad);
+        service.DismissSuggestion(squad.Id + "," + Ids(99)[0]);
+        await Assert.That(service.DismissedSuggestions.Select(s => s.Id)).Contains(squad.Id);
+        service.RestoreSuggestion(squad.Id);
+        await Assert.That(service.DismissedSuggestions).IsEmpty()
+            .Because("only the dismissed set was stored; nothing was carried as a new anchor");
     }
 
     [Test]
