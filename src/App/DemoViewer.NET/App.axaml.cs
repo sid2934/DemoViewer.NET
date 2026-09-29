@@ -1171,6 +1171,7 @@ public class App : Application
             AppPaths.ConfigRoot,
             action => Dispatcher.UIThread.Post(action),
             queue: sp.GetRequiredService<IDemoProcessingQueue>()));
+        services.AddSingleton<StratBookLayout>();
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
@@ -1187,7 +1188,8 @@ public class App : Application
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
                 playback: () => sp.GetService<ISituationPlayback>(),
-                spawns: new StratSpawnSource());
+                spawns: new StratSpawnSource(),
+                layout: sp.GetRequiredService<StratBookLayout>());
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
@@ -1479,7 +1481,9 @@ public class App : Application
                 // Team Identity, for the Library's team filter.
                 sp.GetRequiredService<TeamIdentityService>(),
                 // Demo Provenance Labels, for the Library card's label chip.
-                sp.GetRequiredService<IDemoProvenanceSource>());
+                sp.GetRequiredService<IDemoProvenanceSource>(),
+                // The Strat Book's collapsed panes: the hub rail and the Strats section's list share it.
+                sp.GetRequiredService<StratBookLayout>());
         }
         finally
         {

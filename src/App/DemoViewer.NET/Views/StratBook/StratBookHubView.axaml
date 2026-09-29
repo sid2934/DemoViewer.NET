@@ -39,20 +39,37 @@
         <Style Selector="ListBox.strat-rail ListBoxItem:selected TextBlock.railLabel">
             <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
         </Style>
+        <Style Selector="ListBox.strat-rail-compact">
+            <Setter Property="Padding" Value="2 0" />
+        </Style>
+        <Style Selector="ListBox.strat-rail-compact ListBoxItem">
+            <Setter Property="Padding" Value="3 8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
         <Style Selector="Border.railBadge">
             <Setter Property="Background" Value="{DynamicResource LibraryCardBadgeBg}" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="6 1" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <!-- The badge fill is dark in every theme, so its text is the overlay's bright ink, not the theme's. -->
+        <Style Selector="Border.railBadge TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
+        </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="164,Auto,*" Background="{DynamicResource ShellBg}">
+    <Grid ColumnDefinitions="Auto,Auto,*" Background="{DynamicResource ShellBg}">
 
-        <!-- The rail. -->
-        <DockPanel Grid.Column="0" Background="{DynamicResource PanelHeaderBg}">
-            <Border DockPanel.Dock="Top" Classes="sectionHeader">
-                <TextBlock Text="STRAT BOOK" Classes="sectionLabel" VerticalAlignment="Center" />
+        <!-- The rail. « collapses it to the strip below; the choice is kept in the session file. -->
+        <DockPanel Grid.Column="0" Width="164" Background="{DynamicResource PanelHeaderBg}"
+                   IsVisible="{Binding !Layout.IsRailCollapsed}">
+            <Border DockPanel.Dock="Top" Classes="sectionHeader" Padding="14 4 6 4">
+                <DockPanel>
+                    <Button x:Name="CollapseRail" DockPanel.Dock="Right" Classes="pane-toggle" Content="«"
+                            Command="{Binding Layout.ToggleRailCommand}"
+                            ToolTip.Tip="Collapse the Strat Book rail" />
+                    <TextBlock Text="STRAT BOOK" Classes="sectionLabel" VerticalAlignment="Center" />
+                </DockPanel>
             </Border>
             <ListBox Classes="strat-rail"
                      ItemsSource="{Binding Sections.Sections}"
@@ -69,6 +86,38 @@
                                        FontFamily="Consolas,Menlo,monospace" FontSize="13"
                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- The collapsed rail: » reopens it; the sections stay one click away, read top to bottom with
+             their badges. -->
+        <DockPanel Grid.Column="0" Width="32" Background="{DynamicResource PanelHeaderBg}"
+                   IsVisible="{Binding Layout.IsRailCollapsed}">
+            <Button x:Name="ExpandRail" DockPanel.Dock="Top" Classes="pane-toggle" Content="»"
+                    Margin="0 5 0 4" HorizontalAlignment="Center"
+                    Command="{Binding Layout.ToggleRailCommand}"
+                    ToolTip.Tip="Show the Strat Book rail" />
+            <ListBox Classes="strat-rail strat-rail-compact"
+                     ItemsSource="{Binding Sections.Sections}"
+                     SelectedItem="{Binding Sections.SelectedSection, Mode=TwoWay}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="modules:WorkspaceTabDescriptor">
+                        <LayoutTransformControl ToolTip.Tip="{Binding Header}">
+                            <LayoutTransformControl.LayoutTransform>
+                                <RotateTransform Angle="90" />
+                            </LayoutTransformControl.LayoutTransform>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Header}" Classes="railLabel"
+                                           FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                           VerticalAlignment="Center" />
+                                <Border Classes="railBadge" IsVisible="{Binding HasBadge}">
+                                    <TextBlock Text="{Binding Badge}" FontSize="10" />
+                                </Border>
+                            </StackPanel>
+                        </LayoutTransformControl>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>

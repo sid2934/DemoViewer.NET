@@ -254,6 +254,34 @@ public sealed class StratSession : IDisposable
         Touch(applied);
     }
 
+    /// <summary>
+    ///     Takes back the newest undo entry and puts <paramref name="ops" /> in its place, as one change: a combo box
+    ///     stepped through several values leaves one entry, computed from where it started. Empty ops only take the
+    ///     entry back. The redo stack is cleared as by any edit.
+    /// </summary>
+    /// <param name="ops">The ops that replace the newest entry.</param>
+    /// <exception cref="InvalidOperationException">No strat is open, there is no entry, or an op does not apply.</exception>
+    public void ReplaceLast(IReadOnlyList<PatchOp> ops)
+    {
+        ArgumentNullException.ThrowIfNull(ops);
+        if (Document is null || _undo.Count == 0)
+        {
+            throw new InvalidOperationException("there is no edit to replace");
+        }
+
+        IReadOnlyList<PatchOp> entry = _undo[^1];
+        List<PatchOp> inverse = [.. entry.Reverse().Select(o => o.Inverse())];
+        List<PatchOp> applied = ApplyCore([.. inverse, .. ops]);
+        _undo.RemoveAt(_undo.Count - 1);
+        if (ops.Count > 0)
+        {
+            _undo.Add(applied.GetRange(inverse.Count, ops.Count));
+        }
+
+        _redo.Clear();
+        Touch(applied);
+    }
+
     /// <summary>Undoes the newest entry. False when there is none. The undo is itself an edit the next commit writes.</summary>
     public bool Undo()
     {

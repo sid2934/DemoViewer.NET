@@ -100,6 +100,18 @@ public class AppCompositionRootTests
         });
     }
 
+    // The hub rail and the Strats section's list collapse through one object, the one the session file keeps.
+    [Test]
+    public async Task TheStratBookHub_AndTheStratsSection_ShareOneLayout()
+    {
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            MainViewModel vm = provider.GetRequiredService<MainViewModel>();
+            ViewModels.StratBook.StratBookTabViewModel strats = provider.GetRequiredService<ViewModels.StratBook.StratBookTabViewModel>();
+            await Assert.That(strats.Layout).IsSameReferenceAs(vm.StratBookHub.Layout);
+        });
+    }
+
     // The fan-out order is a contract (overview correction 19): an evaluator may read what the one before
     // it wrote in the same pass, so the round index, when it lands, goes after round facts and reads them.
     [Test]

@@ -57,6 +57,9 @@ public sealed record TabSessionState(
 ///     Main-window geometry (v0.6.0). Nullable trailing param like <paramref name="ActiveTabId" />, so
 ///     pre-0.6.0 files bind <c>null</c> and the window simply opens at the platform default once.
 /// </param>
+/// <param name="StratBook">
+///     The Strat Book's collapsed rail and strat list. Null in older files, which open both.
+/// </param>
 public sealed record SessionPayload(
     TabSessionState? Parser,
     TabSessionState? Entity,
@@ -65,7 +68,13 @@ public sealed record SessionPayload(
     bool OutputVisible,
     string? ActiveTabId = null,
     Dictionary<string, JsonElement>? ModuleTabs = null,
-    WindowBoundsState? Window = null);
+    WindowBoundsState? Window = null,
+    StratBookLayoutState? StratBook = null);
+
+/// <summary>Which Strat Book panes were collapsed.</summary>
+/// <param name="RailCollapsed">The hub's section rail.</param>
+/// <param name="ListCollapsed">The Strats section's list.</param>
+public sealed record StratBookLayoutState(bool RailCollapsed, bool ListCollapsed);
 
 /// <summary>
 ///     Persisted main-window geometry. <see cref="Width" />/<see cref="Height" /> are DIPs (Avalonia
