@@ -88,6 +88,12 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     // Manual requests: they run whatever the opt-in says, at user priority. Under _gate.
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _gate = new();
+
+    /// <summary>Test seam: stands in for the rollback's <see cref="TagStore.Update" />.</summary>
+    internal Func<string, Action<TagDocument>, bool>? RollbackOverride { get; set; }
+
+    // Accepts whose verdict and rollback both failed: the tag may be in the document. Under _gate.
+    private readonly HashSet<(string Sha, string ProposalId)> _stuckAccepts = [];
     private readonly RoundIndexStore? _index;
     private readonly RoundIndexPlaceSources? _indexSources;
     private readonly Func<string?> _openDemo;
@@ -452,6 +458,15 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             return false;
         }
 
+        lock (_gate)
+        {
+            // Its tag may still be in the document: a second accept would write a copy.
+            if (_stuckAccepts.Contains((sha, proposalId)))
+            {
+                return false;
+            }
+        }
+
         DateTime now = _utcNow();
         TagInstance instance = InstanceFor(entry.Proposal, edit, document.DetectorSet.Fingerprint, now);
 
@@ -480,7 +495,20 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         }
 
         // Without its verdict the proposal stays pending, and accepting it again would write a second tag.
-        _tags.Update(sha, d => d.Instances.RemoveAll(i => i.Id == instance.Id));
+        if (!(RollbackOverride ?? _tags.Update)(sha, d => d.Instances.RemoveAll(i => i.Id == instance.Id)))
+        {
+            lock (_gate)
+            {
+                _stuckAccepts.Add((sha, proposalId));
+            }
+
+            if (Log.IsEnabled(LogLevel.Warning))
+            {
+                string fileName = Path.GetFileName(path);
+                SuggestedTagsLog.AcceptRollbackFailed(Log, fileName, proposalId);
+            }
+        }
+
         return false;
     }
 
@@ -785,4 +813,8 @@ internal static partial class SuggestedTagsLog
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning,
         Message = "{fileName}: round {round} sample alive/team disagreed with round facts ({sideMismatches} side, {aliveMismatches} alive)")]
     public static partial void SampleDisagreedWithFacts(ILogger logger, string fileName, int round, int sideMismatches, int aliveMismatches);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning,
+        Message = "{fileName}: accepting {proposalId} wrote its tag but not its verdict, and the tag could not be taken back; the proposal is held until restart")]
+    public static partial void AcceptRollbackFailed(ILogger logger, string fileName, string proposalId);
 }

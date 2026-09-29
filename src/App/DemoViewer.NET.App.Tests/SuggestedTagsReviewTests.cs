@@ -353,6 +353,38 @@ public class SuggestedTagsReviewTests
     }
 
     [Test]
+    public async Task AnAccept_WhoseRollbackAlsoFails_IsHeld_SoNoSecondTagIsWritten()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-st-{Guid.NewGuid():N}");
+        try
+        {
+            using SuggestedTagsReviewHarness h = new(tagsRoot: root);
+            h.Build();
+            string verdicts = h.Tags.VerdictsPathFor(Sha)!;
+            Directory.CreateDirectory(verdicts);
+            h.Service.RollbackOverride = (_, _) => false;
+
+            await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsFalse();
+            await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Count).IsEqualTo(1).Because("the rollback failed");
+
+            Directory.Delete(verdicts);
+            await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsFalse().Because("the proposal is held for the session");
+            await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, true);
+            }
+            catch (IOException)
+            {
+                // Best effort.
+            }
+        }
+    }
+
+    [Test]
     public async Task AVerdictKey_KeepsItsFirstVerdict()
     {
         TagStore tags = new(null);
