@@ -123,6 +123,8 @@ public class ForwardQueueTests
         coordinator.Consider("a.dem");
         queue.Resume();
         await WaitForAsync(() => facts.Forward + highlights.Forward + library.Forward == 3, "all three owners");
+        // The owners run before the entry is marked finished, on the worker.
+        await WaitForAsync(() => queue.Snapshot().Single().State == DemoQueueItemState.Completed, "the entry to finish");
 
         using (Assert.Multiple())
         {

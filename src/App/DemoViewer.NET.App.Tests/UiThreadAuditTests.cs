@@ -455,6 +455,142 @@ public class UiThreadAuditTests
         }
     }
 
+    // What the user waits for, from the click until the result is applied, with the work on the pool (as
+    // before it moved into the queue) and in the queue: a Dossier team, a Utility map (also while a lineup
+    // save holds the light lane), and an empty Situations search.
+    [Test]
+    public async Task TimeToResult_PoolAgainstQueue_OverTheOwnersLibrary()
+    {
+        if (Environment.GetEnvironmentVariable("DV_AUDIT_CONFIG") is not { Length: > 0 } source || !Directory.Exists(source))
+        {
+            throw new SkipTestException("DV_AUDIT_CONFIG is not set");
+        }
+
+        string dir = Path.Combine(Path.GetTempPath(), $"dv-ui-ttr-{Guid.NewGuid():N}");
+        CopyTree(source, dir);
+        string settingsFile = Path.Combine(dir, "settings.json");
+        if (JsonNode.Parse(File.ReadAllText(settingsFile)) is JsonObject settings)
+        {
+            settings["ProcessingQueue"] = new JsonObject { ["BackgroundProcessingEnabled"] = false, ["MaxQueueSize"] = 500, ["MaxConcurrency"] = 1 };
+            settings["Idle"] = new JsonObject { ["Enabled"] = false };
+            File.WriteAllText(settingsFile, settings.ToJsonString());
+        }
+
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    MainViewModel vm = provider.GetRequiredService<MainViewModel>();
+                    Window window = new() { Width = 1440, Height = 900, Content = new MainView(), DataContext = vm };
+                    window.Show();
+                    Modules.UtilityBook.GrenadeIndex grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>();
+                    await Until(() => grenades.WhenLoaded.IsCompleted, 60_000);
+                    await Watch(TimeSpan.FromSeconds(3));
+                    Services.DemoProcessing.IDemoProcessingQueue queue = provider.GetRequiredService<Services.DemoProcessing.IDemoProcessingQueue>();
+
+                    foreach (bool bypass in (bool[])[true, false, true, false])
+                    {
+                        Services.DemoProcessing.QueueWork.Bypass = bypass;
+                        string mode = bypass ? "pool " : "queue";
+
+                        vm.TrySelectTab("dossier.browser");
+                        Settle();
+                        ViewModels.Dossier.DossierTabViewModel dossier = (ViewModels.Dossier.DossierTabViewModel)vm.StratBookHub.Sections.Sections
+                            .First(s => s.TabId == "dossier.browser").TabViewModel!;
+                        ViewModels.Dossier.DossierTeamRow team = dossier.Teams[0];
+                        dossier.SelectedTeam = dossier.Teams.First(t => t != team);
+                        await Until(() => !dossier.Openings.IsBuilding && !dossier.PostPlant.IsBuilding && !dossier.Situational.IsBuilding
+                                          && dossier.HeatmapTask.IsCompleted, 30_000);
+                        double dossierMs = await Timed(() => dossier.SelectedTeam = team,
+                            () => !dossier.Openings.IsBuilding && !dossier.PostPlant.IsBuilding && !dossier.Situational.IsBuilding
+                                  && dossier.HeatmapTask.IsCompleted);
+
+                        vm.TrySelectTab("utilitybook.browser");
+                        Settle();
+                        ViewModels.UtilityBook.UtilityBookTabViewModel utility = (ViewModels.UtilityBook.UtilityBookTabViewModel)vm.StratBookHub.Sections.Sections
+                            .First(s => s.TabId == "utilitybook.browser").TabViewModel!;
+                        await Until(() => utility.Maps.Count > 1, 10_000);
+                        int applied = 0;
+                        utility.PropertyChanged += (_, e) =>
+                        {
+                            if (e.PropertyName == nameof(utility.Groups))
+                            {
+                                applied++;
+                            }
+                        };
+                        string a = utility.Maps.Contains("de_mirage") ? "de_mirage" : utility.Maps[0];
+                        string b = utility.Maps.Contains("de_nuke") ? "de_nuke" : utility.Maps[1];
+                        utility.SelectedMap = a;
+                        await Watch(TimeSpan.FromMilliseconds(300));
+                        int before = applied;
+                        double mapMs = await Timed(() => utility.SelectedMap = b, () => applied > before);
+                        Task save = Services.DemoProcessing.QueueWork.Run(bypass ? null : queue, Services.DemoProcessing.QueueJobKind.StoreSave,
+                            "Save: grenade lineups", "audit", _ => grenades.LineupStore.Save(), key: "save:grenade-lineups");
+                        await Task.Delay(30);
+                        before = applied;
+                        double mapWithSaveMs = await Timed(() => utility.SelectedMap = a, () => applied > before);
+                        await save;
+
+                        vm.TrySelectTab("situations.search");
+                        Settle();
+                        ViewModels.Situations.SituationsTabViewModel situations = (ViewModels.Situations.SituationsTabViewModel)vm.StratBookHub.Sections.Sections
+                            .First(s => s.TabId == "situations.search").TabViewModel!;
+                        situations.Canvas.Map = situations.Canvas.Maps.Contains("de_ancient") ? "de_ancient" : situations.Canvas.Maps[0];
+                        Settle();
+                        double searchMs = await Timed(() => situations.Canvas.SearchCommand.Execute(null),
+                            () => situations.Results.BatchTask.IsCompleted && situations.Results.Count > 0);
+
+                        Console.WriteLine($"[ui-audit] time to result ({mode}): dossier select={dossierMs:F0}ms "
+                                          + $"utility map={mapMs:F0}ms, with a lineup save running={mapWithSaveMs:F0}ms "
+                                          + $"situations search to filled={searchMs:F0}ms ({situations.Results.Count} cards)");
+                    }
+
+                    Services.DemoProcessing.QueueWork.Bypass = false;
+                    window.Close();
+                }
+                finally
+                {
+                    Services.DemoProcessing.QueueWork.Bypass = false;
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static async Task Until(Func<bool> done, int timeoutMs)
+    {
+        Stopwatch sw = Stopwatch.StartNew();
+        while (!done() && sw.ElapsedMilliseconds < timeoutMs)
+        {
+            Settle();
+            await Task.Delay(2);
+        }
+    }
+
+    private static async Task<double> Timed(Action act, Func<bool> done)
+    {
+        Stopwatch sw = Stopwatch.StartNew();
+        act();
+        await Until(done, 60_000);
+        return sw.Elapsed.TotalMilliseconds;
+    }
+
     // Work moved into the queue must not wait behind it: time from submit to done for a section build with
     // the queue idle, beside a background job, beside a parse, and behind a background light item; and the
     // UI thread's cost of the queue's own bookkeeping over a burst of builds.
