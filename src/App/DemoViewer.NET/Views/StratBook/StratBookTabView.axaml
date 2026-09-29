@@ -137,13 +137,16 @@
                         <Panel DockPanel.Dock="Bottom" IsVisible="{Binding IsDetectedView}">
                             <StackPanel Spacing="6" Margin="0 8 0 0"
                                         DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
+                                <TextBlock Text="{Binding StateProblem}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasStateProblem}" />
                                 <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextMid}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="Find strats" Classes="ghost" FontSize="11" Padding="10 5"
                                             Command="{Binding FindCommand}" IsEnabled="{Binding !IsMining}"
                                             ToolTip.Tip="Search every indexed demo for repeated setups and executes" />
-                                    <CheckBox Content="dismissed" FontSize="11" IsChecked="{Binding ShowDismissed}" />
+                                    <CheckBox Content="{Binding SettledLabel}" FontSize="11" IsChecked="{Binding ShowSettled}"
+                                              ToolTip.Tip="Also list the patterns you dismissed or added to a book" />
                                 </StackPanel>
                             </StackPanel>
                         </Panel>

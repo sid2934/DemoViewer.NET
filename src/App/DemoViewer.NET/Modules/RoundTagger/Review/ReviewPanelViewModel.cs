@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -26,8 +27,18 @@ public sealed partial class TagRowViewModel : ObservableObject
         RoundText = instance.Round is { } round ? string.Create(CultureInfo.InvariantCulture, $"r{round}") : "";
         ClockText = SuggestionQueueViewModel.Clock(Math.Max(0, instance.FromTick - roundStart) / (double)rate);
         LabelsText = string.Join(", ", instance.Labels.Select(l => $"{l.Group}: {l.Value}"));
-        SourceText = instance.Source == TagSources.Suggested ? "suggested" : "";
+        IsMachine = instance.Source == TagSources.Suggested;
+        string? detector = instance.Provenance?["detector"]?.GetValueKind() == System.Text.Json.JsonValueKind.String
+            ? instance.Provenance["detector"]!.GetValue<string>()
+            : null;
+        SourceText = !IsMachine ? ""
+            : detector == StratMiningService.Detector ? "strat run"
+            : detector is { Length: > 0 } ? $"suggested: {detector}"
+            : "suggested";
     }
+
+    /// <summary>Written by the app, not by hand: an accepted suggestion or a mined strat's run.</summary>
+    public bool IsMachine { get; }
 
     public TagInstance Instance { get; }
 
@@ -42,7 +53,7 @@ public sealed partial class TagRowViewModel : ObservableObject
 
     public string LabelsText { get; }
 
-    /// <summary>"suggested" for a tag that came from an accepted suggestion, else empty.</summary>
+    /// <summary>"strat run", "suggested: execute" or "suggested" for a machine-written tag, else empty.</summary>
     public string SourceText { get; }
 }
 
@@ -108,6 +119,20 @@ public sealed partial class ReviewPanelViewModel : ObservableObject, IDisposable
     public ObservableCollection<TagRowViewModel> Labels { get; } = [];
 
     public bool HasLabels => Labels.Count > 0;
+
+    /// <summary>The labels written by hand.</summary>
+    public ObservableCollection<TagRowViewModel> HandLabels { get; } = [];
+
+    /// <summary>The labels the app wrote: accepted suggestions and mined strat runs, listed apart.</summary>
+    public ObservableCollection<TagRowViewModel> MachineLabels { get; } = [];
+
+    public bool HasHandLabels => HandLabels.Count > 0;
+
+    public bool HasMachineLabels => MachineLabels.Count > 0;
+
+    public string HandHeader => string.Create(CultureInfo.InvariantCulture, $"Yours ({HandLabels.Count})");
+
+    public string MachineHeader => string.Create(CultureInfo.InvariantCulture, $"From suggestions ({MachineLabels.Count})");
 
     /// <summary>The label list's heading, with the count.</summary>
     public string LabelsHeader => string.Create(CultureInfo.InvariantCulture, $"Labels: {Labels.Count}");
@@ -395,6 +420,8 @@ public sealed partial class ReviewPanelViewModel : ObservableObject, IDisposable
     {
         Guid? keep = _selectedLabel?.Id;
         Labels.Clear();
+        HandLabels.Clear();
+        MachineLabels.Clear();
         int rate = _tickRate();
         foreach (TagInstance instance in (_session.Document?.Instances ?? []).OrderBy(i => i.FromTick).ThenBy(i => i.Code, StringComparer.Ordinal))
         {
@@ -407,6 +434,7 @@ public sealed partial class ReviewPanelViewModel : ObservableObject, IDisposable
             }
 
             Labels.Add(row);
+            (row.IsMachine ? MachineLabels : HandLabels).Add(row);
         }
 
         if (keep is not null && Labels.All(r => r.Id != keep))
@@ -416,6 +444,10 @@ public sealed partial class ReviewPanelViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasLabels));
+        OnPropertyChanged(nameof(HasHandLabels));
+        OnPropertyChanged(nameof(HasMachineLabels));
+        OnPropertyChanged(nameof(HandHeader));
+        OnPropertyChanged(nameof(MachineHeader));
         OnPropertyChanged(nameof(LabelsHeader));
         OnPropertyChanged(nameof(CanLabel));
     }

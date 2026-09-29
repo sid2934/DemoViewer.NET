@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.StratBook;
 
@@ -134,7 +135,15 @@ public sealed partial class DossierEditorViewModel : ObservableObject
 
     public bool HasHidden => HiddenCount > 0;
 
-    /// <summary>"42 findings · 5 starred · 2 left out".</summary>
+    /// <summary>Also list the dismissed lines, each with Restore. The forms never include them.</summary>
+    [ObservableProperty]
+    private bool _showSettled;
+
+    public string SettledLabel => GeneratedInbox.SettledLabel(HiddenCount);
+
+    partial void OnShowSettledChanged(bool value) => Project();
+
+    /// <summary>"42 findings · 5 starred · 2 dismissed".</summary>
     public string CountsLine
     {
         get
@@ -143,7 +152,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
             List<string> parts = [Plural(shown, "finding"), $"{StarredCount} starred"];
             if (HiddenCount > 0)
             {
-                parts.Add($"{HiddenCount} left out");
+                parts.Add($"{HiddenCount} dismissed");
             }
 
             return string.Join(" · ", parts);
@@ -326,7 +335,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         row.IsEditing = false;
     }
 
-    /// <summary>Leaves a generated line out of both forms; removes a note.</summary>
+    /// <summary>Dismisses a generated line from both forms, or restores a dismissed one; removes a note.</summary>
     [RelayCommand]
     private void Remove(DossierFindingViewModel? row)
     {
@@ -342,25 +351,8 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         }
         else
         {
-            _store.SetHidden(id, row.Key, true);
-            row.IsHidden = true;
-        }
-
-        Project();
-    }
-
-    [RelayCommand]
-    private void RestoreHidden()
-    {
-        if (_teamId is not { } id)
-        {
-            return;
-        }
-
-        _store.ClearHidden(id);
-        foreach (DossierFindingViewModel row in _rows)
-        {
-            row.IsHidden = false;
+            _store.SetHidden(id, row.Key, !row.IsHidden);
+            row.IsHidden = !row.IsHidden;
         }
 
         Project();
@@ -430,7 +422,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         string? section = null;
         foreach (DossierFindingViewModel row in _rows)
         {
-            if (row.IsHidden || (ShowStarredOnly && !row.IsStarred))
+            if ((row.IsHidden && !ShowSettled) || (ShowStarredOnly && !row.IsStarred))
             {
                 continue;
             }
@@ -450,6 +442,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(StarredCount));
         OnPropertyChanged(nameof(HiddenCount));
         OnPropertyChanged(nameof(HasHidden));
+        OnPropertyChanged(nameof(SettledLabel));
         OnPropertyChanged(nameof(CountsLine));
     }
 
@@ -617,6 +610,7 @@ public sealed partial class DossierFindingViewModel : ObservableObject
     private bool _isEditing;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RemoveLabel))]
     private bool _isHidden;
 
     [ObservableProperty]
@@ -655,8 +649,8 @@ public sealed partial class DossierFindingViewModel : ObservableObject
     /// <summary>True when a generated line has been rewritten.</summary>
     public bool IsEdited => !IsNote && !string.Equals(Text, Generated, StringComparison.Ordinal);
 
-    /// <summary>"Remove" on a note, "Leave out" on a generated line.</summary>
-    public string RemoveLabel => IsNote ? "Remove" : "Leave out";
+    /// <summary>"Remove" on a note, "Dismiss" or "Restore" on a generated line.</summary>
+    public string RemoveLabel => IsNote ? "Remove" : IsHidden ? "Restore" : "Dismiss";
 
     public string StarGlyph => IsStarred ? "★" : "☆";
 

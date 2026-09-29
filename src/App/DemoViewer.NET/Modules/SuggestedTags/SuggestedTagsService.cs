@@ -7,6 +7,7 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -88,6 +89,12 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     // Manual requests: they run whatever the opt-in says, at user priority. Under _gate.
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _gate = new();
+
+    /// <summary>Test seam: stands in for the rollback's <see cref="TagStore.Update" />.</summary>
+    internal Func<string, Action<TagDocument>, bool>? RollbackOverride { get; set; }
+
+    // Accepts whose verdict and rollback both failed: the tag may be in the document. Under _gate.
+    private readonly HashSet<(string Sha, string ProposalId)> _stuckAccepts = [];
     private readonly RoundIndexStore? _index;
     private readonly RoundIndexPlaceSources? _indexSources;
     private readonly Func<string?> _openDemo;
@@ -353,6 +360,25 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         return true;
     }
 
+    /// <summary>Offers a dismissed proposal again. False when it is not dismissed or the verdict could not be written.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="proposalId">The proposal's identity key.</param>
+    /// <param name="sha256">The demo's hash when the caller knows it better than the index.</param>
+    public bool Restore(string path, string proposalId, string? sha256 = null)
+    {
+        (_, ProposalSet set) = LoadCore(path, sha256);
+        if (_tags is null || set.Sha256 is not { } sha
+            || set.Entries.FirstOrDefault(e => e.Proposal.Id == proposalId && e.State == GeneratedState.Dismissed) is not
+                { VerdictKey: { } key }
+            || !_tags.RestoreVerdict(sha, key, _utcNow()))
+        {
+            return false;
+        }
+
+        AfterVerdict(path, sha256);
+        return true;
+    }
+
     /// <summary>
     ///     Accepts every pending proposal at or above <paramref name="minConfidence" /> (Ctrl+Y, after the
     ///     queue's confirm). Returns how many were accepted.
@@ -452,6 +478,15 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             return false;
         }
 
+        lock (_gate)
+        {
+            // Its tag may still be in the document: a second accept would write a copy.
+            if (_stuckAccepts.Contains((sha, proposalId)))
+            {
+                return false;
+            }
+        }
+
         DateTime now = _utcNow();
         TagInstance instance = InstanceFor(entry.Proposal, edit, document.DetectorSet.Fingerprint, now);
 
@@ -474,7 +509,27 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             : edit.Code is { Length: > 0 } code && !string.Equals(code, entry.Proposal.Code, StringComparison.Ordinal)
                 ? SuggestionVerdicts.Recoded
                 : SuggestionVerdicts.Edited;
-        return _tags.RecordVerdict(sha, proposalId, Verdict(verdict, instance.Id, entry.Proposal, document));
+        if (_tags.RecordVerdict(sha, proposalId, Verdict(verdict, instance.Id, entry.Proposal, document)))
+        {
+            return true;
+        }
+
+        // Without its verdict the proposal stays pending, and accepting it again would write a second tag.
+        if (!(RollbackOverride ?? _tags.Update)(sha, d => d.Instances.RemoveAll(i => i.Id == instance.Id)))
+        {
+            lock (_gate)
+            {
+                _stuckAccepts.Add((sha, proposalId));
+            }
+
+            if (Log.IsEnabled(LogLevel.Warning))
+            {
+                string fileName = Path.GetFileName(path);
+                SuggestedTagsLog.AcceptRollbackFailed(Log, fileName, proposalId);
+            }
+        }
+
+        return false;
     }
 
     private SuggestionVerdict Verdict(string verdict, Guid? instanceId, TagProposal proposal, ProposalDocument document) =>
@@ -542,7 +597,9 @@ public sealed class SuggestedTagsService : IDemoEvaluator
                 return (document, new ProposalSet(path, sha, [], persistent, true));
             }
 
-            verdicts = file.Verdicts;
+            // A restored rejection is no verdict: the proposal is pending again and may re-match.
+            verdicts = file.Verdicts.Where(v => v.Value.Verdict != SuggestionVerdicts.Restored)
+                .ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal);
         }
 
         IReadOnlyList<ProposalEntry> entries =
@@ -778,4 +835,8 @@ internal static partial class SuggestedTagsLog
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning,
         Message = "{fileName}: round {round} sample alive/team disagreed with round facts ({sideMismatches} side, {aliveMismatches} alive)")]
     public static partial void SampleDisagreedWithFacts(ILogger logger, string fileName, int round, int sideMismatches, int aliveMismatches);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning,
+        Message = "{fileName}: accepting {proposalId} wrote its tag but not its verdict, and the tag could not be taken back; the proposal is held until restart")]
+    public static partial void AcceptRollbackFailed(ILogger logger, string fileName, string proposalId);
 }
