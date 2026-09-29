@@ -149,7 +149,8 @@
     </UserControl.Resources>
 
     <Panel>
-    <DockPanel Margin="16">
+    <!-- Disabled while the lineup picker is open, so Tab and Enter cannot reach the editor behind it. -->
+    <DockPanel x:Name="TabBody" Margin="16" IsEnabled="{Binding !HasLineupPicker}">
 
         <!-- The book, the filters, and the browser note. -->
         <Border DockPanel.Dock="Top"

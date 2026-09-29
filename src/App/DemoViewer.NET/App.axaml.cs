@@ -1190,7 +1190,7 @@ public class App : Application
                 playback: () => sp.GetService<ISituationPlayback>(),
                 spawns: new StratSpawnSource(),
                 layout: sp.GetRequiredService<StratBookLayout>(),
-                lineupMap: map => UtilityBookFor(sp, map));
+                lineupMap: (map, asset) => UtilityBookFor(sp, map, asset));
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
@@ -1232,7 +1232,7 @@ public class App : Application
             action => Dispatcher.UIThread.Post(action),
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups", "utility",
                 "save:grenade-lineups")));
-        services.AddSingleton(sp => UtilityBookFor(sp, null));
+        services.AddSingleton(sp => UtilityBookFor(sp, null, null));
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
         // config root (the browser) keeps entries in memory for the session.
@@ -1482,8 +1482,9 @@ public class App : Application
     }
 
     // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
-    // clip directory and queue section, so the picker shows what the tab shows.
-    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap)
+    // clip directory and queue section, so the picker shows what the tab shows. The picker draws the strat
+    // canvas's bundle instead of decoding its own; the canvas keeps it.
+    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, Playback2D.Pipeline.Assets.LoadedMapAsset? sharedAsset)
     {
         DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
         return new UtilityBookTabViewModel(
@@ -1495,7 +1496,9 @@ public class App : Application
                 ? QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility", "section:utility")
                 : QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Lineup picker", "utility", "section:lineup-picker"),
             post: work => Dispatcher.UIThread.Post(work),
-            lockedMap: lockedMap);
+            lockedMap: lockedMap,
+            loadMapAsset: lockedMap is null ? null : _ => sharedAsset,
+            ownsMapAsset: lockedMap is null);
     }
 
     // The first-party module registry. BuiltInTabsModule is auto-registered by the

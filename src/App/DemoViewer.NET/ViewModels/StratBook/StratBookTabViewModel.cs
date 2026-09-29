@@ -65,7 +65,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string, UtilityBookTabViewModel>? _lineupMap;
+    private readonly Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? _lineupMap;
+
+    // What the open lineup picker writes to; it closes when either goes away.
+    private (Guid Strat, Guid Step)? _pickerTarget;
     private readonly StratSpawnSource? _spawns;
     private bool _creating;
     private readonly Action<Action> _post;
@@ -138,7 +141,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="layout">The collapsed panes, shared with the hub rail; a fresh one when omitted.</param>
     /// <param name="lineupMap">
     ///     Builds the lineup picker's Utility Book view model locked to a map, with the Utility Book's own queue
-    ///     section and clip directory; one over <paramref name="grenades" /> reading on the thread pool when omitted.
+    ///     section and clip directory, drawing the bundle it is handed (the canvas's; it must not dispose it); one
+    ///     over <paramref name="grenades" /> reading on the thread pool when omitted.
     /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
@@ -146,7 +150,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null, Func<string, UtilityBookTabViewModel>? lineupMap = null)
+        StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null)
     {
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
@@ -161,7 +165,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
         _lineupMap = lineupMap ?? (grenades is null
             ? null
-            : map => new UtilityBookTabViewModel(grenades, lockedMap: map, background: work => Task.Run(work), post: _post));
+            : (map, asset) => new UtilityBookTabViewModel(grenades, loadMapAsset: _ => asset, lockedMap: map, ownsMapAsset: false,
+                background: work => Task.Run(work), post: _post));
         Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins));
         if (_lineupOrigins is not null)
         {
@@ -348,6 +353,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <inheritdoc />
     public void OnDeactivated()
     {
+        CancelLineupPicker();
         if (_context is not null)
         {
             _context.DemoReset -= OnDemoReset;
@@ -449,12 +455,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         LineupPickerViewModel? picker = null;
         using (QueueWork.UserAction())
         {
-            picker = new LineupPickerViewModel(_lineupMap(document.Map), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
+            // The canvas holds this map's bundle already: the picker draws it rather than decoding another.
+            picker = new LineupPickerViewModel(_lineupMap(document.Map, Canvas.MapAsset), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
                 step?.Utility?.Technique, pick =>
                 {
                     if (ReferenceEquals(LineupPicker, picker))
                     {
                         LineupPicker = null;
+                        _pickerTarget = null;
                     }
 
                     if (pick is not null)
@@ -464,6 +472,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
                 });
         }
 
+        _pickerTarget = (document.Id, stepId);
         LineupPicker = picker;
     }
 
@@ -844,6 +853,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     private void OnSessionChanged()
     {
+        // Another strat, none, or the picker's step deleted: there is nothing left for it to write to.
+        if (_pickerTarget is { } target
+            && (Session.Document is not { } open || open.Id != target.Strat || open.Steps.All(st => st.Id != target.Step)))
+        {
+            CancelLineupPicker();
+        }
+
         Editor.Project();
         RecordPanel.Configure(Session.Document);
         HistoryPanel.Configure(Session.Document);

@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -170,7 +171,8 @@ public class StratEditorRoomTests
         (GrenadeIndex index, GrenadeLineup lineup) = StratThrowOriginTests.Indexed();
         StratBookTabViewModel vm = new(new StratStore(null), null, a => Dispatcher.UIThread.Post(a), false, grenades: index,
             layout: layout,
-            lineupMap: map => new UtilityBookTabViewModel(index, loadMapAsset: _ => null, retire: a => a(), lockedMap: map));
+            lineupMap: (map, asset) => new UtilityBookTabViewModel(index, loadMapAsset: _ => asset, retire: a => a(), lockedMap: map,
+                ownsMapAsset: false));
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = "de_mirage";
@@ -232,10 +234,15 @@ public class StratEditorRoomTests
 
             LineupPickerViewModel picker = vm.LineupPicker!;
             Control overlay = view.FindControl<Control>("LineupPickerOverlay")!;
+            Control body = view.FindControl<Control>("TabBody")!;
+            IInputElement? focused = TopLevel.GetTopLevel(view)!.FocusManager!.GetFocusedElement();
             using (Assert.Multiple())
             {
                 await Assert.That(overlay.IsEffectivelyVisible).IsTrue();
                 await Assert.That(picker.SelectedPosition).IsNotNull().Because("the step's lineup opens selected");
+                await Assert.That(body.IsEnabled).IsFalse().Because("Tab and Enter must not reach the editor behind the picker");
+                await Assert.That(focused is Visual v && v.GetVisualAncestors().OfType<LineupPickerView>().Any()).IsTrue()
+                    .Because("the picker takes the focus, so Escape works at once");
             }
 
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
@@ -252,6 +259,20 @@ public class StratEditorRoomTests
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(vm.Session.Document!.Steps[thrown].Utility!.Technique).IsNotNull();
                 await Assert.That(overlay.IsEffectivelyVisible).IsFalse();
+            }
+
+            // Escape cancels at once: the focus is already in the picker.
+            pick.Command!.Execute(pick.CommandParameter);
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(vm.LineupPicker).IsNotNull();
+            int before = vm.Session.UndoDepth;
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.LineupPicker).IsNull();
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(before);
+                await Assert.That(body.IsEnabled).IsTrue();
             }
 
             window.Close();
