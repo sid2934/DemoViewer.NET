@@ -11,28 +11,32 @@ namespace DemoViewer.NET.AppTests;
 public class GeneratedStateTests
 {
     [Test]
-    public async Task NewOnly_ShowsNewAlone_AndAllShowsEverything()
+    public async Task ThereIsNoReviewedState_OutsideReviewClips() =>
+        await Assert.That(Enum.GetNames<GeneratedState>()).IsEquivalentTo(["New", "Dismissed", "Accepted"]);
+
+    [Test]
+    public async Task OnlyNewShows_UntilSettledIsOn()
     {
         GeneratedState[] states = Enum.GetValues<GeneratedState>();
         using (Assert.Multiple())
         {
-            await Assert.That(states.Where(GeneratedFilter.NewOnly.Shows)).IsEquivalentTo([GeneratedState.New]);
-            await Assert.That(states.Where(GeneratedFilter.All.Shows)).IsEquivalentTo(states);
-            await Assert.That(new GeneratedFilter(Reviewed: true, Dismissed: false, Accepted: false).Shows(GeneratedState.Dismissed)).IsFalse();
+            await Assert.That(states.Where(s => GeneratedInbox.Shows(s, false))).IsEquivalentTo([GeneratedState.New]);
+            await Assert.That(states.Where(s => GeneratedInbox.Shows(s, true))).IsEquivalentTo(states);
+            await Assert.That(GeneratedInbox.SettledLabel(3)).IsEqualTo("Show settled (3)");
         }
     }
 
     [Test]
     public async Task Counts_SplitNewFromSettled()
     {
-        GeneratedCounts counts = GeneratedCounts.Of([GeneratedState.New, GeneratedState.New, GeneratedState.Reviewed,
+        GeneratedCounts counts = GeneratedCounts.Of([GeneratedState.New, GeneratedState.New,
             GeneratedState.Dismissed, GeneratedState.Accepted, GeneratedState.Accepted]);
 
         using (Assert.Multiple())
         {
-            await Assert.That(counts).IsEqualTo(new GeneratedCounts(2, 1, 1, 2));
-            await Assert.That(counts.Settled).IsEqualTo(4);
-            await Assert.That(counts.Total).IsEqualTo(6);
+            await Assert.That(counts).IsEqualTo(new GeneratedCounts(2, 1, 2));
+            await Assert.That(counts.Settled).IsEqualTo(3);
+            await Assert.That(counts.Total).IsEqualTo(5);
         }
     }
 
@@ -44,8 +48,7 @@ public class GeneratedStateTests
         {
             await Assert.That(new DetectedPattern(pattern, false, null).State).IsEqualTo(GeneratedState.New);
             await Assert.That(new DetectedPattern(pattern, false, Guid.NewGuid()).State).IsEqualTo(GeneratedState.Accepted);
-            await Assert.That(new DetectedPattern(pattern, true, Guid.NewGuid()).State).IsEqualTo(GeneratedState.Dismissed)
-                .Because("the inbox hides a dismissed pattern even when it is in a book");
+            await Assert.That(new DetectedPattern(pattern, true, Guid.NewGuid()).State).IsEqualTo(GeneratedState.Dismissed);
         }
     }
 }
