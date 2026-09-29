@@ -355,4 +355,46 @@ public class StratMiningServiceTests
             await Assert.That(written).Contains("\"SchemaVersion\":1");
         }
     }
+
+    [Test]
+    public async Task AStateFileThatCannotBeOpened_IsRetried_AndKeepsTheSessionsDismissals()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using Library library = Library.Create();
+        string file = Path.Combine(library.Root, "strat-mining.json");
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(file, "{\"Dismissed\":[\"earlier\"],\"Promoted\":{}}");
+        File.SetUnixFileMode(file, UnixFileMode.None);
+        try
+        {
+            using StratMiningService service = library.Service();
+            await service.MineAsync();
+            string key = service.Patterns[0].Pattern.Key;
+            service.Dismiss(key);
+            await Assert.That(service.StateProblem).Contains("could not be opened");
+            await Assert.That(service.Promote(key, StratOwner.Me())).IsNull();
+
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            await service.MineAsync();
+            using (Assert.Multiple())
+            {
+                await Assert.That(service.StateProblem).IsNull().Because("the next mine read the file");
+                await Assert.That(service.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsTrue();
+            }
+
+            service.Restore(key);
+            service.Dismiss(key);
+            string written = await File.ReadAllTextAsync(file);
+            await Assert.That(written).Contains("\"earlier\"").Because("the file's own dismissals are kept");
+            await Assert.That(written).Contains(key);
+        }
+        finally
+        {
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
 }

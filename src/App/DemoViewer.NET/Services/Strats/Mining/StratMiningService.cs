@@ -83,6 +83,7 @@ public sealed class StratMiningService : IDisposable
     private bool _running;
     private MiningState _state = new();
     private bool _stateRefused;
+    private bool _stateUnread;
 
     /// <param name="demoCache">Records, Round Facts and the cache events a quiet re-mine follows.</param>
     /// <param name="positions">The round positions files.</param>
@@ -146,8 +147,9 @@ public sealed class StratMiningService : IDisposable
     public IReadOnlyList<DetectedPattern> Patterns { get; private set; } = [];
 
     /// <summary>
-    ///     Why <c>strat-mining.json</c> was refused (unreadable, or a newer schema), or null. A refused file is
-    ///     never overwritten: dismissals stay in memory for the session and promotion is refused.
+    ///     Why <c>strat-mining.json</c> is not in use, or null. A file that does not parse or is at a newer schema is
+    ///     refused for the session; one that could not be opened is tried again on the next change or mine. Either
+    ///     way it is never overwritten: dismissals stay in memory and promotion is refused.
     /// </summary>
     public string? StateProblem { get; private set; }
 
@@ -201,6 +203,11 @@ public sealed class StratMiningService : IDisposable
     {
         lock (_gate)
         {
+            if (user)
+            {
+                StateUsable();
+            }
+
             if (_queue is null && _running)
             {
                 _rerun = true;
@@ -390,9 +397,12 @@ public sealed class StratMiningService : IDisposable
     private StratDocument? Commit(MinedPattern pattern, StratDocument doc)
     {
         // A promotion the state file cannot record would be offered again and promoted twice.
-        if (_stateRefused)
+        lock (_gate)
         {
-            return null;
+            if (!StateUsable())
+            {
+                return null;
+            }
         }
 
         StratSaveResult saved = _strats.Save(doc, [], $"promoted from {pattern.Support} mined rounds");
@@ -687,7 +697,7 @@ public sealed class StratMiningService : IDisposable
         lock (_gate)
         {
             change(_state);
-            if (_statePath is not null && !_stateRefused)
+            if (_statePath is not null && StateUsable())
             {
                 try
                 {
@@ -717,26 +727,7 @@ public sealed class StratMiningService : IDisposable
 
     private void Load()
     {
-        try
-        {
-            if (_statePath is not null && File.Exists(_statePath))
-            {
-                MiningState? state = JsonSerializer.Deserialize<MiningState>(File.ReadAllText(_statePath), JsonOptions);
-                if (state is null || state.SchemaVersion > StateSchemaVersion)
-                {
-                    RefuseState($"strat-mining.json is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads");
-                }
-                else
-                {
-                    _state = state;
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        {
-            RefuseState($"strat-mining.json could not be read: {ex.Message}");
-        }
-
+        LoadState();
         try
         {
             if (_detectedPath is not null && File.Exists(_detectedPath)
@@ -753,9 +744,76 @@ public sealed class StratMiningService : IDisposable
         }
     }
 
+    // Under _gate, or from the constructor. Retries a file that could not be opened; a retry that reads it keeps
+    // what changed in memory meanwhile on top of it.
+    private bool StateUsable()
+    {
+        if (_stateUnread && !_stateRefused)
+        {
+            LoadState();
+        }
+
+        return !_stateRefused && !_stateUnread;
+    }
+
+    private void LoadState()
+    {
+        if (_statePath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!File.Exists(_statePath))
+            {
+                _stateUnread = false;
+                StateProblem = null;
+                return;
+            }
+
+            string json = File.ReadAllText(_statePath);
+            MiningState? state;
+            try
+            {
+                state = JsonSerializer.Deserialize<MiningState>(json, JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                RefuseState($"{_statePath} is not readable ({ex.Message}). Move it aside and restart to start a new one.");
+                return;
+            }
+
+            if (state is null || state.SchemaVersion > StateSchemaVersion)
+            {
+                RefuseState($"{_statePath} is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads. Use the newer build, or move the file aside and restart.");
+                return;
+            }
+
+            if (_stateUnread)
+            {
+                state.Dismissed.UnionWith(_state.Dismissed);
+                foreach ((string key, Guid id) in _state.Promoted)
+                {
+                    state.Promoted.TryAdd(key, id);
+                }
+            }
+
+            _state = state;
+            _stateUnread = false;
+            StateProblem = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _stateUnread = true;
+            StateProblem = $"{_statePath} could not be opened ({ex.Message}). Changes are kept for this session and saved once it opens.";
+        }
+    }
+
     private void RefuseState(string problem)
     {
         _stateRefused = true;
+        _stateUnread = false;
         StateProblem = problem;
         _state = new MiningState();
     }
