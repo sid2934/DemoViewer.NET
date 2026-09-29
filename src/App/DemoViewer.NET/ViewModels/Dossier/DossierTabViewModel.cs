@@ -2,6 +2,8 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -59,6 +61,11 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     private readonly TeamIdentityService _teams;
     private readonly VetoHistoryStore _vetoes;
     private bool _disposed;
+    private bool _shown = true;
+    private bool _stale;
+
+    // What the shown projection was built from; a Refresh that finds the same inputs keeps it.
+    private string? _projectedKey;
 
     // Bumped per heatmap build; a worker whose generation is behind posts nothing.
     private int _generation;
@@ -215,12 +222,17 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     public bool VetoesAreSessionOnly => _vetoes.IsSessionOnly;
 
     /// <inheritdoc />
-    public void OnActivated(IModuleContext context) => Refresh();
+    public void OnActivated(IModuleContext context)
+    {
+        _shown = true;
+        Refresh();
+    }
 
     /// <inheritdoc />
-    public void OnDeactivated()
-    {
-    }
+    public void OnDeactivated() => _shown = false;
+
+    /// <summary>True while a hidden tab has missed a Team Identity change; the next activation catches up.</summary>
+    public bool IsStale => _stale;
 
     /// <inheritdoc />
     public void Dispose()
@@ -335,11 +347,31 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     private void Refresh()
     {
+        if (!_shown)
+        {
+            _stale = true;
+            return;
+        }
+
+        _stale = false;
+        List<DossierTeamRow> rows = [.. _teams.Teams.Select(t => new DossierTeamRow(t))];
+        if (rows.Count == Teams.Count && rows.Zip(Teams).All(p => p.First.SameAs(p.Second)))
+        {
+            // Same rows: the selection stays put, and only a change in what the selected team is built from
+            // re-projects. Every Team Identity recompute raises Changed, whichever team it touched.
+            if (SelectedTeam is { } selected && ProjectionKey(selected) != _projectedKey)
+            {
+                Project();
+            }
+
+            return;
+        }
+
         Guid? keep = SelectedTeam?.Id;
         Teams.Clear();
-        foreach (Team team in _teams.Teams)
+        foreach (DossierTeamRow row in rows)
         {
-            Teams.Add(new DossierTeamRow(team));
+            Teams.Add(row);
         }
 
         OnPropertyChanged(nameof(HasTeams));
@@ -350,8 +382,28 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         }
     }
 
+    // The team, its sides with their assignments, and the cache stamps of those demos: everything the
+    // projection reads that a Team Identity change can move.
+    private string ProjectionKey(DossierTeamRow row)
+    {
+        StringBuilder key = new();
+        key.Append(JsonSerializer.Serialize(_teams.AllTeams.FirstOrDefault(t => t.Id == row.Id)));
+        foreach ((DemoRef demo, int side, TeamAssignment assignment) in _teams.SidesOf(row.Id))
+        {
+            key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
+            if (_demoCache.TryGetIndex(demo.Path) is { } entry)
+            {
+                key.Append(CultureInfo.InvariantCulture,
+                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsFingerprint}/{entry.RoundIndexFingerprint}/{entry.RoundIndexComputedAtTicks}/{entry.GrenadeState}/{entry.GrenadeCount}/{entry.GrenadeWalker}");
+            }
+        }
+
+        return key.ToString();
+    }
+
     private void Project()
     {
+        _projectedKey = SelectedTeam is { } selected ? ProjectionKey(selected) : null;
         Maps.Clear();
         if (SelectedTeam is not { } row)
         {
@@ -658,6 +710,10 @@ public sealed class DossierTeamRow(Team team)
     public string Name { get; } = DisplayText.Sanitize(team.Name);
 
     public bool IsUs { get; } = team.IsUs;
+
+    /// <summary>Whether <paramref name="other" /> shows the same team the same way.</summary>
+    public bool SameAs(DossierTeamRow other) =>
+        Id == other.Id && IsUs == other.IsUs && string.Equals(Name, other.Name, StringComparison.Ordinal);
 }
 
 /// <summary>One map row of the selected team's Map Pool Record, worded for display.</summary>

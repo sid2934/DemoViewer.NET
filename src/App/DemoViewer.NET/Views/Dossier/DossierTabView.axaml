@@ -704,7 +704,14 @@
                                          Watermark="summary: your own read, printed at the top of both forms" />
                                 <TextBlock Text="{Binding EmptyLine}" FontSize="11" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasFindings}" />
+                                <!-- A big team has well over a thousand findings; the panel realizes only the rows in
+                                     the page's viewport. -->
                                 <ItemsControl ItemsSource="{Binding Findings}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VirtualizingStackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:DossierFindingViewModel">
                                             <StackPanel Spacing="2" Margin="0 0 0 2">
