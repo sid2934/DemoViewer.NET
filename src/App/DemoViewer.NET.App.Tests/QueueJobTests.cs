@@ -102,7 +102,7 @@ public class QueueJobTests
         }));
 
         await user.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        await Task.Delay(100);
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "the workers to go idle");
         await Assert.That(ran).IsEqualTo(1).Because("the clips job waits for Resume");
         await Assert.That(user.State).IsEqualTo(DemoQueueItemState.Completed);
 
@@ -220,7 +220,7 @@ public class QueueJobTests
 
         await inBatch.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Task<IDisposable> open = gate.AcquireInteractiveAsync();
-        await Task.Delay(150);
+        await WaitForAsync(() => gate.IsInteractivePending, "the open to wait for the slot");
         await Assert.That(open.IsCompleted).IsFalse().Because("the job holds the only slot");
         proceed.SetResult();
 
