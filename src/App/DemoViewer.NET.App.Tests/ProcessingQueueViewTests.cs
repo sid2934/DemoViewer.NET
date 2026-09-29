@@ -121,4 +121,72 @@ public class ProcessingQueueViewTests
             await Assert.That(mining.State).IsEqualTo(DemoQueueItemState.Cancelled);
             window.Close();
         });
+
+    /// <summary>
+    ///     An open waiting on a background parse it cannot stop: first row, and it names the file it waits for.
+    ///     Rendered to <c>queue-flyout-open-waiting.png</c>.
+    /// </summary>
+    [Test]
+    [Category("Integration")]
+    public async Task AnOpenWaitingOnAParse_IsTheFirstRow_AndNamesTheParse() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using HeavyJobGate gate = new();
+            TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            using ManualResetEventSlim release = new();
+            using DemoProcessingQueue queue = new(gate, parseFile: _ =>
+            {
+                started.TrySetResult();
+                release.Wait();
+                return SyntheticDemo();
+            }, parseBytes: _ => SyntheticDemo(), compactHeap: () => Task.CompletedTask);
+            try
+            {
+                queue.SubmitBackground(new DemoProcessingRequest("/demos/navi-vs-vitality-m2.dem", "library",
+                    DemoJobPriority.Background, 2, _ => { }, null, "navi-vs-vitality-m2.dem"));
+                queue.SubmitBackground(new DemoProcessingRequest("/demos/spirit-vs-mongolz-m3.dem", "library, highlights",
+                    DemoJobPriority.Background, 1, _ => { }, null, "spirit-vs-mongolz-m3.dem"));
+                await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+                using IDemoOpenTicket open = queue.BeginOpen("/demos/faze-vs-g2-m1.dem", "faze-vs-g2-m1.dem");
+                Task<ParsedDemo> parse = open.ParseAsync(new byte[] { 1 });
+                using ProcessingQueueStatusViewModel vm = new(queue, () => { });
+                await PumpUntilAsync(() => vm.Rows.Count == 3 && vm.Rows[0].HasDetail, "the waiting open");
+
+                Border host = new()
+                {
+                    Padding = new Thickness(20),
+                    Child = new Border
+                    {
+                        Classes = { "card-flyout" },
+                        Child = new ProcessingQueueStatusView { DataContext = vm }
+                    }
+                };
+                host.Bind(Border.BackgroundProperty, host.GetResourceObservable("ShellBg"));
+                Window window = new() { Width = 420, Height = 360, Content = host };
+                window.Show();
+                Playback2DTimelineHarness.Pump();
+                window.CaptureRenderedFrame()?.Save(
+                    Path.Combine(HeadlessSession.ArtifactDir, "queue-flyout-open-waiting.png"), new PngBitmapEncoderOptions());
+
+                DemoQueueRowViewModel first = vm.Rows[0];
+                using (Assert.Multiple())
+                {
+                    await Assert.That(first.DisplayText).Contains("Open demo: faze-vs-g2-m1.dem");
+                    await Assert.That(first.KindLabel).IsEqualTo("open");
+                    await Assert.That(first.StateLabel).IsEqualTo("Queued");
+                    await Assert.That(first.Detail).IsEqualTo("Waiting for navi-vs-vitality-m2.dem to finish parsing");
+                    await Assert.That(first.HasElevatedPriority).IsFalse();
+                }
+
+                release.Set();
+                await PumpUntilAsync(() => parse.IsCompleted, "the open to parse");
+                open.Complete();
+                window.Close();
+            }
+            finally
+            {
+                release.Set();
+            }
+        });
 }
