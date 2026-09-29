@@ -188,6 +188,82 @@ public class DossierModuleTests
     }
 
     [Test]
+    public async Task EachMap_GetsASection_WithItsRecordLineAndFindings_AndTheTeamWideLinesStayInTheGeneralSections()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
+        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false,
+            notes: new DossierNotesStore(null));
+        vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
+        DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.MapSections.Select(m => m.Map)).IsEquivalentTo(vm.Maps.Select(m => m.Map));
+            await Assert.That(nuke.Record?.Map).IsEqualTo("de_nuke");
+            await Assert.That(nuke.Findings.All(f => f.Map == "de_nuke")).IsTrue();
+            await Assert.That(nuke.Findings.Any(f => f.Key == "map|de_nuke")).IsTrue();
+            await Assert.That(nuke.Header).StartsWith("de_nuke · 2 played · ");
+            await Assert.That(vm.Editor.GeneralFindings.Any(f => f.Map is not null)).IsFalse();
+            await Assert.That(vm.Editor.GeneralFindings.Any(f => f.Key == "map|deciders")).IsTrue()
+                .Because("the decider record is about the team, not a map");
+            await Assert.That(vm.RecordSection.Header).IsEqualTo("Overall record · 4 maps");
+        }
+    }
+
+    [Test]
+    public async Task DismissRestoreAndTheSettledToggle_WorkOnAFindingInsideAMapSection()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
+        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false,
+            notes: new DossierNotesStore(null));
+        vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
+        DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
+        DossierFindingViewModel line = nuke.Findings.Single(f => f.Key == "map|de_nuke");
+
+        vm.Editor.RemoveCommand.Execute(line);
+        bool goneAfterDismiss = nuke.ShownFindings.All(f => f.Key != line.Key);
+        vm.Editor.ShowSettled = true;
+        DossierFindingViewModel? settled = nuke.ShownFindings.SingleOrDefault(f => f.Key == line.Key);
+        string label = settled?.RemoveLabel ?? "";
+        vm.Editor.RemoveCommand.Execute(settled);
+        vm.Editor.ShowSettled = false;
+        using (Assert.Multiple())
+        {
+            await Assert.That(goneAfterDismiss).IsTrue();
+            await Assert.That(settled).IsNotNull().Because("the settled toggle lists dismissed lines in their map's section");
+            await Assert.That(label).IsEqualTo("Restore");
+            await Assert.That(nuke.ShownFindings.Any(f => f.Key == line.Key)).IsTrue().Because("restored");
+        }
+    }
+
+    [Test]
+    public async Task CollapseAll_ClosesEverySection_AndAClosedMapSectionBuildsNothing_UntilItIsOpened()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
+        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false);
+        vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
+        DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
+        bool openAtStart = nuke.IsExpanded; // few findings: opens by default
+
+        vm.CollapseAllCommand.Execute(null);
+        bool allClosed = vm.MapSections.All(m => !m.IsExpanded) && !vm.RecordSection.IsExpanded && !vm.NotesSection.IsExpanded;
+        int shownWhileClosed = nuke.ShownFindings.Count + nuke.ShownRecord.Count;
+
+        // A new projection of the same team keeps what the user closed.
+        vm.WindowSize = vm.WindowSize == 5 ? 10 : 5;
+        bool stillClosed = !vm.MapSections.Single(m => m.Map == "de_nuke").IsExpanded;
+        nuke.ToggleCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(openAtStart).IsTrue();
+            await Assert.That(allClosed).IsTrue();
+            await Assert.That(shownWhileClosed).IsEqualTo(0);
+            await Assert.That(stillClosed).IsTrue();
+            await Assert.That(nuke.ShownFindings.Count).IsGreaterThan(0);
+            await Assert.That(nuke.ShownRecord.Count).IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task TheGrenadeIndexFinishingItsLoad_ReProjectsTheSelectedTeam()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
