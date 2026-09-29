@@ -710,7 +710,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             ? StratPath.Through(document, branch, _lookup) ?? StratPath.MainLine(document)
             : StratPath.MainLine(document);
 
-        StratSceneProjection projection = StratSceneProjection.Build(document, path, _lineupOrigins is { } origins ? origins.Resolve : null);
+        Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
+        StratSceneProjection projection = StratSceneProjection.Build(document, path,
+            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null);
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)

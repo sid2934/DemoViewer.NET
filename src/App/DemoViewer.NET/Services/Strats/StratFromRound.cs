@@ -89,6 +89,15 @@ public static class StratFromRound
         };
     }
 
+    /// <summary>
+    ///     <see cref="LevelKeys(IReadOnlyList{MapLevel})" /> over a baked bundle's floors, which is what the strat
+    ///     canvas draws its levels from; with none, <see cref="QuantizedLevel" />.
+    /// </summary>
+    /// <param name="floors">The bundle's floor bands (<c>LoadedMapAsset.Floors</c>), or null.</param>
+    public static Func<double, double> FloorLevelKeys(IEnumerable<FloorSlice>? floors) =>
+        LevelKeys(floors?.Select(f => new MapLevel { Id = MapSpace.IdForZMin(f.MinZ), Name = "", ZMin = f.MinZ, ZMax = f.MaxZ })
+            .ToList());
+
     /// <summary>The steps of a captured round, in tick order, which is <c>atSeconds</c> non-increasing.</summary>
     /// <param name="capture">The walk's result.</param>
     /// <param name="options">The reviewed side, slot map, round length and arrows.</param>
@@ -452,7 +461,7 @@ public static class StratFromRound
         return own >= 0 ? own : StratVocabulary.Slots.Count + StratVocabulary.OpponentSlots.ToList().IndexOf(slot);
     }
 
-    private static double NormalizeYaw(double yaw)
+    internal static double NormalizeYaw(double yaw)
     {
         double wrapped = yaw % 360;
         return wrapped < 0 ? wrapped + 360 : wrapped;

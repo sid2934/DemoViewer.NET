@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.Strats;
@@ -63,14 +64,26 @@ public class StratSpawnTests
     }
 
     [Test]
-    public async Task VertigoAndNuke_PutTheSpawnsOnTheirOwnFloors()
+    public async Task VertigoAndNuke_PutTheSpawnsOnTheBandsTheCanvasDraws()
     {
-        StratSpawns vertigo = StratSpawns.From(RequireZones("de_vertigo"))!;
-        StratSpawns nuke = StratSpawns.From(RequireZones("de_nuke"))!;
+        StratSpawns vertigo = StratSpawns.From(RequireZones("de_vertigo"), StratFromRound.FloorLevelKeys(Floors("de_vertigo")))!;
+        StratSpawns nuke = StratSpawns.From(RequireZones("de_nuke"), StratFromRound.FloorLevelKeys(Floors("de_nuke")))!;
 
-        await Assert.That(vertigo.T.All(s => s.LevelMinZ > 11000)).IsTrue();
-        await Assert.That(vertigo.Ct.All(s => s.LevelMinZ > 11000)).IsTrue();
-        await Assert.That(nuke.T.All(s => s.LevelMinZ is > -512 and < -256)).IsTrue();
+        // Bundle floors: vertigo splits at Z 11728 (T spawn below, CT spawn above); nuke at -528, both spawns above.
+        double below = MapSpace.QuantizeZ(-100000);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vertigo.T.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { below });
+            await Assert.That(vertigo.Ct.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(11728) });
+            await Assert.That(nuke.T.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(-528) });
+            await Assert.That(nuke.Ct.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(-528) });
+        }
+    }
+
+    private static List<FloorSlice> Floors(string map)
+    {
+        string dir = MapAssetBundleReader.FindBundleDirectory(map)!;
+        return MapAssetBundleReader.TryRead(dir)!.Floors!.Select(f => new FloorSlice(f.MinZ, f.MaxZ)).ToList();
     }
 
     [Test]

@@ -39,11 +39,15 @@ public sealed class LineupOriginSource : IDisposable
     /// <inheritdoc />
     public void Dispose() => _index.Changed -= OnIndexChanged;
 
-    /// <summary>Where <paramref name="utility" />'s lineup is thrown from, or null (not ready, or not found).</summary>
+    /// <summary>
+    ///     Where <paramref name="utility" />'s lineup is thrown from, or null (not ready, or not found).
+    /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="utility">A step's utility with a lineup id.</param>
-    public TokenPlacement? Resolve(string map, UtilityRef utility)
+    /// <param name="levelFor">A world Z's level key: the canvas's floors (<c>StratFromRound.FloorLevelKeys</c>).</param>
+    public TokenPlacement? Resolve(string map, UtilityRef utility, Func<double, double> levelFor)
     {
+        ArgumentNullException.ThrowIfNull(levelFor);
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(utility);
         if (utility.LineupId is not { } id || map.Length == 0)
@@ -61,20 +65,22 @@ public sealed class LineupOriginSource : IDisposable
             }
         }
 
-        return lineups.TryGetValue(id, out GrenadeLineup? lineup) ? PlacementOf(lineup, utility.Technique) : null;
+        return lineups.TryGetValue(id, out GrenadeLineup? lineup) ? PlacementOf(lineup, utility.Technique, levelFor) : null;
     }
 
     /// <summary>The technique's mean release point, on the level of its Z, facing the representative throw's yaw.</summary>
     /// <param name="lineup">The lineup.</param>
     /// <param name="technique">A technique key, or null for the most thrown.</param>
-    public static TokenPlacement PlacementOf(GrenadeLineup lineup, string? technique)
+    /// <param name="levelFor">A world Z's level key.</param>
+    public static TokenPlacement PlacementOf(GrenadeLineup lineup, string? technique, Func<double, double> levelFor)
     {
         ArgumentNullException.ThrowIfNull(lineup);
+        ArgumentNullException.ThrowIfNull(levelFor);
         LineupTechnique? chosen = GrenadeLineups.TechniqueFor(lineup, technique);
         WorldPoint origin = chosen?.Origin ?? lineup.Origin;
         float? yaw = (chosen?.Representative ?? lineup.Representative).Row.ReleaseEyeYaw;
-        return new TokenPlacement(origin.X, origin.Y, StratFromRound.QuantizedLevel(origin.Z),
-            yaw is { } y && float.IsFinite(y) ? y : null);
+        return new TokenPlacement(origin.X, origin.Y, levelFor(origin.Z),
+            yaw is { } y && float.IsFinite(y) ? (float)StratFromRound.NormalizeYaw(y) : null);
     }
 
     /// <summary>Every lineup on a map keyed by each id it answers to.</summary>

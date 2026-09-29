@@ -184,12 +184,14 @@ public class StratThrowOriginTests
         three.Actor = "B";
         three.Utility = new UtilityRef { Kind = "smoke", LineupId = lineup.Id, Technique = "stand-jump-left" };
 
-        StratSceneProjection projection = StratSceneProjection.Build(document, StratPath.MainLine(document), origins.Resolve);
+        StratSceneProjection projection = StratSceneProjection.Build(document, StratPath.MainLine(document),
+            (m, u) => origins.Resolve(m, u, StratFromRound.QuantizedLevel));
         TokenPlacement jump = projection.ThrowOriginAt(2, "B")!.Value;
         WorldPoint jumpOrigin = lineup.Techniques.Single(t => t.Key == "stand-jump-left").Origin;
 
         three.Utility.Technique = "run-throw-both";
-        TokenPlacement fallback = StratSceneProjection.Build(document, StratPath.MainLine(document), origins.Resolve)
+        TokenPlacement fallback = StratSceneProjection.Build(document, StratPath.MainLine(document),
+            (m, u) => origins.Resolve(m, u, StratFromRound.QuantizedLevel))
             .ThrowOriginAt(2, "B")!.Value;
 
         using (Assert.Multiple())
@@ -253,6 +255,18 @@ public class StratThrowOriginTests
         await Assert.That(byId[old]).IsSameReferenceAs(absorbing);
         await Assert.That(byId[absorbing.Id]).IsSameReferenceAs(absorbing);
         await Assert.That(byId[other.Id]).IsSameReferenceAs(other);
+    }
+
+    [Test]
+    public async Task ThePlacement_FacesTheReleaseYaw_WrappedIntoZeroTo360_OnTheGivenLevel()
+    {
+        GrenadeLineup lineup = Lineup(Guid.NewGuid(), []);
+        lineup.Throws[0].Row.ReleaseEyeYaw = -90;
+
+        TokenPlacement placement = LineupOriginSource.PlacementOf(lineup, null, _ => -512);
+
+        await Assert.That(placement.YawDegrees).IsEqualTo(270f);
+        await Assert.That(placement.LevelMinZ).IsEqualTo(-512);
     }
 
     [Test]
