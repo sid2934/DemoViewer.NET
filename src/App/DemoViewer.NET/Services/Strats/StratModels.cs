@@ -46,6 +46,18 @@ public static class StratVocabulary
     public static readonly IReadOnlyList<string> UtilityKinds = ["smoke", "molotov", "he", "flash", "decoy"];
 
     /// <summary>
+    ///     Every <c>utility.technique</c> key: movement, jump, click, as <c>GrenadeLineups.TechniqueKey</c> spells
+    ///     them. Outside it is a warning.
+    /// </summary>
+    public static readonly IReadOnlyList<string> Techniques =
+    [
+        .. from movement in new[] { "stand", "run" }
+        from jump in new[] { "throw", "jump" }
+        from click in new[] { "left", "right", "both" }
+        select movement + "-" + jump + "-" + click
+    ];
+
+    /// <summary>
     ///     Round Facts' buy types lower-cased, plus <c>any</c> (overview correction 10, which replaced the design's
     ///     four-value list). Read off the enum so a buy type Round Facts adds is admitted here the same day.
     /// </summary>
@@ -393,6 +405,12 @@ public sealed class UtilityRef
     public string Kind { get; set; } = "smoke";
 
     public Guid? LineupId { get; set; }
+
+    /// <summary>
+    ///     A <c>GrenadeLineups.TechniqueKey</c> (<c>stand-jump-left</c>). Null or a key the lineup lacks means its
+    ///     most thrown technique.
+    /// </summary>
+    public string? Technique { get; set; }
 
     public UtilityLanding? Landing { get; set; }
 

@@ -157,6 +157,20 @@ book: a display name is looked up at render time and a roster rename never touch
   The Strat Editor's step row shows the resolved title as its lineup combo's selection; the call sheet and
   the role sheets (LAN Print) both append `[lineup: <title>]` after a step's phrased line through the same
   `StratStepPhrasing.Phrase` the two surfaces already share.
+
+  A stored id resolves through the lineup's alias ids (`GrenadeLineup.Answers`) everywhere it is read,
+  so an id minted by an older grouping keeps naming the lineup that absorbed it.
+
+  **`technique`** (optional) names which way the lineup is thrown: a `GrenadeLineups.TechniqueKey`,
+  `<stand|run>-<throw|jump>-<left|right|both>`, e.g. `stand-jump-left`. Missing, or a key the lineup has no
+  throws for, means the lineup's most thrown technique. A key outside those twelve is a validator warning,
+  never a refusal.
+
+  **Throw origins on the canvas.** A `throw` step whose `lineupId` resolves and whose `actor` is one slot
+  puts that slot's token at the technique's mean release point at the step's `atSeconds`. The projection
+  does this; nothing is written to `positions[]`, and the lineup origin wins over an authored position for
+  that slot on that step. The canvas, the preview and an export all sample the same projection. A step
+  whose actor is `all` names no one to stand there, so it is not projected and the validator warns.
 * **`positions[]`**, **`strokes[]`**, **`holdSeconds`** and **`interpolation`** are Step Authoring's:
   this schema reserves their shape (a `{ slot, x, y, levelMinZ, yawDegrees? }` per token, and the
   `.dvann.json` element shape with the time fields left off, for `strokes[]`) so a document written before
