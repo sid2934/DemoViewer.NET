@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
@@ -200,6 +201,22 @@ public class StratEditorRoomTests
         vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{thrown}/utility", null,
             new JsonObject { ["kind"] = "smoke", ["lineupId"] = lineup.Id.ToString() }));
         vm.Editor.AddBranchCommand.Execute(null);
+
+        // A step with three lines, each watching two callouts, one at a set angle: the widest line row.
+        StratStep lines = new()
+        {
+            Id = Guid.NewGuid(), AtSeconds = -50, Actor = StratVocabulary.ActorAll, Verb = "move",
+            Assignments =
+            [
+                new StepAssignment { Slot = "B", To = new PlaceRef { Place = "PalaceInterior" }, Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn"] } },
+                new StepAssignment { Slot = "C", To = new PlaceRef { Place = "Connector" }, Watch = new StepWatch { Places = ["Stairs", "Jungle"] } },
+                new StepAssignment
+                {
+                    Slot = "D", To = new PlaceRef { Place = "Stairs" }, Watch = new StepWatch { Places = ["TRamp", "PalaceAlley"], YawDegrees = 135 }
+                }
+            ]
+        };
+        vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(lines, StratJsonContext.Default.StratStep)));
 
         // The editor's catalog groups the map off the UI thread and posts back.
         for (int i = 0; i < 500 && vm.Editor.ResolveLineup(lineup.Id) is null; i++)

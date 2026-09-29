@@ -26,6 +26,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
@@ -155,13 +156,15 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     ///     section and clip directory, drawing the bundle it is handed (the canvas's; it must not dispose it); one
     ///     over <paramref name="grenades" /> reading on the thread pool when omitted.
     /// </param>
+    /// <param name="canvasPlaces">The canvas's zone loader; the app's zone source through the processing queue when omitted.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null)
+        StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
+        Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null)
     {
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
@@ -182,7 +185,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins),
             _lineupOrigins is { } origins
                 ? (map, utility) => origins.Resolve(map, utility, StratFromRound.FloorLevelKeys(Canvas?.MapAsset?.Floors))
-                : null);
+                : null,
+            (place, level) => Canvas?.CurrentPlaceCentres?.Invoke(place, level));
         if (_lineupOrigins is not null)
         {
             // A map not grouped yet answers null, so the validator keeps "not checked" until it is; For only
@@ -213,7 +217,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
-            post: post);
+            placesFor: canvasPlaces, post: post);
         StepSelection = new StratStepSelection(Editor, Canvas);
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),

@@ -68,11 +68,22 @@ public partial class StratBookTabView : UserControl
         }
     }, DispatcherPriority.Background);
 
+    // A line's field selects the line too, which Set On Map then writes.
     private void OnStepRowActivated(object? sender, RoutedEventArgs e)
     {
-        if (e.Source is StyledElement { DataContext: StratStepRow row } && DataContext is StratBookTabViewModel vm)
+        if (DataContext is not StratBookTabViewModel vm || e.Source is not StyledElement source)
         {
-            vm.StepSelection.Select(row.Id);
+            return;
+        }
+
+        switch (source.DataContext)
+        {
+            case StratStepRow row:
+                vm.StepSelection.Select(row.Id);
+                break;
+            case StratLineRow line:
+                vm.StepSelection.SelectLine(line.Row.Id, line.Slot);
+                break;
         }
     }
 
