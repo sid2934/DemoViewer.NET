@@ -116,6 +116,33 @@ public class GeneratedInboxTests
     }
 
     [Test]
+    public async Task ARejectedSuggestion_Restored_IsPendingAgain_CountsAsPending_AndCanBeAccepted()
+    {
+        using SuggestedTagsReviewHarness h = new();
+        h.Build();
+        SuggestionQueueViewModel queue = new(h.Service, new ProposalTrack(), _ => { }, () => 64, static a => a());
+        queue.Attach(DemoPath, Sha);
+        await Assert.That(h.Service.Reject(DemoPath, ExecuteId)).IsTrue();
+        queue.Reload();
+
+        queue.ShowSettled = true;
+        queue.RestoreRowCommand.Execute(queue.Rows.Single(r => r.Proposal.Id == ExecuteId));
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.Service.Load(DemoPath).Pending.Select(e => e.Proposal.Id)).Contains(ExecuteId);
+            await Assert.That(queue.Rows.Single(r => r.Proposal.Id == ExecuteId).IsNew).IsTrue();
+            await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo("restored");
+            VerdictCounts counts = SuggestedTagsTuning.Aggregate(h.Service.Load(DemoPath).Entries)["execute"];
+            await Assert.That(counts.Rejected).IsEqualTo(0).Because("tuning treats a restored rejection as not rejected");
+            await Assert.That(counts.Pending).IsGreaterThanOrEqualTo(1);
+        }
+
+        await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsTrue().Because("the next verdict replaces a restored one");
+        await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo("accepted");
+        await Assert.That(h.Service.Restore(DemoPath, ExecuteId)).IsFalse().Because("only a dismissal can be restored");
+    }
+
+    [Test]
     public async Task TheTeamsInbox_ListsADismissal_UnderSettled_WithRestore()
     {
         (TeamIdentityService service, DemoCacheStore cache) = await Teams();
