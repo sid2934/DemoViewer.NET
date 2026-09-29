@@ -359,6 +359,42 @@ public sealed class StratStep
     /// <summary><c>linear</c>, <c>hold</c>, or null for Step Authoring's default; <c>path</c> is reserved.</summary>
     public string? Interpolation { get; set; }
 
+    /// <summary>
+    ///     Who goes where. Null (not written) for a step as it was before lines: <see cref="Actor" /> and
+    ///     <see cref="To" />. With lines, <see cref="StratStepLines" /> is the only reader; see docs/strat-format.md.
+    /// </summary>
+    public List<StepAssignment>? Assignments { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>
+///     One line of a step: a slot, where it goes and what it watches. A slot has at most one line per step; its
+///     position at the step is the step's <c>positions[]</c> entry for the slot.
+/// </summary>
+public sealed class StepAssignment
+{
+    /// <summary><c>A</c> to <c>E</c>.</summary>
+    public string Slot { get; set; } = "";
+
+    public PlaceRef? To { get; set; }
+
+    public StepWatch? Watch { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>What a line's player watches: canonical places, the first of which the token faces, or an exact yaw.</summary>
+public sealed class StepWatch
+{
+    /// <summary>Canonical place names, never callouts.</summary>
+    public List<string> Places { get; set; } = [];
+
+    /// <summary>World yaw, 0 = +X; overrides facing the first place.</summary>
+    public double? YawDegrees { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
