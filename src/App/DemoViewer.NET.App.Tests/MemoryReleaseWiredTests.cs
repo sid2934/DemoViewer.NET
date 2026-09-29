@@ -83,6 +83,60 @@ public class MemoryReleaseWiredTests
         }
     }
 
+    [Test]
+    public async Task AnOpenThroughTheQueue_EndsAsACompletedItem_AndTheClosedDemoIsReleased()
+    {
+        string demo = DemoTestHelper.RequireDemo();
+        WeakReference? parsedRef = null;
+        DemoQueueItemSnapshot? open = null;
+
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            HeavyJobGate gate = new();
+            DemoProcessingQueue queue = new(gate, a => a());
+            DemoEvaluationCoordinator coordinator = new([], queue, () => []);
+            MainViewModel? vm = new(
+                library: TestLibraries.Empty(),
+                heavyJobGate: gate,
+                processingQueue: queue,
+                evaluationCoordinator: coordinator);
+
+            await vm.LoadDemoFromPathAsync(demo);
+            parsedRef = Capture(vm).Parsed;
+            DateTime deadline = DateTime.UtcNow.AddSeconds(60);
+            while (DateTime.UtcNow < deadline
+                   && queue.Snapshot().First(s => s.Kind == QueueJobKind.DemoOpen).State == DemoQueueItemState.Running)
+            {
+                await Task.Delay(50);
+            }
+
+            open = queue.Snapshot().First(s => s.Kind == QueueJobKind.DemoOpen);
+            await vm.CloseDemoCommand.ExecuteAsync(null);
+            vm = null;
+            for (int i = 0; i < 10; i++)
+            {
+                await Task.Delay(200);
+                GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+                GC.WaitForPendingFinalizers();
+            }
+
+            queue.Dispose();
+        });
+
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            GC.WaitForPendingFinalizers();
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(open!.State).IsEqualTo(DemoQueueItemState.Completed);
+            await Assert.That(open.DisplayName).IsEqualTo("Open demo: " + Path.GetFileName(demo));
+            await Assert.That(parsedRef!.IsAlive).IsFalse().Because("the finished open item must not root the demo");
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static (WeakReference Parsed, WeakReference FirstFrame) Capture(MainViewModel vm)
     {
