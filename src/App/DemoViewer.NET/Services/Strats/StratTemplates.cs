@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Services.Strats.Mining;
 
 #endregion
 
@@ -119,11 +120,17 @@ public static class StratTemplates
 
     /// <summary>
     ///     Whether <paramref name="document" /> has no steps beyond the spawn seed: none, or one round-start
-    ///     <c>all hold</c> with no place or utility.
+    ///     <c>all hold</c> with no place or utility. A captured or mined strat never qualifies: its freeze-end
+    ///     step has the seed's shape but holds real positions.
     /// </summary>
     public static bool HasOnlySeed(StratDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
+        if (document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
         if (document.Steps.Count == 0)
         {
             return true;
