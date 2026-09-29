@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
@@ -15,7 +16,13 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.Services.Strats.Mining;
 
 /// <summary>A pattern as the inbox lists it: whether the user dismissed it, and the strat it became.</summary>
-public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId);
+public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId)
+{
+    /// <summary>Dismissed wins over promoted: a promoted pattern can still be dismissed from the inbox.</summary>
+    public GeneratedState State => Dismissed ? GeneratedState.Dismissed
+        : StratId is not null ? GeneratedState.Accepted
+        : GeneratedState.New;
+}
 
 /// <summary>A previewed strat's save: the strat, or null; PatternChanged when the pattern moved since the preview.</summary>
 public sealed record PromoteResult(StratDocument? Document, bool PatternChanged);
