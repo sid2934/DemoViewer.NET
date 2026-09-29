@@ -61,6 +61,42 @@
         <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
 
+    <!-- A type selector matches the style key, not subclasses: Button.ghost reaches neither DropDownButton nor
+         SplitButton. A SplitButton's halves are template Buttons, so hover and disabled land on their presenters. -->
+    <Style Selector="DropDownButton.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="DropDownButton.ghost:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+    </Style>
+    <Style Selector="DropDownButton.ghost:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="SplitButton.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="SplitButton.ghost /template/ Button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+    </Style>
+    <Style Selector="SplitButton.ghost /template/ Border#SeparatorBorder">
+        <Setter Property="Background" Value="{DynamicResource BorderSubtle}" />
+    </Style>
+    <Style Selector="SplitButton.ghost:disabled">
+        <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="SplitButton.ghost:disabled /template/ Button /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
     <!-- ── .chip — compact toolbar button size (keeps Fluent chrome; size only) ─────────────────────
          Standardises the FontSize=11 / Padding=8,3 the toolbar buttons + toggles hand-set inline. -->
     <Style Selector="Button.chip, ToggleButton.chip">

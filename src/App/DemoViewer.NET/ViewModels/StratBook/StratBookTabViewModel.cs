@@ -535,10 +535,20 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     ///     A new strat in the selected book, on the filtered map (else the open demo's), on the filtered side (else
     ///     T), committed as revision 1 and opened. Disabled while a cold map's spawns load.
     /// </summary>
+    /// <param name="templateId">
+    ///     A <see cref="StratTemplates" /> id, or null for a blank strat. The template sets the type, and the side when
+    ///     it has one; its steps follow the spawn seed.
+    /// </param>
     [RelayCommand(CanExecute = nameof(CanNewStrat))]
-    private void NewStrat()
+    private void NewStrat(string? templateId)
     {
         if (_creating || SelectedOwner is not { } owner)
+        {
+            return;
+        }
+
+        StratTemplate? template = StratTemplates.Find(templateId);
+        if (templateId is not null && template is null)
         {
             return;
         }
@@ -551,9 +561,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         string side = SelectedSide == StratVocabulary.SideCt ? StratVocabulary.SideCt : StratVocabulary.SideT;
+        if (template is not null)
+        {
+            side = StratTemplates.SideFor(template, side);
+        }
+
         if (_spawns is null)
         {
-            CreateNew(owner.Owner, map, side, null, true);
+            CreateNew(owner.Owner, map, side, null, template, true);
             return;
         }
 
@@ -561,7 +576,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Task<StratSpawns?> spawns = _spawns.ForAsync(map);
         if (spawns.IsCompleted)
         {
-            CreateNew(owner.Owner, map, side, spawns.IsCompletedSuccessfully ? spawns.Result : null, true);
+            CreateNew(owner.Owner, map, side, spawns.IsCompletedSuccessfully ? spawns.Result : null, template, true);
             return;
         }
 
@@ -578,11 +593,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             // Opened only if the user is still where they clicked; otherwise it is made but the open strat stays.
             bool stillHere = SelectedOwner == atClick.Owner && SelectedMap == atClick.Map && SelectedSide == atClick.Side
                              && Session.Document?.Id == atClick.Open;
-            CreateNew(owner.Owner, map, side, t.IsCompletedSuccessfully ? t.Result : null, stillHere);
+            CreateNew(owner.Owner, map, side, t.IsCompletedSuccessfully ? t.Result : null, template, stillHere);
         }), TaskScheduler.Default);
     }
 
-    private bool CanNewStrat() => !_creating;
+    private bool CanNewStrat(string? templateId) => !_creating;
 
     private void SetCreating(bool creating)
     {
@@ -590,10 +605,19 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         NewStratCommand.NotifyCanExecuteChanged();
     }
 
-    private void CreateNew(StratOwner owner, string map, string side, StratSpawns? spawns, bool open)
+    private void CreateNew(StratOwner owner, string map, string side, StratSpawns? spawns, StratTemplate? template, bool open)
     {
-        StratDocument created = _store.Create(owner, map, side, side == StratVocabulary.SideCt ? "setup" : "default", "New strat",
-            spawns is null ? null : spawns.Seed);
+        string type = template?.Type ?? (side == StratVocabulary.SideCt ? "setup" : "default");
+        StratDocument created = _store.Create(owner, map, side, type, template?.Name ?? "New strat",
+            document =>
+            {
+                // The seed must stay the first step: the template's steps follow it.
+                spawns?.Seed(document);
+                if (template is not null)
+                {
+                    StratTemplates.Apply(document, template);
+                }
+            });
         if (created.Revision == 0)
         {
             ListLine = "strat could not be saved";
@@ -604,6 +628,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         if (open)
         {
             SelectedStrat = Strats.FirstOrDefault(r => r.Id == created.Id);
+            if (SelectedStrat?.Id != created.Id)
+            {
+                // A template's side can fall outside the side filter.
+                OpenStrat(created.Id);
+            }
         }
         else
         {
@@ -667,6 +696,37 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>The explicit save: a commit of the pending edits.</summary>
     [RelayCommand]
     private void Save() => Session.Commit();
+
+    /// <summary>The templates the open strat can take: its side's, and none once it has steps beyond the spawn seed.</summary>
+    public IReadOnlyList<StratTemplate> ApplicableTemplates =>
+        Session.Document is { } document && StratTemplates.HasOnlySeed(document)
+            ? [.. StratTemplates.Templates.Where(t => t.AppliesTo(document.Side))]
+            : [];
+
+    public bool CanApplyTemplate => ApplicableTemplates.Count > 0;
+
+    /// <summary>Fills the open strat from a template as one undo entry. Refused once it has steps beyond the spawn seed.</summary>
+    /// <param name="templateId">A <see cref="StratTemplates" /> id.</param>
+    [RelayCommand(CanExecute = nameof(CanApplyTemplateId))]
+    private void ApplyTemplate(string? templateId)
+    {
+        if (Session.Document is not { } document || StratTemplates.Find(templateId) is not { } template)
+        {
+            return;
+        }
+
+        IReadOnlyList<PatchOp> ops = StratTemplates.Ops(document, template);
+        if (ops.Count == 0)
+        {
+            ListLine = "a template fills only a strat with no steps beyond the spawns";
+            return;
+        }
+
+        Session.Apply(ops);
+    }
+
+    private bool CanApplyTemplateId(string? templateId) =>
+        StratTemplates.Find(templateId) is { } template && ApplicableTemplates.Contains(template);
 
     [RelayCommand]
     private void Undo() => Session.Undo();
@@ -783,6 +843,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(HasPending));
         OnPropertyChanged(nameof(StatusLine));
+        OnPropertyChanged(nameof(ApplicableTemplates));
+        OnPropertyChanged(nameof(CanApplyTemplate));
+        ApplyTemplateCommand.NotifyCanExecuteChanged();
         RaiseExportState();
     }
 
