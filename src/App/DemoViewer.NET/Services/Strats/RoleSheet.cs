@@ -32,12 +32,16 @@ public static class StratStepPhrasing
     public static string Phrase(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null)
     {
         ArgumentNullException.ThrowIfNull(step);
-        bool all = string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal);
-        StringBuilder sentence = new(all ? "All" : step.Actor);
+
+        // A step with lines is headed by who takes part; each line's place is phrased by PhraseLine.
+        bool lines = StratStepLines.HasLines(step);
+        string actor = lines ? ActorText(step.Assignments!) : step.Actor;
+        bool plural = lines ? step.Assignments!.Count > 1 : string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal);
+        StringBuilder sentence = new(string.Equals(actor, StratVocabulary.ActorAll, StringComparison.Ordinal) ? "All" : actor);
 
         // "all" is plural: the base verb ("All move"), not the third person a single slot takes ("B
         // throws"). The same split StratDiffPhrasing.StepSentence already makes for a diff line.
-        sentence.Append(' ').Append(all ? step.Verb : StratDiffPhrasing.ThirdPerson(step.Verb));
+        sentence.Append(' ').Append(plural ? step.Verb : StratDiffPhrasing.ThirdPerson(step.Verb));
 
         if (step.Utility?.Kind is { } kind)
         {
@@ -45,7 +49,7 @@ public static class StratStepPhrasing
         }
 
         string? from = step.From?.Place is { } f ? StratDiffPhrasing.Place(f, callouts) : null;
-        string? to = step.To?.Place is { } t ? StratDiffPhrasing.Place(t, callouts) : null;
+        string? to = !lines && step.To?.Place is { } t ? StratDiffPhrasing.Place(t, callouts) : null;
         if (from is not null || to is not null)
         {
             sentence.Append(' ');
@@ -65,7 +69,7 @@ public static class StratStepPhrasing
         }
 
         string? landing = step.Utility?.Landing?.Place;
-        if (landing is not null && !string.Equals(landing, step.To?.Place, StringComparison.Ordinal))
+        if (landing is not null && (lines || !string.Equals(landing, step.To?.Place, StringComparison.Ordinal)))
         {
             sentence.Append(" (").Append(StratDiffPhrasing.Place(landing, callouts)).Append(')');
         }
@@ -77,6 +81,60 @@ public static class StratStepPhrasing
 
         return sentence.ToString();
     }
+
+    /// <summary>
+    ///     One line of a step: <c>B → Palace, watching A site, CT</c>, or <c>at</c> for a verb whose place is
+    ///     where it stands (hold, peek, fake, plant, defuse).
+    /// </summary>
+    /// <param name="line">The line.</param>
+    /// <param name="verb">The step's verb.</param>
+    /// <param name="callouts">The owner's callouts for the map; null prints canonical names split into words.</param>
+    public static string PhraseLine(StepAssignment line, string verb, CalloutResolver? callouts)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        StringBuilder text = new(line.Slot);
+        if (line.To?.Place is { Length: > 0 } to)
+        {
+            text.Append(StratStepFields.ToLabel(verb) == "to" ? " → " : " at ").Append(StratDiffPhrasing.Place(to, callouts));
+        }
+
+        if (Watching(line, callouts) is { } watching)
+        {
+            text.Append(", ").Append(watching);
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary><c>watching A site, CT</c>, or null when the line watches no place.</summary>
+    /// <param name="line">A line, or null.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string? Watching(StepAssignment? line, CalloutResolver? callouts)
+    {
+        IReadOnlyList<string> places = StratStepLines.Watching(line);
+        return places.Count == 0 ? null : "watching " + string.Join(", ", places.Select(p => StratDiffPhrasing.Place(p, callouts)));
+    }
+
+    /// <summary>
+    ///     A step on one line of text, for a list with no room for sub-lines (the step track, the Detected
+    ///     preview): <see cref="Phrase" />, then each line after a colon, separated by semicolons.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    /// <param name="lineupTitle">Resolves a lineup id to its title.</param>
+    public static string PhraseWithLines(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null)
+    {
+        string head = Phrase(step, callouts, lineupTitle);
+        return StratStepLines.HasLines(step)
+            ? head + ": " + string.Join("; ", step.Assignments!.Select(l => PhraseLine(l, step.Verb, callouts)))
+            : head;
+    }
+
+    // "All" when the lines name every slot, else the slots in line order.
+    private static string ActorText(List<StepAssignment> lines) =>
+        StratVocabulary.Slots.All(s => lines.Exists(l => string.Equals(l.Slot, s, StringComparison.Ordinal)))
+            ? StratVocabulary.ActorAll
+            : string.Join(", ", lines.Select(l => l.Slot));
 }
 
 /// <summary>Where a branch goes: shared text for the role sheet's and the call sheet's "if … → …" lines.</summary>
@@ -143,7 +201,10 @@ public sealed record RoleSheetHeader(
 /// </summary>
 /// <param name="StepId">The step.</param>
 /// <param name="AtSeconds">Round clock remaining, for ordering and display.</param>
-/// <param name="Actor">The step's own actor (a slot letter or <c>all</c>), not necessarily this sheet's slot.</param>
+/// <param name="Actor">
+///     The step's own actor (a slot letter or <c>all</c>), not necessarily this sheet's slot; on a step with
+///     lines, this slot for its own line.
+/// </param>
 /// <param name="Text">The phrased line, with this slot's own note appended when it has one.</param>
 /// <param name="IsContext">True when this is another slot's step kept for context, not one of this slot's own.</param>
 public sealed record RoleSheetLine(Guid StepId, double AtSeconds, string Actor, string Text, bool IsContext);
@@ -195,27 +256,25 @@ public sealed record RoleSheet(
         RoleSheetHeader header = new(doc.Name, doc.Map, doc.Side, doc.Type, doc.TargetSite, doc.Economy, doc.Tempo,
             doc.Trigger?.Text, doc.Status, doc.Revision, slot, roster?.GetValueOrDefault(slot), slotModel?.Role);
 
-        bool IsMine(StratStep step) => string.Equals(step.Actor, slot, StringComparison.Ordinal)
-                                        || string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal);
-
-        HashSet<Guid> ownStepIds = [.. doc.Steps.Where(IsMine).Select(s => s.Id)];
+        HashSet<Guid> ownStepIds = [.. doc.Steps.Where(s => StratStepLines.Involves(s, slot)).Select(s => s.Id)];
 
         // Another slot's step earns a grey context line when it feeds one of this slot's own moves: its
-        // `to` lands where this slot starts or ends, at the same or earlier real time. The clock counts
-        // DOWN, so "earlier" is a larger `atSeconds` (more time was left when it happened).
+        // `to` (a line's, on a step with lines) lands where this slot starts or ends, at the same or earlier
+        // real time. The clock counts DOWN, so "earlier" is a larger `atSeconds`.
         HashSet<Guid> contextStepIds = [];
         foreach (StratStep mine in doc.Steps.Where(s => ownStepIds.Contains(s.Id)))
         {
+            string? myFrom = mine.From?.Place;
+            string? myTo = StratStepLines.ToFor(mine, slot);
             foreach (StratStep other in doc.Steps)
             {
-                if (ownStepIds.Contains(other.Id) || other.To?.Place is not { } landedAt)
+                if (ownStepIds.Contains(other.Id) || other.AtSeconds < mine.AtSeconds)
                 {
                     continue;
                 }
 
-                bool feedsMine = string.Equals(landedAt, mine.From?.Place, StringComparison.Ordinal)
-                                 || string.Equals(landedAt, mine.To?.Place, StringComparison.Ordinal);
-                if (feedsMine && other.AtSeconds >= mine.AtSeconds)
+                if (StratStepLines.Destinations(other).Any(p => string.Equals(p, myFrom, StringComparison.Ordinal)
+                                                                || string.Equals(p, myTo, StringComparison.Ordinal)))
                 {
                     contextStepIds.Add(other.Id);
                 }
@@ -231,13 +290,27 @@ public sealed record RoleSheet(
                 continue;
             }
 
-            string text = StratStepPhrasing.Phrase(step, callouts, lineupTitle);
+            string text;
+            if (mine && StratStepLines.HasLines(step) && StratStepLines.LineFor(step, slot) is { } line)
+            {
+                // Only this slot's line: its place and what it watches, not the other players'.
+                text = StratStepPhrasing.Phrase(StratStepLines.AsSingle(step, line), callouts, lineupTitle);
+                if (StratStepPhrasing.Watching(line, callouts) is { } watching)
+                {
+                    text += ", " + watching;
+                }
+            }
+            else
+            {
+                text = StratStepPhrasing.PhraseWithLines(step, callouts, lineupTitle);
+            }
+
             if (mine && step.Note is { Length: > 0 } note)
             {
                 text += " (" + note + ")";
             }
 
-            lines.Add(new RoleSheetLine(step.Id, step.AtSeconds, step.Actor, text, !mine));
+            lines.Add(new RoleSheetLine(step.Id, step.AtSeconds, mine && StratStepLines.HasLines(step) ? slot : StratStepLines.ActorOf(step), text, !mine));
         }
 
         List<RoleSheetBranchLine> branches =
