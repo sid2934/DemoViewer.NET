@@ -2703,6 +2703,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        IDemoOpenTicket open = BeginOpenItem(path, Path.GetFileName(path));
+        byte[] rawBytes;
+        try
+        {
+            rawBytes = await ReadDemoBytes(path, open.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            EndUnreadOpen(open, Path.GetFileName(path), ex);
+            return;
+        }
+
+        if (IsStale(open))
+        {
+            open.Dispose();
+            return;
+        }
+
         UnloadDemoState();
 
         IsLoading = true;
@@ -2711,27 +2729,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetStage(path, "Parsing demo…", 0.15);
+        bool superseded = false;
 
         try
         {
-            byte[] rawBytes = await File.ReadAllBytesAsync(path);
             _demoBytes = rawBytes;
             _loadedDemoPath = path; // Diagnostics Session card
             // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it:
             // it keys the graph breakpoints and is published to modules, and computing it here costs no
             // wall time on the load. See LoadDemoFromBytesAsync for the same shape.
             Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
-            // The interactive load takes the machine-wide
-            // heavy-parse gate: background indexing/scanning yields at its next demo boundary.
-            // During a reel render the acquisition throws ReelInProgressException, which the
-            // site's existing failure handling surfaces with its clear user-facing message.
-            ParsedDemo parsed;
-            using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync())
-            {
-                parsed = await Task.Run(() => DemoParser.Parse(rawBytes.AsMemory()));
-            }
+            // The same open item as the interactive funnel. During a reel render the parse throws
+            // ReelInProgressException, which the failure handling below surfaces.
+            ParsedDemo parsed = await open.ParseAsync(rawBytes);
 
             string demoKey = await demoKeyTask;
+            open.CancellationToken.ThrowIfCancellationRequested();
+            open.Report(0.5, "Building the views");
             MatchOverviewTab.SetSummary(path, parsed);
             MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
             FrameRows.Clear();
@@ -2786,7 +2800,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // Match Overview stage parity with the interactive funnel (see LoadDemoFromBytesAsync).
             MatchOverviewTab.BeginAnalysis(path);
+            open.Report(0.6, "Analysing");
             await Analysis.RunAsync(parsed, demoKey);
+            ThrowIfSuperseded(open);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
             MatchOverviewTab.SetTeamScores(
@@ -2800,15 +2816,30 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Parity with the interactive load path: resume the walkthrough's deferred demo segment if a
             // first-run user's first demo arrives via CLI/debug auto-load. No-op unless the tour is awaiting.
             _tutorial.NotifyDemoLoaded();
+            open.Complete();
+        }
+        catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
+        {
+            superseded = open.IsSuperseded;
+            open.Dispose();
+            if (!superseded)
+            {
+                StatusText = $"Auto-load of {Path.GetFileName(path)} was cancelled";
+                MatchOverviewTab.Fail(path, StatusText);
+            }
         }
         catch (Exception ex)
         {
+            open.Fail(ex);
             StatusText = $"Auto-load failed: {ex.Message}";
             MatchOverviewTab.Fail(path, ex.Message);
         }
         finally
         {
-            IsLoading = false;
+            if (!superseded)
+            {
+                IsLoading = false;
+            }
         }
     }
 
@@ -3313,20 +3344,66 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         IStorageFile file = files[0];
         string? pickedLocalPath = file.TryGetLocalPath();
+        IDemoOpenTicket open = BeginOpenItem(pickedLocalPath, file.Name);
         byte[] pickedBytes;
-        if (pickedLocalPath is not null)
+        try
         {
-            pickedBytes = await File.ReadAllBytesAsync(pickedLocalPath);
+            if (pickedLocalPath is not null)
+            {
+                pickedBytes = await ReadDemoBytes(pickedLocalPath, open.CancellationToken);
+            }
+            else
+            {
+                await using Stream rawStream = await file.OpenReadAsync();
+                MemoryStream ms = new();
+                await rawStream.CopyToAsync(ms, open.CancellationToken);
+                pickedBytes = ms.ToArray();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await using Stream rawStream = await file.OpenReadAsync();
-            MemoryStream ms = new();
-            await rawStream.CopyToAsync(ms);
-            pickedBytes = ms.ToArray();
+            EndUnreadOpen(open, file.Name, ex);
+            return;
         }
 
-        await LoadDemoFromBytesAsync(pickedBytes, pickedLocalPath, file.Name);
+        await LoadDemoFromBytesAsync(pickedBytes, pickedLocalPath, file.Name, open);
+    }
+
+    private static bool IsStale(IDemoOpenTicket open) =>
+        open.IsSuperseded || open.CancellationToken.IsCancellationRequested;
+
+    /// <summary>Test seam: how an open reads its file.</summary>
+    internal Func<string, CancellationToken, Task<byte[]>> ReadDemoBytes { get; set; } = File.ReadAllBytesAsync;
+
+    private static void ThrowIfSuperseded(IDemoOpenTicket open)
+    {
+        if (open.IsSuperseded)
+        {
+            throw new OperationCanceledException(open.CancellationToken);
+        }
+    }
+
+    // Every open is one queue item at the front. A host without the queue parses under the gate, as before.
+    private IDemoOpenTicket BeginOpenItem(string? path, string fileName) =>
+        _processingQueue?.BeginOpen(path, fileName) ?? new PassThroughDemoOpen(async (bytes, ct) =>
+        {
+            using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync(ct))
+            {
+                return await Task.Run(() => DemoParser.Parse(bytes), ct);
+            }
+        });
+
+    // An open that ended before the load core ran: replaced or removed while reading, or the read failed.
+    private void EndUnreadOpen(IDemoOpenTicket open, string fileName, Exception ex)
+    {
+        if (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested)
+        {
+            open.Dispose();
+            return;
+        }
+
+        open.Fail(ex);
+        StatusText = $"Error reading {fileName}: {ex.Message}";
     }
 
     /// <summary>
@@ -3342,18 +3419,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        string fileName = Path.GetFileName(path);
+        IDemoOpenTicket open = BeginOpenItem(path, fileName);
         byte[] rawBytes;
         try
         {
-            rawBytes = await File.ReadAllBytesAsync(path);
+            rawBytes = await ReadDemoBytes(path, open.CancellationToken);
         }
         catch (Exception ex)
         {
-            StatusText = $"Error reading {Path.GetFileName(path)}: {ex.Message}";
+            EndUnreadOpen(open, fileName, ex);
             return;
         }
 
-        await LoadDemoFromBytesAsync(rawBytes, path, Path.GetFileName(path));
+        await LoadDemoFromBytesAsync(rawBytes, path, fileName, open);
     }
 
     /// <summary>
@@ -3756,8 +3835,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     here so there is exactly one load path. <paramref name="localPath" /> is retained for the Diagnostics
     ///     Session card (null on browser hosts with no local path).
     /// </summary>
-    private async Task LoadDemoFromBytesAsync(byte[] rawBytes, string? localPath, string fileName)
+    private async Task LoadDemoFromBytesAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
     {
+        // An open item left active holds every heavy item until restart.
+        try
+        {
+            await LoadDemoFromBytesCoreAsync(rawBytes, localPath, fileName, open);
+        }
+        catch (Exception ex)
+        {
+            open.Fail(ex);
+            throw;
+        }
+    }
+
+    private async Task LoadDemoFromBytesCoreAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
+    {
+        // A read that finished after a newer open started must not reset the shell under it.
+        if (IsStale(open))
+        {
+            open.Dispose();
+            return;
+        }
+
         UnloadDemoState();
 
         IsLoading = true;
@@ -3798,6 +3898,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         List<DemoFrame> allFrames = new();
+        bool superseded = false;
 
         try
         {
@@ -3807,36 +3908,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Retain the full path for the Diagnostics Session card; null on browser hosts.
             _loadedDemoPath = localPath ?? fileName;
 
-            // Parse on a background thread, zero-copy: the parser slices directly into rawBytes for
-            // uncompressed frames via ReadOnlyMemory<byte>. The open is the HIGHEST-priority, awaitable
-            // FOREGROUND request on the global demo-processing queue: it
-            // preempts background indexing/scanning (which yields at its next demo boundary), best-effort
-            // coalesces onto an in-flight parse of the same demo, and during a reel render throws
-            // ReelInProgressException, surfaced by this site's existing failure handling. The queue
-            // parses the in-hand rawBytes (no re-read). Legacy fallbacks: the direct gate, then ungated.
+            // Zero-copy parse of rawBytes through the open item: frames slice into the buffer, so it must stay
+            // held. During a reel render the parse throws ReelInProgressException, handled below.
             MatchOverviewTab.SetStage(subjectKey, "Parsing demo…", 0.15);
             // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it. It
             // keys the persisted graph breakpoints and is published on the module context, where the
             // annotation, breakpoint and tag stores join on it; hashing here costs no wall time on the load,
             // and hashing once here is what lets every module read the value instead of hashing again.
             Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
-            ParsedDemo parsed;
-            if (_processingQueue is not null)
-            {
-                parsed = await _processingQueue.RequestForegroundAsync(_loadedDemoPath, rawBytes);
-            }
-            else
-            {
-                using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync())
-                {
-                    parsed = await Task.Run(() => DemoParser.Parse(rawBytes.AsMemory()));
-                }
-            }
+            ParsedDemo parsed = await open.ParseAsync(rawBytes);
 
             // Fill the Match Overview quick facts + rosters from the parsed result and advance its stage strip
             // to "Enriching". The page does NOT leave its loading state here: the score and scoreboard are
             // still placeholders until the analysis run below lands.
             string demoKey = await demoKeyTask;
+            // Last point where stopping is safe: past it the shell holds this demo.
+            open.CancellationToken.ThrowIfCancellationRequested();
+            open.Report(0.5, "Building the views");
             MatchOverviewTab.SetSummary(subjectKey, parsed);
             MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
 
@@ -3910,7 +3998,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Everything above this line is the Match Overview's "Enriching" stage (roster, navigation index,
             // game clock, module fan-out); the run below is its "Analysing" stage.
             MatchOverviewTab.BeginAnalysis(subjectKey);
+            open.Report(0.6, "Analysing");
             await Analysis.RunAsync(parsed, demoKey);
+            ThrowIfSuperseded(open);
             // StatsTab is fed by AnalysisViewModel.EvaluationCompleted, which is raised SYNCHRONOUSLY inside
             // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await
             // returns. Reading them here rather than subscribing keeps the Match Overview's score and
@@ -3967,14 +4057,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a
                 // running fan-out roots the demo, so an un-awaited close would free nothing.
                 _openFanOutTask = Task.Run(() => coordinator.FanOutParsed(openPath, openParsed, _openFanOutSkip));
+                open.Report(0.9, "Updating the library");
+                _ = _openFanOutTask.ContinueWith(_ => open.Complete(), CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+            else
+            {
+                open.Complete();
             }
 
             // Resume the walkthrough's demo segment (stats / playback) if it was deferred at first run for
             // want of an open demo. No-op unless the tour is awaiting a load, so it is safe on every open.
             _tutorial.NotifyDemoLoaded();
         }
+        catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
+        {
+            superseded = open.IsSuperseded;
+            open.Dispose();
+            if (!superseded)
+            {
+                StatusText = $"Opening {fileName} was cancelled";
+                MatchOverviewTab.Fail(subjectKey, StatusText);
+            }
+        }
         catch (Exception ex)
         {
+            open.Fail(ex);
             // Clean text on the user surfaces (v0.6.0, a corrupt .dem used to surface as raw CLR
             // text like "Index was outside the bounds of the array"); the full exception goes to
             // the Diagnostics tab + file.
@@ -3991,7 +4099,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            IsLoading = false;
+            // A newer open owns the spinner and the tick groups.
+            if (!superseded)
+            {
+                IsLoading = false;
+            }
+        }
+
+        if (superseded)
+        {
+            return;
         }
 
         // Always build tick groups: needed by both the legacy Tick View and the Replay tab.

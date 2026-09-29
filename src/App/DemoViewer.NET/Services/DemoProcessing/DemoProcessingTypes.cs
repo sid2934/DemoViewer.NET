@@ -69,7 +69,13 @@ public enum QueueJobKind
     TeamsCommand,
 
     /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
-    LibraryScan
+    LibraryScan,
+
+    /// <summary>
+    ///     A user opening a demo (<see cref="IDemoProcessingQueue.BeginOpen" />). It sits at the front, ignores
+    ///     pause and the background switch, and no other heavy item starts while it is active.
+    /// </summary>
+    DemoOpen
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
@@ -291,6 +297,15 @@ public interface IDemoProcessingQueue
     Task<ParsedDemo> RequestForegroundAsync(string? path, ReadOnlyMemory<byte> bytes,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    ///     Starts a user's demo open as a <see cref="QueueJobKind.DemoOpen" /> item at the front of the queue.
+    ///     A newer open replaces this one. The caller runs the stages and ends the item through the ticket.
+    /// </summary>
+    /// <param name="path">The demo's path, the key for joining a running parse of it; null when it has none.</param>
+    /// <param name="fileName">The file name the list shows.</param>
+    IDemoOpenTicket BeginOpen(string? path, string fileName) =>
+        new PassThroughDemoOpen((bytes, ct) => RequestForegroundAsync(path, bytes, ct));
+
     // ── Background (fire-and-forget, coalesced) ───────────────────────────────
 
     /// <summary>
@@ -341,4 +356,56 @@ public interface IDemoProcessingQueue
     [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords",
         Justification = "Pause/Resume is the domain vocabulary for the queue control.")]
     void Resume();
+}
+
+/// <summary>A user's demo open as a queue item, driven by the caller from start to end.</summary>
+public interface IDemoOpenTicket : IDisposable
+{
+    /// <summary>Fires when a newer open replaces this one, the user removes it, or the app shuts down.</summary>
+    CancellationToken CancellationToken { get; }
+
+    /// <summary>True when a newer open replaced this one; that open owns the shell from then on.</summary>
+    bool IsSuperseded { get; }
+
+    /// <summary>
+    ///     Parses the bytes in hand, or joins a running parse of the same demo. Waits while a heavy item that
+    ///     cannot stop holds the slot. Throws <see cref="OperationCanceledException" /> once cancelled.
+    /// </summary>
+    Task<ParsedDemo> ParseAsync(ReadOnlyMemory<byte> bytes);
+
+    /// <summary>The stage the list shows, and the fraction done.</summary>
+    void Report(double progress, string stage);
+
+    /// <summary>Ends the item as completed, or cancelled when it was cancelled.</summary>
+    void Complete();
+
+    /// <summary>Ends the item as failed.</summary>
+    void Fail(Exception failure);
+}
+
+/// <summary>An open with no queue item: a host without the queue, or a queue double.</summary>
+public sealed class PassThroughDemoOpen(Func<ReadOnlyMemory<byte>, CancellationToken, Task<ParsedDemo>> parse)
+    : IDemoOpenTicket
+{
+    public CancellationToken CancellationToken => CancellationToken.None;
+
+    public bool IsSuperseded => false;
+
+    public Task<ParsedDemo> ParseAsync(ReadOnlyMemory<byte> bytes) => parse(bytes, CancellationToken.None);
+
+    public void Report(double progress, string stage)
+    {
+    }
+
+    public void Complete()
+    {
+    }
+
+    public void Fail(Exception failure)
+    {
+    }
+
+    public void Dispose()
+    {
+    }
 }

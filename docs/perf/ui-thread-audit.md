@@ -206,14 +206,13 @@ there is no queue: tests, the browser, or a disposed queue.
 | TeamsCommand, UserRequested | rename, set as us, merge, split, start roster, hide, move a demo, not a team | `TeamsTabViewModel` |
 | LibraryScan | folder walk and copy detection; tier-1 header reads | `DemoLibraryService.RescanAsync` |
 
-The workers below are not converted. The first group is the open-demo pipeline: converting it would
-make opening a demo a queue item, which is an owner call. The rest are either not real work or already
-run under their own job control.
+The workers below are not converted. Opening a demo is now one queue item (see "Opening a demo"
+below); the work a tab does on the open demo afterwards is not. The rest are either not real work or
+already run under their own job control.
 
 | Work | Where | Why |
 |---|---|---|
-| Opening a demo: hash and parse, the analysis run, the post-open library score replay | `MainViewModel` (the load core and `FanOutParsed`), `AnalysisViewModel.cs:792` | It holds the interactive heavy slot, which already preempts background parses. Owner call |
-| Entity tracking seeks, stats spray and visibility, Replay harvest cards, Rule Workbench evaluation, suggested-tags tuning | `EntityTrackingTabViewModel`, `StatsTabViewModel`, `ReplayTabViewModel`, `RuleWorkbenchTabViewModel`, `SuggestedTagsTuningService` | Work on the open demo; same call as above |
+| Entity tracking seeks, stats spray and visibility, Replay harvest cards, Rule Workbench evaluation, suggested-tags tuning | `EntityTrackingTabViewModel`, `StatsTabViewModel`, `ReplayTabViewModel`, `RuleWorkbenchTabViewModel`, `SuggestedTagsTuningService` | Work a tab does on the open demo after the open item ends |
 | Visibility engine build, 2D Playback engine load | `VisibilityEngineCache`, `Playback2DTabViewModel.cs:3030` | Built for the open demo's map on first use |
 | 2D video export | `ExportJobService` | Has its own job service, running under an export session on the heavy-job gate |
 | Tag session SHA-256 of a .dem | `TagSession.cs:198` | Part of attaching the open demo |
@@ -262,6 +261,59 @@ Deviations from the request:
 - `DemoLibraryServiceTests` was not run. It symlinks a real demo into a temp folder, and demos are
   never linked.
 
+## Opening a demo
+
+Owner call, 2026-09-29: demo opens go through the queue, at the front.
+
+### What an open did off the UI thread
+
+| Work | Where | How it ran |
+|---|---|---|
+| Reading the file | `MainViewModel.LoadDemoFromPathAsync`, `OpenFileAsync` (`File.ReadAllBytesAsync`, or a stream copy with no local path) | async I/O, no item |
+| Content hash (SHA-256 of the bytes) | load core, `DemoContentHash.Compute` | `Task.Run` beside the parse |
+| Parse | load core, `RequestForegroundAsync` | interactive heavy slot, `Task.Run`; joined a running parse of the same demo |
+| Analysis run | `AnalysisViewModel.RunAsync`, `DemoAnalysis.Evaluate` | `Task.Run` with progress |
+| Library fan-out (score replay and the other evaluators) | `DemoEvaluationCoordinator.FanOutParsed` | `Task.Run`, tracked as `_openFanOutTask` |
+| Tier-3 scoreboard write, cache seed read | `WriteTier3ScoreboardToCache`, `SeedMatchOverviewFromCache` | the cache store's writer; the seed read is synchronous |
+| Team names | `ResolveTeamNamesAsync` | awaits the fan-out |
+| DEBUG `DEMO_PATH` open | `AutoLoadDemoAsync` | its own gate and parse, no queue |
+
+On the UI thread, unchanged: the frame rows, navigator, game clock, module fan-out
+(`RaiseDemoReset`), unknown-message census, hex view load and tick groups. Work a module starts from
+`RaiseDemoReset` (2D Playback engine load, tag session hash, entity tracking) stays in the table
+above.
+
+### What an open does now
+
+Every open is one `DemoOpen` item, "Open demo: <file>". The toolbar and Parser picker, the Library
+card, recents, drag-drop, the tour sample, Situations and Teams all reach `LoadDemoFromPathAsync` or
+`OpenFileAsync`; the DEBUG `DEMO_PATH` open in `AutoLoadDemoAsync` takes the same item.
+
+1. `IDemoProcessingQueue.BeginOpen` inserts the item first in the list, priority Foreground. It stops a
+   running Background job or forward pass that can stop; that item goes back in the queue and runs
+   again after the open.
+2. While the item is active, no other heavy item starts. Pause and the background switch do not hold
+   it. Light items (saves, section builds) still run beside it.
+3. The file is read ("Reading the file").
+4. `ParseAsync` joins a running retained parse of the same demo that decodes user commands, as
+   before, so grenade walks keep their data. Otherwise it waits for the interactive slot. A retained
+   parse takes no token and cannot be stopped, so the item stays Queued and reads "Waiting for
+   <file> to finish parsing". Then "Parsing".
+5. "Building the views", "Analysing", then "Updating the library" while the fan-out runs. The item
+   completes when the fan-out ends.
+6. A second open replaces the first. A queued first open is cancelled at once. A running one is
+   cancelled up to the point the shell takes its demo (after the parse and hash); after that it stops
+   only when the analysis run returns, and leaves the shell to the newer open. Removing the item from
+   the list cancels it the same way.
+
+The shell keeps its progress ring and status text. The row shows the stage under the title
+(`queue-flyout-open-waiting.png`, `ProcessingQueueViewTests`).
+
+Memory: the open still parses the bytes in hand, which the hex view and zero-copy frames need.
+Background parses keep the mapped read of settled files and the compaction after parses; an open adds
+no compaction. The finished item keeps only its title and state, so history roots no `ParsedDemo`
+(`MemoryReleaseWiredTests`).
+
 ## Proposals
 
 1. **Fill only the shown Situations cards.** Send to Review reads each card's tick rate from the
@@ -271,7 +323,7 @@ Deviations from the request:
 ## Owner calls
 
 1. **Stopping a running parse for a user item.** It needs a cancellation token in the protected parser.
-2. **Opening a demo as a queue item.** This covers the whole open pipeline: parse, analysis, and the
+2. **Opening a demo as a queue item.** Done 2026-09-29, see "Opening a demo". Was: the whole open pipeline: parse, analysis, and the
    entity and stats computes. See the table of workers not converted.
 3. **The cache index and library.json at startup.** Moving them saves 35 ms and needs an empty
    state everywhere they are read.

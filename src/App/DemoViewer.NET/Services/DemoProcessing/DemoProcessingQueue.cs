@@ -308,10 +308,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             Task<ParsedDemo>? inFlight = null;
             lock (_sync)
             {
-                Entry? running = _entries.FirstOrDefault(e =>
-                    e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && !e.Finalizing
-                    && !e.Forward && e.UserCommands && PathEquals(e.Path, path));
-                if (running is not null)
+                if (JoinableParseLocked(path) is { } running)
                 {
                     TaskCompletionSource<ParsedDemo> waiter = new(
                         TaskCreationOptions.RunContinuationsAsynchronously);
@@ -331,6 +328,253 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         using (await _gate.AcquireInteractiveAsync(cancellationToken).ConfigureAwait(false))
         {
             return await Task.Run(() => _parseBytes(bytes), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    // A running retained parse of this demo that decodes user commands: an open can take its result.
+    private Entry? JoinableParseLocked(string path) => _entries.FirstOrDefault(e =>
+        e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && !e.Finalizing
+        && !e.Forward && e.UserCommands && PathEquals(e.Path, path));
+
+    // ── User opens ───────────────────────────────────────────────────────
+
+    public IDemoOpenTicket BeginOpen(string? path, string fileName)
+    {
+        List<CancellationTokenSource> replaced = [];
+        CancellationTokenSource? preempted;
+        OpenTicket ticket;
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return new PassThroughDemoOpen((bytes, ct) => Task.Run(() => _parseBytes(bytes), ct));
+            }
+
+            // The last user choice wins. A queued open ends here; a running one stops at its next check.
+            foreach (Entry old in _entries.Where(e => e.Kind == QueueJobKind.DemoOpen && IsActive(e)).ToList())
+            {
+                old.Superseded = true;
+                old.CancelRequested = true;
+                if (old.Cancel is { } c)
+                {
+                    replaced.Add(c);
+                }
+
+                if (old.State == DemoQueueItemState.Queued)
+                {
+                    SetTerminalLocked(old, DemoQueueItemState.Cancelled, null);
+                }
+                else if (old.ParsingOpen)
+                {
+                    old.Detail = "Replaced, finishing its parse";
+                }
+            }
+
+            CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken);
+            Entry entry = new()
+            {
+                Kind = QueueJobKind.DemoOpen,
+                JobOwner = "open",
+                Path = path ?? "",
+                DisplayName = "Open demo: " + fileName,
+                FileName = fileName,
+                Priority = DemoJobPriority.Foreground,
+                Seq = _seq++,
+                Cancel = cancel,
+                Detail = "Reading the file"
+            };
+            _entries.Insert(0, entry);
+            preempted = PreemptForLocked(entry);
+            PumpLocked();
+            ticket = new OpenTicket(this, entry, cancel);
+        }
+
+        foreach (CancellationTokenSource c in replaced)
+        {
+            CancelQuietly(c);
+        }
+
+        CancelQuietly(preempted);
+        RaiseChanged();
+        return ticket;
+    }
+
+    // Joins a running parse of the same demo, else waits for the interactive slot. A retained parse takes no
+    // token, so an open cannot stop one; the list names it while the open waits.
+    private async Task<ParsedDemo> ParseForOpenAsync(Entry entry, ReadOnlyMemory<byte> bytes, CancellationToken ct)
+    {
+        Task<ParsedDemo>? joined = null;
+        lock (_sync)
+        {
+            ThrowIfOpenEndedLocked(entry, ct);
+            if (entry.Path.Length > 0 && JoinableParseLocked(entry.Path) is { } running)
+            {
+                TaskCompletionSource<ParsedDemo> waiter = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                running.ForegroundWaiters.Add(waiter);
+                joined = waiter.Task;
+                entry.State = DemoQueueItemState.Running;
+                entry.Detail = "Parsing with the background parse of this demo";
+            }
+            else
+            {
+                entry.WaitingForSlot = true;
+            }
+        }
+
+        RaiseChanged();
+        if (joined is not null)
+        {
+            return await joined.WaitAsync(ct).ConfigureAwait(false);
+        }
+
+        IDisposable slot;
+        try
+        {
+            slot = await _gate.AcquireInteractiveAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                entry.WaitingForSlot = false;
+            }
+        }
+
+        using (slot)
+        {
+            lock (_sync)
+            {
+                ThrowIfOpenEndedLocked(entry, ct);
+                entry.State = DemoQueueItemState.Running;
+                entry.Detail = "Parsing";
+                entry.ParsingOpen = true;
+            }
+
+            RaiseChanged();
+            ParsedDemo parsed;
+            try
+            {
+                // The parser takes no token: a replaced open still runs to the end of its parse.
+                parsed = await Task.Run(() => _parseBytes(bytes)).ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    entry.ParsingOpen = false;
+                }
+            }
+
+            bool dropped;
+            lock (_sync)
+            {
+                dropped = entry.CancelRequested || !IsActive(entry);
+            }
+
+            if (dropped)
+            {
+                // Ended here, not by the caller, so the list clears as soon as the slot frees.
+                EndOpen(entry, DemoQueueItemState.Cancelled, null);
+                throw new OperationCanceledException(ct);
+            }
+
+            return parsed;
+        }
+    }
+
+    // Under _sync. A replaced open is ended here before its token is cancelled, outside the lock.
+    private static void ThrowIfOpenEndedLocked(Entry entry, CancellationToken ct)
+    {
+        if (entry.CancelRequested || !IsActive(entry))
+        {
+            throw new OperationCanceledException(ct);
+        }
+    }
+
+    private void EndOpen(Entry entry, DemoQueueItemState state, string? error)
+    {
+        lock (_sync)
+        {
+            entry.Cancel = null;
+            if (!IsActive(entry))
+            {
+                return;
+            }
+
+            if (state == DemoQueueItemState.Completed && entry.CancelRequested)
+            {
+                state = DemoQueueItemState.Cancelled;
+            }
+        }
+
+        SetTerminal(entry, state, error);
+    }
+
+    // Under _sync. What a waiting open shows: the open or heavy item holding the slot.
+    private string OpenWaitDetailLocked(Entry self)
+    {
+        if (_entries.FirstOrDefault(e => e.ParsingOpen && !ReferenceEquals(e, self)) is { } open)
+        {
+            return open.CancelRequested
+                ? $"Waiting for {open.FileName} to finish parsing (cancelled)"
+                : $"Waiting for {open.FileName} to finish parsing";
+        }
+
+        Entry? holder = _entries.FirstOrDefault(e =>
+            e.State == DemoQueueItemState.Running && e.Kind != QueueJobKind.DemoOpen && !IsLight(e.Kind));
+        if (holder is null)
+        {
+            return "Waiting for the parse slot";
+        }
+
+        string name = holder.DisplayName ?? System.IO.Path.GetFileName(holder.Path);
+        if (holder.Kind == QueueJobKind.DemoProcessing && !holder.Forward)
+        {
+            return $"Waiting for {name} to finish parsing";
+        }
+
+        return holder.Preempted || holder.CancelRequested ? $"Waiting for {name} to stop" : $"Waiting for {name} to finish";
+    }
+
+    private sealed class OpenTicket(DemoProcessingQueue queue, Entry entry, CancellationTokenSource cancel)
+        : IDemoOpenTicket
+    {
+        private readonly CancellationToken _token = cancel.Token;
+        private int _ended;
+
+        public CancellationToken CancellationToken => _token;
+
+        public bool IsSuperseded
+        {
+            get
+            {
+                lock (queue._sync)
+                {
+                    return entry.Superseded;
+                }
+            }
+        }
+
+        public Task<ParsedDemo> ParseAsync(ReadOnlyMemory<byte> bytes) => queue.ParseForOpenAsync(entry, bytes, _token);
+
+        public void Report(double progress, string stage) =>
+            queue.ReportProgress(entry, (int)(Math.Clamp(progress, 0, 1) * 100), 100, stage);
+
+        public void Complete() => End(DemoQueueItemState.Completed, null);
+
+        public void Fail(Exception failure) => End(DemoQueueItemState.Failed, failure.Message);
+
+        public void Dispose() => End(DemoQueueItemState.Cancelled, null);
+
+        private void End(DemoQueueItemState state, string? error)
+        {
+            if (Interlocked.Exchange(ref _ended, 1) == 1)
+            {
+                return;
+            }
+
+            queue.EndOpen(entry, state, error);
+            cancel.Dispose();
         }
     }
 
@@ -526,8 +770,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 return;
             }
 
+            if (e.Kind == QueueJobKind.DemoOpen)
+            {
+                cancel = e.Cancel;
+            }
+
             if (e.State == DemoQueueItemState.Queued)
             {
+                e.CancelRequested = true;
                 SetTerminalLocked(e, DemoQueueItemState.Cancelled, null);
                 freedQueueSlot = e.Kind != QueueJobKind.HeapCompaction;
             }
@@ -594,7 +844,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         lock (_sync)
         {
-            return _entries.Select(ToSnapshot).ToList();
+            return _entries.Select(e => e.Kind == QueueJobKind.DemoOpen && e.WaitingForSlot
+                ? ToSnapshot(e) with { Detail = OpenWaitDetailLocked(e) }
+                : ToSnapshot(e)).ToList();
         }
     }
 
@@ -630,7 +882,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return;
         }
 
-        int running = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e.Kind));
+        // An open runs on its caller, not a worker; counting it would respawn idle workers forever.
+        int running = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e.Kind)
+                                          && e.Kind != QueueJobKind.DemoOpen);
         int want = running;
         if (NextStartableLocked(false) is { } next)
         {
@@ -1117,12 +1371,18 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private Entry? NextStartableLocked(bool light)
     {
         Entry? best = null;
-        bool anyRunning = false, jobRunning = false;
+        bool anyRunning = false, jobRunning = false, opening = false;
         int userRunning = 0;
         foreach (Entry e in _entries)
         {
             if (IsLight(e.Kind) != light)
             {
+                continue;
+            }
+
+            if (e.Kind == QueueJobKind.DemoOpen)
+            {
+                opening |= IsActive(e);
                 continue;
             }
 
@@ -1145,7 +1405,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return !anyRunning || best is { Priority: >= DemoJobPriority.UserRequested } && userRunning < MaxUserLight ? best : null;
         }
 
-        return best is null || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
+        return best is null || opening || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
     }
 
     // Marks the next startable item Running under the lock.
@@ -1338,8 +1598,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             Dictionary<Guid, DemoQueueItem> present = _items.ToDictionary(x => x.Id);
-            foreach (DemoQueueItemSnapshot s in snapshot)
+            for (int index = 0; index < snapshot.Count; index++)
             {
+                DemoQueueItemSnapshot s = snapshot[index];
                 if (present.TryGetValue(s.Id, out DemoQueueItem? item))
                 {
                     item.DisplayName = s.DisplayName;
@@ -1352,7 +1613,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 }
                 else
                 {
-                    _items.Add(new DemoQueueItem
+                    _items.Insert(Math.Min(index, _items.Count), new DemoQueueItem
                     {
                         Id = s.Id,
                         Path = s.Path,
@@ -1626,6 +1887,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // Replaces a superseded forward pass and runs before any other demo.
         public bool Front { get; init; }
+
+        // An open waiting for the interactive slot; its detail names what holds it.
+        public bool WaitingForSlot { get; set; }
+
+        // An open parsing under the interactive slot.
+        public bool ParsingOpen { get; set; }
+
+        // The file an open is for.
+        public string? FileName { get; init; }
 
         // A job body reported a demo parse through its context.
         public bool ParsedDemo { get; set; }
