@@ -33,7 +33,7 @@
         <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Content="{Binding PauseResumeLabel}" Classes="ghost" Padding="12 5"
                     Command="{Binding TogglePauseCommand}"
-                    ToolTip.Tip="Pause or resume the queue (transient, the app always starts un-paused). Nothing new starts while paused; the job in flight finishes. Opening a demo is never paused." />
+                    ToolTip.Tip="Pause or resume the queue (transient, the app always starts un-paused). While paused, no background item starts and the one in flight finishes. What you ask for (opening a demo, a search, a team change) still runs." />
             <Button Content="Settings" Classes="ghost" Padding="12 5"
                     IsVisible="{Binding CanOpenSettings}"
                     Command="{Binding OpenSettingsCommand}"

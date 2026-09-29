@@ -181,6 +181,11 @@ public interface IQueueJobContext
 /// <param name="Target">A file the item is about (the row tooltip), or null.</param>
 /// <param name="OrderHint">Within a priority and kind, higher = sooner.</param>
 /// <param name="ReplacePending">A keyed submit replaces the queued item's work instead of keeping the first.</param>
+/// <param name="Preemptible">
+///     Whether a user's item may stop it. False for work that cannot stop part-way (a file write), which
+///     would otherwise keep running beside the user's item while counted as stopped.
+/// </param>
+/// <param name="Serial">Items sharing it never run at the same time; one runs, the rest wait.</param>
 public sealed record QueueJobRequest(
     QueueJobKind Kind,
     string Title,
@@ -190,7 +195,9 @@ public sealed record QueueJobRequest(
     string? Key = null,
     string? Target = null,
     long OrderHint = 0,
-    bool ReplacePending = false);
+    bool ReplacePending = false,
+    bool Preemptible = true,
+    string? Serial = null);
 
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state

@@ -502,7 +502,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             DisplayName = request.Title,
             Priority = request.Priority,
             OrderHint = request.OrderHint,
-            Seq = _seq++
+            Seq = _seq++,
+            Preemptible = request.Preemptible,
+            Serial = request.Serial,
+            ReplacePending = request.ReplacePending
         };
         _entries.Add(entry);
         PumpLocked();
@@ -622,7 +625,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // MaxConcurrency. A worker self-terminates when no work remains; the next submit/resume respawns.
     private void PumpLocked()
     {
-        if (_disposed || _paused)
+        if (_disposed)
         {
             return;
         }
@@ -661,7 +664,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 Entry? entry;
                 lock (_sync)
                 {
-                    entry = _disposed || _paused ? null : PickNextQueuedLocked(true);
+                    entry = _disposed ? null : PickNextQueuedLocked(true);
                     PumpLocked(); // another user item may start beside this one
                 }
 
@@ -706,7 +709,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         bool light = IsLight(incoming.Kind);
         Entry? victim = _entries.FirstOrDefault(e =>
             e.State == DemoQueueItemState.Running && IsLight(e.Kind) == light && e.Priority == DemoJobPriority.Background
-            && !e.Preempted && !e.CancelRequested && !e.Finalizing && e.Kind != QueueJobKind.HeapCompaction
+            && e.Preemptible && !e.Preempted && !e.CancelRequested && !e.Finalizing && e.Kind != QueueJobKind.HeapCompaction
             && (e.Kind != QueueJobKind.DemoProcessing || e.Forward));
         if (victim is null)
         {
@@ -736,7 +739,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 lock (_sync)
                 {
-                    if (_disposed || _paused || NextStartableLocked(false) is null)
+                    if (_disposed || NextStartableLocked(false) is null)
                     {
                         return; // nothing to do → exit; respawned on next submit/resume/grow
                     }
@@ -750,7 +753,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 Entry? entry;
                 lock (_sync)
                 {
-                    entry = _disposed || _paused ? null : PickNextQueuedLocked(false);
+                    entry = _disposed ? null : PickNextQueuedLocked(false);
                 }
 
                 if (entry is null)
@@ -1004,8 +1007,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             // returned normally despite the stop is taken at its word and completes.
             if (state == DemoQueueItemState.Cancelled && entry.Preempted && !entry.CancelRequested)
             {
-                RequeueLocked(entry);
-                requeued = true;
+                // A newer build of the same key is already waiting and replaces this one's work.
+                bool replaced = entry.ReplacePending && entry.Key is not null && _entries.Any(e =>
+                    e.State == DemoQueueItemState.Queued && e.Kind == entry.Kind
+                    && string.Equals(e.Key, entry.Key, StringComparison.Ordinal));
+                if (!replaced)
+                {
+                    RequeueLocked(entry);
+                    requeued = true;
+                }
             }
         }
 
@@ -1372,8 +1382,32 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // Pause stops every start; the disable switch stops only Background-priority work.
     private bool IsStartableLocked(Entry e) =>
         e.State == DemoQueueItemState.Queued
+        && (!_paused || e.Priority >= DemoJobPriority.UserRequested)
         && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
-            || IsLight(e.Kind) || e.Kind == QueueJobKind.LibraryScan);
+            || IsLight(e.Kind) || e.Kind == QueueJobKind.LibraryScan)
+        && !BlockedLocked(e);
+
+    // A keyed item waits while one with its key runs (a same-key submit then reruns once, never beside
+    // it), and items sharing a serial never run together.
+    private bool BlockedLocked(Entry e)
+    {
+        if (e.Key is null && e.Serial is null)
+        {
+            return false;
+        }
+
+        foreach (Entry r in _entries)
+        {
+            if (r.State == DemoQueueItemState.Running && !ReferenceEquals(r, e)
+                && ((e.Key is not null && r.Kind == e.Kind && string.Equals(r.Key, e.Key, StringComparison.Ordinal))
+                    || (e.Serial is not null && string.Equals(r.Serial, e.Serial, StringComparison.Ordinal))))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static int KindRank(QueueJobKind kind) => kind switch
     {
@@ -1571,6 +1605,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // Came back from a preemption; runs first within its priority.
         public bool Requeued { get; set; }
+
+        public bool Preemptible { get; init; } = true;
+
+        public string? Serial { get; init; }
+
+        public bool ReplacePending { get; init; }
 
         // Whether this parse decodes user commands; fixed once it runs.
         public bool UserCommands { get; set; } = true;

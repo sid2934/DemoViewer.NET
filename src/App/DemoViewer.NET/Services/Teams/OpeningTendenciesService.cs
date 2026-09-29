@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
@@ -109,6 +110,7 @@ public sealed class OpeningTendenciesService
 
         foreach ((DemoRef demo, int endSide, TeamAssignment assignment) in _teams.SidesOf(teamId))
         {
+            QueueWork.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
             if (!seen.Add(demo.Path)
                 || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
                 || _demoCache.TryLoadRecord(demo.Path) is not { RoundFacts: { } rows } record)

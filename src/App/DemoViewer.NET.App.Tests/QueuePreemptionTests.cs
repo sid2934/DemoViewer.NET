@@ -242,6 +242,149 @@ public class QueuePreemptionTests
         }
     }
 
+    [Test]
+    [Arguments(QueueJobKind.SectionCompute)]
+    [Arguments(QueueJobKind.PackExport)]
+    public async Task Pause_HoldsBackgroundItems_ButAUserItemStartsInEitherLane(QueueJobKind kind)
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        queue.Pause();
+        bool backgroundRan = false;
+        Task background = QueueWork.Run(queue, kind, "background", "t", _ => backgroundRan = true);
+        Task user = QueueWork.Run(queue, kind, "user", "t", _ => { }, DemoJobPriority.UserRequested);
+        await user.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(100);
+        bool heldWhilePaused = !backgroundRan;
+        queue.Resume();
+        await background.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(heldWhilePaused).IsTrue();
+    }
+
+    [Test]
+    public async Task APreemptedLightItem_StopsAtItsNextCheckpoint_RunsAfterTheUserItem_AndCompletes()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        using ManualResetEventSlim started = new();
+        int runs = 0, nextDemo = 0;
+        bool overlapped = false;
+        int inBackground = 0;
+        Task background = QueueWork.Run(queue, QueueJobKind.SectionCompute, "section", "t", _ =>
+        {
+            Interlocked.Increment(ref runs);
+            Interlocked.Exchange(ref inBackground, 1);
+            try
+            {
+                started.Set();
+                while (nextDemo < 20)
+                {
+                    QueueWork.ThrowIfStopped(); // one demo at a time
+                    Thread.Sleep(10);
+                    nextDemo++;
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref inBackground, 0);
+            }
+        }, key: "section:a", preemptible: true);
+        started.Wait(TimeSpan.FromSeconds(5));
+        Task user = QueueWork.Run(queue, QueueJobKind.SectionCompute, "user", "t", _ =>
+        {
+            Thread.Sleep(30);
+            overlapped |= Volatile.Read(ref inBackground) == 1;
+        }, DemoJobPriority.UserRequested, "section:b");
+        await Task.WhenAll(background, user).WaitAsync(TimeSpan.FromSeconds(10));
+        using (Assert.Multiple())
+        {
+            await Assert.That(runs).IsEqualTo(2).Because("it stopped and ran again");
+            await Assert.That(nextDemo).IsEqualTo(20).Because("it resumed where it stopped");
+            await Assert.That(overlapped).IsFalse().Because("a preempted item yields rather than running beside the user's");
+        }
+    }
+
+    [Test]
+    public async Task AWorkThatCannotStop_IsNotPreempted_AndCompletesOnce()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        using ManualResetEventSlim started = new();
+        using ManualResetEventSlim finish = new();
+        int runs = 0;
+        Task save = QueueWork.Run(queue, QueueJobKind.StoreSave, "save", "t", _ =>
+        {
+            Interlocked.Increment(ref runs);
+            started.Set();
+            finish.Wait(TimeSpan.FromSeconds(5), CancellationToken.None);
+        });
+        started.Wait(TimeSpan.FromSeconds(5));
+        Task user = QueueWork.Run(queue, QueueJobKind.SectionCompute, "user", "t", _ => { }, DemoJobPriority.UserRequested);
+        await user.WaitAsync(TimeSpan.FromSeconds(5));
+        finish.Set();
+        await save.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(runs).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ItemsSharingASerial_NeverRunTogether_WhateverTheirPriority()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        int inside = 0, peak = 0;
+
+        void Body(CancellationToken _)
+        {
+            InterlockedMax(ref peak, Interlocked.Increment(ref inside));
+            Thread.Sleep(30);
+            Interlocked.Decrement(ref inside);
+        }
+
+        List<Task> all =
+        [
+            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "replay", "t", Body, serial: "teams"),
+            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "rename", "t", Body, DemoJobPriority.UserRequested, serial: "teams"),
+            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "merge", "t", Body, DemoJobPriority.UserRequested, serial: "teams"),
+            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "replay", "t", Body, serial: "teams")
+        ];
+        await Task.WhenAll(all).WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(peak).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ASameKeySubmit_WhileOneRuns_QueuesOneRerun_NotASecondConcurrentRun()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        using ManualResetEventSlim started = new();
+        using ManualResetEventSlim finish = new();
+        int inside = 0, peak = 0, runs = 0;
+
+        void Body(CancellationToken _)
+        {
+            Interlocked.Increment(ref runs);
+            InterlockedMax(ref peak, Interlocked.Increment(ref inside));
+            started.Set();
+            finish.Wait(TimeSpan.FromSeconds(5), CancellationToken.None);
+            Interlocked.Decrement(ref inside);
+        }
+
+        Task first = QueueWork.Run(queue, QueueJobKind.SectionCompute, "s", "t", Body, DemoJobPriority.UserRequested, "k");
+        started.Wait(TimeSpan.FromSeconds(5));
+        Task second = QueueWork.Run(queue, QueueJobKind.SectionCompute, "s", "t", Body, DemoJobPriority.UserRequested, "k");
+        Task third = QueueWork.Run(queue, QueueJobKind.SectionCompute, "s", "t", Body, DemoJobPriority.UserRequested, "k");
+        await Task.Delay(100);
+        int queuedWhileRunning = queue.Snapshot().Count(s => s.State == DemoQueueItemState.Queued);
+        finish.Set();
+        await Task.WhenAll(first, second, third).WaitAsync(TimeSpan.FromSeconds(10));
+        using (Assert.Multiple())
+        {
+            await Assert.That(queuedWhileRunning).IsEqualTo(1).Because("the later submits share one rerun");
+            await Assert.That(peak).IsEqualTo(1);
+            await Assert.That(runs).IsEqualTo(2);
+        }
+    }
+
     private static void InterlockedMax(ref int target, int value)
     {
         int seen;

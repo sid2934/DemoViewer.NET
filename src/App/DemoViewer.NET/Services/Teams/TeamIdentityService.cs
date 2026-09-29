@@ -125,6 +125,12 @@ public sealed class TeamIdentityService : IDisposable
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
+    /// <summary>
+    ///     The queue serial every Team Identity item shares, replays and the user's commands alike: each
+    ///     recomputes every assignment and rewrites both files, so one runs and the others wait.
+    /// </summary>
+    public const string QueueSerial = "teams";
+
     public bool IsSessionOnly => _teamsPath is null;
 
     /// <summary>
