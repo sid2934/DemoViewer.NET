@@ -179,6 +179,12 @@ book: a display name is looked up at render time and a roster rename never touch
   warns and treats it as `linear` rather than refusing the document. `positions[].slot` additionally
   admits the opponent tokens `O1`..`O5`, which a strat's own `slots[]` never does.
 
+  **A new blank strat** (the tab's New Strat, not one created from a round or mined) is written with one
+  round-start step: `atSeconds` equal to `clock.roundSeconds`, actor `all`, verb `hold`, and a position for
+  each of `A`..`E` in its own side's spawn and `O1`..`O5` in the other side's. The spawn is the team's
+  largest buy zone in the map's baked `zones.json`; the five tokens take five of its nav areas, spread
+  apart, at the level of the area they stand on. A map with no zones gets the strat without the step.
+
 `steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
 along it; two steps may share a time.
 
