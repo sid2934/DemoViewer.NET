@@ -158,7 +158,7 @@ book: a display name is looked up at render time and a roster rename never touch
   the role sheets (LAN Print) both append `[lineup: <title>]` after a step's phrased line through the same
   `StratStepPhrasing.Phrase` the two surfaces already share.
 
-  A stored id resolves through the lineup's alias ids (`GrenadeLineup.Answers`) everywhere it is read,
+  A stored id resolves through the lineup's alias ids (`GrenadeLineup.AliasIds`) everywhere it is read,
   so an id minted by an older grouping keeps naming the lineup that absorbed it.
 
   **`technique`** (optional) names which way the lineup is thrown: a `GrenadeLineups.TechniqueKey`,
