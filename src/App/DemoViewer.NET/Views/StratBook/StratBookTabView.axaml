@@ -833,8 +833,14 @@
                                                                        IsVisible="{Binding ToIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
                                                                        Text="{Binding ToIssue.Glyph}" ToolTip.Tip="{Binding ToIssue.Message}" />
                                                         </StackPanel>
-                                                        <TextBox Width="128" Watermark="place or callout"
-                                                                 Text="{Binding ToText, UpdateSourceTrigger=LostFocus}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                                            <!-- Beside lines the step's own to is unused: read-only, cleared with the button. -->
+                                                            <TextBox Width="128" Watermark="place or callout" IsReadOnly="{Binding IsStrayTo}"
+                                                                     Text="{Binding ToText, UpdateSourceTrigger=LostFocus}" />
+                                                            <Button Content="✕" Classes="icon-btn" IsVisible="{Binding IsStrayTo}"
+                                                                    Command="{Binding ClearStrayToCommand}"
+                                                                    ToolTip.Tip="Clear it: each line has its own place" />
+                                                        </StackPanel>
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowUtility}">
                                                         <StackPanel Orientation="Horizontal" Spacing="3">
