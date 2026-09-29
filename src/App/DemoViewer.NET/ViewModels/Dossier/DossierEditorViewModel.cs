@@ -20,7 +20,8 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 /// <param name="Section">The section heading it prints under.</param>
 /// <param name="Generated">The generated text.</param>
 /// <param name="Image">Reads the line's PNG when it is exported; null for a text line.</param>
-public sealed record DossierFindingSource(string Key, string Section, string Generated, Func<byte[]?>? Image = null);
+/// <param name="Map">The map a map-specific line is about; null for the team as a whole.</param>
+public sealed record DossierFindingSource(string Key, string Section, string Generated, Func<byte[]?>? Image = null, string? Map = null);
 
 /// <summary>
 ///     Dossier Editing And Export (plan.md §3, Phase 5): every built section's numbers as findings, the
@@ -96,6 +97,16 @@ public sealed partial class DossierEditorViewModel : ObservableObject
 
     /// <summary>The rows shown: every line not left out, or only the starred ones.</summary>
     public ObservableCollection<DossierFindingViewModel> Findings { get; } = [];
+
+    /// <summary>The shown lines about one map, by map; the tab puts each list in that map's section.</summary>
+    public IReadOnlyDictionary<string, List<DossierFindingViewModel>> MapFindings { get; private set; } =
+        new Dictionary<string, List<DossierFindingViewModel>>();
+
+    /// <summary>The shown lines about the team as a whole, and the user's notes.</summary>
+    public IReadOnlyList<DossierFindingViewModel> GeneralFindings { get; private set; } = [];
+
+    /// <summary>Raised after the shown lines were recomputed: a load, a star, a dismiss, a filter.</summary>
+    public event Action? Projected;
 
     /// <summary>The two forms, worded for the picker; the one-pager first, as the default.</summary>
     public static IReadOnlyList<DossierExportOption<DossierForm>> FormOptions { get; } =
@@ -390,6 +401,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
                     string text = notes.Edits.TryGetValue(source.Key, out string? edit) ? edit : source.Generated;
                     _rows.Add(new DossierFindingViewModel(source.Key, source.Section, source.Generated, text, false, source.Image)
                     {
+                        Map = source.Map,
                         IsStarred = starred.Contains(source.Key),
                         IsHidden = hidden.Contains(source.Key)
                     });
@@ -419,7 +431,8 @@ public sealed partial class DossierEditorViewModel : ObservableObject
     private void Project()
     {
         Findings.Clear();
-        string? section = null;
+        Dictionary<string, List<DossierFindingViewModel>> byMap = new(StringComparer.OrdinalIgnoreCase);
+        List<DossierFindingViewModel> general = [];
         foreach (DossierFindingViewModel row in _rows)
         {
             if ((row.IsHidden && !ShowSettled) || (ShowStarredOnly && !row.IsStarred))
@@ -427,11 +440,38 @@ public sealed partial class DossierEditorViewModel : ObservableObject
                 continue;
             }
 
-            row.ShowsSectionHeader = !string.Equals(section, row.Section, StringComparison.Ordinal);
-            section = row.Section;
             Findings.Add(row);
+            if (row.Map is { Length: > 0 } map)
+            {
+                if (!byMap.TryGetValue(map, out List<DossierFindingViewModel>? list))
+                {
+                    list = [];
+                    byMap[map] = list;
+                }
+
+                list.Add(row);
+            }
+            else
+            {
+                general.Add(row);
+            }
         }
 
+        // Each group gets its own headings, since the tab shows each group on its own.
+        foreach (List<DossierFindingViewModel> group in byMap.Values.Append(general))
+        {
+            string? section = null;
+            foreach (DossierFindingViewModel row in group)
+            {
+                row.ShowsSectionHeader = !string.Equals(section, row.Section, StringComparison.Ordinal);
+                section = row.Section;
+            }
+        }
+
+        MapFindings = byMap;
+        GeneralFindings = general;
+        Projected?.Invoke();
+        OnPropertyChanged(nameof(GeneralFindings));
         OnPropertyChanged(nameof(HasFindings));
         OnPropertyChanged(nameof(EmptyLine));
         RaiseCounts();
@@ -464,7 +504,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         foreach (MapPoolRowViewModel map in maps)
         {
             yield return new DossierFindingSource($"map|{map.Map}", MapPoolSection,
-                $"{map.Map}: {map.PlayedLabel}, {map.RecordLabel}, win rate {map.WinRateLabel}, {map.SideLabel}");
+                $"{map.Map}: {map.PlayedLabel}, {map.RecordLabel}, win rate {map.WinRateLabel}, {map.SideLabel}", Map: map.Map);
         }
 
         if (deciderLine.Length > 0)
@@ -477,7 +517,7 @@ public sealed partial class DossierEditorViewModel : ObservableObject
     /// <param name="heatmaps">The Setup Heatmaps.</param>
     public static IEnumerable<DossierFindingSource> FromHeatmaps(IEnumerable<SetupHeatmapViewModel> heatmaps) =>
         heatmaps.Select(h => new DossierFindingSource($"heatmap|{h.Map}|{h.BuyLabel}", HeatmapSection,
-            $"{h.Map} CT {h.BuyLabel}: {h.RoundsLabel}; {h.FixedLabel}; {h.RotatingLabel}", () => h.ImagePng));
+            $"{h.Map} CT {h.BuyLabel}: {h.RoundsLabel}; {h.FixedLabel}; {h.RotatingLabel}", () => h.ImagePng, h.Map));
 
     /// <summary>Per map and side: the rounds, then every non-zero number over its own sample.</summary>
     /// <param name="blocks">The Opening Tendencies blocks.</param>
@@ -491,9 +531,9 @@ public sealed partial class DossierEditorViewModel : ObservableObject
                 yield return s;
             }
 
-            foreach (DossierFindingSource s in Links("openings", OpeningsSection, b.Block.UtilityRounds, b.UtilityClock, b.UtilityPlaces)
-                         .Concat(Links("openings", OpeningsSection, rounds, b.ContactClock, b.SiteSplit, b.Entries))
-                         .Concat(Links("openings", OpeningsSection, b.Block.LurkRounds, b.LurkClock, b.Lurkers)))
+            foreach (DossierFindingSource s in Links("openings", OpeningsSection, b.Map, b.Block.UtilityRounds, b.UtilityClock, b.UtilityPlaces)
+                         .Concat(Links("openings", OpeningsSection, b.Map, rounds, b.ContactClock, b.SiteSplit, b.Entries))
+                         .Concat(Links("openings", OpeningsSection, b.Map, b.Block.LurkRounds, b.LurkClock, b.Lurkers)))
             {
                 yield return s;
             }
@@ -507,8 +547,8 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         foreach (PostPlantBlockViewModel b in blocks)
         {
             int planted = b.PlantedLink.Count;
-            foreach (DossierFindingSource s in Links("postplant", PostPlantSection, b.RoundsLink.Count, [b.PlantedLink])
-                         .Concat(Links("postplant", PostPlantSection, planted, b.ManCount, b.Outcomes, b.PlantClusters,
+            foreach (DossierFindingSource s in Links("postplant", PostPlantSection, b.Map, b.RoundsLink.Count, [b.PlantedLink])
+                         .Concat(Links("postplant", PostPlantSection, b.Map, planted, b.ManCount, b.Outcomes, b.PlantClusters,
                              b.HoldShapes, b.HoldPlaces, b.RetakeGroups)))
             {
                 yield return s;
@@ -523,15 +563,15 @@ public sealed partial class DossierEditorViewModel : ObservableObject
         foreach (SituationalBlockViewModel b in blocks)
         {
             int rounds = b.RoundsLink.Count;
-            foreach (DossierFindingSource s in Links("situational", SituationalSection, rounds, [b.PistolLink])
-                         .Concat(Links("situational", SituationalSection, b.PistolLink.Count, b.PistolOutcomes, b.PistolFollowUp))
-                         .Concat(Links("situational", SituationalSection, rounds, [b.AntiEcoLink]))
-                         .Concat(Links("situational", SituationalSection, b.AntiEcoLink.Count, b.AntiEcoBuyTypes, b.AntiEcoOutcomes,
+            foreach (DossierFindingSource s in Links("situational", SituationalSection, b.Map, rounds, [b.PistolLink])
+                         .Concat(Links("situational", SituationalSection, b.Map, b.PistolLink.Count, b.PistolOutcomes, b.PistolFollowUp))
+                         .Concat(Links("situational", SituationalSection, b.Map, rounds, [b.AntiEcoLink]))
+                         .Concat(Links("situational", SituationalSection, b.Map, b.AntiEcoLink.Count, b.AntiEcoBuyTypes, b.AntiEcoOutcomes,
                              b.AntiEcoContactClock))
-                         .Concat(Links("situational", SituationalSection, rounds, [b.ManAdvantageLink]))
-                         .Concat(Links("situational", SituationalSection, b.ManAdvantageLink.Count, b.ManAdvantage, b.ManAdvantageOutcomes))
-                         .Concat(Links("situational", SituationalSection, rounds, [b.RoundsLostLink]))
-                         .Concat(Links("situational", SituationalSection, b.RoundsLostLink.Count, b.SaveDiscipline)))
+                         .Concat(Links("situational", SituationalSection, b.Map, rounds, [b.ManAdvantageLink]))
+                         .Concat(Links("situational", SituationalSection, b.Map, b.ManAdvantageLink.Count, b.ManAdvantage, b.ManAdvantageOutcomes))
+                         .Concat(Links("situational", SituationalSection, b.Map, rounds, [b.RoundsLostLink]))
+                         .Concat(Links("situational", SituationalSection, b.Map, b.RoundsLostLink.Count, b.SaveDiscipline)))
             {
                 yield return s;
             }
@@ -577,14 +617,15 @@ public sealed partial class DossierEditorViewModel : ObservableObject
     {
         if (link.Count > 0)
         {
-            yield return new DossierFindingSource($"{slug}|{link.Title}", section, $"{map} {side}: {Plural(link.Count, "round")}");
+            yield return new DossierFindingSource($"{slug}|{link.Title}", section, $"{map} {side}: {Plural(link.Count, "round")}", Map: map);
         }
     }
 
-    private static IEnumerable<DossierFindingSource> Links(string slug, string section, int of, params IReadOnlyList<TendencyLinkViewModel>[] lists) =>
+    private static IEnumerable<DossierFindingSource> Links(string slug, string section, string map, int of,
+        params IReadOnlyList<TendencyLinkViewModel>[] lists) =>
         lists.SelectMany(l => l)
             .Where(l => l.Count > 0)
-            .Select(l => new DossierFindingSource($"{slug}|{l.Title}", section, $"{l.Title}: {CountText(l.Count, of)}"));
+            .Select(l => new DossierFindingSource($"{slug}|{l.Title}", section, $"{l.Title}: {CountText(l.Count, of)}", Map: map));
 }
 
 /// <summary>One choice in an export picker: the value and the words shown for it.</summary>
@@ -637,6 +678,9 @@ public sealed partial class DossierFindingViewModel : ObservableObject
     }
 
     public string Key { get; }
+
+    /// <summary>The map a map-specific line sits under; null for the team as a whole and for notes.</summary>
+    public string? Map { get; init; }
 
     public string Section { get; }
 

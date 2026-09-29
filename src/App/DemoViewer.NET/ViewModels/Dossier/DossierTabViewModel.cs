@@ -169,6 +169,12 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Openings.PropertyChanged += OnSectionChanged;
         PostPlant.PropertyChanged += OnSectionChanged;
         Situational.PropertyChanged += OnSectionChanged;
+        Editor.Projected += OnEditorProjected;
+        foreach (DossierSectionViewModel section in (DossierSectionViewModel[])[RecordSection, RosterSection, VetoSection, NotesSection])
+        {
+            section.PropertyChanged += OnSectionToggled;
+        }
+
         _teams.Changed += Refresh;
         _vetoes.Changed += ProjectVetoes;
         if (_grenades is not null)
@@ -188,6 +194,147 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     public ObservableCollection<MapPoolRowViewModel> Maps { get; } = [];
 
     public ObservableCollection<VetoRowViewModel> Vetoes { get; } = [];
+
+    /// <summary>A section starts open with this many findings or fewer, the Review queue's rule.</summary>
+    public const int OpenSectionLimit = 50;
+
+    // Open or closed per section key, for the session.
+    private readonly Dictionary<string, bool> _expanded = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>One section per map the team has numbers on, in map pool order.</summary>
+    public ObservableCollection<DossierMapSectionViewModel> MapSections { get; } = [];
+
+    public DossierGeneralSectionViewModel RecordSection { get; } = new("record", "Overall record", true);
+
+    public DossierGeneralSectionViewModel RosterSection { get; } = new("roster", "Roster and form", true);
+
+    public DossierGeneralSectionViewModel VetoSection { get; } = new("vetoes", "Veto history", true);
+
+    public DossierGeneralSectionViewModel NotesSection { get; } = new("notes", "Notes and findings", true);
+
+    public bool HasMapSections => MapSections.Count > 0;
+
+    private IEnumerable<DossierSectionViewModel> AllSections =>
+        [RecordSection, .. MapSections, RosterSection, VetoSection, NotesSection];
+
+    [RelayCommand]
+    private void ExpandAll()
+    {
+        foreach (DossierSectionViewModel section in AllSections)
+        {
+            section.IsExpanded = true;
+        }
+    }
+
+    [RelayCommand]
+    private void CollapseAll()
+    {
+        foreach (DossierSectionViewModel section in AllSections)
+        {
+            section.IsExpanded = false;
+        }
+    }
+
+    // True while the tab itself opens or closes a section by the findings rule, so only the user's own
+    // clicks are remembered.
+    private bool _applyingDefault;
+
+    private void OpenByDefault(DossierSectionViewModel section, int findings)
+    {
+        if (_expanded.ContainsKey(section.Key))
+        {
+            return;
+        }
+
+        _applyingDefault = true;
+        section.IsExpanded = findings <= OpenSectionLimit;
+        _applyingDefault = false;
+    }
+
+    private void OnSectionToggled(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (!_applyingDefault && e.PropertyName == nameof(DossierSectionViewModel.IsExpanded) && sender is DossierSectionViewModel section)
+        {
+            _expanded[section.Key] = section.IsExpanded;
+        }
+    }
+
+    // Regroups every section's lists by map. Sections that stay keep their view model, so an open one
+    // stays open and its rows are not rebuilt for a map whose lists did not change.
+    private void RebuildSections()
+    {
+        List<string> maps = [.. Maps.Select(m => m.Map)];
+        foreach (string map in Heatmaps.Select(h => h.Map)
+                     .Concat(Openings.Blocks.Select(b => b.Map))
+                     .Concat(PostPlant.Blocks.Select(b => b.Map))
+                     .Concat(Situational.Blocks.Select(b => b.Map))
+                     .Concat(Editor.MapFindings.Keys)
+                     .Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!maps.Contains(map, StringComparer.OrdinalIgnoreCase))
+            {
+                maps.Add(map);
+            }
+        }
+
+        Dictionary<string, DossierMapSectionViewModel> existing = MapSections.ToDictionary(m => m.Map, StringComparer.OrdinalIgnoreCase);
+        List<DossierMapSectionViewModel> wanted = [];
+        foreach (string map in maps)
+        {
+            List<DossierFindingViewModel> findings = Editor.MapFindings.TryGetValue(map, out List<DossierFindingViewModel>? f) ? f : [];
+            if (!existing.TryGetValue(map, out DossierMapSectionViewModel? section))
+            {
+                section = new DossierMapSectionViewModel(map, _expanded.TryGetValue("map|" + map, out bool open) && open);
+                section.PropertyChanged += OnSectionToggled;
+            }
+
+            OpenByDefault(section, findings.Count);
+
+            bool same(string m) => string.Equals(m, map, StringComparison.OrdinalIgnoreCase);
+            section.Set(Maps.FirstOrDefault(m => same(m.Map)), [.. Heatmaps.Where(h => same(h.Map))],
+                [.. Openings.Blocks.Where(b => same(b.Map))], [.. PostPlant.Blocks.Where(b => same(b.Map))],
+                [.. Situational.Blocks.Where(b => same(b.Map))], findings);
+            wanted.Add(section);
+        }
+
+        if (!wanted.SequenceEqual(MapSections))
+        {
+            foreach (DossierMapSectionViewModel gone in MapSections.Except(wanted))
+            {
+                gone.PropertyChanged -= OnSectionToggled;
+            }
+
+            MapSections.Clear();
+            foreach (DossierMapSectionViewModel section in wanted)
+            {
+                MapSections.Add(section);
+            }
+        }
+
+        RecordSection.SetCount(Maps.Count == 0 ? "" : OpeningTendenciesSectionViewModel.Plural(Maps.Count, "map"));
+        VetoSection.SetCount(Vetoes.Count == 0 ? "" : OpeningTendenciesSectionViewModel.Plural(Vetoes.Count, "step"));
+        SetNotesCount();
+        OnPropertyChanged(nameof(HasMapSections));
+    }
+
+    private void OnEditorProjected()
+    {
+        foreach (DossierMapSectionViewModel section in MapSections)
+        {
+            List<DossierFindingViewModel> findings = Editor.MapFindings.TryGetValue(section.Map, out List<DossierFindingViewModel>? f) ? f : [];
+            section.SetFindings(findings);
+            OpenByDefault(section, findings.Count);
+        }
+
+        SetNotesCount();
+    }
+
+    private void SetNotesCount()
+    {
+        int general = Editor.GeneralFindings.Count;
+        NotesSection.SetCount(OpeningTendenciesSectionViewModel.Plural(general, "finding"));
+        OpenByDefault(NotesSection, general);
+    }
 
     public bool HasTeams => Teams.Count > 0;
 
@@ -266,6 +413,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Openings.PropertyChanged -= OnSectionChanged;
         PostPlant.PropertyChanged -= OnSectionChanged;
         Situational.PropertyChanged -= OnSectionChanged;
+        Editor.Projected -= OnEditorProjected;
         _teams.Changed -= Refresh;
         _vetoes.Changed -= ProjectVetoes;
         if (_grenades is not null)
@@ -320,6 +468,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         if (SelectedTeam is not { } row)
         {
             Editor.Load(null, "", "", []);
+            RebuildSections();
             return;
         }
 
@@ -334,6 +483,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             .. DossierEditorViewModel.FromVetoes(Vetoes)
         ];
         Editor.Load(row.Id, row.Name, SampleSizeLine, sources);
+        RebuildSections();
     }
 
     [RelayCommand]
