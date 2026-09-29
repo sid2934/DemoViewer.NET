@@ -224,13 +224,22 @@ public class StratCanvasTests
             await Assert.That(session.UndoDepth).IsEqualTo(1);
         }
 
-        // A heading drag turns without moving.
+        // A heading drag turns without moving: an own token's turn is its line's view angle, added with the line.
         canvas.BeginDrag("D", TokenGrip.Heading);
         canvas.MoveTo("D", new SKPoint(350, 150), 0);
         canvas.EndDrag(null);
-        StepPosition turned = session.Document!.Steps[1].Positions.Single(p => p.Slot == "D");
-        await Assert.That(turned.X).IsEqualTo(350);
-        await Assert.That(turned.YawDegrees).IsEqualTo(90);
+        StratStep step = session.Document!.Steps[1];
+        StepPosition turned = step.Positions.Single(p => p.Slot == "D");
+        using (Assert.Multiple())
+        {
+            await Assert.That(turned.X).IsEqualTo(350);
+            await Assert.That(turned.YawDegrees).IsEqualTo(45).Because("the position keeps its own facing");
+            await Assert.That(step.Assignments!.Select(l => l.Slot)).IsEquivalentTo(["A", "D"]);
+            await Assert.That(step.Assignments![1].Watch!.YawDegrees).IsEqualTo(90);
+            await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll);
+            await Assert.That(Marker(canvas, "D").YawDegrees).IsEqualTo(90f);
+            await Assert.That(session.UndoDepth).IsEqualTo(2);
+        }
     }
 
     [Test]

@@ -313,8 +313,9 @@ public sealed class StratSceneProjection
     /// <param name="slot">The token.</param>
     /// <param name="pathIndex">The step being written.</param>
     /// <param name="placement">The entry the drag has reached.</param>
-    public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement) =>
-        TokenTrackBuilder.Build(slot, _tokenSteps, Placements(Path, _throwOrigins, slot, _centres, pathIndex, placement));
+    /// <param name="keepYaw">The placement's yaw is the drag's own (a turn), not to be replaced by the line's watch.</param>
+    public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement, bool keepYaw = false) =>
+        TokenTrackBuilder.Build(slot, _tokenSteps, Placements(Path, _throwOrigins, slot, _centres, pathIndex, placement, keepYaw));
 
     /// <summary>
     ///     Per path step, the entry <paramref name="slot" />'s track is built from (null for none). A throw's lineup
@@ -329,8 +330,9 @@ public sealed class StratSceneProjection
     /// <param name="centres">Where watched places are; null faces only an explicit view angle.</param>
     /// <param name="overrideIndex">A step whose authored entry is replaced, for a drag in progress; -1 for none.</param>
     /// <param name="overridePlacement">That step's entry.</param>
+    /// <param name="keepOverrideYaw">The override's yaw stands; the line's watch does not turn it.</param>
     internal static TokenPlacement?[] Placements(IReadOnlyList<StratPathStep> path, ThrowOrigin?[]? origins, string slot,
-        PlaceCentreResolver? centres, int overrideIndex = -1, TokenPlacement? overridePlacement = null)
+        PlaceCentreResolver? centres, int overrideIndex = -1, TokenPlacement? overridePlacement = null, bool keepOverrideYaw = false)
     {
         TokenPlacement?[] placements = new TokenPlacement?[path.Count];
         TokenPlacement? last = null;
@@ -346,7 +348,8 @@ public sealed class StratSceneProjection
             else
             {
                 placement = i == overrideIndex ? overridePlacement : PlacementOf(step, slot);
-                if (StratStepLines.HasLines(step) && StratStepLines.LineFor(step, slot)?.Watch is { } watch
+                if (!(keepOverrideYaw && i == overrideIndex)
+                    && StratStepLines.HasLines(step) && StratStepLines.LineFor(step, slot)?.Watch is { } watch
                     && (placement ?? last) is { } at && FacingOf(watch, at, centres) is { } yaw)
                 {
                     placement = at with { YawDegrees = yaw };
