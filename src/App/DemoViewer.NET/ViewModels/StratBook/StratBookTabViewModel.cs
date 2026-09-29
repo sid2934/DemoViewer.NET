@@ -725,7 +725,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Session.Apply(ops);
     }
 
-    private bool CanApplyTemplateId(string? templateId) => CanApplyTemplate;
+    private bool CanApplyTemplateId(string? templateId) =>
+        StratTemplates.Find(templateId) is { } template && ApplicableTemplates.Contains(template);
 
     [RelayCommand]
     private void Undo() => Session.Undo();
