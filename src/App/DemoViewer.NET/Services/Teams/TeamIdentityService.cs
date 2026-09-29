@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
@@ -66,17 +67,26 @@ public sealed class TeamIdentityService : IDisposable
     private HashSet<Guid> _referenced = [];
     private Task _work = Task.CompletedTask;
 
+    // teams.json and team-index.json, read once; every mutator and every scheduled replay waits for it, so
+    // nothing is written over files that were never read.
+    private readonly LoadOnce _load;
+
+    /// <summary>False until teams.json and the index have been read; the tabs show a loading line meanwhile.</summary>
+    public bool IsLoaded => _load.IsDone;
+
     /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
     /// <param name="demoCache">The unified demo cache the side keys come from.</param>
     /// <param name="roundFacts">The per-round rows <see cref="SideAtRound" /> joins; null answers null.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="run">Runs a replay off the caller's thread; defaults to the thread pool. Tests pass an inline runner.</param>
+    /// <param name="scheduleLoad">Runs the file read later: a processing-queue item in the app. Null reads inline.</param>
     public TeamIdentityService(
         string? configRoot,
         DemoCacheStore demoCache,
         IRoundFactsSource? roundFacts = null,
         Action<Action>? post = null,
-        Func<Action, Task>? run = null)
+        Func<Action, Task>? run = null,
+        Func<Action, Task>? scheduleLoad = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         _demoCache = demoCache;
@@ -89,7 +99,28 @@ public sealed class TeamIdentityService : IDisposable
             _indexPath = Path.Combine(configRoot, "cache", IndexFileName);
         }
 
-        Load();
+        bool deferred = scheduleLoad is not null;
+        _load = new LoadOnce(() =>
+        {
+            lock (_gate)
+            {
+                Load();
+            }
+
+            if (deferred)
+            {
+                _post(() => Changed?.Invoke());
+            }
+        });
+        if (scheduleLoad is null)
+        {
+            _load.Ensure();
+        }
+        else
+        {
+            _ = scheduleLoad(_load.Ensure);
+        }
+
         _demoCache.Changed += OnCacheChanged;
     }
 
@@ -117,6 +148,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Dismisses "is this you?" for the account it names; it is not asked again until restored.</summary>
     public void DismissMeSuggestion()
     {
+        _load.Ensure();
         lock (_gate)
         {
             if (MeSuggestion is not { } suggestion)
@@ -135,6 +167,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Asks "is this you?" again.</summary>
     public void RestoreMeSuggestion()
     {
+        _load.Ensure();
         lock (_gate)
         {
             if (DismissedMeSuggestion is not { } suggestion)
@@ -200,6 +233,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <param name="name">A name for a new us team, or null.</param>
     public void SetSquad(IReadOnlyList<string> steamIds, string? name = null)
     {
+        _load.Ensure();
         ArgumentNullException.ThrowIfNull(steamIds);
         List<string> squad = [.. steamIds.Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
         if (squad.Count is < 2 or > 5)
@@ -246,6 +280,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <param name="id">The suggestion id.</param>
     public void AcceptSuggestion(string id)
     {
+        _load.Ensure();
         TeamSuggestion? suggestion;
         lock (_gate)
         {
@@ -270,6 +305,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <param name="id">The suggestion id.</param>
     public void DismissSuggestion(string id)
     {
+        _load.Ensure();
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         lock (_gate)
         {
@@ -289,6 +325,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <param name="id">The suggestion id, as the settled list shows it.</param>
     public void RestoreSuggestion(string id)
     {
+        _load.Ensure();
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         lock (_gate)
         {
@@ -410,13 +447,25 @@ public sealed class TeamIdentityService : IDisposable
     ///     Brings the index up to date at startup: a rebuild from the sidecars when it is missing or
     ///     behind, else the index-versus-cache diff a batch runs. Off the UI thread.
     /// </summary>
-    public Task StartAsync() => NeedsRebuild ? RebuildAsync() : Schedule(SyncWithIndex);
+    public Task StartAsync() => Schedule(() =>
+    {
+        if (NeedsRebuild)
+        {
+            RebuildCore(CancellationToken.None);
+        }
+        else
+        {
+            SyncWithIndex();
+        }
+    });
 
     /// <summary>
     ///     The id-preserving rebuild (design §3.6): one <see cref="DemoCacheStore.LoadRecords" /> pass to
     ///     collect every side key, then the seeded replay. Off the UI thread; the documented cold cost.
     /// </summary>
-    public Task RebuildAsync(CancellationToken ct = default) => Schedule(() =>
+    public Task RebuildAsync(CancellationToken ct = default) => Schedule(() => RebuildCore(ct));
+
+    private void RebuildCore(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         List<DemoSideInput> inputs = [];
@@ -440,7 +489,7 @@ public sealed class TeamIdentityService : IDisposable
             NeedsRebuild = false;
             Recompute();
         }
-    });
+    }
 
     private void OnCacheChanged(string? path)
     {
@@ -571,9 +620,14 @@ public sealed class TeamIdentityService : IDisposable
             // An idle chain starts the work through the runner directly, so an inline runner (tests)
             // finishes before the caller continues.
             Task previous = _work;
+            Action loaded = () =>
+            {
+                _load.Ensure();
+                work();
+            };
             _work = previous.IsCompleted
-                ? _run(work)
-                : previous.ContinueWith(_ => _run(work), TaskScheduler.Default).Unwrap();
+                ? _run(loaded)
+                : previous.ContinueWith(_ => _run(loaded), TaskScheduler.Default).Unwrap();
             return _work;
         }
     }
@@ -823,6 +877,7 @@ public sealed class TeamIdentityService : IDisposable
     /// </summary>
     public void Rename(Guid teamId, string name)
     {
+        _load.Ensure();
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         lock (_gate)
         {
@@ -853,6 +908,7 @@ public sealed class TeamIdentityService : IDisposable
     /// </summary>
     public void SetUs(Guid? teamId)
     {
+        _load.Ensure();
         lock (_gate)
         {
             foreach (Team team in _teams.Teams)
@@ -867,6 +923,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Replaces the me accounts. Re-derives our side everywhere.</summary>
     public void SetMyAccounts(IReadOnlyList<string> steamIds)
     {
+        _load.Ensure();
         ArgumentNullException.ThrowIfNull(steamIds);
         lock (_gate)
         {
@@ -887,6 +944,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Writes the suggested account as me. The one path by which the suggestion reaches the file.</summary>
     public void ConfirmMeSuggestion()
     {
+        _load.Ensure();
         if (MeSuggestion is { } suggestion)
         {
             SetMyAccounts([suggestion.SteamId64]);
@@ -896,6 +954,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Folds <paramref name="from" /> into <paramref name="into" />: rosters concatenate, the id is tombstoned.</summary>
     public Guid Merge(Guid into, Guid from)
     {
+        _load.Ensure();
         lock (_gate)
         {
             Team? target = _teams.Find(into);
@@ -933,6 +992,7 @@ public sealed class TeamIdentityService : IDisposable
     /// </summary>
     public Guid Split(Guid teamId, IReadOnlyList<DemoSideRef> sides, string? name)
     {
+        _load.Ensure();
         ArgumentNullException.ThrowIfNull(sides);
         Guid id = Guid.NewGuid();
         lock (_gate)
@@ -1007,6 +1067,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Starts a new roster in a team at a date: the team's sides from then on establish their own five.</summary>
     public void StartRoster(Guid teamId, DateOnly since, string? label)
     {
+        _load.Ensure();
         lock (_gate)
         {
             if (_teams.Find(teamId) is not { } team)
@@ -1028,6 +1089,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Pins a side to a team, or with null says the side is not a team. Keyed by hash when the demo has one.</summary>
     public void Override(string demoPath, int endSide, Guid? teamId)
     {
+        _load.Ensure();
         lock (_gate)
         {
             if (!_index.Demos.TryGetValue(DemoCacheStore.StableKey(demoPath), out TeamIndexDemo? row))
@@ -1043,6 +1105,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Removes a side's override, if any, so clustering decides again.</summary>
     public void ClearOverride(string demoPath, int endSide)
     {
+        _load.Ensure();
         lock (_gate)
         {
             string key = DemoCacheStore.StableKey(demoPath);
@@ -1095,6 +1158,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <param name="label">One of <see cref="Provenance.DemoProvenanceLabel.All" />, or null.</param>
     public void SetProvenanceOverride(string demoPath, string? label)
     {
+        _load.Ensure();
         if (label is not null && !Provenance.DemoProvenanceLabel.IsKnown(label))
         {
             throw new ArgumentException($"'{label}' is not a provenance label", nameof(label));
@@ -1129,6 +1193,7 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Hides or shows a team in lists. Touches nothing derived.</summary>
     public void SetHidden(Guid teamId, bool hidden)
     {
+        _load.Ensure();
         lock (_gate)
         {
             if (_teams.Find(teamId) is not { } team)
