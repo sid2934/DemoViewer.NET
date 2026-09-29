@@ -78,6 +78,44 @@ public class DemoLibraryPruneTests
 
     /// <summary>A demo deleted from a folder the scan actually read is gone for good: drop its row.</summary>
     [Test]
+    public async Task ARescanThatFindsSeveralDemosGone_DropsThemInOneCollectionChange_KeepingTheOrder()
+    {
+        string dir = TempDir();
+        string demos = Path.Combine(dir, "demos");
+        Directory.CreateDirectory(demos);
+        try
+        {
+            string[] files = [.. Enumerable.Range(1, 5).Select(i => Path.Combine(demos, $"d{i}.dem"))];
+            // Distinct bytes: identical files collapse into one card by content hash.
+            for (int i = 0; i < files.Length; i++)
+            {
+                File.WriteAllBytes(files[i], Enumerable.Repeat((byte)(i + 1), 16).ToArray());
+            }
+
+            using DemoLibraryService svc = new(_inline, SeedCache(dir, [demos]));
+            await svc.RescanAsync();
+            List<string> before = [.. svc.Entries.Select(e => e.FilePath)];
+            File.Delete(files[1]);
+            File.Delete(files[2]);
+            File.Delete(files[4]);
+            List<System.Collections.Specialized.NotifyCollectionChangedAction> changes = [];
+            svc.Entries.CollectionChanged += (_, e) => changes.Add(e.Action);
+            await svc.RescanAsync();
+            using (Assert.Multiple())
+            {
+                await Assert.That(before.Count).IsEqualTo(5);
+                await Assert.That(changes).IsEquivalentTo([System.Collections.Specialized.NotifyCollectionChangedAction.Reset]);
+                await Assert.That(svc.Entries.Select(e => e.FilePath))
+                    .IsEquivalentTo(before.Where(p => p != files[1] && p != files[2] && p != files[4]));
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
     public async Task Prunes_ARowWhoseFileWasDeletedFromAScannedFolder()
     {
         string dir = TempDir();

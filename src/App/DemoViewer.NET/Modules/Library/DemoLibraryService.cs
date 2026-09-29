@@ -955,12 +955,16 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         // Drop entries whose file no longer exists, moved out of scope, OR became a SHADOW (a smaller-path
         // copy appeared and took over as primary: this card collapses into that one).
-        for (int i = Entries.Count - 1; i >= 0; i--)
+        // One Reset for the lot: every collection change re-runs the Library tab's filters, sort and
+        // provenance over the whole library.
+        List<DemoEntry> staying = [.. Entries.Where(e => wanted.ContainsKey(e.FilePath))];
+        if (staying.Count == Entries.Count - 1)
         {
-            if (!wanted.ContainsKey(Entries[i].FilePath))
-            {
-                Entries.RemoveAt(i);
-            }
+            Entries.Remove(Entries.First(e => !wanted.ContainsKey(e.FilePath)));
+        }
+        else if (staying.Count < Entries.Count)
+        {
+            Entries.ReplaceAll(staying);
         }
 
         PruneStaleCacheRows(wanted);
