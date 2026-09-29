@@ -162,6 +162,34 @@ public class DossierModuleTests
     }
 
     [Test]
+    public async Task AReactivation_KeepsTheProjection_ANewDemoOfTheTeamRebuildsIt_AndAHiddenTabWaits()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
+        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false);
+        vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
+        MapPoolRowViewModel first = vm.Maps[0];
+        vm.OnActivated(null!);
+        bool kept = ReferenceEquals(vm.Maps[0], first);
+
+        vm.OnDeactivated();
+        cache.Upsert(Record("/d/s6.dem", 40, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15), "de_ancient",
+            ctScore: 4, tScore: 13, ctSideWins: 4, tSideWins: 13));
+        await teams.Idle;
+        bool stale = vm.IsStale;
+        string hiddenLine = vm.SampleSizeLine;
+        vm.OnActivated(null!);
+        using (Assert.Multiple())
+        {
+            await Assert.That(kept).IsTrue().Because("nothing the projection reads changed");
+            await Assert.That(stale).IsTrue();
+            await Assert.That(hiddenLine).Contains("5 demos");
+            await Assert.That(vm.IsStale).IsFalse();
+            await Assert.That(vm.SampleSizeLine).Contains("6 demos");
+            await Assert.That(vm.SelectedTeam?.Id).IsEqualTo(teamA);
+        }
+    }
+
+    [Test]
     public async Task TheTab_ProjectsTheSelectedTeam_WithSampleSizes_AndRunsTheVetoActions()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, Guid teamB) = await Library();
