@@ -184,19 +184,36 @@ public class QueueJobTests
         await Assert.That(handles.All(h => h.State == DemoQueueItemState.Completed)).IsTrue();
     }
 
+    // Pause holds only Background work, so a test that needs a user's item to stay queued holds the heavy
+    // lane with a job a user's item cannot stop.
+    private static async Task<TaskCompletionSource> HoldTheLaneAsync(DemoProcessingQueue queue)
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        queue.SubmitJob(new QueueJobRequest(QueueJobKind.SidecarMigration, "hold", "test", DemoJobPriority.Background,
+            async _ =>
+            {
+                started.SetResult();
+                await release.Task;
+            }, Preemptible: false));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        return release;
+    }
+
     [Test]
     public async Task AKeyedJob_StillQueued_TakesALaterSubmit_AndCarriesTheNewestTitle()
     {
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = NewQueue(gate);
-        queue.Pause();
+        TaskCompletionSource hold = await HoldTheLaneAsync(queue);
         IDemoQueueHandle first = queue.SubmitJob(Job(QueueJobKind.StratMining, "Strat mining", _ => Task.CompletedTask,
             key: "mine"));
         IDemoQueueHandle second = queue.SubmitJob(Job(QueueJobKind.StratMining, "Strat mining (user)",
             _ => Task.CompletedTask, DemoJobPriority.UserRequested, "mine"));
 
         await Assert.That(second.Id).IsEqualTo(first.Id);
-        DemoQueueItemSnapshot only = queue.Snapshot().Single();
+        DemoQueueItemSnapshot only = queue.Snapshot().Single(s => s.Kind == QueueJobKind.StratMining);
+        hold.SetResult();
         await Assert.That(only.DisplayName).IsEqualTo("Strat mining (user)");
         await Assert.That(only.Priority).IsEqualTo(DemoJobPriority.UserRequested);
         await Assert.That(only.Kind).IsEqualTo(QueueJobKind.StratMining);
@@ -363,7 +380,7 @@ public class QueueJobTests
         await Assert.That(item.Path).IsEqualTo("/out/pack.mp4");
 
         // Cancelled by the caller while queued: the export never starts.
-        queue.Pause();
+        TaskCompletionSource hold = await HoldTheLaneAsync(queue);
         using CancellationTokenSource cts = new();
         bool started = false;
         Task<int> queued = PackExportQueue.RunAsync(queue, "Pack export", null, (_, _) =>
@@ -373,7 +390,7 @@ public class QueueJobTests
         }, null, cts.Token);
         cts.Cancel();
         await Assert.That(await EndsCancelledAsync(queued)).IsTrue();
-        queue.Resume();
+        hold.SetResult();
 
         // Cancelled from the queue list while running: the export's token fires.
         TaskCompletionSource running = new(TaskCreationOptions.RunContinuationsAsynchronously);
