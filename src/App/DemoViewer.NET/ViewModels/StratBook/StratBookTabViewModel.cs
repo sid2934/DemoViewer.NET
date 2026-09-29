@@ -220,6 +220,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             placesFor: canvasPlaces, post: post);
         StepSelection = new StratStepSelection(Editor, Canvas);
 
+        // Place warnings from the canvas's loaded zones: none until they land, then a fresh validation.
+        Session.PlaceLookup = map => Canvas.LoadedPlaces(map);
+        Canvas.PlacesLoaded += OnPlacesLoaded;
+
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
             id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader, _lineupOrigins);
         Detected.PropertyChanged += OnDetectedChanged;
@@ -451,6 +455,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             _lineupOrigins.Dispose();
         }
 
+        Canvas.PlacesLoaded -= OnPlacesLoaded;
         Session.Dispose();
         RecordPanel.Dispose();
         HistoryPanel.Dispose();
@@ -964,6 +969,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private void OnDemoReset() => Session.Commit();
 
     // A map finished grouping: lineup ids there can now be checked, and the rows can name them.
+    private void OnPlacesLoaded()
+    {
+        Session.InvalidateIssues();
+        Editor.Project();
+    }
+
     private void OnLineupsChanged()
     {
         Session.InvalidateIssues();
