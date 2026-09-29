@@ -185,6 +185,71 @@ book: a display name is looked up at render time and a roster rename never touch
   largest buy zone in the map's baked `zones.json`; the five tokens take five of its nav areas, spread
   apart, at the level of the area they stand on. A map with no zones gets the strat without the step.
 
+### Lines: several players in one step (`assignments`)
+
+```jsonc
+{
+  "atSeconds": 65.0, "actor": "all", "verb": "move", "from": { "place": "TRamp" },
+  "assignments": [
+    { "slot": "B", "to": { "place": "PalaceInterior" }, "watch": { "places": ["BombsiteA", "CTSpawn"] } },
+    { "slot": "C", "to": { "place": "Connector" }, "watch": { "places": ["Stairs"] } },
+    { "slot": "D", "to": { "place": "Stairs" }, "watch": { "places": ["TRamp"], "yawDegrees": 135 } }
+  ],
+  "positions": [ /* … */ ]
+}
+```
+
+A step keeps one time and one verb and may send several slots to different places. `assignments` is
+optional and is not written when absent, so a file without it loads and saves byte for byte as before.
+
+* **A line** is `slot` (`A` to `E`), `to` (a place, the same shape as the step's) and `watch`. A slot has
+  at most one line per step; an unknown or repeated slot is refused.
+* **`watch`** is `places` (canonical place names, never callouts, first one first) and an optional
+  `yawDegrees` (world yaw, 0 = +X and 90 = +Y, as `positions[].yawDegrees`) that overrides facing the first place.
+* **A line's position** is the step's `positions[]` entry for that slot. Lines add no position of their own.
+* **`from`, `utility` and `note`** stay on the step and are shared by its lines.
+
+The rule that ties this to `actor` and `to`:
+
+* **No `assignments`, or an empty list:** the step reads exactly as it always has. A single-slot actor is
+  one implicit line with the step's `to` and no watch; `all` has no lines and means every slot.
+* **One or more lines:** the lines alone say who takes part and where each goes. `actor` is written as the
+  line's slot when there is one line and `all` when there are more, so a build that predates lines still
+  reads something true; this build does not read it on such a step, and the validator warns at
+  `/steps/i/actor` when it disagrees. The step's own `to` is not used and is not written; the validator warns
+  at `/steps/i/to` when one is present.
+* **Watching lives only on a line.** A single-slot step that gets a watch becomes a one-line step: `actor`
+  stays the slot and its `to` moves into the line. An older build then shows that step's actor and verb
+  without the place. A step with no watch and one player keeps the plain shape.
+
+Create Strat From Round and Strat Mining still write one actor per step; the step templates are the only
+writer of lines so far.
+
+`StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`); every consumer
+goes through it. The validator's line rules, with pointers the editor's inline checks read:
+
+| Rule | Severity | Pointer |
+|---|---|---|
+| slot not `A` to `E`, or a second line for a slot | refusal | `/steps/i/assignments/j/slot` |
+| a `move` line with no `to` | warning | `/steps/i/assignments/j/to` |
+| a `to` place the map lacks | warning | `/steps/i/assignments/j/to/place` |
+| a watched place the map lacks | warning | `/steps/i/assignments/j/watch/places/k` |
+| `actor` is not the lines' single slot or `all` | warning | `/steps/i/actor` |
+| a step-level `to` beside lines | warning | `/steps/i/to` |
+
+With lines, the step-level "a move has no destination place" warning is not raised; each move line is
+checked instead. A lineup throw by a step whose lines name more than one slot warns as `all` does.
+
+**Facing on the canvas.** A token's yaw at a step, in order: a throw's lineup origin (position and yaw; a
+throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
+else towards the centre of the first watched place, on the token's level when the place has nav areas
+there, else over all its floors; else `positions[].yawDegrees`; else the yaw it had. A watching line on a
+step with no position for its slot adds a keyframe where the token already stands, so no move is re-timed.
+Place centres are the area-weighted centroids of the map's baked zones (a custom zone with no areas uses
+the middle of its box), built once per map when the zones load through the processing queue; until they
+land, and on a map with no zones, only an explicit `yawDegrees` turns a token. A new step carries each
+token's facing as the projection shows it.
+
 `steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
 along it; two steps may share a time.
 
@@ -286,11 +351,11 @@ already holds the steps.
 |---|---|---|---|
 | Execute | T | A or B | utility from 1:02, entry and trade at 0:53, plant at 0:45 |
 | Rush | T | A or B | utility on the run from 1:50, everyone onto the site, plant at 1:35 |
-| Split | T | A or B | two groups set up, utility from both sides, entries together at 0:55 |
+| Split | T | A or B | two groups set up (one step, lines A and D), utility from both sides, entries together at 0:55 (lines A and D) |
 | Fake | T | hit A or B | fake verbs with utility at the other site from 1:25, then an execute |
 | Default | T | none | map control, a call at 1:15, regroup at 1:00 |
 | Anti-eco | either | none | hold, call, wait |
-| Setup | CT | none | a 2-1-2 hold from round start, early utility, rotation call |
+| Setup | CT | none | a 2-1-2 hold from round start (one step, a line per slot), early utility, rotation call |
 | Retake | CT | A or B | after the plant (negative `atSeconds`): call, group, utility, retake, defuse by -0:25 |
 
 The rules the templates keep, pinned by `StratTemplatesTests`:
@@ -300,6 +365,8 @@ The rules the templates keep, pinned by `StratTemplatesTests`:
   left empty and described in the note, and a step that needs a place it cannot name is a `hold` or `wait`.
 - A step carries only the members its verb uses (`StratStepFields`). A throw names a slot and a kind, never a
   lineup. No step carries positions: the tokens carry forward from the seed.
+- A step where players take different places uses lines; it names no step-level `to` and no watch.
+  Apply template is not offered on a strat whose seed step has lines.
 
 ## Exports
 
@@ -320,17 +387,22 @@ metadata line, one bullet per step with its round-clock time bolded, and a branc
 
 A step's line names its actor, its verb, an optional utility kind, its `from` and `to` places (through
 the owner's callouts when given, else the canonical name split into words), and, only when it differs
-from `to`, the utility's landing place in parentheses. The step's own note is left out of this one-liner,
+from `to`, the utility's landing place in parentheses. A step with lines is headed by its slots (`All`
+when the lines name all five) and its shared `from`, and each line follows as an indented bullet:
+`B → Palace, watching A site, CT`, or `B at Palace` for a verb whose place is where it stands (hold, peek,
+fake, plant, defuse). The step track's tooltip and the Detected preview, which have one line per step,
+join the lines after a colon. The step's own note is left out of this one-liner,
 the same way a history summary leaves prose out; the strat's own `notes` field prints once, at the end.
 
 ### The role sheets (HTML, LAN Print)
 
 `RoleSheet.Derive(doc, slot, callouts, roster, lookup)` builds one slot's sheet: the strat's masthead,
-every step the slot owns (`actor` equal to the slot or `all`) plus, greyed, another slot's step that
-feeds one of the slot's own moves (its `to` place matches the slot's `from` or `to`, at the same or
-earlier real time — a **larger** `atSeconds`, since the round clock counts down), the branches that
-follow one of the slot's own steps, and the slot's tracked positions as an ordered polyline once Step
-Authoring has written any. `RoleSheetHtmlWriter.Html` renders a list of sheets as one self-contained HTML
+every step the slot owns (it has a line, or with no lines `actor` is the slot or `all`) plus, greyed,
+another slot's step that feeds one of the slot's own moves (a `to` place of it, a line's included, matches
+the slot's `from` or `to`, at the same or earlier real time, which is a **larger** `atSeconds` since the
+round clock counts down), the branches that follow one of the slot's own steps, and the slot's tracked positions as an ordered polyline once Step
+Authoring has written any. On a step with lines the slot's own entry is only its line, phrased as a
+single-slot step with `, watching …` appended. `RoleSheetHtmlWriter.Html` renders a list of sheets as one self-contained HTML
 page, one `<section>` per sheet with a print page break between them and no external reference of any
 kind (font, stylesheet, image): the mini-map is drawn as a bare SVG polyline rather than an overlay on
 the baked radar art, precisely so the file stays self-contained. `LanPrint.WriteAndOpen` writes that page
