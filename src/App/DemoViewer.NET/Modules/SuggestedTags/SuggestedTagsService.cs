@@ -474,7 +474,14 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             : edit.Code is { Length: > 0 } code && !string.Equals(code, entry.Proposal.Code, StringComparison.Ordinal)
                 ? SuggestionVerdicts.Recoded
                 : SuggestionVerdicts.Edited;
-        return _tags.RecordVerdict(sha, proposalId, Verdict(verdict, instance.Id, entry.Proposal, document));
+        if (_tags.RecordVerdict(sha, proposalId, Verdict(verdict, instance.Id, entry.Proposal, document)))
+        {
+            return true;
+        }
+
+        // Without its verdict the proposal stays pending, and accepting it again would write a second tag.
+        _tags.Update(sha, d => d.Instances.RemoveAll(i => i.Id == instance.Id));
+        return false;
     }
 
     private SuggestionVerdict Verdict(string verdict, Guid? instanceId, TagProposal proposal, ProposalDocument document) =>
