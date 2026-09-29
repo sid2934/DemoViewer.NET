@@ -577,7 +577,8 @@ public sealed class StratMiningService : IDisposable
     /// <returns>How many were removed.</returns>
     internal int RemoveRuns(Guid stratId)
     {
-        if (_tags is null)
+        // Queued: the strat may have been put back since it was deleted.
+        if (_tags is null || _strats.Index.Any(s => s.Id == stratId))
         {
             return 0;
         }
