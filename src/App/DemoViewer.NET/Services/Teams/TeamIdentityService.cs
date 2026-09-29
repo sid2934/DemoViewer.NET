@@ -108,8 +108,53 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>The account the share heuristic proposes as me, or null (design §3.5). Written only by confirmation.</summary>
     public MeSuggestion? MeSuggestion { get; private set; }
 
+    /// <summary>The "is this you?" suggestion the user dismissed, while it still holds; null otherwise.</summary>
+    public MeSuggestion? DismissedMeSuggestion { get; private set; }
+
+    /// <summary>The dismissal id of an account suggestion, kept with the other dismissed suggestions.</summary>
+    public static string MeSuggestionId(string steamId64) => "me:" + steamId64;
+
+    /// <summary>Dismisses "is this you?" for the account it names; it is not asked again until restored.</summary>
+    public void DismissMeSuggestion()
+    {
+        lock (_gate)
+        {
+            if (MeSuggestion is not { } suggestion)
+            {
+                return;
+            }
+
+            _teams.DismissedSuggestions.Add(MeSuggestionId(suggestion.SteamId64));
+            SuggestMe();
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
+    /// <summary>Asks "is this you?" again.</summary>
+    public void RestoreMeSuggestion()
+    {
+        lock (_gate)
+        {
+            if (DismissedMeSuggestion is not { } suggestion)
+            {
+                return;
+            }
+
+            _teams.DismissedSuggestions.RemoveAll(id => id == MeSuggestionId(suggestion.SteamId64));
+            SuggestMe();
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
     /// <summary>Pending suggestions (squad, roster change, merge by tag). None is ever applied without the user.</summary>
     public IReadOnlyList<TeamSuggestion> Suggestions { get; private set; } = [];
+
+    /// <summary>Suggestions that still hold but were dismissed: the inbox's settled list.</summary>
+    public IReadOnlyList<TeamSuggestion> DismissedSuggestions { get; private set; } = [];
 
     /// <summary>
     ///     Replaces the set of teams other stores point at: strat books, Dossier notes, veto history. A
@@ -233,11 +278,40 @@ public sealed class TeamIdentityService : IDisposable
                 _teams.DismissedSuggestions.Add(id);
             }
 
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
         }
 
         RaiseChanged();
+    }
+
+    /// <summary>Offers a dismissed suggestion again.</summary>
+    /// <param name="id">The suggestion id, as the settled list shows it.</param>
+    public void RestoreSuggestion(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        lock (_gate)
+        {
+            if (DismissedSuggestions.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.Ordinal)) is not { } suggestion)
+            {
+                return;
+            }
+
+            List<string> holding = [.. TeamSuggestions.DismissalsOf(suggestion, _teams)];
+            _teams.DismissedSuggestions.RemoveAll(holding.Contains);
+            ComputeSuggestions();
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
+    // Under _gate. Only what the user dismissed is stored: a near match is judged against that set each time,
+    // so drift cannot walk a dismissal away from every player it named.
+    private void ComputeSuggestions()
+    {
+        Suggestions = TeamSuggestions.Compute(_teams, _index);
+        DismissedSuggestions = TeamSuggestions.Dismissed(_teams, _index);
     }
 
     /// <summary>Visible teams, in file order.</summary>
@@ -766,7 +840,7 @@ public sealed class TeamIdentityService : IDisposable
                 return;
             }
 
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
         }
 
@@ -802,7 +876,7 @@ public sealed class TeamIdentityService : IDisposable
             ];
             MeSuggestion = null;
             ResolveOurSides();
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
             SaveIndex();
         }
@@ -1063,7 +1137,7 @@ public sealed class TeamIdentityService : IDisposable
             }
 
             team.Hidden = hidden;
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
         }
 
@@ -1096,7 +1170,7 @@ public sealed class TeamIdentityService : IDisposable
         UpgradeOverrides();
         ResolveOurSides();
         SuggestMe();
-        Suggestions = TeamSuggestions.Compute(_teams, _index);
+        ComputeSuggestions();
         SaveTeams();
         SaveIndex();
         RaiseChanged();
@@ -1211,6 +1285,7 @@ public sealed class TeamIdentityService : IDisposable
     private void SuggestMe()
     {
         MeSuggestion = null;
+        DismissedMeSuggestion = null;
         if (_teams.Me.SteamIds.Count > 0)
         {
             return;
@@ -1251,7 +1326,15 @@ public sealed class TeamIdentityService : IDisposable
         double share = (double) count / clusterable;
         if (share > 0.5)
         {
-            MeSuggestion = new MeSuggestion(id, name, count, share);
+            MeSuggestion suggestion = new(id, name, count, share);
+            if (_teams.DismissedSuggestions.Contains(MeSuggestionId(id), StringComparer.Ordinal))
+            {
+                DismissedMeSuggestion = suggestion;
+            }
+            else
+            {
+                MeSuggestion = suggestion;
+            }
         }
     }
 
@@ -1299,7 +1382,7 @@ public sealed class TeamIdentityService : IDisposable
                     }
 
                     SuggestMe();
-                    Suggestions = TeamSuggestions.Compute(_teams, _index);
+                    ComputeSuggestions();
                     return;
                 }
             }

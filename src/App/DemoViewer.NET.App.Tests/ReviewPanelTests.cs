@@ -61,6 +61,32 @@ public class ReviewPanelTests
     };
 
     [Test]
+    public async Task TheLabelsTab_ListsMachineWrittenLabels_ApartFromHandMadeOnes()
+    {
+        (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel();
+        TagInstance hand = Tag("A execute", 11_000, 11_500);
+        TagInstance accepted = Tag("Retake", 12_000, 12_500);
+        accepted.Source = TagSources.Suggested;
+        accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
+        TagInstance run = Tag("Default", 1_000, 2_000);
+        run.Source = TagSources.Suggested;
+        run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
+        session.Apply(new TagDelta.Add(hand));
+        session.Apply(new TagDelta.Add(accepted));
+        session.Apply(new TagDelta.Add(run));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(panel.Labels.Count).IsEqualTo(3);
+            await Assert.That(panel.HandLabels.Select(r => r.Id)).IsEquivalentTo([hand.Id]);
+            await Assert.That(panel.MachineLabels.Select(r => r.Id)).IsEquivalentTo([run.Id, accepted.Id]);
+            await Assert.That(panel.MachineLabels.Select(r => r.SourceText)).IsEquivalentTo(["strat run", "suggested: retake"]);
+            await Assert.That(panel.HandHeader).IsEqualTo("Yours (1)");
+            await Assert.That(panel.MachineHeader).IsEqualTo("From suggestions (2)");
+        }
+    }
+
+    [Test]
     public async Task ALabel_IsListed_EditedInEveryField_Deleted_AndTheDeleteUndone()
     {
         (TagSession session, ReviewPanelViewModel panel, List<int> seeks, _) = await Panel();
@@ -266,6 +292,32 @@ public class ReviewPanelTests
             Playback2DTimelineHarness.Pump();
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-labels-editor.png"), new PngBitmapEncoderOptions());
             await Assert.That(vm.ReviewPanel.HasEditor).IsTrue();
+            window.Close();
+        });
+
+    [Test]
+    [Category("Integration")]
+    public async Task ThePanel_RendersHandMadeAndMachineWrittenLabelsApart() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.Push(1, 2);
+            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            vm.Tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
+            TagInstance accepted = Tag("Retake", 800, 900);
+            accepted.Source = TagSources.Suggested;
+            accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
+            TagInstance run = Tag("Default", 100, 250);
+            run.Source = TagSources.Suggested;
+            run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
+            vm.Tags.Apply(new TagDelta.Add(accepted));
+            vm.Tags.Apply(new TagDelta.Add(run));
+            vm.IsReviewMode = true;
+            (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1280, 900);
+            vm.ReviewPanel.ShowLabels();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-labels-grouped.png"), new PngBitmapEncoderOptions());
+            await Assert.That(vm.ReviewPanel.MachineLabels.Count).IsEqualTo(2);
             window.Close();
         });
 }

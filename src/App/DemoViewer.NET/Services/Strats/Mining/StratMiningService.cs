@@ -1,11 +1,13 @@
 #region
 
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
@@ -15,7 +17,13 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.Services.Strats.Mining;
 
 /// <summary>A pattern as the inbox lists it: whether the user dismissed it, and the strat it became.</summary>
-public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId);
+public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId)
+{
+    /// <summary>Dismissed wins over promoted: a promoted pattern can still be dismissed from the inbox.</summary>
+    public GeneratedState State => Dismissed ? GeneratedState.Dismissed
+        : StratId is not null ? GeneratedState.Accepted
+        : GeneratedState.New;
+}
 
 /// <summary>A previewed strat's save: the strat, or null; PatternChanged when the pattern moved since the preview.</summary>
 public sealed record PromoteResult(StratDocument? Document, bool PatternChanged);
@@ -40,6 +48,9 @@ public sealed class StratMiningService : IDisposable
 {
     /// <summary>The detected file's shape version.</summary>
     public const int SchemaVersion = 1;
+
+    /// <summary>The schema of the user file, <c>strat-mining.json</c>.</summary>
+    public const int StateSchemaVersion = 1;
 
     /// <summary>The tag code a mined T setup's runs carry; an execute's is the palette's site code.</summary>
     public const string DefaultCode = "Default";
@@ -71,6 +82,8 @@ public sealed class StratMiningService : IDisposable
     private bool _rerun;
     private bool _running;
     private MiningState _state = new();
+    private bool _stateRefused;
+    private bool _stateUnread;
 
     /// <param name="demoCache">Records, Round Facts and the cache events a quiet re-mine follows.</param>
     /// <param name="positions">The round positions files.</param>
@@ -112,6 +125,7 @@ public sealed class StratMiningService : IDisposable
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
             new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
         Load();
+        _strats.Deleted += OnStratDeleted;
         _demoCache.Changed += OnSourceChanged;
         if (_grenadeIndex is not null)
         {
@@ -133,6 +147,13 @@ public sealed class StratMiningService : IDisposable
     /// <summary>Every pattern the last mine found, the largest first; a dismissed one is flagged, not removed.</summary>
     public IReadOnlyList<DetectedPattern> Patterns { get; private set; } = [];
 
+    /// <summary>
+    ///     Why <c>strat-mining.json</c> is not in use, or null. A file that does not parse or is at a newer schema is
+    ///     refused for the session; one that could not be opened is tried again on the next change or mine. Either
+    ///     way it is never overwritten: dismissals stay in memory and promotion is refused.
+    /// </summary>
+    public string? StateProblem { get; private set; }
+
     /// <summary>When the last mine finished; null before the first.</summary>
     public DateTime? MinedUtc { get; private set; }
 
@@ -153,6 +174,7 @@ public sealed class StratMiningService : IDisposable
 
     public void Dispose()
     {
+        _strats.Deleted -= OnStratDeleted;
         _demoCache.Changed -= OnSourceChanged;
         if (_grenadeIndex is not null)
         {
@@ -183,6 +205,11 @@ public sealed class StratMiningService : IDisposable
     {
         lock (_gate)
         {
+            if (user)
+            {
+                StateUsable();
+            }
+
             if (_queue is null && _running)
             {
                 _rerun = true;
@@ -371,6 +398,15 @@ public sealed class StratMiningService : IDisposable
 
     private StratDocument? Commit(MinedPattern pattern, StratDocument doc)
     {
+        // A promotion the state file cannot record would be offered again and promoted twice.
+        lock (_gate)
+        {
+            if (!StateUsable())
+            {
+                return null;
+            }
+        }
+
         StratSaveResult saved = _strats.Save(doc, [], $"promoted from {pattern.Support} mined rounds");
         if (!saved.Saved)
         {
@@ -505,6 +541,62 @@ public sealed class StratMiningService : IDisposable
                 record.RoundFacts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
         }
     }
+
+    /// <summary>The last run removal a deleted strat started; for tests.</summary>
+    internal Task LastRunRemoval { get; private set; } = Task.CompletedTask;
+
+    // A promoted strat deleted from its book: the pattern is new again, and the runs its promotion wrote go.
+    private void OnStratDeleted(Guid id)
+    {
+        string? key;
+        lock (_gate)
+        {
+            key = _state.Promoted.FirstOrDefault(p => p.Value == id).Key;
+        }
+
+        if (key is null)
+        {
+            return;
+        }
+
+        Mutate(state => state.Promoted.Remove(key));
+        LastRunRemoval = _queue is null
+            ? _run(() => RemoveRuns(id))
+            : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: remove a deleted strat's runs",
+                "strat-mining", DemoJobPriority.UserRequested, _ =>
+                {
+                    RemoveRuns(id);
+                    return Task.CompletedTask;
+                }, Key: "strat-runs:" + id.ToString("N"))).Completion;
+    }
+
+    /// <summary>
+    ///     Removes the runs a promotion wrote for <paramref name="stratId" />: suggested instances whose provenance
+    ///     detector is <see cref="Detector" /> and whose strat label is that strat. Nothing else is touched.
+    /// </summary>
+    /// <returns>How many were removed.</returns>
+    internal int RemoveRuns(Guid stratId)
+    {
+        // Queued: the strat may have been put back since it was deleted.
+        if (_tags is null || _strats.Index.Any(s => s.Id == stratId))
+        {
+            return 0;
+        }
+
+        string value = stratId.ToString();
+        int removed = 0;
+        foreach (TagDocument document in _tags.LoadDocuments(e => e.StratIds.Contains(value, StringComparer.Ordinal)))
+        {
+            _tags.Update(document.Demo.Sha256, d => removed += d.Instances.RemoveAll(i => IsRunOf(i, value)));
+        }
+
+        return removed;
+    }
+
+    private static bool IsRunOf(TagInstance instance, string stratId) =>
+        instance.Source == TagSources.Suggested
+        && instance.Provenance?["detector"] is JsonValue detector && detector.TryGetValue(out string? name) && name == Detector
+        && instance.Labels.Any(l => l.Group == TagStore.StratGroup && l.Value == stratId);
 
     // The window the strat covers in that round: the setup's opening, or the take from 10 s before to the plant.
     private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts.RoundFacts? facts)
@@ -663,9 +755,16 @@ public sealed class StratMiningService : IDisposable
         lock (_gate)
         {
             change(_state);
-            if (_statePath is not null)
+            if (_statePath is not null && StateUsable())
             {
-                WriteAtomic(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
+                try
+                {
+                    WriteAtomic(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // The in-memory state stands for the session; the next change writes it again.
+                }
             }
         }
 
@@ -686,14 +785,9 @@ public sealed class StratMiningService : IDisposable
 
     private void Load()
     {
+        LoadState();
         try
         {
-            if (_statePath is not null && File.Exists(_statePath)
-                                       && JsonSerializer.Deserialize<MiningState>(File.ReadAllText(_statePath), JsonOptions) is { } state)
-            {
-                _state = state;
-            }
-
             if (_detectedPath is not null && File.Exists(_detectedPath)
                                           && JsonSerializer.Deserialize<DetectedFile>(File.ReadAllText(_detectedPath), JsonOptions) is
                                               { SchemaVersion: SchemaVersion } file)
@@ -704,9 +798,82 @@ public sealed class StratMiningService : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            // An unreadable detected file is rebuilt by the next mine; an unreadable state file starts empty
-            // and is only overwritten when the user dismisses or promotes again.
+            // An unreadable detected file is rebuilt by the next mine.
         }
+    }
+
+    // Under _gate, or from the constructor. Retries a file that could not be opened; a retry that reads it keeps
+    // what changed in memory meanwhile on top of it.
+    private bool StateUsable()
+    {
+        if (_stateUnread && !_stateRefused)
+        {
+            LoadState();
+        }
+
+        return !_stateRefused && !_stateUnread;
+    }
+
+    private void LoadState()
+    {
+        if (_statePath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!File.Exists(_statePath))
+            {
+                _stateUnread = false;
+                StateProblem = null;
+                return;
+            }
+
+            string json = File.ReadAllText(_statePath);
+            MiningState? state;
+            try
+            {
+                state = JsonSerializer.Deserialize<MiningState>(json, JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                RefuseState($"{_statePath} is not readable ({ex.Message}). Move it aside and restart to start a new one.");
+                return;
+            }
+
+            if (state is null || state.SchemaVersion > StateSchemaVersion)
+            {
+                RefuseState($"{_statePath} is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads. Use the newer build, or move the file aside and restart.");
+                return;
+            }
+
+            if (_stateUnread)
+            {
+                state.Dismissed.UnionWith(_state.Dismissed);
+                foreach ((string key, Guid id) in _state.Promoted)
+                {
+                    state.Promoted.TryAdd(key, id);
+                }
+            }
+
+            _state = state;
+            _stateUnread = false;
+            StateProblem = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _stateUnread = true;
+            StateProblem = $"{_statePath} could not be opened ({ex.Message}). Changes are kept for this session and saved once it opens.";
+        }
+    }
+
+    private void RefuseState(string problem)
+    {
+        _stateRefused = true;
+        _stateUnread = false;
+        StateProblem = problem;
+        _state = new MiningState();
     }
 
     private static void WriteAtomic(string path, string content)
@@ -722,6 +889,9 @@ public sealed class StratMiningService : IDisposable
 
     private sealed class MiningState
     {
+        // Missing in files written before it existed, which read as schema 1.
+        public int SchemaVersion { get; set; } = StateSchemaVersion;
+
         public HashSet<string> Dismissed { get; set; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, Guid> Promoted { get; set; } = new(StringComparer.Ordinal);

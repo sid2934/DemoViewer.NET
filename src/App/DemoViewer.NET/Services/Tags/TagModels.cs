@@ -341,6 +341,12 @@ public static class SuggestionVerdicts
     ///     Tuning counts it against the detector, like a rejection.
     /// </summary>
     public const string Recoded = "recoded";
+
+    /// <summary>
+    ///     A rejection the user took back: the proposal is offered again, tuning counts it as pending, and the
+    ///     next verdict replaces this one.
+    /// </summary>
+    public const string Restored = "restored";
 }
 
 /// <summary>

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
 
@@ -42,8 +43,11 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     private DetectedRowViewModel? _selectedRow;
 
+    // Dismissed and in-book patterns: hidden unless on (generated-content.md).
     [ObservableProperty]
-    private bool _showDismissed;
+    private bool _showSettled;
+
+    private int _settledCount;
 
     [ObservableProperty]
     private string _statusLine = "";
@@ -88,7 +92,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     public ObservableCollection<DetectedRowViewModel> Rows { get; } = [];
 
     /// <summary>Patterns shown and not dismissed: the count on the toggle.</summary>
-    public int NewCount => Rows.Count(r => !r.IsDismissed && r.StratId is null);
+    public int NewCount => Rows.Count(r => r.State == GeneratedState.New);
 
     public void Dispose()
     {
@@ -222,9 +226,9 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
             doc = _mining.Promote(row.Key, book);
         }
 
-        StatusLine = doc is null
-            ? "Could not build this strat: the round's cached files are gone. Find strats again."
-            : $"Added \"{doc.Name}\" to the book.";
+        StatusLine = doc is not null ? $"Added \"{doc.Name}\" to the book."
+            : _mining.StateProblem is { } problem ? $"Not added: {problem}"
+            : "Could not build this strat: the round's cached files are gone. Find strats again.";
         if (doc is not null)
         {
             _openStrat(doc.Id);
@@ -246,6 +250,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         if (SelectedRow is { } row)
         {
             _mining?.Dismiss(row.Key);
+            NoteUnsaved("Dismissed");
         }
     }
 
@@ -255,6 +260,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         if (SelectedRow is { } row)
         {
             _mining?.Restore(row.Key);
+            NoteUnsaved("Restored");
         }
     }
 
@@ -272,7 +278,10 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         }
     }
 
-    partial void OnShowDismissedChanged(bool value) => Refresh();
+    partial void OnShowSettledChanged(bool value) => Refresh();
+
+    /// <summary>"Show settled (n)": the dismissed and in-book patterns under the current filters.</summary>
+    public string SettledLabel => GeneratedInbox.SettledLabel(_settledCount);
 
     private void Refresh()
     {
@@ -283,11 +292,12 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         }
 
         string? keep = SelectedRow?.Key;
+        List<DetectedPattern> matching = [.. _mining.Patterns.Where(p => Matches(p.Pattern))];
+        _settledCount = GeneratedCounts.Of(matching.Select(p => p.State)).Settled;
         List<DetectedRowViewModel> rows =
         [
-            .. _mining.Patterns
-                .Where(p => ShowDismissed || !p.Dismissed)
-                .Where(p => Matches(p.Pattern))
+            .. matching
+                .Where(p => GeneratedInbox.Shows(p.State, ShowSettled))
                 .OrderBy(p => p.Pattern.UtilityCompared ? 0 : 1)
                 .ThenByDescending(p => p.Pattern.Support)
                 .ThenBy(p => p.Pattern.Spread)
@@ -301,8 +311,24 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
         SelectedRow = keep is null ? null : Rows.FirstOrDefault(r => r.Key == keep);
         OnPropertyChanged(nameof(NewCount));
+        OnPropertyChanged(nameof(SettledLabel));
         OnPropertyChanged(nameof(IsMining));
+        OnPropertyChanged(nameof(StateProblem));
+        OnPropertyChanged(nameof(HasStateProblem));
         StatusLine = Status(rows.Count);
+    }
+
+    /// <summary>Why the dismissals file is not in use, or null.</summary>
+    public string? StateProblem => _mining?.StateProblem;
+
+    public bool HasStateProblem => StateProblem is not null;
+
+    private void NoteUnsaved(string what)
+    {
+        if (_mining?.StateProblem is { } problem)
+        {
+            StatusLine = $"{what} for this session only: {problem}";
+        }
     }
 
     private string Status(int shown)
@@ -354,6 +380,7 @@ public sealed class DetectedRowViewModel
         MinedPattern p = detected.Pattern;
         Key = p.Key;
         IsDismissed = detected.Dismissed;
+        State = detected.State;
         StratId = detected.StratId;
         Title = MinedStratBuilder.Name(p);
         string side = p.Side == 2 ? "T" : "CT";
@@ -401,6 +428,8 @@ public sealed class DetectedRowViewModel
     public string TimingLine { get; }
 
     public bool IsDismissed { get; }
+
+    public GeneratedState State { get; }
 
     public Guid? StratId { get; }
 

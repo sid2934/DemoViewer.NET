@@ -641,7 +641,35 @@
                             </StackPanel>
                             <TextBlock Text="no labels on this demo yet" FontSize="10" IsVisible="{Binding !HasLabels}"
                                        Foreground="{DynamicResource Pb2dTextDim}" />
-                            <ItemsControl ItemsSource="{Binding Labels}">
+                            <!-- Hand-made labels first; what the app wrote (accepted suggestions, strat runs) apart. -->
+                            <TextBlock Text="{Binding HandHeader}" FontSize="10" Margin="0,4,0,0" IsVisible="{Binding HasHandLabels}"
+                                       Foreground="{DynamicResource Pb2dTextMid}" />
+                            <ItemsControl ItemsSource="{Binding HandLabels}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="rv:TagRowViewModel">
+                                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                Padding="6,3" Margin="0,0,0,2" Focusable="False"
+                                                Background="{DynamicResource Pb2dPanelBg}"
+                                                Classes="tagRow" Classes.selected="{Binding IsSelected}"
+                                                Command="{Binding $parent[ItemsControl].((rv:ReviewPanelViewModel)DataContext).SelectLabelCommand}"
+                                                CommandParameter="{Binding}">
+                                            <StackPanel Spacing="1">
+                                                <TextBlock FontSize="11">
+                                                    <Run Text="{Binding Title}" Foreground="{DynamicResource Pb2dTextBrightest}" />
+                                                    <Run Text="{Binding RoundText}" Foreground="{DynamicResource Pb2dTextDim}" />
+                                                    <Run Text="{Binding ClockText}" Foreground="{DynamicResource Pb2dTextDim}" />
+                                                    <Run Text="{Binding SourceText}" Foreground="{DynamicResource Pb2dTextMid}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding LabelsText}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource Pb2dTextMid}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding MachineHeader}" FontSize="10" Margin="0,4,0,0" IsVisible="{Binding HasMachineLabels}"
+                                       Foreground="{DynamicResource Pb2dTextMid}" />
+                            <ItemsControl ItemsSource="{Binding MachineLabels}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="rv:TagRowViewModel">
                                         <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"

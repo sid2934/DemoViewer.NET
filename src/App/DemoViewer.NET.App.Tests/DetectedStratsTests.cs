@@ -60,12 +60,45 @@ public class DetectedStratsTests
         }
 
         vm.IsDetectedView = true;
+        Guid added = library.Strats.Index.Single().Id;
+        await Assert.That(vm.Detected.Rows.Any(r => r.StratId == added)).IsFalse().Because("an added pattern leaves the default view");
+        await Assert.That(vm.Detected.SettledLabel).IsEqualTo("Show settled (1)");
+        vm.Detected.ShowSettled = true;
+        await Assert.That(vm.Detected.Rows.Single(r => r.StratId == added).IsInBook).IsTrue();
+        vm.Detected.ShowSettled = false;
+
+        vm.IsDetectedView = true;
         DetectedRowViewModel first = vm.Detected.Rows.First(r => r.CanAdd);
         vm.Detected.SelectedRow = first;
         vm.Detected.DismissCommand.Execute(null);
         await Assert.That(vm.Detected.Rows.Select(r => r.Key)).DoesNotContain(first.Key);
-        vm.Detected.ShowDismissed = true;
+        vm.Detected.ShowSettled = true;
         await Assert.That(vm.Detected.Rows.Single(r => r.Key == first.Key).IsDismissed).IsTrue();
+    }
+
+    [Test]
+    public async Task ARefusedDismissalsFile_IsNamed_AndAddToBookSaysSo()
+    {
+        using Library library = Library.Create();
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(Path.Combine(library.Root, "strat-mining.json"), "{ not json");
+        using StratMiningService mining = library.Service();
+        using StratBookTabViewModel vm = Tab(library, mining);
+        vm.IsDetectedView = true;
+
+        vm.Detected.SelectedRow = vm.Detected.Rows.First(r => r.CanAdd);
+        vm.Detected.AddToBookCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Detected.HasStateProblem).IsTrue();
+            await Assert.That(vm.Detected.StateProblem).Contains("strat-mining.json");
+            await Assert.That(vm.Detected.StateProblem).Contains("Move it aside");
+            await Assert.That(vm.Detected.StatusLine).StartsWith("Not added: ");
+            await Assert.That(vm.Detected.StatusLine).DoesNotContain("cached files");
+        }
+
+        vm.Detected.DismissCommand.Execute(null);
+        await Assert.That(vm.Detected.StatusLine).StartsWith("Dismissed for this session only");
     }
 
     [Test]
@@ -93,6 +126,30 @@ public class DetectedStratsTests
                 await Assert.That(detail.IsEffectivelyVisible).IsTrue();
             }
 
+            window.Close();
+        });
+
+    [Test]
+    [Category("Integration")]
+    public async Task TheView_RendersTheSettledToggle_WithAnAddedAndADismissedPattern() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Library library = Library.Create();
+            using StratMiningService mining = library.Service();
+            using StratBookTabViewModel vm = Tab(library, mining);
+            SelectAExecute(vm);
+            vm.Detected.AddToBookCommand.Execute(null);
+            vm.IsDetectedView = true;
+            vm.Detected.SelectedRow = vm.Detected.Rows.First();
+            vm.Detected.DismissCommand.Execute(null);
+            vm.Detected.ShowSettled = true;
+            vm.Detected.SelectedRow = vm.Detected.Rows.First(r => r.IsInBook);
+            StratBookTabView view = new() { DataContext = vm };
+            Window window = new() { Width = 1400, Height = 800, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "strat-detected-settled.png"), new PngBitmapEncoderOptions());
+            await Assert.That(vm.Detected.SettledLabel).IsEqualTo("Show settled (2)");
             window.Close();
         });
 
@@ -267,7 +324,7 @@ public class DetectedStratsTests
 
         await vm.Detected.PreviewStratCommand.ExecuteAsync(null);
         StratPreviewViewModel first = vm.Detected.Preview!;
-        vm.Detected.ShowDismissed = true;
+        vm.Detected.ShowSettled = true;
         await Assert.That(vm.Detected.Preview).IsSameReferenceAs(first).Because("a refresh reselects the same pattern");
 
         vm.Detected.SelectedRow = vm.Detected.Rows.First(r => r.Key != first.Key);
