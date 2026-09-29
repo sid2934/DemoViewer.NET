@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -17,6 +18,14 @@ public sealed record ProposalEntry(TagProposal Proposal, string? VerdictKey, Sug
 
     /// <summary>No verdict yet: what the track and the queue show.</summary>
     public bool IsPending => Verdict is null;
+
+    /// <summary>Pending is new; a rejection is dismissed; any accept, edited or recoded, is accepted.</summary>
+    public GeneratedState State => Verdict?.Verdict switch
+    {
+        null => GeneratedState.New,
+        SuggestionVerdicts.Rejected => GeneratedState.Dismissed,
+        _ => GeneratedState.Accepted
+    };
 }
 
 /// <summary>

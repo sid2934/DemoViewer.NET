@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Teams;
 
 #endregion
@@ -112,7 +113,16 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     /// <summary>Every other team: where the selected demo's side can be moved.</summary>
     public ObservableCollection<TeamRow> MoveTargets { get; } = [];
 
-    public bool HasSuggestions => Suggestions.Count > 0;
+    /// <summary>The card shows while anything is pending or dismissed.</summary>
+    public bool HasSuggestions => _teams.Suggestions.Count + _teams.DismissedSuggestions.Count > 0;
+
+    /// <summary>Also list the dismissed suggestions that still hold, each with Restore.</summary>
+    [ObservableProperty]
+    private bool _showSettled;
+
+    public string SettledLabel => GeneratedInbox.SettledLabel(_teams.DismissedSuggestions.Count);
+
+    partial void OnShowSettledChanged(bool value) => ProjectSuggestions();
 
     /// <summary>True when your accounts are set, so the squad editor has a "your side" to read.</summary>
     public bool CanEditSquad => _teams.MyAccounts.Count > 0;
@@ -263,6 +273,15 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         if (row is not null)
         {
             _teams.DismissSuggestion(row.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void RestoreSuggestion(SuggestionRow? row)
+    {
+        if (row is not null)
+        {
+            _teams.RestoreSuggestion(row.Id);
         }
     }
 
@@ -446,7 +465,13 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     private void ProjectSuggestions()
     {
         Suggestions.Clear();
-        foreach (TeamSuggestion s in _teams.Suggestions)
+        IEnumerable<(TeamSuggestion S, bool Dismissed)> shown = _teams.Suggestions.Select(s => (s, false));
+        if (ShowSettled)
+        {
+            shown = shown.Concat(_teams.DismissedSuggestions.Select(s => (s, true)));
+        }
+
+        foreach ((TeamSuggestion s, bool dismissed) in shown)
         {
             string text = s.Kind switch
             {
@@ -458,10 +483,11 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
                     + $". Start a new roster from about {s.Since:yyyy-MM-dd}?",
                 _ => $"Two teams are tagged {DisplayText.Sanitize(s.Subject)}. Merge them?"
             };
-            Suggestions.Add(new SuggestionRow(s.Id, text));
+            Suggestions.Add(new SuggestionRow(s.Id, text) { IsDismissed = dismissed });
         }
 
         OnPropertyChanged(nameof(HasSuggestions));
+        OnPropertyChanged(nameof(SettledLabel));
     }
 
     // The footer states what could not be clustered and, when no demo has a recurring opponent, that
@@ -577,6 +603,9 @@ public sealed class SuggestionRow(string id, string text)
     public string Id { get; } = id;
 
     public string Text { get; } = text;
+
+    /// <summary>Listed under "Show settled": offers Restore instead of Accept and Dismiss.</summary>
+    public bool IsDismissed { get; init; }
 }
 
 /// <summary>One player the squad editor offers.</summary>

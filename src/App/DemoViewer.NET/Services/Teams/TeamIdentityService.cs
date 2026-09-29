@@ -111,6 +111,9 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>Pending suggestions (squad, roster change, merge by tag). None is ever applied without the user.</summary>
     public IReadOnlyList<TeamSuggestion> Suggestions { get; private set; } = [];
 
+    /// <summary>Suggestions that still hold but were dismissed: the inbox's settled list.</summary>
+    public IReadOnlyList<TeamSuggestion> DismissedSuggestions { get; private set; } = [];
+
     /// <summary>
     ///     Replaces the set of teams other stores point at: strat books, Dossier notes, veto history. A
     ///     rebuild keeps an auto team in this set even when it received no side. Called by the composition
@@ -233,11 +236,39 @@ public sealed class TeamIdentityService : IDisposable
                 _teams.DismissedSuggestions.Add(id);
             }
 
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
         }
 
         RaiseChanged();
+    }
+
+    /// <summary>Offers a dismissed suggestion again.</summary>
+    /// <param name="id">The suggestion id, as the settled list shows it.</param>
+    public void RestoreSuggestion(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        lock (_gate)
+        {
+            if (DismissedSuggestions.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.Ordinal)) is not { } suggestion)
+            {
+                return;
+            }
+
+            List<string> holding = [.. TeamSuggestions.DismissalsOf(suggestion, _teams.DismissedSuggestions)];
+            _teams.DismissedSuggestions.RemoveAll(holding.Contains);
+            ComputeSuggestions();
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
+    // Under _gate.
+    private void ComputeSuggestions()
+    {
+        Suggestions = TeamSuggestions.Compute(_teams, _index);
+        DismissedSuggestions = TeamSuggestions.Dismissed(_teams, _index);
     }
 
     /// <summary>Visible teams, in file order.</summary>
@@ -766,7 +797,7 @@ public sealed class TeamIdentityService : IDisposable
                 return;
             }
 
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
         }
 
@@ -802,7 +833,7 @@ public sealed class TeamIdentityService : IDisposable
             ];
             MeSuggestion = null;
             ResolveOurSides();
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
             SaveIndex();
         }
@@ -1063,7 +1094,7 @@ public sealed class TeamIdentityService : IDisposable
             }
 
             team.Hidden = hidden;
-            Suggestions = TeamSuggestions.Compute(_teams, _index);
+            ComputeSuggestions();
             SaveTeams();
         }
 
@@ -1096,7 +1127,7 @@ public sealed class TeamIdentityService : IDisposable
         UpgradeOverrides();
         ResolveOurSides();
         SuggestMe();
-        Suggestions = TeamSuggestions.Compute(_teams, _index);
+        ComputeSuggestions();
         SaveTeams();
         SaveIndex();
         RaiseChanged();
@@ -1299,7 +1330,7 @@ public sealed class TeamIdentityService : IDisposable
                     }
 
                     SuggestMe();
-                    Suggestions = TeamSuggestions.Compute(_teams, _index);
+                    ComputeSuggestions();
                     return;
                 }
             }
