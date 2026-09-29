@@ -237,13 +237,21 @@ public static class StratValidator
                 issues.Add(Refuse(pointer + "/verb", $"verb '{step.Verb}' is not in the vocabulary"));
             }
 
-            if (step.Verb == "move" && string.IsNullOrEmpty(step.To?.Place))
+            bool hasLines = StratStepLines.HasLines(step);
+            if (hasLines)
+            {
+                ValidateLines(document, step, pointer, places, issues);
+            }
+            else if (step.Verb == "move" && string.IsNullOrEmpty(step.To?.Place))
             {
                 issues.Add(Warn(pointer + "/to", "a move has no destination place"));
             }
 
             CheckPlace(places, step.From?.Place, pointer + "/from/place", document.Map, issues);
-            CheckPlace(places, step.To?.Place, pointer + "/to/place", document.Map, issues);
+            if (!hasLines)
+            {
+                CheckPlace(places, step.To?.Place, pointer + "/to/place", document.Map, issues);
+            }
 
             if (step.Utility is { } utility)
             {
@@ -264,7 +272,7 @@ public static class StratValidator
                         issues.Add(Warn(pointer + "/utility/lineupId", $"lineup {lineupId} was not found on {document.Map}"));
                     }
 
-                    if (string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal))
+                    if (string.Equals(StratStepLines.ActorOf(step), StratVocabulary.ActorAll, StringComparison.Ordinal))
                     {
                         issues.Add(Warn(pointer + "/actor",
                             "a lineup thrown by every slot has no one to stand at its throw position; name the thrower"));
@@ -300,6 +308,51 @@ public static class StratValidator
         }
 
         return ids;
+    }
+
+    private static void ValidateLines(StratDocument document, StratStep step, string pointer, CalloutResolver? places,
+        List<StratIssue> issues)
+    {
+        List<StepAssignment> lines = step.Assignments!;
+        string actor = StratStepLines.ActorFor(lines);
+        if (!string.Equals(step.Actor, actor, StringComparison.Ordinal))
+        {
+            issues.Add(Warn(pointer + "/actor", $"a step with these lines has actor '{actor}', which older builds read"));
+        }
+
+        if (step.To is not null)
+        {
+            issues.Add(Warn(pointer + "/to", "each line has its own place; the step's to is not used"));
+        }
+
+        Dictionary<string, int> seen = new(StringComparer.Ordinal);
+        for (int j = 0; j < lines.Count; j++)
+        {
+            StepAssignment line = lines[j];
+            string at = $"{pointer}/assignments/{j}";
+            if (!StratVocabulary.Slots.Contains(line.Slot))
+            {
+                issues.Add(Refuse(at + "/slot", $"line slot '{line.Slot}' is not A to E"));
+            }
+            else if (!seen.TryAdd(line.Slot, j))
+            {
+                issues.Add(Refuse(at + "/slot", $"slot {line.Slot} already has a line in this step, at {pointer}/assignments/{seen[line.Slot]}"));
+            }
+
+            if (step.Verb == "move" && string.IsNullOrEmpty(line.To?.Place))
+            {
+                issues.Add(Warn(at + "/to", $"{line.Slot}'s move has no destination place"));
+            }
+
+            CheckPlace(places, line.To?.Place, at + "/to/place", document.Map, issues);
+            if (line.Watch is { } watch)
+            {
+                for (int k = 0; k < watch.Places.Count; k++)
+                {
+                    CheckPlace(places, watch.Places[k], $"{at}/watch/places/{k}", document.Map, issues);
+                }
+            }
+        }
     }
 
     private static void ValidateBranches(StratDocument document, HashSet<Guid> stepIds, IReadOnlyList<StratIndexEntry>? index,
