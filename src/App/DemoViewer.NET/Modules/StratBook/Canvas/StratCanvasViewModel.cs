@@ -64,6 +64,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private readonly Func<Guid, StratDocument?>? _lookup;
     private readonly Func<string?, LoadedMapAsset?> _mapLoader;
     private readonly Func<IEnumerable<string>> _keybindOverrides;
+    private readonly LineupOriginSource? _lineupOrigins;
     private readonly StratSession _session;
     private readonly StepTrack _stepTrack = new();
 
@@ -92,12 +93,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <param name="lookup">Reads another strat for a branch into it; null plays in-strat branches only.</param>
     /// <param name="keybindOverrides">The user's keymap rows; the settings file's when omitted.</param>
     /// <param name="readOnly">Plays the strat without editing it: no tools, no token drag, no step edits.</param>
+    /// <param name="lineupOrigins">Puts a throw's actor at its lineup's throw origin; null projects none.</param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
-        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false)
+        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        _lineupOrigins = lineupOrigins;
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
@@ -121,6 +124,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         RefreshKeymap();
         _session.Changed += OnSessionChanged;
+        if (_lineupOrigins is not null)
+        {
+            _lineupOrigins.Changed += OnLineupOriginsChanged;
+        }
+
         Reproject();
     }
 
@@ -262,6 +270,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         _disposed = true;
         _session.Changed -= OnSessionChanged;
+        if (_lineupOrigins is not null)
+        {
+            _lineupOrigins.Changed -= OnLineupOriginsChanged;
+        }
+
         Annotations.PropertyChanged -= OnAnnotationsPropertyChanged;
         _ink.Document.Changed -= OnInkChanged;
         Transport.Changed -= OnTransportChanged;
@@ -596,6 +609,15 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     private const string ReadOnlyNote = "this step belongs to another strat: open that strat to edit it";
 
+    // A drag holds the projection it started on; the drag's close commits and reprojects anyway.
+    private void OnLineupOriginsChanged()
+    {
+        if (!IsGestureOpen)
+        {
+            Reproject();
+        }
+    }
+
     private void OnSessionChanged()
     {
         if (_session.Version != _projectedVersion)
@@ -664,7 +686,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             ? StratPath.Through(document, branch, _lookup) ?? StratPath.MainLine(document)
             : StratPath.MainLine(document);
 
-        StratSceneProjection projection = StratSceneProjection.Build(document, path);
+        StratSceneProjection projection = StratSceneProjection.Build(document, path, _lineupOrigins is { } origins ? origins.Resolve : null);
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)

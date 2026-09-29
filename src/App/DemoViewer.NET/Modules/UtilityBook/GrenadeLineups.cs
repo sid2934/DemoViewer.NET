@@ -285,6 +285,19 @@ public static class GrenadeLineups
         ];
     }
 
+    /// <summary>
+    ///     The technique <paramref name="key" /> names, else the most thrown one; null when the lineup has none
+    ///     (the grid grouping).
+    /// </summary>
+    /// <param name="lineup">The lineup.</param>
+    /// <param name="key">A <see cref="TechniqueKey" />, or null.</param>
+    public static LineupTechnique? TechniqueFor(GrenadeLineup lineup, string? key)
+    {
+        ArgumentNullException.ThrowIfNull(lineup);
+        return lineup.Techniques.FirstOrDefault(t => string.Equals(t.Key, key, StringComparison.Ordinal))
+               ?? (lineup.Techniques.Count > 0 ? lineup.Techniques[0] : null);
+    }
+
     /// <summary>The throw released nearest <paramref name="origin" />; ties to the earlier in list order.</summary>
     public static IndexedGrenade Medoid(IReadOnlyList<IndexedGrenade> throws, WorldPoint origin)
     {

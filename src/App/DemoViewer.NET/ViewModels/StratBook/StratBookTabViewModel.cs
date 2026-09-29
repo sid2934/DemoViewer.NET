@@ -62,6 +62,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
+    private readonly LineupOriginSource? _lineupOrigins;
     private readonly Action<Action> _post;
     private readonly StratStore _store;
     private readonly TeamIdentityService? _teams;
@@ -158,10 +159,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
-        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document);
+        _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
+        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins);
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
-            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader);
+            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader, _lineupOrigins);
         Detected.PropertyChanged += OnDetectedChanged;
 
         Session.Changed += OnSessionChanged;
@@ -372,6 +374,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
         Canvas.Dispose();
+        _lineupOrigins?.Dispose();
         Session.Dispose();
         RecordPanel.Dispose();
         HistoryPanel.Dispose();
