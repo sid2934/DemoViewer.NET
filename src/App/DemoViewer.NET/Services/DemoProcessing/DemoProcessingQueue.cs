@@ -1264,10 +1264,23 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // ── UI mirror reconcile (posted) ──────────────────────────────────────────
 
+    // One pending UI update covers every change made before it runs, since it reads the state when it
+    // runs. A burst of section builds would otherwise post a mirror reconcile and a Changed per step.
+    private int _changePending;
+
     private void RaiseChanged()
     {
-        PostReconcile();
-        _post(() => Changed?.Invoke());
+        if (Interlocked.Exchange(ref _changePending, 1) == 1)
+        {
+            return;
+        }
+
+        _post(() =>
+        {
+            Interlocked.Exchange(ref _changePending, 0);
+            Reconcile();
+            Changed?.Invoke();
+        });
     }
 
     private void RaiseCapacityAvailable()
@@ -1286,58 +1299,55 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // Reconcile the bound mirror to the current snapshot by id (create/update/remove) so item identity
     // and selection survive. Runs on the post thread; guarded so concurrent inline posts (tests) are safe.
-    private void PostReconcile()
+    private void Reconcile()
     {
-        _post(() =>
+        // Snapshot INSIDE the posted action, not before it. Posts run FIFO on the UI thread, so
+        // taking the snapshot here makes the LAST-enqueued reconcile read the LATEST state:
+        // capturing before the post let two concurrent RaiseChanged calls enqueue in one order
+        // while their older/newer snapshots landed in the reverse, leaving the mirror stale.
+        IReadOnlyList<DemoQueueItemSnapshot> snapshot = Snapshot();
+        lock (_items)
         {
-            // Snapshot INSIDE the posted action, not before it. Posts run FIFO on the UI thread, so
-            // taking the snapshot here makes the LAST-enqueued reconcile read the LATEST state:
-            // capturing before the post let two concurrent RaiseChanged calls enqueue in one order
-            // while their older/newer snapshots landed in the reverse, leaving the mirror stale.
-            IReadOnlyList<DemoQueueItemSnapshot> snapshot = Snapshot();
-            lock (_items)
+            Dictionary<Guid, DemoQueueItemSnapshot> wanted = snapshot.ToDictionary(s => s.Id);
+            for (int i = _items.Count - 1; i >= 0; i--)
             {
-                Dictionary<Guid, DemoQueueItemSnapshot> wanted = snapshot.ToDictionary(s => s.Id);
-                for (int i = _items.Count - 1; i >= 0; i--)
+                if (!wanted.ContainsKey(_items[i].Id))
                 {
-                    if (!wanted.ContainsKey(_items[i].Id))
-                    {
-                        _items.RemoveAt(i);
-                    }
-                }
-
-                Dictionary<Guid, DemoQueueItem> present = _items.ToDictionary(x => x.Id);
-                foreach (DemoQueueItemSnapshot s in snapshot)
-                {
-                    if (present.TryGetValue(s.Id, out DemoQueueItem? item))
-                    {
-                        item.DisplayName = s.DisplayName;
-                        item.Owners = string.Join(", ", s.Owners);
-                        item.Priority = s.Priority;
-                        item.State = s.State;
-                        item.Error = s.Error;
-                        item.Progress = s.Progress;
-                        item.Detail = s.Detail;
-                    }
-                    else
-                    {
-                        _items.Add(new DemoQueueItem
-                        {
-                            Id = s.Id,
-                            Path = s.Path,
-                            DisplayName = s.DisplayName,
-                            Owners = string.Join(", ", s.Owners),
-                            Priority = s.Priority,
-                            State = s.State,
-                            Error = s.Error,
-                            Kind = s.Kind,
-                            Progress = s.Progress,
-                            Detail = s.Detail
-                        });
-                    }
+                    _items.RemoveAt(i);
                 }
             }
-        });
+
+            Dictionary<Guid, DemoQueueItem> present = _items.ToDictionary(x => x.Id);
+            foreach (DemoQueueItemSnapshot s in snapshot)
+            {
+                if (present.TryGetValue(s.Id, out DemoQueueItem? item))
+                {
+                    item.DisplayName = s.DisplayName;
+                    item.Owners = string.Join(", ", s.Owners);
+                    item.Priority = s.Priority;
+                    item.State = s.State;
+                    item.Error = s.Error;
+                    item.Progress = s.Progress;
+                    item.Detail = s.Detail;
+                }
+                else
+                {
+                    _items.Add(new DemoQueueItem
+                    {
+                        Id = s.Id,
+                        Path = s.Path,
+                        DisplayName = s.DisplayName,
+                        Owners = string.Join(", ", s.Owners),
+                        Priority = s.Priority,
+                        State = s.State,
+                        Error = s.Error,
+                        Kind = s.Kind,
+                        Progress = s.Progress,
+                        Detail = s.Detail
+                    });
+                }
+            }
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
