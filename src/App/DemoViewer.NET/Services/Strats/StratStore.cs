@@ -160,9 +160,12 @@ public sealed class StratStore
     /// <param name="side"><c>T</c> or <c>CT</c>.</param>
     /// <param name="type">The strat type.</param>
     /// <param name="name">The display name.</param>
-    public StratDocument Create(StratOwner owner, string map, string side, string type, string name)
+    /// <param name="seed">Fills the new strat before its first commit, such as its spawn positions; null for none.</param>
+    public StratDocument Create(StratOwner owner, string map, string side, string type, string name,
+        Action<StratDocument>? seed = null)
     {
         StratDocument document = StratDocument.Create(Guid.NewGuid(), owner, map, side, type, name, _utcNow());
+        seed?.Invoke(document);
         Save(document, [], "created");
         return document;
     }
