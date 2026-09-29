@@ -170,8 +170,52 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         RebuildCardRows();
     }
 
-    private void RebuildCardRows() =>
-        CardRows.ReplaceAll(Cards.Chunk(CardColumns).Select(row => new ResultCardRow(row)));
+    /// <summary>Cards shown at first and added by each Show more.</summary>
+    public const int PageSize = 200;
+
+    private int _shown = PageSize;
+
+    /// <summary>
+    ///     How many of <see cref="Cards" /> the page shows. Overlay all, Send to Review and the J / K walk still
+    ///     act on the whole set; a walk past the last shown card shows more.
+    /// </summary>
+    public int ShownCount => Math.Min(_shown, Cards.Count);
+
+    public bool HasMore => ShownCount < Cards.Count;
+
+    /// <summary>"Show 200 more (924 not shown)".</summary>
+    public string MoreLabel
+    {
+        get
+        {
+            int rest = Cards.Count - ShownCount;
+            return string.Create(CultureInfo.InvariantCulture, $"Show {Math.Min(PageSize, rest)} more ({rest} not shown)");
+        }
+    }
+
+    [RelayCommand]
+    private void ShowMore()
+    {
+        _shown += PageSize;
+        RebuildCardRows();
+    }
+
+    private void RebuildCardRows()
+    {
+        CardRows.ReplaceAll(Cards.Take(ShownCount).Chunk(CardColumns).Select(row => new ResultCardRow(row)));
+        OnPropertyChanged(nameof(ShownCount));
+        OnPropertyChanged(nameof(HasMore));
+        OnPropertyChanged(nameof(MoreLabel));
+    }
+
+    partial void OnSelectedCardChanged(ResultCardViewModel? value)
+    {
+        if (value is not null && Cards.IndexOf(value) is var index and >= 0 && index >= ShownCount)
+        {
+            _shown = (index / PageSize + 1) * PageSize;
+            RebuildCardRows();
+        }
+    }
 
     /// <summary>How many cards there are.</summary>
     public int Count => Cards.Count;
@@ -234,6 +278,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             Cards.Add(new ResultCardViewModel(this, hit, _demoCache.TryGetIndex(hit.DemoPath)));
         }
 
+        _shown = PageSize;
         RebuildCardRows();
 
         SelectedCard = null;
@@ -257,7 +302,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     {
         Interlocked.Increment(ref _generation);
         Cards.Clear();
-        CardRows.Clear();
+        _shown = PageSize;
+        RebuildCardRows();
         DropOverlay();
         SelectedCard = null;
         WalkLine = "";

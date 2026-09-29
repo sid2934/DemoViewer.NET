@@ -105,6 +105,36 @@ public class ResultCardTests
     }
 
     [Test]
+    public async Task ALargeSet_ShowsTwoHundredCards_ShowMoreAddsTwoHundred_AndTheActionsAndTheWalkTakeTheWholeSet()
+    {
+        using Harness h = new();
+        h.Cache.Upsert(ParsedRecord(DemoA));
+        h.Vm.Load([.. Enumerable.Range(1, 450).Select(r => Hit(DemoA, r, r * 1000, r * 1000 + 64))]);
+        await h.Vm.BatchTask;
+        int first = h.Vm.CardRows.Sum(r => r.Items.Count);
+        string label = h.Vm.MoreLabel;
+        h.Vm.ShowMoreCommand.Execute(null);
+        int second = h.Vm.ShownCount;
+        h.Vm.ShowMoreCommand.Execute(null);
+        bool allShown = !h.Vm.HasMore && h.Vm.CardRows.Sum(r => r.Items.Count) == 450;
+
+        h.Vm.Load([.. Enumerable.Range(1, 450).Select(r => Hit(DemoA, r, r * 1000, r * 1000 + 64))]);
+        await h.Vm.BatchTask;
+        h.Vm.SelectedCard = h.Vm.Cards[199];
+        h.Vm.Walk(+1);
+        using (Assert.Multiple())
+        {
+            await Assert.That(first).IsEqualTo(ResultCardsViewModel.PageSize);
+            await Assert.That(label).IsEqualTo("Show 200 more (250 not shown)");
+            await Assert.That(second).IsEqualTo(400);
+            await Assert.That(allShown).IsTrue();
+            await Assert.That(h.Vm.SendToReviewLabel).IsEqualTo("Send 450 to Review").Because("the whole set, not the page");
+            await Assert.That(h.Vm.SelectedIndex).IsEqualTo(201);
+            await Assert.That(h.Vm.ShownCount).IsEqualTo(400).Because("walking past the last shown card shows the next page");
+        }
+    }
+
+    [Test]
     [Category("Integration")]
     public async Task AThousandCards_InTheTabsScrollViewer_RealizeOnlyTheRowsOnScreen()
     {
@@ -127,11 +157,17 @@ public class ResultCardTests
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             int realized = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window)
                 .Count(v => v is Avalonia.Controls.Button { DataContext: ResultCardViewModel });
+            Avalonia.Controls.ScrollViewer page = (Avalonia.Controls.ScrollViewer)window.Content!;
+            page.Offset = new Avalonia.Vector(0, page.Extent.Height);
+            UxConsistencyRenderTests.Settle();
+            bool more = UxConsistencyRenderTests.Shows(window, "Show 200 more (800 not shown)");
+            UxConsistencyRenderTests.Save(window, "ux-situations-show-more.png");
             window.Close();
             using (Assert.Multiple())
             {
                 await Assert.That(h.Vm.CardColumns).IsGreaterThan(1).Because("the view hands the VM its width in cards");
                 await Assert.That(realized).IsLessThan(100).Because("a WrapPanel realized every one of the 1,000 cards");
+                await Assert.That(more).IsTrue().Because("the first 200 of 1,000 are shown, then Show more");
             }
         });
     }
