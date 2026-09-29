@@ -68,7 +68,7 @@ dotnet run --project src/App/DemoViewer.NET.UiCapture -- settings --theme egirl
 `--theme` accepts any registry id; a drop-in is re-scanned each run (set `DEMOVIEWER_CONFIG_DIR` to author
 against a scratch folder).
 
-## Token namespace (225 tokens)
+## Token namespace (226 tokens)
 
 Dark is the canonical base; the Dark/Light reference values below are what an omitted token inherits. High-
 impact families for a new theme: **surfaces** (Shell/Panel/Card/Frame/Hex/Primary), the **Text ramp**,
@@ -133,6 +133,14 @@ Header action button hover.
 | Token | Dark | Light |
 |---|---|---|
 | `HdrActionHoverBg` | `#16163A` | `#D2D4E6` |
+
+### Modal: `Modal*` (1)
+
+Dims the tab behind a modal panel (the Strat Book lineup picker).
+
+| Token | Dark | Light |
+|---|---|---|
+| `ModalScrim` | `#B3000008` | `#80101020` |
 
 ### Cards: `Card*` (1)
 

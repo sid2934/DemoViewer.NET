@@ -450,7 +450,42 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   added to the row's options as its raw id (a combo box shows nothing for a selection outside its items).
   The lineup options are filtered by kind, so the kind always matches a picked lineup; a picker that sets
   both must write the kind first, in the same ops list, because a kind change drops the lineup.
-- **Room for the lineup picker:** the "pick on map" button goes beside the lineup combo, inside the same wrap.
+- **Lineup and technique:** the lineup combo lists the strat map's lineups of the step's kind from
+  `StratLineupCatalog`, which reads `LineupOriginSource`'s per-map grouping (off the UI thread; the editor
+  re-projects on `Changed`). A stored id resolves through every alias id to its lineup's name; projection never
+  rewrites it. A lineup thrown more than one way adds a "thrown" combo (label and throw count), a burst field like
+  the others; a stored null technique shows the most thrown one without writing it, and the burst compares with
+  that effective value, so wheeling back to the most thrown leaves no explicit copy. "Pick on map" sits last in the
+  wrap and opens the lineup picker.
+
+### Lineup picker (the Strats editor)
+- **Files:** `ViewModels/StratBook/LineupPickerViewModel.cs`, `Views/StratBook/LineupPickerView.axaml`, the
+  `LineupPickerOverlay` in `Views/StratBook/StratBookTabView.axaml`, `OpenLineupPicker` in
+  `StratBookTabViewModel`, `ApplyLineupPick` in `StratEditorViewModel`.
+- **Purpose:** pick a throw step's lineup by where it lands and where it is thrown from, instead of by name.
+- **Reuse, not a copy:** the picker hosts a `UtilityBookTabViewModel` and the Utility Book's `UtilityMapHost`.
+  The VM takes two opt-in settings the tab never uses: `lockedMap` (the strat's map, never another, even with
+  no lineups) and `QueryKinds` (a strat utility kind can be two grenade kinds: molotov and incendiary). `Reveal`
+  focuses a stored lineup (alias ids answer) once the refresh lands, turning single throws on when the lineup
+  was thrown only once; an id that is one lineup's own and another's alias names the first (`ByAnyId`'s
+  precedence). The app builds it through the same DI helper as the tab (`UtilityBookFor`): same clip
+  directory, and its reads go through the processing queue as the "Lineup picker" section, at user priority.
+  It draws the strat canvas's already decoded bundle for the map (`ownsMapAsset: false`, never disposed by the
+  picker), so opening it decodes nothing.
+- **Layout:** a modal card over the whole Strats section on a `ModalScrim` border (no native window, so the
+  browser head has it): title, kind combo and "positions thrown once" on top; the map left; on the right the
+  focused group's positions (technique label, throws and demos) and the selected position's card (style,
+  use counts, technique split, the clip when rendered); the hint line, Cancel and "Use this lineup" at the bottom.
+- **Contract:** a step without a kind opens on smoke. Confirm writes kind, lineup and technique as one undo
+  entry, kind first; the landing is kept. Confirming the lineup and technique the step already has (an alias
+  id included, a null technique read as the most thrown) writes nothing and keeps the stored id; another
+  technique of the same lineup writes only the technique. Cancel and Escape write nothing. Either way the hosted
+  Utility Book VM is disposed (index subscription).
+- **Modal:** the picker takes the focus when it opens (Escape works at once) and the tab body behind it is
+  disabled (`TabBody`, `IsEnabled` bound to `!HasLineupPicker`). It cancels itself when the tab deactivates,
+  another strat opens or none is, or its step is deleted.
+- **Known:** the card's clip lookup (`LineupClipPlanner.FinishedGif`, two `File.Exists`) runs on the UI thread
+  when a position is selected, as it does on the Utility Book tab.
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,

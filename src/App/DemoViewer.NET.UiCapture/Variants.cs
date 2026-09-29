@@ -232,7 +232,8 @@ public static partial class Variants
                 MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
             ["strat-editor"] = () => StratEditor(false, false),
             ["strat-editor-collapsed"] = () => StratEditor(true, true),
-            ["strat-editor-bare"] = () => StratEditor(false, false, true)
+            ["strat-editor-bare"] = () => StratEditor(false, false, true),
+            ["strat-lineup-picker"] = StratLineupPicker
         };
 
     private static readonly (string Event, string Tick, string Hits)[] _dataRows =

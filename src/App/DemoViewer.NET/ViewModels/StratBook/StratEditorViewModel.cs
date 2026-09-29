@@ -34,7 +34,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <summary>What a combo box shows for a null vocabulary field.</summary>
     public const string None = "none";
 
-    private readonly Func<string, string, IReadOnlyList<StratLineupOption>>? _lineupLookup;
+    private readonly IStratLineupCatalog? _lineups;
     private readonly StratSession _session;
     private EditBurst? _burst;
     private CalloutResolver _places = new([]);
@@ -70,15 +70,15 @@ public sealed partial class StratEditorViewModel : ObservableObject
     private string _type = "default";
 
     /// <param name="session">The session the editor reads and writes.</param>
-    /// <param name="lineupLookup">
-    ///     Every Utility Book lineup for a map and a step's utility kind (Lineup On A Strat Step), used to fill
-    ///     a step's <see cref="StratStepRow.LineupOptions" />; null offers only "none", the pre-item behaviour.
+    /// <param name="lineups">
+    ///     The Utility Book lineups a step can reference (Lineup On A Strat Step): a row's choices, the name of a
+    ///     stored id (an alias id included) and its techniques. Null offers only "none" and shows a stored id raw.
     /// </param>
-    public StratEditorViewModel(StratSession session, Func<string, string, IReadOnlyList<StratLineupOption>>? lineupLookup = null)
+    public StratEditorViewModel(StratSession session, IStratLineupCatalog? lineups = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
-        _lineupLookup = lineupLookup;
+        _lineups = lineups;
     }
 
     public static IReadOnlyList<string> Sides { get; } = [StratVocabulary.SideT, StratVocabulary.SideCt];
@@ -188,14 +188,95 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
     /// <summary>
     ///     The lineup choices a step's row offers for its utility kind (Lineup On A Strat Step): "none" first,
-    ///     then every Utility Book lineup <see cref="_lineupLookup" /> has for this strat's map and that kind.
-    ///     Empty (just "none") without a kind, or when the host wired no lookup.
+    ///     then every lineup the catalog has for this strat's map and that kind. Just "none" without a kind, a
+    ///     catalog, or while the map is being grouped.
     /// </summary>
     /// <param name="utilityKind">The step's utility kind, or <see cref="None" /> for no utility.</param>
     internal IReadOnlyList<StratLineupOption> LineupOptionsFor(string utilityKind) =>
-        utilityKind == None || _lineupLookup is null
+        utilityKind == None || _lineups is null
             ? [StratLineupOption.None]
-            : [StratLineupOption.None, .. _lineupLookup(Map, utilityKind)];
+            : [StratLineupOption.None, .. _lineups.Options(Map, utilityKind)];
+
+    /// <summary>The lineup a stored id names on this strat's map, an alias id included, or null.</summary>
+    /// <param name="lineupId">A stored lineup id.</param>
+    internal StratLineupChoice? ResolveLineup(Guid lineupId) => _lineups?.Resolve(Map, lineupId);
+
+    /// <summary>
+    ///     A lineup picked on the map, as one undo entry: the kind first (a kind change elsewhere drops the lineup),
+    ///     then the lineup and its technique. The landing is kept. Nothing when the step is gone.
+    /// </summary>
+    /// <param name="stepId">The step.</param>
+    /// <param name="utilityKind">The lineup's strat utility kind.</param>
+    /// <param name="lineupId">The lineup's primary id.</param>
+    /// <param name="technique">The technique key, or null for the most thrown.</param>
+    /// <returns>Whether it wrote.</returns>
+    public bool ApplyLineupPick(Guid stepId, string utilityKind, Guid lineupId, string? technique)
+    {
+        EndEditBurst();
+        if (_session.Document is not { } document || document.Steps.FindIndex(s => s.Id == stepId) is var index && index < 0)
+        {
+            return false;
+        }
+
+        StratStep step = document.Steps[index];
+        string path = StepPath(index) + "/utility";
+        List<PatchOp> ops = [];
+
+        // The same lineup (a stored alias id included) keeps the stored id; a null technique is the most thrown.
+        StratLineupChoice? stored = step.Utility?.LineupId is { } storedId ? ResolveLineup(storedId) : null;
+        bool sameLineup = step.Utility?.LineupId == lineupId || stored?.Id == lineupId;
+        string? mostThrown = (stored ?? ResolveLineup(lineupId))?.Techniques is { Count: > 0 } techniques ? techniques[0].Key : null;
+        bool sameTechnique = string.Equals(step.Utility?.Technique ?? mostThrown, technique ?? mostThrown, StringComparison.Ordinal);
+        if (step.Utility is not null && sameLineup)
+        {
+            if (!string.Equals(step.Utility.Kind, utilityKind, StringComparison.Ordinal))
+            {
+                ops.Add(PatchOp.ReplaceOp(path + "/kind", null, JsonValue.Create(utilityKind)));
+            }
+
+            if (!sameTechnique)
+            {
+                ops.Add(technique is null
+                    ? PatchOp.RemoveOp(path + "/technique", null)
+                    : PatchOp.ReplaceOp(path + "/technique", null, JsonValue.Create(technique)));
+            }
+
+            if (ops.Count == 0)
+            {
+                return false;
+            }
+        }
+        else if (step.Utility is null)
+        {
+            JsonObject utility = new() { ["kind"] = utilityKind, ["lineupId"] = lineupId.ToString() };
+            if (technique is not null)
+            {
+                utility["technique"] = technique;
+            }
+
+            ops.Add(PatchOp.AddOp(path, utility));
+        }
+        else
+        {
+            if (!string.Equals(step.Utility.Kind, utilityKind, StringComparison.Ordinal))
+            {
+                ops.Add(PatchOp.ReplaceOp(path + "/kind", null, JsonValue.Create(utilityKind)));
+            }
+
+            ops.Add(PatchOp.ReplaceOp(path + "/lineupId", null, JsonValue.Create(lineupId)));
+            if (technique is not null)
+            {
+                ops.Add(PatchOp.ReplaceOp(path + "/technique", null, JsonValue.Create(technique)));
+            }
+            else if (step.Utility.Technique is not null)
+            {
+                ops.Add(PatchOp.RemoveOp(path + "/technique", null));
+            }
+        }
+
+        _session.Apply(ops);
+        return true;
+    }
 
     // ── Edits ────────────────────────────────────────────────────────────────────────────────────
 
@@ -313,6 +394,18 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
         return ops;
     });
+
+    /// <summary>
+    ///     A step's technique. Part of the combo box's burst, compared with what the step effectively had: a stored
+    ///     null is the most thrown technique, so wheeling back to it writes nothing.
+    /// </summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="technique">A technique key.</param>
+    /// <param name="mostThrown">The lineup's most thrown technique, what a null technique means.</param>
+    internal void ChangeTechnique(int index, string technique, string? mostThrown) => ApplyInBurst(index, "technique", (start, path) =>
+        start.Utility is null || string.Equals(start.Utility.Technique ?? mostThrown, technique, StringComparison.Ordinal)
+            ? []
+            : [PatchOp.ReplaceOp(path + "/utility/technique", null, JsonValue.Create(technique))]);
 
     /// <summary>
     ///     Ends the combo box burst: the next change starts a new undo entry from the step as it then is. The view
@@ -775,6 +868,9 @@ public sealed partial class StratStepRow : ObservableObject
     private StratLineupOption? _lineup = StratLineupOption.None;
 
     [ObservableProperty]
+    private StratTechniqueOption? _technique;
+
+    [ObservableProperty]
     private string _note = "";
 
     [ObservableProperty]
@@ -808,6 +904,12 @@ public sealed partial class StratStepRow : ObservableObject
 
     public bool ShowUtility => StratStepFields.Uses(Verb, StratStepField.Utility) || HasUtility;
 
+    /// <summary>The picked lineup's techniques, most thrown first; empty without a resolved lineup.</summary>
+    public ObservableCollection<StratTechniqueOption> Techniques { get; } = [];
+
+    /// <summary>The technique combo shows when the lineup is thrown more than one way.</summary>
+    public bool ShowTechnique => ShowLineup && Techniques.Count > 1;
+
     /// <summary>A lineup is picked once a kind is.</summary>
     public bool ShowLineup => HasUtility;
 
@@ -835,33 +937,48 @@ public sealed partial class StratStepRow : ObservableObject
         LandingText = _owner.DisplayPlace(step.Utility?.Landing?.Place);
         Note = step.Note ?? "";
 
-        // An id the lookup no longer offers (a reindex moved the throw, or the host wired none) still shows
-        // as its raw id rather than silently reverting to "none": the file still carries the reference. It is
-        // one of the items, or the combo box shows nothing.
+        // A stored id resolves through the catalog, an alias id to the lineup that absorbed it; the row shows the
+        // lineup and never rewrites the stored id. One the catalog cannot resolve (a reindex moved the throw, the
+        // map is still being grouped, or there is no catalog) shows as its raw id rather than "none": the file
+        // still carries the reference. The selection is one of the items, or the combo box shows nothing.
         List<StratLineupOption> options = [.. _owner.LineupOptionsFor(UtilityKind)];
         Guid? lineupId = step.Utility?.LineupId;
-        if (lineupId is { } id && options.All(o => o.Id != id))
+        StratLineupChoice? choice = lineupId is { } stored ? _owner.ResolveLineup(stored) : null;
+        Guid? shownId = choice?.Id ?? lineupId;
+        if (shownId is { } id && options.All(o => o.Id != id))
         {
-            options.Add(new StratLineupOption(id, id.ToString()));
+            options.Add(new StratLineupOption(id, choice?.Title ?? id.ToString()));
         }
 
-        if (!LineupOptions.SequenceEqual(options))
-        {
-            LineupOptions.Clear();
-            foreach (StratLineupOption option in options)
-            {
-                LineupOptions.Add(option);
-            }
-        }
+        Sync(LineupOptions, options);
+        Lineup = shownId is { } picked ? LineupOptions.First(o => o.Id == picked) : StratLineupOption.None;
 
-        Lineup = lineupId is { } picked ? LineupOptions.First(o => o.Id == picked) : StratLineupOption.None;
+        // A null technique is the most thrown one, shown selected without being written.
+        Sync(Techniques, choice?.Techniques ?? []);
+        Technique = Techniques.FirstOrDefault(t => string.Equals(t.Key, step.Utility?.Technique, StringComparison.Ordinal))
+                    ?? Techniques.FirstOrDefault();
 
         OnPropertyChanged(nameof(Number));
         RaiseShown();
     }
 
+    private static void Sync<T>(ObservableCollection<T> target, IReadOnlyList<T> items)
+    {
+        if (target.SequenceEqual(items))
+        {
+            return;
+        }
+
+        target.Clear();
+        foreach (T item in items)
+        {
+            target.Add(item);
+        }
+    }
+
     private void RaiseShown()
     {
+        OnPropertyChanged(nameof(ShowTechnique));
         OnPropertyChanged(nameof(ShowFrom));
         OnPropertyChanged(nameof(ShowTo));
         OnPropertyChanged(nameof(ShowUtility));
@@ -962,6 +1079,15 @@ public sealed partial class StratStepRow : ObservableObject
         if (value is not null && UtilityKind != StratEditorViewModel.None)
         {
             _owner.ChangeLineup(_index, value.Id);
+        }
+    }
+
+    // Guarded like the lineup combo: resetting the items pushes null, which is not the user's choice.
+    partial void OnTechniqueChanged(StratTechniqueOption? value)
+    {
+        if (value is not null && UtilityKind != StratEditorViewModel.None)
+        {
+            _owner.ChangeTechnique(_index, value.Key, Techniques.FirstOrDefault()?.Key);
         }
     }
 

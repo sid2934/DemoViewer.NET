@@ -8,8 +8,20 @@ using DemoViewer.NET.Services.Strats;
 
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
+/// <summary>One lineup of a grouped map with what a picker shows for it.</summary>
+/// <param name="Lineup">The lineup.</param>
+/// <param name="Title">Its landing group's card title (<see cref="LineupClipPlanner.Title" />).</param>
+/// <param name="Kind">What is thrown.</param>
+public sealed record MapLineup(GrenadeLineup Lineup, string Title, GrenadeKind Kind);
+
+/// <summary>A grouped map: every lineup once, most thrown first, and each by every id that names it.</summary>
+/// <param name="Lineups">Every lineup once.</param>
+/// <param name="ById">Each lineup by its id and every alias id.</param>
+public sealed record MapLineups(IReadOnlyList<MapLineup> Lineups, IReadOnlyDictionary<Guid, MapLineup> ById);
+
 /// <summary>
-///     A map's lineups by every id that names them, alias ids included, for <see cref="ThrowOriginResolver" />.
+///     A map's lineups by every id that names them, alias ids included, for <see cref="ThrowOriginResolver" />
+///     and the strat editor's lineup choices.
 ///     A map is grouped once off the UI thread and kept until the index changes; a lookup before that answers
 ///     null and <see cref="Changed" /> fires when the map is ready.
 /// </summary>
@@ -17,7 +29,7 @@ public sealed class LineupOriginSource : IDisposable
 {
     private readonly GrenadeIndex _index;
     private readonly Lock _gate = new();
-    private readonly Dictionary<string, Dictionary<Guid, GrenadeLineup>> _maps = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MapLineups> _maps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<Action> _post;
     private readonly HashSet<string> _pending = new(StringComparer.OrdinalIgnoreCase);
     private int _generation;
@@ -55,17 +67,29 @@ public sealed class LineupOriginSource : IDisposable
             return null;
         }
 
-        Dictionary<Guid, GrenadeLineup>? lineups;
-        lock (_gate)
+        return For(map)?.ById.TryGetValue(id, out MapLineup? found) == true ? PlacementOf(found.Lineup, utility.Technique, levelFor) : null;
+    }
+
+    /// <summary>The map's grouped lineups, or null while it is being grouped (<see cref="Changed" /> fires when ready).</summary>
+    /// <param name="map">The map.</param>
+    public MapLineups? For(string map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (map.Length == 0)
         {
-            if (!_maps.TryGetValue(map, out lineups))
-            {
-                Warm(map);
-                return null;
-            }
+            return null;
         }
 
-        return lineups.TryGetValue(id, out GrenadeLineup? lineup) ? PlacementOf(lineup, utility.Technique, levelFor) : null;
+        lock (_gate)
+        {
+            if (_maps.TryGetValue(map, out MapLineups? lineups))
+            {
+                return lineups;
+            }
+
+            Warm(map);
+            return null;
+        }
     }
 
     /// <summary>The technique's mean release point, on the level of its Z, facing the representative throw's yaw.</summary>
@@ -106,6 +130,29 @@ public sealed class LineupOriginSource : IDisposable
         return byId;
     }
 
+    /// <summary>Every lineup of a query result once, with its title, keyed by each id that names it.</summary>
+    /// <param name="clusters">The map's query result.</param>
+    public static MapLineups Build(IReadOnlyList<GrenadeCluster> clusters)
+    {
+        ArgumentNullException.ThrowIfNull(clusters);
+        List<MapLineup> all = [.. clusters.SelectMany(c => c.Lineups.Select(l => new MapLineup(l, LineupClipPlanner.Title(c), c.Kind)))];
+        Dictionary<Guid, MapLineup> byId = [];
+        foreach (MapLineup entry in all)
+        {
+            byId[entry.Lineup.Id] = entry;
+        }
+
+        foreach (MapLineup entry in all)
+        {
+            foreach (Guid alias in entry.Lineup.AliasIds)
+            {
+                byId.TryAdd(alias, entry);
+            }
+        }
+
+        return new MapLineups(all, byId);
+    }
+
     /// <summary>
     ///     Groups a map now, on the caller's thread, again while the index changes under it. For tests and a
     ///     caller already off the UI thread.
@@ -122,7 +169,7 @@ public sealed class LineupOriginSource : IDisposable
                 generation = _generation;
             }
 
-            Dictionary<Guid, GrenadeLineup> lineups = ByAnyId(_index.Query(new GrenadeQuery(map)));
+            MapLineups lineups = Build(_index.Query(new GrenadeQuery(map)));
             lock (_gate)
             {
                 if (generation == _generation)
