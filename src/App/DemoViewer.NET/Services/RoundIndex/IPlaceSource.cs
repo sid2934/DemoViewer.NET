@@ -98,6 +98,14 @@ public interface IZonePlaceResolver
     /// <summary>The places sharing a nav connection with <paramref name="place" />; empty for an unknown place.</summary>
     /// <param name="place">A raw place name.</param>
     IReadOnlySet<string> Adjacent(string place);
+
+    /// <summary>
+    ///     The centre of a place on a floor, or over all its floors when it has no areas on that one; null for a
+    ///     place the map lacks. Answers from memory.
+    /// </summary>
+    /// <param name="place">A raw place name.</param>
+    /// <param name="floorKey">The floor's key: <c>MapSpace.QuantizeZ</c> of the band's lower Z.</param>
+    (double X, double Y)? PlaceCentre(string place, double floorKey) => null;
 }
 
 /// <summary>Finds a map's zone resolver, or none when the map has no <c>zones.json</c>.</summary>
