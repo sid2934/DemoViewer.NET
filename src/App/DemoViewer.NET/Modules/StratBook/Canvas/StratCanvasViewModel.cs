@@ -895,8 +895,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             Task<IZonePlaceResolver?> places = PlacesFor(map, false);
             if (!places.IsCompleted)
             {
-                places.ContinueWith(_ => _post(() => OnPlacesLoaded(map)), CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                places.ContinueWith(t =>
+                {
+                    if (t is { IsCompletedSuccessfully: true, Result: not null })
+                    {
+                        _post(() => OnPlacesLoaded(map));
+                    }
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             }
         }
 
