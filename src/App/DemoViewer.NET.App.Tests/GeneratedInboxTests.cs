@@ -143,6 +143,42 @@ public class GeneratedInboxTests
     }
 
     [Test]
+    [Arguments("squad:ME,1,2,3", "squad:ME,1,2,4", true)]
+    [Arguments("squad:ME,1,2,3", "squad:ME,1,2,3,4", true)]
+    [Arguments("squad:ME,1,2,3", "squad:ME,1,4,5", false)]
+    [Arguments("squad:ME,1", "squad:ME,2", false)]
+    [Arguments("roster:T:R:6", "roster:T:R:6,8", true)]
+    [Arguments("roster:T:R:6", "roster:T:R:8", false)]
+    [Arguments("roster:T:R:6", "roster:T:Q:6", false)]
+    [Arguments("merge:A:B", "merge:A:C", false)]
+    public async Task ADismissal_HoldsASuggestion_WhoseSteamIdsDifferByOne(string dismissed, string offered, bool held)
+    {
+        TeamsFile teams = new() { Me = new MeAccounts { SteamIds = ["ME"] }, DismissedSuggestions = [dismissed] };
+        TeamSuggestion suggestion = new() { Id = offered, Kind = TeamSuggestionKind.Squad };
+        await Assert.That(TeamSuggestions.IsDismissed(suggestion, teams)).IsEqualTo(held);
+    }
+
+    [Test]
+    public async Task ASquadDismissal_FollowsTheSquad_WhenOnePlayerChanges()
+    {
+        (TeamIdentityService service, _) = await Teams();
+        TeamSuggestion squad = service.Suggestions.Single(s => s.Kind == TeamSuggestionKind.Squad);
+        string drifted = squad.Id + "," + Ids(99)[0];
+
+        service.DismissSuggestion(drifted);
+        using (Assert.Multiple())
+        {
+            await Assert.That(service.Suggestions.Any(s => s.Kind == TeamSuggestionKind.Squad)).IsFalse()
+                .Because("a dismissal of the squad with one more player still holds");
+            await Assert.That(service.DismissedSuggestions.Select(s => s.Id)).Contains(squad.Id);
+        }
+
+        service.RestoreSuggestion(squad.Id);
+        await Assert.That(service.Suggestions.Select(s => s.Id)).Contains(squad.Id)
+            .Because("Restore lifts every dismissal holding it, the carried one included");
+    }
+
+    [Test]
     public async Task TheTeamsInbox_ListsADismissal_UnderSettled_WithRestore()
     {
         (TeamIdentityService service, DemoCacheStore cache) = await Teams();

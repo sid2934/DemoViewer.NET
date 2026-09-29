@@ -255,7 +255,7 @@ public sealed class TeamIdentityService : IDisposable
                 return;
             }
 
-            List<string> holding = [.. TeamSuggestions.DismissalsOf(suggestion, _teams.DismissedSuggestions)];
+            List<string> holding = [.. TeamSuggestions.DismissalsOf(suggestion, _teams)];
             _teams.DismissedSuggestions.RemoveAll(holding.Contains);
             ComputeSuggestions();
             SaveTeams();
@@ -264,11 +264,22 @@ public sealed class TeamIdentityService : IDisposable
         RaiseChanged();
     }
 
-    // Under _gate.
+    // Under _gate. A suggestion held back by a near match takes its own id into the file, so the dismissal
+    // follows it through the next change too.
     private void ComputeSuggestions()
     {
         Suggestions = TeamSuggestions.Compute(_teams, _index);
         DismissedSuggestions = TeamSuggestions.Dismissed(_teams, _index);
+        List<string> carried =
+        [
+            .. DismissedSuggestions.Select(s => s.Id)
+                .Where(id => !_teams.DismissedSuggestions.Contains(id, StringComparer.Ordinal))
+        ];
+        if (carried.Count > 0)
+        {
+            _teams.DismissedSuggestions.AddRange(carried);
+            SaveTeams();
+        }
     }
 
     /// <summary>Visible teams, in file order.</summary>
