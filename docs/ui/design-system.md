@@ -415,8 +415,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 ### Strat step row (the Strats editor)
 - **Files:** the `StepRows` template in `Views/StratBook/StratBookTabView.axaml`, `StratStepRow` in
   `ViewModels/StratBook/StratEditorViewModel.cs`, the table in `Services/Strats/StratStepFields.cs`.
-- **Layout:** line one is `#`, at, actor and verb in fixed columns (20, 56, 64, 84) with move up, move down and
-  remove (`.icon-btn`) on the right; line two is a `WrapPanel` of label-over-field pairs indented under "at".
+- **Layout:** line one is `#`, at, actor and verb in fixed columns (20, 56, 64, 84) with move up and move down
+  stacked (`.icon-btn.stepMove`, 15 px each), duplicate and remove (`.icon-btn`) on the right; line two is a
+  `WrapPanel` of label-over-field pairs indented under "at". At 1280 with the rail and the list open the editor is
+  315 px and line one fills it: a fifth button or a wider column needs room taken from somewhere else.
   The editor's `ScrollViewer` has `HorizontalScrollBarVisibility="Disabled"`; every row in it must wrap or
   shrink (metadata is a `WrapPanel` of 132 px pairs, slots are `44,*,Auto,*`, record rows `*,32,...,64`).
   `StratEditorRoomTests` walks the editor's fields at 1280 wide and fails on any right edge past the viewport.
@@ -457,6 +459,40 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   the others; a stored null technique shows the most thrown one without writing it, and the burst compares with
   that effective value, so wheeling back to the most thrown leaves no explicit copy. "Pick on map" sits last in the
   wrap and opens the lineup picker.
+- **New step and duplicate:** Add step, and Enter, insert after the row focus was last in, or at the end, 5 s later
+  on the round clock than the step before, held between its neighbours and no earlier than -1:00 unless that step
+  already is, so it is never refused. The new step is a move by `all` that starts with every token written where
+  the projection has it at the step before, and no strokes (`StepAuthoringPatches.AddCarriedStep`, which the
+  canvas's Add step uses too). A copy, not a reference: the stationary rule would show the same places without one,
+  but then a later drag on the earlier step would move the new step's tokens too. A thrower whose lineup resolves
+  is written at the lineup origin (level on the canvas's floors, the throw's yaw); an unresolved lineup (still
+  grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
+  the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
+  ids), a fresh step id, 5 s later held before the next step. Each is one undo entry and focuses the new row's time.
+- **Inline checks:** each row marks the validator's warnings and refusals beside the field their pointer names
+  (`StratStepRow.SetIssues`): a `⚠` in `AccentCaution` for a warning, a filled `!` badge on `AccentError` for a
+  refusal, the message in the tooltip, and every message again as a text line under the row for keyboard and
+  screen-reader users. Place fields carry the marker after their label; at, actor and verb on the field's top right
+  corner. An issue about the step itself (`/positions`, `/interpolation`, unknown fields), or about a field the row
+  hides (a technique warning while the "thrown" combo is hidden), marks the number. Infos stay in the Checks list
+  only. `StratSession.Issues` validates at most once per document version, with the commit's rules, so the rows and
+  the bottom Checks summary always agree; text fields write on focus loss, so a strat is validated per edit, never
+  per keystroke. A lineup id is checked against `LineupOriginSource`'s grouping of the map (`LineupLookup`, from
+  memory): "not checked" (an info) while the map groups, a warning on the lineup field once it is grouped and the id
+  does not resolve. The grouping landing invalidates the cached issues.
+- **Keys** (`StratBookTabView.axaml.cs`, a tunnel handler on `StepRows`, so a field does not see them first):
+
+  | Key | Where | Does |
+  |---|---|---|
+  | Enter | a single-line field, or the row | commits the field, adds a step after the row |
+  | Ctrl+D | anywhere in the row but an open combo | commits the field, duplicates the row |
+  | Delete | the row itself, never inside a field | removes the row (and its branches); focus stays at that index |
+  | Escape | a field | leaves the field for its row, committing it |
+  | Alt+Up / Alt+Down | a field or the row, not a combo (Alt+Down opens one) | moves the row |
+  | Tab | | the visible fields left to right, then the next row's time |
+
+  The row is the item container: focusable, not a Tab stop, bordered `AccentInteractive` while it has focus. The row
+  buttons are not Tab stops either (the keys above do their jobs), so Tab never stops between two rows' fields.
 
 ### Lineup picker (the Strats editor)
 - **Files:** `ViewModels/StratBook/LineupPickerViewModel.cs`, `Views/StratBook/LineupPickerView.axaml`, the

@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
@@ -21,10 +23,12 @@ namespace DemoViewer.NET.UiCapture;
 /// </summary>
 public static partial class Variants
 {
-    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false)
+    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false,
+        Action<StratBookTabViewModel>? configure = null)
     {
         StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
         StratBookTabViewModel strats = SeededStratBook(layout, bare);
+        configure?.Invoke(strats);
         StratBookHubViewModel hub = new(layout);
 
         List<WorkspaceTabDescriptor> sections =
@@ -53,6 +57,26 @@ public static partial class Variants
         hub.Sections.Reconcile(sections);
         hub.OnActivated(new StillContext());
         return new StratBookHubView { DataContext = hub };
+    }
+
+    // The step rows' inline checks: a move with no destination (warning beside "to") and a step whose time runs
+    // backwards (refusal beside "at"), scrolled into the editor's view.
+    private static StratBookHubView StratEditorChecks()
+    {
+        StratBookHubView hub = StratEditor(true, true, configure: strats =>
+        {
+            strats.Editor.AddStepCommand.Execute(strats.Editor.Steps[0]);
+            strats.Session.Apply(PatchOp.ReplaceOp("/steps/3/atSeconds", null, JsonValue.Create(112.0)));
+        });
+
+        hub.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (hub.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault(c => c.Name == "StepRows") is { } rows)
+            {
+                rows.BringIntoView();
+            }
+        });
+        return hub;
     }
 
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)

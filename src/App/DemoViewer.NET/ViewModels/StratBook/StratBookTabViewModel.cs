@@ -167,10 +167,17 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             ? null
             : (map, asset) => new UtilityBookTabViewModel(grenades, loadMapAsset: _ => asset, lockedMap: map, ownsMapAsset: false,
                 background: work => Task.Run(work), post: _post));
-        Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins));
+        // A new step carries a thrower at the origin the canvas shows, on the canvas's floors.
+        Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins),
+            _lineupOrigins is { } origins
+                ? (map, utility) => origins.Resolve(map, utility, StratFromRound.FloorLevelKeys(Canvas?.MapAsset?.Floors))
+                : null);
         if (_lineupOrigins is not null)
         {
-            _lineupOrigins.Changed += Editor.Project;
+            // A map not grouped yet answers null, so the validator keeps "not checked" until it is; For only
+            // reads the cache and starts the grouping off the UI thread.
+            Session.LineupLookup = map => _lineupOrigins.For(map) is { } lineups ? (_, id) => lineups.ById.ContainsKey(id) : null;
+            _lineupOrigins.Changed += OnLineupsChanged;
         }
 
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
@@ -418,7 +425,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         CancelLineupPicker();
         if (_lineupOrigins is not null)
         {
-            _lineupOrigins.Changed -= Editor.Project;
+            _lineupOrigins.Changed -= OnLineupsChanged;
             _lineupOrigins.Dispose();
         }
 
@@ -910,6 +917,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
 
     private void OnDemoReset() => Session.Commit();
+
+    // A map finished grouping: lineup ids there can now be checked, and the rows can name them.
+    private void OnLineupsChanged()
+    {
+        Session.InvalidateIssues();
+        Editor.Project();
+    }
 
     private void OnSessionChanged()
     {
