@@ -60,6 +60,50 @@ public class ForwardQueueTests
             onForward ?? (_ => { }), needs);
 
     [Test]
+    public async Task ABackgroundForwardPass_StoppedForAUserJob_RestartsAfterIt_AndItsOwnerGetsTheResult()
+    {
+        int passes = 0;
+        using ManualResetEventSlim firstStarted = new();
+        List<string> order = [];
+        using DemoProcessingQueue queue = Queue((_, _, _, ct) =>
+        {
+            if (Interlocked.Increment(ref passes) == 1)
+            {
+                firstStarted.Set();
+                ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                ct.ThrowIfCancellationRequested();
+            }
+
+            lock (order)
+            {
+                order.Add("forward");
+            }
+
+            return Pass();
+        });
+        bool delivered = false;
+        IDemoQueueHandle forward = queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules, _ => delivered = true));
+        firstStarted.Wait(TimeSpan.FromSeconds(5));
+        queue.SubmitJob(new QueueJobRequest(QueueJobKind.PackExport, "user", "test", DemoJobPriority.UserRequested, _ =>
+        {
+            lock (order)
+            {
+                order.Add("user");
+            }
+
+            return Task.CompletedTask;
+        }));
+        await forward.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+        using (Assert.Multiple())
+        {
+            await Assert.That(string.Join(",", order)).IsEqualTo("user,forward");
+            await Assert.That(passes).IsEqualTo(2).Because("a forward pass is not resumable, so it restarts");
+            await Assert.That(delivered).IsTrue();
+            await Assert.That(forward.State).IsEqualTo(DemoQueueItemState.Completed);
+        }
+    }
+
+    [Test]
     public async Task ForwardOnlyEntry_NeverMaterializesAParsedDemo()
     {
         int passes = 0;
