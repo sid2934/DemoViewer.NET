@@ -68,6 +68,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         QueueJobKind.SectionCompute => "section",
         QueueJobKind.TeamsCommand => "teams",
         QueueJobKind.LibraryScan => "library",
+        QueueJobKind.DemoOpen => "open",
         _ => ""
     };
 
@@ -83,8 +84,10 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     /// <summary>The running job's latest detail ("48 of 366 demos").</summary>
     public string Detail => _item.Detail ?? "";
 
-    /// <summary>Shown while running.</summary>
-    public bool HasDetail => _item.State == DemoQueueItemState.Running && !string.IsNullOrEmpty(_item.Detail);
+    /// <summary>Shown while running, and while an open waits (it says what for).</summary>
+    public bool HasDetail => (_item.State == DemoQueueItemState.Running
+                              || (_item.State == DemoQueueItemState.Queued && _item.Kind == QueueJobKind.DemoOpen))
+                             && !string.IsNullOrEmpty(_item.Detail);
 
     /// <summary>Short priority label, shown only when the item is elevated above routine background work.</summary>
     public string PriorityLabel => _item.Priority switch
@@ -94,8 +97,8 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         _ => ""
     };
 
-    /// <summary>True for UserRequested/Foreground: routine Background work shows no priority chip (noise).</summary>
-    public bool HasElevatedPriority => _item.Priority != DemoJobPriority.Background;
+    /// <summary>True for UserRequested/Foreground: routine Background work and an open, whose kind chip says it, show none.</summary>
+    public bool HasElevatedPriority => _item.Priority != DemoJobPriority.Background && _item.Kind != QueueJobKind.DemoOpen;
 
     /// <summary>The lifecycle word: the accessible carrier of state (the dot is the redundant colour cue).</summary>
     public string StateLabel => _item.State switch
