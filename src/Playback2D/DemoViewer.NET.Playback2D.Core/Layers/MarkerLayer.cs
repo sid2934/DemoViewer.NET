@@ -25,6 +25,7 @@ public sealed class MarkerLayer : ISceneLayer
     private readonly SKPaint _label;
     private readonly bool _ownsText;
     private readonly SKPaint _ring;
+    private readonly SKPath _wedge = new();
     private readonly TextBlobCache _text;
 
     /// <summary>Creates the layer.</summary>
@@ -133,6 +134,7 @@ public sealed class MarkerLayer : ISceneLayer
     {
         _fill.Dispose();
         _cone.Dispose();
+        _wedge.Dispose();
         _heading.Dispose();
         _ring.Dispose();
         _label.Dispose();
@@ -207,7 +209,8 @@ public sealed class MarkerLayer : ISceneLayer
     private void DrawCone(SKCanvas canvas, float cx, float cy, float yawDegrees, SKColor team)
     {
         const float reach = SceneDefaults.MarkerRadius + SceneDefaults.MarkerConeLength;
-        using SKPath wedge = new();
+        SKPath wedge = _wedge;
+        wedge.Rewind();
         wedge.MoveTo(cx, cy);
 
         // Screen Y is inverted, so a world yaw of a turns the screen arc by -a.
