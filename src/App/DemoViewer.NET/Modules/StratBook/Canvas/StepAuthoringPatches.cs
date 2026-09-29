@@ -281,8 +281,8 @@ public static class StepAuthoringPatches
     }
 
     /// <summary>
-    ///     A landing set on the map: the point, its level key and the place under it, as one op. A point with no
-    ///     place drops the stored place, which named where the grenade used to land. Needs the step's utility.
+    ///     A landing set on the map: the point, its level key and the place given, as one op; nothing when the stored
+    ///     landing already says so. A null place drops the stored one. Needs the step's utility.
     /// </summary>
     /// <param name="document">The strat.</param>
     /// <param name="stepIndex">The step.</param>
@@ -295,6 +295,12 @@ public static class StepAuthoringPatches
     {
         ArgumentNullException.ThrowIfNull(document);
         UtilityLanding? stored = document.Steps[stepIndex].Utility?.Landing;
+        if (stored is not null && string.Equals(stored.Place, place, StringComparison.Ordinal) && stored.X == Round(x)
+            && stored.Y == Round(y) && stored.LevelMinZ == levelMinZ)
+        {
+            return [];
+        }
+
         UtilityLanding landing = stored is null ? new UtilityLanding() : Clone(stored, StratJsonContext.Default.UtilityLanding);
         landing.Place = place;
         landing.X = Round(x);
