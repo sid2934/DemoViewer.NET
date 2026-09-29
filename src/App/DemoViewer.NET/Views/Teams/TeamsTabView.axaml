@@ -66,7 +66,12 @@
                 BorderBrush="{DynamicResource BorderSubtle}"
                 BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 12">
             <StackPanel Spacing="6">
-                <TextBlock Text="Suggestions" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Suggestions" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11"
+                               VerticalAlignment="Center" />
+                    <CheckBox Content="{Binding SettledLabel}" FontSize="11" IsChecked="{Binding ShowSettled}"
+                              ToolTip.Tip="Also list the suggestions you dismissed" />
+                </StackPanel>
                 <ItemsControl ItemsSource="{Binding Suggestions}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SuggestionRow">
@@ -74,10 +79,16 @@
                                 <TextBlock Grid.Column="0" Text="{Binding Text}" FontSize="12" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
                                 <Button Grid.Column="1" Content="Accept" Classes="ghost" FontSize="11" Padding="10 5"
+                                        IsVisible="{Binding !IsDismissed}"
                                         Command="{Binding $parent[UserControl].((vm:TeamsTabViewModel)DataContext).AcceptSuggestionCommand}"
                                         CommandParameter="{Binding}" />
                                 <Button Grid.Column="2" Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5"
+                                        IsVisible="{Binding !IsDismissed}"
                                         Command="{Binding $parent[UserControl].((vm:TeamsTabViewModel)DataContext).DismissSuggestionCommand}"
+                                        CommandParameter="{Binding}" />
+                                <Button Grid.Column="2" Content="Restore" Classes="ghost" FontSize="11" Padding="10 5"
+                                        IsVisible="{Binding IsDismissed}"
+                                        Command="{Binding $parent[UserControl].((vm:TeamsTabViewModel)DataContext).RestoreSuggestionCommand}"
                                         CommandParameter="{Binding}" />
                             </Grid>
                         </DataTemplate>

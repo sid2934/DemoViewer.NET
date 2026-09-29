@@ -99,11 +99,22 @@ public static class TeamSuggestions
     /// <summary>Every pending suggestion, dismissed ones left out.</summary>
     /// <param name="teams">The user file.</param>
     /// <param name="index">The derived index.</param>
-    public static IReadOnlyList<TeamSuggestion> Compute(TeamsFile teams, TeamIndexFile index)
+    public static IReadOnlyList<TeamSuggestion> Compute(TeamsFile teams, TeamIndexFile index) =>
+        [.. ComputeAll(teams, index).Where(s => !IsDismissed(s, teams.DismissedSuggestions))];
+
+    /// <summary>The suggestions the user dismissed that still hold: what "Show settled" lists, with Restore.</summary>
+    /// <param name="teams">The user file.</param>
+    /// <param name="index">The derived index.</param>
+    public static IReadOnlyList<TeamSuggestion> Dismissed(TeamsFile teams, TeamIndexFile index) =>
+        [.. ComputeAll(teams, index).Where(s => IsDismissed(s, teams.DismissedSuggestions))];
+
+    /// <summary>Every suggestion the files support, dismissed or not.</summary>
+    /// <param name="teams">The user file.</param>
+    /// <param name="index">The derived index.</param>
+    public static IReadOnlyList<TeamSuggestion> ComputeAll(TeamsFile teams, TeamIndexFile index)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(index);
-        HashSet<string> dismissed = new(teams.DismissedSuggestions, StringComparer.Ordinal);
         List<TeamSuggestion> all = [];
         if (Squad(teams, index) is { } squad)
         {
@@ -112,8 +123,20 @@ public static class TeamSuggestions
 
         all.AddRange(RosterChanges(teams, index));
         all.AddRange(MergesByTag(teams));
-        return [.. all.Where(s => !dismissed.Contains(s.Id))];
+        return all;
     }
+
+    /// <summary>The dismissed ids that hold <paramref name="suggestion" /> back.</summary>
+    /// <param name="suggestion">The suggestion.</param>
+    /// <param name="dismissed">The user file's dismissed ids.</param>
+    public static IEnumerable<string> DismissalsOf(TeamSuggestion suggestion, IEnumerable<string> dismissed) =>
+        dismissed.Where(id => string.Equals(id, suggestion.Id, StringComparison.Ordinal));
+
+    /// <summary>Whether a dismissal holds <paramref name="suggestion" /> back.</summary>
+    /// <param name="suggestion">The suggestion.</param>
+    /// <param name="dismissed">The user file's dismissed ids.</param>
+    public static bool IsDismissed(TeamSuggestion suggestion, IEnumerable<string> dismissed) =>
+        DismissalsOf(suggestion, dismissed).Any();
 
     /// <summary>
     ///     The players on your side of each demo you played, with their counts, you excluded. What the
