@@ -105,15 +105,18 @@ The owner approved decisions 1 to 8 and 10 as recommended, with a Suggested sect
   verdict. Dossier stars stay in view: the editor is where findings become the dossier.
 - **Restore for rejected suggestions (3).** Restore turns the rejection into a `restored` verdict, read as no
   verdict: the proposal is pending, can re-match, counts as pending in tuning, and its next verdict replaces
-  it.
+  it. An older build reads `restored` as an unknown verdict: the proposal stays settled there and the value
+  survives, so nothing is lost.
 - **Suggested section (4).** Described in `docs/ui/design-system.md`.
 - **A deleted mined strat (5).** Its pattern is new again, and a queue item removes the run tags its promotion
-  wrote (suggested, detector `strat-mining`, that strat's label). The strat file still goes to `.trash`; the
+  wrote (suggested, detector `strat-mining`, that strat's label), unless the strat is back in the store by the
+  time the item runs. The strat file still goes to `.trash`; the
   runs do not come back with it.
 - **Labels tab (6).** "Yours (n)" and "From suggestions (n)".
 - **Team suggestion drift (7).** A dismissal holds a squad or roster suggestion whose SteamIDs share one player
-  and differ by at most one (your accounts left out of squads; rosters within their team and roster). The held
-  suggestion's id is added to the file so the dismissal follows it; Restore lifts all of them.
+  and differ by at most one (your accounts left out of squads; rosters within their team and roster). Only the
+  dismissed set is stored and every suggestion is judged against it, so drift cannot walk a dismissal away from
+  every player it named. Restore lifts the dismissals holding it.
 - **"Is this you?" (8).** Dismiss beside "Yes, that is me", stored as `me:<SteamID64>`, restored from the
   Teams inbox's settled list.
 - **No reviewed state outside Review clips (10).** `GeneratedState` is new, dismissed or accepted.
