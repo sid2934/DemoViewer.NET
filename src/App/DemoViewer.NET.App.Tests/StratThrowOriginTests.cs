@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using System.Numerics;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Modules.UtilityBook;
@@ -63,6 +64,46 @@ public class StratThrowOriginTests
                 .Because("the authored position stays in the file");
         }
     }
+
+    [Test]
+    public async Task ACanvasOpenedBeforeTheMapIsGrouped_MovesTheThrower_WhenTheGroupingLands()
+    {
+        (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
+        ConcurrentQueue<Action> posted = new();
+        using LineupOriginSource origins = new(index, posted.Enqueue);
+
+        StratDocument document = FiveSteps();
+        document.Steps[2].Verb = "throw";
+        document.Steps[2].Actor = "B";
+        document.Steps[2].Utility = new UtilityRef { Kind = "smoke", LineupId = lineup.Id };
+        (StratStore store, StratSession session) = Opened(document);
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+            lineupOrigins: origins);
+
+        TokenKeyframe before = BAt(canvas);
+        for (int i = 0; i < 500 && posted.IsEmpty; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        while (posted.TryDequeue(out Action? action))
+        {
+            action();
+        }
+
+        WorldPoint expected = GrenadeLineups.TechniqueFor(lineup, null)!.Origin;
+        TokenKeyframe after = BAt(canvas);
+        using (Assert.Multiple())
+        {
+            await Assert.That(before.X).IsEqualTo(100f).Because("the map is still grouping: the authored spot");
+            await Assert.That(before.Y).IsEqualTo(900f);
+            await Assert.That(after.X).IsEqualTo(expected.X);
+            await Assert.That(after.Y).IsEqualTo(expected.Y);
+        }
+    }
+
+    private static TokenKeyframe BAt(StratCanvasViewModel canvas) =>
+        canvas.Projection!.Tracks.Single(t => t.Slot == "B").Keyframes.Single(k => k.Tick == StepThreeTick);
 
     [Test]
     public async Task TheLineupOrigin_WinsOverAnAuthoredPosition_AndTheTechniquePicksTheOrigin()
