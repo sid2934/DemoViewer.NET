@@ -63,6 +63,10 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         QueueJobKind.SidecarMigration => "migration",
         QueueJobKind.PackExport => "pack export",
         QueueJobKind.HeapCompaction => "memory",
+        QueueJobKind.StoreSave => "save",
+        QueueJobKind.StoreLoad => "load",
+        QueueJobKind.SectionCompute => "section",
+        QueueJobKind.TeamsCommand => "teams",
         _ => ""
     };
 

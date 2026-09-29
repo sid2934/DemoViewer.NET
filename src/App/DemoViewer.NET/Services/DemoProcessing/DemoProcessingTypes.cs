@@ -54,7 +54,19 @@ public enum QueueJobKind
     SuggestionsInbox,
 
     /// <summary>The heap compaction after the queue drains.</summary>
-    HeapCompaction
+    HeapCompaction,
+
+    /// <summary>A store writing its file. Light: needs no heavy slot and runs beside a parse.</summary>
+    StoreSave,
+
+    /// <summary>A store reading its file at startup. Light.</summary>
+    StoreLoad,
+
+    /// <summary>A section building what it shows. Light.</summary>
+    SectionCompute,
+
+    /// <summary>A Team Identity command the user gave. Light.</summary>
+    TeamsCommand
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
@@ -165,6 +177,7 @@ public interface IQueueJobContext
 /// </param>
 /// <param name="Target">A file the item is about (the row tooltip), or null.</param>
 /// <param name="OrderHint">Within a priority and kind, higher = sooner.</param>
+/// <param name="ReplacePending">A keyed submit replaces the queued item's work instead of keeping the first.</param>
 public sealed record QueueJobRequest(
     QueueJobKind Kind,
     string Title,
@@ -173,7 +186,8 @@ public sealed record QueueJobRequest(
     Func<IQueueJobContext, Task> RunAsync,
     string? Key = null,
     string? Target = null,
-    long OrderHint = 0);
+    long OrderHint = 0,
+    bool ReplacePending = false);
 
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
