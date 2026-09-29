@@ -44,6 +44,9 @@ public enum QueueJobKind
     /// <summary>A Strat Mining pass over the library's cached files.</summary>
     StratMining,
 
+    /// <summary>Building one detected pattern's strat for the Detected preview, from cached files.</summary>
+    StratPreview,
+
     /// <summary>One demo's batch of Lineup Clip GIFs.</summary>
     LineupClips,
 

@@ -9,6 +9,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Strats.Mining;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
@@ -284,6 +285,39 @@ public class StratMiningCacheTests
             .IsEqualTo(DemoQueueItemState.Completed);
         await Idle(queue);
         await Assert.That(gate.InFlight).IsEqualTo(0).Because("the slot is released after the mine");
+    }
+
+    [Test]
+    public async Task APreview_IsItsOwnQueueItem_AndLeavesMiningAlone()
+    {
+        using Library library = Library.Create();
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = RealQueue(gate);
+        using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
+            library.Strats, library.Tags, null, null, queue: queue) { QuietDelay = Timeout.InfiniteTimeSpan };
+        await service.MineAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
+
+        Task<StratDocument?> preview;
+        using (await gate.AcquireBackgroundAsync())
+        {
+            preview = service.PreviewAsync(execute, StratOwner.Me(), DateTime.UtcNow);
+            await Task.Delay(300);
+            await Assert.That(preview.IsCompleted).IsFalse().Because("a parse holds the only slot");
+            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.Kind == QueueJobKind.StratPreview);
+            await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
+            await Assert.That(service.IsMining).IsFalse().Because("a preview is not a mine");
+        }
+
+        StratDocument? doc = await preview.WaitAsync(TimeSpan.FromSeconds(10));
+        using (Assert.Multiple())
+        {
+            await Assert.That(doc?.Type).IsEqualTo("execute");
+            await Assert.That(library.Strats.Index).IsEmpty();
+            await Assert.That(service.IsMining).IsFalse();
+        }
+
+        await Idle(queue);
     }
 
     [Test]

@@ -5,6 +5,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
 
@@ -22,6 +23,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <summary>Seconds a member round opens before the take, so the approach is on screen.</summary>
     public const int ExecuteLeadSeconds = 10;
 
+    private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
     private readonly StratMiningService? _mining;
     private readonly Action<Guid> _openStrat;
     private readonly Func<ISituationPlayback?> _playback;
@@ -29,6 +31,12 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     private readonly Func<StratOwner?> _targetBook;
     private readonly Func<Guid, string?> _teamName;
     private (string? Map, string? Side, StratOwner? Owner) _filter;
+    private CancellationTokenSource? _previewCancel;
+
+    /// <summary>The open preview of the selected pattern, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewing), nameof(ShowPatternDetail))]
+    private StratPreviewViewModel? _preview;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
@@ -46,10 +54,13 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <param name="targetBook">The book Add to book writes into: the tab's selected book.</param>
     /// <param name="openStrat">Shows a strat in the book once it exists.</param>
     /// <param name="post">UI-thread marshal.</param>
+    /// <param name="mapLoader">The preview canvas's map loader; the baked assets when null.</param>
     public DetectedStratsViewModel(StratMiningService? mining, Func<ISituationPlayback?> playback, Func<Guid, string?> teamName,
-        Func<StratOwner?> targetBook, Action<Guid> openStrat, Action<Action>? post = null)
+        Func<StratOwner?> targetBook, Action<Guid> openStrat, Action<Action>? post = null,
+        Func<string?, LoadedMapAsset?>? mapLoader = null)
     {
         _mining = mining;
+        _mapLoader = mapLoader;
         _playback = playback;
         _teamName = teamName;
         _targetBook = targetBook;
@@ -69,6 +80,11 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
     public bool HasSelection => SelectedRow is not null;
 
+    public bool IsPreviewing => Preview is not null;
+
+    /// <summary>The pattern's own detail shows when a row is selected and no preview is open.</summary>
+    public bool ShowPatternDetail => SelectedRow is not null && Preview is null;
+
     public ObservableCollection<DetectedRowViewModel> Rows { get; } = [];
 
     /// <summary>Patterns shown and not dismissed: the count on the toggle.</summary>
@@ -76,6 +92,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
     public void Dispose()
     {
+        ClosePreview();
         if (_mining is not null)
         {
             _mining.Changed -= Refresh;
@@ -111,15 +128,100 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         Refresh();
     }
 
+    /// <summary>Discards the preview and any build still running for it.</summary>
+    public void ClosePreview()
+    {
+        _previewCancel?.Cancel();
+        _previewCancel?.Dispose();
+        _previewCancel = null;
+        StratPreviewViewModel? shown = Preview;
+        Preview = null;
+        shown?.Dispose();
+    }
+
+    /// <summary>
+    ///     Builds the strat the selected pattern would become through the same Build that Add to book saves, off the
+    ///     UI thread, and shows it read-only. Nothing is written.
+    /// </summary>
     [RelayCommand]
-    private void AddToBook()
+    private Task PreviewStrat() => Rebuild(null);
+
+    private async Task Rebuild(string? notice)
+    {
+        if (_mining is null || SelectedRow is not { StratId: null } row
+                            || _mining.Patterns.FirstOrDefault(p => p.Pattern.Key == row.Key)?.Pattern is not { } pattern)
+        {
+            return;
+        }
+
+        ClosePreview();
+        StratOwner owner = _targetBook() ?? StratOwner.Me();
+        StratPreviewViewModel preview = new(pattern, row.Title, _mapLoader, _post) { Notice = notice };
+        CancellationTokenSource cancel = new();
+        _previewCancel = cancel;
+        Preview = preview;
+        CancellationToken token = cancel.Token;
+
+        StratDocument? built;
+        try
+        {
+            built = await _mining.PreviewAsync(pattern, owner, DateTime.UtcNow, token);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            built = null;
+        }
+
+        _post(() =>
+        {
+            if (ReferenceEquals(Preview, preview) && !token.IsCancellationRequested)
+            {
+                preview.Show(built);
+            }
+        });
+    }
+
+    [RelayCommand]
+    private void BackToDetected() => ClosePreview();
+
+    partial void OnSelectedRowChanged(DetectedRowViewModel? value)
+    {
+        // By key: Refresh rebuilds every row on each store or mining change and reselects the same pattern.
+        if (Preview is { } shown && shown.Key != value?.Key)
+        {
+            ClosePreview();
+        }
+
+        OnPropertyChanged(nameof(ShowPatternDetail));
+    }
+
+    [RelayCommand]
+    private async Task AddToBook()
     {
         if (_mining is null || SelectedRow is not { StratId: null } row || _targetBook() is not { } book)
         {
             return;
         }
 
-        StratDocument? doc = _mining.Promote(row.Key, book);
+        StratDocument? doc;
+        if (Preview is { IsReady: true, Document: { } built } preview)
+        {
+            PromoteResult result = _mining.Promote(preview.Pattern, built, book);
+            if (result.PatternChanged)
+            {
+                const string changed = "This pattern changed; review again.";
+                StatusLine = changed;
+                await Rebuild(changed);
+                return;
+            }
+
+            doc = result.Document;
+        }
+        else
+        {
+            doc = _mining.Promote(row.Key, book);
+        }
+
         StatusLine = doc is null
             ? "Could not build this strat: the round's cached files are gone. Find strats again."
             : $"Added \"{doc.Name}\" to the book.";

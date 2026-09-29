@@ -91,12 +91,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <param name="ticker">The transport's clock source; a dispatcher timer when omitted.</param>
     /// <param name="lookup">Reads another strat for a branch into it; null plays in-strat branches only.</param>
     /// <param name="keybindOverrides">The user's keymap rows; the settings file's when omitted.</param>
+    /// <param name="readOnly">Plays the strat without editing it: no tools, no token drag, no step edits.</param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
-        Func<IEnumerable<string>>? keybindOverrides = null)
+        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
         _keybindOverrides = keybindOverrides ?? SettingsOverrides;
@@ -144,6 +146,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public ObservableCollection<StratPathOption> PathOptions { get; } = [];
 
     public bool HasDocument => _session.Document is not null;
+
+    /// <summary>True when the canvas only plays: the Detected preview.</summary>
+    public bool IsReadOnly { get; }
 
     public bool HasBranches => PathOptions.Count > 1;
 
@@ -222,7 +227,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public PlaceResolver? Zones => null;
 
     /// <inheritdoc />
-    public ITokenEditor? TokenEditor => this;
+    public ITokenEditor? TokenEditor => IsReadOnly ? null : this;
 
     /// <inheritdoc />
     public event Action? FrameUpdated;
@@ -311,6 +316,18 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return false;
         }
 
+        // Handled, not ignored: an unhandled Ctrl+Z would bubble to the tab and undo the book's open strat.
+        if (IsReadOnly && action is not (Playback2DAction.TogglePlay or Playback2DAction.StepBack
+                or Playback2DAction.StepForward or Playback2DAction.SpeedUp or Playback2DAction.SpeedDown
+                or Playback2DAction.PrevStep or Playback2DAction.NextStep))
+        {
+            return action is Playback2DAction.Undo or Playback2DAction.Redo or Playback2DAction.ClearAnnotations
+                or Playback2DAction.AddStep or Playback2DAction.DuplicateStep or Playback2DAction.DeleteStep
+                or Playback2DAction.ToolDraw or Playback2DAction.ToolErase or Playback2DAction.ToolLine
+                or Playback2DAction.ToolArrow or Playback2DAction.ToolRect or Playback2DAction.ToolEllipse
+                or Playback2DAction.ToolText or Playback2DAction.ToolToken;
+        }
+
         switch (action)
         {
             case Playback2DAction.TogglePlay:
@@ -386,7 +403,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private void DeleteStep() => ExecuteAction(Playback2DAction.DeleteStep);
 
     [RelayCommand]
-    private void SelectTokenTool() => Annotations.SelectTool(ToolKind.Token);
+    private void SelectTokenTool()
+    {
+        if (!IsReadOnly)
+        {
+            Annotations.SelectTool(ToolKind.Token);
+        }
+    }
 
     /// <summary>The loader the canvas reads its map bundle with; the export loads its own copy through it.</summary>
     internal Func<string?, LoadedMapAsset?> MapLoader => _mapLoader;
@@ -825,6 +848,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
+        if (IsReadOnly)
+        {
+            Reproject();
+            return;
+        }
+
         try
         {
             _session.Apply(ops);
@@ -858,7 +887,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     // ── Steps ────────────────────────────────────────────────────────────────────────────────────
 
     private int? EditableActiveStep() =>
-        _projection is { } p && _activeIndex >= 0 && _activeIndex < p.Path.Count && p.Path[_activeIndex].Editable
+        !IsReadOnly && _projection is { } p && _activeIndex >= 0 && _activeIndex < p.Path.Count && p.Path[_activeIndex].Editable
             ? p.Path[_activeIndex].StepIndex
             : null;
 

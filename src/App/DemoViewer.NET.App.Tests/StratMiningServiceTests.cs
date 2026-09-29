@@ -38,7 +38,7 @@ public class StratMiningServiceTests
     // Places: 0 TSpawn, 1 Palace, 2 BombsiteA, 3 BombsiteB, 4 CTSpawn.
     private static int Place(float x, float y) => x >= 900 ? y >= 0 ? 2 : 3 : x > 300 ? 1 : 0;
 
-    private static DemoCacheRecord Record(int n, BombSite site)
+    internal static DemoCacheRecord Record(int n, BombSite site)
     {
         DemoCacheRecord record = new()
         {
@@ -80,7 +80,7 @@ public class StratMiningServiceTests
     }
 
     // The Ts walk from spawn to the site over 45 s and stay; the CTs hold. `jitter` moves one demo's walk a little.
-    private static RoundPositionsDocument Positions(int n, BombSite site, float jitter) => new()
+    internal static RoundPositionsDocument Positions(int n, BombSite site, float jitter) => new()
     {
         Fingerprint = _sources.FingerprintFor(Map),
         Demo = new RoundPositionsDemo { StableKey = DemoCacheStore.StableKey($"/d/m{n}.dem"), Sha256 = Sha(n) },
@@ -126,9 +126,9 @@ public class StratMiningServiceTests
         public required TagStore Tags { get; init; }
         public required string Root { get; init; }
 
-        public StratMiningService Service() =>
+        public StratMiningService Service(Func<Action, Task>? run = null) =>
             new(Cache, Positions, _sources.FingerprintFor, null, null, Strats, Tags,
-                Path.Combine(Root, "cache"), Root, run: _inline) { QuietDelay = Timeout.InfiniteTimeSpan };
+                Path.Combine(Root, "cache"), Root, run: run ?? _inline) { QuietDelay = Timeout.InfiniteTimeSpan };
 
         public void Dispose()
         {
@@ -211,6 +211,20 @@ public class StratMiningServiceTests
         await Assert.That(record.Total.Run).IsEqualTo(3).Because("each member round is a run of the new strat");
         await Assert.That(new StratEvidenceService(library.Tags).Compute(doc).Total.Run).IsEqualTo(3)
             .Because("the record panel finds the runs through the tag index");
+    }
+
+    [Test]
+    public async Task ACancelledPreview_StopsBuilding_AndReturnsNothing()
+    {
+        using Library library = Library.Create();
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
+        using CancellationTokenSource cancel = new();
+        await cancel.CancelAsync();
+
+        Assert.Throws<OperationCanceledException>(() => service.Build(execute, StratOwner.Me(), DateTime.UtcNow, cancel.Token));
+        await Assert.That(await service.PreviewAsync(execute, StratOwner.Me(), DateTime.UtcNow, cancel.Token)).IsNull();
     }
 
     [Test]
