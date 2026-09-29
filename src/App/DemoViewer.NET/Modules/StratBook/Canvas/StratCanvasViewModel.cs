@@ -144,7 +144,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _session.Changed += OnSessionChanged;
         if (_lineupOrigins is not null)
         {
-            _lineupOrigins.Changed += OnLineupOriginsChanged;
+            _lineupOrigins.Changed += OnProjectionInputChanged;
         }
 
         Reproject();
@@ -446,7 +446,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _session.Changed -= OnSessionChanged;
         if (_lineupOrigins is not null)
         {
-            _lineupOrigins.Changed -= OnLineupOriginsChanged;
+            _lineupOrigins.Changed -= OnProjectionInputChanged;
         }
 
         Annotations.PropertyChanged -= OnAnnotationsPropertyChanged;
@@ -805,8 +805,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     private const string LineupPlacedNote = "placed by its lineup: clear the lineup to move it";
 
-    // A gesture keeps the projection it started on; its end, committed or not, picks the change up.
-    private void OnLineupOriginsChanged()
+    // Lineup origins or place centres moved. A gesture keeps the projection it started on; its end picks the change up.
+    private void OnProjectionInputChanged()
     {
         if (IsGestureOpen)
         {
@@ -889,9 +889,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         {
             _mapName = document.Map;
             ReplaceMapAsset(SafeLoad(document.Map));
-            if (!IsReadOnly)
+
+            // Read-only canvases too: a watching token faces its place in the Detected preview as well.
+            string map = document.Map;
+            Task<IZonePlaceResolver?> places = PlacesFor(map, false);
+            if (!places.IsCompleted)
             {
-                _ = PlacesFor(document.Map, false);
+                places.ContinueWith(_ => _post(() => OnPlacesLoaded(map)), CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             }
         }
 
@@ -904,7 +909,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
         StratSceneProjection projection = StratSceneProjection.Build(document, path,
-            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null);
+            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
+            PlaceCentres(document.Map));
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -1172,7 +1178,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _seekToStep = id;
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
         Apply([StepAuthoringPatches.AddCarriedStep(document, after, atSeconds, id,
-            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null)]);
+            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
+            PlaceCentres(document.Map))]);
         return true;
     }
 
@@ -1414,6 +1421,21 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         target == StratPlaceTarget.Landing ? "landing" : "“" + StratStepFields.ToLabel(step.Verb) + "”";
 
     private string Display(string place) => _callouts is { } callouts && callouts.IsCanonical(place) ? callouts.Display(place) : place;
+
+    // Only once the map's zones are in memory; until then a watching token keeps its authored facing.
+    private PlaceCentreResolver? PlaceCentres(string map) =>
+        _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+            ? zones.PlaceCentre
+            : null;
+
+    private void OnPlacesLoaded(string map)
+    {
+        if (!_disposed && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+                       && string.Equals(_session.Document?.Map, map, StringComparison.OrdinalIgnoreCase))
+        {
+            OnProjectionInputChanged();
+        }
+    }
 
     // One load per map, kept for the canvas's life; a failed one, or on request an empty one, is asked again.
     private Task<IZonePlaceResolver?> PlacesFor(string map, bool retryEmpty)

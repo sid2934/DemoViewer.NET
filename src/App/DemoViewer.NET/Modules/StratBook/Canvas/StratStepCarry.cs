@@ -23,49 +23,56 @@ public static class StratStepCarry
     /// <param name="document">The strat.</param>
     /// <param name="stepIndex">The step the new one follows; -1 carries nothing.</param>
     /// <param name="throwOrigins">The projection's resolver; null resolves no lineup.</param>
-    public static List<StepPosition> PositionsAt(StratDocument document, int stepIndex, ThrowOriginResolver? throwOrigins)
+    /// <param name="placeCentres">
+    ///     The projection's place centres, so a token turned by a watching line carries that facing; null carries
+    ///     only an explicit view angle.
+    /// </param>
+    public static List<StepPosition> PositionsAt(StratDocument document, int stepIndex, ThrowOriginResolver? throwOrigins,
+        PlaceCentreResolver? placeCentres = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         List<StepPosition> carried = [];
         int last = Math.Min(stepIndex, document.Steps.Count - 1);
+        if (last < 0)
+        {
+            return carried;
+        }
+
+        // The projection's own entries, so a lineup origin and a watch's facing carry as the canvas shows them.
+        IReadOnlyList<StratPathStep> path = [.. StratPath.MainLine(document).Take(last + 1)];
+        StratSceneProjection.ThrowOrigin?[] origins = throwOrigins is null
+            ? new StratSceneProjection.ThrowOrigin?[path.Count]
+            : [.. path.Select(p => StratSceneProjection.ThrowOriginOf(document.Map, p.Step, throwOrigins))];
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
+            TokenPlacement?[] placements = StratSceneProjection.Placements(path, origins, slot, placeCentres);
             for (int k = last; k >= 0; k--)
             {
-                StratStep step = document.Steps[k];
-                if (OriginOf(document.Map, step, slot, throwOrigins) is { } origin)
+                if (placements[k] is not { } placement)
                 {
-                    carried.Add(new StepPosition
-                    {
-                        Slot = slot, X = Round(origin.X), Y = Round(origin.Y), LevelMinZ = origin.LevelMinZ,
-                        YawDegrees = origin.YawDegrees is { } yaw ? Round(yaw) : null
-                    });
-                    break;
+                    continue;
                 }
 
-                // The last entry for a slot wins, as in the projection.
-                if (step.Positions.LastOrDefault(p => string.Equals(p.Slot, slot, StringComparison.Ordinal)
-                                                      && double.IsFinite(p.X) && double.IsFinite(p.Y)) is { } found)
-                {
-                    carried.Add(found);
-                    break;
-                }
+                // An authored entry the projection did not turn is carried as stored, unknown fields included.
+                StepPosition? stored = document.Steps[k].Positions.LastOrDefault(p => string.Equals(p.Slot, slot, StringComparison.Ordinal)
+                                                                                     && double.IsFinite(p.X) && double.IsFinite(p.Y));
+                carried.Add(stored is not null && Same(stored, placement)
+                    ? stored
+                    : new StepPosition
+                    {
+                        Slot = slot, X = Round(placement.X), Y = Round(placement.Y), LevelMinZ = placement.LevelMinZ,
+                        YawDegrees = placement.YawDegrees is { } yaw ? Round(yaw) : null
+                    });
+                break;
             }
         }
 
         return carried;
     }
 
-    // The projection's rule (StratSceneProjection.ThrowOriginOf): a throw by this one slot whose lineup resolves.
-    private static TokenPlacement? OriginOf(string map, StratStep step, string slot, ThrowOriginResolver? resolve) =>
-        resolve is not null
-        && string.Equals(step.Verb, "throw", StringComparison.Ordinal)
-        && string.Equals(step.Actor, slot, StringComparison.Ordinal)
-        && step.Utility is { LineupId: not null } utility
-        && resolve(map, utility) is { } placement
-        && float.IsFinite(placement.X) && float.IsFinite(placement.Y)
-            ? placement
-            : null;
+    private static bool Same(StepPosition stored, TokenPlacement placement) =>
+        (float)stored.X == placement.X && (float)stored.Y == placement.Y
+                                       && (stored.YawDegrees is { } yaw ? (float?)yaw : null) == placement.YawDegrees;
 
     // Two decimals, as a drag writes them.
     private static double Round(double value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
