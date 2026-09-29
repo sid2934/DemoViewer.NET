@@ -177,9 +177,15 @@
                                Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
                     <ComboBox ItemsSource="{x:Static vm:StratBookTabViewModel.SideOptions}" SelectedItem="{Binding SelectedSide}"
                               FontSize="12" MinWidth="100" Margin="0 0 16 4" />
-                    <Button Content="New strat" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
-                            Command="{Binding NewStratCommand}"
-                            ToolTip.Tip="A new strat in this book on the chosen map and side" />
+                    <!-- The button makes a blank strat. The menu (Blank, then the templates) is built in code
+                         from StratTemplates. -->
+                    <SplitButton x:Name="NewStratButton" Content="New strat" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                                 Command="{Binding NewStratCommand}"
+                                 ToolTip.Tip="A new strat in this book on the chosen map and side; the arrow starts it from a template">
+                        <SplitButton.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedLeft" />
+                        </SplitButton.Flyout>
+                    </SplitButton>
                 </WrapPanel>
             </StackPanel>
         </Border>
@@ -504,6 +510,14 @@
                         <TextBlock Grid.Column="0" Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasOpenStrat}">
+                            <DropDownButton x:Name="ApplyTemplateButton" Content="Apply template" FontSize="11" Padding="10 5"
+                                            IsVisible="{Binding CanApplyTemplate}"
+                                            ToolTip.Tip="Fill this strat from a template; only while it has no steps beyond the spawns">
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedRight"
+                                                Opening="OnApplyTemplateMenuOpening" />
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
                             <Button Content="Undo" Classes="ghost" FontSize="11" Padding="10 5"
                                     Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Ctrl+Z" />
                             <Button Content="Redo" Classes="ghost" FontSize="11" Padding="10 5"
