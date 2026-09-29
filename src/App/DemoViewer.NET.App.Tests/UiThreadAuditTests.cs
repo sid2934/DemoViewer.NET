@@ -279,6 +279,10 @@ public class UiThreadAuditTests
                 ViewModels.Dossier.DossierTeamRow? biggest = dossier.Teams.MaxBy(t => teams.SidesOf(t.Id).Count);
                 Console.WriteLine($"[ui-audit] dossier teams={dossier.Teams.Count} biggest={biggest?.Name} demos={(biggest is null ? 0 : teams.SidesOf(biggest.Id).Count)}");
                 await Step("select biggest team", () => dossier.SelectedTeam = biggest);
+                Console.WriteLine($"[ui-audit] dossier sections: {string.Join(" | ", dossier.MapSections.Select(m => m.Header + (m.IsExpanded ? " (open)" : "")))}; notes: {dossier.NotesSection.Header}");
+                Capture("ui-audit-dossier.png");
+                await Step("expand all", () => dossier.ExpandAllCommand.Execute(null));
+                await Step("collapse all", () => dossier.CollapseAllCommand.Execute(null));
                 for (int i = 0; i < 3; i++)
                 {
                     await Step($"teams Changed #{i + 1}", () => Raise(dossier, "_teams"));
@@ -321,7 +325,8 @@ public class UiThreadAuditTests
             provider.GetRequiredService<Services.Teams.TeamIdentityService>(),
             provider.GetRequiredService<Modules.Library.DemoLibraryService>(),
             provider.GetRequiredService<Services.RoundIndex.SituationIndex>(),
-            provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>()
+            provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>(),
+            provider.GetRequiredService<Services.DemoProcessing.DemoProcessingQueue>()
         ];
         foreach (object store in stores)
         {
@@ -429,6 +434,16 @@ public class UiThreadAuditTests
         Console.WriteLine($"[ui-audit] lineup store save (what a minted anchor costs whoever queries): {save.ElapsedMilliseconds}ms");
     }
 
+    private static void Capture(string name)
+    {
+        if (_window?.CaptureRenderedFrame() is { } frame)
+        {
+            string png = Path.Combine(HeadlessSession.ArtifactDir, name);
+            frame.Save(png, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            Console.WriteLine($"[ui-audit] {png}");
+        }
+    }
+
     // Fires a store's Changed event the way a background write would.
     private static void Raise(object owner, string field, string evt = "Changed")
     {
@@ -438,6 +453,107 @@ public class UiThreadAuditTests
         {
             d.DynamicInvoke(d.Method.GetParameters().Length == 0 ? [] : new object?[d.Method.GetParameters().Length]);
         }
+    }
+
+    // Work moved into the queue must not wait behind it: time from submit to done for a section build with
+    // the queue idle, beside a background job, beside a parse, and behind a background light item; and the
+    // UI thread's cost of the queue's own bookkeeping over a burst of builds.
+    [Test]
+    public async Task QueueLatency_AndItsUiCost()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Services.HeavyJobGate gate = new();
+            using ManualResetEventSlim release = new();
+            using Services.DemoProcessing.DemoProcessingQueue queue = new(gate, a => Dispatcher.UIThread.Post(a), _ =>
+            {
+                release.Wait(TimeSpan.FromSeconds(20));
+                return SyntheticParsedDemo.Create();
+            }, _ => SyntheticParsedDemo.Create(), () => Task.CompletedTask);
+
+            async Task<double> Build(Services.DemoProcessing.DemoJobPriority priority = Services.DemoProcessing.DemoJobPriority.Background)
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                Task done = Services.DemoProcessing.QueueWork.Run(queue, Services.DemoProcessing.QueueJobKind.SectionCompute,
+                    "probe", "audit", _ => Thread.Sleep(5), priority);
+                while (!done.IsCompleted)
+                {
+                    Settle();
+                    await Task.Delay(1);
+                }
+
+                return sw.Elapsed.TotalMilliseconds;
+            }
+
+            double idle = await Build();
+            using SemaphoreSlim jobGate = new(0);
+            Task job = Services.DemoProcessing.QueueWork.Run(queue, Services.DemoProcessing.QueueJobKind.LineupClips, "clips", "audit",
+                _ => jobGate.Wait(TimeSpan.FromSeconds(20), CancellationToken.None));
+            double besideJob = await Build();
+            jobGate.Release();
+            await job;
+            queue.SubmitBackground(new Services.DemoProcessing.DemoProcessingRequest("/d/x.dem", "audit",
+                Services.DemoProcessing.DemoJobPriority.Background, 0, _ => { }));
+            await Task.Delay(100);
+            double besideParse = await Build();
+            release.Set();
+            using SemaphoreSlim lightGate = new(0);
+            Task slowLight = Services.DemoProcessing.QueueWork.Run(queue, Services.DemoProcessing.QueueJobKind.SectionCompute, "slow",
+                "audit", ct =>
+                {
+                    lightGate.Wait(TimeSpan.FromSeconds(1), ct);
+                    ct.ThrowIfCancellationRequested();
+                });
+            await Task.Delay(50);
+            double userBehindLight = await Build(Services.DemoProcessing.DemoJobPriority.UserRequested);
+            lightGate.Release();
+            await slowLight;
+
+            Stopwatch burst = Stopwatch.StartNew();
+            double worst = 0;
+            List<Task> builds = [.. Enumerable.Range(0, 40).Select(i => Services.DemoProcessing.QueueWork.Run(queue,
+                Services.DemoProcessing.QueueJobKind.SectionCompute, "burst", "audit", _ => Thread.Sleep(2), key: "burst:" + (i % 8)))];
+            while (builds.Any(b => !b.IsCompleted))
+            {
+                Stopwatch one = Stopwatch.StartNew();
+                Settle();
+                worst = Math.Max(worst, one.Elapsed.TotalMilliseconds);
+                await Task.Delay(1);
+            }
+
+            Console.WriteLine($"[ui-audit] queue time-to-result: idle={idle:F0}ms besideBackgroundJob={besideJob:F0}ms "
+                              + $"besideParse={besideParse:F0}ms userBehindSlowLightItem={userBehindLight:F0}ms; "
+                              + $"burst of 40 section builds: {burst.ElapsedMilliseconds}ms, worst UI pump {worst:F1}ms");
+        });
+    }
+
+    [Test]
+    public async Task StoreLoadCosts_OverTheOwnersLibrary()
+    {
+        if (Environment.GetEnvironmentVariable("DV_AUDIT_CONFIG") is not { Length: > 0 } source || !Directory.Exists(source))
+        {
+            throw new SkipTestException("DV_AUDIT_CONFIG is not set");
+        }
+
+        // Read only: every constructor here loads, none saves.
+        Stopwatch sw = Stopwatch.StartNew();
+        Services.DemoCache.DemoCacheStore cache = new(Path.Combine(source, "cache"));
+        double cacheMs = sw.Elapsed.TotalMilliseconds;
+        sw.Restart();
+        using Modules.Library.DemoLibraryService library = new(a => a(), Path.Combine(source, "library.json"));
+        double libraryMs = sw.Elapsed.TotalMilliseconds;
+        sw.Restart();
+        string teamsRoot = Path.Combine(Path.GetTempPath(), $"dv-teams-load-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(teamsRoot, "cache"));
+        File.Copy(Path.Combine(source, "teams.json"), Path.Combine(teamsRoot, "teams.json"));
+        File.Copy(Path.Combine(source, "cache", "team-index.json"), Path.Combine(teamsRoot, "cache", "team-index.json"));
+        sw.Restart();
+        Services.Teams.TeamIdentityService teams = new(teamsRoot, cache);
+        double teamsCtor = sw.Elapsed.TotalMilliseconds;
+        Directory.Delete(teamsRoot, true);
+        Console.WriteLine($"[ui-audit] store loads: cache index={cacheMs:F0}ms ({cache.Index.Count} rows) "
+                          + $"library.json={libraryMs:F0}ms ({library.Entries.Count}) teams={teamsCtor:F0}ms");
+        await Task.CompletedTask;
     }
 
     internal readonly record struct Stall(double WorstMs, double TotalBlockedMs, int Over50);
