@@ -632,7 +632,8 @@ public static class StratDiffPhrasing
             to = slots.Length == 1 ? Text(obj["assignments"]?[0]?["to"]?["place"]) : null;
         }
 
-        string? target = Text(obj["utility"]?["landing"]?["place"]) ?? to ?? Text(obj["from"]?["place"]);
+        bool lines = LineSlots(obj) is not null;
+        string? target = Text(obj["utility"]?["landing"]?["place"]) ?? to ?? (lines ? null : Text(obj["from"]?["place"]));
 
         StringBuilder sentence = new(actor);
         sentence.Append(' ').Append(plural ? verb : ThirdPerson(verb));
@@ -652,6 +653,10 @@ public static class StratDiffPhrasing
                     _ => " "
                 };
             sentence.Append(preposition).Append(Place(target, callouts));
+        }
+        else if (lines && Text(obj["from"]?["place"]) is { } from)
+        {
+            sentence.Append(" from ").Append(Place(from, callouts));
         }
 
         if (Number(obj["atSeconds"]) is { } at)
