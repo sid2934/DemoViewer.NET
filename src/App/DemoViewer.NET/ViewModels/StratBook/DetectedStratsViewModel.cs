@@ -5,6 +5,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Strats;
@@ -24,6 +25,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <summary>Seconds a member round opens before the take, so the approach is on screen.</summary>
     public const int ExecuteLeadSeconds = 10;
 
+    private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
     private readonly StratMiningService? _mining;
     private readonly Action<Guid> _openStrat;
@@ -59,10 +61,12 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <param name="openStrat">Shows a strat in the book once it exists.</param>
     /// <param name="post">UI-thread marshal.</param>
     /// <param name="mapLoader">The preview canvas's map loader; the baked assets when null.</param>
+    /// <param name="lineupOrigins">The preview canvas's throw origins; null projects none.</param>
     public DetectedStratsViewModel(StratMiningService? mining, Func<ISituationPlayback?> playback, Func<Guid, string?> teamName,
         Func<StratOwner?> targetBook, Action<Guid> openStrat, Action<Action>? post = null,
-        Func<string?, LoadedMapAsset?>? mapLoader = null)
+        Func<string?, LoadedMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null)
     {
+        _lineupOrigins = lineupOrigins;
         _mining = mining;
         _mapLoader = mapLoader;
         _playback = playback;
@@ -160,7 +164,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
         ClosePreview();
         StratOwner owner = _targetBook() ?? StratOwner.Me();
-        StratPreviewViewModel preview = new(pattern, row.Title, _mapLoader, _post) { Notice = notice };
+        StratPreviewViewModel preview = new(pattern, row.Title, _mapLoader, _post, _lineupOrigins) { Notice = notice };
         CancellationTokenSource cancel = new();
         _previewCancel = cancel;
         Preview = preview;

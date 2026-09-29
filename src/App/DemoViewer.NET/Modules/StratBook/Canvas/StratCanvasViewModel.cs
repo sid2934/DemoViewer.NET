@@ -64,12 +64,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private readonly Func<Guid, StratDocument?>? _lookup;
     private readonly Func<string?, LoadedMapAsset?> _mapLoader;
     private readonly Func<IEnumerable<string>> _keybindOverrides;
+    private readonly LineupOriginSource? _lineupOrigins;
     private readonly StratSession _session;
     private readonly StepTrack _stepTrack = new();
 
     private int _activeIndex = -1;
     private CalloutResolver? _callouts;
     private bool _disposed;
+    private bool _originsMoved;
     private DragState? _drag;
     private string? _mapName;
     private Guid? _projectedStrat;
@@ -92,12 +94,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <param name="lookup">Reads another strat for a branch into it; null plays in-strat branches only.</param>
     /// <param name="keybindOverrides">The user's keymap rows; the settings file's when omitted.</param>
     /// <param name="readOnly">Plays the strat without editing it: no tools, no token drag, no step edits.</param>
+    /// <param name="lineupOrigins">Puts a throw's actor at its lineup's throw origin; null projects none.</param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
-        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false)
+        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        _lineupOrigins = lineupOrigins;
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
@@ -121,6 +125,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         RefreshKeymap();
         _session.Changed += OnSessionChanged;
+        if (_lineupOrigins is not null)
+        {
+            _lineupOrigins.Changed += OnLineupOriginsChanged;
+        }
+
         Reproject();
     }
 
@@ -262,6 +271,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         _disposed = true;
         _session.Changed -= OnSessionChanged;
+        if (_lineupOrigins is not null)
+        {
+            _lineupOrigins.Changed -= OnLineupOriginsChanged;
+        }
+
         Annotations.PropertyChanged -= OnAnnotationsPropertyChanged;
         _ink.Document.Changed -= OnInkChanged;
         Transport.Changed -= OnTransportChanged;
@@ -506,6 +520,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
+        if (projection.ThrowOriginAt(_activeIndex, slot) is not null)
+        {
+            StatusLine = LineupPlacedNote;
+            return;
+        }
+
         // The drag writes the active step's keyframe, so the canvas shows that step's moment while it does:
         // what is dragged is what is placed.
         Transport.Pause();
@@ -563,6 +583,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         if (!drag.Moved && yawDegrees is null)
         {
             RestoreTracks();
+            ReprojectIfOriginsMoved();
             return;
         }
 
@@ -573,6 +594,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             StepAuthoringPatches.TokenPosition(document, projection.Path[drag.PathIndex].StepIndex, drag.Slot,
                 drag.X, drag.Y, drag.LevelMinZ, yaw)
         ]);
+        ReprojectIfOriginsMoved();
     }
 
     /// <inheritdoc />
@@ -580,6 +602,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     {
         _drag = null;
         RestoreTracks();
+        ReprojectIfOriginsMoved();
     }
 
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
@@ -595,6 +618,28 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private bool IsGestureOpen => _drag is not null || _ink.Document.IsGestureOpen;
 
     private const string ReadOnlyNote = "this step belongs to another strat: open that strat to edit it";
+
+    private const string LineupPlacedNote = "placed by its lineup: clear the lineup to move it";
+
+    // A gesture keeps the projection it started on; its end, committed or not, picks the change up.
+    private void OnLineupOriginsChanged()
+    {
+        if (IsGestureOpen)
+        {
+            _originsMoved = true;
+            return;
+        }
+
+        Reproject();
+    }
+
+    private void ReprojectIfOriginsMoved()
+    {
+        if (_originsMoved && !IsGestureOpen)
+        {
+            Reproject();
+        }
+    }
 
     private void OnSessionChanged()
     {
@@ -615,6 +660,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         _projectedVersion = _session.Version;
+        _originsMoved = false;
         StratDocument? document = _session.Document;
 
         if (document?.Id != _projectedStrat)
@@ -664,7 +710,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             ? StratPath.Through(document, branch, _lookup) ?? StratPath.MainLine(document)
             : StratPath.MainLine(document);
 
-        StratSceneProjection projection = StratSceneProjection.Build(document, path);
+        Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
+        StratSceneProjection projection = StratSceneProjection.Build(document, path,
+            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null);
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -806,6 +854,18 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
+        try
+        {
+            CarryInk(projection, document);
+        }
+        finally
+        {
+            ReprojectIfOriginsMoved();
+        }
+    }
+
+    private void CarryInk(StratSceneProjection projection, StratDocument document)
+    {
         IReadOnlyList<PatchOp> ops = StepAuthoringPatches.FromInk(document, projection, _ink.Document.Elements, StepFor);
         if (ops.Count > 0)
         {

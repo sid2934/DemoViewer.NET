@@ -1186,7 +1186,8 @@ public class App : Application
                 selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
-                playback: () => sp.GetService<ISituationPlayback>());
+                playback: () => sp.GetService<ISituationPlayback>(),
+                spawns: new StratSpawnSource());
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
