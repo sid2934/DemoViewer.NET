@@ -80,10 +80,6 @@
                                 <TextBlock Text="{Binding StateLabel}" FontSize="10"
                                            Foreground="{DynamicResource TextDim}"
                                            VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Detail}" FontSize="10" Classes="mono"
-                                           Foreground="{DynamicResource TextDim}"
-                                           VerticalAlignment="Center"
-                                           IsVisible="{Binding HasDetail}" />
                                 <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
                                         IsVisible="{Binding HasKind}">
                                     <TextBlock Classes="mono" FontSize="9"
@@ -103,6 +99,11 @@
                                                Text="{Binding PriorityLabel}" />
                                 </Border>
                             </StackPanel>
+                            <TextBlock Text="{Binding Detail}" FontSize="10" Classes="mono"
+                                       Foreground="{DynamicResource TextDim}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding Detail}"
+                                       IsVisible="{Binding HasDetail}" />
                         </StackPanel>
 
                         <!-- Per-item remove -->
