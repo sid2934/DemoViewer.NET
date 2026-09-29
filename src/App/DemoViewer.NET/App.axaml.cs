@@ -300,6 +300,34 @@ public class App : Application
             // exit while CS2 kill / install restore is still mid-flight.
             bool csvgTornDown = false;
             bool csvgTeardownStarted = false;
+
+            // Runs only on the request that really exits, after any CSVG or export teardown: a store that
+            // throws or hangs here must never cost the machine its restored CS2 install.
+            static void FlushStores(ServiceProvider services)
+            {
+                // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
+                // their index to it: the Strat Book writes its own, and the Tag Store's is written here, the
+                // call its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
+                Action[] flushes =
+                [
+                    () => services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown(),
+                    () => services.GetService<TagStore>()?.SaveIndex(),
+                    () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
+                    () => services.GetService<GrenadeIndex>()?.FlushLineups(TimeSpan.FromSeconds(5))
+                ];
+                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+                foreach (Action flush in flushes)
+                {
+                    try
+                    {
+                        flush();
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog.OperationFailed(log, "shutdown flush", ex);
+                    }
+                }
+            }
             desktop.ShutdownRequested += (_, e) =>
             {
                 // Geometry snapshot first (idempotent: this handler can re-fire after a cancelled
@@ -316,14 +344,6 @@ public class App : Application
 
                 viewModel.SaveSession();
 
-                // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
-                // their index to it: the Strat Book writes its own, and the Tag Store's is written here, the call
-                // its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
-                services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown();
-                services.GetService<TagStore>()?.SaveIndex();
-                services.GetService<ReviewQueue>()?.Flush();
-                services.GetService<GrenadeIndex>()?.FlushLineups();
-
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
                 // A running 2D export owns an ffmpeg subprocess and a half-written video file. Exiting
@@ -334,6 +354,7 @@ public class App : Application
 
                 if (csvgTornDown || liveSync is null && !reelRunning && !exportRunning)
                 {
+                    FlushStores(services);
                     return;
                 }
 
