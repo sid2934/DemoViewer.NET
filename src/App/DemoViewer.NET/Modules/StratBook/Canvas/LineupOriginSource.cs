@@ -100,30 +100,36 @@ public sealed class LineupOriginSource : IDisposable
         return byId;
     }
 
-    /// <summary>Groups a map now, on the caller's thread. For tests and a caller already off the UI thread.</summary>
+    /// <summary>
+    ///     Groups a map now, on the caller's thread, again while the index changes under it. For tests and a
+    ///     caller already off the UI thread.
+    /// </summary>
     /// <param name="map">The map.</param>
     public void Load(string map)
     {
         ArgumentNullException.ThrowIfNull(map);
-        int generation;
-        lock (_gate)
+        while (true)
         {
-            generation = _generation;
-        }
-
-        Dictionary<Guid, GrenadeLineup> lineups = ByAnyId(_index.Query(new GrenadeQuery(map)));
-        lock (_gate)
-        {
-            _pending.Remove(map);
-            if (generation != _generation)
+            int generation;
+            lock (_gate)
             {
-                return;
+                generation = _generation;
             }
 
-            _maps[map] = lineups;
+            Dictionary<Guid, GrenadeLineup> lineups = ByAnyId(_index.Query(new GrenadeQuery(map)));
+            lock (_gate)
+            {
+                if (generation == _generation)
+                {
+                    _maps[map] = lineups;
+                    _pending.Remove(map);
+                    return;
+                }
+            }
         }
     }
 
+    // Must be called under _gate.
     private void Warm(string map)
     {
         if (!_pending.Add(map))
@@ -151,15 +157,17 @@ public sealed class LineupOriginSource : IDisposable
         });
     }
 
+    // One merged demo at a time during a scan: the old lineups keep answering until the regroup lands, so a
+    // thrower never drops back to its authored spot in between.
     private void OnIndexChanged()
     {
         lock (_gate)
         {
             _generation++;
-            _maps.Clear();
-            _pending.Clear();
+            foreach (string map in _maps.Keys)
+            {
+                Warm(map);
+            }
         }
-
-        Changed?.Invoke();
     }
 }

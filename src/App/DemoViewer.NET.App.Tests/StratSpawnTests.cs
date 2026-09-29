@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Zones;
@@ -152,7 +153,9 @@ public class StratSpawnTests
             gate.Task.Wait();
             return Fixed;
         });
-        using StratBookTabViewModel vm = new(store, null, null, false, spawns: spawns);
+        ConcurrentQueue<Action> posted = new();
+        using StratBookTabViewModel vm = new(store, null, posted.Enqueue, false, spawns: spawns);
+        Drain(posted);
         vm.SelectedMap = "de_mirage";
 
         vm.NewStratCommand.Execute(null);
@@ -161,13 +164,23 @@ public class StratSpawnTests
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        for (int i = 0; i < 200 && store.Index.Count == 0; i++)
+        for (int i = 0; i < 500 && posted.IsEmpty; i++)
         {
             await Task.Delay(10);
         }
 
+        Drain(posted);
+
         await Assert.That(store.Index.Count).IsEqualTo(1).Because("a second click while waiting makes no second strat");
-        await Assert.That(store.Load(store.Index[0].Id).Document!.Steps.Single().Positions.Count).IsEqualTo(10);
+        await Assert.That(vm.Session.Document!.Steps.Single().Positions.Count).IsEqualTo(10);
+    }
+
+    private static void Drain(ConcurrentQueue<Action> posted)
+    {
+        while (posted.TryDequeue(out Action? action))
+        {
+            action();
+        }
     }
 
     public static IEnumerable<Func<string>> Maps() => ShippedMaps.Select(m => (Func<string>)(() => m));
