@@ -200,6 +200,24 @@ public class StratStepFieldsTests
     }
 
     [Test]
+    public async Task ALineupChange_DropsTheOldLineupsTechnique()
+    {
+        using StratBookTabViewModel vm = OpenNew();
+        AddStep(vm).Verb = "throw";
+        vm.Session.Apply(PatchOp.ReplaceOp("/steps/0/utility", null,
+            new JsonObject { ["kind"] = "smoke", ["lineupId"] = Guid.NewGuid().ToString(), ["technique"] = "jumpthrow" }));
+
+        vm.Editor.Steps[0].Lineup = StratLineupOption.None;
+        UtilityRef utility = vm.Session.Document!.Steps[0].Utility!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(utility.LineupId).IsNull();
+            await Assert.That(utility.Extra?.ContainsKey("technique") ?? false).IsFalse();
+            await Assert.That(utility.Kind).IsEqualTo("smoke");
+        }
+    }
+
+    [Test]
     public async Task ALineupTheLookupDoesNotOffer_ShowsAsItsId()
     {
         using StratBookTabViewModel vm = OpenNew();

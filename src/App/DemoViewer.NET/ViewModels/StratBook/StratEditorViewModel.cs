@@ -303,6 +303,27 @@ public sealed partial class StratEditorViewModel : ObservableObject
         _session.Apply(ops);
     }
 
+    /// <summary>A step's lineup, as one undo entry; the old lineup's technique goes with it.</summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="lineupId">The lineup, or null for none.</param>
+    internal void ChangeLineup(int index, Guid? lineupId)
+    {
+        if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
+        {
+            return;
+        }
+
+        string path = StepPath(index, "utility");
+        List<PatchOp> ops = [PatchOp.ReplaceOp(path + "/lineupId", null, lineupId is { } id ? JsonValue.Create(id) : null)];
+        JsonObject? utility = JsonSerializer.SerializeToNode(document.Steps[index], StratJsonContext.Default.StratStep)?["utility"] as JsonObject;
+        if (utility?.ContainsKey("technique") == true && document.Steps[index].Utility?.LineupId != lineupId)
+        {
+            ops.Add(PatchOp.RemoveOp(path + "/technique", null));
+        }
+
+        _session.Apply(ops);
+    }
+
     private static string StepPath(int index, string field) => Invariant($"/steps/{index}/{field}");
 
     partial void OnNameChanged(string value) => Replace("/name", JsonValue.Create(value.Trim()));
@@ -887,7 +908,7 @@ public sealed partial class StratStepRow : ObservableObject
         RaiseShown();
         if (value is not null && UtilityKind != StratEditorViewModel.None)
         {
-            _owner.Replace(Path("utility") + "/lineupId", value.Id is { } id ? JsonValue.Create(id) : null);
+            _owner.ChangeLineup(_index, value.Id);
         }
     }
 

@@ -435,9 +435,11 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   the step actually has. Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and
   LAN print print whatever is set, which is why the clear is not optional.
 - **Utility edits:** a kind change replaces `kind` and removes `lineupId` and `technique` (they belong to the
-  old kind) but keeps the landing; typing "lands at" writes `landing/place` only, so a captured landing point
-  survives. A lineup id the lookup does not offer is added to the row's options as its raw id (a combo box
-  shows nothing for a selection outside its items).
+  old kind) but keeps the landing; a lineup change drops the old lineup's `technique`; typing "lands at"
+  writes `landing/place` only, so a captured landing point survives. A lineup id the lookup does not offer is
+  added to the row's options as its raw id (a combo box shows nothing for a selection outside its items).
+  The lineup options are filtered by kind, so the kind always matches a picked lineup; a picker that sets
+  both must write the kind first, in the same ops list, because a kind change drops the lineup.
 - **Room for the lineup picker:** the "pick on map" button goes beside the lineup combo, inside the same wrap.
 
 ### Review mode (2D Playback)
