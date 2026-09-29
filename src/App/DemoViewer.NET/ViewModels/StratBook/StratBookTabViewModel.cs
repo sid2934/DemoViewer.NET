@@ -523,12 +523,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>
     ///     A new strat in the selected book, on the filtered map (else the open demo's), on the filtered side (else
-    ///     T), committed as revision 1 and opened.
+    ///     T), committed as revision 1 and opened. Disabled while a cold map's spawns load.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanNewStrat))]
     private void NewStrat()
     {
-        if (SelectedOwner is not { } owner)
+        if (_creating || SelectedOwner is not { } owner)
         {
             return;
         }
@@ -543,7 +543,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         string side = SelectedSide == StratVocabulary.SideCt ? StratVocabulary.SideCt : StratVocabulary.SideT;
         if (_spawns is null)
         {
-            CreateNew(owner.Owner, map, side, null);
+            CreateNew(owner.Owner, map, side, null, true);
             return;
         }
 
@@ -551,27 +551,36 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Task<StratSpawns?> spawns = _spawns.ForAsync(map);
         if (spawns.IsCompleted)
         {
-            CreateNew(owner.Owner, map, side, spawns.IsCompletedSuccessfully ? spawns.Result : null);
+            CreateNew(owner.Owner, map, side, spawns.IsCompletedSuccessfully ? spawns.Result : null, true);
             return;
         }
 
-        if (_creating)
-        {
-            return;
-        }
-
-        _creating = true;
+        SetCreating(true);
+        (StratOwnerOption Owner, string Map, string Side, Guid? Open) atClick = (owner, SelectedMap, SelectedSide, Session.Document?.Id);
         spawns.ContinueWith(t => _post(() =>
         {
-            _creating = false;
-            if (!_disposed)
+            SetCreating(false);
+            if (_disposed)
             {
-                CreateNew(owner.Owner, map, side, t.IsCompletedSuccessfully ? t.Result : null);
+                return;
             }
+
+            // Opened only if the user is still where they clicked; otherwise it is made but the open strat stays.
+            bool stillHere = SelectedOwner == atClick.Owner && SelectedMap == atClick.Map && SelectedSide == atClick.Side
+                             && Session.Document?.Id == atClick.Open;
+            CreateNew(owner.Owner, map, side, t.IsCompletedSuccessfully ? t.Result : null, stillHere);
         }), TaskScheduler.Default);
     }
 
-    private void CreateNew(StratOwner owner, string map, string side, StratSpawns? spawns)
+    private bool CanNewStrat() => !_creating;
+
+    private void SetCreating(bool creating)
+    {
+        _creating = creating;
+        NewStratCommand.NotifyCanExecuteChanged();
+    }
+
+    private void CreateNew(StratOwner owner, string map, string side, StratSpawns? spawns, bool open)
     {
         StratDocument created = _store.Create(owner, map, side, side == StratVocabulary.SideCt ? "setup" : "default", "New strat",
             spawns is null ? null : spawns.Seed);
@@ -582,7 +591,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         RefreshList();
-        SelectedStrat = Strats.FirstOrDefault(r => r.Id == created.Id);
+        if (open)
+        {
+            SelectedStrat = Strats.FirstOrDefault(r => r.Id == created.Id);
+        }
+        else
+        {
+            ListLine = string.Create(CultureInfo.InvariantCulture, $"a new strat was added on {map}");
+        }
     }
 
     /// <summary>
