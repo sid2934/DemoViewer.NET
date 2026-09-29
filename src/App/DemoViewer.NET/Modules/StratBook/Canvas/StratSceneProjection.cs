@@ -90,6 +90,14 @@ public static class StratPath
     }
 }
 
+/// <summary>
+///     Where a throw's lineup is thrown from, as a token placement, or null when the lineup does not resolve.
+///     Called on the UI thread, so it answers from memory.
+/// </summary>
+/// <param name="map">The strat's map.</param>
+/// <param name="utility">The step's utility, with a lineup id.</param>
+public delegate TokenPlacement? ThrowOriginResolver(string map, UtilityRef utility);
+
 /// <summary>Where a projected stroke came from: the path step and its index in that step's <c>strokes[]</c>.</summary>
 /// <param name="PathIndex">The step's position on the path.</param>
 /// <param name="StrokeIndex">The stroke's index in the step's <c>strokes[]</c>.</param>
@@ -108,14 +116,16 @@ public sealed class StratSceneProjection
     public const string ClockKind = "dv-strat-clock";
 
     private readonly Dictionary<Guid, StrokeRef> _strokes;
+    private readonly ThrowOrigin?[] _throwOrigins;
     private readonly TokenStep[] _tokenSteps;
 
     private StratSceneProjection(IReadOnlyList<StratPathStep> path, StepSchedule schedule, IReadOnlyList<int> ticks,
-        TokenStep[] tokenSteps, IReadOnlyList<TokenTrack> tracks, IReadOnlyList<AnnotationElement> elements,
-        Dictionary<Guid, StrokeRef> strokes, IReadOnlyList<TokenLabel> labels, IReadOnlyList<UtilityCue> utility,
-        int roundSeconds, StratCanvas canvas, bool clockClamped)
+        TokenStep[] tokenSteps, ThrowOrigin?[] throwOrigins, IReadOnlyList<TokenTrack> tracks,
+        IReadOnlyList<AnnotationElement> elements, Dictionary<Guid, StrokeRef> strokes, IReadOnlyList<TokenLabel> labels,
+        IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped)
     {
         _tokenSteps = tokenSteps;
+        _throwOrigins = throwOrigins;
         Path = path;
         Schedule = schedule;
         Ticks = ticks;
@@ -191,10 +201,24 @@ public sealed class StratSceneProjection
         return -1;
     }
 
+    /// <summary>
+    ///     The placement a path step's lineup puts its actor at, or null when the step has none. It wins over the
+    ///     step's authored position for that slot.
+    /// </summary>
+    /// <param name="pathIndex">The step's position on the path.</param>
+    /// <param name="slot">The token.</param>
+    public TokenPlacement? ThrowOriginAt(int pathIndex, string slot) =>
+        pathIndex >= 0 && pathIndex < _throwOrigins.Length && _throwOrigins[pathIndex] is { } origin
+                                                          && string.Equals(origin.Slot, slot, StringComparison.Ordinal)
+            ? origin.Placement
+            : null;
+
     /// <summary>Builds the projection of a path.</summary>
     /// <param name="document">The open strat: its side, clock and canvas block.</param>
     /// <param name="path">The steps to play, from <see cref="StratPath" />.</param>
-    public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path)
+    /// <param name="throwOrigins">Resolves a throw's lineup to where it is thrown from; null projects no throw origins.</param>
+    public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
+        ThrowOriginResolver? throwOrigins = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(path);
@@ -228,6 +252,15 @@ public sealed class StratSceneProjection
             tokenSteps[i] = new TokenStep(ticks[i], HoldTicks(step.HoldSeconds), InterpolationOf(step.Interpolation));
         }
 
+        ThrowOrigin?[] origins = new ThrowOrigin?[path.Count];
+        if (throwOrigins is not null)
+        {
+            for (int i = 0; i < path.Count; i++)
+            {
+                origins[i] = ThrowOriginOf(document.Map, path[i].Step, throwOrigins);
+            }
+        }
+
         List<TokenTrack> tracks = [];
         TokenPlacement?[] placements = new TokenPlacement?[path.Count];
         foreach (string slot in TokenSlots.All)
@@ -235,7 +268,7 @@ public sealed class StratSceneProjection
             bool any = false;
             for (int i = 0; i < path.Count; i++)
             {
-                placements[i] = PlacementOf(path[i].Step, slot);
+                placements[i] = PlacementAt(origins, i, path[i].Step, slot);
                 any |= placements[i] is not null;
             }
 
@@ -265,7 +298,7 @@ public sealed class StratSceneProjection
             }
         }
 
-        return new StratSceneProjection(path, schedule, ticks, tokenSteps, tracks, elements, strokes, LabelsFor(document),
+        return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, LabelsFor(document),
             UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped);
     }
 
@@ -281,7 +314,7 @@ public sealed class StratSceneProjection
         TokenPlacement?[] placements = new TokenPlacement?[Path.Count];
         for (int i = 0; i < Path.Count; i++)
         {
-            placements[i] = i == pathIndex ? placement : PlacementOf(Path[i].Step, slot);
+            placements[i] = i == pathIndex ? placement : PlacementAt(_throwOrigins, i, Path[i].Step, slot);
         }
 
         return TokenTrackBuilder.Build(slot, _tokenSteps, placements);
@@ -336,6 +369,26 @@ public sealed class StratSceneProjection
         return new Guid(bytes);
     }
 
+    private static TokenPlacement? PlacementAt(ThrowOrigin?[] origins, int index, StratStep step, string slot) =>
+        origins[index] is { } origin && string.Equals(origin.Slot, slot, StringComparison.Ordinal)
+            ? origin.Placement
+            : PlacementOf(step, slot);
+
+    // Only a throw by one named slot: "all" names no one to stand at the origin.
+    private static ThrowOrigin? ThrowOriginOf(string map, StratStep step, ThrowOriginResolver resolve)
+    {
+        if (!string.Equals(step.Verb, "throw", StringComparison.Ordinal)
+            || step.Utility is not { LineupId: not null } utility
+            || !StratVocabulary.Slots.Contains(step.Actor)
+            || resolve(map, utility) is not { } placement
+            || !float.IsFinite(placement.X) || !float.IsFinite(placement.Y))
+        {
+            return null;
+        }
+
+        return new ThrowOrigin(step.Actor, placement);
+    }
+
     private static TokenPlacement? PlacementOf(StratStep step, string slot)
     {
         // The last entry for a slot wins: a document holding two is refused by nothing today, and the later
@@ -376,6 +429,8 @@ public sealed class StratSceneProjection
 
         return cues;
     }
+
+    private sealed record ThrowOrigin(string Slot, TokenPlacement Placement);
 
     private static GrenadeKind? GrenadeOf(string? kind) => kind switch
     {

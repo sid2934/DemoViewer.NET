@@ -62,6 +62,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
+    private readonly LineupOriginSource? _lineupOrigins;
+    private readonly StratSpawnSource? _spawns;
+    private bool _creating;
     private readonly Action<Action> _post;
     private readonly StratStore _store;
     private readonly TeamIdentityService? _teams;
@@ -122,12 +125,15 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// </param>
     /// <param name="mining">Strat Mining, for the Detected inbox; null says the host has no demo cache.</param>
     /// <param name="playback">Opens a detected pattern's round in 2D Playback, resolved at click time.</param>
+    /// <param name="spawns">Where a new blank strat's tokens start; null starts them unplaced.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
-        GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null)
+        GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
+        StratSpawnSource? spawns = null)
     {
+        _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
         _teams = teams;
@@ -158,10 +164,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
-        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document);
+        _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
+        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins);
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
-            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader);
+            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader, _lineupOrigins);
         Detected.PropertyChanged += OnDetectedChanged;
 
         Session.Changed += OnSessionChanged;
@@ -372,6 +379,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
         Canvas.Dispose();
+        _lineupOrigins?.Dispose();
         Session.Dispose();
         RecordPanel.Dispose();
         HistoryPanel.Dispose();
@@ -515,12 +523,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>
     ///     A new strat in the selected book, on the filtered map (else the open demo's), on the filtered side (else
-    ///     T), committed as revision 1 and opened.
+    ///     T), committed as revision 1 and opened. Disabled while a cold map's spawns load.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanNewStrat))]
     private void NewStrat()
     {
-        if (SelectedOwner is not { } owner)
+        if (_creating || SelectedOwner is not { } owner)
         {
             return;
         }
@@ -533,7 +541,49 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         string side = SelectedSide == StratVocabulary.SideCt ? StratVocabulary.SideCt : StratVocabulary.SideT;
-        StratDocument created = _store.Create(owner.Owner, map, side, side == StratVocabulary.SideCt ? "setup" : "default", "New strat");
+        if (_spawns is null)
+        {
+            CreateNew(owner.Owner, map, side, null, true);
+            return;
+        }
+
+        // The zones read is file IO: a cold map finishes the create when the read lands.
+        Task<StratSpawns?> spawns = _spawns.ForAsync(map);
+        if (spawns.IsCompleted)
+        {
+            CreateNew(owner.Owner, map, side, spawns.IsCompletedSuccessfully ? spawns.Result : null, true);
+            return;
+        }
+
+        SetCreating(true);
+        (StratOwnerOption Owner, string Map, string Side, Guid? Open) atClick = (owner, SelectedMap, SelectedSide, Session.Document?.Id);
+        spawns.ContinueWith(t => _post(() =>
+        {
+            SetCreating(false);
+            if (_disposed)
+            {
+                return;
+            }
+
+            // Opened only if the user is still where they clicked; otherwise it is made but the open strat stays.
+            bool stillHere = SelectedOwner == atClick.Owner && SelectedMap == atClick.Map && SelectedSide == atClick.Side
+                             && Session.Document?.Id == atClick.Open;
+            CreateNew(owner.Owner, map, side, t.IsCompletedSuccessfully ? t.Result : null, stillHere);
+        }), TaskScheduler.Default);
+    }
+
+    private bool CanNewStrat() => !_creating;
+
+    private void SetCreating(bool creating)
+    {
+        _creating = creating;
+        NewStratCommand.NotifyCanExecuteChanged();
+    }
+
+    private void CreateNew(StratOwner owner, string map, string side, StratSpawns? spawns, bool open)
+    {
+        StratDocument created = _store.Create(owner, map, side, side == StratVocabulary.SideCt ? "setup" : "default", "New strat",
+            spawns is null ? null : spawns.Seed);
         if (created.Revision == 0)
         {
             ListLine = "strat could not be saved";
@@ -541,7 +591,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         RefreshList();
-        SelectedStrat = Strats.FirstOrDefault(r => r.Id == created.Id);
+        if (open)
+        {
+            SelectedStrat = Strats.FirstOrDefault(r => r.Id == created.Id);
+        }
+        else
+        {
+            ListLine = string.Create(CultureInfo.InvariantCulture, $"a new strat was added on {map}");
+        }
     }
 
     /// <summary>
@@ -657,6 +714,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     partial void OnSelectedMapChanged(string value)
     {
+        if (value != AllMaps)
+        {
+            _spawns?.Warm(value);
+        }
+
         if (!_refreshing)
         {
             RefreshList();
