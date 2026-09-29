@@ -20,7 +20,7 @@ public enum StratStepField
 /// </summary>
 public static class StratStepFields
 {
-    /// <summary>The members <paramref name="verb" /> uses.</summary>
+    /// <summary>The members <paramref name="verb" /> uses. <c>other</c> and any verb outside the vocabulary use all of them.</summary>
     /// <param name="verb">A step verb.</param>
     public static StratStepField For(string? verb) => verb switch
     {
