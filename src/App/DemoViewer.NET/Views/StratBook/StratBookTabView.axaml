@@ -218,7 +218,7 @@
                     </ComboBox>
                     <TextBlock Text="Map" FontSize="12" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
-                    <ComboBox ItemsSource="{Binding MapOptions}" SelectedItem="{Binding SelectedMap}"
+                    <ComboBox x:Name="MapFilter" ItemsSource="{Binding MapOptions}" SelectedItem="{Binding SelectedMap}"
                               FontSize="12" MinWidth="130" Margin="0 0 16 4" />
                     <TextBlock Text="Side" FontSize="12" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
@@ -233,6 +233,9 @@
                             <MenuFlyout Placement="BottomEdgeAlignedLeft" />
                         </SplitButton.Flyout>
                     </SplitButton>
+                    <TextBlock x:Name="NewStratHintText" Text="{Binding NewStratHint}" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4"
+                               IsVisible="{Binding NewStratHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </WrapPanel>
             </StackPanel>
         </Border>

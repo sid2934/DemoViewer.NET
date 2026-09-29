@@ -71,6 +71,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private (Guid Strat, Guid Step)? _pickerTarget;
     private readonly StratSpawnSource? _spawns;
     private bool _creating;
+
+    // A New strat click that had no map: the template it asked for (null is blank) waits for the map pick.
+    private bool _awaitingMap;
+    private string? _awaitingTemplate;
     private readonly Action<Action> _post;
     private readonly StratStore _store;
     private readonly TeamIdentityService? _teams;
@@ -100,6 +104,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     [ObservableProperty]
     private string _listLine = "";
+
+    /// <summary>Shown beside New strat while a create waits for a map; empty otherwise.</summary>
+    [ObservableProperty]
+    private string _newStratHint = "";
+
+    /// <summary>New strat had no map to use; the view opens the map filter for the pick that finishes the create.</summary>
+    public event Action? MapChoiceRequested;
 
     /// <summary>True while the list pane shows the Detected inbox instead of the book.</summary>
     [ObservableProperty]
@@ -366,6 +377,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     public void OnDeactivated()
     {
         CancelLineupPicker();
+        CancelMapChoice();
         if (_context is not null)
         {
             _context.DemoReset -= OnDemoReset;
@@ -627,7 +639,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>
     ///     A new strat in the selected book, on the filtered map (else the open demo's), on the filtered side (else
-    ///     T), committed as revision 1 and opened. Disabled while a cold map's spawns load.
+    ///     T), committed as revision 1 and opened. With neither map it waits for the next map pick. Disabled while
+    ///     a cold map's spawns load.
     /// </summary>
     /// <param name="templateId">
     ///     A <see cref="StratTemplates" /> id, or null for a blank strat. The template sets the type, and the side when
@@ -650,9 +663,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         string? map = SelectedMap != AllMaps ? SelectedMap : _context?.MapName;
         if (string.IsNullOrWhiteSpace(map))
         {
-            ListLine = "choose a map for the new strat";
+            _awaitingMap = true;
+            _awaitingTemplate = templateId;
+            NewStratHint = "choose a map for the new strat";
+            MapChoiceRequested?.Invoke();
             return;
         }
+
+        CancelMapChoice();
 
         string side = SelectedSide == StratVocabulary.SideCt ? StratVocabulary.SideCt : StratVocabulary.SideT;
         if (template is not null)
@@ -692,6 +710,14 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     }
 
     private bool CanNewStrat(string? templateId) => !_creating;
+
+    /// <summary>Drops a create that was waiting for a map, and its hint.</summary>
+    public void CancelMapChoice()
+    {
+        _awaitingMap = false;
+        _awaitingTemplate = null;
+        NewStratHint = "";
+    }
 
     private void SetCreating(bool creating)
     {
@@ -872,6 +898,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         // Another book: the open strat is not in it.
+        CancelMapChoice();
         SelectedStrat = null;
         RefreshList();
     }
@@ -883,9 +910,17 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             _spawns?.Warm(value);
         }
 
-        if (!_refreshing)
+        if (_refreshing)
         {
-            RefreshList();
+            return;
+        }
+
+        RefreshList();
+        if (_awaitingMap && value != AllMaps)
+        {
+            string? template = _awaitingTemplate;
+            CancelMapChoice();
+            NewStrat(template);
         }
     }
 
