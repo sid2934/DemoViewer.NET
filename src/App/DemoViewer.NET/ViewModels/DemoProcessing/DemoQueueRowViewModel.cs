@@ -67,6 +67,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         QueueJobKind.StoreLoad => "load",
         QueueJobKind.SectionCompute => "section",
         QueueJobKind.TeamsCommand => "teams",
+        QueueJobKind.LibraryScan => "library",
         _ => ""
     };
 

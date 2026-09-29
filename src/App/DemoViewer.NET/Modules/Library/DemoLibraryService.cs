@@ -468,10 +468,22 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // Enumerate (path-canonicalized), then collapse byte-identical COPIES at different real
             // paths onto one primary (content dedup), cheap via a size pre-filter (only same-size
             // files are hashed) with the hash cached on the metadata row.
-            (List<(string Path, long Size, DateTime Modified)> files, List<string> scannedRoots) =
-                await Task.Run(EnumerateFiles, ct);
-            _lastScannedRoots = [.. scannedRoots];
-            (primaries, shadowFolders) = await Task.Run(() => ResolveContentIdentities(files, ct), ct);
+            ((List<(string Path, long Size, DateTime Modified)> Files, List<string> Roots) Listing,
+                    (List<(string, long, DateTime)> Primaries, Dictionary<string, IReadOnlyList<string>> Shadows) Identities)? scan =
+                await QueueWork.RunAsync<((List<(string, long, DateTime)>, List<string>),
+                    (List<(string, long, DateTime)>, Dictionary<string, IReadOnlyList<string>>))?>(
+                    QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: find demos", "library", () =>
+                    {
+                        (List<(string Path, long Size, DateTime Modified)> files, List<string> roots) = EnumerateFiles();
+                        return ((files, roots), ResolveContentIdentities(files, ct));
+                    }, null).WaitAsync(ct).ConfigureAwait(false);
+            if (scan is not { } done)
+            {
+                return; // removed from the queue before it ran
+            }
+
+            _lastScannedRoots = [.. done.Listing.Roots];
+            (primaries, shadowFolders) = done.Identities;
         }
         catch (OperationCanceledException)
         {
@@ -496,13 +508,19 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // Tier 1 (cheap header → map/server). Light parallelism: it only reads ~256 KB per file.
         try
         {
-            await Parallel.ForEachAsync(needMap,
-                new ParallelOptions
+            await QueueWork.Run(QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: read demo headers", "library", _ =>
                 {
-                    MaxDegreeOfParallelism = 4,
-                    CancellationToken = ct
-                },
-                async (entry, c) => { await Task.Run(() => IndexTier1(entry), c); });
+                    try
+                    {
+                        Parallel.ForEach(needMap, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
+                            IndexTier1);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // A newer rescan replaced this one; the wait below returns for it.
+                    }
+                })
+                .WaitAsync(ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

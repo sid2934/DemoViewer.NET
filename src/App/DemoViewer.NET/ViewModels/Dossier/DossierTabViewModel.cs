@@ -54,6 +54,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 {
     private readonly DemoCacheStore _demoCache;
 
+    // One runner per section (openings, post-plant, situational, heatmaps): a queue item keyed by section in
+    // the app, so a newer build replaces a queued one.
+    private readonly Func<string, Func<Action, Task>> _runSection;
+
     // The Opening Tendencies read it; its load and merges land after the page may have rendered.
     private readonly GrenadeIndex? _grenades;
     private readonly Func<byte[], Bitmap?> _decode;
@@ -125,6 +129,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
     /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
     /// <param name="grenades">The grenade index the Opening Tendencies read; its changes re-project the team.</param>
+    /// <param name="runSection">Runs a named section's build; the pool when null.</param>
     /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
@@ -139,7 +144,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         SituationalBehaviourService? situational = null,
         DossierNotesStore? notes = null,
         Func<string, string, string, string?>? export = null,
-        GrenadeIndex? grenades = null)
+        GrenadeIndex? grenades = null,
+        Func<string, Func<Action, Task>>? runSection = null)
     {
         _grenades = grenades;
         ArgumentNullException.ThrowIfNull(teams);
@@ -155,9 +161,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         _decode = decode ?? DecodePng;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
-        Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post);
-        PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post);
-        Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post);
+        _runSection = runSection ?? (_ => work => Task.Run(work));
+        Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post, _runSection("openings"));
+        PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post, _runSection("post-plant"));
+        Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post, _runSection("situational"));
         Editor = new DossierEditorViewModel(notes ?? new DossierNotesStore(null), IsBrowser, export);
         Openings.PropertyChanged += OnSectionChanged;
         PostPlant.PropertyChanged += OnSectionChanged;
@@ -579,7 +586,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         IsHeatmapBuilding = true;
         HeatmapLine = "reading positions";
         Guid teamId = row.Id;
-        HeatmapTask = Task.Run(() => RunHeatmaps(generation, teamId));
+        HeatmapTask = _runSection("heatmaps")(() => RunHeatmaps(generation, teamId));
     }
 
     // The worker: one build, the rows posted at once, then one render per heatmap from its own

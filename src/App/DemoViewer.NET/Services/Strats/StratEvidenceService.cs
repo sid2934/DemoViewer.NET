@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Tags;
 
@@ -347,7 +348,11 @@ public sealed class StratEvidenceService
     {
         ArgumentNullException.ThrowIfNull(strat);
         StratDocument snapshot = strat.Clone();
-        return Task.Run(() => Compute(snapshot), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return QueueWork.RunAsync<StratRecord?>(QueueWork.Ambient, QueueJobKind.SectionCompute, "Strats: record", "strats",
+                () => Compute(snapshot), null)
+            .ContinueWith(t => t.Result ?? throw new OperationCanceledException(cancellationToken), cancellationToken,
+                TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 }
 

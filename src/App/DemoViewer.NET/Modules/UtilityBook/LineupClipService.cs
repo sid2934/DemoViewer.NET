@@ -230,23 +230,26 @@ public sealed class LineupClipService : IDisposable
             }
 
             _soonScheduled = true;
-            _soon = Task.Run(async () =>
+            // The debounce is only a timer; the planning itself is a queue item.
+            _soon = Task.Delay(_planDebounce).ContinueWith(_ =>
             {
-                await Task.Delay(_planDebounce).ConfigureAwait(false);
                 lock (_soonGate)
                 {
                     _soonScheduled = false;
                 }
 
-                try
+                return QueueWork.Run(_processing, QueueJobKind.SectionCompute, "Lineup clips: plan", "utility", _ =>
                 {
-                    Plan();
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-                {
-                    _log?.Invoke($"lineup clips: plan: {ex.Message}");
-                }
-            });
+                    try
+                    {
+                        Plan();
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+                    {
+                        _log?.Invoke($"lineup clips: plan: {ex.Message}");
+                    }
+                }, key: "lineup-clips:plan");
+            }, TaskScheduler.Default).Unwrap();
             return _soon;
         }
     }
@@ -529,7 +532,8 @@ public sealed class LineupClipService : IDisposable
         if (SweepTask.IsCompleted)
         {
             string directory = _directory!;
-            SweepTask = Task.Run(() => Sweep(directory, keep, now), CancellationToken.None);
+            SweepTask = QueueWork.Run(_processing, QueueJobKind.StoreSave, "Lineup clips: remove old clips", "utility",
+                _ => Sweep(directory, keep, now));
         }
     }
 

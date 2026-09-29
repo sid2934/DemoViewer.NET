@@ -66,7 +66,10 @@ public enum QueueJobKind
     SectionCompute,
 
     /// <summary>A Team Identity command the user gave. Light.</summary>
-    TeamsCommand
+    TeamsCommand,
+
+    /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
+    LibraryScan
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>

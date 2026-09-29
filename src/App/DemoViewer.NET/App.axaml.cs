@@ -924,13 +924,16 @@ public class App : Application
                 // The canvas shows the "us" team's callouts (Callout Aliases, strat-model.md §3.7) over
                 // the stored canonical place names; no team marked falls back to the me book, same as the
                 // Strat Book's own default.
-                callouts: sp.GetRequiredService<CalloutResolverSource>());
+                callouts: sp.GetRequiredService<CalloutResolverSource>(),
+                run: part => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
+                    QueueJobKind.SectionCompute, "Situations: " + part, "situations", _ => work(), key: "section:situations:" + part));
         });
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
-        services.AddSingleton(_ => new ReviewQueue(AppPaths.ConfigRoot));
+        services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
+            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue")));
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
         // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
@@ -977,6 +980,8 @@ public class App : Application
             sp.GetRequiredService<SuggestedTagsService>(),
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IDemoProcessingQueue>(),
+            run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
+                "Suggested: read a demo", "suggested", _ => work()),
             post: action => Dispatcher.UIThread.Post(action)));
         services.AddSingleton(sp => new SuggestedInboxViewModel(
             sp.GetService<SuggestedInboxService>(),
@@ -1007,7 +1012,9 @@ public class App : Application
             return new TagFactsRefresher(
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
-                path => cache.TryGetIndex(path)?.Sha256);
+                path => cache.TryGetIndex(path)?.Sha256,
+                background: work => _ = QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreSave,
+                    "Tags: round facts", "tags", _ => work()));
         });
 
         // The Matrix: tag instances pivoted over the store, a container singleton resolved lazily on first
@@ -1022,7 +1029,9 @@ public class App : Application
                 cache.TryGetIndexBySha256,
                 sp.GetRequiredService<TeamIdentityService>(),
                 tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
+                    "Tags: matrix", "tags", _ => work(), key: "section:tag-matrix"));
         });
 
         // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
@@ -1085,7 +1094,9 @@ public class App : Application
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
+                    "Teams: update", "teams", _ => work()));
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
@@ -1202,7 +1213,9 @@ public class App : Application
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IZonePlaceResolverSource>(),
             sp.GetRequiredService<GrenadeIndexEvaluator>(),
-            action => Dispatcher.UIThread.Post(action)));
+            action => Dispatcher.UIThread.Post(action),
+            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups", "utility",
+                "save:grenade-lineups")));
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
@@ -1211,7 +1224,8 @@ public class App : Application
                 sp.GetRequiredService<ISituationPlayback>(),
                 demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
                 clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
-                background: work => _ = Task.Run(work),
+                background: QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility",
+                    "section:utility"),
                 post: work => Dispatcher.UIThread.Post(work));
         });
 
@@ -1256,7 +1270,9 @@ public class App : Application
                     sp.GetRequiredService<TeamIdentityService>(),
                     sp.GetRequiredService<DemoCacheStore>()),
                 notes: sp.GetRequiredService<DossierNotesStore>(),
-                grenades: sp.GetRequiredService<GrenadeIndex>());
+                grenades: sp.GetRequiredService<GrenadeIndex>(),
+                runSection: section => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
+                    QueueJobKind.SectionCompute, "Dossier: " + section, "dossier", _ => work(), key: "section:dossier:" + section));
         });
 
         // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,
@@ -1345,6 +1361,7 @@ public class App : Application
         {
             ValidateOnBuild = true
         });
+        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
         // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
         // any rescan, independent of ValidateOnBuild's eager-construction behavior.
         provider.GetRequiredService<DemoEvaluationCoordinator>();

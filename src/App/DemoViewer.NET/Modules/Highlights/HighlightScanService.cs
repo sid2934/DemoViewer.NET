@@ -458,9 +458,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             return;
         }
 
-        _ = Task.Run(async () =>
+        _ = QueueWork.Run(QueueWork.Ambient, QueueJobKind.SectionCompute, "Reels: what needs a scan", "highlights", _ =>
         {
-            await _refreshGate.WaitAsync().ConfigureAwait(false);
+            _refreshGate.Wait(CancellationToken.None);
             try
             {
                 Interlocked.Exchange(ref _refreshQueued, 0);
@@ -477,7 +477,8 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             {
                 _refreshGate.Release();
             }
-        });
+        }, key: "highlights:staleness").ContinueWith(_ => Interlocked.CompareExchange(ref _refreshQueued, 0, 1),
+            TaskScheduler.Default); // removed from the queue before it ran: let the next trigger queue one
     }
 
     private void RefreshStalenessCore()
@@ -558,7 +559,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             return;
         }
 
-        _ = Task.Run(() =>
+        _ = QueueWork.Run(QueueWork.Ambient, QueueJobKind.StoreSave, "Save: open demo's highlights", "highlights", _ =>
         {
             try
             {

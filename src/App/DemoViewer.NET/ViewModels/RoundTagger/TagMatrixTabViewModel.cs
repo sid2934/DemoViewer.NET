@@ -2,6 +2,7 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
@@ -63,6 +64,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     private readonly TimeSpan _debounce;
     private readonly Func<string, DemoCacheIndexEntry?> _indexBySha;
     private readonly Action<Action> _post;
+    private readonly Func<Action, Task> _run;
     private readonly ReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly TagStore _store;
@@ -110,6 +112,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="post">Marshals a finished rebuild onto the UI thread; defaults to synchronous.</param>
     /// <param name="debounce">How long a burst of field changes is folded; 150 ms by default.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
+    /// <param name="run">Runs a rebuild: a processing-queue item in the app, the pool when null.</param>
     public TagMatrixTabViewModel(
         TagStore store,
         ReviewQueue? review = null,
@@ -118,9 +121,11 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         Func<string, bool>? selectTab = null,
         Action<Action>? post = null,
         TimeSpan? debounce = null,
-        bool? isBrowser = null)
+        bool? isBrowser = null,
+        Func<Action, Task>? run = null)
     {
         ArgumentNullException.ThrowIfNull(store);
+        _run = run ?? (work => Task.Run(work));
         _store = store;
         _review = review;
         _indexBySha = indexBySha ?? (_ => null);
@@ -487,7 +492,30 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
                 await Task.Delay(_debounce, token).ConfigureAwait(false);
             }
 
-            MatrixResult result = await Task.Run(() => Compute(inputs), token).ConfigureAwait(false);
+            MatrixResult? result = null;
+            Exception? failure = null;
+            await _run(() =>
+            {
+                try
+                {
+                    result = Compute(inputs);
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            }).WaitAsync(token).ConfigureAwait(false);
+            if (failure is not null)
+            {
+                ExceptionDispatchInfo.Throw(failure);
+            }
+
+            // A newer request's build replaced this one in the queue before it ran.
+            if (result is null)
+            {
+                return;
+            }
+
             _post(() =>
             {
                 if (sequence == _sequence && !_disposed)

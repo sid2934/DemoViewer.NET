@@ -95,6 +95,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="provenance">Demo Provenance Labels, for the rail's source field; null offers none. Used when <paramref name="canvas" /> is null.</param>
     /// <param name="watched">Watched Situations; a session-only service over the same index and services when null.</param>
     /// <param name="review">The Review Queue the cards send their set to; null hides the action. Used when <paramref name="results" /> is null.</param>
+    /// <param name="run">Runs the result cards' fill and overlay; the pool when null.</param>
     /// <param name="callouts">
     ///     Callout Aliases' resolver builder; null shows the canvas's place names in their stored canonical
     ///     spelling. Used when <paramref name="canvas" /> is null.
@@ -114,7 +115,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         IDemoProvenanceSource? provenance = null,
         WatchedSituationsService? watched = null,
         ReviewQueue? review = null,
-        CalloutResolverSource? callouts = null)
+        CalloutResolverSource? callouts = null,
+        Func<string, Func<Action, Task>>? run = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -139,7 +141,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         // Their overlay is the canvas's own document, so the heatmap lands on the map the query was
         // drawn on.
         Results = results ?? new ResultCardsViewModel(demoCache, sidecars ?? new RoundIndexStore(null, demoCache),
-            sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review);
+            sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review, run: run);
         Canvas.Searched += Results.Load;
         Results.SearchTeam ??= () => Canvas.Filters.Opponent.Value;
         Canvas.PropertyChanged += OnCanvasPropertyChanged;

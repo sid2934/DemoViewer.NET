@@ -67,6 +67,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     public const int ReviewTailSeconds = 5;
 
     private readonly SituationThumbnailCache _cache;
+    private readonly Func<string, Func<Action, Task>> _run;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly DemoCacheStore _demoCache;
     private readonly Func<ISituationPlayback?> _playback;
@@ -111,6 +112,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
     /// <param name="overlay">The canvas's overlay document the heatmap layer draws; a private one when null.</param>
     /// <param name="review">The Review Queue the set is sent to; null hides the action.</param>
+    /// <param name="run">Runs the fill and the overlay: queue items in the app, the pool when null.</param>
     public ResultCardsViewModel(
         DemoCacheStore demoCache,
         RoundIndexStore store,
@@ -121,8 +123,10 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         Action<Action>? post = null,
         Func<byte[], Bitmap?>? decode = null,
         OverlayDocument? overlay = null,
-        ReviewQueue? review = null)
+        ReviewQueue? review = null,
+        Func<string, Func<Action, Task>>? run = null)
     {
+        _run = run ?? (_ => work => Task.Run(work));
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(sources);
@@ -242,7 +246,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         }
 
         List<ResultCardViewModel> snapshot = [.. Cards];
-        BatchTask = Task.Run(() => Fill(generation, snapshot));
+        BatchTask = _run("fill")(() => Fill(generation, snapshot));
     }
 
     /// <summary>The last batch's worker, so a test can await the fill instead of polling the cards.</summary>
@@ -410,7 +414,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         List<SituationHit> hits = [.. Cards.Select(c => c.Hit)];
         IsOverlayBuilding = true;
         OverlayLine = "stacking the rounds";
-        OverlayTask = Task.Run(() => BuildOverlay(generation, hits));
+        OverlayTask = _run("overlay")(() => BuildOverlay(generation, hits));
     }
 
     /// <summary>Takes the heatmap off the canvas. The cards stay.</summary>
