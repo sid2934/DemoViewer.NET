@@ -163,11 +163,16 @@ public class StratBookModuleTests
         StratStore store = new(null);
         using StratBookTabViewModel vm = Tab(store);
         vm.NewStratCommand.Execute(null);
-        await Assert.That(vm.ListLine).IsEqualTo("choose a map for the new strat");
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.NewStratHint).IsEqualTo("choose a map for the new strat");
+            await Assert.That(vm.Strats.Count).IsEqualTo(0);
+        }
 
-        vm.SelectedMap = "de_nuke";
+        // The pick finishes the create; the side filter at that point applies.
         vm.SelectedSide = "CT";
-        vm.NewStratCommand.Execute(null);
+        vm.SelectedMap = "de_nuke";
+        await Assert.That(vm.NewStratHint).IsEqualTo("");
 
         using (Assert.Multiple())
         {
