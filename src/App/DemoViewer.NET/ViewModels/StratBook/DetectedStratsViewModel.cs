@@ -43,8 +43,11 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     private DetectedRowViewModel? _selectedRow;
 
+    // Dismissed and in-book patterns: hidden unless on (generated-content.md).
     [ObservableProperty]
-    private bool _showDismissed;
+    private bool _showSettled;
+
+    private int _settledCount;
 
     [ObservableProperty]
     private string _statusLine = "";
@@ -275,7 +278,10 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         }
     }
 
-    partial void OnShowDismissedChanged(bool value) => Refresh();
+    partial void OnShowSettledChanged(bool value) => Refresh();
+
+    /// <summary>"Show settled (n)": the dismissed and in-book patterns under the current filters.</summary>
+    public string SettledLabel => GeneratedInbox.SettledLabel(_settledCount);
 
     private void Refresh()
     {
@@ -286,11 +292,12 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         }
 
         string? keep = SelectedRow?.Key;
+        List<DetectedPattern> matching = [.. _mining.Patterns.Where(p => Matches(p.Pattern))];
+        _settledCount = GeneratedCounts.Of(matching.Select(p => p.State)).Settled;
         List<DetectedRowViewModel> rows =
         [
-            .. _mining.Patterns
-                .Where(p => ShowDismissed || p.State != GeneratedState.Dismissed)
-                .Where(p => Matches(p.Pattern))
+            .. matching
+                .Where(p => GeneratedInbox.Shows(p.State, ShowSettled))
                 .OrderBy(p => p.Pattern.UtilityCompared ? 0 : 1)
                 .ThenByDescending(p => p.Pattern.Support)
                 .ThenBy(p => p.Pattern.Spread)
@@ -304,6 +311,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
         SelectedRow = keep is null ? null : Rows.FirstOrDefault(r => r.Key == keep);
         OnPropertyChanged(nameof(NewCount));
+        OnPropertyChanged(nameof(SettledLabel));
         OnPropertyChanged(nameof(IsMining));
         OnPropertyChanged(nameof(StateProblem));
         OnPropertyChanged(nameof(HasStateProblem));

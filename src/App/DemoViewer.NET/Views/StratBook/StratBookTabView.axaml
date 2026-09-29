@@ -145,7 +145,8 @@
                                     <Button Content="Find strats" Classes="ghost" FontSize="11" Padding="10 5"
                                             Command="{Binding FindCommand}" IsEnabled="{Binding !IsMining}"
                                             ToolTip.Tip="Search every indexed demo for repeated setups and executes" />
-                                    <CheckBox Content="dismissed" FontSize="11" IsChecked="{Binding ShowDismissed}" />
+                                    <CheckBox Content="{Binding SettledLabel}" FontSize="11" IsChecked="{Binding ShowSettled}"
+                                              ToolTip.Tip="Also list the patterns you dismissed or added to a book" />
                                 </StackPanel>
                             </StackPanel>
                         </Panel>
