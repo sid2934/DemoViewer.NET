@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.StratBook;
 
@@ -66,19 +67,46 @@ public partial class StratBookTabView : UserControl
         }, DispatcherPriority.Background);
     }
 
-    // Filled here as well as on opening: a menu flyout with no items does not open.
-    protected override void OnDataContextChanged(EventArgs e)
+    // Only while attached: the tab VM outlives a detached view, and would otherwise keep it alive.
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        base.OnDataContextChanged(e);
-        if (_bound is not null)
-        {
-            _bound.StepSelection.Changed -= OnSelectionChanged;
-        }
+        base.OnAttachedToVisualTree(e);
+        Hook();
+    }
 
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        Unhook();
+    }
+
+    private void Hook()
+    {
+        Unhook();
         _bound = DataContext as StratBookTabViewModel;
         if (_bound is not null)
         {
             _bound.StepSelection.Changed += OnSelectionChanged;
+        }
+    }
+
+    private void Unhook()
+    {
+        if (_bound is not null)
+        {
+            _bound.StepSelection.Changed -= OnSelectionChanged;
+            _bound = null;
+        }
+    }
+
+    // Filled here as well as on opening: a menu flyout with no items does not open.
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        Unhook();
+        if (this.IsAttachedToVisualTree())
+        {
+            Hook();
         }
 
         if (DataContext is StratBookTabViewModel vm)

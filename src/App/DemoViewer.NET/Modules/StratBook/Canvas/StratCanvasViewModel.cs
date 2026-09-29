@@ -376,13 +376,21 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return false;
         }
 
-        if (_pinnedStep == stepId && _activeIndex == index && Transport.Tick == projection.Ticks[index])
+        if (_pinnedStep == stepId && _activeIndex == index && Transport.Tick == projection.Ticks[index] && !Transport.IsPlaying)
         {
             return true;
         }
 
-        _pinnedStep = stepId;
+        GoToStep(projection, index);
+        return true;
+    }
+
+    // Pause before pinning: a pause while playing raises Changed, and that update would drop a pin set at a tick
+    // the playhead has already left.
+    private void GoToStep(StratSceneProjection projection, int index)
+    {
         Transport.Pause();
+        _pinnedStep = projection.Path[index].Step.Id;
         if (Transport.Tick != projection.Ticks[index])
         {
             Transport.Seek(projection.Ticks[index]);
@@ -392,8 +400,6 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             UpdateActiveStep();
             Publish(false);
         }
-
-        return true;
     }
 
     /// <summary>Starts Set On Map for the active step. False when the step takes no place from the map.</summary>
@@ -405,10 +411,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return false;
         }
 
-        _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1);
+        _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1,
+            string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {TargetLabel(target, step)}; Esc cancels"));
         _ = PlacesFor(document.Map, true);
-        StatusLine = string.Create(CultureInfo.InvariantCulture,
-            $"click the map for step {_activeIndex + 1}'s {TargetLabel(target, step)}; Esc cancels");
+        StatusLine = _armed.Prompt;
         RaiseSetPlace();
         return true;
     }
@@ -705,8 +711,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         // The drag writes the active step's keyframe, so the canvas shows that step's moment while it does:
         // what is dragged is what is placed. Taken before the seek, which on a shared tick would pick the next step.
         int pathIndex = _activeIndex;
-        _pinnedStep = projection.Path[pathIndex].Step.Id;
         Transport.Pause();
+        _pinnedStep = projection.Path[pathIndex].Step.Id;
         int tick = projection.Ticks[pathIndex];
         if (Transport.Tick != tick)
         {
@@ -948,6 +954,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         if (_armed is { } armed && (ActiveStep?.Id != armed.StepId || PlaceTarget != armed.Target))
         {
             _armed = null;
+        }
+        else if (_armed is { Pending: false } still)
+        {
+            StatusLine = still.Prompt;
         }
 
         RaiseSetPlace();
@@ -1212,39 +1222,21 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return false;
         }
 
+        // By index, not by tick, so two steps on one tick are both visited. Short of the active step's start (before
+        // the first step) next goes to it; back from inside a window goes to that step's start first, as a
+        // player's previous does.
         int tick = Transport.Tick;
-        int target = -1;
-        if (direction > 0)
-        {
-            for (int i = 0; i < projection.Ticks.Count; i++)
-            {
-                if (projection.Ticks[i] > tick)
-                {
-                    target = i;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            // Back from inside a step's window goes to that step's start first, as a player's previous does.
-            for (int i = projection.Ticks.Count - 1; i >= 0; i--)
-            {
-                if (projection.Ticks[i] < tick)
-                {
-                    target = i;
-                    break;
-                }
-            }
-        }
-
-        if (target < 0)
+        int active = Math.Clamp(_activeIndex, 0, projection.Ticks.Count - 1);
+        int start = projection.Ticks[active];
+        int target = direction > 0
+            ? tick < start ? active : active + 1
+            : tick > start ? active : active - 1;
+        if (target < 0 || target >= projection.Ticks.Count)
         {
             return false;
         }
 
-        Transport.Pause();
-        Transport.Seek(projection.Ticks[target]);
+        GoToStep(projection, target);
         return true;
     }
 
@@ -1406,10 +1398,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
-        Apply(StepAuthoringPatches.Landing(document, index, place, x, y, levelMinZ));
-        StatusLine = place is null
-            ? $"no place there: step {number}'s landing is the point only"
-            : $"step {number} lands at {Display(place)}";
+        // Without zones there is no answer about the place, so the stored one stays; with zones, a miss drops it.
+        string? landingPlace = zones is null ? step.Utility.Landing?.Place : place;
+        Apply(StepAuthoringPatches.Landing(document, index, landingPlace, x, y, levelMinZ));
+        StatusLine = zones is null
+            ? $"no places for this map: step {number}'s landing point is set, its place kept"
+            : place is null
+                ? $"no place there: step {number}'s landing is the point only"
+                : $"step {number} lands at {Display(place)}";
     }
 
     private static string TargetLabel(StratPlaceTarget target, StratStep step) =>
@@ -1441,10 +1437,27 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     // The zone source reads files under a lock the first time, so it runs as a queue item, at the front: a user
     // opened the strat or clicked for a place.
-    private static Task<IZonePlaceResolver?> QueuedPlaces(string map) =>
-        QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.SectionCompute, "Strat places: " + map, "Strat Book",
-            () => (App.Services?.GetService<IZonePlaceResolverSource>() ?? NoZonePlaceResolverSource.Instance).TryGet(map),
-            null, DemoJobPriority.UserRequested);
+    // One read in flight per map across every canvas (the editor's and a Detected preview's), so the queue shows one.
+    private static Task<IZonePlaceResolver?> QueuedPlaces(string map)
+    {
+        lock (_placesGate)
+        {
+            if (_placesInFlight.TryGetValue(map, out Task<IZonePlaceResolver?>? running) && !running.IsCompleted)
+            {
+                return running;
+            }
+
+            Task<IZonePlaceResolver?> read = QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.SectionCompute,
+                "Strat places: " + map, "Strat Book",
+                () => (App.Services?.GetService<IZonePlaceResolverSource>() ?? NoZonePlaceResolverSource.Instance).TryGet(map),
+                null, DemoJobPriority.UserRequested);
+            _placesInFlight[map] = read;
+            return read;
+        }
+    }
+
+    private static readonly Lock _placesGate = new();
+    private static readonly Dictionary<string, Task<IZonePlaceResolver?>> _placesInFlight = new(StringComparer.OrdinalIgnoreCase);
 
     private void RaiseSetPlace()
     {
@@ -1511,8 +1524,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         App.Services?.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? [];
 
     // Set On Map waiting for its click. Pending once the click is in and the place lookup has not answered.
-    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number)
+    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number, string prompt)
     {
+        public string Prompt { get; } = prompt;
         public Guid StratId { get; } = stratId;
         public Guid StepId { get; } = stepId;
         public StratPlaceTarget Target { get; } = target;

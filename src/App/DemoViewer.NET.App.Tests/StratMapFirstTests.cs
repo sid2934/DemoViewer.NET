@@ -306,7 +306,7 @@ public class StratMapFirstTests
     }
 
     [Test]
-    public async Task ALateLookup_WritesTheStepItWasStartedFor_NotTheOneSelectedNow()
+    public async Task MovingTheSelection_DropsAPendingClick()
     {
         TaskCompletionSource<IZonePlaceResolver?> gate = new();
         (StratStore _, StratSession session) = Opened(FiveSteps());
@@ -324,6 +324,123 @@ public class StratMapFirstTests
             await Assert.That(session.UndoDepth).IsEqualTo(0);
             await Assert.That(session.Document!.Steps[1].To).IsNull();
             await Assert.That(session.Document!.Steps[3].To).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task SelectingARow_WhilePlaying_KeepsTheEarlierStepOfASharedTick()
+    {
+        (StratStore _, StratSession session) = Opened(SharedTick());
+        ManualTicker ticker = new();
+        using StratCanvasViewModel canvas = new(session, _ => null, ticker, null, () => [],
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(SyntheticZones()), post: a => a());
+        canvas.Timeline.RequestSeekToFrame(320);
+        canvas.ExecuteAction(Playback2DAction.TogglePlay);
+        ticker.Fire(0.5);
+        await Assert.That(canvas.IsPlaying).IsTrue();
+
+        await Assert.That(canvas.SelectStep(session.Document!.Steps[1].Id)).IsTrue();
+        using (Assert.Multiple())
+        {
+            await Assert.That(canvas.IsPlaying).IsFalse();
+            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step3);
+            await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task ADrag_WhilePlaying_PausesAndWritesTheStepItStartedOn_AsOneEntry()
+    {
+        (StratStore _, StratSession session) = Opened(FiveSteps());
+        ManualTicker ticker = new();
+        using StratCanvasViewModel canvas = new(session, _ => null, ticker, null, () => []);
+        canvas.Timeline.RequestSeekToFrame(Step2);
+        canvas.ExecuteAction(Playback2DAction.TogglePlay);
+        ticker.Fire(1.0);
+        await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1);
+
+        canvas.BeginDrag("B", TokenGrip.Body);
+        canvas.MoveTo("B", new SKPoint(150, 250), 0);
+        canvas.EndDrag(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(canvas.IsPlaying).IsFalse();
+            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2);
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
+            await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "B").Y).IsEqualTo(250);
+        }
+    }
+
+    [Test]
+    public async Task TheStepKeys_VisitBothStepsOfASharedTick()
+    {
+        (StratStore _, StratSession session) = Opened(SharedTick());
+        using StratCanvasViewModel canvas = MapCanvas(session);
+        List<int> forward = [];
+        while (canvas.ExecuteAction(Playback2DAction.NextStep))
+        {
+            forward.Add(canvas.ActiveStepIndex);
+        }
+
+        List<int> back = [];
+        while (canvas.ExecuteAction(Playback2DAction.PrevStep))
+        {
+            back.Add(canvas.ActiveStepIndex);
+        }
+
+        await Assert.That(string.Join(",", forward)).IsEqualTo("0,1,2,3,4");
+        await Assert.That(string.Join(",", back)).IsEqualTo("3,2,1,0");
+    }
+
+    [Test]
+    public async Task ALandingClick_WithNoZones_KeepsTheStoredPlace_AndSetsThePoint()
+    {
+        StratDocument document = FiveSteps();
+        document.Steps[3].Verb = "throw";
+        document.Steps[3].Utility = new UtilityRef { Kind = "flash", Landing = new UtilityLanding { Place = "Hut" } };
+        (StratStore _, StratSession session) = Opened(document);
+
+        foreach (Func<string, Task<IZonePlaceResolver?>> none in new Func<string, Task<IZonePlaceResolver?>>[]
+                 {
+                     _ => Task.FromResult<IZonePlaceResolver?>(null),
+                     _ => Task.FromException<IZonePlaceResolver?>(new IOException("unreadable"))
+                 })
+        {
+            using StratCanvasViewModel canvas = MapCanvas(session, none);
+            canvas.SelectStep(document.Steps[3].Id);
+            canvas.BeginSetPlace();
+            canvas.TryTagPositionAt(Upper, 700 + session.UndoDepth, 800);
+
+            UtilityLanding landing = session.Document!.Steps[3].Utility!.Landing!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(landing.Place).IsEqualTo("Hut");
+                await Assert.That(landing.Y).IsEqualTo(800);
+                await Assert.That(landing.LevelMinZ).IsEqualTo(-512);
+                await Assert.That(canvas.StatusLine).Contains("no places for this map");
+            }
+        }
+
+        await Assert.That(session.UndoDepth).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task AVerbChange_EndsTheMode_AndClearsItsPrompt_AnOtherEditKeepsIt()
+    {
+        (StratStore _, StratSession session) = Opened(FiveSteps());
+        using StratCanvasViewModel canvas = MapCanvas(session);
+        canvas.SelectStep(session.Document!.Steps[1].Id);
+
+        canvas.BeginSetPlace();
+        session.Apply(PatchOp.ReplaceOp("/steps/1/note", null, System.Text.Json.Nodes.JsonValue.Create("go")));
+        await Assert.That(canvas.IsSettingPlace).IsTrue();
+        await Assert.That(canvas.StatusLine).Contains("click the map");
+
+        session.Apply(PatchOp.ReplaceOp("/steps/1/verb", null, System.Text.Json.Nodes.JsonValue.Create("wait")));
+        using (Assert.Multiple())
+        {
+            await Assert.That(canvas.IsSettingPlace).IsFalse();
+            await Assert.That(canvas.StatusLine).DoesNotContain("click the map");
         }
     }
 
