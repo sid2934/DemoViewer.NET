@@ -49,7 +49,24 @@ public partial class StratBookTabView : UserControl
         // A press or focus anywhere in a row selects its step. Never handled, so the field still gets it.
         StepRows.AddHandler(GotFocusEvent, OnStepRowActivated, RoutingStrategies.Bubble);
         StepRows.AddHandler(PointerPressedEvent, OnStepRowActivated, RoutingStrategies.Tunnel, true);
+        MapFilter.DropDownClosed += OnMapFilterClosed;
     }
+
+    // Posted, so the drop-down opens after the click that asked for it has finished routing.
+    private void OnMapChoiceRequested() => Dispatcher.UIThread.Post(() =>
+    {
+        MapFilter.Focus();
+        MapFilter.IsDropDownOpen = true;
+    });
+
+    // Posted, so a pick that closes the drop-down writes SelectedMap, and finishes the create, first.
+    private void OnMapFilterClosed(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        if (DataContext is StratBookTabViewModel vm)
+        {
+            vm.CancelMapChoice();
+        }
+    }, DispatcherPriority.Background);
 
     private void OnStepRowActivated(object? sender, RoutedEventArgs e)
     {
@@ -105,6 +122,7 @@ public partial class StratBookTabView : UserControl
         if (_bound is not null)
         {
             _bound.StepSelection.Changed += OnSelectionChanged;
+            _bound.MapChoiceRequested += OnMapChoiceRequested;
         }
     }
 
@@ -113,6 +131,7 @@ public partial class StratBookTabView : UserControl
         if (_bound is not null)
         {
             _bound.StepSelection.Changed -= OnSelectionChanged;
+            _bound.MapChoiceRequested -= OnMapChoiceRequested;
             _bound = null;
         }
     }
