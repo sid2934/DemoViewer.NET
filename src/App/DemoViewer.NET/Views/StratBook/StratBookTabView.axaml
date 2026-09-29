@@ -28,6 +28,13 @@
         <Style Selector="TextBlock.roleLine">
             <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
         </Style>
+        <!-- The Detected preview's step list: the step the canvas is playing reads heavier, beside its "now". -->
+        <Style Selector="TextBlock.previewStep">
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="TextBlock.previewStep.previewStepActive">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
         <Style Selector="TextBlock.roleLine.roleLineContext">
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
             <Setter Property="FontStyle" Value="Italic" />
@@ -247,12 +254,15 @@
                 <Panel DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
                     <TextBlock Text="select a detected pattern" FontSize="11" Foreground="{DynamicResource TextMid}"
                                IsVisible="{Binding !HasSelection}" />
-                    <ScrollViewer IsVisible="{Binding HasSelection}">
+                    <ScrollViewer IsVisible="{Binding ShowPatternDetail}">
                         <StackPanel Spacing="10" DataContext="{Binding SelectedRow}" x:DataType="vm:DetectedRowViewModel">
                             <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextValue}" />
                             <TextBlock Text="{Binding Summary}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="DetectedPreviewButton" Content="Preview" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding CanAdd}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.PreviewStratCommand}"
+                                        ToolTip.Tip="See the strat this pattern would become, playing, before adding it. Nothing is saved." />
                                 <Button Content="Add to book" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding CanAdd}"
                                         Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.AddToBookCommand}"
                                         ToolTip.Tip="Build a strat from the most typical round into the book selected above, with every round as a run" />
@@ -279,6 +289,94 @@
                             </ItemsControl>
                             <TextBlock Text="Rounds" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
                             <ItemsControl ItemsSource="{Binding Members}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DetectedMemberRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 3">
+                                            <TextBlock Grid.Column="0" Text="{Binding Line}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                            <Button Grid.Column="1" Content="Open" Classes="ghost" FontSize="10" Padding="8 2"
+                                                    Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.OpenRoundCommand}"
+                                                    CommandParameter="{Binding}" ToolTip.Tip="Open this round in 2D Playback" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- The preview: the strat Add to book would save, as text, never as fields. The canvas on
+                         the right plays it. -->
+                    <ScrollViewer x:Name="DetectedPreview" IsVisible="{Binding IsPreviewing}">
+                        <StackPanel Spacing="10" DataContext="{Binding Preview}" x:DataType="vm:StratPreviewViewModel">
+                            <TextBlock Text="Preview · not in the book" Classes="col-label" FontSize="11"
+                                       Foreground="{DynamicResource TextCardHeader}" />
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Add to book" Classes="ghost" FontSize="11" Padding="10 5" IsEnabled="{Binding IsReady}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.AddToBookCommand}"
+                                        ToolTip.Tip="Save this strat into the book selected above, with every round as a run" />
+                                <Button Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.DismissCommand}"
+                                        ToolTip.Tip="Hide this pattern; it stays hidden when strats are found again" />
+                                <Button Content="Back to detected" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.BackToDetectedCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Notice}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" IsVisible="{Binding HasNotice}" />
+                            <TextBlock Text="Building the strat from the most typical round's cached files…" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsLoading}" />
+                            <TextBlock Text="{x:Static vm:StratPreviewViewModel.MissingLine}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" IsVisible="{Binding IsMissing}" />
+                            <StackPanel Spacing="10" IsVisible="{Binding IsReady}">
+                                <ItemsControl ItemsSource="{Binding Fields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratPreviewField">
+                                            <Grid ColumnDefinitions="80,*" ColumnSpacing="8" Margin="0 0 0 2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding Notes}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding HasNotes}" />
+                                <TextBlock Text="Slots" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                                <ItemsControl ItemsSource="{Binding Slots}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratPreviewField">
+                                            <Grid ColumnDefinitions="80,*" ColumnSpacing="8" Margin="0 0 0 2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="Steps (round clock remaining)" Classes="col-label" FontSize="11"
+                                           Foreground="{DynamicResource TextCardHeader}" />
+                                <ItemsControl x:Name="DetectedPreviewSteps" ItemsSource="{Binding Steps}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratPreviewStepRow">
+                                            <Grid ColumnDefinitions="32,22,48,*" ColumnSpacing="6" Margin="0 0 0 3">
+                                                <TextBlock Grid.Column="0" Text="{Binding Marker}" FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding NumberText}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding AtText}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <StackPanel Grid.Column="3" Spacing="1">
+                                                    <TextBlock Classes="previewStep" Classes.previewStepActive="{Binding IsActive}"
+                                                               Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Note}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasNote}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <TextBlock Text="Rounds" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                            <ItemsControl ItemsSource="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.SelectedRow.Members}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:DetectedMemberRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 3">
@@ -674,7 +772,20 @@
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="1" CornerRadius="6" Padding="12 10">
                 <Panel>
-                    <DockPanel>
+                    <!-- The Detected preview's canvas: plays the unsaved strat, no tools. -->
+                    <DockPanel x:Name="DetectedPreviewCanvas" IsVisible="{Binding Detected.IsPreviewing}">
+                        <TextBlock DockPanel.Dock="Top" Text="Preview: plays the strat as it would be saved. Nothing here is in the book yet."
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" Margin="0 0 0 6" />
+                        <Panel>
+                            <TextBlock Text="building…" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding Detected.Preview.IsLoading, FallbackValue=False}" />
+                            <TextBlock Text="nothing to play" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding Detected.Preview.IsMissing, FallbackValue=False}" />
+                            <sb:StratCanvasView DataContext="{Binding Detected.Preview.Canvas}" x:DataType="canvas:StratCanvasViewModel"
+                                                IsVisible="{Binding HasDocument, FallbackValue=False}" />
+                        </Panel>
+                    </DockPanel>
+                    <DockPanel IsVisible="{Binding !Detected.IsPreviewing}">
                         <!-- Strat Export (step-authoring.md §3.6). The button when this build can export; on the
                              browser the same slot says why it cannot, the 2D tab's wording. -->
                         <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0 0 0 6">

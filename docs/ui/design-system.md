@@ -417,8 +417,19 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Contract:** the detail pane takes the editor's column while the inbox is up and gives back the editor on
   Add to book, which opens the new strat. Dismiss is permanent across re-mines until Restore (the "dismissed"
   checkbox shows them). A member round opens in 2D Playback through `ISituationPlayback`, the Utility map's seam.
+- **Preview:** "Preview" on a pattern not yet in a book swaps the detail pane for `DetectedPreview` and the right
+  column for `DetectedPreviewCanvas`: the strat Add to book would save (same `StratMiningService.Build`),
+  metadata, slots and steps as plain text, and the canvas playing it with the transport, path picker, Fit and
+  scrubber only (`StratCanvasViewModel` with `readOnly: true`; tools, Place tokens and the step buttons are
+  hidden). The playing step reads "now" and turns semibold. The build is a `StratPreview` queue item; the pane
+  says "Building…" meanwhile and says so in words when the medoid's cached files are gone. Add to book, Dismiss,
+  Back to detected and each round's Open sit on the preview. Add to book from a preview saves the previewed
+  document itself; if a re-mine changed the pattern's rounds or medoid since, it rebuilds the preview under
+  "This pattern changed; review again." instead of saving. Another pattern, Back, or leaving Detected discards
+  it.
 - **Do not:** save a pattern into a book without the user's click, or show a pattern's win rate as a strat's
-  record before it is added; until then the numbers are the rounds', not runs of a strat.
+  record before it is added; until then the numbers are the rounds', not runs of a strat. Do not give the preview
+  a text box, combo box or edit tool: it must not read as editable, and it runs on a throwaway in-memory store.
 
 ### KeyValueTable
 - **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`

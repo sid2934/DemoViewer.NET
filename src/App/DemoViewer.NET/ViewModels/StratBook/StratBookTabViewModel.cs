@@ -161,7 +161,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document);
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
-            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post);
+            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader);
         Detected.PropertyChanged += OnDetectedChanged;
 
         Session.Changed += OnSessionChanged;
@@ -324,6 +324,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         }
 
         Canvas.Transport.Pause();
+        Detected.Preview?.Canvas?.Transport.Pause();
         Session.Commit();
         RaiseExportState();
     }
@@ -613,6 +614,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         if (value)
         {
             Detected.EnsureMined();
+        }
+        else
+        {
+            Detected.ClosePreview();
         }
     }
 
