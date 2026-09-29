@@ -222,13 +222,14 @@ The rule that ties this to `actor` and `to`:
   stays the slot and its `to` moves into the line. An older build then shows that step's actor and verb
   without the place. A step with no watch and one player keeps the plain shape.
 
-Create Strat From Round and Strat Mining still write one actor per step; the step templates are the only
-writer of lines so far.
+Create Strat From Round and Strat Mining still write one actor per step; lines come from the step
+templates and the editor.
 
-`StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). The validator,
-the projection, the carry, the call sheet, the role sheets, the history, the step track and the Detected
-preview go through it; the editor's step rows, Set on map and the Create Strat From Round preview still
-read `actor` and `to` directly until the editor learns lines. The validator's line rules, with pointers the editor's inline checks read:
+`StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). Every consumer
+goes through it except the Create Strat From Round preview, which only ever shows captured one-actor steps.
+`StratLinePatches` is the one writer: the editor's lines, Set on map and the canvas's cone drag change a copy
+of the lines and it writes the stored shape (no lines is a step for everyone, one line with no watch is a
+plain step, five bare lines to one place fold back into a step for everyone). The validator's line rules, with pointers the editor's inline checks read:
 
 | Rule | Severity | Pointer |
 |---|---|---|
@@ -250,8 +251,7 @@ step with no position for its slot adds a keyframe where the token already stand
 Place centres are the area-weighted centroids of the map's baked zones (a custom zone with no areas uses
 the middle of its box), built once per map when the zones load through the processing queue; until they
 land, and on a map with no zones, only an explicit `yawDegrees` turns a token. A new step carries each
-token's facing as the projection shows it (the canvas's Add step; the editor's does not pass place
-centres yet, so it carries only an explicit angle).
+token's facing as the projection shows it, from the canvas's Add step and the editor's alike.
 
 `steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
 along it; two steps may share a time.
