@@ -954,7 +954,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             // Read-only canvases too: a watching token faces its place in the Detected preview as well.
             string map = document.Map;
             Task<IZonePlaceResolver?> places = PlacesFor(map, false);
-            if (!places.IsCompleted)
+            if (places is { IsCompletedSuccessfully: true, Result: not null })
+            {
+                _post(() => RaisePlacesLoaded(map));
+            }
+            else if (!places.IsCompleted)
             {
                 places.ContinueWith(t =>
                 {
@@ -1509,8 +1513,43 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                        && string.Equals(_session.Document?.Map, map, StringComparison.OrdinalIgnoreCase))
         {
             OnProjectionInputChanged();
+            PlacesLoaded?.Invoke();
         }
     }
+
+    private void RaisePlacesLoaded(string map)
+    {
+        if (!_disposed && string.Equals(_session.Document?.Map, map, StringComparison.OrdinalIgnoreCase))
+        {
+            PlacesLoaded?.Invoke();
+        }
+    }
+
+    /// <summary>Raised on the UI thread when the open map's zones are in memory: place checks can run.</summary>
+    public event Action? PlacesLoaded;
+
+    /// <summary>The open map's places from its loaded zones, for the place warnings; null until they are loaded.</summary>
+    /// <param name="map">The map.</param>
+    public CalloutResolver? LoadedPlaces(string map)
+    {
+        if (_places is not { IsCompletedSuccessfully: true, Result: { } zones }
+            || !string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+            || zones.PlaceNames is not { Count: > 0 } names)
+        {
+            return null;
+        }
+
+        if (!ReferenceEquals(_placeNamesFrom, zones))
+        {
+            _placeNamesFrom = zones;
+            _placeNames = new CalloutResolver(names);
+        }
+
+        return _placeNames;
+    }
+
+    private IZonePlaceResolver? _placeNamesFrom;
+    private CalloutResolver? _placeNames;
 
     // One load per map, kept for the canvas's life; a failed one, or on request an empty one, is asked again.
     private Task<IZonePlaceResolver?> PlacesFor(string map, bool retryEmpty)

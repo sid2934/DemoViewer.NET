@@ -491,7 +491,11 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   (`StratStepRow.SetIssues`): a `⚠` in `AccentCaution` for a warning, a filled `!` badge on `AccentError` for a
   refusal, the message in the tooltip, and every message again as a text line under the row for keyboard and
   screen-reader users. A pointer under `/steps/i/assignments/j` marks line j's slot, place or watching field (the
-  text line names the slot and field, `(B to)`), and a one-player step's `/to` marks its implicit line's place. Place fields carry the marker after their label; at, actor and verb on the field's top right
+  text line names the slot and field, `(B to)`), and a one-player step's `/to` marks its implicit line's place.
+  Unknown places (step `from`, `to` and landing, a line's place and watched callouts) are warnings, never refusals,
+  checked against the map's zones the canvas already loaded (`StratSession.PlaceLookup` over
+  `StratCanvasViewModel.LoadedPlaces`); none are shown while the zones load, and the rows revalidate when they land.
+  A step-level `to` beside stored lines shows read-only with a clear button, which writes through `StratLinePatches`. Place fields carry the marker after their label; at, actor and verb on the field's top right
   corner. An issue about the step itself (`/positions`, `/interpolation`, unknown fields), or about a field the row
   hides (a technique warning while the "thrown" combo is hidden), marks the number. Infos stay in the Checks list
   only. `StratSession.Issues` validates at most once per document version, with the commit's rules, so the rows and

@@ -106,6 +106,9 @@ public interface IZonePlaceResolver
     /// <param name="place">A raw place name.</param>
     /// <param name="floorKey">The floor's key: <c>MapSpace.QuantizeZ</c> of the band's lower Z.</param>
     (double X, double Y)? PlaceCentre(string place, double floorKey) => null;
+
+    /// <summary>The map's place names, custom zones included; empty when the source has no list.</summary>
+    IReadOnlyList<string> PlaceNames => [];
 }
 
 /// <summary>Finds a map's zone resolver, or none when the map has no <c>zones.json</c>.</summary>

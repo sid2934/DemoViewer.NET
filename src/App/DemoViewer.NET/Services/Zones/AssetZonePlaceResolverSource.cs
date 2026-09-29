@@ -151,4 +151,7 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
 
     /// <inheritdoc />
     public (double X, double Y)? PlaceCentre(string place, double floorKey) => _centres.Centre(place, floorKey);
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> PlaceNames => [.. Resolver.Zones.Places.Select(p => p.Name)];
 }
