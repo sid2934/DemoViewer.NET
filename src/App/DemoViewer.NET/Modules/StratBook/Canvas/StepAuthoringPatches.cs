@@ -257,13 +257,22 @@ public static class StepAuthoringPatches
     }
 
     // A time between the step it follows and the one after, so an insert never breaks the countdown the
-    // validator enforces. Rounded to a tick: the canvas's clock has no finer grain to show.
+    // validator enforces; past the last step, no earlier than the clock's end unless that step already is.
+    // Rounded to a tick: the canvas's clock has no finer grain to show.
     private static double ClampBetween(StratDocument document, int afterIndex, double atSeconds)
     {
         double upper = afterIndex >= 0 && afterIndex < document.Steps.Count ? document.Steps[afterIndex].AtSeconds : double.PositiveInfinity;
-        double lower = afterIndex + 1 < document.Steps.Count ? document.Steps[afterIndex + 1].AtSeconds : double.NegativeInfinity;
+        double lower = afterIndex + 1 < document.Steps.Count
+            ? document.Steps[afterIndex + 1].AtSeconds
+            : Math.Min(upper, StratValidator.EarliestAfterTimerSeconds);
+        if (lower > upper)
+        {
+            return upper;
+        }
+
         double clamped = Math.Max(lower, Math.Min(upper, atSeconds));
-        return Math.Round(clamped * StepSchedule.TicksPerSecond, MidpointRounding.AwayFromZero) / StepSchedule.TicksPerSecond;
+        double rounded = Math.Round(clamped * StepSchedule.TicksPerSecond, MidpointRounding.AwayFromZero) / StepSchedule.TicksPerSecond;
+        return rounded > upper || rounded < lower ? clamped : rounded;
     }
 
     private static StepPosition Clone(StepPosition position) =>

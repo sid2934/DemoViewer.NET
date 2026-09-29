@@ -55,6 +55,40 @@
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
         </Style>
+        <!-- A validator issue beside the field it names: the glyph says warning or refusal, the tooltip what. -->
+        <Style Selector="TextBlock.stratIssue">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentCaution}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- A refusal is a filled badge, a warning an outline triangle: shape as well as colour. -->
+        <Style Selector="TextBlock.stratIssue.refusal">
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccent}" />
+            <Setter Property="Background" Value="{DynamicResource AccentError}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Padding" Value="4 0" />
+        </Style>
+        <!-- Step rows (StratBookTabView.axaml.cs): a row takes focus for Delete, Enter and Ctrl+D, but Tab
+             walks its fields; the row buttons are on keys instead. -->
+        <Style Selector="ContentPresenter.stepRow">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ContentPresenter.stepRow:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="ItemsControl#StepRows Button.icon-btn">
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
+        <Style Selector="Button.icon-btn.stepMove">
+            <Setter Property="Padding" Value="4 0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Height" Value="15" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
     </UserControl.Styles>
 
     <UserControl.Resources>
@@ -620,8 +654,9 @@
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <TextBlock Grid.Column="0" Text="Steps (round clock remaining, m:ss; +m:ss after the timer stopped)" Classes="col-label" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Content="Add step" Classes="ghost" FontSize="11" Padding="10 5"
-                                        Command="{Binding AddStepCommand}" />
+                                <Button Grid.Column="1" x:Name="AddStepButton" Content="Add step" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Click="OnAddStepClick"
+                                        ToolTip.Tip="After the row last focused, or at the end; Enter in a row's field does the same" />
                             </Grid>
                             <!-- One step: number, time, actor and verb on the first line with the row's
                                  buttons, then only the fields the verb uses (StratStepFields; a field holding a
@@ -648,12 +683,37 @@
                                                     <ComboBox Grid.Column="3" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
                                                               ItemsSource="{x:Static vm:StratEditorViewModel.Verbs}" SelectedItem="{Binding Verb}"
                                                               ToolTip.Tip="Changing the verb clears the fields the new verb does not use" />
+                                                    <!-- Issue markers for line one, on the top right corner of the number (the
+                                                         row's own) and of each field. -->
+                                                    <TextBlock Grid.Column="0" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -4 -4 0"
+                                                               Classes.refusal="{Binding RowIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding RowIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding RowIssue.Glyph}" ToolTip.Tip="{Binding RowIssue.Message}" />
+                                                    <TextBlock Grid.Column="1" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding TimeIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding TimeIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding TimeIssue.Glyph}" ToolTip.Tip="{Binding TimeIssue.Message}" />
+                                                    <TextBlock Grid.Column="2" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding ActorIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding ActorIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding ActorIssue.Glyph}" ToolTip.Tip="{Binding ActorIssue.Message}" />
+                                                    <TextBlock Grid.Column="3" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding VerbIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding VerbIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding VerbIssue.Glyph}" ToolTip.Tip="{Binding VerbIssue.Message}" />
                                                     <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2">
-                                                        <Button Content="↑" Classes="icon-btn" ToolTip.Tip="Move up"
-                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepUpCommand}"
-                                                                CommandParameter="{Binding}" />
-                                                        <Button Content="↓" Classes="icon-btn" ToolTip.Tip="Move down"
-                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepDownCommand}"
+                                                        <!-- Move up and down stacked: the 1280 layout has no room for a fourth button in a line. -->
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <Button Content="↑" Classes="icon-btn stepMove" ToolTip.Tip="Move up (Alt+Up)"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepUpCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                            <Button Content="↓" Classes="icon-btn stepMove" ToolTip.Tip="Move down (Alt+Down)"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepDownCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                        <Button Content="⧉" Classes="icon-btn" ToolTip.Tip="Duplicate the step after itself (Ctrl+D)"
+                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).DuplicateStepCommand}"
                                                                 CommandParameter="{Binding}" />
                                                         <Button Content="✕" Classes="icon-btn"
                                                                 ToolTip.Tip="Remove the step and every branch that names it"
@@ -663,28 +723,53 @@
                                                 </Grid>
                                                 <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="24 0 0 0">
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowFrom}">
-                                                        <TextBlock Text="from" Classes="stratFieldLabel" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="from" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding FromIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding FromIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding FromIssue.Glyph}" ToolTip.Tip="{Binding FromIssue.Message}" />
+                                                        </StackPanel>
                                                         <TextBox Width="128" Watermark="place or callout"
                                                                  Text="{Binding FromText, UpdateSourceTrigger=LostFocus}" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowTo}">
-                                                        <TextBlock Text="{Binding ToLabel}" Classes="stratFieldLabel" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="{Binding ToLabel}" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding ToIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding ToIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding ToIssue.Glyph}" ToolTip.Tip="{Binding ToIssue.Message}" />
+                                                        </StackPanel>
                                                         <TextBox Width="128" Watermark="place or callout"
                                                                  Text="{Binding ToText, UpdateSourceTrigger=LostFocus}" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowUtility}">
-                                                        <TextBlock Text="utility" Classes="stratFieldLabel" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="utility" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding UtilityIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding UtilityIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding UtilityIssue.Glyph}" ToolTip.Tip="{Binding UtilityIssue.Message}" />
+                                                        </StackPanel>
                                                         <ComboBox Width="96" ItemsSource="{x:Static vm:StratEditorViewModel.UtilityKinds}"
                                                                   SelectedItem="{Binding UtilityKind}" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowLineup}">
-                                                        <TextBlock Text="lineup" Classes="stratFieldLabel"
-                                                                   ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="lineup" Classes="stratFieldLabel"
+                                                                       ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding LineupIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding LineupIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding LineupIssue.Glyph}" ToolTip.Tip="{Binding LineupIssue.Message}" />
+                                                        </StackPanel>
                                                         <ComboBox Width="160" ItemsSource="{Binding LineupOptions}" SelectedItem="{Binding Lineup}"
                                                                   ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowTechnique}">
-                                                        <TextBlock Text="thrown" Classes="stratFieldLabel" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="thrown" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding TechniqueIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding TechniqueIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding TechniqueIssue.Glyph}" ToolTip.Tip="{Binding TechniqueIssue.Message}" />
+                                                        </StackPanel>
                                                         <ComboBox Width="160" ItemsSource="{Binding Techniques}" SelectedItem="{Binding Technique}"
                                                                   ToolTip.Tip="How the lineup is thrown; the count is how often it was" />
                                                     </StackPanel>
@@ -697,7 +782,12 @@
                                                                 ToolTip.Tip="Pick where it lands and where it is thrown from on the Utility Book map" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowLanding}">
-                                                        <TextBlock Text="lands at" Classes="stratFieldLabel" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="lands at" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding LandingIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding LandingIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding LandingIssue.Glyph}" ToolTip.Tip="{Binding LandingIssue.Message}" />
+                                                        </StackPanel>
                                                         <TextBox Width="128" Watermark="landing place"
                                                                  Text="{Binding LandingText, UpdateSourceTrigger=LostFocus}" />
                                                     </StackPanel>
@@ -707,6 +797,9 @@
                                                                  Text="{Binding Note, UpdateSourceTrigger=LostFocus}" />
                                                     </StackPanel>
                                                 </WrapPanel>
+                                                <!-- The markers' messages as text, for keyboard and screen-reader users. -->
+                                                <TextBlock Text="{Binding IssueText}" IsVisible="{Binding HasIssues}" Margin="24 0 0 0"
+                                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
