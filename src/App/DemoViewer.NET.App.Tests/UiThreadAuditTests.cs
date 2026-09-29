@@ -1,0 +1,367 @@
+#region
+
+using System.Diagnostics;
+using System.Text.Json.Nodes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using DemoViewer.NET.Services;
+using DemoViewer.NET.ViewModels.Settings;
+using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.Views;
+using DemoViewer.NET.Views.Settings;
+using Microsoft.Extensions.DependencyInjection;
+using TUnit.Core.Exceptions;
+
+#endregion
+
+namespace DemoViewer.NET.AppTests;
+
+/// <summary>
+///     Walks the shell over a copy of a real app-data folder and prints, per section, the time to open
+///     it and the longest UI-thread stall that followed. <c>DV_AUDIT_CONFIG</c> names the source folder;
+///     it is copied to temp first and background processing is switched off in the copy, so nothing is
+///     parsed and the source is never written.
+/// </summary>
+[NotInParallel]
+[Category("Integration")]
+public class UiThreadAuditTests
+{
+    [Test]
+    public async Task EverySection_OverTheOwnersLibrary()
+    {
+        if (Environment.GetEnvironmentVariable("DV_AUDIT_CONFIG") is not { Length: > 0 } source || !Directory.Exists(source))
+        {
+            throw new SkipTestException("DV_AUDIT_CONFIG is not set");
+        }
+
+        string dir = Path.Combine(Path.GetTempPath(), $"dv-ui-audit-{Guid.NewGuid():N}");
+        CopyTree(source, dir);
+        string settingsFile = Path.Combine(dir, "settings.json");
+        if (File.Exists(settingsFile) && JsonNode.Parse(File.ReadAllText(settingsFile)) is JsonObject settings)
+        {
+            settings["ProcessingQueue"] = new JsonObject { ["BackgroundProcessingEnabled"] = false, ["MaxQueueSize"] = 500, ["MaxConcurrency"] = 1 };
+            settings["Idle"] = new JsonObject { ["Enabled"] = false };
+            File.WriteAllText(settingsFile, settings.ToJsonString());
+        }
+
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    MainViewModel vm = provider.GetRequiredService<MainViewModel>();
+                    double build = sw.Elapsed.TotalMilliseconds;
+                    sw.Restart();
+                    Window window = new() { Width = 1440, Height = 900, Content = new MainView(), DataContext = vm };
+                    window.Show();
+                    Settle();
+                    Report("startup", build, sw.Elapsed.TotalMilliseconds, await Watch(TimeSpan.FromSeconds(8)));
+
+                    Console.WriteLine($"[ui-audit] library entries={provider.GetRequiredService<Modules.Library.DemoLibraryService>().Entries.Count} "
+                                      + $"cache index={provider.GetRequiredService<Services.DemoCache.DemoCacheStore>().Index.Count}");
+                    await Bursts(provider, vm, "library");
+                    vm.TrySelectTab("stratbook.browser");
+                    Settle();
+                    await Bursts(provider, vm, "strats");
+
+                    await GrenadeMerges(provider, vm);
+
+                    List<string> ids = [.. vm.Tabs.Select(t => t.TabId)];
+                    ids.AddRange(vm.StratBookHub.Sections.Sections.Select(s => s.TabId));
+                    ids.AddRange(vm.LibraryTab.Sections.Sections.Select(s => s.TabId));
+                    string[] skip = ["builtin.parser", "builtin.entity", "builtin.analysis", "builtin.diagnostics", "ruleworkbench.editor"];
+                    foreach (string id in ids.Distinct().Where(i => !skip.Contains(i)))
+                    {
+                        // Twice: the first open pays first-use costs, the second is what a user sees on every switch.
+                        for (int pass = 1; pass <= 2; pass++)
+                        {
+                            vm.TrySelectTab(pass == 1 ? "builtin.library" : ids[0]);
+                            Settle();
+                            await Watch(TimeSpan.FromMilliseconds(300));
+                            sw.Restart();
+                            bool selected = vm.TrySelectTab(id);
+                            Settle();
+                            double open = sw.Elapsed.TotalMilliseconds;
+                            Stall stall = await Watch(TimeSpan.FromSeconds(pass == 1 ? 4 : 2));
+                            Report($"{id} open#{pass}{(selected ? "" : " (absent)")}", 0, open, stall);
+                        }
+
+                        if (ids.Contains(id) && vm.StratBookHub.Sections.Sections.Concat(vm.LibraryTab.Sections.Sections).Concat(vm.Tabs)
+                                .FirstOrDefault(t => t.TabId == id)?.TabViewModel is { } tabVm)
+                        {
+                            await Interact(id, tabVm);
+                        }
+
+                        ScrollViewer? scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
+                            .Where(s => s.IsEffectivelyVisible && s.Extent.Height > s.Viewport.Height * 3)
+                            .OrderByDescending(s => s.Extent.Height).FirstOrDefault();
+                        if (scroller is not null)
+                        {
+                            double worst = 0;
+                            Stopwatch total = Stopwatch.StartNew();
+                            for (int step = 1; step <= 20; step++)
+                            {
+                                Stopwatch one = Stopwatch.StartNew();
+                                scroller.Offset = new Vector(0, step * 300);
+                                Settle();
+                                worst = Math.Max(worst, one.Elapsed.TotalMilliseconds);
+                            }
+
+                            Console.WriteLine($"[ui-audit] {id} scroll: extent={scroller.Extent.Height:F0}px "
+                                              + $"avg={total.Elapsed.TotalMilliseconds / 20:F1}ms worst={worst:F0}ms "
+                                              + $"visuals={window.GetVisualDescendants().Count()}");
+                        }
+                    }
+
+                    sw.Restart();
+                    SettingsViewModel settingsVm = provider.GetRequiredService<Func<SettingsViewModel>>()();
+                    Window settingsWindow = new() { Width = 900, Height = 800, Content = new SettingsView { DataContext = settingsVm } };
+                    settingsWindow.Show();
+                    Settle();
+                    Report("settings open", 0, sw.Elapsed.TotalMilliseconds, await Watch(TimeSpan.FromSeconds(2)));
+                    settingsWindow.Close();
+                    window.Close();
+                }
+                finally
+                {
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    // Section-specific steps a user takes right after opening, each timed with the stall that follows.
+    private static async Task Interact(string id, object tabVm)
+    {
+        async Task Step(string name, Action act)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            act();
+            Settle();
+            double ms = sw.Elapsed.TotalMilliseconds;
+            Report($"{id} {name}", 0, ms, await Watch(TimeSpan.FromSeconds(1.5)));
+        }
+
+        switch (tabVm)
+        {
+            case ViewModels.UtilityBook.UtilityBookTabViewModel u:
+                foreach (string map in u.Maps.ToList())
+                {
+                    await Step($"map {map}", () => u.SelectedMap = map);
+                }
+
+                await Step("index Changed", () => Raise(u, "_index"));
+                break;
+            case ViewModels.StratBook.StratBookTabViewModel s:
+                await Step("detected view", () => s.IsDetectedView = true);
+                await Step("book view", () => s.IsDetectedView = false);
+                break;
+        }
+    }
+
+    // Store Changed events the way an indexing pass raises them: one per demo, each run as its own
+    // dispatcher job. Prints the UI cost per event.
+    private static async Task Bursts(ServiceProvider provider, MainViewModel vm, string label)
+    {
+        Services.DemoCache.DemoCacheStore cache = provider.GetRequiredService<Services.DemoCache.DemoCacheStore>();
+        string[] paths = [.. cache.Index.Take(40).Select(e => e.Path)];
+        object[] stores =
+        [
+            cache,
+            provider.GetRequiredService<Services.Teams.TeamIdentityService>(),
+            provider.GetRequiredService<Modules.Library.DemoLibraryService>(),
+            provider.GetRequiredService<Services.RoundIndex.SituationIndex>(),
+            provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>()
+        ];
+        foreach (object store in stores)
+        {
+            if (store.GetType().GetField("Changed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(store) is not Delegate d)
+            {
+                continue;
+            }
+
+            int n = paths.Length;
+            double worst = 0;
+            Stopwatch total = Stopwatch.StartNew();
+            for (int i = 0; i < n; i++)
+            {
+                Stopwatch one = Stopwatch.StartNew();
+                d.DynamicInvoke(d.Method.GetParameters().Length == 0 ? [] : [paths[i]]);
+                Settle();
+                worst = Math.Max(worst, one.Elapsed.TotalMilliseconds);
+            }
+
+            double ms = total.Elapsed.TotalMilliseconds;
+            Stall after = await Watch(TimeSpan.FromSeconds(1));
+            Console.WriteLine($"[ui-audit] burst {label} {store.GetType().Name}.Changed x{n}: per-event={ms / n:F1}ms worst={worst:F0}ms "
+                              + $"total={ms:F0}ms handlers={d.GetInvocationList().Length} tail-stall={after.WorstMs:F0}ms");
+            foreach (Delegate handler in d.GetInvocationList())
+            {
+                Stopwatch h = Stopwatch.StartNew();
+                for (int i = 0; i < 5; i++)
+                {
+                    handler.DynamicInvoke(handler.Method.GetParameters().Length == 0 ? [] : [paths[i]]);
+                }
+
+                double direct = h.Elapsed.TotalMilliseconds / 5;
+                Settle();
+                double withJobs = h.Elapsed.TotalMilliseconds / 5;
+                if (withJobs >= 1)
+                {
+                    Console.WriteLine($"[ui-audit]   handler {handler.Method.DeclaringType?.FullName}.{handler.Method.Name}: "
+                                      + $"direct={direct:F1}ms withPosted={withJobs:F1}ms");
+                }
+            }
+        }
+    }
+
+    // A background grenade walk finishing, the way the evaluator announces it: from a worker, through the
+    // marshal the composition root gave it. The Utility Book is open on the demo's map.
+    private static async Task GrenadeMerges(ServiceProvider provider, MainViewModel vm)
+    {
+        Modules.UtilityBook.GrenadeIndex grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>();
+        Modules.UtilityBook.GrenadeIndexEvaluator evaluator = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
+        Stopwatch wait = Stopwatch.StartNew();
+        while (!grenades.WhenLoaded.IsCompleted && wait.Elapsed < TimeSpan.FromSeconds(60))
+        {
+            await Watch(TimeSpan.FromMilliseconds(200));
+        }
+
+        Console.WriteLine($"[ui-audit] grenade index ready after {wait.ElapsedMilliseconds}ms more; demos={grenades.DemoCount}");
+        vm.TrySelectTab("utilitybook.browser");
+        Settle();
+        ViewModels.UtilityBook.UtilityBookTabViewModel? utility = vm.StratBookHub.Sections.Sections
+            .First(s => s.TabId == "utilitybook.browser").TabViewModel as ViewModels.UtilityBook.UtilityBookTabViewModel;
+        for (int i = 0; i < 50 && utility?.Maps.Count == 0; i++)
+        {
+            await Watch(TimeSpan.FromMilliseconds(100));
+        }
+
+        string map = utility?.Maps.Contains("de_mirage") == true ? "de_mirage" : utility?.Maps.FirstOrDefault() ?? "";
+        if (utility is not null)
+        {
+            utility.SelectedMap = map;
+        }
+
+        Settle();
+        await Watch(TimeSpan.FromMilliseconds(500));
+        Services.DemoCache.DemoCacheStore cache = provider.GetRequiredService<Services.DemoCache.DemoCacheStore>();
+        string[] paths = [.. cache.Index.Where(e => string.Equals(e.Map, map, StringComparison.OrdinalIgnoreCase)).Take(10).Select(e => e.Path)];
+        const System.Reflection.BindingFlags Private = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        Action<Action> post = (Action<Action>)typeof(Modules.UtilityBook.GrenadeIndexEvaluator).GetField("_post", Private)!.GetValue(evaluator)!;
+        Delegate? indexed = (Delegate?)typeof(Modules.UtilityBook.GrenadeIndexEvaluator).GetField("Indexed", Private)!.GetValue(evaluator);
+        double worst = 0, blocked = 0;
+        foreach (string path in paths)
+        {
+            await Task.Run(() => post(() => indexed?.DynamicInvoke(path)));
+            Stall stall = await Watch(TimeSpan.FromMilliseconds(600));
+            worst = Math.Max(worst, stall.WorstMs);
+            blocked += stall.TotalBlockedMs;
+        }
+
+        Console.WriteLine($"[ui-audit] grenade walk finished x{paths.Length} on {map}, Utility open: worstStall={worst:F0}ms blocked={blocked:F0}ms");
+        vm.TrySelectTab("builtin.library");
+        Settle();
+        worst = 0;
+        blocked = 0;
+        foreach (string path in paths)
+        {
+            await Task.Run(() => post(() => indexed?.DynamicInvoke(path)));
+            Stall stall = await Watch(TimeSpan.FromMilliseconds(600));
+            worst = Math.Max(worst, stall.WorstMs);
+            blocked += stall.TotalBlockedMs;
+        }
+
+        Console.WriteLine($"[ui-audit] grenade walk finished x{paths.Length} on {map}, Utility hidden: worstStall={worst:F0}ms blocked={blocked:F0}ms");
+
+        Stopwatch save = Stopwatch.StartNew();
+        grenades.LineupStore.Save();
+        Console.WriteLine($"[ui-audit] lineup store save (what a minted anchor costs whoever queries): {save.ElapsedMilliseconds}ms");
+    }
+
+    // Fires a store's Changed event the way a background write would.
+    private static void Raise(object owner, string field)
+    {
+        object? store = owner.GetType().GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(owner);
+        if (store?.GetType().GetField("Changed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(store) is Delegate d)
+        {
+            d.DynamicInvoke(d.Method.GetParameters().Length == 0 ? [] : new object?[d.Method.GetParameters().Length]);
+        }
+    }
+
+    internal readonly record struct Stall(double WorstMs, double TotalBlockedMs, int Over50);
+
+    /// <summary>
+    ///     Pumps the dispatcher for <paramref name="span" /> and times each pump: a pump runs every queued
+    ///     job and one layout and render pass, so the longest one is the longest stall a user would feel.
+    /// </summary>
+    internal static async Task<Stall> Watch(TimeSpan span)
+    {
+        double worst = 0, blocked = 0;
+        int over = 0;
+        Stopwatch total = Stopwatch.StartNew();
+        while (total.Elapsed < span)
+        {
+            Stopwatch one = Stopwatch.StartNew();
+            Settle();
+            double ms = one.Elapsed.TotalMilliseconds;
+            worst = Math.Max(worst, ms);
+            if (ms > 50)
+            {
+                over++;
+                blocked += ms;
+            }
+
+            await Task.Delay(10);
+        }
+
+        return new Stall(worst, blocked, over);
+    }
+
+    internal static void Settle()
+    {
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void Report(string step, double build, double open, Stall stall) =>
+        Console.WriteLine($"[ui-audit] {step}: build={build:F0}ms open={open:F0}ms worstStall={stall.WorstMs:F0}ms "
+                          + $"stalls>50ms={stall.Over50} blocked={stall.TotalBlockedMs:F0}ms");
+
+    private static void CopyTree(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (string file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+        {
+            string rel = Path.GetRelativePath(from, file);
+            if (rel.StartsWith("logs", StringComparison.Ordinal) || rel.StartsWith("lineup-clips", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string target = Path.Combine(to, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
+    }
+}
