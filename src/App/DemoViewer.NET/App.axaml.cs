@@ -321,6 +321,7 @@ public class App : Application
                 services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown();
                 services.GetService<TagStore>()?.SaveIndex();
                 services.GetService<ReviewQueue>()?.Flush();
+                services.GetService<GrenadeIndex>()?.FlushLineups();
 
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
@@ -1159,8 +1160,7 @@ public class App : Application
                 sp.GetRequiredService<DemoCacheStore>(),
                 () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
                 () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
-                action => Dispatcher.UIThread.Post(action));
+                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4);
         });
 
         // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the
@@ -1178,7 +1178,9 @@ public class App : Application
                 sp.GetRequiredService<GrenadeIndex>(),
                 sp.GetRequiredService<ISituationPlayback>(),
                 demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
-                clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null);
+                clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
+                background: work => _ = Task.Run(work),
+                post: work => Dispatcher.UIThread.Post(work));
         });
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null

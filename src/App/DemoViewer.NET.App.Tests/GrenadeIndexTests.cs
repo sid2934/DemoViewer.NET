@@ -263,6 +263,94 @@ public class GrenadeIndexTests
     }
 
     [Test]
+    public async Task AHiddenUtilityBook_DoesNotReadTheIndex_UntilItIsShownAgain()
+    {
+        using GrenadeIndex index = Loaded(Library());
+        int reads = 0;
+        using UtilityBookTabViewModel vm = new(index, isBrowser: false, loadMapAsset: _ => null,
+            background: work => { reads++; work(); });
+        int afterOpen = reads;
+        vm.OnDeactivated();
+        vm.Refresh();
+        vm.SelectedMap = Mirage;
+        int whileHidden = reads;
+        bool stale = vm.IsStale;
+        vm.OnActivated(null!);
+        using (Assert.Multiple())
+        {
+            await Assert.That(whileHidden).IsEqualTo(afterOpen);
+            await Assert.That(stale).IsTrue();
+            await Assert.That(reads).IsEqualTo(afterOpen + 1);
+            await Assert.That(vm.IsStale).IsFalse();
+            await Assert.That(vm.SelectedMap).IsEqualTo(Mirage);
+            await Assert.That(vm.HasGroups).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task AUtilityBookRefresh_ReadsTheIndexInTheBackground_AndOnlyTheNewestResultLands()
+    {
+        using GrenadeIndex index = Loaded(Library());
+        Queue<Action> background = new();
+        Queue<Action> posted = new();
+        using UtilityBookTabViewModel vm = new(index, isBrowser: false, loadMapAsset: _ => null,
+            background: background.Enqueue, post: posted.Enqueue);
+        vm.SelectedMap = Mirage;
+        vm.ShowSingleThrows = true;
+        bool nothingYet = !vm.HasGroups && vm.Maps.Count == 0;
+        while (background.Count > 0)
+        {
+            background.Dequeue()();
+        }
+
+        // Three reads finished; the first two were overtaken and must not land.
+        int results = posted.Count;
+        posted.Dequeue()();
+        bool staleApplied = vm.HasGroups;
+        while (posted.Count > 0)
+        {
+            posted.Dequeue()();
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(nothingYet).IsTrue();
+            await Assert.That(results).IsEqualTo(3);
+            await Assert.That(staleApplied).IsFalse();
+            await Assert.That(vm.SelectedMap).IsEqualTo(Mirage);
+            await Assert.That(vm.HiddenLine).IsEqualTo("").Because("the newest read had single throws shown");
+            await Assert.That(vm.HasGroups).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task ALineupSave_LandsOnDiskOnFlush_WithEverythingTheQueryMinted()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-lineups-{Guid.NewGuid():N}");
+        try
+        {
+            GrenadeLineupStore store = new(root);
+            using GrenadeIndex index = new(Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
+            index.Load();
+            Guid id = index.Query(SmokesIntoCt())[0].Lineups[0].Id;
+            index.FlushLineups();
+            GrenadeLineupStore reread = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.ReadsBack()).IsTrue();
+                await Assert.That(reread.For(Mirage).Anchors.Select(a => a.Id)).Contains(id);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Test]
     public async Task EverySmokeIntoMirageCt_InTheNineDemos_ReturnsClusteredOrigins()
     {
         using GrenadeIndex index = Loaded(Library());

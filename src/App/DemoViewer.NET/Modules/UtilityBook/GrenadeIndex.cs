@@ -174,6 +174,10 @@ public sealed class GrenadeIndex : IDisposable
     private readonly Dictionary<string, Dictionary<Guid, List<Guid>>> _reverseAliases = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _ready;
+    private readonly object _saveGate = new();
+    private GrenadeLineupDocument? _pendingLineups;
+    private bool _writingLineups;
+    private Task _lineupWriter = Task.CompletedTask;
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
@@ -253,6 +257,7 @@ public sealed class GrenadeIndex : IDisposable
         }
 
         _demoCache.Changed -= OnCacheChanged;
+        FlushLineups();
     }
 
     /// <summary>The startup load on a worker: the composition root calls this and never awaits it on the UI thread.</summary>
@@ -545,6 +550,8 @@ public sealed class GrenadeIndex : IDisposable
             SaveLineupsLocked();
         }
 
+        // The migration reads the file back right after this returns.
+        FlushLineups();
         return (filled, readable);
     }
 
@@ -574,15 +581,68 @@ public sealed class GrenadeIndex : IDisposable
     private static float Distance(WorldPoint a, WorldPoint b) =>
         MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z));
 
+    // Under _gate. Only the copy is taken here: the gzip and write of the whole file (over a second on a
+    // big library) happen on one writer thread, so neither the lock nor the querying thread waits for them.
     private void SaveLineupsLocked()
     {
-        try
+        GrenadeLineupDocument snapshot = _lineups.Snapshot();
+        lock (_saveGate)
         {
-            _lineups.Save();
+            _pendingLineups = snapshot;
+            if (!_writingLineups)
+            {
+                _writingLineups = true;
+                _lineupWriter = Task.Run(WriteLineups);
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    }
+
+    // The newest snapshot wins; one that arrives mid-write is written next.
+    private void WriteLineups()
+    {
+        while (true)
         {
-            GrenadeIndexLog.LineupsNotSaved(Log, ex);
+            GrenadeLineupDocument snapshot;
+            lock (_saveGate)
+            {
+                if (_pendingLineups is null)
+                {
+                    _writingLineups = false;
+                    return;
+                }
+
+                snapshot = _pendingLineups;
+                _pendingLineups = null;
+            }
+
+            try
+            {
+                _lineups.Write(snapshot);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                GrenadeIndexLog.LineupsNotSaved(Log, ex);
+            }
+        }
+    }
+
+    /// <summary>Blocks until every lineup save requested so far is on disk. Not for the UI thread.</summary>
+    public void FlushLineups()
+    {
+        while (true)
+        {
+            Task writer;
+            lock (_saveGate)
+            {
+                if (!_writingLineups)
+                {
+                    return;
+                }
+
+                writer = _lineupWriter;
+            }
+
+            writer.Wait();
         }
     }
 
