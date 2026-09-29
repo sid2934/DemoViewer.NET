@@ -2703,6 +2703,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        IDemoOpenTicket open = BeginOpenItem(path, Path.GetFileName(path));
+        byte[] rawBytes;
+        try
+        {
+            rawBytes = await ReadDemoBytes(path, open.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            EndUnreadOpen(open, Path.GetFileName(path), ex);
+            return;
+        }
+
+        if (IsStale(open))
+        {
+            open.Dispose();
+            return;
+        }
+
         UnloadDemoState();
 
         IsLoading = true;
@@ -2711,12 +2729,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetStage(path, "Parsing demo…", 0.15);
-        IDemoOpenTicket open = BeginOpenItem(path, Path.GetFileName(path));
         bool superseded = false;
 
         try
         {
-            byte[] rawBytes = await File.ReadAllBytesAsync(path, open.CancellationToken);
             _demoBytes = rawBytes;
             _loadedDemoPath = path; // Diagnostics Session card
             // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it:
@@ -2802,7 +2818,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _tutorial.NotifyDemoLoaded();
             open.Complete();
         }
-        catch (OperationCanceledException) when (open.CancellationToken.IsCancellationRequested || open.IsSuperseded)
+        catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
         {
             superseded = open.IsSuperseded;
             open.Dispose();
@@ -3334,7 +3350,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             if (pickedLocalPath is not null)
             {
-                pickedBytes = await File.ReadAllBytesAsync(pickedLocalPath, open.CancellationToken);
+                pickedBytes = await ReadDemoBytes(pickedLocalPath, open.CancellationToken);
             }
             else
             {
@@ -3352,6 +3368,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         await LoadDemoFromBytesAsync(pickedBytes, pickedLocalPath, file.Name, open);
     }
+
+    private static bool IsStale(IDemoOpenTicket open) =>
+        open.IsSuperseded || open.CancellationToken.IsCancellationRequested;
+
+    /// <summary>Test seam: how an open reads its file.</summary>
+    internal Func<string, CancellationToken, Task<byte[]>> ReadDemoBytes { get; set; } = File.ReadAllBytesAsync;
 
     private static void ThrowIfSuperseded(IDemoOpenTicket open)
     {
@@ -3402,7 +3424,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         byte[] rawBytes;
         try
         {
-            rawBytes = await File.ReadAllBytesAsync(path, open.CancellationToken);
+            rawBytes = await ReadDemoBytes(path, open.CancellationToken);
         }
         catch (Exception ex)
         {
@@ -3829,6 +3851,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task LoadDemoFromBytesCoreAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
     {
+        // A read that finished after a newer open started must not reset the shell under it.
+        if (IsStale(open))
+        {
+            open.Dispose();
+            return;
+        }
+
         UnloadDemoState();
 
         IsLoading = true;
@@ -4041,7 +4070,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // want of an open demo. No-op unless the tour is awaiting a load, so it is safe on every open.
             _tutorial.NotifyDemoLoaded();
         }
-        catch (OperationCanceledException) when (open.CancellationToken.IsCancellationRequested || open.IsSuperseded)
+        catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
         {
             superseded = open.IsSuperseded;
             open.Dispose();

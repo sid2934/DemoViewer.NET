@@ -364,6 +364,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 {
                     SetTerminalLocked(old, DemoQueueItemState.Cancelled, null);
                 }
+                else if (old.ParsingOpen)
+                {
+                    old.Detail = "Replaced, finishing its parse";
+                }
             }
 
             CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken);
@@ -373,6 +377,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 JobOwner = "open",
                 Path = path ?? "",
                 DisplayName = "Open demo: " + fileName,
+                FileName = fileName,
                 Priority = DemoJobPriority.Foreground,
                 Seq = _seq++,
                 Cancel = cancel,
@@ -442,10 +447,38 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 ThrowIfOpenEndedLocked(entry, ct);
                 entry.State = DemoQueueItemState.Running;
                 entry.Detail = "Parsing";
+                entry.ParsingOpen = true;
             }
 
             RaiseChanged();
-            return await Task.Run(() => _parseBytes(bytes), ct).ConfigureAwait(false);
+            ParsedDemo parsed;
+            try
+            {
+                // The parser takes no token: a replaced open still runs to the end of its parse.
+                parsed = await Task.Run(() => _parseBytes(bytes)).ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    entry.ParsingOpen = false;
+                }
+            }
+
+            bool dropped;
+            lock (_sync)
+            {
+                dropped = entry.CancelRequested || !IsActive(entry);
+            }
+
+            if (dropped)
+            {
+                // Ended here, not by the caller, so the list clears as soon as the slot frees.
+                EndOpen(entry, DemoQueueItemState.Cancelled, null);
+                throw new OperationCanceledException(ct);
+            }
+
+            return parsed;
         }
     }
 
@@ -477,9 +510,16 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         SetTerminal(entry, state, error);
     }
 
-    // Under _sync. What a waiting open shows: the heavy item holding the slot.
-    private string OpenWaitDetailLocked()
+    // Under _sync. What a waiting open shows: the open or heavy item holding the slot.
+    private string OpenWaitDetailLocked(Entry self)
     {
+        if (_entries.FirstOrDefault(e => e.ParsingOpen && !ReferenceEquals(e, self)) is { } open)
+        {
+            return open.CancelRequested
+                ? $"Waiting for {open.FileName} to finish parsing (cancelled)"
+                : $"Waiting for {open.FileName} to finish parsing";
+        }
+
         Entry? holder = _entries.FirstOrDefault(e =>
             e.State == DemoQueueItemState.Running && e.Kind != QueueJobKind.DemoOpen && !IsLight(e.Kind));
         if (holder is null)
@@ -805,7 +845,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         lock (_sync)
         {
             return _entries.Select(e => e.Kind == QueueJobKind.DemoOpen && e.WaitingForSlot
-                ? ToSnapshot(e) with { Detail = OpenWaitDetailLocked() }
+                ? ToSnapshot(e) with { Detail = OpenWaitDetailLocked(e) }
                 : ToSnapshot(e)).ToList();
         }
     }
@@ -1850,6 +1890,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // An open waiting for the interactive slot; its detail names what holds it.
         public bool WaitingForSlot { get; set; }
+
+        // An open parsing under the interactive slot.
+        public bool ParsingOpen { get; set; }
+
+        // The file an open is for.
+        public string? FileName { get; init; }
 
         // A job body reported a demo parse through its context.
         public bool ParsedDemo { get; set; }

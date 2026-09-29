@@ -29,6 +29,7 @@ public class DemoOpenQueueTests
         public readonly TaskCompletionSource ParseStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly ParsedDemo FileDemo = SyntheticDemo();
         public int ByteParses;
+        public ManualResetEventSlim? HoldFirstBytes;
         public readonly DemoProcessingQueue Queue;
 
         public Rig() =>
@@ -39,7 +40,11 @@ public class DemoOpenQueueTests
                 return FileDemo;
             }, parseBytes: _ =>
             {
-                Interlocked.Increment(ref ByteParses);
+                if (Interlocked.Increment(ref ByteParses) == 1)
+                {
+                    HoldFirstBytes?.Wait();
+                }
+
                 return SyntheticDemo();
             }, compactHeap: () => Task.CompletedTask);
 
@@ -261,6 +266,42 @@ public class DemoOpenQueueTests
         first.Complete();
         DemoQueueItemSnapshot ended = rig.Queue.Snapshot().Single(s => s.DisplayName == "Open demo: a.dem");
         await Assert.That(ended.State).IsEqualTo(DemoQueueItemState.Cancelled);
+    }
+
+    [Test]
+    public async Task AnOpenReplacedMidParse_IsNamedToTheNextOpen_AndItsResultIsDropped()
+    {
+        using Rig rig = new();
+        using ManualResetEventSlim hold = new();
+        rig.HoldFirstBytes = hold;
+        try
+        {
+            using IDemoOpenTicket first = rig.Queue.BeginOpen("/d/a.dem", "a.dem");
+            Task<ParsedDemo> firstParse = first.ParseAsync(Bytes);
+            await WaitForAsync(() => Volatile.Read(ref rig.ByteParses) == 1, "the first parse to start");
+
+            using IDemoOpenTicket second = rig.Queue.BeginOpen("/d/c.dem", "c.dem");
+            Task<ParsedDemo> secondParse = second.ParseAsync(Bytes);
+            DemoQueueItemSnapshot Row(string file) =>
+                rig.Queue.Snapshot().Single(s => s.DisplayName == "Open demo: " + file);
+            await WaitForAsync(() => Row("c.dem").Detail == "Waiting for a.dem to finish parsing (cancelled)",
+                "the second open to name the first");
+            await Assert.That(Row("a.dem").Detail).IsEqualTo("Replaced, finishing its parse");
+
+            hold.Set();
+            using (Assert.Multiple())
+            {
+                await Assert.That(await EndsCancelledAsync(firstParse)).IsTrue();
+                await Assert.That(Row("a.dem").State).IsEqualTo(DemoQueueItemState.Cancelled);
+            }
+
+            await secondParse.WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.That(rig.ByteParses).IsEqualTo(2);
+        }
+        finally
+        {
+            hold.Set();
+        }
     }
 
     [Test]
