@@ -74,7 +74,9 @@ public class QueueJobTests
             }));
         queue.SubmitJob(Job(QueueJobKind.PackExport, "pack", Record("pack"), DemoJobPriority.UserRequested));
 
-        await Assert.That(queue.QueuedCount).IsEqualTo(5);
+        // Pause holds background work only: the user's pack runs at once.
+        await WaitForAsync(() => order.Contains("pack"), "the pack, while paused");
+        await Assert.That(queue.QueuedCount).IsEqualTo(4);
         queue.Resume();
         await WaitForAsync(() => order.Count == 5 && queue.ActiveWorkerCount == 0, "drain");
 
@@ -82,7 +84,7 @@ public class QueueJobTests
     }
 
     [Test]
-    public async Task APausedQueue_StartsNoJob_OfAnyKind()
+    public async Task APausedQueue_HoldsBackgroundJobs_ButRunsUserRequestedOnes()
     {
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = NewQueue(gate);
@@ -99,9 +101,10 @@ public class QueueJobTests
             return Task.CompletedTask;
         }));
 
-        await Task.Delay(200);
-        await Assert.That(ran).IsEqualTo(0);
-        await Assert.That(user.State).IsEqualTo(DemoQueueItemState.Queued);
+        await user.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(100);
+        await Assert.That(ran).IsEqualTo(1).Because("the clips job waits for Resume");
+        await Assert.That(user.State).IsEqualTo(DemoQueueItemState.Completed);
 
         queue.Resume();
         await WaitForAsync(() => Volatile.Read(ref ran) == 2, "both jobs");

@@ -931,7 +931,8 @@ public class App : Application
                 // Strat Book's own default.
                 callouts: sp.GetRequiredService<CalloutResolverSource>(),
                 run: part => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
-                    QueueJobKind.SectionCompute, "Situations: " + part, "situations", _ => work(), key: "section:situations:" + part));
+                    QueueJobKind.SectionCompute, "Situations: " + part, "situations", _ => work(), key: "section:situations:" + part,
+                    preemptible: true));
         });
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
@@ -1037,7 +1038,7 @@ public class App : Application
                 tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
                 action => Dispatcher.UIThread.Post(action),
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
-                    "Tags: matrix", "tags", _ => work(), key: "section:tag-matrix"));
+                    "Tags: matrix", "tags", _ => work(), key: "section:tag-matrix", preemptible: true));
         });
 
         // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
@@ -1102,7 +1103,7 @@ public class App : Application
                 sp.GetRequiredService<IRoundFactsSource>(),
                 action => Dispatcher.UIThread.Post(action),
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
-                    "Teams: update", "teams", _ => work()),
+                    "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
                 scheduleLoad: StartupLoad(sp, "Load: teams", "teams"));
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
@@ -1137,7 +1138,8 @@ public class App : Application
                 }
             },
             command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
-                "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested),
+                "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested,
+                serial: TeamIdentityService.QueueSerial),
             post: action => Dispatcher.UIThread.Post(action)));
 
         // The Strat Book's store: one folder per book under <config>/strats. One per process, because CheckOut's
@@ -1282,7 +1284,8 @@ public class App : Application
                 notes: sp.GetRequiredService<DossierNotesStore>(),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 runSection: section => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
-                    QueueJobKind.SectionCompute, "Dossier: " + section, "dossier", _ => work(), key: "section:dossier:" + section));
+                    QueueJobKind.SectionCompute, "Dossier: " + section, "dossier", _ => work(), key: "section:dossier:" + section,
+                    preemptible: true));
         });
 
         // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,

@@ -14,8 +14,14 @@ public static class QueueWork
     /// <param name="work">The work, given the item's cancellation token.</param>
     /// <param name="priority">UserRequested for work a click asked for: it goes first and stops background work.</param>
     /// <param name="key">One queued item per key; a newer submit replaces the queued one's work.</param>
+    /// <param name="preemptible">
+    ///     True when the work checks <see cref="ThrowIfStopped" /> (or its token) at its natural boundaries, so
+    ///     a user's item may stop it and it runs again later. False for work that cannot stop part-way.
+    /// </param>
+    /// <param name="serial">Items sharing it never run at the same time.</param>
     public static Task Run(IDemoProcessingQueue? queue, QueueJobKind kind, string title, string owner,
-        Action<CancellationToken> work, DemoJobPriority priority = DemoJobPriority.Background, string? key = null)
+        Action<CancellationToken> work, DemoJobPriority priority = DemoJobPriority.Background, string? key = null,
+        bool preemptible = false, string? serial = null)
     {
         ArgumentNullException.ThrowIfNull(work);
         if (queue is null || Bypass)
@@ -30,15 +36,36 @@ public static class QueueWork
 
         IDemoQueueHandle handle = queue.SubmitJob(new QueueJobRequest(kind, title, owner, priority, ctx =>
         {
-            work(ctx.CancellationToken);
+            CancellationToken outer = _current.Value;
+            _current.Value = ctx.CancellationToken;
+            try
+            {
+                work(ctx.CancellationToken);
+            }
+            finally
+            {
+                _current.Value = outer;
+            }
+
             return Task.CompletedTask;
-        }, key, ReplacePending: key is not null));
+        }, key, ReplacePending: key is not null, Preemptible: preemptible, Serial: serial));
 
         // A disposed queue refuses without running; the work still has to happen.
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(CancellationToken.None)) : handle.Completion;
     }
 
     private static readonly AsyncLocal<bool> _userAction = new();
+    private static readonly AsyncLocal<CancellationToken> _current = new();
+
+    /// <summary>
+    ///     Throws when the queue item running this work has been stopped: by the user, or for a user's item.
+    ///     Work run through a delegate that carries no token calls this at its natural boundaries (per demo,
+    ///     per card, per section). Outside a queue item it never throws.
+    /// </summary>
+    public static void ThrowIfStopped() => _current.Value.ThrowIfCancellationRequested();
+
+    /// <summary>True when an exception is the queue stopping the work, which must reach the queue.</summary>
+    public static bool IsStop(Exception ex) => ex is OperationCanceledException && _current.Value.IsCancellationRequested;
 
     /// <summary>
     ///     Marks the work submitted inside the scope, and in what it awaits, as asked for by the user: it
@@ -82,7 +109,7 @@ public static class QueueWork
             {
                 result = work();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!IsStop(ex))
             {
                 failure = ex;
             }
@@ -109,5 +136,5 @@ public static class QueueWork
     /// <param name="owner">The submitting module.</param>
     /// <param name="key">The section's key.</param>
     public static Action<Action> Section(IDemoProcessingQueue? queue, string title, string owner, string key) =>
-        work => _ = Run(queue, QueueJobKind.SectionCompute, title, owner, _ => work(), key: key);
+        work => _ = Run(queue, QueueJobKind.SectionCompute, title, owner, _ => work(), key: key, preemptible: true);
 }

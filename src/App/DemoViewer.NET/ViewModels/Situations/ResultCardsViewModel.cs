@@ -511,6 +511,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
                 return;
             }
 
+            QueueWork.ThrowIfStopped();
+
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))
             {
                 currentPath = hit.DemoPath;
@@ -589,6 +591,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             {
                 return;
             }
+
+            QueueWork.ThrowIfStopped();
 
             SituationHit hit = card.Hit;
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))

@@ -506,11 +506,12 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
             Exception? failure = null;
             await _run(() =>
             {
+                QueueWork.ThrowIfStopped();
                 try
                 {
                     result = Compute(inputs);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!QueueWork.IsStop(ex))
                 {
                     failure = ex;
                 }
