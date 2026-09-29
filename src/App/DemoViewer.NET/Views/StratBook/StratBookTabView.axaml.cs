@@ -188,6 +188,13 @@ public partial class StratBookTabView : UserControl
         bool onRow = ReferenceEquals(e.Source, container);
         bool inLine = e.Source is TextBox { AcceptsReturn: false };
         bool inOpenCombo = e.Source is ComboBox { IsDropDownOpen: true };
+
+        // An open suggestion list owns Enter and Escape: they pick or dismiss a callout.
+        if (e.Key is Key.Enter or Key.Escape && (e.Source as Visual)?.FindAncestorOfType<AutoCompleteBox>(true) is { IsDropDownOpen: true })
+        {
+            return;
+        }
+
         switch (e.Key)
         {
             case Key.Enter when e.KeyModifiers == KeyModifiers.None && (onRow || inLine):
