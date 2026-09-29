@@ -217,6 +217,7 @@ public class StratTemplatesTests
         StratTemplate template = StratTemplates.Find("retake-b")!;
 
         await Assert.That(vm.ApplyTemplateCommand.CanExecute("retake-b")).IsTrue();
+        await Assert.That(vm.ApplyTemplateCommand.CanExecute("execute-a")).IsFalse().Because("an execute is not for a CT strat");
         vm.ApplyTemplateCommand.Execute("retake-b");
 
         StratDocument applied = vm.Session.Document!;
