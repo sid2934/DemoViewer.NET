@@ -179,6 +179,28 @@ public class GeneratedInboxTests
     }
 
     [Test]
+    public async Task IsThisYou_CanBeDismissed_AndRestoredFromSettled()
+    {
+        (TeamIdentityService service, DemoCacheStore cache) = await Teams(setMe: false);
+        await Assert.That(service.MeSuggestion?.SteamId64).IsEqualTo(Ids(0)[0]);
+        using TeamsTabViewModel vm = new(service, cache, isBrowser: false);
+
+        vm.DismissMeSuggestionCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.HasMeSuggestion).IsFalse();
+            await Assert.That(service.DismissedMeSuggestion?.SteamId64).IsEqualTo(Ids(0)[0]);
+            await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (1)");
+        }
+
+        vm.ShowSettled = true;
+        SuggestionRow me = vm.Suggestions.Single(s => s.Id.StartsWith("me:", StringComparison.Ordinal));
+        vm.RestoreSuggestionCommand.Execute(me);
+        await Assert.That(vm.HasMeSuggestion).IsTrue();
+        await Assert.That(service.DismissedMeSuggestion).IsNull();
+    }
+
+    [Test]
     public async Task TheTeamsInbox_ListsADismissal_UnderSettled_WithRestore()
     {
         (TeamIdentityService service, DemoCacheStore cache) = await Teams();

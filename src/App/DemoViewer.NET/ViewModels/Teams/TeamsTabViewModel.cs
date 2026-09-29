@@ -114,13 +114,15 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     public ObservableCollection<TeamRow> MoveTargets { get; } = [];
 
     /// <summary>The card shows while anything is pending or dismissed.</summary>
-    public bool HasSuggestions => _teams.Suggestions.Count + _teams.DismissedSuggestions.Count > 0;
+    public bool HasSuggestions => _teams.Suggestions.Count + SettledCount > 0;
+
+    private int SettledCount => _teams.DismissedSuggestions.Count + (_teams.DismissedMeSuggestion is null ? 0 : 1);
 
     /// <summary>Also list the dismissed suggestions that still hold, each with Restore.</summary>
     [ObservableProperty]
     private bool _showSettled;
 
-    public string SettledLabel => GeneratedInbox.SettledLabel(_teams.DismissedSuggestions.Count);
+    public string SettledLabel => GeneratedInbox.SettledLabel(SettledCount);
 
     partial void OnShowSettledChanged(bool value) => ProjectSuggestions();
 
@@ -279,7 +281,16 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     [RelayCommand]
     private void RestoreSuggestion(SuggestionRow? row)
     {
-        if (row is not null)
+        if (row is null)
+        {
+            return;
+        }
+
+        if (row.Id.StartsWith("me:", StringComparison.Ordinal))
+        {
+            _teams.RestoreMeSuggestion();
+        }
+        else
         {
             _teams.RestoreSuggestion(row.Id);
         }
@@ -326,6 +337,9 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     private void ConfirmMeSuggestion() => _teams.ConfirmMeSuggestion();
 
     [RelayCommand]
+    private void DismissMeSuggestion() => _teams.DismissMeSuggestion();
+
+    [RelayCommand]
     private Task OpenDemo(DemoRow? row) => row is not null && _openDemo is not null ? _openDemo(row.Path) : Task.CompletedTask;
 
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
@@ -340,9 +354,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         }
 
         MyAccountsText = string.Join(", ", _teams.MyAccounts);
-        MeSuggestionLine = _teams.MeSuggestion is { } s
-            ? $"{DisplayText.Sanitize(s.LastName)} ({s.SteamId64}) is on {s.DemoCount} of your demos ({s.Share:P0}). Is that you?"
-            : "";
+        MeSuggestionLine = _teams.MeSuggestion is { } s ? MeLine(s) : "";
         FooterLine = Footer();
         ProjectMyTeam();
         ProjectSuggestions();
@@ -462,6 +474,9 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         }
     }
 
+    private static string MeLine(MeSuggestion s) =>
+        $"{DisplayText.Sanitize(s.LastName)} ({s.SteamId64}) is on {s.DemoCount} of your demos ({s.Share:P0}). Is that you?";
+
     private void ProjectSuggestions()
     {
         Suggestions.Clear();
@@ -484,6 +499,11 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
                 _ => $"Two teams are tagged {DisplayText.Sanitize(s.Subject)}. Merge them?"
             };
             Suggestions.Add(new SuggestionRow(s.Id, text) { IsDismissed = dismissed });
+        }
+
+        if (ShowSettled && _teams.DismissedMeSuggestion is { } me)
+        {
+            Suggestions.Add(new SuggestionRow(TeamIdentityService.MeSuggestionId(me.SteamId64), MeLine(me)) { IsDismissed = true });
         }
 
         OnPropertyChanged(nameof(HasSuggestions));
