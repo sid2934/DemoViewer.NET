@@ -48,6 +48,7 @@ using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Dossier;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Review;
+using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.ViewModels.RoundTagger;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
@@ -950,6 +951,16 @@ public class App : Application
                 teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
         });
 
+        // The Strat Book's Suggested section: every demo's tag suggestions in one inbox, read as a queue item.
+        services.AddSingleton(sp => new SuggestedInboxService(
+            sp.GetRequiredService<SuggestedTagsService>(),
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<IDemoProcessingQueue>(),
+            post: action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp => new SuggestedInboxViewModel(
+            sp.GetService<SuggestedInboxService>(),
+            () => sp.GetService<ISituationPlayback>()));
+
         // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
         // over one demo on the index's Indexed hook and over the library at the watermark on every
         // other change. A container singleton so the module's badge and the tab's list share one
@@ -1473,6 +1484,10 @@ public class App : Application
         // so. The badge reads the queue, so clips sent from another tab count before the tab is opened.
         registry.Register(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
             sp.GetRequiredService<ReviewQueue>()));
+
+        // The Strat Book's Suggested section. The badge reads the demo index, so it counts before the section opens.
+        registry.Register(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
+            sp.GetService<DemoCacheStore>()));
 
         // The Round Tagger's Matrix tab. Registered on both hosts: the browser pivots the session's
         // in-memory tag documents and says so. The VM is a container singleton resolved lazily.

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -37,7 +38,22 @@ public sealed partial class SuggestionRowViewModel : ObservableObject
         EvidenceText = string.Join('\n', p.Evidence.Select(e => e.Text));
         ReasonText = p.Evidence.Count == 0 ? "" : string.Join("; ", p.Evidence.Take(2).Select(e => e.Text));
         Step = ProposalTrack.StepOf(p.Confidence);
+        State = entry.State;
     }
+
+    public GeneratedState State { get; }
+
+    public bool IsNew => State == GeneratedState.New;
+
+    public bool IsDismissed => State == GeneratedState.Dismissed;
+
+    /// <summary>"accepted" or "dismissed" on a settled row, else empty.</summary>
+    public string StateText => State switch
+    {
+        GeneratedState.Accepted => "accepted",
+        GeneratedState.Dismissed => "dismissed",
+        _ => ""
+    };
 
     public ProposalEntry Entry { get; }
 
@@ -124,6 +140,12 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
     [ObservableProperty]
     private double _minConfidence;
+
+    // Accepted and dismissed proposals: hidden unless on (generated-content.md).
+    [ObservableProperty]
+    private bool _showSettled;
+
+    private int _settledCount;
 
     private ProposalSet? _set;
 
@@ -240,7 +262,10 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     public string ConfirmText =>
         string.Create(CultureInfo.InvariantCulture, $"Accept {AcceptAllCount} suggestions? Ctrl+Y again to confirm");
 
-    private int AcceptAllCount => Rows.Count;
+    private int AcceptAllCount => Rows.Count(r => r.IsNew);
+
+    /// <summary>"Show settled (n)": the accepted and dismissed proposals under the filters.</summary>
+    public string SettledLabel => GeneratedInbox.SettledLabel(_settledCount);
 
     /// <inheritdoc />
     public void Dispose()
@@ -306,7 +331,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
     /// <summary>Selects the first pending row: the header's Review button, the way into the keyboard flow.</summary>
     [RelayCommand]
-    private void Review() => Select(Rows.FirstOrDefault(), true);
+    private void Review() => Select(Rows.FirstOrDefault(r => r.IsNew), true);
 
     /// <summary>Drops the selection, which hands J / K back to the Situations walk.</summary>
     [RelayCommand]
@@ -476,7 +501,25 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         }
     }
 
-    /// <summary>The row's buttons: reject this one.</summary>
+    /// <summary>A dismissed row's Restore: offers the proposal again.</summary>
+    [RelayCommand]
+    private void RestoreRow(SuggestionRowViewModel? row)
+    {
+        if (_service is null || DemoPath is not { } path || row is not { IsDismissed: true })
+        {
+            return;
+        }
+
+        if (!_service.Restore(path, row.Proposal.Id, _sha256))
+        {
+            StatusText = "The restore could not be written.";
+            return;
+        }
+
+        Reload();
+    }
+
+    /// <summary>The row's buttons: dismiss this one.</summary>
     [RelayCommand]
     private void RejectRow(SuggestionRowViewModel? row)
     {
@@ -501,6 +544,8 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
     partial void OnMinConfidenceChanged(double value) => RebuildRows();
 
+    partial void OnShowSettledChanged(bool value) => RebuildRows();
+
     private bool Step(int direction)
     {
         int index = _selected is null ? -1 : Rows.IndexOf(_selected);
@@ -521,13 +566,19 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
             return false;
         }
 
+        if (!row.IsNew)
+        {
+            StatusText = $"This suggestion is already {row.StateText}.";
+            return true;
+        }
+
         string? next = NextIdAfter(row);
         bool written = accept
             ? _service.Accept(path, row.Proposal.Id, null, _sha256)
             : _service.Reject(path, row.Proposal.Id, _sha256);
         if (!written)
         {
-            StatusText = accept ? "The tag could not be written." : "The rejection could not be written.";
+            StatusText = accept ? "The tag could not be written." : "The dismissal could not be written.";
             return true; // the key was ours; the status says why nothing moved
         }
 
@@ -590,7 +641,8 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         string? keep = _selected?.Proposal.Id;
         int rate = _tickRate();
         Rows.Clear();
-        foreach (ProposalEntry entry in _set?.Pending ?? [])
+        _settledCount = 0;
+        foreach (ProposalEntry entry in _set?.Entries ?? [])
         {
             TagProposal p = entry.Proposal;
             if (p.Confidence < MinConfidence
@@ -598,6 +650,15 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
                 || (RoundOfFilter() is { } round && p.Round != round))
             {
                 continue;
+            }
+
+            if (entry.State != GeneratedState.New)
+            {
+                _settledCount++;
+                if (!ShowSettled)
+                {
+                    continue;
+                }
             }
 
             Rows.Add(new SuggestionRowViewModel(entry, rate));
@@ -618,6 +679,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(Selected));
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(ConfirmText));
+        OnPropertyChanged(nameof(SettledLabel));
     }
 
     private void BeginEdit()

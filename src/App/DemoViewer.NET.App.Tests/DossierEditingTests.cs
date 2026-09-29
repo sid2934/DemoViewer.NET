@@ -218,7 +218,7 @@ public class DossierEditingTests
             await Assert.That(editor.HasHidden).IsTrue();
             await Assert.That(editor.Findings.Last().IsNote).IsTrue();
             await Assert.That(editor.Findings.Last().Section).IsEqualTo(DossierEditorViewModel.NotesSection);
-            await Assert.That(editor.CountsLine).IsEqualTo("3 findings · 1 starred · 1 left out");
+            await Assert.That(editor.CountsLine).IsEqualTo("3 findings · 1 starred · 1 dismissed");
         }
 
         // A section rebuild in another order keeps the star, the rewrite and the left-out line by key.
@@ -245,10 +245,17 @@ public class DossierEditingTests
             await Assert.That(editor.Findings.Select(f => f.Key)).IsEquivalentTo(["map|de_nuke"]);
         }
 
-        // Reset puts the generated line back; restore brings the left-out line back.
+        // Reset puts the generated line back; "Show settled" lists the dismissed line with Restore.
         editor.ShowStarredOnly = false;
         editor.ResetEditCommand.Execute(again);
-        editor.RestoreHiddenCommand.Execute(null);
+        await Assert.That(editor.SettledLabel).IsEqualTo("Show settled (1)");
+        editor.ShowSettled = true;
+        DossierFindingViewModel dismissed = editor.Findings.Single(f => f.Key == "map|de_mirage");
+        await Assert.That(dismissed.RemoveLabel).IsEqualTo("Restore");
+        await Assert.That(DossierExporter.Markdown(editor.Document())).DoesNotContain("de_mirage")
+            .Because("a dismissed line shown under the toggle is still out of both forms");
+        editor.RemoveCommand.Execute(dismissed);
+        editor.ShowSettled = false;
         using (Assert.Multiple())
         {
             await Assert.That(again.Text).IsEqualTo("de_nuke: 2 played, 1-1");

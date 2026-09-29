@@ -50,6 +50,9 @@ public enum QueueJobKind
     /// <summary>One demo's batch of Lineup Clip GIFs.</summary>
     LineupClips,
 
+    /// <summary>Reading every demo's Suggested Tags proposals for the Strat Book's Suggested section.</summary>
+    SuggestionsInbox,
+
     /// <summary>The heap compaction after the queue drains.</summary>
     HeapCompaction
 }

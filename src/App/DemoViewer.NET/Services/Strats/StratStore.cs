@@ -105,6 +105,9 @@ public sealed class StratStore
     /// <summary>Raised through the post delegate after a commit or a delete with the strat's id, or null after a rebuild.</summary>
     public event Action<Guid?>? Changed;
 
+    /// <summary>Raised on the deleting thread after <see cref="Delete" /> removed a strat.</summary>
+    public event Action<Guid>? Deleted;
+
     /// <summary>A book's map folder under a strats root.</summary>
     /// <param name="stratsRoot">The strats root.</param>
     /// <param name="owner">The book's owner.</param>
@@ -375,6 +378,7 @@ public sealed class StratStore
         }
 
         RaiseChanged(id);
+        Deleted?.Invoke(id);
         return true;
     }
 

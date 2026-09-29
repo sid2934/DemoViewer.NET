@@ -103,7 +103,7 @@
                                 <Button Content="{Binding ExportLabel}" Classes="primary" FontSize="11" Padding="10 5"
                                         Command="{Binding ExportCommand}" IsVisible="{Binding !IsBrowser}" />
                                 <ComboBox FontSize="11" ItemsSource="{x:Static vm:DossierEditorViewModel.FormOptions}"
-                                          SelectedItem="{Binding SelectedFormOption}" ToolTip.Tip="one-pager: the starred findings. long form: every finding not left out." />
+                                          SelectedItem="{Binding SelectedFormOption}" ToolTip.Tip="one-pager: the starred findings. long form: every finding not dismissed." />
                                 <ComboBox FontSize="11" ItemsSource="{x:Static vm:DossierEditorViewModel.FormatOptions}"
                                           SelectedItem="{Binding SelectedFormatOption}" IsVisible="{Binding !IsBrowser}" />
                                 <Button Content="Copy markdown" Classes="ghost" FontSize="11" Padding="10 5"
@@ -683,7 +683,7 @@
                         </Border>
 
                         <!-- The long form: every section's numbers as findings, each starred for the one-pager,
-                             rewritten, reset or left out; the user's summary and notes beside them. -->
+                             rewritten, reset or dismissed; the user's summary and notes beside them. -->
                         <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0" Padding="0 10 0 0" Margin="0 4 0 0"
                                 DataContext="{Binding Editor}">
                             <StackPanel Spacing="8">
@@ -693,8 +693,8 @@
                                     <TextBlock Text="{Binding CountsLine}" FontSize="11" VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextMid}" />
                                     <CheckBox Content="starred only" IsChecked="{Binding ShowStarredOnly}" FontSize="11" />
-                                    <Button Content="Bring back left-out lines" Classes="ghost" FontSize="10" Padding="8 3"
-                                            Command="{Binding RestoreHiddenCommand}" IsVisible="{Binding HasHidden}" />
+                                    <CheckBox Content="{Binding SettledLabel}" IsChecked="{Binding ShowSettled}" FontSize="11"
+                                              IsVisible="{Binding HasHidden}" ToolTip.Tip="Also list the lines you dismissed, each with Restore" />
                                 </StackPanel>
                                 <TextBlock Text="session only: this browser tab forgets stars, edits and notes when it reloads"
                                            FontSize="11" Foreground="{DynamicResource TextMid}"

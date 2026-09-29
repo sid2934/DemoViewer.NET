@@ -99,11 +99,22 @@ public static class TeamSuggestions
     /// <summary>Every pending suggestion, dismissed ones left out.</summary>
     /// <param name="teams">The user file.</param>
     /// <param name="index">The derived index.</param>
-    public static IReadOnlyList<TeamSuggestion> Compute(TeamsFile teams, TeamIndexFile index)
+    public static IReadOnlyList<TeamSuggestion> Compute(TeamsFile teams, TeamIndexFile index) =>
+        [.. ComputeAll(teams, index).Where(s => !IsDismissed(s, teams))];
+
+    /// <summary>The suggestions the user dismissed that still hold: what "Show settled" lists, with Restore.</summary>
+    /// <param name="teams">The user file.</param>
+    /// <param name="index">The derived index.</param>
+    public static IReadOnlyList<TeamSuggestion> Dismissed(TeamsFile teams, TeamIndexFile index) =>
+        [.. ComputeAll(teams, index).Where(s => IsDismissed(s, teams))];
+
+    /// <summary>Every suggestion the files support, dismissed or not.</summary>
+    /// <param name="teams">The user file.</param>
+    /// <param name="index">The derived index.</param>
+    public static IReadOnlyList<TeamSuggestion> ComputeAll(TeamsFile teams, TeamIndexFile index)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(index);
-        HashSet<string> dismissed = new(teams.DismissedSuggestions, StringComparer.Ordinal);
         List<TeamSuggestion> all = [];
         if (Squad(teams, index) is { } squad)
         {
@@ -112,7 +123,65 @@ public static class TeamSuggestions
 
         all.AddRange(RosterChanges(teams, index));
         all.AddRange(MergesByTag(teams));
-        return [.. all.Where(s => !dismissed.Contains(s.Id))];
+        return all;
+    }
+
+    /// <summary>
+    ///     The dismissed ids that hold <paramref name="suggestion" /> back: its own id, or for a squad or a roster
+    ///     change one whose players differ by at most one SteamID and share at least one, so a single player
+    ///     changing does not bring a dismissed suggestion back. Your own accounts are left out of a squad's
+    ///     players, since every squad holds them. A roster change matches only within its team and roster.
+    /// </summary>
+    /// <param name="suggestion">The suggestion.</param>
+    /// <param name="teams">The user file: the dismissed ids and your accounts.</param>
+    public static IEnumerable<string> DismissalsOf(TeamSuggestion suggestion, TeamsFile teams)
+    {
+        ArgumentNullException.ThrowIfNull(suggestion);
+        ArgumentNullException.ThrowIfNull(teams);
+        (string Prefix, HashSet<string> Players)? own = PlayersOf(suggestion.Id, teams.Me.SteamIds);
+        foreach (string id in teams.DismissedSuggestions)
+        {
+            if (string.Equals(id, suggestion.Id, StringComparison.Ordinal))
+            {
+                yield return id;
+                continue;
+            }
+
+            if (own is not { } mine || PlayersOf(id, teams.Me.SteamIds) is not { } other
+                || !string.Equals(mine.Prefix, other.Prefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            int shared = mine.Players.Count(other.Players.Contains);
+            if (shared >= 1 && Math.Max(mine.Players.Count, other.Players.Count) - shared <= 1)
+            {
+                yield return id;
+            }
+        }
+    }
+
+    /// <summary>Whether a dismissal holds <paramref name="suggestion" /> back.</summary>
+    /// <param name="suggestion">The suggestion.</param>
+    /// <param name="teams">The user file.</param>
+    public static bool IsDismissed(TeamSuggestion suggestion, TeamsFile teams) => DismissalsOf(suggestion, teams).Any();
+
+    // "squad:a,b,c" and "roster:<team>:<roster>:a,b": the part that must match exactly, and the players.
+    private static (string Prefix, HashSet<string> Players)? PlayersOf(string id, IEnumerable<string> me)
+    {
+        int cut = id.LastIndexOf(':');
+        if (cut < 0 || !(id.StartsWith("squad:", StringComparison.Ordinal) || id.StartsWith("roster:", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        HashSet<string> players = new(id[(cut + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+        if (id.StartsWith("squad:", StringComparison.Ordinal))
+        {
+            players.ExceptWith(me);
+        }
+
+        return (id[..cut], players);
     }
 
     /// <summary>

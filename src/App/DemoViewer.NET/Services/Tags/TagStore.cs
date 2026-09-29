@@ -311,7 +311,8 @@ public sealed class TagStore
     /// </summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
     /// <param name="mutate">The change.</param>
-    public void Update(string sha256, Action<TagDocument> mutate)
+    /// <returns>False when the write failed or there was no document; a posted change reports true.</returns>
+    public bool Update(string sha256, Action<TagDocument> mutate)
     {
         ArgumentException.ThrowIfNullOrEmpty(sha256);
         ArgumentNullException.ThrowIfNull(mutate);
@@ -326,18 +327,18 @@ public sealed class TagStore
         if (holder is not null)
         {
             _post(() => holder.ApplyExternal(mutate));
-            return;
+            return true;
         }
 
         lock (_rmwGate)
         {
             if (TryLoad(key) is not { } document)
             {
-                return;
+                return false;
             }
 
             mutate(document);
-            Save(document);
+            return Save(document);
         }
     }
 
@@ -437,7 +438,8 @@ public sealed class TagStore
 
     /// <summary>
     ///     Adds one verdict to a demo's file. Append only: a key that already has a verdict keeps it and
-    ///     this returns false, as it does for an unreadable file and a failed write. Never throws for I/O.
+    ///     this returns false, as it does for an unreadable file and a failed write, except a restored
+    ///     rejection, which the next verdict replaces. Never throws for I/O.
     /// </summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
     /// <param name="proposalId">The proposal's identity key.</param>
@@ -450,32 +452,72 @@ public sealed class TagStore
         string key = Normalize(sha256);
         lock (_rmwGate)
         {
-            if (LoadVerdicts(key) is not { } document || !document.Verdicts.TryAdd(proposalId, verdict))
+            if (LoadVerdicts(key) is not { } document)
             {
                 return false;
             }
 
-            string json = JsonSerializer.Serialize(document, TagJsonContext.Default.SuggestionVerdictDocument);
-            string? path = VerdictsPathFor(key);
-            if (path is null)
-            {
-                lock (_gate)
-                {
-                    _memoryVerdicts[key] = json;
-                }
-
-                return true;
-            }
-
-            try
-            {
-                WriteAtomic(path, json);
-                return true;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+            if (document.Verdicts.TryGetValue(proposalId, out SuggestionVerdict? existing)
+                && existing.Verdict != SuggestionVerdicts.Restored)
             {
                 return false;
             }
+
+            document.Verdicts[proposalId] = verdict;
+            return WriteVerdicts(key, document);
+        }
+    }
+
+    /// <summary>
+    ///     Takes a rejection back: the key's rejected verdict becomes <see cref="SuggestionVerdicts.Restored" />.
+    ///     False when the key has no rejection, the file cannot be read, or the write failed.
+    /// </summary>
+    /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
+    /// <param name="verdictKey">The key the rejection is stored under.</param>
+    /// <param name="at">When.</param>
+    public bool RestoreVerdict(string sha256, string verdictKey, DateTime at)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sha256);
+        ArgumentException.ThrowIfNullOrEmpty(verdictKey);
+        string key = Normalize(sha256);
+        lock (_rmwGate)
+        {
+            if (LoadVerdicts(key) is not { } document
+                || !document.Verdicts.TryGetValue(verdictKey, out SuggestionVerdict? rejected)
+                || rejected.Verdict != SuggestionVerdicts.Rejected)
+            {
+                return false;
+            }
+
+            rejected.Verdict = SuggestionVerdicts.Restored;
+            rejected.At = at;
+            return WriteVerdicts(key, document);
+        }
+    }
+
+    // Under _rmwGate.
+    private bool WriteVerdicts(string key, SuggestionVerdictDocument document)
+    {
+        string json = JsonSerializer.Serialize(document, TagJsonContext.Default.SuggestionVerdictDocument);
+        string? path = VerdictsPathFor(key);
+        if (path is null)
+        {
+            lock (_gate)
+            {
+                _memoryVerdicts[key] = json;
+            }
+
+            return true;
+        }
+
+        try
+        {
+            WriteAtomic(path, json);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return false;
         }
     }
 
