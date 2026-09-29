@@ -3,6 +3,7 @@
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.ViewModels.Teams;
 
 #endregion
 
@@ -10,7 +11,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Stores whose startup read is a queue item: nothing is written over a file that was not read, a
-///     caller that needs the data first reads it itself.
+///     caller that needs the data first reads it itself, and the Teams tab shows the read and a running
+///     change as busy instead of blocking.
 /// </summary>
 [NotInParallel]
 public class DeferredStoreLoadTests
@@ -122,6 +124,48 @@ public class DeferredStoreLoadTests
         finally
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task ATeamsCommand_ShowsTheTabBusy_UntilItLands_AndTheActionsWait()
+    {
+        DemoCacheStore cache = new(null);
+        TeamIdentityService teams = new(null, cache, run: _inline);
+        await teams.StartAsync();
+        using (cache.BeginBatch())
+        {
+            cache.Upsert(Record("/d/1.dem", 1, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15)));
+            cache.Upsert(Record("/d/2.dem", 2, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15)));
+        }
+
+        await teams.Idle;
+        List<(string What, Action Change)> queued = [];
+        TaskCompletionSource landed = new();
+        TeamsTabViewModel vm = new(teams, cache, isBrowser: false, command: (what, change) =>
+        {
+            queued.Add((what, change));
+            return landed.Task;
+        });
+        vm.SelectedTeam = vm.Teams[0];
+        Guid id = vm.SelectedTeam.Team.Id;
+        vm.RenameText = "Queued name";
+        vm.RenameCommand.Execute(null);
+        bool busy = vm.IsBusy;
+        string line = vm.BusyLine;
+        bool renamedYet = teams.Teams.Any(t => t.Name == "Queued name");
+
+        queued.Single().Change();
+        landed.SetResult();
+        await Task.Delay(50);
+        using (Assert.Multiple())
+        {
+            await Assert.That(busy).IsTrue();
+            await Assert.That(vm.IsIdle).IsTrue();
+            await Assert.That(line).IsEqualTo("Renaming the team…");
+            await Assert.That(renamedYet).IsFalse().Because("the click only queues the change");
+            await Assert.That(teams.Teams.Single(t => t.Id == id).Name).IsEqualTo("Queued name");
+            await Assert.That(vm.BusyLine).IsEqualTo("");
         }
     }
 }
