@@ -231,7 +231,8 @@ public static partial class Variants
             ["match-overview-cached-failed"] = () =>
                 MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
             ["strat-editor"] = () => StratEditor(false, false),
-            ["strat-editor-collapsed"] = () => StratEditor(true, true)
+            ["strat-editor-collapsed"] = () => StratEditor(true, true),
+            ["strat-editor-bare"] = () => StratEditor(false, false, true)
         };
 
     private static readonly (string Event, string Tick, string Hits)[] _dataRows =

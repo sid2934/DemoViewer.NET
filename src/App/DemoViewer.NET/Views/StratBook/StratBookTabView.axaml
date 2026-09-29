@@ -179,7 +179,7 @@
                               FontSize="12" MinWidth="100" Margin="0 0 16 4" />
                     <!-- The button makes a blank strat. The menu (Blank, then the templates) is built in code
                          from StratTemplates. -->
-                    <SplitButton x:Name="NewStratButton" Content="New strat" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                    <SplitButton x:Name="NewStratButton" Content="New strat" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
                                  Command="{Binding NewStratCommand}"
                                  ToolTip.Tip="A new strat in this book on the chosen map and side; the arrow starts it from a template">
                         <SplitButton.Flyout>
@@ -510,14 +510,6 @@
                         <TextBlock Grid.Column="0" Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasOpenStrat}">
-                            <DropDownButton x:Name="ApplyTemplateButton" Content="Apply template" FontSize="11" Padding="10 5"
-                                            IsVisible="{Binding CanApplyTemplate}"
-                                            ToolTip.Tip="Fill this strat from a template; only while it has no steps beyond the spawns">
-                                <DropDownButton.Flyout>
-                                    <MenuFlyout Placement="BottomEdgeAlignedRight"
-                                                Opening="OnApplyTemplateMenuOpening" />
-                                </DropDownButton.Flyout>
-                            </DropDownButton>
                             <Button Content="Undo" Classes="ghost" FontSize="11" Padding="10 5"
                                     Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Ctrl+Z" />
                             <Button Content="Redo" Classes="ghost" FontSize="11" Padding="10 5"
@@ -527,6 +519,19 @@
                                     ToolTip.Tip="Commit the edits as one history entry" />
                         </StackPanel>
                     </Grid>
+
+                    <!-- Its own row: in the header it squeezed the status line to a letter per line at 1280. -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0 0 0 8"
+                                IsVisible="{Binding CanApplyTemplate}">
+                        <TextBlock Text="no steps yet" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextMid}" />
+                        <DropDownButton x:Name="ApplyTemplateButton" Content="Apply template" Classes="ghost" FontSize="11" Padding="10 5"
+                                        ToolTip.Tip="Fill this strat from a template; only while it has no steps beyond the spawns">
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnApplyTemplateMenuOpening" />
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </StackPanel>
 
                     <TextBlock DockPanel.Dock="Top" Text="select or create a strat" FontSize="11"
                                Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
