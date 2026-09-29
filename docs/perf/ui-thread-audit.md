@@ -93,6 +93,28 @@ What the user sees is unchanged. Two things now happen later than before:
   lineup clip planner's or the section's own when it is shown. Before, the section minted them after
   every merge, but only once it had been opened in that session.
 
+Checked and clear:
+
+- Nothing outside the Utility Book's own map host calls `FocusLanding`, `SelectThrow` or sets its map,
+  so no deep link can land on a map before its asynchronous refresh does.
+- No code in the Situations or Dossier views or view models needs a realized container. There is no
+  `BringIntoView`, `ContainerFromItem` or `Focus()`, so an off-screen card or finding without a
+  container breaks nothing.
+- `GrenadeIndex` is the only reader of `grenade-lineups.json.gz`.
+
+Guards: `ResultCardTests.AThousandCards_InTheTabsScrollViewer_RealizeOnlyTheRowsOnScreen`
+(Integration) fails on the old `WrapPanel`. The Dossier findings panel has no such guard yet; its
+fixture needs a team with hundreds of findings.
+
+## Owner call: the lineup writer
+
+The lineup save now runs on a plain thread, one writer per index, like the Review queue's debounced
+save. It is not a processing-queue item. It writes the whole 12 MB file, about a second in Debug.
+While a write is pending, newly minted anchor ids can already sit in review entries and clip names.
+A crash in that window would re-mint them on the next launch. Shutdown, `Dispose` and the harvest
+migration all flush first. Should a library-wide file write like this be a queue item under the
+2026-09-27 rule, or is the Review-queue precedent enough for a store's own save?
+
 ## Proposals (change what the user sees)
 
 1. **Situations hit cap or paging.** An empty draft still builds 1,124 card view models and reads 1,124
