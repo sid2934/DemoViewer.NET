@@ -175,6 +175,59 @@ public class StratSpawnTests
         await Assert.That(vm.Session.Document!.Steps.Single().Positions.Count).IsEqualTo(10);
     }
 
+    [Test]
+    public async Task APendingCreate_DisablesNewStrat_AndLandsWithoutClosingTheStratOpenedMeanwhile()
+    {
+        StratStore store = new(null);
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        StratSpawnSource spawns = new(map =>
+        {
+            if (map == "de_mirage")
+            {
+                gate.Task.Wait();
+            }
+
+            return Fixed;
+        });
+        await spawns.ForAsync("de_dust2");
+        ConcurrentQueue<Action> posted = new();
+        using StratBookTabViewModel vm = new(store, null, posted.Enqueue, false, spawns: spawns);
+        vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
+        vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
+        Drain(posted);
+
+        vm.SelectedMap = "de_mirage";
+        vm.NewStratCommand.Execute(null);
+        await Assert.That(vm.NewStratCommand.CanExecute(null)).IsFalse().Because("one create at a time");
+
+        vm.SelectedMap = "de_dust2";
+        vm.NewStratCommand.Execute(null);
+        await Assert.That(store.Index.Count).IsEqualTo(0).Because("a click while one is pending does nothing");
+
+        StratDocument dust = store.Create(vm.SelectedOwner!.Owner, "de_dust2", "T", "default", "dust");
+        Drain(posted);
+        vm.SelectedStrat = vm.Strats.Single(r => r.Id == dust.Id);
+        Drain(posted);
+        await Assert.That(vm.Session.Document?.Id).IsEqualTo(dust.Id);
+
+        gate.SetResult();
+        await spawns.ForAsync("de_mirage");
+        for (int i = 0; i < 500 && posted.IsEmpty; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Drain(posted);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.Index.Count(e => e.Map == "de_mirage")).IsEqualTo(1).Because("the late create still lands");
+            await Assert.That(vm.Session.Document?.Id).IsEqualTo(dust.Id).Because("it does not close the strat opened meanwhile");
+            await Assert.That(vm.SelectedStrat?.Id).IsEqualTo(dust.Id);
+            await Assert.That(vm.NewStratCommand.CanExecute(null)).IsTrue();
+        }
+    }
+
     private static void Drain(ConcurrentQueue<Action> posted)
     {
         while (posted.TryDequeue(out Action? action))
