@@ -256,6 +256,55 @@ public static class StepAuthoringPatches
         return ops;
     }
 
+    /// <summary>
+    ///     A place set on the map as the step's <c>to</c>: one op, nothing when it already says so. From the stored
+    ///     reference, so a field a newer build wrote on it survives.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="stepIndex">The step.</param>
+    /// <param name="place">The canonical place name.</param>
+    public static IReadOnlyList<PatchOp> ToPlace(StratDocument document, int stepIndex, string place)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentException.ThrowIfNullOrEmpty(place);
+        PlaceRef? stored = document.Steps[stepIndex].To;
+        if (string.Equals(stored?.Place, place, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        PlaceRef to = stored is null ? new PlaceRef() : Clone(stored, StratJsonContext.Default.PlaceRef);
+        to.Place = place;
+        JsonNode? value = JsonSerializer.SerializeToNode(to, StratJsonContext.Default.PlaceRef);
+        string path = Pointer($"/steps/{stepIndex}/to");
+        return [stored is null ? PatchOp.AddOp(path, value) : PatchOp.ReplaceOp(path, null, value)];
+    }
+
+    /// <summary>
+    ///     A landing set on the map: the point, its level key and the place under it, as one op. A point with no
+    ///     place drops the stored place, which named where the grenade used to land. Needs the step's utility.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="stepIndex">The step.</param>
+    /// <param name="place">The canonical place name, or null when the point is in none.</param>
+    /// <param name="x">World X.</param>
+    /// <param name="y">World Y.</param>
+    /// <param name="levelMinZ">The level key.</param>
+    public static IReadOnlyList<PatchOp> Landing(StratDocument document, int stepIndex, string? place, double x, double y,
+        double levelMinZ)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        UtilityLanding? stored = document.Steps[stepIndex].Utility?.Landing;
+        UtilityLanding landing = stored is null ? new UtilityLanding() : Clone(stored, StratJsonContext.Default.UtilityLanding);
+        landing.Place = place;
+        landing.X = Round(x);
+        landing.Y = Round(y);
+        landing.LevelMinZ = levelMinZ;
+        JsonNode? value = JsonSerializer.SerializeToNode(landing, StratJsonContext.Default.UtilityLanding);
+        string path = Pointer($"/steps/{stepIndex}/utility/landing");
+        return [stored is null ? PatchOp.AddOp(path, value) : PatchOp.ReplaceOp(path, null, value)];
+    }
+
     // A time between the step it follows and the one after, so an insert never breaks the countdown the
     // validator enforces. Rounded to a tick: the canvas's clock has no finer grain to show.
     private static double ClampBetween(StratDocument document, int afterIndex, double atSeconds)
@@ -269,6 +318,9 @@ public static class StepAuthoringPatches
     private static StepPosition Clone(StepPosition position) =>
         JsonSerializer.Deserialize(JsonSerializer.Serialize(position, StratJsonContext.Default.StepPosition),
             StratJsonContext.Default.StepPosition)!;
+
+    private static T Clone<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info) =>
+        JsonSerializer.Deserialize(JsonSerializer.Serialize(value, info), info)!;
 
     private static double Normalize(double yaw)
     {

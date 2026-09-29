@@ -1,12 +1,15 @@
 #region
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Views.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
@@ -92,6 +95,111 @@ public class StratCanvasViewTests
                 await Assert.That(tab.HasOpenStrat).IsTrue();
                 await Assert.That(host.FrameHost).IsSameReferenceAs(tab.Canvas);
                 await Assert.That(tab.Canvas.Projection!.Path.Count).IsEqualTo(5);
+            }
+
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     Set On Map through the real view: the toolbar button arms it, Esc from the keyboard ends it without
+    ///     writing, and a plain left click on the map reaches the canvas ahead of the pointer tools and writes the
+    ///     selected step's <c>to</c> as one entry.
+    /// </summary>
+    [Test]
+    public async Task SetOnMap_EscCancels_AndAClickOnTheMapWritesTheSelectedStep()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+                placesFor: _ => Task.FromResult<IZonePlaceResolver?>(new StratMapFirstTests.EverywhereIs("Hut")), post: a => a());
+
+            StratCanvasView view = new() { DataContext = canvas };
+            Window window = new() { Width = 1100, Height = 800, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+            canvas.SelectStep(session.Document!.Steps[1].Id);
+            Playback2DTimelineHarness.Pump();
+
+            ToggleButton button = view.GetVisualDescendants().OfType<ToggleButton>()
+                .Single(b => b.Content as string == "Set “to” on map");
+            await Assert.That(button.IsVisible).IsTrue();
+            button.Command!.Execute(null);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(canvas.IsSettingPlace).IsTrue();
+            await Assert.That(button.IsChecked).IsTrue();
+
+            view.Focus();
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Playback2DTimelineHarness.Pump();
+            using (Assert.Multiple())
+            {
+                await Assert.That(canvas.IsSettingPlace).IsFalse();
+                await Assert.That(session.UndoDepth).IsEqualTo(0);
+            }
+
+            canvas.BeginSetPlace();
+            Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
+            Point centre = Playback2DTimelineHarness.ToWindow(host, window, host.Bounds.Width / 2, host.Bounds.Height / 2);
+            window.MouseDown(centre, MouseButton.Left);
+            window.MouseUp(centre, MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document!.Steps[1].To!.Place).IsEqualTo("Hut");
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+                await Assert.That(canvas.IsSettingPlace).IsFalse();
+            }
+
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     On the tab, a press in a step row selects that step on the canvas, and a step chosen on the canvas
+    ///     highlights its row.
+    /// </summary>
+    [Test]
+    public async Task OnTheStratBookTab_ARowAndTheCanvas_ShareOneSelectedStep()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratDocument document = FiveSteps();
+            document.Owner = StratOwner.Me();
+            (StratStore store, StratSession parked) = Opened(document);
+            parked.Dispose();
+
+            using ViewModels.StratBook.StratBookTabViewModel tab = new(store, null, a => a(), false, null, _ => null);
+            tab.SelectedStrat = tab.Strats.Single();
+
+            StratBookTabView view = new() { DataContext = tab };
+            Window window = new() { Width = 1600, Height = 900, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+
+            // The third row's note box: focus inside a row selects its step.
+            ItemsControl rows = view.FindControl<ItemsControl>("StepRows")!;
+            TextBox note = rows.GetVisualDescendants().OfType<TextBox>()
+                .Where(t => t.PlaceholderText == "note").ElementAt(2);
+            note.Focus();
+            Playback2DTimelineHarness.Pump();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(tab.Canvas.ActiveStepIndex).IsEqualTo(2);
+                await Assert.That(tab.Canvas.Transport.Tick).IsEqualTo(1600);
+                await Assert.That(tab.Editor.Steps[2].IsSelected).IsTrue();
+                await Assert.That(rows.GetVisualDescendants().OfType<Border>().Count(b => b.Classes.Contains("selected"))).IsEqualTo(1);
+            }
+
+            tab.Canvas.ExecuteAction(Playback2DAction.NextStep);
+            Playback2DTimelineHarness.Pump();
+            using (Assert.Multiple())
+            {
+                await Assert.That(tab.Editor.Steps[3].IsSelected).IsTrue();
+                await Assert.That(tab.Editor.Steps[2].IsSelected).IsFalse();
             }
 
             window.Close();

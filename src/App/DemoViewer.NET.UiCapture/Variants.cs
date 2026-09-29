@@ -233,6 +233,7 @@ public static partial class Variants
             ["strat-editor"] = () => StratEditor(false, false),
             ["strat-editor-collapsed"] = () => StratEditor(true, true),
             ["strat-editor-bare"] = () => StratEditor(false, false, true),
+            ["strat-editor-set-place"] = StratEditorSetPlace,
             ["strat-lineup-picker"] = StratLineupPicker
         };
 
