@@ -42,6 +42,72 @@ public class StratStepKeysTests
         (window.FocusManager?.GetFocusedElement() as Control)?.DataContext as StratStepRow;
 
     [Test]
+    public async Task FocusInALinesField_SelectsTheStepAndTheLine_AndPlusPlayerAddsOne() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
+            StratStep step = StratStepEditingTests.Step(90, "all", "move");
+            step.To = null;
+            step.Assignments = [new StepAssignment { Slot = "B" }, new StepAssignment { Slot = "C" }];
+            StratStepEditingTests.Seed(vm, StratStepEditingTests.Step(100, "A", "move"), step);
+            (Window window, StratBookTabView view) = Show(vm);
+            int index = vm.Editor.Steps.Count - 1;
+
+            ContentPresenter row = RowContainer(view, index);
+            TextBox cPlace = row.GetVisualDescendants().OfType<TextBox>()
+                .First(t => t.DataContext is StratLineRow { Slot: "C" } && t.IsEffectivelyVisible);
+            cPlace.Focus();
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.StepSelection.SelectedStepId).IsEqualTo(step.Id);
+                await Assert.That(vm.Canvas.SelectedLineSlot).IsEqualTo("C");
+                await Assert.That(vm.Editor.Steps[index].Lines.Single(l => l.IsSelected).Slot).IsEqualTo("C");
+            }
+
+            Button add = row.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "+ player");
+            add.Command!.Execute(add.CommandParameter);
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C", "A"]);
+            window.Close();
+        });
+
+    [Test]
+    public async Task EnterOnAWatchingSuggestion_PicksIt_AsOneEntry_WithoutAddingAStep() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
+            StratStepEditingTests.Seed(vm, StratStepEditingTests.Step(100, "B", "hold"));
+            (Window window, StratBookTabView view) = Show(vm);
+            int index = vm.Editor.Steps.Count - 1;
+            int steps = vm.Session.Document!.Steps.Count;
+            int depth = vm.Session.UndoDepth;
+
+            AutoCompleteBox watching = RowContainer(view, index).GetVisualDescendants().OfType<AutoCompleteBox>().Single();
+            watching.GetVisualDescendants().OfType<TextBox>().First().Focus();
+            Dispatcher.UIThread.RunJobs();
+            window.KeyTextInput("Bombsite");
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(watching.IsDropDownOpen).IsTrue().Because("the map's callouts are suggested");
+
+            window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            RowContainer(view, index).Focus();
+            Dispatcher.UIThread.RunJobs();
+
+            StratStep step = vm.Session.Document!.Steps[index];
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(steps).Because("Enter went to the suggestion list");
+                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["BombsiteA"]);
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+            }
+
+            window.Close();
+        });
+
+    [Test]
     public async Task EnterInARowsField_AddsAStepAfterThatRow_AndFocusesIt() =>
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -125,8 +191,9 @@ public class StratStepKeysTests
             List<Control> second = Fields(RowContainer(view, 1));
             List<object> expected = [.. first, second[0]];
 
-            // A move shows time, actor, verb, from, to and note; the next row starts at its time.
-            await Assert.That(first.Count).IsEqualTo(6);
+            // A one-player move shows time, actor, verb, its line's to and watching, from and note; the next row
+            // starts at its time.
+            await Assert.That(first.Count).IsEqualTo(7);
             first[0].Focus();
             List<object> walked = [window.FocusManager!.GetFocusedElement()!];
             for (int i = 1; i < expected.Count; i++)

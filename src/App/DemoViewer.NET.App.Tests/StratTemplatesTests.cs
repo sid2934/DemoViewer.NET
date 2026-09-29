@@ -91,11 +91,49 @@ public class StratTemplatesTests
                 {
                     problems.Add(where + ": positions, lineup or from set");
                 }
+
+                if (step.Assignments is { } lines
+                    && (step.To is not null || step.Actor != StratStepLines.ActorFor(lines)
+                                            || lines.Any(l => l.Watch is not null
+                                                              || (l.To is not null && !StratStepFields.Uses(step.Verb, StratStepField.To)))))
+                {
+                    problems.Add(where + ": lines with a step-level to, a stale actor, a watch, or a place the verb does not use");
+                }
             }
         }
 
         await Assert.That(problems).IsEmpty();
         await Assert.That(StratTemplates.Templates.Select(t => t.Id).Distinct().Count()).IsEqualTo(StratTemplates.Templates.Count);
+    }
+
+    [Test]
+    public async Task TheSplitAndTheSetup_SendTheirGroupsWithLines()
+    {
+        StratTemplate split = StratTemplates.Find("split-b")!;
+        StratTemplate setup = StratTemplates.Find("setup")!;
+        List<StratStep> splitSteps = StratTemplates.BuildSteps(split);
+        StratStep hold = StratTemplates.BuildSteps(setup)[0];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(splitSteps.Where(StratStepLines.HasLines).Select(s => s.Verb)).IsEquivalentTo(["hold", "move"]);
+            await Assert.That(splitSteps.Single(s => s.Verb == "move" && StratStepLines.HasLines(s)).Assignments!
+                .Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>BombsiteB", "D>BombsiteB"]);
+            await Assert.That(hold.Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
+                .IsEquivalentTo(["A>BombsiteA", "B>BombsiteA", "C>", "D>BombsiteB", "E>BombsiteB"]);
+            await Assert.That(hold.Actor).IsEqualTo(StratVocabulary.ActorAll);
+        }
+    }
+
+    [Test]
+    public async Task ASeedWithLines_IsNotASeed()
+    {
+        StratDocument document = Seeded(StratTemplates.Find("anti-eco")!, "de_mirage", StratVocabulary.SideT);
+        document.Steps.RemoveRange(1, document.Steps.Count - 1);
+        await Assert.That(StratTemplates.HasOnlySeed(document)).IsTrue();
+
+        document.Steps[0].Assignments = [new StepAssignment { Slot = "A" }, new StepAssignment { Slot = "B" }];
+        await Assert.That(StratTemplates.HasOnlySeed(document)).IsFalse().Because("Apply template would write after lines the author set");
     }
 
     [Test]

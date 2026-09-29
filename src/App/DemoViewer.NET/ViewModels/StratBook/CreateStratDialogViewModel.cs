@@ -413,7 +413,7 @@ public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposa
     private static string Describe(StratStep step)
     {
         List<string> parts =
-            [StratClock.Format(step.AtSeconds), step.Actor + " " + step.Verb + (step.Utility is { } utility ? " " + utility.Kind : "")];
+            [StratClock.Format(step.AtSeconds), StratStepLines.ActorOf(step) + " " + step.Verb + (step.Utility is { } utility ? " " + utility.Kind : "")];
         if (step.From?.Place is { } from)
         {
             parts.Add("from " + from);

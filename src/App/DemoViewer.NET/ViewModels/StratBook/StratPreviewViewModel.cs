@@ -122,7 +122,7 @@ public sealed partial class StratPreviewViewModel : ObservableObject, IDisposabl
                 (string.IsNullOrWhiteSpace(s.Role) ? "no role" : s.Role)
                 + (s.SteamId is { } id ? " · pinned to " + id : "")))
         ];
-        Steps = [.. built.Steps.Select((s, i) => new StratPreviewStepRow(s.Id, i + 1, StratClock.Format(s.AtSeconds), StratStepPhrasing.Phrase(s, null), s.Note))];
+        Steps = [.. built.Steps.Select((s, i) => new StratPreviewStepRow(s.Id, i + 1, StratClock.Format(s.AtSeconds), StratStepPhrasing.PhraseWithLines(s, null), s.Note))];
         Notes = built.Notes;
 
         // A copy into a private store: Save stamps the instance it is given, and the session plays only what a store holds.

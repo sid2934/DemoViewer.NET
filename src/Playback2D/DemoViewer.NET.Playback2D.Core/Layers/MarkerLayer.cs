@@ -19,11 +19,13 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 /// </summary>
 public sealed class MarkerLayer : ISceneLayer
 {
+    private readonly SKPaint _cone;
     private readonly SKPaint _fill;
     private readonly SKPaint _heading;
     private readonly SKPaint _label;
     private readonly bool _ownsText;
     private readonly SKPaint _ring;
+    private readonly SKPath _wedge = new();
     private readonly TextBlobCache _text;
 
     /// <summary>Creates the layer.</summary>
@@ -36,6 +38,11 @@ public sealed class MarkerLayer : ISceneLayer
         _text = text ?? new TextBlobCache();
 
         _fill = new SKPaint
+        {
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+        _cone = new SKPaint
         {
             Style = SKPaintStyle.Fill,
             IsAntialias = true
@@ -67,6 +74,12 @@ public sealed class MarkerLayer : ISceneLayer
     ///     of the comparison entirely rather than loosening the tolerance for everything else.
     /// </summary>
     public bool DrawLabels { get; set; } = true;
+
+    /// <summary>
+    ///     Whether each live marker draws a view cone along its yaw: the strat canvas's editing affordance, whose
+    ///     drag turns the token (<see cref="Input.TokenHitTest" />). Off for replays and exports.
+    /// </summary>
+    public bool DrawViewCones { get; set; }
 
     /// <inheritdoc />
     public string Id => SceneLayerIds.Markers;
@@ -120,6 +133,8 @@ public sealed class MarkerLayer : ISceneLayer
     public void Dispose()
     {
         _fill.Dispose();
+        _cone.Dispose();
+        _wedge.Dispose();
         _heading.Dispose();
         _ring.Dispose();
         _label.Dispose();
@@ -141,6 +156,11 @@ public sealed class MarkerLayer : ISceneLayer
         const float radius = SceneDefaults.MarkerRadius;
 
         SKColor teamFill = ctx.Palette.TeamFill(marker.Team);
+
+        if (marker.IsAlive && DrawViewCones)
+        {
+            DrawCone(canvas, cx, cy, marker.YawDegrees, teamFill);
+        }
 
         // Heading stub from YAW (not velocity), drawn behind the disc so the disc occludes its root.
         if (marker.IsAlive)
@@ -183,6 +203,22 @@ public sealed class MarkerLayer : ISceneLayer
         _label.Color = marker.IsAlive ? SKColors.Black : ctx.Palette.Label;
         (float ox, float oy) = shaped.OriginForCentre(cx, cy);
         canvas.DrawText(shaped.Blob, ox, oy, _label);
+    }
+
+    // A translucent wedge in the team colour, from the disc's edge out to the cone length.
+    private void DrawCone(SKCanvas canvas, float cx, float cy, float yawDegrees, SKColor team)
+    {
+        const float reach = SceneDefaults.MarkerRadius + SceneDefaults.MarkerConeLength;
+        SKPath wedge = _wedge;
+        wedge.Rewind();
+        wedge.MoveTo(cx, cy);
+
+        // Screen Y is inverted, so a world yaw of a turns the screen arc by -a.
+        wedge.ArcTo(new SKRect(cx - reach, cy - reach, cx + reach, cy + reach),
+            -yawDegrees - SceneDefaults.MarkerConeHalfAngle, 2 * SceneDefaults.MarkerConeHalfAngle, false);
+        wedge.Close();
+        _cone.Color = team.WithAlpha(56);
+        canvas.DrawPath(wedge, _cone);
     }
 
     private static SKColor RingColourForTeam(int team, ScenePalette palette) => team switch

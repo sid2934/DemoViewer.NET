@@ -98,6 +98,14 @@ public static class StratPath
 /// <param name="utility">The step's utility, with a lineup id.</param>
 public delegate TokenPlacement? ThrowOriginResolver(string map, UtilityRef utility);
 
+/// <summary>
+///     Where a place's centre is on a floor (over all its floors when it has none there), or null for a place the
+///     map lacks. Called on the UI thread, so it answers from memory.
+/// </summary>
+/// <param name="place">A canonical place name.</param>
+/// <param name="levelMinZ">The token's level key.</param>
+public delegate (double X, double Y)? PlaceCentreResolver(string place, double levelMinZ);
+
 /// <summary>Where a projected stroke came from: the path step and its index in that step's <c>strokes[]</c>.</summary>
 /// <param name="PathIndex">The step's position on the path.</param>
 /// <param name="StrokeIndex">The stroke's index in the step's <c>strokes[]</c>.</param>
@@ -115,6 +123,7 @@ public sealed class StratSceneProjection
     /// <summary>The strat clock's header for anything that serializes the projected document (§3.5).</summary>
     public const string ClockKind = "dv-strat-clock";
 
+    private readonly PlaceCentreResolver? _centres;
     private readonly Dictionary<Guid, StrokeRef> _strokes;
     private readonly ThrowOrigin?[] _throwOrigins;
     private readonly TokenStep[] _tokenSteps;
@@ -122,8 +131,9 @@ public sealed class StratSceneProjection
     private StratSceneProjection(IReadOnlyList<StratPathStep> path, StepSchedule schedule, IReadOnlyList<int> ticks,
         TokenStep[] tokenSteps, ThrowOrigin?[] throwOrigins, IReadOnlyList<TokenTrack> tracks,
         IReadOnlyList<AnnotationElement> elements, Dictionary<Guid, StrokeRef> strokes, IReadOnlyList<TokenLabel> labels,
-        IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped)
+        IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped, PlaceCentreResolver? centres)
     {
+        _centres = centres;
         _tokenSteps = tokenSteps;
         _throwOrigins = throwOrigins;
         Path = path;
@@ -217,8 +227,9 @@ public sealed class StratSceneProjection
     /// <param name="document">The open strat: its side, clock and canvas block.</param>
     /// <param name="path">The steps to play, from <see cref="StratPath" />.</param>
     /// <param name="throwOrigins">Resolves a throw's lineup to where it is thrown from; null projects no throw origins.</param>
+    /// <param name="placeCentres">Where a watched place is, for a token's facing; null faces only an explicit view angle.</param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
-        ThrowOriginResolver? throwOrigins = null)
+        ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(path);
@@ -262,17 +273,10 @@ public sealed class StratSceneProjection
         }
 
         List<TokenTrack> tracks = [];
-        TokenPlacement?[] placements = new TokenPlacement?[path.Count];
         foreach (string slot in TokenSlots.All)
         {
-            bool any = false;
-            for (int i = 0; i < path.Count; i++)
-            {
-                placements[i] = PlacementAt(origins, i, path[i].Step, slot);
-                any |= placements[i] is not null;
-            }
-
-            if (any)
+            TokenPlacement?[] placements = Placements(path, origins, slot, placeCentres);
+            if (placements.Any(p => p is not null))
             {
                 tracks.Add(TokenTrackBuilder.Build(slot, tokenSteps, placements));
             }
@@ -299,7 +303,7 @@ public sealed class StratSceneProjection
         }
 
         return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, LabelsFor(document),
-            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped);
+            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped, placeCentres);
     }
 
     /// <summary>
@@ -309,16 +313,89 @@ public sealed class StratSceneProjection
     /// <param name="slot">The token.</param>
     /// <param name="pathIndex">The step being written.</param>
     /// <param name="placement">The entry the drag has reached.</param>
-    public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement)
+    /// <param name="keepYaw">The placement's yaw is the drag's own (a turn), not to be replaced by the line's watch.</param>
+    public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement, bool keepYaw = false) =>
+        TokenTrackBuilder.Build(slot, _tokenSteps, Placements(Path, _throwOrigins, slot, _centres, pathIndex, placement, keepYaw));
+
+    /// <summary>
+    ///     Per path step, the entry <paramref name="slot" />'s track is built from (null for none). A throw's lineup
+    ///     origin wins, its yaw included. Otherwise the authored position, turned by the slot's line: its
+    ///     <c>watch.yawDegrees</c>, else towards the first watched place's centre on the token's level. A watching
+    ///     line on a step with no position for the slot adds an entry where the token stands, which the
+    ///     stationary rule already holds it at, so no move is re-timed. With nothing to face, nothing is added.
+    /// </summary>
+    /// <param name="path">The steps.</param>
+    /// <param name="origins">Each step's throw origin, or null entries; null for none at all.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="centres">Where watched places are; null faces only an explicit view angle.</param>
+    /// <param name="overrideIndex">A step whose authored entry is replaced, for a drag in progress; -1 for none.</param>
+    /// <param name="overridePlacement">That step's entry.</param>
+    /// <param name="keepOverrideYaw">The override's yaw stands; the line's watch does not turn it.</param>
+    internal static TokenPlacement?[] Placements(IReadOnlyList<StratPathStep> path, ThrowOrigin?[]? origins, string slot,
+        PlaceCentreResolver? centres, int overrideIndex = -1, TokenPlacement? overridePlacement = null, bool keepOverrideYaw = false)
     {
-        TokenPlacement?[] placements = new TokenPlacement?[Path.Count];
-        for (int i = 0; i < Path.Count; i++)
+        TokenPlacement?[] placements = new TokenPlacement?[path.Count];
+        TokenPlacement? last = null;
+        for (int i = 0; i < path.Count; i++)
         {
-            placements[i] = i == pathIndex ? placement : PlacementAt(_throwOrigins, i, Path[i].Step, slot);
+            StratStep step = path[i].Step;
+            TokenPlacement? placement;
+            if (i != overrideIndex && origins is not null && origins[i] is { } origin
+                && string.Equals(origin.Slot, slot, StringComparison.Ordinal))
+            {
+                placement = origin.Placement;
+            }
+            else
+            {
+                placement = i == overrideIndex ? overridePlacement : PlacementOf(step, slot);
+                if (!(keepOverrideYaw && i == overrideIndex)
+                    && StratStepLines.HasLines(step) && StratStepLines.LineFor(step, slot)?.Watch is { } watch
+                    && (placement ?? last) is { } at && FacingOf(watch, at, centres) is { } yaw)
+                {
+                    placement = at with { YawDegrees = yaw };
+                }
+            }
+
+            placements[i] = placement;
+            last = placement ?? last;
         }
 
-        return TokenTrackBuilder.Build(slot, _tokenSteps, placements);
+        return placements;
     }
+
+    /// <summary>
+    ///     The yaw a watch turns a token standing at <paramref name="at" /> to: the explicit angle, else towards
+    ///     the first watched place. Null when neither applies (no angle, the place is unknown, or the token
+    ///     stands on its centre).
+    /// </summary>
+    /// <param name="watch">The line's watch.</param>
+    /// <param name="at">Where the token stands.</param>
+    /// <param name="centres">Where watched places are; null for nowhere.</param>
+    public static float? FacingOf(StepWatch watch, TokenPlacement at, PlaceCentreResolver? centres)
+    {
+        ArgumentNullException.ThrowIfNull(watch);
+        if (watch.YawDegrees is { } explicitYaw && double.IsFinite(explicitYaw))
+        {
+            return (float)StratFromRound.NormalizeYaw(explicitYaw);
+        }
+
+        if (centres is null || watch.Places.FirstOrDefault(p => !string.IsNullOrEmpty(p)) is not { } first
+                            || centres(first, at.LevelMinZ) is not { } centre)
+        {
+            return null;
+        }
+
+        double dx = centre.X - at.X, dy = centre.Y - at.Y;
+        if (dx * dx + dy * dy < MinFacingDistance * MinFacingDistance)
+        {
+            return null;
+        }
+
+        return (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2);
+    }
+
+    // Closer than this to a place's centre, there is no direction worth turning to.
+    private const double MinFacingDistance = 16;
 
     /// <summary>The team number a side draws in: 2 for T, 3 for CT.</summary>
     /// <param name="side">The strat's side.</param>
@@ -369,24 +446,19 @@ public sealed class StratSceneProjection
         return new Guid(bytes);
     }
 
-    private static TokenPlacement? PlacementAt(ThrowOrigin?[] origins, int index, StratStep step, string slot) =>
-        origins[index] is { } origin && string.Equals(origin.Slot, slot, StringComparison.Ordinal)
-            ? origin.Placement
-            : PlacementOf(step, slot);
-
     // Only a throw by one named slot: "all" names no one to stand at the origin.
-    private static ThrowOrigin? ThrowOriginOf(string map, StratStep step, ThrowOriginResolver resolve)
+    internal static ThrowOrigin? ThrowOriginOf(string map, StratStep step, ThrowOriginResolver resolve)
     {
         if (!string.Equals(step.Verb, "throw", StringComparison.Ordinal)
             || step.Utility is not { LineupId: not null } utility
-            || !StratVocabulary.Slots.Contains(step.Actor)
+            || StratStepLines.ActorOf(step) is not { } actor || !StratVocabulary.Slots.Contains(actor)
             || resolve(map, utility) is not { } placement
             || !float.IsFinite(placement.X) || !float.IsFinite(placement.Y))
         {
             return null;
         }
 
-        return new ThrowOrigin(step.Actor, placement);
+        return new ThrowOrigin(actor, placement);
     }
 
     private static TokenPlacement? PlacementOf(StratStep step, string slot)
@@ -430,7 +502,7 @@ public sealed class StratSceneProjection
         return cues;
     }
 
-    private sealed record ThrowOrigin(string Slot, TokenPlacement Placement);
+    internal sealed record ThrowOrigin(string Slot, TokenPlacement Placement);
 
     private static GrenadeKind? GrenadeOf(string? kind) => kind switch
     {

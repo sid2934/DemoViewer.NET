@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats;
 
 #endregion
 
@@ -112,6 +113,7 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
 {
     private static readonly IReadOnlySet<string> _none = new HashSet<string>(StringComparer.Ordinal);
     private readonly Dictionary<string, IReadOnlySet<string>> _adjacent;
+    private readonly StratPlaceCentres _centres;
 
     /// <param name="resolver">The map's resolver over its effective zone set.</param>
     public ZonePlaceResolverAdapter(PlaceResolver resolver)
@@ -127,6 +129,8 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
                 .Select(id => places[id].Name)
                 .ToHashSet(StringComparer.Ordinal);
         }
+
+        _centres = StratPlaceCentres.From(resolver.Zones);
     }
 
     /// <summary>The wrapped resolver.</summary>
@@ -144,4 +148,10 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
     /// <inheritdoc />
     public IReadOnlySet<string> Adjacent(string place) =>
         place is not null && _adjacent.TryGetValue(place, out IReadOnlySet<string>? names) ? names : _none;
+
+    /// <inheritdoc />
+    public (double X, double Y)? PlaceCentre(string place, double floorKey) => _centres.Centre(place, floorKey);
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> PlaceNames => [.. Resolver.Zones.Places.Select(p => p.Name)];
 }
