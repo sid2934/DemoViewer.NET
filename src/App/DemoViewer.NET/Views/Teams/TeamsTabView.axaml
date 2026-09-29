@@ -115,11 +115,14 @@
                     <Button Grid.Column="2" Content="Save" Classes="ghost" FontSize="11" Padding="10 5"
                             Command="{Binding SaveMyAccountsCommand}" />
                 </Grid>
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding HasMeSuggestion}">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasMeSuggestion}">
                     <TextBlock Grid.Column="0" Text="{Binding MeSuggestionLine}" FontSize="12" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
                     <Button Grid.Column="1" Content="Yes, that is me" Classes="ghost" FontSize="11" Padding="10 5"
                             Command="{Binding ConfirmMeSuggestionCommand}" />
+                    <Button Grid.Column="2" Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding DismissMeSuggestionCommand}"
+                            ToolTip.Tip="Stop asking; Show settled in Suggestions brings it back" />
                 </Grid>
             </StackPanel>
         </Border>

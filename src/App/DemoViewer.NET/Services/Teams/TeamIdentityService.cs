@@ -108,6 +108,48 @@ public sealed class TeamIdentityService : IDisposable
     /// <summary>The account the share heuristic proposes as me, or null (design §3.5). Written only by confirmation.</summary>
     public MeSuggestion? MeSuggestion { get; private set; }
 
+    /// <summary>The "is this you?" suggestion the user dismissed, while it still holds; null otherwise.</summary>
+    public MeSuggestion? DismissedMeSuggestion { get; private set; }
+
+    /// <summary>The dismissal id of an account suggestion, kept with the other dismissed suggestions.</summary>
+    public static string MeSuggestionId(string steamId64) => "me:" + steamId64;
+
+    /// <summary>Dismisses "is this you?" for the account it names; it is not asked again until restored.</summary>
+    public void DismissMeSuggestion()
+    {
+        lock (_gate)
+        {
+            if (MeSuggestion is not { } suggestion)
+            {
+                return;
+            }
+
+            _teams.DismissedSuggestions.Add(MeSuggestionId(suggestion.SteamId64));
+            SuggestMe();
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
+    /// <summary>Asks "is this you?" again.</summary>
+    public void RestoreMeSuggestion()
+    {
+        lock (_gate)
+        {
+            if (DismissedMeSuggestion is not { } suggestion)
+            {
+                return;
+            }
+
+            _teams.DismissedSuggestions.RemoveAll(id => id == MeSuggestionId(suggestion.SteamId64));
+            SuggestMe();
+            SaveTeams();
+        }
+
+        RaiseChanged();
+    }
+
     /// <summary>Pending suggestions (squad, roster change, merge by tag). None is ever applied without the user.</summary>
     public IReadOnlyList<TeamSuggestion> Suggestions { get; private set; } = [];
 
@@ -1253,6 +1295,7 @@ public sealed class TeamIdentityService : IDisposable
     private void SuggestMe()
     {
         MeSuggestion = null;
+        DismissedMeSuggestion = null;
         if (_teams.Me.SteamIds.Count > 0)
         {
             return;
@@ -1293,7 +1336,15 @@ public sealed class TeamIdentityService : IDisposable
         double share = (double) count / clusterable;
         if (share > 0.5)
         {
-            MeSuggestion = new MeSuggestion(id, name, count, share);
+            MeSuggestion suggestion = new(id, name, count, share);
+            if (_teams.DismissedSuggestions.Contains(MeSuggestionId(id), StringComparer.Ordinal))
+            {
+                DismissedMeSuggestion = suggestion;
+            }
+            else
+            {
+                MeSuggestion = suggestion;
+            }
         }
     }
 
