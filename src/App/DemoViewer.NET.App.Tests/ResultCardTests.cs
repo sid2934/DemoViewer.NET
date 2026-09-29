@@ -81,6 +81,30 @@ public class ResultCardTests
     }
 
     [Test]
+    public async Task TheCards_AreChunkedIntoRowsOfTheColumnCount_InTheSetsOrder_AndClearEmptiesThem()
+    {
+        using Harness h = new();
+        h.Cache.Upsert(ParsedRecord(DemoA));
+        h.Vm.Load([.. Enumerable.Range(1, 10).Select(r => Hit(DemoA, r, r * 1000, r * 1000 + 64))]);
+        await h.Vm.BatchTask;
+        int[] fourAcross = [.. h.Vm.CardRows.Select(r => r.Items.Count)];
+        h.Vm.SetCardColumns(3);
+        int[] threeAcross = [.. h.Vm.CardRows.Select(r => r.Items.Count)];
+        h.Vm.SetCardColumns(0);
+        int oneAcross = h.Vm.CardRows.Count;
+        using (Assert.Multiple())
+        {
+            await Assert.That(fourAcross).IsEquivalentTo([4, 4, 2]);
+            await Assert.That(threeAcross).IsEquivalentTo([3, 3, 3, 1]);
+            await Assert.That(oneAcross).IsEqualTo(10).Because("a width narrower than one card still shows one per row");
+            await Assert.That(h.Vm.CardRows.SelectMany(r => r.Items)).IsEquivalentTo(h.Vm.Cards);
+        }
+
+        h.Vm.Clear();
+        await Assert.That(h.Vm.CardRows).IsEmpty();
+    }
+
+    [Test]
     public async Task TheSeekOffset_IsTenSecondsBeforeTheMatch_InTheDemosTickRate_FlooredAtZero()
     {
         using (Assert.Multiple())
