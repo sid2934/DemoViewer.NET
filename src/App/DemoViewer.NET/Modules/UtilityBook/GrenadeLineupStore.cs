@@ -92,11 +92,36 @@ public sealed class GrenadeLineupStore
     }
 
     /// <summary>Writes the file (temp plus replace). A no-op in memory.</summary>
-    public void Save()
+    public void Save() => Write(Snapshot());
+
+    /// <summary>
+    ///     A copy of the document that later edits do not reach, for writing without the index's lock. The
+    ///     anchors and paths are immutable records, so copying the collections is enough.
+    /// </summary>
+    public GrenadeLineupDocument Snapshot()
     {
+        GrenadeLineupDocument copy = new() { SchemaVersion = Doc.SchemaVersion };
+        foreach ((string map, MapLineups lineups) in Doc.Maps)
+        {
+            copy.Maps[map] = new MapLineups
+            {
+                Anchors = [.. lineups.Anchors],
+                Aliases = new Dictionary<Guid, Guid>(lineups.Aliases),
+                AliasesBuilt = lineups.AliasesBuilt,
+                Paths = new Dictionary<string, LineupPath>(lineups.Paths, StringComparer.Ordinal)
+            };
+        }
+
+        return copy;
+    }
+
+    /// <summary>Writes a <see cref="Snapshot" />. Thread-safe with respect to the live document.</summary>
+    public void Write(GrenadeLineupDocument snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
         if (_file is not null)
         {
-            DemoCacheStore.WriteAtomicBytes(_file, SidecarJson.SerializeGzip(Doc, GrenadeSidecar.JsonOptions));
+            DemoCacheStore.WriteAtomicBytes(_file, SidecarJson.SerializeGzip(snapshot, GrenadeSidecar.JsonOptions));
         }
     }
 
