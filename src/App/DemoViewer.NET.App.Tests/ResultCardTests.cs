@@ -105,6 +105,38 @@ public class ResultCardTests
     }
 
     [Test]
+    [Category("Integration")]
+    public async Task AThousandCards_InTheTabsScrollViewer_RealizeOnlyTheRowsOnScreen()
+    {
+        using Harness h = new();
+        h.Cache.Upsert(ParsedRecord(DemoA));
+        h.Vm.Load([.. Enumerable.Range(1, 1000).Select(r => Hit(DemoA, r, r * 1000, r * 1000 + 64))]);
+        await h.Vm.BatchTask;
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // The Situations tab hosts the cards inside its own page ScrollViewer.
+            Avalonia.Controls.Window window = new()
+            {
+                Width = 1280,
+                Height = 900,
+                Content = new Avalonia.Controls.ScrollViewer { Content = new Views.Situations.ResultCardsView { DataContext = h.Vm } }
+            };
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            int realized = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window)
+                .Count(v => v is Avalonia.Controls.Button { DataContext: ResultCardViewModel });
+            window.Close();
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Vm.CardColumns).IsGreaterThan(1).Because("the view hands the VM its width in cards");
+                await Assert.That(realized).IsLessThan(100).Because("a WrapPanel realized every one of the 1,000 cards");
+            }
+        });
+    }
+
+    [Test]
     public async Task TheSeekOffset_IsTenSecondsBeforeTheMatch_InTheDemosTickRate_FlooredAtZero()
     {
         using (Assert.Multiple())
