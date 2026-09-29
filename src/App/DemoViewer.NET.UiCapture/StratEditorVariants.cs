@@ -21,10 +21,10 @@ namespace DemoViewer.NET.UiCapture;
 /// </summary>
 public static partial class Variants
 {
-    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed)
+    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false)
     {
         StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
-        StratBookTabViewModel strats = SeededStratBook(layout);
+        StratBookTabViewModel strats = SeededStratBook(layout, bare);
         StratBookHubViewModel hub = new(layout);
 
         List<WorkspaceTabDescriptor> sections =
@@ -55,7 +55,7 @@ public static partial class Variants
         return new StratBookHubView { DataContext = hub };
     }
 
-    private static StratBookTabViewModel SeededStratBook(StratBookLayout layout)
+    private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
     {
         StratStore store = new(null);
         StratBookTabViewModel vm = new(store, null, null, false, layout: layout);
@@ -63,6 +63,11 @@ public static partial class Variants
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = "de_mirage";
         vm.NewStratCommand.Execute(null);
+        if (bare)
+        {
+            return vm;
+        }
+
         vm.Editor.Name = "A split through palace";
 
         StratEditorViewModel editor = vm.Editor;
