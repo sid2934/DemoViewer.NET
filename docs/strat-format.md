@@ -274,6 +274,33 @@ evidence count: how many rounds ran a strat is the Tag Store's question, answere
 `StratEvidenceService` from the `strat`, `strat.rev`, `strat.result` and `strat.failure` reserved human
 label groups, never stored on the strat itself.
 
+## Templates
+
+New Strat can start a strat from a template in `Services/Strats/StratTemplates.cs`, and Apply template
+fills an open strat that has no steps beyond the spawn seed. A template writes nothing a hand-written strat
+cannot: `type`, `targetSite`, the `role` of any slot that has none, and ordinary steps after the seed.
+The file does not record that a template was used, and revision 1 (or the one undo entry of Apply template)
+already holds the steps.
+
+| Template | Side | Site | Shape |
+|---|---|---|---|
+| Execute | T | A or B | utility from 1:02, entry and trade at 0:53, plant at 0:45 |
+| Rush | T | A or B | utility on the run from 1:50, everyone onto the site, plant at 1:35 |
+| Split | T | A or B | two groups set up, utility from both sides, entries together at 0:55 |
+| Fake | T | hit A or B | fake verbs with utility at the other site from 1:25, then an execute |
+| Default | T | none | map control, a call at 1:15, regroup at 1:00 |
+| Anti-eco | either | none | hold, call, wait |
+| Setup | CT | none | a 2-1-2 hold from round start, early utility, rotation call |
+| Retake | CT | A or B | after the plant (negative `atSeconds`): call, group, utility, retake, defuse by -0:25 |
+
+The rules the templates keep, pinned by `StratTemplatesTests`:
+
+- Every template validates with no refusal and no warning on every shipped map and every side it is for.
+- The only places they name are `BombsiteA` and `BombsiteB`, the two on every shipped map. Any other place is
+  left empty and described in the note, and a step that needs a place it cannot name is a `hold` or `wait`.
+- A step carries only the members its verb uses (`StratStepFields`). A throw names a slot and a kind, never a
+  lineup. No step carries positions: the tokens carry forward from the seed.
+
 ## Exports
 
 Two text shapes are built from a strat and read no file of their own; both are pure over the model in
