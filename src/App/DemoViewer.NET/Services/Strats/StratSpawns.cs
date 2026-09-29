@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
@@ -28,11 +29,13 @@ public sealed record StratSpawns(IReadOnlyList<SpawnSpot> T, IReadOnlyList<Spawn
 
     /// <summary>Both spawns, or null when either side has no spots.</summary>
     /// <param name="zones">The map's zones.</param>
-    public static StratSpawns? From(ZoneSet zones)
+    /// <param name="levelFor">A floor Z's level key (<c>StratFromRound.FloorLevelKeys</c>); quantized Z when null.</param>
+    public static StratSpawns? From(ZoneSet zones, Func<double, double>? levelFor = null)
     {
         ArgumentNullException.ThrowIfNull(zones);
-        IReadOnlyList<SpawnSpot> t = Spots(zones, StratVocabulary.SideT, "TSpawn");
-        IReadOnlyList<SpawnSpot> ct = Spots(zones, StratVocabulary.SideCt, "CTSpawn");
+        levelFor ??= StratFromRound.QuantizedLevel;
+        IReadOnlyList<SpawnSpot> t = Spots(zones, StratVocabulary.SideT, "TSpawn", levelFor);
+        IReadOnlyList<SpawnSpot> ct = Spots(zones, StratVocabulary.SideCt, "CTSpawn", levelFor);
         return t.Count > 0 && ct.Count > 0 ? new StratSpawns(t, ct) : null;
     }
 
@@ -43,9 +46,11 @@ public sealed record StratSpawns(IReadOnlyList<SpawnSpot> T, IReadOnlyList<Spawn
     /// <param name="zones">The map's zones.</param>
     /// <param name="team"><c>T</c> or <c>CT</c>.</param>
     /// <param name="place">The spawn's place name, for a map without a buy zone.</param>
-    public static IReadOnlyList<SpawnSpot> Spots(ZoneSet zones, string team, string place)
+    /// <param name="levelFor">A floor Z's level key.</param>
+    public static IReadOnlyList<SpawnSpot> Spots(ZoneSet zones, string team, string place, Func<double, double> levelFor)
     {
         ArgumentNullException.ThrowIfNull(zones);
+        ArgumentNullException.ThrowIfNull(levelFor);
         List<ZoneArea> areas;
         double cx, cy;
         ZoneVolume? buy = zones.Volumes
@@ -105,7 +110,7 @@ public sealed record StratSpawns(IReadOnlyList<SpawnSpot> T, IReadOnlyList<Spawn
             }
         }
 
-        return [.. taken.Select(a => new SpawnSpot(Math.Round(a.CentroidX), Math.Round(a.CentroidY), StratFromRound.QuantizedLevel(a.Z)))];
+        return [.. taken.Select(a => new SpawnSpot(Math.Round(a.CentroidX), Math.Round(a.CentroidY), levelFor(a.Z)))];
     }
 
     /// <summary>
@@ -163,12 +168,9 @@ public sealed class StratSpawnSource
     private readonly Lock _gate = new();
     private readonly Dictionary<string, Task<StratSpawns?>> _maps = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Reads the shipped bundle's zones with the user's overlay.</summary>
+    /// <summary>Reads the shipped bundle's zones with the user's overlay, keyed on the bundle's floors.</summary>
     public StratSpawnSource()
-        : this(map => ZoneAssetPipeline.Load(MapAssetBundleReader.FindBundleDirectory(map), AppPaths.ZonesDirectory).Resolver?.Zones
-            is { } zones
-            ? StratSpawns.From(zones)
-            : null)
+        : this(LoadShipped)
     {
     }
 
@@ -205,6 +207,20 @@ public sealed class StratSpawnSource
 
             return task;
         }
+    }
+
+    /// <summary>A map's spawns from its bundle directory, levels keyed the way the strat canvas draws them.</summary>
+    /// <param name="map">The map.</param>
+    public static StratSpawns? LoadShipped(string map)
+    {
+        string? dir = MapAssetBundleReader.FindBundleDirectory(map);
+        if (ZoneAssetPipeline.Load(dir, AppPaths.ZonesDirectory).Resolver?.Zones is not { } zones)
+        {
+            return null;
+        }
+
+        IEnumerable<FloorSlice>? floors = dir is null ? null : MapAssetBundleReader.TryRead(dir)?.Floors?.Select(f => new FloorSlice(f.MinZ, f.MaxZ));
+        return StratSpawns.From(zones, StratFromRound.FloorLevelKeys(floors));
     }
 
     /// <summary>Starts a map's load without waiting.</summary>
