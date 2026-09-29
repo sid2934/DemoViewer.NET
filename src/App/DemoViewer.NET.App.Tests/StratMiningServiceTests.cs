@@ -429,4 +429,40 @@ public class StratMiningServiceTests
         using StratMiningService again = library.Service();
         await Assert.That(again.Patterns.Single(p => p.Pattern.Key == execute.Key).StratId).IsNull().Because("the file forgot the promotion");
     }
+
+    [Test]
+    public async Task AQueuedRunRemoval_DoesNothing_WhenTheStratWasPutBackFirst()
+    {
+        using Library library = Library.Create();
+        List<Action> held = [];
+        bool hold = false;
+        using StratMiningService service = library.Service(a =>
+        {
+            if (hold)
+            {
+                held.Add(a);
+            }
+            else
+            {
+                a();
+            }
+
+            return Task.CompletedTask;
+        });
+        await service.MineAsync();
+        MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
+        StratDocument doc = service.Promote(execute.Key, StratOwner.Me())!;
+        int runs = Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count);
+
+        hold = true;
+        await Assert.That(library.Strats.Delete(doc.Id)).IsTrue();
+        await Assert.That(library.Strats.Save(doc, [], "put back").Saved).IsTrue();
+        foreach (Action a in held)
+        {
+            a();
+        }
+
+        await Assert.That(Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count)).IsEqualTo(runs)
+            .Because("the strat was back in the store when the removal ran");
+    }
 }
