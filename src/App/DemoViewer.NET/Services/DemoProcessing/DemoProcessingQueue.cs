@@ -641,7 +641,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             _ = Task.Run(() => WorkerLoopAsync());
         }
 
-        if (_activeLightWorkers == 0 && NextStartableLocked(true) is not null)
+        int lightRunning = _entries.Count(e => e.State == DemoQueueItemState.Running && IsLight(e.Kind));
+        int wantLight = Math.Min(1 + MaxUserLight, lightRunning + (NextStartableLocked(true) is not null ? 1 : 0));
+        while (_activeLightWorkers < wantLight)
         {
             _activeLightWorkers++;
             _ = Task.Run(() => LightWorkerLoopAsync());
@@ -660,6 +662,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 lock (_sync)
                 {
                     entry = _disposed || _paused ? null : PickNextQueuedLocked(true);
+                    PumpLocked(); // another user item may start beside this one
                 }
 
                 if (entry is null)
@@ -683,6 +686,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
         }
     }
+
+    // Light items a user is waiting on that may run at once; the pool gave a Dossier's four builds this.
+    private const int MaxUserLight = 4;
 
     private static bool IsLight(QueueJobKind kind) =>
         kind is QueueJobKind.StoreSave or QueueJobKind.StoreLoad or QueueJobKind.SectionCompute or QueueJobKind.TeamsCommand;
@@ -1102,6 +1108,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         Entry? best = null;
         bool anyRunning = false, jobRunning = false;
+        int userRunning = 0;
         foreach (Entry e in _entries)
         {
             if (IsLight(e.Kind) != light)
@@ -1112,6 +1119,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             if (e.State == DemoQueueItemState.Running)
             {
                 anyRunning = true;
+                userRunning += e.Priority >= DemoJobPriority.UserRequested ? 1 : 0;
                 jobRunning |= e.Kind != QueueJobKind.DemoProcessing;
             }
             else if (IsStartableLocked(e) && (best is null || Compare(e, best) < 0))
@@ -1122,7 +1130,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         if (light)
         {
-            return anyRunning ? null : best;
+            // Background light items run one at a time. Items a user is waiting on run beside them, up to
+            // MaxUserLight at once: a save cannot stop mid-write, and a Dossier team builds four sections.
+            return !anyRunning || best is { Priority: >= DemoJobPriority.UserRequested } && userRunning < MaxUserLight ? best : null;
         }
 
         return best is null || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
