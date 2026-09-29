@@ -406,6 +406,23 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   virtualizing `ListBox` in an `Auto` row measures to 0.
 - **Do not:** show a tagging panel or lane outside the mode, or hide the lanes by writing the user's per-track toggle;
   use `SetTrackSuppressed`.
+- **Generated content:** the Suggested tab lists new proposals only; accepted and dismissed ones come back under
+  "Show settled (n)", where a dismissed one has Restore. N is Dismiss. The Labels tab lists hand-made labels
+  under "Yours (n)" and machine-written ones (accepted suggestions, mined strat runs) under "From suggestions
+  (n)", each saying which.
+
+### Suggested section (the Strat Book rail)
+- **Files:** `ViewModels/SuggestedTags/SuggestedInboxViewModel.cs`, `Views/SuggestedTags/SuggestedInboxView.axaml`,
+  `Modules/SuggestedTags/SuggestedInboxService.cs` and `SuggestedInboxModule.cs` (tab `suggested.inbox`, feature
+  `tab.suggested`, Order 6).
+- **Purpose:** every demo's Suggested Tags proposals in one inbox, so they are not reachable only one open demo
+  at a time. Filters: map, side, detector, minimum confidence; "Show settled (n)".
+- **Contract:** a row reads code@site, confidence, detector (and state when settled), then map, demo, round and
+  side, then why it fired. Open (2D Playback at the proposal, `ISituationPlayback`), Accept and Dismiss on a new
+  row; Restore on a dismissed one. Accept goes through `SuggestedTagsService.Accept`, the Review-mode path. The
+  first look reads the library as one `SuggestionsInbox` queue item; the badge is the index's pending count.
+  The list is virtualized under its own ScrollViewer.
+- **Do not:** accept more than one suggestion per click here; a bulk accept waits for preview before commit.
 
 ### Detected inbox (Strat Mining, the Strats section)
 - **Files:** `ViewModels/StratBook/DetectedStratsViewModel.cs`, the Book / Detected toggle, the `DetectedList` and
@@ -415,8 +432,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   dismissed. The list takes the tab's map, side and book filters; utility-compared patterns sort first, and a
   positions-only one says so in its summary line.
 - **Contract:** the detail pane takes the editor's column while the inbox is up and gives back the editor on
-  Add to book, which opens the new strat. Dismiss is permanent across re-mines until Restore (the "dismissed"
-  checkbox shows them). A member round opens in 2D Playback through `ISituationPlayback`, the Utility map's seam.
+  Add to book, which opens the new strat. Only new patterns show: dismissed and in-book ones come back under
+  "Show settled (n)", the one generated-content toggle (`docs/strat-book/generated-content.md`). Dismiss is
+  permanent across re-mines until Restore. Deleting a mined strat makes its pattern new again. A refused
+  `strat-mining.json` is named above the list, and Add to book and Dismiss say why they did not save. A member round opens in 2D Playback through `ISituationPlayback`, the Utility map's seam.
 - **Preview:** "Preview" on a pattern not yet in a book swaps the detail pane for `DetectedPreview` and the right
   column for `DetectedPreviewCanvas`: the strat Add to book would save (same `StratMiningService.Build`),
   metadata, slots and steps as plain text, and the canvas playing it with the transport, path picker, Fit and

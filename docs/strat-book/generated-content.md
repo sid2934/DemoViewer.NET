@@ -91,7 +91,38 @@ toggle's count.
 - A Suggested Tags accept whose verdict cannot be written takes its tag back. Before, the proposal
   stayed pending with the tag already written, and accepting it again wrote a second copy.
 
-## Decisions, ranked
+## Decisions, built (2026-09-28)
+
+The owner approved decisions 1 to 8 and 10 as recommended, with a Suggested section for decision 4. Decision
+9 (a confirm above 50 clips sent to Review) was not approved.
+
+- **One vocabulary and one toggle (1).** Dismiss and Restore everywhere generated items appear: the per-demo
+  Suggested queue (N is Dismiss), the Suggested section, Detected, the Teams inbox, the Dossier's long form.
+  Each has one "Show settled (n)" toggle. Stored values are unchanged (`rejected` verdicts,
+  `dismissedSuggestions`, dossier `hidden` keys). The teams list keeps Hide: it is a curated list.
+- **Accepted leaves the default view (2).** Only new items show and count. Detected hides in-book patterns;
+  the Suggested queue and section list accepted ones under the toggle, and a settled row takes no second
+  verdict. Dossier stars stay in view: the editor is where findings become the dossier.
+- **Restore for rejected suggestions (3).** Restore turns the rejection into a `restored` verdict, read as no
+  verdict: the proposal is pending, can re-match, counts as pending in tuning, and its next verdict replaces
+  it.
+- **Suggested section (4).** Described in `docs/ui/design-system.md`.
+- **A deleted mined strat (5).** Its pattern is new again, and a queue item removes the run tags its promotion
+  wrote (suggested, detector `strat-mining`, that strat's label). The strat file still goes to `.trash`; the
+  runs do not come back with it.
+- **Labels tab (6).** "Yours (n)" and "From suggestions (n)".
+- **Team suggestion drift (7).** A dismissal holds a squad or roster suggestion whose SteamIDs share one player
+  and differ by at most one (your accounts left out of squads; rosters within their team and roster). The held
+  suggestion's id is added to the file so the dismissal follows it; Restore lifts all of them.
+- **"Is this you?" (8).** Dismiss beside "Yes, that is me", stored as `me:<SteamID64>`, restored from the
+  Teams inbox's settled list.
+- **No reviewed state outside Review clips (10).** `GeneratedState` is new, dismissed or accepted.
+
+Fixes from the review: an accept whose verdict and rollback both fail holds the proposal for the session; a
+`strat-mining.json` that could not be opened is retried, and the dismissals made meanwhile are merged in; a
+refused one is named in the Detected inbox.
+
+## Decisions, as proposed
 
 1. **One vocabulary and one toggle.** Rename reject, hide and leave out to Dismiss / Restore and use
    one "Show settled (n)" toggle in every inbox. *Recommend yes.* Keep "Hide" only for the teams list,
