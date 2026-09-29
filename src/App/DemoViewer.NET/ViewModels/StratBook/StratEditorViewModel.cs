@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.StratBook.Canvas;
@@ -36,6 +37,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
     public const string None = "none";
 
     private readonly IStratLineupCatalog? _lineups;
+    private readonly PlaceCentreResolver? _placeCentres;
     private readonly StratSession _session;
     private readonly ThrowOriginResolver? _throwOrigins;
     private EditBurst? _burst;
@@ -80,13 +82,19 @@ public sealed partial class StratEditorViewModel : ObservableObject
     ///     The canvas projection's lineup origin resolver, so a new step carries a thrower where the canvas shows it;
     ///     null carries authored positions only.
     /// </param>
-    public StratEditorViewModel(StratSession session, IStratLineupCatalog? lineups = null, ThrowOriginResolver? throwOrigins = null)
+    /// <param name="placeCentres">The canvas's place centres, so a new step carries a watching token's facing.</param>
+    public StratEditorViewModel(StratSession session, IStratLineupCatalog? lineups = null, ThrowOriginResolver? throwOrigins = null,
+        PlaceCentreResolver? placeCentres = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
         _lineups = lineups;
         _throwOrigins = throwOrigins;
+        _placeCentres = placeCentres;
     }
+
+    /// <summary>The map's places by the owner's word, for the watching field's suggestions.</summary>
+    public IReadOnlyList<string> PlaceSuggestions { get; private set; } = [];
 
     public static IReadOnlyList<string> Sides { get; } = [StratVocabulary.SideT, StratVocabulary.SideCt];
 
@@ -150,6 +158,8 @@ public sealed partial class StratEditorViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(pins);
         ArgumentNullException.ThrowIfNull(targets);
         _places = places;
+        PlaceSuggestions = [.. places.CanonicalNames.Select(places.Display).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+        OnPropertyChanged(nameof(PlaceSuggestions));
         IsProjecting = true;
         try
         {
@@ -341,8 +351,89 @@ public sealed partial class StratEditorViewModel : ObservableObject
             ops.Add(PatchOp.RemoveOp(path + "/utility", null));
         }
 
+        if (start.Assignments is { } lines && !StratStepFields.Uses(verb, StratStepField.To))
+        {
+            for (int j = 0; j < lines.Count; j++)
+            {
+                if (lines[j].To is not null)
+                {
+                    ops.Add(PatchOp.RemoveOp(Invariant($"{path}/assignments/{j}/to"), null));
+                }
+            }
+        }
+
         return ops;
     });
+
+    // ── Lines ────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A line's slot. Part of the combo box's burst, so wheeling through slots loses nothing.</summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="line">The line's index in <see cref="StratStepLines.Of" />.</param>
+    /// <param name="slot">The new slot.</param>
+    internal void ChangeLineSlot(int index, int line, string slot) => ApplyInBurst(index, "slot" + line, (start, path) =>
+    {
+        List<StepAssignment> lines = StratLinePatches.Copy(start);
+        if (line >= lines.Count || string.Equals(lines[line].Slot, slot, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        lines[line].Slot = slot;
+        return StratLinePatches.Write(start, path, lines);
+    });
+
+    /// <summary>One edit of a step's lines, as one undo entry, written in the stored shape (<see cref="StratLinePatches" />).</summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="edit">Changes a copy of the lines; the step as it stands is passed for reference.</param>
+    internal void EditLines(int index, Action<StratStep, List<StepAssignment>> edit)
+    {
+        if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
+        {
+            return;
+        }
+
+        EndEditBurst();
+        StratStep step = document.Steps[index];
+        List<PatchOp> ops = StratLinePatches.Edit(step, StepPath(index), lines => edit(step, lines));
+        if (ops.Count > 0)
+        {
+            _session.Apply(ops);
+        }
+    }
+
+    /// <summary>
+    ///     A player added to a step: the first slot without a line. On a step for everyone it names the first player,
+    ///     who takes the step's place; on a one-player step it makes two lines.
+    /// </summary>
+    [RelayCommand]
+    private void AddLine(StratStepRow? row)
+    {
+        if (row is null || _session.Document is not { } document)
+        {
+            return;
+        }
+
+        EditLines(document.Steps.FindIndex(s => s.Id == row.Id), (step, lines) =>
+        {
+            if (StratLinePatches.FreeSlot(lines) is { } slot)
+            {
+                lines.Add(new StepAssignment { Slot = slot, To = lines.Count == 0 ? step.To : null });
+            }
+        });
+    }
+
+    /// <summary>The places typed into a watching field, each resolved to a canonical place, duplicates dropped.</summary>
+    /// <param name="text">Callouts or places, comma separated.</param>
+    internal List<string> ResolvePlaces(string? text) =>
+    [
+        .. (text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(ResolvePlace).OfType<string>().Distinct(StringComparer.Ordinal)
+    ];
+
+    /// <summary>The places a watch holds as the owner's words, comma separated.</summary>
+    /// <param name="places">Canonical places.</param>
+    internal string DisplayPlaces(IEnumerable<string> places) => string.Join(", ", places.Select(DisplayPlace).Where(p => p.Length > 0));
 
     /// <summary>
     ///     A step's grenade kind. None removes the utility; a new kind keeps the landing and drops the lineup and
@@ -535,7 +626,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
         double wanted = index >= 0 ? document.Steps[index].AtSeconds - NewStepOffsetSeconds : document.Clock.RoundSeconds;
         Guid id = Guid.NewGuid();
-        Apply([StepAuthoringPatches.AddCarriedStep(document, index, wanted, id, _throwOrigins)]);
+        Apply([StepAuthoringPatches.AddCarriedStep(document, index, wanted, id, _throwOrigins, _placeCentres)]);
         StepFocusRequested?.Invoke(id);
     }
 
@@ -560,6 +651,21 @@ public sealed partial class StratEditorViewModel : ObservableObject
         Guid id = Guid.NewGuid();
         Apply([StepAuthoringPatches.DuplicateStep(document, index, id)]);
         StepFocusRequested?.Invoke(id);
+    }
+
+    /// <summary>Removes one line; the last one leaves a step for everyone.</summary>
+    internal void RemoveLine(StratStepRow row, int line)
+    {
+        if (_session.Document is { } document)
+        {
+            EditLines(document.Steps.FindIndex(s => s.Id == row.Id), (_, lines) =>
+            {
+                if (line < lines.Count)
+                {
+                    lines.RemoveAt(line);
+                }
+            });
+        }
     }
 
     /// <summary>Removes a step and every branch that names it, as one undo entry: a branch left pointing at nothing is refused.</summary>
@@ -939,6 +1045,9 @@ public sealed partial class StratStepRow : ObservableObject
 
     private bool _hasLanding;
 
+    // The selected line's slot, kept so rebuilt lines keep the mark.
+    private string? _lineSlot;
+
     private bool _landingHasPoint;
 
     private int _index;
@@ -981,12 +1090,34 @@ public sealed partial class StratStepRow : ObservableObject
 
     public int Number => _index + 1;
 
+    internal int Index => _index;
+
+    internal StratEditorViewModel Owner => _owner;
+
     public bool HasUtility => UtilityKind != StratEditorViewModel.None;
+
+    /// <summary>
+    ///     Who goes where: the stored lines, or the one implicit line of a one-player step. Empty for a step for
+    ///     everyone, whose place is the step's own.
+    /// </summary>
+    public ObservableCollection<StratLineRow> Lines { get; } = [];
+
+    /// <summary>The step stores lines: its actor is their summary, so the actor combo is not the way to change it.</summary>
+    public bool HasStoredLines { get; private set; }
+
+    public bool HasLines => Lines.Count > 0;
+
+    public bool CanEditActor => !HasStoredLines;
+
+    public bool CanAddLine => Lines.Count < StratVocabulary.Slots.Count;
 
     // A member the verb does not use still shows while it holds a value, so nothing an export prints is hidden.
     public bool ShowFrom => StratStepFields.Uses(Verb, StratStepField.From) || FromText.Length > 0;
 
-    public bool ShowTo => StratStepFields.Uses(Verb, StratStepField.To) || ToText.Length > 0;
+    // With lines each line holds its place; a step-level one beside stored lines shows only to be cleared.
+    public bool ShowTo => HasStoredLines
+        ? ToText.Length > 0
+        : !HasLines && (StratStepFields.Uses(Verb, StratStepField.To) || ToText.Length > 0);
 
     public bool ShowUtility => StratStepFields.Uses(Verb, StratStepField.Utility) || HasUtility;
 
@@ -1040,8 +1171,16 @@ public sealed partial class StratStepRow : ObservableObject
     {
         Dictionary<string, List<StratIssue>> byField = new(StringComparer.Ordinal);
         List<string> lines = [];
+        List<(StratIssue Issue, string Member)>[] perLine = [.. Lines.Select(_ => new List<(StratIssue, string)>())];
         foreach (StratIssue issue in issues)
         {
+            if (LineOf(issue.Field) is ({ } line, { } member))
+            {
+                perLine[line].Add((issue, member));
+                lines.Add($"{issue.Severity.ToString().ToLowerInvariant()}: {issue.Message} ({Lines[line].Slot} {Lines[line].LabelOf(member)})");
+                continue;
+            }
+
             string field = FieldOf(issue.Field);
             if (!byField.TryGetValue(field, out List<StratIssue>? list))
             {
@@ -1064,6 +1203,11 @@ public sealed partial class StratStepRow : ObservableObject
         LandingIssue = StratFieldIssue.From(byField, nameof(LandingIssue));
         RowIssue = StratFieldIssue.From(byField, nameof(RowIssue));
         IssueText = string.Join(Environment.NewLine, lines);
+        for (int j = 0; j < Lines.Count; j++)
+        {
+            Lines[j].SetIssues(perLine[j]);
+        }
+
         foreach (string name in (string[])
                  [
                      nameof(TimeIssue), nameof(ActorIssue), nameof(VerbIssue), nameof(FromIssue), nameof(ToIssue), nameof(UtilityIssue),
@@ -1072,6 +1216,20 @@ public sealed partial class StratStepRow : ObservableObject
         {
             OnPropertyChanged(name);
         }
+    }
+
+    // The line and member a pointer marks: /steps/i/assignments/j/{slot,to,watch}, or the step's own to while a
+    // one-player step shows it on its implicit line.
+    private (int? Line, string? Member) LineOf(string pointer)
+    {
+        string[] parts = pointer.Split('/');
+        if (HasStoredLines && parts.Length > 4 && parts[3] == "assignments"
+            && int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out int line) && line < Lines.Count)
+        {
+            return (line, parts.Length > 5 ? parts[5] : "slot");
+        }
+
+        return !HasStoredLines && Lines.Count == 1 && parts.Length > 3 && parts[3] == "to" ? (0, "to") : (null, null);
     }
 
     // The marker a pointer under /steps/{i} belongs to. A field the row hides marks the row instead.
@@ -1123,6 +1281,7 @@ public sealed partial class StratStepRow : ObservableObject
                            && (landing.X is not null || landing.Y is not null || landing.LevelMinZ is not null || landing.Extra is { Count: > 0 });
         LandingText = _owner.DisplayPlace(step.Utility?.Landing?.Place);
         Note = step.Note ?? "";
+        LoadLines(step);
 
         // A stored id resolves through the catalog, an alias id to the lineup that absorbed it; the row shows the
         // lineup and never rewrites the stored id. One the catalog cannot resolve (a reindex moved the throw, the
@@ -1147,6 +1306,49 @@ public sealed partial class StratStepRow : ObservableObject
 
         OnPropertyChanged(nameof(Number));
         RaiseShown();
+    }
+
+    // Rebuilt only when the number of lines or their kind changes, so a field keeps focus across its own edit.
+    private void LoadLines(StratStep step)
+    {
+        IReadOnlyList<StepAssignment> lines = StratStepLines.Of(step);
+        bool stored = StratStepLines.HasLines(step);
+        if (Lines.Count != lines.Count || HasStoredLines != stored)
+        {
+            HasStoredLines = stored;
+            Lines.Clear();
+            for (int j = 0; j < lines.Count; j++)
+            {
+                Lines.Add(new StratLineRow(this));
+            }
+        }
+
+        for (int j = 0; j < lines.Count; j++)
+        {
+            string own = lines[j].Slot;
+            IReadOnlyList<string> options =
+            [
+                .. StratVocabulary.Slots.Where(s => s == own || lines.All(l => !string.Equals(l.Slot, s, StringComparison.Ordinal)))
+            ];
+            Lines[j].Load(j, lines[j], !stored, Verb, options);
+        }
+
+        SelectLine(_lineSlot);
+        OnPropertyChanged(nameof(HasStoredLines));
+        OnPropertyChanged(nameof(HasLines));
+        OnPropertyChanged(nameof(CanEditActor));
+        OnPropertyChanged(nameof(CanAddLine));
+    }
+
+    /// <summary>Marks the selected line; null or a slot with no line marks none.</summary>
+    /// <param name="slot">The selected line's slot.</param>
+    internal void SelectLine(string? slot)
+    {
+        _lineSlot = slot;
+        foreach (StratLineRow line in Lines)
+        {
+            line.IsSelected = IsSelected && slot is not null && string.Equals(line.Slot, slot, StringComparison.Ordinal);
+        }
     }
 
     private static void Sync<T>(ObservableCollection<T> target, IReadOnlyList<T> items)
@@ -1280,6 +1482,222 @@ public sealed partial class StratStepRow : ObservableObject
 
     partial void OnNoteChanged(string value) =>
         _owner.Replace(Path("note"), string.IsNullOrWhiteSpace(value) ? null : JsonValue.Create(value));
+}
+
+/// <summary>
+///     One line of a step row: a slot, its place and what it watches. The implicit line of a one-player step edits
+///     the step's actor and to; a stored line edits <c>assignments</c>. Either way through
+///     <see cref="StratLinePatches" />, which keeps the stored shape.
+/// </summary>
+public sealed partial class StratLineRow : ObservableObject
+{
+    private readonly StratStepRow _row;
+    private bool _loading;
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
+    private string _placeText = "";
+
+    [ObservableProperty]
+    private string? _slot;
+
+    [ObservableProperty]
+    private string _watchText = "";
+
+    internal StratLineRow(StratStepRow row) => _row = row;
+
+    /// <summary>The step row this line is on.</summary>
+    public StratStepRow Row => _row;
+
+    /// <summary>The line's index in the step's lines.</summary>
+    public int Index { get; private set; }
+
+    /// <summary>A one-player step's line: its slot is the step's actor, changed with the actor combo.</summary>
+    public bool IsImplicit { get; private set; }
+
+    public bool IsExplicit => !IsImplicit;
+
+    /// <summary>The slots this line may take: its own and those with no line on the step.</summary>
+    public ObservableCollection<string> SlotOptions { get; } = [];
+
+    /// <summary>What the verb calls the place: to, at or site.</summary>
+    public string PlaceLabel { get; private set; } = "to";
+
+    /// <summary>The verb uses a place, or this line holds one.</summary>
+    public bool ShowPlace { get; private set; }
+
+    /// <summary>An explicit view angle is set: the cone points there, not at the first watched place.</summary>
+    public bool HasAngle { get; private set; }
+
+    public string AngleText { get; private set; } = "";
+
+    public StratFieldIssue? SlotIssue { get; private set; }
+
+    public StratFieldIssue? PlaceIssue { get; private set; }
+
+    public StratFieldIssue? WatchIssue { get; private set; }
+
+    /// <summary>The watching field's suggestions: the map's places by the owner's word.</summary>
+    public IReadOnlyList<string> WatchSuggestions => _row.Owner.PlaceSuggestions;
+
+    /// <summary>Suggestions for the callout being typed: the text after the last comma.</summary>
+    public static AutoCompleteFilterPredicate<object?> WatchFilter { get; } = (search, item) =>
+        item is string text && text.StartsWith(LastPart(search), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A picked suggestion replaces the callout being typed and keeps the ones before it.</summary>
+    public static AutoCompleteSelector<string> WatchSelector { get; } = (search, item) =>
+    {
+        string text = search ?? "";
+        int comma = text.LastIndexOf(',');
+        return comma < 0 ? item ?? "" : text[..(comma + 1)] + " " + item;
+    };
+
+    internal void Load(int index, StepAssignment line, bool isImplicit, string verb, IReadOnlyList<string> slotOptions)
+    {
+        _loading = true;
+        try
+        {
+            Index = index;
+            IsImplicit = isImplicit;
+            if (!SlotOptions.SequenceEqual(slotOptions))
+            {
+                SlotOptions.Clear();
+                foreach (string option in slotOptions)
+                {
+                    SlotOptions.Add(option);
+                }
+            }
+
+            Slot = line.Slot;
+            PlaceText = _row.Owner.DisplayPlace(line.To?.Place);
+            WatchText = _row.Owner.DisplayPlaces(StratStepLines.Watching(line));
+            PlaceLabel = StratStepFields.ToLabel(verb);
+            ShowPlace = StratStepFields.Uses(verb, StratStepField.To) || PlaceText.Length > 0;
+            HasAngle = line.Watch?.YawDegrees is not null;
+            AngleText = line.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        foreach (string name in (string[])
+                 [nameof(Index), nameof(IsImplicit), nameof(IsExplicit), nameof(PlaceLabel), nameof(ShowPlace), nameof(HasAngle), nameof(AngleText)])
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    internal void SetIssues(IReadOnlyList<(StratIssue Issue, string Member)> issues)
+    {
+        Dictionary<string, List<StratIssue>> byField = new(StringComparer.Ordinal);
+        foreach ((StratIssue issue, string member) in issues)
+        {
+            string field = member switch
+            {
+                "to" => nameof(PlaceIssue),
+                "watch" => nameof(WatchIssue),
+                _ => nameof(SlotIssue)
+            };
+            if (!byField.TryGetValue(field, out List<StratIssue>? list))
+            {
+                byField[field] = list = [];
+            }
+
+            list.Add(issue);
+        }
+
+        SlotIssue = StratFieldIssue.From(byField, nameof(SlotIssue));
+        PlaceIssue = StratFieldIssue.From(byField, nameof(PlaceIssue));
+        WatchIssue = StratFieldIssue.From(byField, nameof(WatchIssue));
+        OnPropertyChanged(nameof(SlotIssue));
+        OnPropertyChanged(nameof(PlaceIssue));
+        OnPropertyChanged(nameof(WatchIssue));
+    }
+
+    internal string LabelOf(string member) => member switch
+    {
+        "to" => PlaceLabel,
+        "watch" => "watching",
+        _ => "slot"
+    };
+
+    [RelayCommand]
+    private void Remove() => _row.Owner.RemoveLine(_row, Index);
+
+    /// <summary>Drops the explicit angle: the token faces its first watched place again.</summary>
+    [RelayCommand]
+    private void ClearAngle() => _row.Owner.EditLines(_row.Index, (_, lines) =>
+    {
+        if (Index < lines.Count && lines[Index].Watch is { } watch)
+        {
+            watch.YawDegrees = null;
+        }
+    });
+
+    // Guarded like the pin combo: replacing SlotOptions pushes null, which is not the user's choice.
+    partial void OnSlotChanged(string? value)
+    {
+        if (!_loading && value is not null)
+        {
+            _row.Owner.ChangeLineSlot(_row.Index, Index, value);
+        }
+    }
+
+    partial void OnPlaceTextChanged(string value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        string? place = _row.Owner.ResolvePlace(value);
+        _row.Owner.EditLines(_row.Index, (_, lines) =>
+        {
+            if (Index >= lines.Count)
+            {
+                return;
+            }
+
+            StepAssignment line = lines[Index];
+            if (place is null)
+            {
+                line.To = null;
+            }
+            else
+            {
+                line.To ??= new PlaceRef();
+                line.To.Place = place;
+            }
+        });
+    }
+
+    partial void OnWatchTextChanged(string value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        List<string> places = _row.Owner.ResolvePlaces(value);
+        _row.Owner.EditLines(_row.Index, (_, lines) =>
+        {
+            if (Index < lines.Count)
+            {
+                lines[Index].Watch ??= new StepWatch();
+                lines[Index].Watch!.Places = places;
+            }
+        });
+    }
+
+    private static string LastPart(string? search)
+    {
+        string text = search ?? "";
+        int comma = text.LastIndexOf(',');
+        return (comma < 0 ? text : text[(comma + 1)..]).TrimStart();
+    }
 }
 
 /// <summary>One branch: after which step, on what condition, continuing where (§3.3.4).</summary>

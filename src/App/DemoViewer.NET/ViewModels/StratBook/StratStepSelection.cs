@@ -56,9 +56,18 @@ public sealed class StratStepSelection : IDisposable
         Sync();
     }
 
+    /// <summary>Selects a step and one of its lines: Set On Map then writes that line's place.</summary>
+    /// <param name="stepId">The row's step.</param>
+    /// <param name="slot">The line's slot.</param>
+    public void SelectLine(Guid stepId, string? slot)
+    {
+        _canvas.SelectLine(slot);
+        Select(stepId);
+    }
+
     private void OnCanvasChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(StratCanvasViewModel.ActiveStep))
+        if (e.PropertyName is nameof(StratCanvasViewModel.ActiveStep) or nameof(StratCanvasViewModel.SelectedLineSlot))
         {
             Sync();
         }
@@ -70,9 +79,11 @@ public sealed class StratStepSelection : IDisposable
     private void Sync()
     {
         Guid? selected = SelectedStepId;
+        string? slot = _canvas.SelectedLineSlot;
         foreach (StratStepRow row in _editor.Steps)
         {
             row.IsSelected = row.Id == selected;
+            row.SelectLine(slot);
         }
 
         if (selected == _shown)
