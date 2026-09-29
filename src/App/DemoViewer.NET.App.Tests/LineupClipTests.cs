@@ -225,19 +225,23 @@ public class LineupClipTests
     public async Task PlanSoon_CoalescesABurstOfIndexChanges_IntoOnePlanOffTheCallingThread()
     {
         int calls = 0;
-        int callerThread = Environment.CurrentManagedThreadId;
-        int planThread = callerThread;
+        // A pool thread can serve both the caller and the plan, so thread ids prove nothing;
+        // what matters is that no plan runs inside a PlanSoon call.
+        bool inCall = false;
+        bool ranInCall = false;
         FakeRenderer renderer = new();
         using LineupClipService service = new(() =>
             {
                 Interlocked.Increment(ref calls);
-                planThread = Environment.CurrentManagedThreadId;
+                ranInCall |= Volatile.Read(ref inCall);
                 return [TwoLineups()];
             }, Directory, () => true, renderer, _ => false, (_, _) => { }, planDebounce: TimeSpan.FromMilliseconds(50));
 
+        Volatile.Write(ref inCall, true);
         Task first = service.PlanSoon();
         Task second = service.PlanSoon();
         Task third = service.PlanSoon();
+        Volatile.Write(ref inCall, false);
         await Task.WhenAll(first, second, third);
         await service.WorkerTask;
 
@@ -245,7 +249,7 @@ public class LineupClipTests
         {
             await Assert.That(ReferenceEquals(second, first)).IsTrue();
             await Assert.That(calls).IsEqualTo(1);
-            await Assert.That(planThread).IsNotEqualTo(callerThread);
+            await Assert.That(ranInCall).IsFalse();
             await Assert.That(renderer.Calls.Count).IsEqualTo(2);
         }
     }
