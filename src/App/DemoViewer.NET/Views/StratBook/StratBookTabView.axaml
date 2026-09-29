@@ -137,6 +137,8 @@
                         <Panel DockPanel.Dock="Bottom" IsVisible="{Binding IsDetectedView}">
                             <StackPanel Spacing="6" Margin="0 8 0 0"
                                         DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
+                                <TextBlock Text="{Binding StateProblem}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasStateProblem}" />
                                 <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextMid}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">

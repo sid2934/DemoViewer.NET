@@ -223,9 +223,9 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
             doc = _mining.Promote(row.Key, book);
         }
 
-        StatusLine = doc is null
-            ? "Could not build this strat: the round's cached files are gone. Find strats again."
-            : $"Added \"{doc.Name}\" to the book.";
+        StatusLine = doc is not null ? $"Added \"{doc.Name}\" to the book."
+            : _mining.StateProblem is { } problem ? $"Not added: {problem}"
+            : "Could not build this strat: the round's cached files are gone. Find strats again.";
         if (doc is not null)
         {
             _openStrat(doc.Id);
@@ -247,6 +247,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         if (SelectedRow is { } row)
         {
             _mining?.Dismiss(row.Key);
+            NoteUnsaved("Dismissed");
         }
     }
 
@@ -256,6 +257,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         if (SelectedRow is { } row)
         {
             _mining?.Restore(row.Key);
+            NoteUnsaved("Restored");
         }
     }
 
@@ -303,7 +305,22 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         SelectedRow = keep is null ? null : Rows.FirstOrDefault(r => r.Key == keep);
         OnPropertyChanged(nameof(NewCount));
         OnPropertyChanged(nameof(IsMining));
+        OnPropertyChanged(nameof(StateProblem));
+        OnPropertyChanged(nameof(HasStateProblem));
         StatusLine = Status(rows.Count);
+    }
+
+    /// <summary>Why the dismissals file is not in use, or null.</summary>
+    public string? StateProblem => _mining?.StateProblem;
+
+    public bool HasStateProblem => StateProblem is not null;
+
+    private void NoteUnsaved(string what)
+    {
+        if (_mining?.StateProblem is { } problem)
+        {
+            StatusLine = $"{what} for this session only: {problem}";
+        }
     }
 
     private string Status(int shown)

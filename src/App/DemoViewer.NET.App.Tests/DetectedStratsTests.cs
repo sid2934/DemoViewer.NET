@@ -69,6 +69,31 @@ public class DetectedStratsTests
     }
 
     [Test]
+    public async Task ARefusedDismissalsFile_IsNamed_AndAddToBookSaysSo()
+    {
+        using Library library = Library.Create();
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(Path.Combine(library.Root, "strat-mining.json"), "{ not json");
+        using StratMiningService mining = library.Service();
+        using StratBookTabViewModel vm = Tab(library, mining);
+        vm.IsDetectedView = true;
+
+        vm.Detected.SelectedRow = vm.Detected.Rows.First(r => r.CanAdd);
+        vm.Detected.AddToBookCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Detected.HasStateProblem).IsTrue();
+            await Assert.That(vm.Detected.StateProblem).Contains("strat-mining.json");
+            await Assert.That(vm.Detected.StateProblem).Contains("Move it aside");
+            await Assert.That(vm.Detected.StatusLine).StartsWith("Not added: ");
+            await Assert.That(vm.Detected.StatusLine).DoesNotContain("cached files");
+        }
+
+        vm.Detected.DismissCommand.Execute(null);
+        await Assert.That(vm.Detected.StatusLine).StartsWith("Dismissed for this session only");
+    }
+
+    [Test]
     [Category("Integration")]
     public async Task TheView_RendersTheInbox_AndADetail() =>
         await HeadlessSession.RunOnUi(async () =>
