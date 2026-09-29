@@ -225,8 +225,10 @@ The rule that ties this to `actor` and `to`:
 Create Strat From Round and Strat Mining still write one actor per step; the step templates are the only
 writer of lines so far.
 
-`StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`); every consumer
-goes through it. The validator's line rules, with pointers the editor's inline checks read:
+`StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). The validator,
+the projection, the carry, the call sheet, the role sheets, the history, the step track and the Detected
+preview go through it; the editor's step rows, Set on map and the Create Strat From Round preview still
+read `actor` and `to` directly until the editor learns lines. The validator's line rules, with pointers the editor's inline checks read:
 
 | Rule | Severity | Pointer |
 |---|---|---|
@@ -248,7 +250,8 @@ step with no position for its slot adds a keyframe where the token already stand
 Place centres are the area-weighted centroids of the map's baked zones (a custom zone with no areas uses
 the middle of its box), built once per map when the zones load through the processing queue; until they
 land, and on a map with no zones, only an explicit `yawDegrees` turns a token. A new step carries each
-token's facing as the projection shows it.
+token's facing as the projection shows it (the canvas's Add step; the editor's does not pass place
+centres yet, so it carries only an explicit angle).
 
 `steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
 along it; two steps may share a time.
@@ -388,7 +391,7 @@ metadata line, one bullet per step with its round-clock time bolded, and a branc
 A step's line names its actor, its verb, an optional utility kind, its `from` and `to` places (through
 the owner's callouts when given, else the canonical name split into words), and, only when it differs
 from `to`, the utility's landing place in parentheses. A step with lines is headed by its slots (`All`
-when the lines name all five) and its shared `from`, and each line follows as an indented bullet:
+when the lines name all five) and its shared `from` (`B, C, D move from T Ramp`), and each line follows as an indented bullet:
 `B → Palace, watching A site, CT`, or `B at Palace` for a verb whose place is where it stands (hold, peek,
 fake, plant, defuse). The step track's tooltip and the Detected preview, which have one line per step,
 join the lines after a colon. The step's own note is left out of this one-liner,
