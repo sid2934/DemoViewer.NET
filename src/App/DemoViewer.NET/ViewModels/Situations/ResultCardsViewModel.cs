@@ -6,6 +6,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
@@ -142,6 +143,32 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <summary>The cards, in the index's order.</summary>
     public ObservableCollection<ResultCardViewModel> Cards { get; } = [];
 
+    /// <summary>
+    ///     <see cref="Cards" /> in rows of <see cref="CardColumns" />: the unit the view virtualizes, since a
+    ///     WrapPanel realizes every card and an empty draft matches every indexed round on the map.
+    /// </summary>
+    public BulkObservableCollection<ResultCardRow> CardRows { get; } = [];
+
+    /// <summary>Cards per row; the view sets it from its width.</summary>
+    public int CardColumns { get; private set; } = 4;
+
+    /// <summary>Re-chunks the rows when the width fits a different number of cards.</summary>
+    /// <param name="columns">Cards that fit across; at least one.</param>
+    public void SetCardColumns(int columns)
+    {
+        columns = Math.Max(1, columns);
+        if (columns == CardColumns)
+        {
+            return;
+        }
+
+        CardColumns = columns;
+        RebuildCardRows();
+    }
+
+    private void RebuildCardRows() =>
+        CardRows.ReplaceAll(Cards.Chunk(CardColumns).Select(row => new ResultCardRow(row)));
+
     /// <summary>How many cards there are.</summary>
     public int Count => Cards.Count;
 
@@ -203,6 +230,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             Cards.Add(new ResultCardViewModel(this, hit, _demoCache.TryGetIndex(hit.DemoPath)));
         }
 
+        RebuildCardRows();
+
         SelectedCard = null;
         WalkLine = "";
         NotifySetChanged();
@@ -224,6 +253,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     {
         Interlocked.Increment(ref _generation);
         Cards.Clear();
+        CardRows.Clear();
         DropOverlay();
         SelectedCard = null;
         WalkLine = "";
@@ -583,3 +613,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         }
     }
 }
+
+/// <summary>One virtualization row of the result cards.</summary>
+/// <param name="Items">Up to <see cref="ResultCardsViewModel.CardColumns" /> cards, in the set's order.</param>
+public sealed record ResultCardRow(IReadOnlyList<ResultCardViewModel> Items);
