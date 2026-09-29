@@ -122,7 +122,7 @@ public static class StratLinePatches
 
         if (!stored)
         {
-            ops.Add(PatchOp.ReplaceOp(stepPath + "/assignments", null, new JsonArray(target.Select(l => (JsonNode?)Node(l)).ToArray())));
+            ops.Add(PatchOp.AddOp(stepPath + "/assignments", new JsonArray(target.Select(l => (JsonNode?)Node(l)).ToArray())));
             return ops;
         }
 
