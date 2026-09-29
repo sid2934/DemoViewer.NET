@@ -1,7 +1,10 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,6 +13,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
@@ -50,6 +54,13 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
     private readonly DemoCacheStore _demoCache;
+
+    // One runner per section (openings, post-plant, situational, heatmaps): a queue item keyed by section in
+    // the app, so a newer build replaces a queued one.
+    private readonly Func<string, Func<Action, Task>> _runSection;
+
+    // The Opening Tendencies read it; its load and merges land after the page may have rendered.
+    private readonly GrenadeIndex? _grenades;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly SetupHeatmapService? _heatmaps;
     private readonly Action<Action> _post;
@@ -59,6 +70,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     private readonly TeamIdentityService _teams;
     private readonly VetoHistoryStore _vetoes;
     private bool _disposed;
+    private bool _shown = true;
+
+    // What the shown projection was built from; a Refresh that finds the same inputs keeps it.
+    private string? _projectedKey;
 
     // Bumped per heatmap build; a worker whose generation is behind posts nothing.
     private int _generation;
@@ -114,6 +129,8 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="openings">Builds the Opening Tendencies; null hides the section.</param>
     /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
     /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
+    /// <param name="grenades">The grenade index the Opening Tendencies read; its changes re-project the team.</param>
+    /// <param name="runSection">Runs a named section's build; the pool when null.</param>
     /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
@@ -127,8 +144,11 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         PostPlantService? postPlant = null,
         SituationalBehaviourService? situational = null,
         DossierNotesStore? notes = null,
-        Func<string, string, string, string?>? export = null)
+        Func<string, string, string, string?>? export = null,
+        GrenadeIndex? grenades = null,
+        Func<string, Func<Action, Task>>? runSection = null)
     {
+        _grenades = grenades;
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(vetoes);
@@ -142,15 +162,26 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         _decode = decode ?? DecodePng;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
-        Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post);
-        PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post);
-        Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post);
+        _runSection = runSection ?? (_ => work => Task.Run(work));
+        Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post, _runSection("openings"));
+        PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post, _runSection("post-plant"));
+        Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post, _runSection("situational"));
         Editor = new DossierEditorViewModel(notes ?? new DossierNotesStore(null), IsBrowser, export);
         Openings.PropertyChanged += OnSectionChanged;
         PostPlant.PropertyChanged += OnSectionChanged;
         Situational.PropertyChanged += OnSectionChanged;
+        Editor.Projected += OnEditorProjected;
+        foreach (DossierSectionViewModel section in (DossierSectionViewModel[])[RecordSection, RosterSection, VetoSection, NotesSection])
+        {
+            section.PropertyChanged += OnSectionToggled;
+        }
+
         _teams.Changed += Refresh;
         _vetoes.Changed += ProjectVetoes;
+        if (_grenades is not null)
+        {
+            _grenades.Changed += Refresh;
+        }
         Refresh();
     }
 
@@ -164,6 +195,147 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     public ObservableCollection<MapPoolRowViewModel> Maps { get; } = [];
 
     public ObservableCollection<VetoRowViewModel> Vetoes { get; } = [];
+
+    /// <summary>A section starts open with this many findings or fewer, the Review queue's rule.</summary>
+    public const int OpenSectionLimit = 50;
+
+    // Open or closed per section key, for the session.
+    private readonly Dictionary<string, bool> _expanded = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>One section per map the team has numbers on, in map pool order.</summary>
+    public ObservableCollection<DossierMapSectionViewModel> MapSections { get; } = [];
+
+    public DossierGeneralSectionViewModel RecordSection { get; } = new("record", "Overall record", true);
+
+    public DossierGeneralSectionViewModel RosterSection { get; } = new("roster", "Roster and form", true);
+
+    public DossierGeneralSectionViewModel VetoSection { get; } = new("vetoes", "Veto history", true);
+
+    public DossierGeneralSectionViewModel NotesSection { get; } = new("notes", "Notes and findings", true);
+
+    public bool HasMapSections => MapSections.Count > 0;
+
+    private IEnumerable<DossierSectionViewModel> AllSections =>
+        [RecordSection, .. MapSections, RosterSection, VetoSection, NotesSection];
+
+    [RelayCommand]
+    private void ExpandAll()
+    {
+        foreach (DossierSectionViewModel section in AllSections)
+        {
+            section.IsExpanded = true;
+        }
+    }
+
+    [RelayCommand]
+    private void CollapseAll()
+    {
+        foreach (DossierSectionViewModel section in AllSections)
+        {
+            section.IsExpanded = false;
+        }
+    }
+
+    // True while the tab itself opens or closes a section by the findings rule, so only the user's own
+    // clicks are remembered.
+    private bool _applyingDefault;
+
+    private void OpenByDefault(DossierSectionViewModel section, int findings)
+    {
+        if (_expanded.ContainsKey(section.Key))
+        {
+            return;
+        }
+
+        _applyingDefault = true;
+        section.IsExpanded = findings <= OpenSectionLimit;
+        _applyingDefault = false;
+    }
+
+    private void OnSectionToggled(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (!_applyingDefault && e.PropertyName == nameof(DossierSectionViewModel.IsExpanded) && sender is DossierSectionViewModel section)
+        {
+            _expanded[section.Key] = section.IsExpanded;
+        }
+    }
+
+    // Regroups every section's lists by map. Sections that stay keep their view model, so an open one
+    // stays open and its rows are not rebuilt for a map whose lists did not change.
+    private void RebuildSections()
+    {
+        List<string> maps = [.. Maps.Select(m => m.Map)];
+        foreach (string map in Heatmaps.Select(h => h.Map)
+                     .Concat(Openings.Blocks.Select(b => b.Map))
+                     .Concat(PostPlant.Blocks.Select(b => b.Map))
+                     .Concat(Situational.Blocks.Select(b => b.Map))
+                     .Concat(Editor.MapFindings.Keys)
+                     .Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!maps.Contains(map, StringComparer.OrdinalIgnoreCase))
+            {
+                maps.Add(map);
+            }
+        }
+
+        Dictionary<string, DossierMapSectionViewModel> existing = MapSections.ToDictionary(m => m.Map, StringComparer.OrdinalIgnoreCase);
+        List<DossierMapSectionViewModel> wanted = [];
+        foreach (string map in maps)
+        {
+            List<DossierFindingViewModel> findings = Editor.MapFindings.TryGetValue(map, out List<DossierFindingViewModel>? f) ? f : [];
+            if (!existing.TryGetValue(map, out DossierMapSectionViewModel? section))
+            {
+                section = new DossierMapSectionViewModel(map, _expanded.TryGetValue("map|" + map, out bool open) && open);
+                section.PropertyChanged += OnSectionToggled;
+            }
+
+            OpenByDefault(section, findings.Count);
+
+            bool same(string m) => string.Equals(m, map, StringComparison.OrdinalIgnoreCase);
+            section.Set(Maps.FirstOrDefault(m => same(m.Map)), [.. Heatmaps.Where(h => same(h.Map))],
+                [.. Openings.Blocks.Where(b => same(b.Map))], [.. PostPlant.Blocks.Where(b => same(b.Map))],
+                [.. Situational.Blocks.Where(b => same(b.Map))], findings);
+            wanted.Add(section);
+        }
+
+        if (!wanted.SequenceEqual(MapSections))
+        {
+            foreach (DossierMapSectionViewModel gone in MapSections.Except(wanted))
+            {
+                gone.PropertyChanged -= OnSectionToggled;
+            }
+
+            MapSections.Clear();
+            foreach (DossierMapSectionViewModel section in wanted)
+            {
+                MapSections.Add(section);
+            }
+        }
+
+        RecordSection.SetCount(Maps.Count == 0 ? "" : OpeningTendenciesSectionViewModel.Plural(Maps.Count, "map"));
+        VetoSection.SetCount(Vetoes.Count == 0 ? "" : OpeningTendenciesSectionViewModel.Plural(Vetoes.Count, "step"));
+        SetNotesCount();
+        OnPropertyChanged(nameof(HasMapSections));
+    }
+
+    private void OnEditorProjected()
+    {
+        foreach (DossierMapSectionViewModel section in MapSections)
+        {
+            List<DossierFindingViewModel> findings = Editor.MapFindings.TryGetValue(section.Map, out List<DossierFindingViewModel>? f) ? f : [];
+            section.SetFindings(findings);
+            OpenByDefault(section, findings.Count);
+        }
+
+        SetNotesCount();
+    }
+
+    private void SetNotesCount()
+    {
+        int general = Editor.GeneralFindings.Count;
+        NotesSection.SetCount(OpeningTendenciesSectionViewModel.Plural(general, "finding"));
+        OpenByDefault(NotesSection, general);
+    }
 
     public bool HasTeams => Teams.Count > 0;
 
@@ -215,12 +387,18 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     public bool VetoesAreSessionOnly => _vetoes.IsSessionOnly;
 
     /// <inheritdoc />
-    public void OnActivated(IModuleContext context) => Refresh();
+    public void OnActivated(IModuleContext context)
+    {
+        _shown = true;
+        using (QueueWork.UserAction())
+        {
+            Refresh();
+        }
+    }
 
     /// <inheritdoc />
-    public void OnDeactivated()
-    {
-    }
+    public void OnDeactivated() => _shown = false;
+
 
     /// <inheritdoc />
     public void Dispose()
@@ -239,14 +417,23 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         Openings.PropertyChanged -= OnSectionChanged;
         PostPlant.PropertyChanged -= OnSectionChanged;
         Situational.PropertyChanged -= OnSectionChanged;
+        Editor.Projected -= OnEditorProjected;
         _teams.Changed -= Refresh;
         _vetoes.Changed -= ProjectVetoes;
+        if (_grenades is not null)
+        {
+            _grenades.Changed -= Refresh;
+        }
     }
 
     partial void OnSelectedTeamChanged(DossierTeamRow? value)
     {
         NewVetoMap = "";
-        Project();
+        using (QueueWork.UserAction())
+        {
+            Project();
+        }
+
         OnPropertyChanged(nameof(HasSelection));
     }
 
@@ -289,6 +476,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         if (SelectedTeam is not { } row)
         {
             Editor.Load(null, "", "", []);
+            RebuildSections();
             return;
         }
 
@@ -303,6 +491,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             .. DossierEditorViewModel.FromVetoes(Vetoes)
         ];
         Editor.Load(row.Id, row.Name, SampleSizeLine, sources);
+        RebuildSections();
     }
 
     [RelayCommand]
@@ -335,11 +524,29 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     private void Refresh()
     {
+        if (!_shown)
+        {
+            return;
+        }
+
+        List<DossierTeamRow> rows = [.. _teams.Teams.Select(t => new DossierTeamRow(t))];
+        if (rows.Count == Teams.Count && rows.Zip(Teams).All(p => p.First.SameAs(p.Second)))
+        {
+            // Same rows: the selection stays put, and only a change in what the selected team is built from
+            // re-projects. Every Team Identity recompute raises Changed, whichever team it touched.
+            if (SelectedTeam is { } selected && ProjectionKey(selected) != _projectedKey)
+            {
+                Project();
+            }
+
+            return;
+        }
+
         Guid? keep = SelectedTeam?.Id;
         Teams.Clear();
-        foreach (Team team in _teams.Teams)
+        foreach (DossierTeamRow row in rows)
         {
-            Teams.Add(new DossierTeamRow(team));
+            Teams.Add(row);
         }
 
         OnPropertyChanged(nameof(HasTeams));
@@ -350,8 +557,29 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         }
     }
 
+    // The team, its sides with their assignments, and the cache stamps of those demos: everything the
+    // projection reads that a Team Identity change can move.
+    private string ProjectionKey(DossierTeamRow row)
+    {
+        StringBuilder key = new();
+        key.Append(JsonSerializer.Serialize(_teams.AllTeams.FirstOrDefault(t => t.Id == row.Id)));
+        key.Append(CultureInfo.InvariantCulture, $"|grenades:{_grenades?.IsReady}");
+        foreach ((DemoRef demo, int side, TeamAssignment assignment) in _teams.SidesOf(row.Id))
+        {
+            key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
+            if (_demoCache.TryGetIndex(demo.Path) is { } entry)
+            {
+                key.Append(CultureInfo.InvariantCulture,
+                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsFingerprint}/{entry.RoundIndexFingerprint}/{entry.RoundIndexComputedAtTicks}/{entry.GrenadeState}/{entry.GrenadeCount}/{entry.GrenadeWalker}/{_grenades?.IsLoaded(demo.Path)}");
+            }
+        }
+
+        return key.ToString();
+    }
+
     private void Project()
     {
+        _projectedKey = SelectedTeam is { } selected ? ProjectionKey(selected) : null;
         Maps.Clear();
         if (SelectedTeam is not { } row)
         {
@@ -516,7 +744,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         IsHeatmapBuilding = true;
         HeatmapLine = "reading positions";
         Guid teamId = row.Id;
-        HeatmapTask = Task.Run(() => RunHeatmaps(generation, teamId));
+        HeatmapTask = _runSection("heatmaps")(() => RunHeatmaps(generation, teamId));
     }
 
     // The worker: one build, the rows posted at once, then one render per heatmap from its own
@@ -658,6 +886,10 @@ public sealed class DossierTeamRow(Team team)
     public string Name { get; } = DisplayText.Sanitize(team.Name);
 
     public bool IsUs { get; } = team.IsUs;
+
+    /// <summary>Whether <paramref name="other" /> shows the same team the same way.</summary>
+    public bool SameAs(DossierTeamRow other) =>
+        Id == other.Id && IsUs == other.IsUs && string.Equals(Name, other.Name, StringComparison.Ordinal);
 }
 
 /// <summary>One map row of the selected team's Map Pool Record, worded for display.</summary>

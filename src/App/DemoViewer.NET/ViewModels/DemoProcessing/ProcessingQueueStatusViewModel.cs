@@ -101,7 +101,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     public ObservableCollection<DemoQueueRowViewModel> Rows { get; } = [];
 
     /// <summary>Pause / Resume button caption, reflecting <see cref="IsPaused" />.</summary>
-    public string PauseResumeLabel => IsPaused ? "Resume queue" : "Pause queue";
+    public string PauseResumeLabel => IsPaused ? "Resume background work" : "Pause background work";
 
     /// <summary>Whether the flyout's "Background processing settings" link is shown (an opener was supplied).</summary>
     public bool CanOpenSettings => _openSettings is not null;
@@ -182,7 +182,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
             CultureInfo.InvariantCulture, "{0} running · {1} queued", RunningCount, QueuedCount);
         if (IsPaused)
         {
-            return counts + " · paused";
+            return counts + " · paused: background work held";
         }
 
         if (IsBackgroundDisabled)
@@ -197,7 +197,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     {
         if (IsPaused)
         {
-            SetChip(StatusChipDotState.Off, false, "Queue paused");
+            SetChip(StatusChipDotState.Off, false, "Background paused");
         }
         else if (RunningCount > 0)
         {

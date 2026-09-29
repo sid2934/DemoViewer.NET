@@ -1,11 +1,13 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
@@ -66,6 +68,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     public const int ReviewTailSeconds = 5;
 
     private readonly SituationThumbnailCache _cache;
+    private readonly Func<string, Func<Action, Task>> _run;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly DemoCacheStore _demoCache;
     private readonly Func<ISituationPlayback?> _playback;
@@ -110,6 +113,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
     /// <param name="overlay">The canvas's overlay document the heatmap layer draws; a private one when null.</param>
     /// <param name="review">The Review Queue the set is sent to; null hides the action.</param>
+    /// <param name="run">Runs the fill and the overlay: queue items in the app, the pool when null.</param>
     public ResultCardsViewModel(
         DemoCacheStore demoCache,
         RoundIndexStore store,
@@ -120,8 +124,10 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         Action<Action>? post = null,
         Func<byte[], Bitmap?>? decode = null,
         OverlayDocument? overlay = null,
-        ReviewQueue? review = null)
+        ReviewQueue? review = null,
+        Func<string, Func<Action, Task>>? run = null)
     {
+        _run = run ?? (_ => work => Task.Run(work));
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(sources);
@@ -141,6 +147,76 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
 
     /// <summary>The cards, in the index's order.</summary>
     public ObservableCollection<ResultCardViewModel> Cards { get; } = [];
+
+    /// <summary>
+    ///     <see cref="Cards" /> in rows of <see cref="CardColumns" />: the unit the view virtualizes, since a
+    ///     WrapPanel realizes every card and an empty draft matches every indexed round on the map.
+    /// </summary>
+    public BulkObservableCollection<ResultCardRow> CardRows { get; } = [];
+
+    /// <summary>Cards per row; the view sets it from its width.</summary>
+    public int CardColumns { get; private set; } = 4;
+
+    /// <summary>Re-chunks the rows when the width fits a different number of cards.</summary>
+    /// <param name="columns">Cards that fit across; at least one.</param>
+    public void SetCardColumns(int columns)
+    {
+        columns = Math.Max(1, columns);
+        if (columns == CardColumns)
+        {
+            return;
+        }
+
+        CardColumns = columns;
+        RebuildCardRows();
+    }
+
+    /// <summary>Cards shown at first and added by each Show more.</summary>
+    public const int PageSize = 200;
+
+    private int _shown = PageSize;
+
+    /// <summary>
+    ///     How many of <see cref="Cards" /> the page shows. Overlay all, Send to Review and the J / K walk still
+    ///     act on the whole set; a walk past the last shown card shows more.
+    /// </summary>
+    public int ShownCount => Math.Min(_shown, Cards.Count);
+
+    public bool HasMore => ShownCount < Cards.Count;
+
+    /// <summary>"Show 200 more (924 not shown)".</summary>
+    public string MoreLabel
+    {
+        get
+        {
+            int rest = Cards.Count - ShownCount;
+            return string.Create(CultureInfo.InvariantCulture, $"Show {Math.Min(PageSize, rest)} more ({rest} not shown)");
+        }
+    }
+
+    [RelayCommand]
+    private void ShowMore()
+    {
+        _shown += PageSize;
+        RebuildCardRows();
+    }
+
+    private void RebuildCardRows()
+    {
+        CardRows.ReplaceAll(Cards.Take(ShownCount).Chunk(CardColumns).Select(row => new ResultCardRow(row)));
+        OnPropertyChanged(nameof(ShownCount));
+        OnPropertyChanged(nameof(HasMore));
+        OnPropertyChanged(nameof(MoreLabel));
+    }
+
+    partial void OnSelectedCardChanged(ResultCardViewModel? value)
+    {
+        if (value is not null && Cards.IndexOf(value) is var index and >= 0 && index >= ShownCount)
+        {
+            _shown = (index / PageSize + 1) * PageSize;
+            RebuildCardRows();
+        }
+    }
 
     /// <summary>How many cards there are.</summary>
     public int Count => Cards.Count;
@@ -203,6 +279,9 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             Cards.Add(new ResultCardViewModel(this, hit, _demoCache.TryGetIndex(hit.DemoPath)));
         }
 
+        _shown = PageSize;
+        RebuildCardRows();
+
         SelectedCard = null;
         WalkLine = "";
         NotifySetChanged();
@@ -213,7 +292,11 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         }
 
         List<ResultCardViewModel> snapshot = [.. Cards];
-        BatchTask = Task.Run(() => Fill(generation, snapshot));
+        // Only a search loads a set: the user is waiting on it.
+        using (QueueWork.UserAction())
+        {
+            BatchTask = _run("fill")(() => Fill(generation, snapshot));
+        }
     }
 
     /// <summary>The last batch's worker, so a test can await the fill instead of polling the cards.</summary>
@@ -224,6 +307,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     {
         Interlocked.Increment(ref _generation);
         Cards.Clear();
+        _shown = PageSize;
+        RebuildCardRows();
         DropOverlay();
         SelectedCard = null;
         WalkLine = "";
@@ -380,7 +465,10 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         List<SituationHit> hits = [.. Cards.Select(c => c.Hit)];
         IsOverlayBuilding = true;
         OverlayLine = "stacking the rounds";
-        OverlayTask = Task.Run(() => BuildOverlay(generation, hits));
+        using (QueueWork.UserAction())
+        {
+            OverlayTask = _run("overlay")(() => BuildOverlay(generation, hits));
+        }
     }
 
     /// <summary>Takes the heatmap off the canvas. The cards stay.</summary>
@@ -422,6 +510,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             {
                 return;
             }
+
+            QueueWork.ThrowIfStopped();
 
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))
             {
@@ -501,6 +591,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             {
                 return;
             }
+
+            QueueWork.ThrowIfStopped();
 
             SituationHit hit = card.Hit;
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))
@@ -583,3 +675,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         }
     }
 }
+
+/// <summary>One virtualization row of the result cards.</summary>
+/// <param name="Items">Up to <see cref="ResultCardsViewModel.CardColumns" /> cards, in the set's order.</param>
+public sealed record ResultCardRow(IReadOnlyList<ResultCardViewModel> Items);

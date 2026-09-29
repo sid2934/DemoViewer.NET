@@ -76,64 +76,82 @@
                        Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" TextWrapping="Wrap" />
         </Grid>
 
-        <!-- The cards. -->
-        <ItemsControl ItemsSource="{Binding Cards}">
+        <!-- The cards, in rows of CardColumns on a VirtualizingStackPanel, which virtualizes against the
+             tab's ScrollViewer. Each card keeps a 192x212 slot. -->
+        <ItemsControl ItemsSource="{Binding CardRows}" SizeChanged="OnCardsSizeChanged">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal" ItemWidth="192" ItemHeight="212" />
+                    <VirtualizingStackPanel />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ResultCardViewModel">
-                    <Button Classes="chip" Padding="0" Margin="0 0 8 8" HorizontalAlignment="Left"
-                            Command="{Binding OpenCommand}"
-                            ToolTip.Tip="Open 2D playback ten seconds before the matched tick">
-                        <Border Classes="resultCard" Classes.selected="{Binding IsSelected}">
-                            <StackPanel Spacing="4">
+                <DataTemplate x:DataType="vm:ResultCardRow">
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ResultCardViewModel">
+                                <Panel Width="192" Height="212">
+                                    <Button Classes="chip" Padding="0" Margin="0 0 8 8" HorizontalAlignment="Left"
+                                            Command="{Binding OpenCommand}"
+                                            ToolTip.Tip="Open 2D playback ten seconds before the matched tick">
+                                        <Border Classes="resultCard" Classes.selected="{Binding IsSelected}">
+                                            <StackPanel Spacing="4">
 
-                                <!-- The mini-radar, or the note that stands in for it. -->
-                                <Border Width="168" Height="94" CornerRadius="4" ClipToBounds="True"
-                                        Background="{DynamicResource PanelBg}">
-                                    <Panel>
-                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"
-                                               IsVisible="{Binding HasThumbnail}" />
-                                        <TextBlock Text="{Binding ThumbnailNote}" IsVisible="{Binding HasThumbnailNote}"
-                                                   FontSize="10" Foreground="{DynamicResource TextMid}"
-                                                   TextWrapping="Wrap" TextAlignment="Center"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8" />
-                                    </Panel>
-                                </Border>
+                                                <!-- The mini-radar, or the note that stands in for it. -->
+                                                <Border Width="168" Height="94" CornerRadius="4" ClipToBounds="True"
+                                                        Background="{DynamicResource PanelBg}">
+                                                    <Panel>
+                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                                                               IsVisible="{Binding HasThumbnail}" />
+                                                        <TextBlock Text="{Binding ThumbnailNote}" IsVisible="{Binding HasThumbnailNote}"
+                                                                   FontSize="10" Foreground="{DynamicResource TextMid}"
+                                                                   TextWrapping="Wrap" TextAlignment="Center"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8" />
+                                                </Panel>
+                                                </Border>
 
-                                <!-- The match and the round. -->
-                                <TextBlock Text="{Binding MatchLabel}" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="{Binding RoundLabel}" Classes="fact" />
-                                    <TextBlock Grid.Column="1" Text="{Binding ScoreText}" Classes="fact" />
-                                </Grid>
+                                                <!-- The match and the round. -->
+                                                <TextBlock Text="{Binding MatchLabel}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="{Binding RoundLabel}" Classes="fact" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding ScoreText}" Classes="fact" />
+                                                </Grid>
 
-                                <!-- Both buys, absolute per side: Team Identity turns them relative later. -->
-                                <TextBlock Classes="fact">
-                                    <Run Text="CT " /><Run Text="{Binding CtBuyText}" />
-                                    <Run Text=" · T " /><Run Text="{Binding TBuyText}" />
-                                </TextBlock>
+                                                <!-- Both buys, absolute per side: Team Identity turns them relative later. -->
+                                                <TextBlock Classes="fact">
+                                                    <Run Text="CT " /><Run Text="{Binding CtBuyText}" />
+                                                    <Run Text=" · T " /><Run Text="{Binding TBuyText}" />
+                                                </TextBlock>
 
-                                <!-- The end reason with its icon, and the clock at the matched tick. -->
-                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
-                                    <controls:GameIcon Grid.Column="0" Key="{Binding EndReasonIconKey}" IconHeight="10"
-                                                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding EndReasonText}" Classes="fact"
-                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" Classes="fact" VerticalAlignment="Center">
-                                        <Run Text="{Binding ElapsedText}" /><Run Text=" · " /><Run Text="{Binding RoundClockText}" />
-                                    </TextBlock>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-                    </Button>
+                                                <!-- The end reason with its icon, and the clock at the matched tick. -->
+                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                                                    <controls:GameIcon Grid.Column="0" Key="{Binding EndReasonIconKey}" IconHeight="10"
+                                                                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding EndReasonText}" Classes="fact"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Classes="fact" VerticalAlignment="Center">
+                                                        <Run Text="{Binding ElapsedText}" /><Run Text=" · " /><Run Text="{Binding RoundClockText}" />
+                                                    </TextBlock>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Button>
+                                </Panel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <!-- The first 200 cards, then 200 more per click; the actions above still take the whole set. -->
+        <Button Content="{Binding MoreLabel}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding HasMore}"
+                Classes="ghost" FontSize="11" Padding="10 5" HorizontalAlignment="Left" />
     </StackPanel>
 
 </UserControl>

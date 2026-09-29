@@ -1,7 +1,9 @@
 #region
 
+using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -59,8 +61,12 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     private readonly Action<Action> _retire;
     private readonly ISituationPlayback? _playback;
     private readonly Dictionary<string, LandingGroup> _groups = new(StringComparer.Ordinal);
+    private readonly Action<Action> _background;
+    private readonly Action<Action> _post;
     private bool _disposed;
     private bool _refreshing;
+    private bool _shown = true;
+    private int _refreshVersion;
 
     /// <summary>True when the card opens over the map's left edge, because the selected position is on the right.</summary>
     [ObservableProperty]
@@ -110,10 +116,15 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     ///     post in the app, inline in a test.
     /// </param>
     /// <param name="clipDirectory">Where Lineup Clip Render writes its pairs; the card shows no clip when null.</param>
+    /// <param name="background">Runs a refresh's index reads: the thread pool in the app, inline in a test.</param>
+    /// <param name="post">Brings a refresh's result back: the UI dispatcher in the app, inline in a test.</param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
         Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
-        Action<Action>? retire = null, string? clipDirectory = null)
+        Action<Action>? retire = null, string? clipDirectory = null, Action<Action>? background = null,
+        Action<Action>? post = null)
     {
+        _background = background ?? (work => work());
+        _post = post ?? (work => work());
         _clipDirectory = clipDirectory;
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
@@ -182,12 +193,23 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     public event Action? MapChanged;
 
     /// <inheritdoc />
-    public void OnActivated(IModuleContext context) => Refresh();
+    public void OnActivated(IModuleContext context)
+    {
+        _shown = true;
+        RefreshForUser();
+    }
+
+    // A click or a showing: the read goes to the front of the queue.
+    private void RefreshForUser()
+    {
+        using (QueueWork.UserAction())
+        {
+            Refresh();
+        }
+    }
 
     /// <inheritdoc />
-    public void OnDeactivated()
-    {
-    }
+    public void OnDeactivated() => _shown = false;
 
     /// <inheritdoc />
     public void Dispose()
@@ -215,32 +237,85 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
                 SelectedPlace is { } place && place != AnyPlace ? new HashSet<string>(StringComparer.Ordinal) { place } : null,
                 SelectedSide?.Value);
 
-    /// <summary>Re-reads the maps and places and re-runs the query, keeping the focus and selection when they survive.</summary>
+    /// <summary>
+    ///     Re-reads the maps and places and re-runs the query, keeping the focus and selection when they survive.
+    ///     The index is read through the background delegate and the result applied through the post delegate;
+    ///     a hidden section only notes that it is stale.
+    /// </summary>
     public void Refresh()
     {
-        if (_refreshing)
+        if (_refreshing || _disposed)
         {
             return;
         }
 
+        if (!_shown)
+        {
+            return;
+        }
+
+        int version = ++_refreshVersion;
+        string? map = SelectedMap;
+        string? place = SelectedPlace;
+        GrenadeKind? kind = SelectedKind?.Value;
+        int? side = SelectedSide?.Value;
+        _background(() =>
+        {
+            RefreshResult result;
+            try
+            {
+                result = Compute(map, place, kind, side);
+            }
+            catch (Exception ex) when (!QueueWork.IsStop(ex))
+            {
+                ExceptionDispatchInfo failure = ExceptionDispatchInfo.Capture(ex);
+                _post(failure.Throw);
+                return;
+            }
+
+            _post(() =>
+            {
+                if (version == _refreshVersion && !_disposed)
+                {
+                    Apply(result);
+                }
+            });
+        });
+    }
+
+    private sealed record RefreshResult(IReadOnlyList<string> Maps, string? Map, IReadOnlyList<string> Places, string Place,
+        IReadOnlyList<GrenadeCluster> Clusters, bool Ready, int Demos, int Grenades);
+
+    // Everything Refresh reads from the index. Takes the index's lock, so the app runs it off the UI thread.
+    private RefreshResult Compute(string? selectedMap, string? selectedPlace, GrenadeKind? kind, int? side)
+    {
+        IReadOnlyList<string> maps = _index.Maps();
+        string? map = selectedMap is not null && maps.Contains(selectedMap) ? selectedMap : maps.Count > 0 ? maps[0] : null;
+        QueueWork.ThrowIfStopped();
+        List<string> places = [AnyPlace, .. map is not null ? _index.LandingPlaces(map) : []];
+        QueueWork.ThrowIfStopped();
+        string place = selectedPlace is not null && places.Contains(selectedPlace) ? selectedPlace : AnyPlace;
+        IReadOnlyList<GrenadeCluster> clusters = map is not { Length: > 0 }
+            ? []
+            : _index.Query(new GrenadeQuery(map,
+                kind is { } k ? new HashSet<GrenadeKind> { k } : null,
+                place != AnyPlace ? new HashSet<string>(StringComparer.Ordinal) { place } : null,
+                side));
+        return new RefreshResult(maps, map, places, place, clusters, _index.IsReady, _index.DemoCount, _index.GrenadeCount);
+    }
+
+    private void Apply(RefreshResult result)
+    {
         _refreshing = true;
         try
         {
-            Sync(Maps, _index.Maps());
-            if (SelectedMap is null || !Maps.Contains(SelectedMap))
-            {
-                SelectedMap = Maps.FirstOrDefault();
-            }
-
-            Sync(Places, [AnyPlace, .. SelectedMap is { } map ? _index.LandingPlaces(map) : []]);
-            if (SelectedPlace is null || !Places.Contains(SelectedPlace))
-            {
-                SelectedPlace = AnyPlace;
-            }
-
+            Sync(Maps, result.Maps);
+            SelectedMap = result.Map;
+            Sync(Places, result.Places);
+            SelectedPlace = result.Place;
             RebindMap();
-            BuildGroups();
-            StatusLine = StatusFor(_index.IsReady, _index.DemoCount, _index.GrenadeCount, SelectedMap is not null);
+            BuildGroups(result.Clusters);
+            StatusLine = StatusFor(result.Ready, result.Demos, result.Grenades, SelectedMap is not null);
         }
         finally
         {
@@ -248,8 +323,6 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         }
     }
 
-    /// <summary>A landing group was clicked: focus it, or unfocus when it already is.</summary>
-    /// <param name="id">The group's id.</param>
     public void ClickLanding(string id)
     {
         _focusedId = string.Equals(_focusedId, id, StringComparison.Ordinal) ? null : id;
@@ -327,16 +400,16 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     {
         _focusedId = null;
         _selectedLineupId = null;
-        Refresh();
+        RefreshForUser();
     }
 
-    partial void OnSelectedKindChanged(UtilityBookOption<GrenadeKind>? value) => Refresh();
+    partial void OnSelectedKindChanged(UtilityBookOption<GrenadeKind>? value) => RefreshForUser();
 
-    partial void OnSelectedPlaceChanged(string? value) => Refresh();
+    partial void OnSelectedPlaceChanged(string? value) => RefreshForUser();
 
-    partial void OnSelectedSideChanged(UtilityBookOption<int>? value) => Refresh();
+    partial void OnSelectedSideChanged(UtilityBookOption<int>? value) => RefreshForUser();
 
-    partial void OnShowSingleThrowsChanged(bool value) => Refresh();
+    partial void OnShowSingleThrowsChanged(bool value) => RefreshForUser();
 
     partial void OnDetailChanged(LineupDetail? value) => OnPropertyChanged(nameof(HasDetail));
 
@@ -374,14 +447,13 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
     // The groups the pickers and the lineup bar leave, each placed at the mean landing of the throws it
     // still shows, so filtering out single throws moves an icon onto the lineups that remain.
-    private void BuildGroups()
+    private void BuildGroups(IReadOnlyList<GrenadeCluster> clusters)
     {
         _groups.Clear();
         int hiddenLineups = 0;
         int hiddenThrows = 0;
-        if (CurrentQuery() is { } query)
         {
-            foreach (GrenadeCluster cluster in _index.Query(query))
+            foreach (GrenadeCluster cluster in clusters)
             {
                 List<GrenadeLineup> shown = [];
                 foreach (GrenadeLineup lineup in cluster.Lineups)

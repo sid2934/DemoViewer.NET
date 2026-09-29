@@ -687,6 +687,8 @@ public sealed class TagSession : IDisposable
                 return; // a newer snapshot already reached the store; this one would undo it
             }
 
+            // Not a queue item: Detach waits for this write on the UI thread, and a paused or busy queue
+            // would hold it. One demo's tag document, well under the small-work bar.
             bool saved = await Task.Run(() => _store.Save(snapshot)).ConfigureAwait(false);
             if (saved)
             {
