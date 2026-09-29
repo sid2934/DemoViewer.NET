@@ -128,7 +128,7 @@ public class StratEditorRoomTests
             window.Show();
             Dispatcher.UIThread.RunJobs();
 
-            ComboBox picker = view.FindControl<Grid>("StratPicker")!.GetVisualDescendants().OfType<ComboBox>().Single();
+            ComboBox picker = view.FindControl<ComboBox>("StratPickerCombo")!;
             await Assert.That(((StratListRow)picker.SelectedItem!).Id).IsEqualTo(second);
 
             picker.SelectedItem = vm.Strats.Single(r => r.Id == first);
@@ -145,6 +145,17 @@ public class StratEditorRoomTests
                 await Assert.That(vm.SelectedStrat?.Id).IsEqualTo(first);
                 await Assert.That((picker.SelectedItem as StratListRow)?.Id).IsEqualTo(first);
                 await Assert.That((picker.SelectedItem as StratListRow)?.Name).IsEqualTo("renamed");
+            }
+
+            // Detected: the header picker follows the toggle, and the callouts stay one click away.
+            vm.IsDetectedView = true;
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(picker.IsEffectivelyVisible).IsFalse();
+                await Assert.That(view.FindControl<ComboBox>("DetectedPickerCombo")!.IsEffectivelyVisible).IsTrue();
+                await Assert.That(view.FindControl<Button>("CalloutsButton")!.IsEffectivelyVisible).IsTrue();
+                await Assert.That(view.FindControl<Button>("CalloutsButton")!.Flyout).IsNotNull();
             }
 
             window.Close();
