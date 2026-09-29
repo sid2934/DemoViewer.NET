@@ -91,6 +91,57 @@ public class StratBookShellRenderTests
         }
     }
 
+    [Test]
+    public async Task ACollapsedRail_StillReachesEverySection_AndGivesThemTheWidth()
+    {
+        string[] ids = ["situations.search", "tagger.matrix", "utilitybook.browser", "review.queue", "dossier.browser"];
+        List<(string Id, bool Visible, double Width)> seen = [];
+
+        await HeadlessSession.RunOnUi(() =>
+        {
+            ModuleRegistry registry = new();
+            registry.Register(new LabelledSectionsModule());
+            MainViewModel vm = new(null, registry, TestLibraries.Empty());
+            vm.RestoreSession();
+            try
+            {
+                Window window = new() { Width = 1280, Height = 800, Content = new MainView { DataContext = vm } };
+                window.Show();
+                vm.StratBookHub.Layout.IsRailCollapsed = true;
+                foreach (string id in ids)
+                {
+                    vm.TrySelectTab(id);
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+                    Control? content = vm.StratBookHub.Sections.SelectedSection?.ActiveContent as Control;
+                    seen.Add((id, content?.IsEffectivelyVisible ?? false, content?.Bounds.Width ?? 0));
+                    if (id == "review.queue" && window.CaptureRenderedFrame() is { } frame)
+                    {
+                        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, "stratbook-rail-collapsed.png"), new PngBitmapEncoderOptions());
+                    }
+                }
+
+                window.Close();
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+
+            return Task.CompletedTask;
+        });
+
+        using (Assert.Multiple())
+        {
+            foreach ((string id, bool visible, double width) in seen)
+            {
+                await Assert.That(visible).IsTrue().Because($"{id} renders with the rail collapsed");
+                await Assert.That(width).IsGreaterThan(1200).Because($"{id} takes the rail's room");
+            }
+        }
+    }
+
     private static int NonBackground(WriteableBitmap bmp)
     {
         PixelSize size = bmp.PixelSize;

@@ -36,6 +36,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
     private readonly Func<string, string, IReadOnlyList<StratLineupOption>>? _lineupLookup;
     private readonly StratSession _session;
+    private EditBurst? _burst;
     private CalloutResolver _places = new([]);
 
     [ObservableProperty]
@@ -220,6 +221,154 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
 
         _session.Apply(ops);
+    }
+
+    /// <summary>
+    ///     A verb change and the removal of every member the new verb does not use (<see cref="StratStepFields" />):
+    ///     the row hides those members, and exports print whatever is set. Part of the combo box's burst, so stepping
+    ///     through verbs loses nothing.
+    /// </summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="verb">The new verb.</param>
+    internal void ChangeVerb(int index, string verb) => ApplyInBurst(index, "verb", (start, path) =>
+    {
+        if (string.Equals(start.Verb, verb, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        List<PatchOp> ops = [PatchOp.ReplaceOp(path + "/verb", null, JsonValue.Create(verb))];
+        if (start.From is not null && !StratStepFields.Uses(verb, StratStepField.From))
+        {
+            ops.Add(PatchOp.RemoveOp(path + "/from", null));
+        }
+
+        if (start.To is not null && !StratStepFields.Uses(verb, StratStepField.To))
+        {
+            ops.Add(PatchOp.RemoveOp(path + "/to", null));
+        }
+
+        if (start.Utility is not null && !StratStepFields.Uses(verb, StratStepField.Utility))
+        {
+            ops.Add(PatchOp.RemoveOp(path + "/utility", null));
+        }
+
+        return ops;
+    });
+
+    /// <summary>
+    ///     A step's grenade kind. None removes the utility; a new kind keeps the landing and drops the lineup and
+    ///     its technique, which belong to the old kind. Part of the combo box's burst.
+    /// </summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="kind">A utility kind, or <see cref="None" />.</param>
+    internal void ChangeUtilityKind(int index, string kind) => ApplyInBurst(index, "utility", (start, path) =>
+    {
+        path += "/utility";
+        JsonObject? utility = UtilityNode(start);
+        if (utility is null)
+        {
+            return kind == None ? [] : [PatchOp.AddOp(path, new JsonObject { ["kind"] = kind })];
+        }
+
+        if (kind == None)
+        {
+            return [PatchOp.RemoveOp(path, null)];
+        }
+
+        if (string.Equals(utility["kind"]?.GetValue<string>(), kind, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        List<PatchOp> ops = [PatchOp.ReplaceOp(path + "/kind", null, JsonValue.Create(kind))];
+        foreach (string owned in (string[])["lineupId", "technique"])
+        {
+            if (utility.ContainsKey(owned))
+            {
+                ops.Add(PatchOp.RemoveOp(path + "/" + owned, null));
+            }
+        }
+
+        return ops;
+    });
+
+    /// <summary>A step's lineup; the old lineup's technique goes with it. Part of the combo box's burst.</summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="lineupId">The lineup, or null for none.</param>
+    internal void ChangeLineup(int index, Guid? lineupId) => ApplyInBurst(index, "lineup", (start, path) =>
+    {
+        path += "/utility";
+        JsonObject? utility = UtilityNode(start);
+        if (utility is null || start.Utility?.LineupId == lineupId)
+        {
+            return [];
+        }
+
+        List<PatchOp> ops = [PatchOp.ReplaceOp(path + "/lineupId", null, lineupId is { } id ? JsonValue.Create(id) : null)];
+        if (utility.ContainsKey("technique"))
+        {
+            ops.Add(PatchOp.RemoveOp(path + "/technique", null));
+        }
+
+        return ops;
+    });
+
+    /// <summary>
+    ///     Ends the combo box burst: the next change starts a new undo entry from the step as it then is. The view
+    ///     calls it when a step's combo box loses focus; any other edit ends a burst by itself.
+    /// </summary>
+    public void EndEditBurst() => _burst = null;
+
+    // A combo box steps through values on the wheel and on Up/Down while closed, and every step lands here. The
+    // ops are always computed from the step as it was when the burst began and replace the burst's own undo
+    // entry, so passing through "none" or "wait" and back restores everything and leaves one entry.
+    private void ApplyInBurst(int index, string field, Func<StratStep, string, List<PatchOp>> build)
+    {
+        if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
+        {
+            return;
+        }
+
+        StratStep current = document.Steps[index];
+        if (_burst is not { } burst || burst.StepId != current.Id || burst.Field != field || burst.Version != _session.Version)
+        {
+            burst = new EditBurst(current.Id, field,
+                JsonSerializer.SerializeToNode(current, StratJsonContext.Default.StratStep)!
+                    .Deserialize(StratJsonContext.Default.StratStep)!);
+            _burst = burst;
+        }
+
+        List<PatchOp> ops = build(burst.Start, StepPath(index));
+        if (burst.HasEntry)
+        {
+            _session.ReplaceLast(ops);
+        }
+        else if (ops.Count > 0)
+        {
+            _session.Apply(ops);
+        }
+
+        burst.HasEntry = ops.Count > 0;
+        burst.Version = _session.Version;
+    }
+
+    private static JsonObject? UtilityNode(StratStep step) =>
+        JsonSerializer.SerializeToNode(step, StratJsonContext.Default.StratStep)?["utility"] as JsonObject;
+
+    private static string StepPath(int index) => Invariant($"/steps/{index}");
+
+    private sealed class EditBurst(Guid stepId, string field, StratStep start)
+    {
+        public Guid StepId { get; } = stepId;
+
+        public string Field { get; } = field;
+
+        public StratStep Start { get; } = start;
+
+        public bool HasEntry { get; set; }
+
+        public int Version { get; set; } = -1;
     }
 
     partial void OnNameChanged(string value) => Replace("/name", JsonValue.Create(value.Trim()));
@@ -613,6 +762,10 @@ public sealed partial class StratStepRow : ObservableObject
     [ObservableProperty]
     private string _fromText = "";
 
+    private bool _hasLanding;
+
+    private bool _landingHasPoint;
+
     private int _index;
 
     [ObservableProperty]
@@ -648,6 +801,22 @@ public sealed partial class StratStepRow : ObservableObject
 
     public bool HasUtility => UtilityKind != StratEditorViewModel.None;
 
+    // A member the verb does not use still shows while it holds a value, so nothing an export prints is hidden.
+    public bool ShowFrom => StratStepFields.Uses(Verb, StratStepField.From) || FromText.Length > 0;
+
+    public bool ShowTo => StratStepFields.Uses(Verb, StratStepField.To) || ToText.Length > 0;
+
+    public bool ShowUtility => StratStepFields.Uses(Verb, StratStepField.Utility) || HasUtility;
+
+    /// <summary>A lineup is picked once a kind is.</summary>
+    public bool ShowLineup => HasUtility;
+
+    /// <summary>A lineup says where the grenade lands, so "lands at" is offered only without one.</summary>
+    public bool ShowLanding => HasUtility && (Lineup?.Id is null || LandingText.Length > 0);
+
+    /// <summary>What this verb calls its <c>to</c> place: to, at or site.</summary>
+    public string ToLabel => StratStepFields.ToLabel(Verb);
+
     /// <summary>This row's lineup choices for its current utility kind: "none" first, then the owner's lookup.</summary>
     public ObservableCollection<StratLineupOption> LineupOptions { get; } = [StratLineupOption.None];
 
@@ -660,10 +829,22 @@ public sealed partial class StratStepRow : ObservableObject
         FromText = _owner.DisplayPlace(step.From?.Place);
         ToText = _owner.DisplayPlace(step.To?.Place);
         UtilityKind = step.Utility?.Kind ?? StratEditorViewModel.None;
+        _hasLanding = step.Utility?.Landing is not null;
+        _landingHasPoint = step.Utility?.Landing is { } landing
+                           && (landing.X is not null || landing.Y is not null || landing.LevelMinZ is not null || landing.Extra is { Count: > 0 });
         LandingText = _owner.DisplayPlace(step.Utility?.Landing?.Place);
         Note = step.Note ?? "";
 
-        IReadOnlyList<StratLineupOption> options = _owner.LineupOptionsFor(UtilityKind);
+        // An id the lookup no longer offers (a reindex moved the throw, or the host wired none) still shows
+        // as its raw id rather than silently reverting to "none": the file still carries the reference. It is
+        // one of the items, or the combo box shows nothing.
+        List<StratLineupOption> options = [.. _owner.LineupOptionsFor(UtilityKind)];
+        Guid? lineupId = step.Utility?.LineupId;
+        if (lineupId is { } id && options.All(o => o.Id != id))
+        {
+            options.Add(new StratLineupOption(id, id.ToString()));
+        }
+
         if (!LineupOptions.SequenceEqual(options))
         {
             LineupOptions.Clear();
@@ -673,13 +854,20 @@ public sealed partial class StratStepRow : ObservableObject
             }
         }
 
-        // An id the lookup no longer offers (a reindex moved the throw, or the host wired none) still shows
-        // as its raw id rather than silently reverting to "none": the file still carries the reference.
-        Lineup = step.Utility?.LineupId is { } lineupId
-            ? LineupOptions.FirstOrDefault(o => o.Id == lineupId) ?? new StratLineupOption(lineupId, lineupId.ToString())
-            : StratLineupOption.None;
+        Lineup = lineupId is { } picked ? LineupOptions.First(o => o.Id == picked) : StratLineupOption.None;
 
         OnPropertyChanged(nameof(Number));
+        RaiseShown();
+    }
+
+    private void RaiseShown()
+    {
+        OnPropertyChanged(nameof(ShowFrom));
+        OnPropertyChanged(nameof(ShowTo));
+        OnPropertyChanged(nameof(ShowUtility));
+        OnPropertyChanged(nameof(ShowLineup));
+        OnPropertyChanged(nameof(ShowLanding));
+        OnPropertyChanged(nameof(ToLabel));
     }
 
     private string Path(string field) => string.Create(CultureInfo.InvariantCulture, $"/steps/{_index}/{field}");
@@ -712,9 +900,10 @@ public sealed partial class StratStepRow : ObservableObject
 
     partial void OnVerbChanged(string value)
     {
+        RaiseShown();
         if (!string.IsNullOrEmpty(value))
         {
-            _owner.Replace(Path("verb"), JsonValue.Create(value));
+            _owner.ChangeVerb(_index, value);
         }
     }
 
@@ -725,6 +914,7 @@ public sealed partial class StratStepRow : ObservableObject
     // A cleared place drops the reference, which the file then omits; what does not resolve is stored as typed.
     private void ReplacePlace(string field, string text)
     {
+        RaiseShown();
         string? place = _owner.ResolvePlace(text);
         _owner.Replace(Path(field), place is null ? null : new JsonObject { ["place"] = place });
     }
@@ -732,35 +922,46 @@ public sealed partial class StratStepRow : ObservableObject
     partial void OnUtilityKindChanged(string value)
     {
         OnPropertyChanged(nameof(HasUtility));
-        if (string.IsNullOrEmpty(value))
+        RaiseShown();
+        if (!string.IsNullOrEmpty(value))
+        {
+            _owner.ChangeUtilityKind(_index, value);
+        }
+    }
+
+    // Only the place: a captured landing's X, Y and level stay when the place is retyped or cleared.
+    partial void OnLandingTextChanged(string value)
+    {
+        RaiseShown();
+        if (UtilityKind == StratEditorViewModel.None)
         {
             return;
         }
 
-        _owner.Replace(Path("utility"), value == StratEditorViewModel.None
-            ? null
-            : new JsonObject { ["kind"] = value, ["landing"] = LandingNode(LandingText) });
-    }
-
-    partial void OnLandingTextChanged(string value)
-    {
-        if (UtilityKind != StratEditorViewModel.None)
+        string? place = _owner.ResolvePlace(value);
+        if (_hasLanding && place is null && !_landingHasPoint)
         {
-            _owner.Replace(Path("utility") + "/landing", LandingNode(value));
+            _owner.Replace(Path("utility") + "/landing", null);
+        }
+        else if (_hasLanding)
+        {
+            _owner.Replace(Path("utility") + "/landing/place", place is null ? null : JsonValue.Create(place));
+        }
+        else if (place is not null)
+        {
+            _owner.Replace(Path("utility") + "/landing", new JsonObject { ["place"] = place });
         }
     }
-
-    private JsonObject? LandingNode(string text) =>
-        _owner.ResolvePlace(text) is { } place ? new JsonObject { ["place"] = place } : null;
 
     // Guarded the way the pin combo is (OnPinChanged above): replacing LineupOptions while a row is
     // selected can push the combo's own selection to null as its items reset, which is not the user
     // clearing the lineup, so a null value writes nothing rather than the row's own StratLineupOption.None.
     partial void OnLineupChanged(StratLineupOption? value)
     {
+        RaiseShown();
         if (value is not null && UtilityKind != StratEditorViewModel.None)
         {
-            _owner.Replace(Path("utility") + "/lineupId", value.Id is { } id ? JsonValue.Create(id) : null);
+            _owner.ChangeLineup(_index, value.Id);
         }
     }
 

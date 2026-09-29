@@ -110,6 +110,27 @@
         <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
     </Style>
 
+    <!-- ── Button.pane-toggle: collapses and reopens a side pane (the Strat Book rail and strat list) ──
+         A 24px square ghost glyph: « collapses, » reopens. See "Collapsible side pane" in design-system.md. -->
+    <Style Selector="Button.pane-toggle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.pane-toggle:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+    </Style>
+
     <!-- ── Button.ctx-action — left-aligned, stretched flyout/menu action row (from NavStrip) ────────
          For rows inside a .card-flyout ("Select all", "Deselect all", jump targets). -->
     <Style Selector="Button.ctx-action">
