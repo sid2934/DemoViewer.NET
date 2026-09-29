@@ -28,7 +28,8 @@ public sealed record StratIssue(StratIssueSeverity Severity, string Field, strin
 /// </summary>
 public static class StratValidator
 {
-    private const double EarliestAfterTimerSeconds = -60;
+    /// <summary>The earliest step time the round clock allows: a minute after the timer stopped for a plant.</summary>
+    public const double EarliestAfterTimerSeconds = -60;
 
     // §3.3.1: the usual side (null for either) and what targetSite should hold.
     private static readonly Dictionary<string, (string? Side, SiteRule Site)> Applicability = new(StringComparer.Ordinal)

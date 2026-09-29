@@ -53,6 +53,8 @@ public sealed class StratSession : IDisposable
     private string? _commitFailure;
     private bool _disposed;
     private CancellationTokenSource? _idle;
+    private IReadOnlyList<StratIssue> _issues = [];
+    private int _issuesVersion = -1;
     private int _lastSavedVersion;
     private bool _writeFailed;
 
@@ -79,8 +81,37 @@ public sealed class StratSession : IDisposable
     /// <summary>The open strat, or null. Its revision is the last committed one; edits since sit in the commit buffer.</summary>
     public StratDocument? Document { get; private set; }
 
-    /// <summary>The validator's findings at open or at the last commit.</summary>
-    public IReadOnlyList<StratIssue> Issues { get; private set; } = [];
+    /// <summary>
+    ///     The validator's findings for the document as it is now, with the rules a commit applies. Computed at
+    ///     most once per <see cref="Version" />, on first read; an unreadable file's findings stay as loaded.
+    /// </summary>
+    public IReadOnlyList<StratIssue> Issues
+    {
+        get
+        {
+            if (Document is { } document && _issuesVersion != Version)
+            {
+                _issues = StratValidator.Validate(document, index: _store.Index, lineupExists: LineupLookup?.Invoke(document.Map));
+                _issuesVersion = Version;
+            }
+
+            return _issues;
+        }
+        private set
+        {
+            _issues = value;
+            _issuesVersion = Version;
+        }
+    }
+
+    /// <summary>
+    ///     Per map, whether a lineup id resolves there, or null while that map's lineups are not known yet (the
+    ///     validator then says the lineup was not checked). Must answer from memory: it runs on the UI thread.
+    /// </summary>
+    public Func<string, Func<string, Guid, bool>?>? LineupLookup { get; set; }
+
+    /// <summary>Validates again on the next read: what <see cref="LineupLookup" /> answers has changed.</summary>
+    public void InvalidateIssues() => _issuesVersion = -1;
 
     /// <summary>Bumped on every edit, undo and redo. Never goes backwards.</summary>
     public int Version { get; private set; }
@@ -171,7 +202,7 @@ public sealed class StratSession : IDisposable
         _checkOut = _store.CheckOut(id, this);
         Document = document;
         RecoveredPending = recovered.Count > 0;
-        Issues = StratValidator.Validate(document, index: _store.Index);
+        _issuesVersion = -1;
         _commitFailure = null;
         _writeFailed = false;
 
@@ -381,7 +412,7 @@ public sealed class StratSession : IDisposable
             _saveSerializer.Release();
         }
 
-        Issues = result.Issues;
+        _issuesVersion = -1;
         RecoveredPending &= !result.Saved;
         StatusText = Describe();
         Changed?.Invoke();
