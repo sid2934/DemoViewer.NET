@@ -115,7 +115,11 @@ The owner's rule (2026-09-28) has two parts:
   covers a Utility filter or map, a Dossier team or activation, a Situations search and overlay, and
   a Tag matrix field. Store-change paths stay `Background`.
 - Light items and `LibraryScan` run with the background switch off.
-- Pause stops both lanes. The shutdown flush does not depend on the queue.
+- Pause holds `Background` items in both lanes. `UserRequested` items still start, and still preempt
+  (538e91ac). The chip reads "Background paused". Saves are `Background`, so a paused queue holds
+  them until Resume or the shutdown flush, which does not depend on the queue.
+- Team Identity's replays and the Teams tab's commands share one serial: one runs, the others wait.
+- A same-key submit while that key is running queues one rerun; it never starts beside it.
 
 **Preemption.**
 
@@ -124,6 +128,10 @@ The owner's rule (2026-09-28) has two parts:
 - The stopped item goes back in the queue with the same id and an unfinished `Completion`, first
   within its priority. It runs right after the user's item and ahead of other background work.
 - A job that keeps its own progress resumes where it stopped. A forward pass restarts.
+- Light work stops at `QueueWork.ThrowIfStopped()` checkpoints: per demo in the Dossier builds, per
+  card in the Situations fill and overlay, between the Utility reads, and before a Tag matrix build.
+  Work that cannot stop part-way is submitted as not preemptible and is never marked stopped:
+  saves, loads, Team Identity and the lineup plan.
 - A job that returns normally despite the stop counts as finished.
 - A retained parse cannot be stopped. The parser takes no token, and adding one means touching the
   protected parser. A user item that arrives during a parse runs next.
