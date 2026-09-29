@@ -29,6 +29,8 @@ namespace DemoViewer.NET.AppTests;
 [Category("Integration")]
 public class UiThreadAuditTests
 {
+    private static Window? _window;
+
     [Test]
     public async Task EverySection_OverTheOwnersLibrary()
     {
@@ -62,6 +64,7 @@ public class UiThreadAuditTests
                     sw.Restart();
                     Window window = new() { Width = 1440, Height = 900, Content = new MainView(), DataContext = vm };
                     window.Show();
+                    _window = window;
                     Settle();
                     Report("startup", build, sw.Elapsed.TotalMilliseconds, await Watch(TimeSpan.FromSeconds(8)));
 
@@ -115,9 +118,31 @@ public class UiThreadAuditTests
                                 worst = Math.Max(worst, one.Elapsed.TotalMilliseconds);
                             }
 
+                            foreach (ItemsControl heavy in window.GetVisualDescendants().OfType<ItemsControl>()
+                                         .Where(c => c.IsEffectivelyVisible)
+                                         .Select(c => (Control: c, Count: c.GetVisualDescendants().Count()))
+                                         .OrderByDescending(c => c.Count).Take(6).Select(c => c.Control))
+                            {
+                                Console.WriteLine($"[ui-audit]   {id} list {heavy.GetType().Name} items={heavy.ItemCount} "
+                                                  + $"visuals={heavy.GetVisualDescendants().Count()} first={heavy.Items.Cast<object?>().FirstOrDefault()?.GetType().Name}");
+                            }
+
                             Console.WriteLine($"[ui-audit] {id} scroll: extent={scroller.Extent.Height:F0}px "
                                               + $"avg={total.Elapsed.TotalMilliseconds / 20:F1}ms worst={worst:F0}ms "
                                               + $"visuals={window.GetVisualDescendants().Count()}");
+                            double worstJump = 0;
+                            for (int step = 1; step <= 10; step++)
+                            {
+                                Stopwatch one = Stopwatch.StartNew();
+                                scroller.Offset = new Vector(0, scroller.Extent.Height * step / 10.0);
+                                Settle();
+                                worstJump = Math.Max(worstJump, one.Elapsed.TotalMilliseconds);
+                            }
+
+                            Console.WriteLine($"[ui-audit] {id} jump through the whole extent in tenths: worst={worstJump:F0}ms "
+                                              + $"visuals={window.GetVisualDescendants().Count()}");
+                            scroller.Offset = default;
+                            Settle();
                         }
                     }
 
@@ -128,6 +153,32 @@ public class UiThreadAuditTests
                     Settle();
                     Report("settings open", 0, sw.Elapsed.TotalMilliseconds, await Watch(TimeSpan.FromSeconds(2)));
                     settingsWindow.Close();
+
+                    // Arrow-keying down the library: each selection renders Match Overview from the demo's record.
+                    vm.TrySelectTab("builtin.library");
+                    Settle();
+                    double worstSelect = 0, totalSelect = 0;
+                    foreach (Modules.Library.DemoEntry entry in vm.LibraryTab.FilteredEntries.Take(20).ToList())
+                    {
+                        Stopwatch one = Stopwatch.StartNew();
+                        vm.LibraryTab.SelectedEntry = entry;
+                        Settle();
+                        worstSelect = Math.Max(worstSelect, one.Elapsed.TotalMilliseconds);
+                        totalSelect += one.Elapsed.TotalMilliseconds;
+                    }
+
+                    Console.WriteLine($"[ui-audit] library select x20 (Match Overview preview): avg={totalSelect / 20:F0}ms worst={worstSelect:F0}ms");
+
+                    // Last, since it changes the copy: a rescan that finds 100 demos gone (a folder removed).
+                    Modules.Library.DemoLibraryService library = provider.GetRequiredService<Modules.Library.DemoLibraryService>();
+                    List<(string, long, DateTime)> primaries = [.. library.Entries.SkipLast(100).Select(e => (e.FilePath, e.FileSizeBytes, e.Modified))];
+                    System.Reflection.MethodInfo reconcile = typeof(Modules.Library.DemoLibraryService)
+                        .GetMethod("Reconcile", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+                    sw.Restart();
+                    reconcile.Invoke(library, [primaries, new Dictionary<string, IReadOnlyList<string>>(), new List<Modules.Library.DemoEntry>(), new List<Modules.Library.DemoEntry>()]);
+                    double removeSync = sw.Elapsed.TotalMilliseconds;
+                    Settle();
+                    Report($"library rescan drops 100 of {primaries.Count + 100}", removeSync, sw.Elapsed.TotalMilliseconds, await Watch(TimeSpan.FromSeconds(1)));
                     window.Close();
                 }
                 finally
@@ -156,9 +207,10 @@ public class UiThreadAuditTests
         {
             Stopwatch sw = Stopwatch.StartNew();
             act();
+            double direct = sw.Elapsed.TotalMilliseconds;
             Settle();
             double ms = sw.Elapsed.TotalMilliseconds;
-            Report($"{id} {name}", 0, ms, await Watch(TimeSpan.FromSeconds(1.5)));
+            Report($"{id} {name}", direct, ms, await Watch(TimeSpan.FromSeconds(1.5)));
         }
 
         switch (tabVm)
@@ -171,9 +223,88 @@ public class UiThreadAuditTests
 
                 await Step("index Changed", () => Raise(u, "_index"));
                 break;
+            case ViewModels.Situations.SituationsTabViewModel situations:
+                // An empty draft matches every indexed round on the map: the largest result set a user can ask for.
+                foreach (string map in situations.Canvas.Maps.Where(m => m is "de_mirage" or "de_ancient").ToList())
+                {
+                    situations.Canvas.Map = map;
+                    Settle();
+                    await Step($"search everything on {map}", () => situations.Canvas.SearchCommand.Execute(null));
+                    Console.WriteLine($"[ui-audit] situations {map}: cards={situations.Results.Cards.Count}");
+                    if (_window?.GetVisualDescendants().OfType<ScrollViewer>().Where(v => v.IsEffectivelyVisible)
+                            .MaxBy(v => v.Extent.Height) is { } page)
+                    {
+                        page.Offset = new Vector(0, 1000);
+                        Settle();
+                    }
+
+                    if (_window?.CaptureRenderedFrame() is { } frame)
+                    {
+                        string png = Path.Combine(HeadlessSession.ArtifactDir, $"ui-audit-situations-{map}.png");
+                        frame.Save(png, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+                        Console.WriteLine($"[ui-audit] {png}");
+                    }
+                }
+
+                break;
+            case ViewModels.Teams.TeamsTabViewModel teamsTab:
+                ViewModels.Teams.TeamRow? most = teamsTab.Teams.MaxBy(t => t.DemoCount);
+                Console.WriteLine($"[ui-audit] teams rows={teamsTab.Teams.Count} most={most?.DemoCount}");
+                await Step("select the team with most demos", () => teamsTab.SelectedTeam = most);
+                Console.WriteLine($"[ui-audit] teams demo rows={teamsTab.Demos.Count}");
+                for (int i = 0; i < 3; i++)
+                {
+                    await Step($"teams Changed #{i + 1}", () => Raise(teamsTab, "_teams"));
+                }
+
+                if (most is not null)
+                {
+                    Services.Teams.TeamIdentityService identity = (Services.Teams.TeamIdentityService)typeof(ViewModels.Teams.TeamsTabViewModel)
+                        .GetField("_teams", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(teamsTab)!;
+                    string name = most.Team.Name;
+                    await Step("rename (a UI command: recompute and both saves)", () => identity.Rename(most.Team.Id, name + " audit"));
+                    await Step("rename back", () => identity.Rename(most.Team.Id, name));
+                }
+
+                break;
+            case ViewModels.RoundTagger.TagMatrixTabViewModel matrix:
+                await Step("rows by demo", () => matrix.RowAxis = Services.Tags.TagMatrixAxis.Demo);
+                await Watch(TimeSpan.FromSeconds(3));
+                Console.WriteLine($"[ui-audit] tag matrix status: {matrix.StatusLine}");
+                break;
+            case ViewModels.Dossier.DossierTabViewModel dossier:
+                // The team with the most demos is the costliest to project.
+                Services.Teams.TeamIdentityService teams = (Services.Teams.TeamIdentityService)typeof(ViewModels.Dossier.DossierTabViewModel)
+                    .GetField("_teams", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(dossier)!;
+                ViewModels.Dossier.DossierTeamRow? biggest = dossier.Teams.MaxBy(t => teams.SidesOf(t.Id).Count);
+                Console.WriteLine($"[ui-audit] dossier teams={dossier.Teams.Count} biggest={biggest?.Name} demos={(biggest is null ? 0 : teams.SidesOf(biggest.Id).Count)}");
+                await Step("select biggest team", () => dossier.SelectedTeam = biggest);
+                for (int i = 0; i < 3; i++)
+                {
+                    await Step($"teams Changed #{i + 1}", () => Raise(dossier, "_teams"));
+                }
+
+                break;
             case ViewModels.StratBook.StratBookTabViewModel s:
                 await Step("detected view", () => s.IsDetectedView = true);
                 await Step("book view", () => s.IsDetectedView = false);
+                foreach (ViewModels.StratBook.StratOwnerOption owner in s.Owners.ToList())
+                {
+                    s.SelectedOwner = owner;
+                    Settle();
+                    if (s.Strats.FirstOrDefault() is { } row)
+                    {
+                        await Step($"open strat {row}", () => s.SelectedStrat = row);
+                        for (int i = 0; i < 3; i++)
+                        {
+                            await Step($"session Changed #{i + 1}", () => Raise(s, "Session", "Changed"));
+                        }
+
+                        s.SelectedStrat = null;
+                        Settle();
+                    }
+                }
+
                 break;
         }
     }
@@ -299,10 +430,11 @@ public class UiThreadAuditTests
     }
 
     // Fires a store's Changed event the way a background write would.
-    private static void Raise(object owner, string field)
+    private static void Raise(object owner, string field, string evt = "Changed")
     {
-        object? store = owner.GetType().GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(owner);
-        if (store?.GetType().GetField("Changed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(store) is Delegate d)
+        const System.Reflection.BindingFlags Any = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+        object? store = owner.GetType().GetField(field, Any)?.GetValue(owner) ?? owner.GetType().GetProperty(field, Any)?.GetValue(owner);
+        if (store?.GetType().GetField(evt, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(store) is Delegate d)
         {
             d.DynamicInvoke(d.Method.GetParameters().Length == 0 ? [] : new object?[d.Method.GetParameters().Length]);
         }
@@ -345,7 +477,7 @@ public class UiThreadAuditTests
     }
 
     private static void Report(string step, double build, double open, Stall stall) =>
-        Console.WriteLine($"[ui-audit] {step}: build={build:F0}ms open={open:F0}ms worstStall={stall.WorstMs:F0}ms "
+        Console.WriteLine($"[ui-audit] {step}: sync={build:F0}ms open={open:F0}ms worstStall={stall.WorstMs:F0}ms "
                           + $"stalls>50ms={stall.Over50} blocked={stall.TotalBlockedMs:F0}ms");
 
     private static void CopyTree(string from, string to)
