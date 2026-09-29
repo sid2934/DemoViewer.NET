@@ -172,15 +172,22 @@ public class StratCanvasViewTests
             parked.Dispose();
 
             using ViewModels.StratBook.StratBookTabViewModel tab = new(store, null, a => a(), false, null, _ => null);
-            tab.SelectedStrat = tab.Strats.Single();
-
             StratBookTabView view = new() { DataContext = tab };
-            Window window = new() { Width = 1600, Height = 900, Content = view };
+
+            // Short enough that the first step row is below the fold, and the strat opens with the view up.
+            Window window = new() { Width = 1600, Height = 600, Content = view };
             window.Show();
             Playback2DTimelineHarness.Pump();
+            tab.SelectedStrat = tab.Strats.Single();
+            Playback2DTimelineHarness.Pump();
+
+            // Opening a strat selects its first step without scrolling the editor down to it.
+            ItemsControl rows = view.FindControl<ItemsControl>("StepRows")!;
+            ScrollViewer editor = rows.GetVisualAncestors().OfType<ScrollViewer>().First();
+            await Assert.That(tab.Editor.Steps[0].IsSelected).IsTrue();
+            await Assert.That(editor.Offset.Y).IsEqualTo(0);
 
             // The third row's note box: focus inside a row selects its step.
-            ItemsControl rows = view.FindControl<ItemsControl>("StepRows")!;
             TextBox note = rows.GetVisualDescendants().OfType<TextBox>()
                 .Where(t => t.PlaceholderText == "note").ElementAt(2);
             note.Focus();

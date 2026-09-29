@@ -32,7 +32,10 @@ public sealed class StratStepSelection : IDisposable
         Sync();
     }
 
-    /// <summary>Raised when the highlight moves to another step; the view scrolls its row into sight.</summary>
+    /// <summary>
+    ///     Raised when the highlight moves from one of the rows to another; the view scrolls the row into sight. Not
+    ///     when a strat opens or the selected step goes, so opening a strat leaves the editor at its top.
+    /// </summary>
     public event Action<Guid?>? Changed;
 
     /// <summary>The selected step, or null with no strat or no steps.</summary>
@@ -72,9 +75,16 @@ public sealed class StratStepSelection : IDisposable
             row.IsSelected = row.Id == selected;
         }
 
-        if (selected != _shown)
+        if (selected == _shown)
         {
-            _shown = selected;
+            return;
+        }
+
+        // Checked on the canvas's projection, not the rows: the canvas re-projects a newly opened strat first.
+        bool moved = _shown is { } previous && _canvas.Projection?.IndexOf(previous) >= 0;
+        _shown = selected;
+        if (moved)
+        {
             Changed?.Invoke(selected);
         }
     }

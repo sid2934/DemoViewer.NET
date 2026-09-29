@@ -79,7 +79,6 @@ public partial class StratBookTabView : UserControl
         if (_bound is not null)
         {
             _bound.StepSelection.Changed += OnSelectionChanged;
-            OnSelectionChanged(_bound.StepSelection.SelectedStepId);
         }
 
         if (DataContext is StratBookTabViewModel vm)
