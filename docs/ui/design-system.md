@@ -461,11 +461,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   wrap and opens the lineup picker.
 - **New step and duplicate:** Add step, and Enter, insert after the row focus was last in, or at the end, 5 s later
   on the round clock than the step before, held between its neighbours and no earlier than -1:00 unless that step
-  already is (`StepAuthoringPatches.AddStep`), so it is never refused. The new step is a move by `all` that starts
-  with a copy of every token where it stands at the step before (`StratStepCarry.PositionsAt`) and no strokes. A
-  copy, not a reference: the stationary rule would show the same places without one, but then a later drag on the
-  earlier step would move the new step's tokens too. A slot that threw a lineup at or before that step, with no
-  entry since, gets no entry: it stands at the lineup origin in the projection only, and stays there. Duplicate is
+  already is, so it is never refused. The new step is a move by `all` that starts with every token written where
+  the projection has it at the step before, and no strokes (`StepAuthoringPatches.AddCarriedStep`, which the
+  canvas's Add step uses too). A copy, not a reference: the stationary rule would show the same places without one,
+  but then a later drag on the earlier step would move the new step's tokens too. A thrower whose lineup resolves
+  is written at the lineup origin (level on the canvas's floors, the throw's yaw); an unresolved lineup (still
+  grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
   the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
   ids), a fresh step id, 5 s later held before the next step. Each is one undo entry and focuses the new row's time.
 - **Inline checks:** each row marks the validator's warnings and refusals beside the field their pointer names
@@ -476,7 +477,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   hides (a technique warning while the "thrown" combo is hidden), marks the number. Infos stay in the Checks list
   only. `StratSession.Issues` validates at most once per document version, with the commit's rules, so the rows and
   the bottom Checks summary always agree; text fields write on focus loss, so a strat is validated per edit, never
-  per keystroke.
+  per keystroke. A lineup id is checked against `LineupOriginSource`'s grouping of the map (`LineupLookup`, from
+  memory): "not checked" (an info) while the map groups, a warning on the lineup field once it is grouped and the id
+  does not resolve. The grouping landing invalidates the cached issues.
 - **Keys** (`StratBookTabView.axaml.cs`, a tunnel handler on `StepRows`, so a field does not see them first):
 
   | Key | Where | Does |

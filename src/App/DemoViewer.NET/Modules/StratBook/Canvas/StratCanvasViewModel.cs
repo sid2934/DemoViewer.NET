@@ -963,7 +963,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         double atSeconds = StepSchedule.AtSecondsFor(Transport.Tick, projection.RoundSeconds);
         Guid id = Guid.NewGuid();
         _seekToStep = id;
-        Apply([StepAuthoringPatches.AddStep(document, after, atSeconds, id)]);
+        Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
+        Apply([StepAuthoringPatches.AddCarriedStep(document, after, atSeconds, id,
+            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null)]);
         return true;
     }
 

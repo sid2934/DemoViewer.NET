@@ -37,6 +37,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
     private readonly IStratLineupCatalog? _lineups;
     private readonly StratSession _session;
+    private readonly ThrowOriginResolver? _throwOrigins;
     private EditBurst? _burst;
     private CalloutResolver _places = new([]);
 
@@ -75,11 +76,16 @@ public sealed partial class StratEditorViewModel : ObservableObject
     ///     The Utility Book lineups a step can reference (Lineup On A Strat Step): a row's choices, the name of a
     ///     stored id (an alias id included) and its techniques. Null offers only "none" and shows a stored id raw.
     /// </param>
-    public StratEditorViewModel(StratSession session, IStratLineupCatalog? lineups = null)
+    /// <param name="throwOrigins">
+    ///     The canvas projection's lineup origin resolver, so a new step carries a thrower where the canvas shows it;
+    ///     null carries authored positions only.
+    /// </param>
+    public StratEditorViewModel(StratSession session, IStratLineupCatalog? lineups = null, ThrowOriginResolver? throwOrigins = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
         _lineups = lineups;
+        _throwOrigins = throwOrigins;
     }
 
     public static IReadOnlyList<string> Sides { get; } = [StratVocabulary.SideT, StratVocabulary.SideCt];
@@ -529,14 +535,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
         double wanted = index >= 0 ? document.Steps[index].AtSeconds - NewStepOffsetSeconds : document.Clock.RoundSeconds;
         Guid id = Guid.NewGuid();
-        PatchOp op = StepAuthoringPatches.AddStep(document, index, wanted, id);
-        List<StepPosition> carried = StratStepCarry.PositionsAt(document, index);
-        if (carried.Count > 0 && op.Value is JsonObject node)
-        {
-            node["positions"] = new JsonArray(carried.Select(p => JsonSerializer.SerializeToNode(p, StratJsonContext.Default.StepPosition)).ToArray());
-        }
-
-        Apply([op]);
+        Apply([StepAuthoringPatches.AddCarriedStep(document, index, wanted, id, _throwOrigins)]);
         StepFocusRequested?.Invoke(id);
     }
 

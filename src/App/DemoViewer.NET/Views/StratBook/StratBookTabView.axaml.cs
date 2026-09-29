@@ -115,7 +115,7 @@ public partial class StratBookTabView : UserControl
             case Key.Escape when e.KeyModifiers == KeyModifiers.None && e.Source is TextBox:
                 container.Focus();
                 break;
-            case Key.Up or Key.Down when e.KeyModifiers == KeyModifiers.Alt && (onRow || e.Source is TextBox):
+            case Key.Up or Key.Down when e.KeyModifiers == KeyModifiers.Alt && (onRow || inLine):
                 container.Focus();
                 (e.Key == Key.Up ? editor.MoveStepUpCommand : editor.MoveStepDownCommand).Execute(row);
                 FocusRow(row.Id, false);

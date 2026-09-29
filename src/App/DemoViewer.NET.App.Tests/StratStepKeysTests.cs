@@ -87,9 +87,16 @@ public class StratStepKeysTests
             // Inside a field, Delete edits the text.
             TextBox time = (TextBox)Fields(RowContainer(view, 0))[0];
             time.Focus();
+            time.ClearSelection();
+            time.CaretIndex = 0;
+            string before = time.Text ?? "";
             window.KeyPressQwerty(PhysicalKey.Delete, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();
-            await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(3);
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(3);
+                await Assert.That(time.Text).IsEqualTo(before[1..]).Because("the text box took the key");
+            }
 
             // Escape leaves the field for its row; Delete there removes the row.
             window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
