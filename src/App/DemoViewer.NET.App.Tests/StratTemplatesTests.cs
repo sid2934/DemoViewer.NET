@@ -1,7 +1,9 @@
 #region
 
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -241,6 +243,99 @@ public class StratTemplatesTests
         await Assert.That(JsonSerializer.Serialize(vm.Session.Document!, StratJsonContext.Default.StratDocument)).IsEqualTo(before)
             .Because("one undo takes the whole template back");
         await Assert.That(vm.CanApplyTemplate).IsTrue();
+    }
+
+    [Test]
+    public async Task ACapturedOrMinedStrat_WithOnlyItsFreezeEndStep_TakesNoTemplate()
+    {
+        const int freeze = 6400;
+        List<CapturedPawn> pawns =
+        [
+            .. Enumerable.Range(0, 10).Select(s => new CapturedPawn(s, s < 5 ? 2 : 3, (ulong)(100 + s), "p" + s, s * 1000, 0, 0, 90, "TSpawn"))
+        ];
+        RoundCapture capture = new(7, freeze, freeze + 64 * 100, 64, [new CaptureMoment(freeze, CaptureTrigger.FreezeEnd, pawns)]);
+        StratCaptureOptions options = new(2,
+            StratFromRound.Tokens(pawns, 2, StratFromRound.SlotMap(pawns.Where(p => p.Team == 2), null, null)),
+            StratClock.DefaultRoundSeconds, true, StratFromRound.QuantizedLevel);
+        StratDocument captured = StratFromRound.Document(capture, options, Team, "de_mirage", "r7",
+            new StratOrigin { DemoSha256 = "ab", Round = 7 }, null, Created);
+
+        StratDocument mined = captured.Clone();
+        mined.Origin = null;
+        mined.Tags = [MinedStratBuilder.Tag];
+
+        StratDocument bare = captured.Clone();
+        bare.Origin = null;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(captured.Steps.Count).IsEqualTo(1).Because("the precondition: one freeze-end step");
+            await Assert.That(captured.Steps[0].Positions.Count).IsGreaterThan(0);
+            await Assert.That(StratTemplates.HasOnlySeed(bare)).IsTrue().Because("the step alone has the seed's shape");
+            await Assert.That(StratTemplates.HasOnlySeed(captured)).IsFalse();
+            await Assert.That(StratTemplates.HasOnlySeed(mined)).IsFalse();
+            await Assert.That(StratTemplates.Ops(captured, StratTemplates.Find("default")!)).IsEmpty();
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task NewStrat_WithAnotherSidesTemplate_OnAColdMap_OpensOnlyIfNothingChanged(bool openAnother)
+    {
+        StratStore store = new(null);
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        StratSpawnSource spawns = new(_ =>
+        {
+            gate.Task.Wait();
+            return Fixed;
+        });
+        ConcurrentQueue<Action> posted = new();
+        using StratBookTabViewModel vm = new(store, null, posted.Enqueue, false, spawns: spawns);
+        vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
+        vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
+        Drain(posted);
+        vm.SelectedMap = "de_mirage";
+        vm.SelectedSide = StratVocabulary.SideCt;
+
+        vm.NewStratCommand.Execute("execute-a");
+        await Assert.That(vm.NewStratCommand.CanExecute("setup")).IsFalse().Because("one create at a time");
+
+        Guid? other = null;
+        if (openAnother)
+        {
+            StratDocument ct = store.Create(vm.SelectedOwner!.Owner, "de_mirage", StratVocabulary.SideCt, "setup", "other");
+            Drain(posted);
+            vm.SelectedStrat = vm.Strats.Single(r => r.Id == ct.Id);
+            Drain(posted);
+            other = ct.Id;
+        }
+
+        gate.SetResult();
+        await spawns.ForAsync("de_mirage");
+        for (int i = 0; i < 500 && posted.IsEmpty; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Drain(posted);
+
+        StratIndexEntry made = store.Index.Single(e => e.Type == "execute");
+        using (Assert.Multiple())
+        {
+            await Assert.That(made.Side).IsEqualTo(StratVocabulary.SideT);
+            await Assert.That(made.StepCount).IsEqualTo(StratTemplates.Find("execute-a")!.Steps.Count + 1);
+            await Assert.That(vm.Session.Document?.Id).IsEqualTo(openAnother ? other : made.Id);
+            await Assert.That(vm.NewStratCommand.CanExecute(null)).IsTrue();
+        }
+    }
+
+    private static void Drain(ConcurrentQueue<Action> posted)
+    {
+        while (posted.TryDequeue(out Action? action))
+        {
+            action();
+        }
     }
 
     [Test]
