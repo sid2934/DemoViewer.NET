@@ -51,6 +51,17 @@
         <Style Selector="StackPanel.stratField TextBox">
             <Setter Property="FontSize" Value="12" />
         </Style>
+        <!-- The selected step (StratStepSelection): the one the canvas shows, drags and sets places on. -->
+        <Style Selector="Border.stratStep.selected">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+        </Style>
+        <Style Selector="TextBlock.stratStepNumber">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="Border.stratStep.selected TextBlock.stratStepNumber">
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
         <Style Selector="TextBlock.stratFieldLabel">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
@@ -672,10 +683,16 @@
                                     <DataTemplate x:DataType="vm:StratStepRow">
                                         <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1"
                                                 Padding="0 0 0 6" Margin="0 0 0 6">
+                                        <Border Classes="stratStep" Classes.selected="{Binding IsSelected}" Padding="0 2">
+                                            <Panel>
+                                            <!-- The bar overlays the number column rather than taking width: the row's
+                                                 fixed columns fill the 315 px editor. -->
+                                            <Border Width="3" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}"
+                                                    Background="{DynamicResource AccentInteractive}" />
                                             <StackPanel Spacing="4">
                                                 <Grid ColumnDefinitions="20,56,64,84,*,Auto" ColumnSpacing="4">
-                                                    <TextBlock Grid.Column="0" Text="{Binding Number}" FontSize="12" VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextMid}" />
+                                                    <TextBlock Grid.Column="0" Classes="stratStepNumber" Text="{Binding Number}" FontSize="12"
+                                                               VerticalAlignment="Center" Margin="6 0 0 0" />
                                                     <TextBox Grid.Column="1" FontSize="12" MinWidth="0"
                                                              Text="{Binding TimeText, UpdateSourceTrigger=LostFocus}" />
                                                     <ComboBox Grid.Column="2" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
@@ -801,6 +818,8 @@
                                                 <TextBlock Text="{Binding IssueText}" IsVisible="{Binding HasIssues}" Margin="24 0 0 0"
                                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
                                             </StackPanel>
+                                            </Panel>
+                                        </Border>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

@@ -29,6 +29,8 @@ public partial class StratBookTabView : UserControl
 {
     private StratEditorViewModel? _editor;
 
+    private StratBookTabViewModel? _bound;
+
     // The row focus was last in, for the Add step button; cleared when focus goes anywhere but that button.
     private Guid? _lastRow;
 
@@ -43,6 +45,18 @@ public partial class StratBookTabView : UserControl
         StepRows.AddHandler(KeyDownEvent, OnStepRowKeyDown, RoutingStrategies.Tunnel);
         StepRows.ContainerPrepared += OnStepRowPrepared;
         AddHandler(GotFocusEvent, OnAnyGotFocus, RoutingStrategies.Bubble, true);
+
+        // A press or focus anywhere in a row selects its step. Never handled, so the field still gets it.
+        StepRows.AddHandler(GotFocusEvent, OnStepRowActivated, RoutingStrategies.Bubble);
+        StepRows.AddHandler(PointerPressedEvent, OnStepRowActivated, RoutingStrategies.Tunnel, true);
+    }
+
+    private void OnStepRowActivated(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is StyledElement { DataContext: StratStepRow row } && DataContext is StratBookTabViewModel vm)
+        {
+            vm.StepSelection.Select(row.Id);
+        }
     }
 
     private void OnStepRowLostFocus(object? sender, RoutedEventArgs e)
@@ -52,6 +66,57 @@ public partial class StratBookTabView : UserControl
             vm.Editor.EndEditBurst();
         }
     }
+
+    // Posted: the rows may be rebuilt by the same change and are laid out after it.
+    private void OnSelectionChanged(Guid? stepId)
+    {
+        if (stepId is not { } id || DataContext is not StratBookTabViewModel vm)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            int index = vm.Editor.Steps.ToList().FindIndex(r => r.Id == id);
+            if (index >= 0 && StepRows.ContainerFromIndex(index) is { } row)
+            {
+                row.BringIntoView();
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    // Only while attached: the tab VM outlives a detached view, and would otherwise keep it alive.
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        Hook();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        Unhook();
+    }
+
+    private void Hook()
+    {
+        Unhook();
+        _bound = DataContext as StratBookTabViewModel;
+        if (_bound is not null)
+        {
+            _bound.StepSelection.Changed += OnSelectionChanged;
+        }
+    }
+
+    private void Unhook()
+    {
+        if (_bound is not null)
+        {
+            _bound.StepSelection.Changed -= OnSelectionChanged;
+            _bound = null;
+        }
+    }
+
 
     // A row takes focus (a click on its background, Escape from a field) but is not a Tab stop.
     private static void OnStepRowPrepared(object? sender, ContainerPreparedEventArgs e)
@@ -161,6 +226,12 @@ public partial class StratBookTabView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        Unhook();
+        if (this.IsAttachedToVisualTree())
+        {
+            Hook();
+        }
+
         if (_editor is not null)
         {
             _editor.StepFocusRequested -= OnStepFocusRequested;

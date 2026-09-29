@@ -116,6 +116,12 @@ public partial class StratCanvasView : UserControl
                 return;
 
             case Playback2DAction.CancelGesture:
+                if (vm.CancelSetPlace())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
                 if (surface is not null)
                 {
                     surface.CancelActiveGesture();

@@ -14,6 +14,7 @@
       step and one per stroke.
 
       Keys go through the shared Playback2D keymap (with the user's overrides) while the canvas has focus:
+      Esc also ends Set On Map without writing.
       V token, D draw, X erase, A T L R O the shapes, Space play, [ ] steps, Shift+N add a step, Ctrl+D
       duplicate it, Ctrl+Delete delete it, Ctrl+X clear its strokes, Ctrl+Z and Ctrl+Shift+Z the strat's
       one history.
@@ -69,6 +70,12 @@
                           IsChecked="{Binding Annotations.IsEllipseSelected, Mode=OneWay}"
                           Command="{Binding Annotations.SelectEllipseCommand}"
                           ToolTip.Tip="{Binding Annotations.EllipseToolTip}" />
+            <!-- Set On Map: the selected step's place from a click, for the field its verb uses. -->
+            <ToggleButton Content="{Binding SetPlaceText}" FontSize="11" Padding="8 3"
+                          IsVisible="{Binding CanSetPlace}"
+                          IsChecked="{Binding IsSettingPlace, Mode=OneWay}"
+                          Command="{Binding ToggleSetPlaceCommand}"
+                          ToolTip.Tip="{Binding SetPlaceToolTip}" />
             <Button Content="Place tokens"
                     IsVisible="{Binding !IsReadOnly}" Classes="ghost" FontSize="11" Padding="8 3"
                     Command="{Binding PlaceTokensCommand}"

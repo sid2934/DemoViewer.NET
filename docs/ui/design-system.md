@@ -523,6 +523,40 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Known:** the card's clip lookup (`LineupClipPlanner.FinishedGif`, two `File.Exists`) runs on the UI thread
   when a position is selected, as it does on the Utility Book tab.
 
+### Map-first editing (the Strats editor and canvas)
+- **Files:** `ViewModels/StratBook/StratStepSelection.cs`, `SelectStep`, `BeginSetPlace` and `TryTagPositionAt` in
+  `Modules/StratBook/Canvas/StratCanvasViewModel.cs`, `ToPlace` and `Landing` in `StepAuthoringPatches.cs`, the row
+  handlers in `Views/StratBook/StratBookTabView.axaml.cs`, the toolbar toggle in `StratCanvasView.axaml`.
+- **One selected step:** the canvas's active step. A press or focus in a step row selects that step: the transport
+  pauses and moves to its time, and the step stays active there even when the next step shares its tick (the
+  schedule alone would give the later one). The transport, the step track, `[` `]`, a new step and playback move
+  the selection, and the rows follow. `[` `]` walk the steps by index, so both steps of a shared tick are visited;
+  a step-track marker click seeks by tick and lands on the later one. It holds through an edit of that step, its time included. The selected row
+  has a `PanelHeaderHoverDeep` fill, a 3 px `AccentInteractive` bar over the number column and a bold
+  `TextCardHeader` number; the bar overlays rather than takes width, because the row's fixed columns fill the
+  315 px editor. A selection that moves within the open strat (the canvas, the step keys, playback) scrolls its row
+  into view; opening or switching a strat, or deleting the selected step, does not scroll the editor.
+- **Set on map:** a toggle in the canvas toolbar, shown only when the selected step takes a place from the map,
+  labelled with the row's word for the field (`Set “to” on map`, `“at”`, `“site”`, or `Set landing on map`). A
+  verb that uses `to` sets `to` (fake included); a verb that uses only utility sets the landing when it has a kind
+  and no lineup (a lineup says where it lands); wait, call, a lineup throw and a throw with no kind offer nothing.
+  One click, one write, one undo entry, then the mode ends. The click comes through `TryTagPositionAt`, ahead of
+  the pointer tools, and resolves with `IZonePlaceResolver.ResolveOnFloor` on the clicked pane's floor key.
+- **Misses:** a `to` click on no place writes nothing and says so on the status line. A landing click writes the
+  point and level anyway and drops the stored place, which named the old point. With no zones for the map (none
+  baked, or the read failed) a `to` click writes nothing and a landing click keeps the stored place.
+- **Cancel:** Esc (the mode counts as an active tool, so Esc resolves to cancel even under pan), the toggle, a
+  change of selected step or strat, or a verb change that drops the field. A click whose place lookup is still
+  in flight is dropped by any of them.
+- **Places off the UI thread:** the map's zones load through the processing queue (`SectionCompute`, user
+  priority) when the canvas first shows the map, one read in flight per map across canvases; a click before they
+  land waits for that item.
+- **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
+  (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as
+  on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. One op per drag, the
+  lineup refusal kept; it writes the selected step, taken before the drag seeks, so a step on a shared tick is
+  written, not the one after it.
+
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,
   `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`, `Modules/RoundTagger/Review/TagEditorViewModel.cs`,

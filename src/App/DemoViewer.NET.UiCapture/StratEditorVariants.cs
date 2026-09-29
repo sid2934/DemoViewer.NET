@@ -79,6 +79,19 @@ public static partial class Variants
         return hub;
     }
 
+    // The hold step selected once the view is up, as a click would, and Set On Map waiting for its click.
+    private static StratBookHubView StratEditorSetPlace()
+    {
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(true, true, configure: vm => strats = vm);
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            strats!.StepSelection.Select(strats.Editor.Steps.First(r => r.Verb == "hold").Id);
+            strats.Canvas.BeginSetPlace();
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
     {
         StratStore store = new(null);
