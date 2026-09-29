@@ -148,6 +148,10 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <!-- The first 200 cards, then 200 more per click; the actions above still take the whole set. -->
+        <Button Content="{Binding MoreLabel}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding HasMore}"
+                Classes="ghost" FontSize="11" Padding="10 5" HorizontalAlignment="Left" />
     </StackPanel>
 
 </UserControl>
