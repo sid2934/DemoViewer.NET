@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -43,21 +44,23 @@ public sealed class ReviewQueue
     private readonly Task _load;
     private readonly string? _path;
     private readonly TimeSpan _saveDelay;
-    private readonly Lock _saveGate = new();
-    private readonly Lock _writeGate = new();
+    private readonly CoalescedWriter<ReviewEntry[]> _writer;
     private int _deferDepth;
     private bool _deferredChange;
     private string? _fileProblem;
     private Dictionary<string, JsonElement>? _fileExtra;
-    private ReviewEntry[]? _pendingSave;
     private bool _refused;
 
     /// <param name="configRoot">The app config root, or null for a session-only queue (the browser, tests).</param>
     /// <param name="saveDelay">How long a write waits for more mutations; 300 ms when null.</param>
-    public ReviewQueue(string? configRoot, TimeSpan? saveDelay = null)
+    /// <param name="scheduleSave">Runs a save after the delay: a processing-queue item in the app, the pool when null.</param>
+    public ReviewQueue(string? configRoot, TimeSpan? saveDelay = null, Func<Action, Task>? scheduleSave = null)
     {
         _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
         _saveDelay = saveDelay ?? TimeSpan.FromMilliseconds(300);
+        Func<Action, Task> schedule = scheduleSave ?? (drain => Task.Run(drain));
+        _writer = new CoalescedWriter<ReviewEntry[]>(Write, _ => { },
+            drain => Task.Delay(_saveDelay).ContinueWith(_ => schedule(drain), TaskScheduler.Default).Unwrap());
         _load = _path is null ? Task.CompletedTask : Task.Run(Load);
     }
 
@@ -170,24 +173,12 @@ public sealed class ReviewQueue
         return new DeferScope(this);
     }
 
-    /// <summary>Writes a pending save now, on the calling thread. Returns once the file is on disk.</summary>
-    public void Flush()
-    {
-        lock (_writeGate)
-        {
-            ReviewEntry[]? snapshot;
-            lock (_saveGate)
-            {
-                snapshot = _pendingSave;
-                _pendingSave = null;
-            }
-
-            if (snapshot is not null)
-            {
-                Write(snapshot);
-            }
-        }
-    }
+    /// <summary>
+    ///     Writes a pending save now, waiting at most <paramref name="timeout" /> for one in progress. Never
+    ///     throws; false when it could not.
+    /// </summary>
+    /// <param name="timeout">The wait for a write in progress; infinite when null.</param>
+    public bool Flush(TimeSpan? timeout = null) => _writer.Flush(timeout);
 
     /// <summary>The entry with this id, or null.</summary>
     /// <param name="id">The entry's id.</param>
@@ -736,35 +727,12 @@ public sealed class ReviewQueue
         QueueWrite([.. List]);
     }
 
-    private void QueueWrite(ReviewEntry[] snapshot)
-    {
-        bool start;
-        lock (_saveGate)
-        {
-            start = _pendingSave is null;
-            _pendingSave = snapshot;
-        }
+    private void QueueWrite(ReviewEntry[] snapshot) => _writer.Post(snapshot);
 
-        if (start)
-        {
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(_saveDelay).ConfigureAwait(false);
-                Flush();
-            });
-        }
-    }
-
+    // A failure is dropped: the in-memory queue stands for the session and the next mutation retries.
     private void Write(ReviewEntry[] snapshot)
     {
-        try
-        {
-            ReviewQueueFile file = new() { Entries = [.. snapshot], Extra = _fileExtra };
-            DemoCacheStore.WriteAtomic(_path!, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
-        }
-        catch (Exception)
-        {
-            // Best effort: the in-memory queue stands for the session and the next mutation retries.
-        }
+        ReviewQueueFile file = new() { Entries = [.. snapshot], Extra = _fileExtra };
+        DemoCacheStore.WriteAtomic(_path!, JsonSerializer.Serialize(file, ReviewQueueFile.JsonOptions));
     }
 }
