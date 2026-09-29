@@ -73,6 +73,41 @@ public class StratStepKeysTests
         });
 
     [Test]
+    public async Task EnterOnAWatchingSuggestion_PicksIt_AsOneEntry_WithoutAddingAStep() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
+            StratStepEditingTests.Seed(vm, StratStepEditingTests.Step(100, "B", "hold"));
+            (Window window, StratBookTabView view) = Show(vm);
+            int index = vm.Editor.Steps.Count - 1;
+            int steps = vm.Session.Document!.Steps.Count;
+            int depth = vm.Session.UndoDepth;
+
+            AutoCompleteBox watching = RowContainer(view, index).GetVisualDescendants().OfType<AutoCompleteBox>().Single();
+            watching.GetVisualDescendants().OfType<TextBox>().First().Focus();
+            Dispatcher.UIThread.RunJobs();
+            window.KeyTextInput("Bombsite");
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(watching.IsDropDownOpen).IsTrue().Because("the map's callouts are suggested");
+
+            window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            RowContainer(view, index).Focus();
+            Dispatcher.UIThread.RunJobs();
+
+            StratStep step = vm.Session.Document!.Steps[index];
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(steps).Because("Enter went to the suggestion list");
+                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["BombsiteA"]);
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+            }
+
+            window.Close();
+        });
+
+    [Test]
     public async Task EnterInARowsField_AddsAStepAfterThatRow_AndFocusesIt() =>
         await HeadlessSession.RunOnUi(async () =>
         {
