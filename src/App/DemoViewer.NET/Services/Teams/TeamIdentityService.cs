@@ -306,22 +306,12 @@ public sealed class TeamIdentityService : IDisposable
         RaiseChanged();
     }
 
-    // Under _gate. A suggestion held back by a near match takes its own id into the file, so the dismissal
-    // follows it through the next change too.
+    // Under _gate. Only what the user dismissed is stored: a near match is judged against that set each time,
+    // so drift cannot walk a dismissal away from every player it named.
     private void ComputeSuggestions()
     {
         Suggestions = TeamSuggestions.Compute(_teams, _index);
         DismissedSuggestions = TeamSuggestions.Dismissed(_teams, _index);
-        List<string> carried =
-        [
-            .. DismissedSuggestions.Select(s => s.Id)
-                .Where(id => !_teams.DismissedSuggestions.Contains(id, StringComparer.Ordinal))
-        ];
-        if (carried.Count > 0)
-        {
-            _teams.DismissedSuggestions.AddRange(carried);
-            SaveTeams();
-        }
     }
 
     /// <summary>Visible teams, in file order.</summary>
