@@ -289,7 +289,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         List<DetectedRowViewModel> rows =
         [
             .. _mining.Patterns
-                .Where(p => new GeneratedFilter(Reviewed: false, Dismissed: ShowDismissed, Accepted: true).Shows(p.State))
+                .Where(p => ShowDismissed || p.State != GeneratedState.Dismissed)
                 .Where(p => Matches(p.Pattern))
                 .OrderBy(p => p.Pattern.UtilityCompared ? 0 : 1)
                 .ThenByDescending(p => p.Pattern.Support)
