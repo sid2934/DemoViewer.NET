@@ -307,4 +307,52 @@ public class StratMiningServiceTests
         second.Restore(key);
         await Assert.That(second.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsFalse();
     }
+
+    [Test]
+    [Arguments("{ not json")]
+    [Arguments("{\"SchemaVersion\":99,\"Dismissed\":[\"x\"],\"Promoted\":{}}")]
+    public async Task AnUnreadableOrNewerStateFile_IsRefused_AndNeverOverwritten(string content)
+    {
+        using Library library = Library.Create();
+        string file = Path.Combine(library.Root, "strat-mining.json");
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(file, content);
+
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        string key = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute).Key;
+        service.Dismiss(key);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(service.StateProblem).IsNotNull();
+            await Assert.That(service.Patterns.Single(p => p.Pattern.Key == key).Dismissed).IsTrue()
+                .Because("the dismissal holds for the session");
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(content)
+                .Because("a dismissal must not save an empty state over the ones the file holds");
+            await Assert.That(service.Promote(key, StratOwner.Me())).IsNull()
+                .Because("a promotion the file cannot record would be offered, and promoted, again");
+            await Assert.That(library.Strats.Index).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task AStateFileFromBeforeTheSchemaField_ReadsAsSchemaOne()
+    {
+        using Library library = Library.Create();
+        Directory.CreateDirectory(library.Root);
+        await File.WriteAllTextAsync(Path.Combine(library.Root, "strat-mining.json"), "{\"Dismissed\":[\"k\"],\"Promoted\":{}}");
+
+        using StratMiningService service = library.Service();
+        await service.MineAsync();
+        service.Dismiss(service.Patterns[0].Pattern.Key);
+
+        string written = await File.ReadAllTextAsync(Path.Combine(library.Root, "strat-mining.json"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(service.StateProblem).IsNull();
+            await Assert.That(written).Contains("\"k\"").Because("the earlier dismissal is kept");
+            await Assert.That(written).Contains("\"SchemaVersion\":1");
+        }
+    }
 }
