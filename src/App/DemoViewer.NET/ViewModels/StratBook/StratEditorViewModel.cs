@@ -221,7 +221,32 @@ public sealed partial class StratEditorViewModel : ObservableObject
         StratStep step = document.Steps[index];
         string path = StepPath(index) + "/utility";
         List<PatchOp> ops = [];
-        if (step.Utility is null)
+
+        // The same lineup (a stored alias id included) keeps the stored id; a null technique is the most thrown.
+        StratLineupChoice? stored = step.Utility?.LineupId is { } storedId ? ResolveLineup(storedId) : null;
+        bool sameLineup = step.Utility?.LineupId == lineupId || stored?.Id == lineupId;
+        string? mostThrown = (stored ?? ResolveLineup(lineupId))?.Techniques is { Count: > 0 } techniques ? techniques[0].Key : null;
+        bool sameTechnique = string.Equals(step.Utility?.Technique ?? mostThrown, technique ?? mostThrown, StringComparison.Ordinal);
+        if (step.Utility is not null && sameLineup)
+        {
+            if (!string.Equals(step.Utility.Kind, utilityKind, StringComparison.Ordinal))
+            {
+                ops.Add(PatchOp.ReplaceOp(path + "/kind", null, JsonValue.Create(utilityKind)));
+            }
+
+            if (!sameTechnique)
+            {
+                ops.Add(technique is null
+                    ? PatchOp.RemoveOp(path + "/technique", null)
+                    : PatchOp.ReplaceOp(path + "/technique", null, JsonValue.Create(technique)));
+            }
+
+            if (ops.Count == 0)
+            {
+                return false;
+            }
+        }
+        else if (step.Utility is null)
         {
             JsonObject utility = new() { ["kind"] = utilityKind, ["lineupId"] = lineupId.ToString() };
             if (technique is not null)
@@ -370,11 +395,15 @@ public sealed partial class StratEditorViewModel : ObservableObject
         return ops;
     });
 
-    /// <summary>A step's technique. Part of the combo box's burst.</summary>
+    /// <summary>
+    ///     A step's technique. Part of the combo box's burst, compared with what the step effectively had: a stored
+    ///     null is the most thrown technique, so wheeling back to it writes nothing.
+    /// </summary>
     /// <param name="index">The step's index.</param>
     /// <param name="technique">A technique key.</param>
-    internal void ChangeTechnique(int index, string technique) => ApplyInBurst(index, "technique", (start, path) =>
-        start.Utility is null || string.Equals(start.Utility.Technique, technique, StringComparison.Ordinal)
+    /// <param name="mostThrown">The lineup's most thrown technique, what a null technique means.</param>
+    internal void ChangeTechnique(int index, string technique, string? mostThrown) => ApplyInBurst(index, "technique", (start, path) =>
+        start.Utility is null || string.Equals(start.Utility.Technique ?? mostThrown, technique, StringComparison.Ordinal)
             ? []
             : [PatchOp.ReplaceOp(path + "/utility/technique", null, JsonValue.Create(technique))]);
 
@@ -1058,7 +1087,7 @@ public sealed partial class StratStepRow : ObservableObject
     {
         if (value is not null && UtilityKind != StratEditorViewModel.None)
         {
-            _owner.ChangeTechnique(_index, value.Key);
+            _owner.ChangeTechnique(_index, value.Key, Techniques.FirstOrDefault()?.Key);
         }
     }
 
