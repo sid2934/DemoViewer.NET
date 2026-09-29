@@ -497,9 +497,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   the selection, and the rows follow. It holds through an edit of that step, its time included. The selected row
   has a `PanelHeaderHoverDeep` fill, a 3 px `AccentInteractive` bar over the number column and a bold
   `TextCardHeader` number; the bar overlays rather than takes width, because the row's fixed columns fill the
-  315 px editor. A selection made from the canvas scrolls its row into view.
+  315 px editor. A selection that moves within the open strat (the canvas, the step keys, playback) scrolls its row
+  into view; opening or switching a strat, or deleting the selected step, does not scroll the editor.
 - **Set on map:** a toggle in the canvas toolbar, shown only when the selected step takes a place from the map,
-  labelled with the row's word for the field (`Set "to" on map`, `"at"`, `"site"`, or `Set landing on map`). A
+  labelled with the row's word for the field (`Set “to” on map`, `“at”`, `“site”`, or `Set landing on map`). A
   verb that uses `to` sets `to` (fake included); a verb that uses only utility sets the landing when it has a kind
   and no lineup (a lineup says where it lands); wait, call, a lineup throw and a throw with no kind offer nothing.
   One click, one write, one undo entry, then the mode ends. The click comes through `TryTagPositionAt`, ahead of

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
@@ -57,12 +58,18 @@ public static partial class Variants
         return new StratBookHubView { DataContext = hub };
     }
 
-    // The hold step selected, and Set On Map waiting for its click.
-    private static StratBookHubView StratEditorSetPlace() => StratEditor(true, true, then: vm =>
+    // The hold step selected once the view is up, as a click would, and Set On Map waiting for its click.
+    private static StratBookHubView StratEditorSetPlace()
     {
-        vm.StepSelection.Select(vm.Editor.Steps.First(r => r.Verb == "hold").Id);
-        vm.Canvas.BeginSetPlace();
-    });
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(true, true, then: vm => strats = vm);
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            strats!.StepSelection.Select(strats.Editor.Steps.First(r => r.Verb == "hold").Id);
+            strats.Canvas.BeginSetPlace();
+        }, DispatcherPriority.Background);
+        return view;
+    }
 
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
     {
