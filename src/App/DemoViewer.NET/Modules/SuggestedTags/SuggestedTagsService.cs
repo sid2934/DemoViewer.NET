@@ -7,6 +7,7 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -359,6 +360,25 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         return true;
     }
 
+    /// <summary>Offers a dismissed proposal again. False when it is not dismissed or the verdict could not be written.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="proposalId">The proposal's identity key.</param>
+    /// <param name="sha256">The demo's hash when the caller knows it better than the index.</param>
+    public bool Restore(string path, string proposalId, string? sha256 = null)
+    {
+        (_, ProposalSet set) = LoadCore(path, sha256);
+        if (_tags is null || set.Sha256 is not { } sha
+            || set.Entries.FirstOrDefault(e => e.Proposal.Id == proposalId && e.State == GeneratedState.Dismissed) is not
+                { VerdictKey: { } key }
+            || !_tags.RestoreVerdict(sha, key, _utcNow()))
+        {
+            return false;
+        }
+
+        AfterVerdict(path, sha256);
+        return true;
+    }
+
     /// <summary>
     ///     Accepts every pending proposal at or above <paramref name="minConfidence" /> (Ctrl+Y, after the
     ///     queue's confirm). Returns how many were accepted.
@@ -577,7 +597,9 @@ public sealed class SuggestedTagsService : IDemoEvaluator
                 return (document, new ProposalSet(path, sha, [], persistent, true));
             }
 
-            verdicts = file.Verdicts;
+            // A restored rejection is no verdict: the proposal is pending again and may re-match.
+            verdicts = file.Verdicts.Where(v => v.Value.Verdict != SuggestionVerdicts.Restored)
+                .ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal);
         }
 
         IReadOnlyList<ProposalEntry> entries =

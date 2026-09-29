@@ -501,6 +501,24 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
         }
     }
 
+    /// <summary>A dismissed row's Restore: offers the proposal again.</summary>
+    [RelayCommand]
+    private void RestoreRow(SuggestionRowViewModel? row)
+    {
+        if (_service is null || DemoPath is not { } path || row is not { IsDismissed: true })
+        {
+            return;
+        }
+
+        if (!_service.Restore(path, row.Proposal.Id, _sha256))
+        {
+            StatusText = "The restore could not be written.";
+            return;
+        }
+
+        Reload();
+    }
+
     /// <summary>The row's buttons: dismiss this one.</summary>
     [RelayCommand]
     private void RejectRow(SuggestionRowViewModel? row)

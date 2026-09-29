@@ -98,9 +98,13 @@
                                                Text="{Binding ConfidenceText}" FontFamily="Consolas,Menlo,monospace"
                                                FontSize="11" Margin="6,0" VerticalAlignment="Center"
                                                ToolTip.Tip="{Binding FactorsText}" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding StateText}" FontSize="10"
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding StateText}" FontSize="10" Margin="0,0,4,0"
                                                VerticalAlignment="Center" Foreground="{DynamicResource Pb2dTextDim}"
                                                IsVisible="{Binding !IsNew}" />
+                                    <Button Grid.Row="0" Grid.Column="3" Content="Restore" Padding="4,0" Focusable="False" FontSize="10"
+                                            IsVisible="{Binding IsDismissed}"
+                                            Command="{Binding $parent[ItemsControl].((vm:SuggestionQueueViewModel)DataContext).RestoreRowCommand}"
+                                            CommandParameter="{Binding}" ToolTip.Tip="Offer this suggestion again" />
                                     <Button Grid.Row="0" Grid.Column="2" Content="✓" Padding="4,0" Focusable="False" IsVisible="{Binding IsNew}"
                                             Command="{Binding $parent[ItemsControl].((vm:SuggestionQueueViewModel)DataContext).AcceptRowCommand}"
                                             CommandParameter="{Binding}" ToolTip.Tip="Accept (Y)" />
