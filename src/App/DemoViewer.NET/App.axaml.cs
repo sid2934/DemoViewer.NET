@@ -647,6 +647,11 @@ public class App : Application
     ///         starts a <c>DispatcherTimer</c>) at build time.
     ///     </para>
     /// </summary>
+    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
+        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
+            DemoJobPriority.UserRequested);
+
     internal static ServiceProvider BuildServices(IWindowService windowService)
     {
         ServiceCollection services = new();
@@ -933,7 +938,8 @@ public class App : Application
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
         services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
-            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue")));
+            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
+            scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
         // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
@@ -1096,7 +1102,8 @@ public class App : Application
                 sp.GetRequiredService<IRoundFactsSource>(),
                 action => Dispatcher.UIThread.Post(action),
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
-                    "Teams: update", "teams", _ => work()));
+                    "Teams: update", "teams", _ => work()),
+                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"));
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
@@ -1365,11 +1372,13 @@ public class App : Application
         // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
         // any rescan, independent of ValidateOnBuild's eager-construction behavior.
         provider.GetRequiredService<DemoEvaluationCoordinator>();
-        // The situation index's startup load: every current sidecar, off the UI thread (2 ms per demo
-        // measured). Queries before it finishes answer empty with IsReady false and the strip says so.
-        _ = provider.GetRequiredService<SituationIndex>().StartLoadAsync();
-        // The grenade index's startup load: every current rows sibling, off the UI thread.
-        _ = provider.GetRequiredService<GrenadeIndex>().StartLoadAsync();
+        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
+        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
+        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
+        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
+        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
+        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
         // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
         provider.GetRequiredService<LineupClipService>();
         // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
