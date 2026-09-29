@@ -5,10 +5,12 @@ using System.Numerics;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Strats;
+using SkiaSharp;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;
 using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
@@ -100,6 +102,70 @@ public class StratThrowOriginTests
             await Assert.That(after.X).IsEqualTo(expected.X);
             await Assert.That(after.Y).IsEqualTo(expected.Y);
         }
+    }
+
+    [Test]
+    public async Task DraggingTheThrower_OnItsOwnThrowStep_IsRefused_AndWritesNothing()
+    {
+        (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
+        using LineupOriginSource origins = new(index, a => a());
+        origins.Load(Map);
+        (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+            lineupOrigins: origins);
+        canvas.Timeline.RequestSeekToFrame(StepThreeTick + 10);
+        List<IReadOnlyList<PatchOp>> applied = [];
+        session.OpsApplied += applied.Add;
+        int depth = session.UndoDepth;
+
+        canvas.BeginDrag("B", TokenGrip.Body);
+        canvas.MoveTo("B", new SKPoint(0, 0), 0);
+        canvas.EndDrag(null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(canvas.ActiveStepIndex).IsEqualTo(2);
+            await Assert.That(canvas.StatusLine).Contains("lineup");
+            await Assert.That(applied).IsEmpty();
+            await Assert.That(session.UndoDepth).IsEqualTo(depth);
+            await Assert.That(BAt(canvas).X).IsEqualTo(GrenadeLineups.TechniqueFor(lineup, null)!.Origin.X);
+        }
+    }
+
+    [Test]
+    public async Task OriginsThatLandMidDrag_AreDrawn_WhenTheDragIsCancelled()
+    {
+        (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
+        ConcurrentQueue<Action> posted = new();
+        using LineupOriginSource origins = new(index, posted.Enqueue);
+        (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+            lineupOrigins: origins);
+        canvas.Timeline.RequestSeekToFrame(330);
+
+        canvas.BeginDrag("A", TokenGrip.Body);
+        for (int i = 0; i < 500 && posted.IsEmpty; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        while (posted.TryDequeue(out Action? action))
+        {
+            action();
+        }
+
+        await Assert.That(BAt(canvas).X).IsEqualTo(100f).Because("the drag keeps the projection it started on");
+        canvas.CancelDrag();
+        await Assert.That(BAt(canvas).X).IsEqualTo(GrenadeLineups.TechniqueFor(lineup, null)!.Origin.X);
+    }
+
+    private static StratDocument ThrowByB(Guid lineupId)
+    {
+        StratDocument document = FiveSteps();
+        document.Steps[2].Verb = "throw";
+        document.Steps[2].Actor = "B";
+        document.Steps[2].Utility = new UtilityRef { Kind = "smoke", LineupId = lineupId };
+        return document;
     }
 
     private static TokenKeyframe BAt(StratCanvasViewModel canvas) =>

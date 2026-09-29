@@ -71,6 +71,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private int _activeIndex = -1;
     private CalloutResolver? _callouts;
     private bool _disposed;
+    private bool _originsMoved;
     private DragState? _drag;
     private string? _mapName;
     private Guid? _projectedStrat;
@@ -519,6 +520,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
+        if (projection.ThrowOriginAt(_activeIndex, slot) is not null)
+        {
+            StatusLine = LineupPlacedNote;
+            return;
+        }
+
         // The drag writes the active step's keyframe, so the canvas shows that step's moment while it does:
         // what is dragged is what is placed.
         Transport.Pause();
@@ -576,6 +583,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         if (!drag.Moved && yawDegrees is null)
         {
             RestoreTracks();
+            ReprojectIfOriginsMoved();
             return;
         }
 
@@ -586,6 +594,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             StepAuthoringPatches.TokenPosition(document, projection.Path[drag.PathIndex].StepIndex, drag.Slot,
                 drag.X, drag.Y, drag.LevelMinZ, yaw)
         ]);
+        ReprojectIfOriginsMoved();
     }
 
     /// <inheritdoc />
@@ -593,6 +602,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     {
         _drag = null;
         RestoreTracks();
+        ReprojectIfOriginsMoved();
     }
 
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
@@ -609,10 +619,23 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     private const string ReadOnlyNote = "this step belongs to another strat: open that strat to edit it";
 
-    // A drag holds the projection it started on; the drag's close commits and reprojects anyway.
+    private const string LineupPlacedNote = "placed by its lineup: clear the lineup to move it";
+
+    // A gesture keeps the projection it started on; its end, committed or not, picks the change up.
     private void OnLineupOriginsChanged()
     {
-        if (!IsGestureOpen)
+        if (IsGestureOpen)
+        {
+            _originsMoved = true;
+            return;
+        }
+
+        Reproject();
+    }
+
+    private void ReprojectIfOriginsMoved()
+    {
+        if (_originsMoved && !IsGestureOpen)
         {
             Reproject();
         }
@@ -637,6 +660,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         _projectedVersion = _session.Version;
+        _originsMoved = false;
         StratDocument? document = _session.Document;
 
         if (document?.Id != _projectedStrat)
@@ -828,6 +852,18 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
+        try
+        {
+            CarryInk(projection, document);
+        }
+        finally
+        {
+            ReprojectIfOriginsMoved();
+        }
+    }
+
+    private void CarryInk(StratSceneProjection projection, StratDocument document)
+    {
         IReadOnlyList<PatchOp> ops = StepAuthoringPatches.FromInk(document, projection, _ink.Document.Elements, StepFor);
         if (ops.Count > 0)
         {
