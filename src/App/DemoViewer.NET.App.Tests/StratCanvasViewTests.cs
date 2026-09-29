@@ -212,4 +212,78 @@ public class StratCanvasViewTests
             window.Close();
         });
     }
+
+    /// <summary>
+    ///     Under the default pan tool a press on a token drags it and writes the selected step as one entry, and a
+    ///     press on empty map pans; under the pen, a press on a token draws.
+    /// </summary>
+    [Test]
+    public async Task UnderPan_ATokenPressDrags_AnEmptyPressPans_AndThePenStillDraws()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            StratCanvasView view = new() { DataContext = canvas };
+            Window window = new() { Width = 1100, Height = 800, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+            canvas.SelectStep(session.Document!.Steps[1].Id);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(canvas.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+
+            Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
+            Point Screen(double x, double y)
+            {
+                (double sx, double sy) = host.PrimaryCameraTransform.WorldToScreen(x, y);
+                return Playback2DTimelineHarness.ToWindow(host, window, sx, sy);
+            }
+
+            // A is at (600, 0) at step 2.
+            Point a = Screen(600, 0);
+            window.MouseDown(a, MouseButton.Left);
+            window.MouseMove(new Point(a.X + 20, a.Y));
+            window.MouseMove(new Point(a.X + 40, a.Y));
+            window.MouseUp(new Point(a.X + 40, a.Y), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+
+            StepPosition moved = session.Document!.Steps[1].Positions.Single(p => p.Slot == "A");
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+                await Assert.That(moved.X).IsGreaterThan(600);
+                await Assert.That(canvas.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+            }
+
+            // Empty map: the camera moves and the strat does not.
+            Point empty = Screen(-1500, 1500);
+            Point before = Screen(0, 0);
+            window.MouseDown(empty, MouseButton.Left);
+            window.MouseMove(new Point(empty.X + 30, empty.Y + 30));
+            window.MouseUp(new Point(empty.X + 30, empty.Y + 30), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+                await Assert.That(Screen(0, 0)).IsNotEqualTo(before).Because("the press panned");
+            }
+
+            // The pen keeps its own press: a stroke from the token, which stays put.
+            canvas.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+            Point a2 = Screen(moved.X, moved.Y);
+            window.MouseDown(a2, MouseButton.Left);
+            window.MouseMove(new Point(a2.X + 20, a2.Y + 20));
+            window.MouseMove(new Point(a2.X + 40, a2.Y + 40));
+            window.MouseUp(new Point(a2.X + 40, a2.Y + 40), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "A").X).IsEqualTo(moved.X);
+                await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(1);
+            }
+
+            window.Close();
+        });
+    }
 }
