@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -527,7 +528,8 @@ public sealed class StratSession : IDisposable
                 return; // a commit or a newer snapshot already reached the store
             }
 
-            bool written = await Task.Run(() => _store.WriteWorkingCopy(snapshot, pending)).ConfigureAwait(false);
+            bool written = await QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.StoreSave, "Save: strat working copy",
+                "strats", () => _store.WriteWorkingCopy(snapshot, pending), false).ConfigureAwait(false);
             if (written)
             {
                 _lastSavedVersion = version;

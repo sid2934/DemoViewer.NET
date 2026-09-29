@@ -26,6 +26,7 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 /// </summary>
 public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject, IDisposable
 {
+    private readonly Func<Action, Task> _run;
     private readonly Action<Action> _post;
     private readonly ReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
@@ -52,10 +53,12 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
     /// <param name="review">The Review Queue a number's rounds are sent to; null says so on open.</param>
     /// <param name="selectTab">Shows a tab by id, for the Review tab after a send; null stays on the Dossier.</param>
     /// <param name="post">UI-thread marshal for the worker's result.</param>
+    /// <param name="run">Runs the build: a processing-queue item in the app, the pool when null.</param>
     public OpeningTendenciesSectionViewModel(OpeningTendenciesService? service, ReviewQueue? review,
-        Func<string, bool>? selectTab, Action<Action> post)
+        Func<string, bool>? selectTab, Action<Action> post, Func<Action, Task>? run = null)
     {
         ArgumentNullException.ThrowIfNull(post);
+        _run = run ?? (work => Task.Run(work));
         _service = service;
         _review = review;
         _selectTab = selectTab;
@@ -97,7 +100,7 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
 
         IsBuilding = true;
         Line = "reading rounds and grenades";
-        BuildTask = Task.Run(() => Run(generation, id));
+        BuildTask = _run(() => Run(generation, id));
     }
 
     /// <summary>The section line for a finished build.</summary>

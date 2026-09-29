@@ -3,6 +3,7 @@
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -687,7 +688,8 @@ public sealed class TagSession : IDisposable
                 return; // a newer snapshot already reached the store; this one would undo it
             }
 
-            bool saved = await Task.Run(() => _store.Save(snapshot)).ConfigureAwait(false);
+            bool saved = await QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.StoreSave, "Save: tags", "tags",
+                () => _store.Save(snapshot), false).ConfigureAwait(false);
             if (saved)
             {
                 _lastSavedVersion = version;

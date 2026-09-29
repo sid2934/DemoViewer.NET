@@ -813,7 +813,7 @@ public class LineupClipTests
             _ => false, (_, _) => { }, processing: processing);
 
         await Assert.That(service.Plan()).IsEqualTo(2);
-        DemoQueueItemSnapshot first = processing.Snapshot().Single();
+        DemoQueueItemSnapshot first = processing.Snapshot().Single(i => i.Kind == QueueJobKind.LineupClips);
         await Assert.That(first.Kind).IsEqualTo(QueueJobKind.LineupClips);
         await Assert.That(first.DisplayName).IsEqualTo("Lineup clips: de_mirage, 1 clip from five.dem");
         await Assert.That(first.State).IsEqualTo(DemoQueueItemState.Queued).Because("a paused queue starts nothing");
@@ -841,7 +841,7 @@ public class LineupClipTests
             _ => false, (_, _) => { }, processing: processing);
 
         service.Plan();
-        processing.RemoveByUser(processing.Snapshot().Single().Id);
+        processing.RemoveByUser(processing.Snapshot().Single(i => i.Kind == QueueJobKind.LineupClips).Id);
         processing.Resume();
         await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
 

@@ -610,6 +610,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         _shutdown.Cancel();
         _shutdown.Dispose();
+        if (ReferenceEquals(QueueWork.Ambient, this))
+        {
+            QueueWork.Ambient = null;
+        }
     }
 
     // ── The pump + workers ───────────────────────────────────────────────
@@ -1349,7 +1353,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private bool IsStartableLocked(Entry e) =>
         e.State == DemoQueueItemState.Queued
         && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
-            || IsLight(e.Kind));
+            || IsLight(e.Kind) || e.Kind == QueueJobKind.LibraryScan);
 
     private static int KindRank(QueueJobKind kind) => kind switch
     {
