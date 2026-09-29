@@ -87,6 +87,11 @@ public static class StratTemplates
     public static List<StratStep> BuildSteps(StratTemplate template, double roundSeconds = StratClock.DefaultRoundSeconds)
     {
         ArgumentNullException.ThrowIfNull(template);
+        if (template.Steps.FirstOrDefault(s => s.Lines is not null && s.To is not null) is { } mixed)
+        {
+            throw new InvalidOperationException($"template {template.Id}: the step at {mixed.AtSeconds} has lines and a step-level to");
+        }
+
         return
         [
             .. template.Steps.Select(s => new StratStep

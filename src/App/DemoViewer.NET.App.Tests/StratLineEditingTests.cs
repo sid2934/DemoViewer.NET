@@ -118,6 +118,7 @@ public class StratLineEditingTests
         await Assert.That(Doc(vm, step).Assignments![1].Slot).IsEqualTo("D");
         await Assert.That(vm.Editor.Steps[step].Lines[1].SlotOptions).DoesNotContain("A").Because("A has a line");
         vm.Editor.Steps[step].Lines[1].Slot = "B";
+        vm.Editor.ChangeLineSlot(step, 1, "A");
         using (Assert.Multiple())
         {
             await Assert.That(Shape(Doc(vm, step))).IsEqualTo(before);

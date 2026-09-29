@@ -374,7 +374,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
     internal void ChangeLineSlot(int index, int line, string slot) => ApplyInBurst(index, "slot" + line, (start, path) =>
     {
         List<StepAssignment> lines = StratLinePatches.Copy(start);
-        if (line >= lines.Count || string.Equals(lines[line].Slot, slot, StringComparison.Ordinal))
+        if (line >= lines.Count || lines.Exists(l => string.Equals(l.Slot, slot, StringComparison.Ordinal)))
         {
             return [];
         }
@@ -920,7 +920,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
     }
 
     internal static string StepLabel(int index, StratStep step) =>
-        Invariant($"{index + 1} · {StratClock.Format(step.AtSeconds)} {step.Actor} {step.Verb}");
+        Invariant($"{index + 1} · {StratClock.Format(step.AtSeconds)} {StratStepLines.ActorOf(step)} {step.Verb}");
 
     private static JsonValue? NoneToNull(string? value) =>
         string.IsNullOrEmpty(value) || value == None ? null : JsonValue.Create(value);
@@ -1370,6 +1370,7 @@ public sealed partial class StratStepRow : ObservableObject
         OnPropertyChanged(nameof(ShowTechnique));
         OnPropertyChanged(nameof(ShowFrom));
         OnPropertyChanged(nameof(ShowTo));
+        OnPropertyChanged(nameof(IsStrayTo));
         OnPropertyChanged(nameof(ShowUtility));
         OnPropertyChanged(nameof(ShowLineup));
         OnPropertyChanged(nameof(ShowLanding));
@@ -1415,7 +1416,24 @@ public sealed partial class StratStepRow : ObservableObject
 
     partial void OnFromTextChanged(string value) => ReplacePlace("from", value);
 
-    partial void OnToTextChanged(string value) => ReplacePlace("to", value);
+    // Beside stored lines the step's own to is not used: the field only shows it for clearing.
+    partial void OnToTextChanged(string value)
+    {
+        if (HasStoredLines && !_owner.IsProjecting)
+        {
+            _owner.Project();
+            return;
+        }
+
+        ReplacePlace("to", value);
+    }
+
+    /// <summary>A step-level to beside stored lines: shown read-only, with a clear that writes the lines' shape.</summary>
+    public bool IsStrayTo => HasStoredLines && ToText.Length > 0;
+
+    /// <summary>Removes a step-level to that stored lines make unused, through the lines writer.</summary>
+    [RelayCommand]
+    private void ClearStrayTo() => _owner.EditLines(_index, (_, _) => { });
 
     // A cleared place drops the reference, which the file then omits; what does not resolve is stored as typed.
     private void ReplacePlace(string field, string text)
