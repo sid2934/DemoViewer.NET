@@ -436,7 +436,25 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   | wait, call | note only | |
   | other, or a verb outside the vocabulary | from, to, utility | to |
 
-- **Verb change:** the verb and a remove for each member the new verb does not use and the step has.
+- **Lines** (`StratLineRow`, written only through `Services/Strats/StratLinePatches.cs`): under line one, indented
+  like the fields, a `48,*,*,Auto` grid per player: slot, place (labelled with the verb's `to`, `at` or `site`, shown
+  when the verb uses it or it holds one), watching, then the angle and remove buttons; a `who / to / watching` label
+  row above, and `+ player` under them. A step for everyone has no lines and keeps its own `to` field; a one-player
+  step shows one implicit line (the slot as text, changed with the actor combo, no remove); a step with stored lines
+  greys the actor combo, whose value is their summary. `+ player` adds the first slot without a line: on a step for
+  everyone that names the first player, who takes the step's place. The writer keeps the stored shape on every edit:
+  no lines is a step for everyone, one line with no watch is a plain step (the actor rewritten, `assignments`
+  removed), five bare lines to one place fold back into a step for everyone, anything else is `assignments` with the
+  summary actor and no step-level `to`. A line's slot combo lists its own slot and the free ones, and is a burst field
+  like the verb. Watching is an `AutoCompleteBox`: callouts comma separated, suggested from the map's places by the
+  owner's word (`StratLineRow.WatchFilter` matches the text after the last comma, `WatchSelector` keeps the ones
+  before it), stored canonical and shown as callouts, written on focus loss. The angle button (`135°`) shows only
+  while `watch.yawDegrees` is set and clears it, so the cone faces the first watched place again. The line Set On
+  Map writes has a 2 px `AccentInteractive` bar on its left (`Border.stratLine.lineSelected`); focus or a press in a
+  line's field selects its step and the line. At 1280 with the rail and list open the line's text fields are about
+  95 px each, so long callout lists trim inside the field.
+- **Verb change:** the verb and a remove for each member the new verb does not use and the step has, and for each
+  line's `to` when the verb does not use one.
   Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and LAN print print
   whatever is set, which is why the clear is not optional.
 - **Combo box bursts:** a closed combo box changes value on the mouse wheel and on Up/Down, so the verb, kind
@@ -472,7 +490,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Inline checks:** each row marks the validator's warnings and refusals beside the field their pointer names
   (`StratStepRow.SetIssues`): a `⚠` in `AccentCaution` for a warning, a filled `!` badge on `AccentError` for a
   refusal, the message in the tooltip, and every message again as a text line under the row for keyboard and
-  screen-reader users. Place fields carry the marker after their label; at, actor and verb on the field's top right
+  screen-reader users. A pointer under `/steps/i/assignments/j` marks line j's slot, place or watching field (the
+  text line names the slot and field, `(B to)`), and a one-player step's `/to` marks its implicit line's place. Place fields carry the marker after their label; at, actor and verb on the field's top right
   corner. An issue about the step itself (`/positions`, `/interpolation`, unknown fields), or about a field the row
   hides (a technique warning while the "thrown" combo is hidden), marks the number. Infos stay in the Checks list
   only. `StratSession.Issues` validates at most once per document version, with the commit's rules, so the rows and
@@ -536,6 +555,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   `TextCardHeader` number; the bar overlays rather than takes width, because the row's fixed columns fill the
   315 px editor. A selection that moves within the open strat (the canvas, the step keys, playback) scrolls its row
   into view; opening or switching a strat, or deleting the selected step, does not scroll the editor.
+- **Selected line:** `StratCanvasViewModel.SelectedLineSlot`, the chosen slot when the active step has a line for it,
+  else its first line; none on a step for everyone. The rows set it (`StratStepSelection.SelectLine`), and so does a
+  press on one of the strat's own tokens. It is kept across steps.
 - **Set on map:** a toggle in the canvas toolbar, shown only when the selected step takes a place from the map,
   labelled with the row's word for the field (`Set “to” on map`, `“at”`, `“site”`, or `Set landing on map`). A
   verb that uses `to` sets `to` (fake included); a verb that uses only utility sets the landing when it has a kind
@@ -551,6 +573,16 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Places off the UI thread:** the map's zones load through the processing queue (`SectionCompute`, user
   priority) when the canvas first shows the map, one read in flight per map across canvases; a click before they
   land waits for that item.
+- **Set on map on lines:** on a step with lines the toggle names the line (`Set C's “to” on map`) and the click writes
+  that line's place, one entry, adding nothing else.
+- **View cones:** every live token on the strat canvas and the Detected preview draws a wedge along its yaw
+  (`MarkerLayer.DrawViewCones`, from `ISceneFrameHost.ShowViewCones`): 30 degrees either side, 36 px past the disc,
+  the team colour at alpha 56, behind the heading stub. Replays and exports draw none. On the editing canvas a press
+  in the wedge is a turn (`TokenHitTest.Classify(..., cone: true)`); a press on a disc always wins over another
+  token's wedge. Only the pan and token tools offer it, as for a token drag. Turning one of A to E writes that slot's
+  line `watch.yawDegrees` on the selected step, adding the line (a step for everyone is read as a line per slot
+  first, so the others stay in it); the drag shows the turned yaw, and one entry is written on release. Turning an
+  opponent token writes its position's yaw as before. The line's angle button clears it.
 - **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
   (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as
   on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. One op per drag, the
