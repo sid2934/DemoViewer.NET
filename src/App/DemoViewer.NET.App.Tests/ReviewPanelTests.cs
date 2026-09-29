@@ -294,4 +294,30 @@ public class ReviewPanelTests
             await Assert.That(vm.ReviewPanel.HasEditor).IsTrue();
             window.Close();
         });
+
+    [Test]
+    [Category("Integration")]
+    public async Task ThePanel_RendersHandMadeAndMachineWrittenLabelsApart() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.Push(1, 2);
+            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            vm.Tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
+            TagInstance accepted = Tag("Retake", 800, 900);
+            accepted.Source = TagSources.Suggested;
+            accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
+            TagInstance run = Tag("Default", 100, 250);
+            run.Source = TagSources.Suggested;
+            run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
+            vm.Tags.Apply(new TagDelta.Add(accepted));
+            vm.Tags.Apply(new TagDelta.Add(run));
+            vm.IsReviewMode = true;
+            (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1280, 900);
+            vm.ReviewPanel.ShowLabels();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-labels-grouped.png"), new PngBitmapEncoderOptions());
+            await Assert.That(vm.ReviewPanel.MachineLabels.Count).IsEqualTo(2);
+            window.Close();
+        });
 }

@@ -101,6 +101,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["situations.search"] = "tab.situations",
         ["teams.browser"] = "tab.teams",
         ["review.queue"] = "tab.review",
+        ["suggested.inbox"] = "tab.suggested",
         ["tagger.matrix"] = "tab.tagger",
         ["stratbook.browser"] = "tab.stratbook",
         ["utilitybook.browser"] = "tab.utilitybook",
