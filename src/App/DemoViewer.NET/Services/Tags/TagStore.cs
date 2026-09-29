@@ -311,7 +311,8 @@ public sealed class TagStore
     /// </summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
     /// <param name="mutate">The change.</param>
-    public void Update(string sha256, Action<TagDocument> mutate)
+    /// <returns>False when the write failed or there was no document; a posted change reports true.</returns>
+    public bool Update(string sha256, Action<TagDocument> mutate)
     {
         ArgumentException.ThrowIfNullOrEmpty(sha256);
         ArgumentNullException.ThrowIfNull(mutate);
@@ -326,18 +327,18 @@ public sealed class TagStore
         if (holder is not null)
         {
             _post(() => holder.ApplyExternal(mutate));
-            return;
+            return true;
         }
 
         lock (_rmwGate)
         {
             if (TryLoad(key) is not { } document)
             {
-                return;
+                return false;
             }
 
             mutate(document);
-            Save(document);
+            return Save(document);
         }
     }
 
