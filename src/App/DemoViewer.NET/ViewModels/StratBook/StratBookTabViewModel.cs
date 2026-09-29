@@ -23,6 +23,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Modules.Situations;
@@ -31,6 +32,7 @@ using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Playback2D;
+using DemoViewer.NET.ViewModels.UtilityBook;
 using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
 
 #endregion
@@ -63,6 +65,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
     private readonly LineupOriginSource? _lineupOrigins;
+    private readonly Func<string, UtilityBookTabViewModel>? _lineupMap;
     private readonly StratSpawnSource? _spawns;
     private bool _creating;
     private readonly Action<Action> _post;
@@ -77,6 +80,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     // The shell's feature projection, captured at activation so deactivation unsubscribes the same instance.
     private IModuleFeatureGate? _features;
+
+    /// <summary>The open lineup picker, or null. Non-null shows it over the tab.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLineupPicker))]
+    private LineupPickerViewModel? _lineupPicker;
 
     /// <summary>The open export pane, or null. Non-null is what the view binds the pane's visibility to.</summary>
     [ObservableProperty]
@@ -128,13 +136,17 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="playback">Opens a detected pattern's round in 2D Playback, resolved at click time.</param>
     /// <param name="spawns">Where a new blank strat's tokens start; null starts them unplaced.</param>
     /// <param name="layout">The collapsed panes, shared with the hub rail; a fresh one when omitted.</param>
+    /// <param name="lineupMap">
+    ///     Builds the lineup picker's Utility Book view model locked to a map, with the Utility Book's own queue
+    ///     section and clip directory; one over <paramref name="grenades" /> reading on the thread pool when omitted.
+    /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null)
+        StratBookLayout? layout = null, Func<string, UtilityBookTabViewModel>? lineupMap = null)
     {
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
@@ -146,7 +158,16 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         _grenades = grenades;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Session = new StratSession(store, _post, () => IsBrowser, () => DateTime.UtcNow);
-        Editor = new StratEditorViewModel(Session, _grenades is null ? null : LineupOptionsFor);
+        _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
+        _lineupMap = lineupMap ?? (grenades is null
+            ? null
+            : map => new UtilityBookTabViewModel(grenades, lockedMap: map, background: work => Task.Run(work), post: _post));
+        Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins));
+        if (_lineupOrigins is not null)
+        {
+            _lineupOrigins.Changed += Editor.Project;
+        }
+
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
 
         // Strat Record Panel (plan.md §3, strat-model.md §3.6): run / won / aborted, split by Demo
@@ -168,7 +189,6 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
-        _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins);
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
@@ -389,13 +409,65 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
         Canvas.Dispose();
-        _lineupOrigins?.Dispose();
+        CancelLineupPicker();
+        if (_lineupOrigins is not null)
+        {
+            _lineupOrigins.Changed -= Editor.Project;
+            _lineupOrigins.Dispose();
+        }
+
         Session.Dispose();
         RecordPanel.Dispose();
         HistoryPanel.Dispose();
     }
 
     // ── Actions ──────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>True while the lineup picker is open.</summary>
+    public bool HasLineupPicker => LineupPicker is not null;
+
+    /// <summary>Whether a step can pick its lineup on the map: this host has a Grenade Index.</summary>
+    public bool CanPickLineups => _lineupMap is not null;
+
+    /// <summary>
+    ///     Opens the lineup picker for a throw step on the strat's map, with the step's lineup selected when it has
+    ///     one (an alias id resolved). Confirm writes kind, lineup and technique as one undo entry.
+    /// </summary>
+    [RelayCommand]
+    private void OpenLineupPicker(StratStepRow? row)
+    {
+        if (row is null || _lineupMap is null || Session.Document is not { } document)
+        {
+            return;
+        }
+
+        CancelLineupPicker();
+        Editor.EndEditBurst();
+        StratStep? step = document.Steps.FirstOrDefault(s => s.Id == row.Id);
+        StratLineupChoice? current = step?.Utility?.LineupId is { } id ? Editor.ResolveLineup(id) : null;
+        Guid stepId = row.Id;
+        LineupPickerViewModel? picker = null;
+        using (QueueWork.UserAction())
+        {
+            picker = new LineupPickerViewModel(_lineupMap(document.Map), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
+                step?.Utility?.Technique, pick =>
+                {
+                    if (ReferenceEquals(LineupPicker, picker))
+                    {
+                        LineupPicker = null;
+                    }
+
+                    if (pick is not null)
+                    {
+                        Editor.ApplyLineupPick(stepId, pick.UtilityKind, pick.LineupId, pick.Technique);
+                    }
+                });
+        }
+
+        LineupPicker = picker;
+    }
+
+    private void CancelLineupPicker() => LineupPicker?.CancelCommand.Execute(null);
 
     /// <summary>
     ///     Opens the export pane over the open strat (step-authoring.md §3.6): GIF at 20 fps, 640 square, the first
@@ -953,23 +1025,6 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private Dictionary<string, string?> RosterFromEditor() =>
         Editor.Slots.Where(s => s.Pin?.SteamId is not null)
             .ToDictionary(s => s.Letter, s => (string?)s.Pin!.Label);
-
-    // Lineup On A Strat Step: a step's utility kind narrows the Grenade Index query. "Molotov" in the strat
-    // vocabulary covers both the Grenade Index's Molotov and Incendiary kinds (grenade-walk.md §3.4 tells
-    // them apart; the Strat Model's closed utility kind list (§3.3.3) does not).
-    private static readonly Dictionary<string, IReadOnlySet<GrenadeKind>> GrenadeKindsByUtility = new(StringComparer.Ordinal)
-    {
-        ["smoke"] = new HashSet<GrenadeKind> { GrenadeKind.Smoke },
-        ["molotov"] = new HashSet<GrenadeKind> { GrenadeKind.Molotov, GrenadeKind.Incendiary },
-        ["he"] = new HashSet<GrenadeKind> { GrenadeKind.He },
-        ["flash"] = new HashSet<GrenadeKind> { GrenadeKind.Flash },
-        ["decoy"] = new HashSet<GrenadeKind> { GrenadeKind.Decoy }
-    };
-
-    private IReadOnlyList<StratLineupOption> LineupOptionsFor(string map, string utilityKind) =>
-        _grenades is null || !GrenadeKindsByUtility.TryGetValue(utilityKind, out IReadOnlySet<GrenadeKind>? kinds)
-            ? []
-            : [.. _grenades.Lineups(map, kinds).Select(l => new StratLineupOption(l.Id, l.Title))];
 
     // Raw-id fallback (RoleSheet's own convention): the open strat's map picks the corpus to search, so a
     // strat with no document open (nothing to resolve against) leaves the id as its own text.

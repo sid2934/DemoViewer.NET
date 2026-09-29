@@ -9,6 +9,8 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.ViewModels.UtilityBook;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.StratBook;
@@ -161,9 +163,14 @@ public class StratEditorRoomTests
             window.Close();
         });
 
+    // With the Grenade Index fixture (one smoke lineup, two techniques), so the throw row carries the lineup,
+    // technique and "pick on map" controls the width test must measure.
     private static StratBookTabViewModel Seeded(StratBookLayout layout)
     {
-        StratBookTabViewModel vm = new(new StratStore(null), null, null, false, layout: layout);
+        (GrenadeIndex index, GrenadeLineup lineup) = StratThrowOriginTests.Indexed();
+        StratBookTabViewModel vm = new(new StratStore(null), null, a => Dispatcher.UIThread.Post(a), false, grenades: index,
+            layout: layout,
+            lineupMap: map => new UtilityBookTabViewModel(index, loadMapAsset: _ => null, retire: a => a(), lockedMap: map));
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = "de_mirage";
@@ -187,9 +194,68 @@ public class StratEditorRoomTests
             ["kind"] = "smoke", ["lineupId"] = Guid.NewGuid().ToString(), ["landing"] = new JsonObject { ["place"] = "Connector" }
         }));
         vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{other}/note", null, JsonValue.Create("a long note")));
+        int thrown = StratVocabulary.Verbs.ToList().IndexOf("throw");
+        vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{thrown}/utility", null,
+            new JsonObject { ["kind"] = "smoke", ["lineupId"] = lineup.Id.ToString() }));
         vm.Editor.AddBranchCommand.Execute(null);
+
+        // The editor's catalog groups the map off the UI thread and posts back.
+        for (int i = 0; i < 500 && vm.Editor.ResolveLineup(lineup.Id) is null; i++)
+        {
+            Thread.Sleep(10);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Dispatcher.UIThread.RunJobs();
         return vm;
     }
+
+    [Test]
+    public async Task ThePicker_OpensOverTheTab_FromTheThrowRow_AndConfirmWrites() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratBookLayout layout = new();
+            using StratBookTabViewModel vm = Seeded(layout);
+            StratBookTabView view = new() { DataContext = vm };
+            Window window = new() { Width = 1280, Height = 800, Content = view };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            int thrown = StratVocabulary.Verbs.ToList().IndexOf("throw");
+            StratStepRow row = vm.Editor.Steps[thrown];
+            await Assert.That(row.ShowTechnique).IsTrue().Because("the fixture lineup is thrown two ways");
+            Button pick = view.GetVisualDescendants().OfType<Button>()
+                .First(b => Equals(b.Content, "Pick on map") && ReferenceEquals(b.CommandParameter, row));
+            await Assert.That(pick.IsEffectivelyVisible).IsTrue();
+            pick.Command!.Execute(pick.CommandParameter);
+            Dispatcher.UIThread.RunJobs();
+
+            LineupPickerViewModel picker = vm.LineupPicker!;
+            Control overlay = view.FindControl<Control>("LineupPickerOverlay")!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(overlay.IsEffectivelyVisible).IsTrue();
+                await Assert.That(picker.SelectedPosition).IsNotNull().Because("the step's lineup opens selected");
+            }
+
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "strat-lineup-picker.png"),
+                new PngBitmapEncoderOptions());
+
+            int depth = vm.Session.UndoDepth;
+            picker.SelectedPosition = picker.Positions.First(p => p != picker.SelectedPosition);
+            view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ConfirmPick").Command!.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+                await Assert.That(vm.Session.Document!.Steps[thrown].Utility!.Technique).IsNotNull();
+                await Assert.That(overlay.IsEffectivelyVisible).IsFalse();
+            }
+
+            window.Close();
+        });
 
     private sealed class StillContext : IModuleContext
     {

@@ -148,6 +148,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
+    <Panel>
     <DockPanel Margin="16">
 
         <!-- The book, the filters, and the browser note. -->
@@ -656,12 +657,24 @@
                                                         <ComboBox Width="96" ItemsSource="{x:Static vm:StratEditorViewModel.UtilityKinds}"
                                                                   SelectedItem="{Binding UtilityKind}" />
                                                     </StackPanel>
-                                                    <!-- The visual lineup picker's button goes beside this combo. -->
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowLineup}">
                                                         <TextBlock Text="lineup" Classes="stratFieldLabel"
                                                                    ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
                                                         <ComboBox Width="160" ItemsSource="{Binding LineupOptions}" SelectedItem="{Binding Lineup}"
                                                                   ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowTechnique}">
+                                                        <TextBlock Text="thrown" Classes="stratFieldLabel" />
+                                                        <ComboBox Width="160" ItemsSource="{Binding Techniques}" SelectedItem="{Binding Technique}"
+                                                                  ToolTip.Tip="How the lineup is thrown; the count is how often it was" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowUtility}">
+                                                        <TextBlock Text=" " Classes="stratFieldLabel" />
+                                                        <Button Content="Pick on map" Classes="ghost" FontSize="11" Padding="8 5"
+                                                                IsVisible="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).CanPickLineups, FallbackValue=False}"
+                                                                Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).OpenLineupPickerCommand, FallbackValue={x:Null}}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="Pick where it lands and where it is thrown from on the Utility Book map" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowLanding}">
                                                         <TextBlock Text="lands at" Classes="stratFieldLabel" />
@@ -958,5 +971,12 @@
             </Border>
         </Grid>
     </DockPanel>
+
+    <!-- The lineup picker, over the whole tab (no native window, so the browser head has it too). -->
+    <Border x:Name="LineupPickerOverlay" Background="{DynamicResource ModalScrim}" IsVisible="{Binding HasLineupPicker}"
+            Padding="40 32">
+        <sb:LineupPickerView DataContext="{Binding LineupPicker}" />
+    </Border>
+    </Panel>
 
 </UserControl>
