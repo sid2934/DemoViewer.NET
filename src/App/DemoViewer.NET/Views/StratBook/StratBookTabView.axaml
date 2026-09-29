@@ -94,6 +94,58 @@
                            Foreground="{DynamicResource TextMid}" />
             </Grid>
         </DataTemplate>
+        <!-- The callout alias editor: under the strat list, and in the header flyout while the list is collapsed. -->
+        <DataTemplate x:Key="CalloutsEditorTemplate" x:DataType="vm:CalloutsEditorViewModel">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Callouts" Classes="col-label"
+                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                <TextBlock Text="pick one map (not all maps) to edit its aliases" FontSize="11"
+                           TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasMap}" />
+                <StackPanel Spacing="6" IsVisible="{Binding HasMap}">
+                    <TextBlock Text="{Binding MapLine}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                    <ItemsControl ItemsSource="{Binding Aliases}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CalloutAliasRow">
+                                <Grid ColumnDefinitions="80,*,Auto,Auto" ColumnSpacing="4" Margin="0 0 0 3">
+                                    <TextBox Grid.Column="0" FontSize="11" Watermark="alias"
+                                             Text="{Binding Alias, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout"
+                                             Text="{Binding Place, UpdateSourceTrigger=LostFocus}" />
+                                    <CheckBox Grid.Column="2" Content="primary" FontSize="10"
+                                              IsChecked="{Binding Primary}"
+                                              ToolTip.Tip="The word the UI shows for this place" />
+                                    <Button Grid.Column="3" Content="✕" Classes="ghost" FontSize="10" Padding="6 2"
+                                            Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this alias" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid ColumnDefinitions="80,*,Auto" ColumnSpacing="4">
+                        <TextBox Grid.Column="0" FontSize="11" Watermark="new alias" Text="{Binding NewAliasText}" />
+                        <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout" Text="{Binding NewPlaceText}" />
+                        <Button Grid.Column="2" Content="Add" Classes="ghost" FontSize="11" Padding="8 3"
+                                Command="{Binding AddAliasCommand}" />
+                    </Grid>
+                    <WrapPanel Orientation="Horizontal">
+                        <TextBlock Text="copy from" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                        <ComboBox ItemsSource="{Binding CopySources}" SelectedItem="{Binding CopyFrom}"
+                                  FontSize="11" MinWidth="120" Margin="0 0 6 4">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StratOwnerOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Content="Copy aliases" Classes="ghost" FontSize="11" Padding="8 3" Margin="0 0 0 4"
+                                Command="{Binding CopyAliasesCommand}"
+                                ToolTip.Tip="Replaces this book's aliases on this map with theirs" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding IssueLine}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasIssue}" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <DockPanel Margin="16">
@@ -147,7 +199,7 @@
                         <DockPanel DockPanel.Dock="Top" Margin="0 0 0 8">
                         <Button x:Name="CollapseList" DockPanel.Dock="Right" Classes="pane-toggle" Content="«"
                                 Command="{Binding Layout.ToggleListCommand}"
-                                ToolTip.Tip="Collapse the strat list; the editor keeps a strat picker" />
+                                ToolTip.Tip="Collapse the strat list; a header keeps the picker and the callouts" />
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <ToggleButton x:Name="BookToggle" Content="Book" FontSize="11" Padding="10 4"
                                           IsChecked="{Binding !IsDetectedView, Mode=OneWay}" Command="{Binding ShowBookCommand}" />
@@ -217,61 +269,12 @@
                 <Border Grid.Row="2"
                         Background="{DynamicResource CardBg}"
                         BorderBrush="{DynamicResource BorderSubtle}"
-                        BorderThickness="1" CornerRadius="6" Padding="12 10"
-                        DataContext="{Binding Callouts}" x:DataType="vm:CalloutsEditorViewModel">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Callouts" Classes="col-label"
-                                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
-                        <TextBlock Text="pick one map (not all maps) to edit its aliases" FontSize="11"
-                                   TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasMap}" />
-                        <StackPanel Spacing="6" IsVisible="{Binding HasMap}">
-                            <TextBlock Text="{Binding MapLine}" FontSize="10" Foreground="{DynamicResource TextMid}" />
-                            <ItemsControl ItemsSource="{Binding Aliases}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:CalloutAliasRow">
-                                        <Grid ColumnDefinitions="80,*,Auto,Auto" ColumnSpacing="4" Margin="0 0 0 3">
-                                            <TextBox Grid.Column="0" FontSize="11" Watermark="alias"
-                                                     Text="{Binding Alias, UpdateSourceTrigger=LostFocus}" />
-                                            <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout"
-                                                     Text="{Binding Place, UpdateSourceTrigger=LostFocus}" />
-                                            <CheckBox Grid.Column="2" Content="primary" FontSize="10"
-                                                      IsChecked="{Binding Primary}"
-                                                      ToolTip.Tip="The word the UI shows for this place" />
-                                            <Button Grid.Column="3" Content="✕" Classes="ghost" FontSize="10" Padding="6 2"
-                                                    Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this alias" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Grid ColumnDefinitions="80,*,Auto" ColumnSpacing="4">
-                                <TextBox Grid.Column="0" FontSize="11" Watermark="new alias" Text="{Binding NewAliasText}" />
-                                <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout" Text="{Binding NewPlaceText}" />
-                                <Button Grid.Column="2" Content="Add" Classes="ghost" FontSize="11" Padding="8 3"
-                                        Command="{Binding AddAliasCommand}" />
-                            </Grid>
-                            <WrapPanel Orientation="Horizontal">
-                                <TextBlock Text="copy from" FontSize="11" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
-                                <ComboBox ItemsSource="{Binding CopySources}" SelectedItem="{Binding CopyFrom}"
-                                          FontSize="11" MinWidth="120" Margin="0 0 6 4">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:StratOwnerOption">
-                                            <TextBlock Text="{Binding Label}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <Button Content="Copy aliases" Classes="ghost" FontSize="11" Padding="8 3" Margin="0 0 0 4"
-                                        Command="{Binding CopyAliasesCommand}"
-                                        ToolTip.Tip="Replaces this book's aliases on this map with theirs" />
-                            </WrapPanel>
-                            <TextBlock Text="{Binding IssueLine}" FontSize="11" TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasIssue}" />
-                        </StackPanel>
-                    </StackPanel>
+                        BorderThickness="1" CornerRadius="6" Padding="12 10">
+                    <ContentControl Content="{Binding Callouts}" ContentTemplate="{StaticResource CalloutsEditorTemplate}" />
                 </Border>
             </Grid>
 
-            <!-- The collapsed list: » brings it back. The editor's header carries a strat picker meanwhile. -->
+            <!-- The collapsed list: » brings it back. The header over column 2 carries the picker meanwhile. -->
             <Border Grid.Column="0" Width="32" IsVisible="{Binding Layout.IsListCollapsed}"
                     Background="{DynamicResource CardBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
@@ -292,7 +295,59 @@
             </Border>
 
             <!-- A detected pattern (Strat Mining): what it is, where it was seen, and Add to book. -->
-            <Border Grid.Column="2" x:Name="DetectedDetail" IsVisible="{Binding IsDetectedView}"
+            <!-- Column 2: while the list is collapsed, a header with what the list was the way to reach (Book or
+                 Detected, the strat or pattern, the callouts); then the detected pattern or the editor. -->
+            <DockPanel Grid.Column="2">
+            <Border x:Name="StratPicker" DockPanel.Dock="Top" IsVisible="{Binding Layout.IsListCollapsed}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 8" Margin="0 0 0 8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                        <ToggleButton Content="Book" FontSize="11" Padding="10 4"
+                                      IsChecked="{Binding !IsDetectedView, Mode=OneWay}" Command="{Binding ShowBookCommand}" />
+                        <ToggleButton Content="{Binding DetectedHeader}" FontSize="11" Padding="10 4"
+                                      IsChecked="{Binding IsDetectedView, Mode=OneWay}" Command="{Binding ShowDetectedCommand}"
+                                      ToolTip.Tip="Setups and executes seen at least twice in the library" />
+                    </StackPanel>
+                    <Panel Grid.Column="1">
+                        <ComboBox x:Name="StratPickerCombo" FontSize="12" HorizontalAlignment="Stretch" MinWidth="0"
+                                  IsVisible="{Binding !IsDetectedView}"
+                                  ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
+                                  PlaceholderText="pick a strat"
+                                  ToolTip.Tip="The strats in this book on the chosen map and side">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StratListRow">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Panel IsVisible="{Binding IsDetectedView}">
+                        <ComboBox x:Name="DetectedPickerCombo" FontSize="12" HorizontalAlignment="Stretch" MinWidth="0"
+                                  DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel"
+                                  ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                                  PlaceholderText="pick a detected pattern">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DetectedRowViewModel">
+                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        </Panel>
+                    </Panel>
+                    <Button x:Name="CalloutsButton" Grid.Column="2" Content="Callouts" Classes="ghost" FontSize="11" Padding="10 5"
+                            ToolTip.Tip="The book's callout aliases for this map">
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <ContentControl Width="340" Content="{Binding Callouts}"
+                                                ContentTemplate="{StaticResource CalloutsEditorTemplate}" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
+            </Border>
+            <Panel>
+            <Border x:Name="DetectedDetail" IsVisible="{Binding IsDetectedView}"
                     Background="{DynamicResource CardBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="1" CornerRadius="6" Padding="12 10">
@@ -440,26 +495,11 @@
             </Border>
 
             <!-- The editor. -->
-            <Border Grid.Column="2" IsVisible="{Binding !IsDetectedView}"
+            <Border IsVisible="{Binding !IsDetectedView}"
                     Background="{DynamicResource CardBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="1" CornerRadius="6" Padding="12 10">
                 <DockPanel>
-                    <Grid x:Name="StratPicker" DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0 0 0 8"
-                          IsVisible="{Binding Layout.IsListCollapsed}">
-                        <TextBlock Grid.Column="0" Text="Strat" FontSize="12" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextValue}" />
-                        <ComboBox Grid.Column="1" FontSize="12" HorizontalAlignment="Stretch" MinWidth="0"
-                                  ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
-                                  PlaceholderText="pick a strat"
-                                  ToolTip.Tip="The strats in this book on the chosen map and side">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:StratListRow">
-                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </Grid>
                     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 8">
                         <TextBlock Grid.Column="0" Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
@@ -852,6 +892,9 @@
                     </ScrollViewer>
                 </DockPanel>
             </Border>
+
+            </Panel>
+            </DockPanel>
 
             <GridSplitter Grid.Column="3" Background="Transparent" Width="6" />
 

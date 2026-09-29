@@ -391,16 +391,19 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### Collapsible side pane (the Strat Book rail and the strat list)
 - **Files:** `ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle commands),
-  `Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the `StratPicker` row in
+  `Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the `StratPicker` header in
   `Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in `Styles/Primitives.axaml`.
 - **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
   1280 wide with the rail (164) and the strat list (280) open.
 - **Contract:** the pane's own header carries `«` (a `Button.pane-toggle`, 24 px). Collapsed, the pane becomes a
   32 px strip: `»` at the top, then either the pane's items read top to bottom (the rail keeps every section and
   its badge, rotated 90 degrees in a `LayoutTransformControl`, same `ItemsSource` and `SelectedItem`) or the
-  pane's name when its items cannot be read that way (the list strip reads STRATS or DETECTED). Whatever the
-  pane was the only way to reach moves next to the content while it is collapsed: the list's strats become a
-  "Strat" combo box in the editor header. The column is `Auto`; the open pane sets its own `Width`.
+  pane's name when its items cannot be read that way (the list strip reads STRATS or DETECTED). Navigation the
+  pane was the only way to reach moves next to the content while it is collapsed: a header over the list's
+  neighbour column carries the Book / Detected toggle, a combo box that follows it (the book's strats or the
+  detected patterns) and a Callouts button whose flyout holds the alias editor (`CalloutsEditorTemplate`, the
+  same template the list column uses). List management (Delete, Find strats, Show settled) stays in the pane;
+  `»` reopens it. The column is `Auto`; the open pane sets its own `Width`.
 - **State:** one `StratBookLayout` is shared by the hub and the Strats section (a DI singleton, passed to both)
   and lives in the session file as `SessionPayload.StratBook`. It is restored with the active tab in
   `RestoreSession`, not through module-tab state, because module-tab state waits for a demo load and a
@@ -431,12 +434,19 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   | wait, call | note only | |
   | other, or a verb outside the vocabulary | from, to, utility | to |
 
-- **Verb change:** one undo entry holding the verb and a remove for each member the new verb does not use and
-  the step actually has. Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and
-  LAN print print whatever is set, which is why the clear is not optional.
+- **Verb change:** the verb and a remove for each member the new verb does not use and the step has.
+  Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and LAN print print
+  whatever is set, which is why the clear is not optional.
+- **Combo box bursts:** a closed combo box changes value on the mouse wheel and on Up/Down, so the verb, kind
+  and lineup combos pass through values the user never meant. Consecutive changes of one combo on one step are a
+  burst (`StratEditorViewModel.ApplyInBurst`): the ops are computed from the step as it was when the burst began
+  and replace the burst's own undo entry (`StratSession.ReplaceLast`). Passing through "none" or "wait" and back
+  restores everything and leaves no entry; ending elsewhere leaves one. A burst ends when the combo loses focus
+  (the view calls `EndEditBurst`) or on any other edit (the session's version moved).
 - **Utility edits:** a kind change replaces `kind` and removes `lineupId` and `technique` (they belong to the
   old kind) but keeps the landing; a lineup change drops the old lineup's `technique`; typing "lands at"
-  writes `landing/place` only, so a captured landing point survives. A lineup id the lookup does not offer is
+  writes `landing/place` only, so a captured landing point survives, and clearing a place that was the landing's
+  only member removes the landing. A lineup id the lookup does not offer is
   added to the row's options as its raw id (a combo box shows nothing for a selection outside its items).
   The lineup options are filtered by kind, so the kind always matches a picked lineup; a picker that sets
   both must write the kind first, in the same ops list, because a kind change drops the lineup.
