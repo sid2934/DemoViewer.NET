@@ -53,6 +53,8 @@ public sealed class StratSession : IDisposable
     private string? _commitFailure;
     private bool _disposed;
     private CancellationTokenSource? _idle;
+    private IReadOnlyList<StratIssue> _issues = [];
+    private int _issuesVersion = -1;
     private int _lastSavedVersion;
     private bool _writeFailed;
 
@@ -79,8 +81,28 @@ public sealed class StratSession : IDisposable
     /// <summary>The open strat, or null. Its revision is the last committed one; edits since sit in the commit buffer.</summary>
     public StratDocument? Document { get; private set; }
 
-    /// <summary>The validator's findings at open or at the last commit.</summary>
-    public IReadOnlyList<StratIssue> Issues { get; private set; } = [];
+    /// <summary>
+    ///     The validator's findings for the document as it is now, with the rules a commit applies. Computed at
+    ///     most once per <see cref="Version" />, on first read; an unreadable file's findings stay as loaded.
+    /// </summary>
+    public IReadOnlyList<StratIssue> Issues
+    {
+        get
+        {
+            if (Document is { } document && _issuesVersion != Version)
+            {
+                _issues = StratValidator.Validate(document, index: _store.Index);
+                _issuesVersion = Version;
+            }
+
+            return _issues;
+        }
+        private set
+        {
+            _issues = value;
+            _issuesVersion = Version;
+        }
+    }
 
     /// <summary>Bumped on every edit, undo and redo. Never goes backwards.</summary>
     public int Version { get; private set; }

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Services.Strats;
 
 #endregion
@@ -499,26 +500,67 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
     }
 
+    /// <summary>How much earlier on the round clock a new step starts than the one it follows.</summary>
+    public const double NewStepOffsetSeconds = 5;
+
+    /// <summary>A step added or duplicated here: the view moves focus to its row.</summary>
+    public event Action<Guid>? StepFocusRequested;
+
     /// <summary>
-    ///     A new step at the end, at the last step's time so the clock still counts down, or at the round's start
-    ///     for the first; every slot, a move.
+    ///     A new step after <paramref name="after" />, or at the end: every slot, a move, <see cref="NewStepOffsetSeconds" />
+    ///     after the step it follows on the round clock, held between its neighbours (never refused), or at the
+    ///     round's start for the first. It starts with the tokens where they stand at the step it follows
+    ///     (<see cref="StratStepCarry" />) and no strokes. One undo entry.
     /// </summary>
+    /// <param name="after">The row it follows; null for the end.</param>
     [RelayCommand]
-    private void AddStep()
+    private void AddStep(StratStepRow? after)
     {
         if (_session.Document is not { } document)
         {
             return;
         }
 
-        StratStep step = new()
+        int index = after is null ? -1 : document.Steps.FindIndex(s => s.Id == after.Id);
+        if (index < 0)
         {
-            Id = Guid.NewGuid(),
-            AtSeconds = document.Steps.Count > 0 ? document.Steps[^1].AtSeconds : document.Clock.RoundSeconds,
-            Actor = StratVocabulary.ActorAll,
-            Verb = "move"
-        };
-        Apply([PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(step, StratJsonContext.Default.StratStep))]);
+            index = document.Steps.Count - 1;
+        }
+
+        double wanted = index >= 0 ? document.Steps[index].AtSeconds - NewStepOffsetSeconds : document.Clock.RoundSeconds;
+        Guid id = Guid.NewGuid();
+        PatchOp op = StepAuthoringPatches.AddStep(document, index, wanted, id);
+        List<StepPosition> carried = StratStepCarry.PositionsAt(document, index);
+        if (carried.Count > 0 && op.Value is JsonObject node)
+        {
+            node["positions"] = new JsonArray(carried.Select(p => JsonSerializer.SerializeToNode(p, StratJsonContext.Default.StepPosition)).ToArray());
+        }
+
+        Apply([op]);
+        StepFocusRequested?.Invoke(id);
+    }
+
+    /// <summary>
+    ///     A copy of the step right after it, with a new id, the same fields, positions and strokes (the strokes
+    ///     under new ids), a little later on the clock and held before the next step. One undo entry.
+    /// </summary>
+    [RelayCommand]
+    private void DuplicateStep(StratStepRow? row)
+    {
+        if (row is null || _session.Document is not { } document)
+        {
+            return;
+        }
+
+        int index = document.Steps.FindIndex(s => s.Id == row.Id);
+        if (index < 0)
+        {
+            return;
+        }
+
+        Guid id = Guid.NewGuid();
+        Apply([StepAuthoringPatches.DuplicateStep(document, index, id)]);
+        StepFocusRequested?.Invoke(id);
     }
 
     /// <summary>Removes a step and every branch that names it, as one undo entry: a branch left pointing at nothing is refused.</summary>
@@ -695,12 +737,38 @@ public sealed partial class StratEditorViewModel : ObservableObject
             Branches[i].Load(i, branch, TargetFor(branch.Target.StratId), TargetStepOptions(document, branch.Target.StratId));
         }
 
-        Issues.Clear();
-        foreach (StratIssue issue in _session.Issues)
+        // One validation per document version, shared by the summary and the rows.
+        IReadOnlyList<StratIssue> issues = _session.Issues;
+        List<string> lines = [.. issues.Select(issue => $"{issue.Severity.ToString().ToLowerInvariant()}: {issue.Message}"
+                                                        + (issue.Field.Length > 0 ? $" ({issue.Field})" : ""))];
+        if (!Issues.SequenceEqual(lines))
         {
-            Issues.Add($"{issue.Severity.ToString().ToLowerInvariant()}: {issue.Message}"
-                       + (issue.Field.Length > 0 ? $" ({issue.Field})" : ""));
+            Replace(Issues, lines);
         }
+
+        List<StratIssue>[] byStep = new List<StratIssue>[document.Steps.Count];
+        foreach (StratIssue issue in issues)
+        {
+            if (issue.Severity != StratIssueSeverity.Info && StepIndexOf(issue.Field) is { } i && i < byStep.Length)
+            {
+                (byStep[i] ??= []).Add(issue);
+            }
+        }
+
+        for (int i = 0; i < Steps.Count; i++)
+        {
+            Steps[i].SetIssues(byStep[i] ?? []);
+        }
+    }
+
+    // "/steps/3/to/place" is step 3.
+    private static int? StepIndexOf(string pointer)
+    {
+        string[] parts = pointer.Split('/');
+        return parts.Length >= 3 && parts[1] == "steps"
+                                 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int index)
+            ? index
+            : null;
     }
 
     private StratPinOption PinFor(string? steamId)
@@ -796,6 +864,21 @@ public sealed record StratLineupOption(Guid? Id, string Label)
     public static StratLineupOption None { get; } = new(null, StratEditorViewModel.None);
 
     public override string ToString() => Label;
+}
+
+/// <summary>
+///     What a step row marks beside one field: the worst severity among the validator's issues there, and every
+///     message. A refusal and a warning differ by glyph as well as colour.
+/// </summary>
+public sealed record StratFieldIssue(bool IsRefusal, string Message)
+{
+    public string Glyph => IsRefusal ? "!" : "⚠";
+
+    internal static StratFieldIssue? From(Dictionary<string, List<StratIssue>> byField, string field) =>
+        byField.TryGetValue(field, out List<StratIssue>? issues)
+            ? new StratFieldIssue(issues.Any(i => i.Severity == StratIssueSeverity.Refusal),
+                string.Join(Environment.NewLine, issues.Select(i => $"{i.Severity.ToString().ToLowerInvariant()}: {i.Message}")))
+            : null;
 }
 
 /// <summary>One of the five slots: its role and the optional pin (§3.5).</summary>
@@ -921,6 +1004,107 @@ public sealed partial class StratStepRow : ObservableObject
 
     /// <summary>This row's lineup choices for its current utility kind: "none" first, then the owner's lookup.</summary>
     public ObservableCollection<StratLineupOption> LineupOptions { get; } = [StratLineupOption.None];
+
+    public StratFieldIssue? TimeIssue { get; private set; }
+
+    public StratFieldIssue? ActorIssue { get; private set; }
+
+    public StratFieldIssue? VerbIssue { get; private set; }
+
+    public StratFieldIssue? FromIssue { get; private set; }
+
+    public StratFieldIssue? ToIssue { get; private set; }
+
+    public StratFieldIssue? UtilityIssue { get; private set; }
+
+    public StratFieldIssue? LineupIssue { get; private set; }
+
+    public StratFieldIssue? TechniqueIssue { get; private set; }
+
+    public StratFieldIssue? LandingIssue { get; private set; }
+
+    /// <summary>Issues about the step as a whole, or about a field the row does not show: marked at the row's start.</summary>
+    public StratFieldIssue? RowIssue { get; private set; }
+
+    /// <summary>Every marked issue as a line, for keyboard and screen-reader users; empty without any.</summary>
+    public string IssueText { get; private set; } = "";
+
+    public bool HasIssues => IssueText.Length > 0;
+
+    /// <summary>Places the validator's warnings and refusals for this step beside the fields they name.</summary>
+    /// <param name="issues">This step's issues, infos excluded.</param>
+    internal void SetIssues(IReadOnlyList<StratIssue> issues)
+    {
+        Dictionary<string, List<StratIssue>> byField = new(StringComparer.Ordinal);
+        List<string> lines = [];
+        foreach (StratIssue issue in issues)
+        {
+            string field = FieldOf(issue.Field);
+            if (!byField.TryGetValue(field, out List<StratIssue>? list))
+            {
+                list = [];
+                byField[field] = list;
+            }
+
+            list.Add(issue);
+            lines.Add($"{issue.Severity.ToString().ToLowerInvariant()}: {issue.Message} ({LabelOf(field)})");
+        }
+
+        TimeIssue = StratFieldIssue.From(byField, nameof(TimeIssue));
+        ActorIssue = StratFieldIssue.From(byField, nameof(ActorIssue));
+        VerbIssue = StratFieldIssue.From(byField, nameof(VerbIssue));
+        FromIssue = StratFieldIssue.From(byField, nameof(FromIssue));
+        ToIssue = StratFieldIssue.From(byField, nameof(ToIssue));
+        UtilityIssue = StratFieldIssue.From(byField, nameof(UtilityIssue));
+        LineupIssue = StratFieldIssue.From(byField, nameof(LineupIssue));
+        TechniqueIssue = StratFieldIssue.From(byField, nameof(TechniqueIssue));
+        LandingIssue = StratFieldIssue.From(byField, nameof(LandingIssue));
+        RowIssue = StratFieldIssue.From(byField, nameof(RowIssue));
+        IssueText = string.Join(Environment.NewLine, lines);
+        foreach (string name in (string[])
+                 [
+                     nameof(TimeIssue), nameof(ActorIssue), nameof(VerbIssue), nameof(FromIssue), nameof(ToIssue), nameof(UtilityIssue),
+                     nameof(LineupIssue), nameof(TechniqueIssue), nameof(LandingIssue), nameof(RowIssue), nameof(IssueText), nameof(HasIssues)
+                 ])
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    // The marker a pointer under /steps/{i} belongs to. A field the row hides marks the row instead.
+    private string FieldOf(string pointer)
+    {
+        string[] parts = pointer.Split('/');
+        string member = parts.Length > 3 ? parts[3] : "";
+        string sub = parts.Length > 4 ? parts[4] : "";
+        return (member, sub) switch
+        {
+            ("atSeconds", _) => nameof(TimeIssue),
+            ("actor", _) => nameof(ActorIssue),
+            ("verb", _) => nameof(VerbIssue),
+            ("from", _) when ShowFrom => nameof(FromIssue),
+            ("to", _) when ShowTo => nameof(ToIssue),
+            ("utility", "lineupId") => ShowLineup ? nameof(LineupIssue) : nameof(RowIssue),
+            ("utility", "technique") => ShowTechnique ? nameof(TechniqueIssue) : nameof(RowIssue),
+            ("utility", "landing") => ShowLanding ? nameof(LandingIssue) : nameof(RowIssue),
+            ("utility", _) when ShowUtility => nameof(UtilityIssue),
+            _ => nameof(RowIssue)
+        };
+    }
+
+    private string LabelOf(string field) => field switch
+    {
+        nameof(TimeIssue) => "at",
+        nameof(ActorIssue) => "actor",
+        nameof(VerbIssue) => "verb",
+        nameof(FromIssue) => "from",
+        nameof(ToIssue) => ToLabel,
+        nameof(UtilityIssue) => "utility",
+        nameof(LineupIssue) => "lineup",
+        nameof(TechniqueIssue) => "thrown",
+        nameof(LandingIssue) => "lands at",
+        _ => "step"
+    };
 
     internal void Load(int index, StratStep step)
     {
