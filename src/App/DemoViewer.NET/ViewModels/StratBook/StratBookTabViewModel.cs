@@ -194,7 +194,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
-        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins);
+        Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
+            post: post);
+        StepSelection = new StratStepSelection(Editor, Canvas);
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
             id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader, _lineupOrigins);
@@ -247,6 +249,9 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <summary>The Step Authoring canvas over the open strat (step-authoring.md §3.10).</summary>
     public StratCanvasViewModel Canvas { get; }
+
+    /// <summary>The step the rows highlight and the canvas edits.</summary>
+    public StratStepSelection StepSelection { get; }
 
     /// <summary>The book's list shows when it has strats and the Detected inbox is not up.</summary>
     public bool ShowBookList => HasStrats && !IsDetectedView;
@@ -414,6 +419,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         _exportJob?.Dispose();
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
+        StepSelection.Dispose();
         Canvas.Dispose();
         CancelLineupPicker();
         if (_lineupOrigins is not null)

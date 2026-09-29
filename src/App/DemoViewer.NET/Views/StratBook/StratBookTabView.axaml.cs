@@ -1,9 +1,11 @@
 #region
 
 using System.Windows.Input;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.StratBook;
 
@@ -14,6 +16,8 @@ namespace DemoViewer.NET.Views.StratBook;
 /// <summary>The Strat Book tab view. Bindings, plus the step combo boxes' focus loss; behaviour lives on the VM.</summary>
 public partial class StratBookTabView : UserControl
 {
+    private StratBookTabViewModel? _bound;
+
     /// <summary>Builds the view.</summary>
     public StratBookTabView()
     {
@@ -22,6 +26,18 @@ public partial class StratBookTabView : UserControl
         // A step's combo box leaving focus ends its burst (StratEditorViewModel.EndEditBurst): the next change
         // there is a new undo entry.
         StepRows.AddHandler(LostFocusEvent, OnStepRowLostFocus, RoutingStrategies.Bubble);
+
+        // A press or focus anywhere in a row selects its step. Never handled, so the field still gets it.
+        StepRows.AddHandler(GotFocusEvent, OnStepRowActivated, RoutingStrategies.Bubble);
+        StepRows.AddHandler(PointerPressedEvent, OnStepRowActivated, RoutingStrategies.Tunnel, true);
+    }
+
+    private void OnStepRowActivated(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is StyledElement { DataContext: StratStepRow row } && DataContext is StratBookTabViewModel vm)
+        {
+            vm.StepSelection.Select(row.Id);
+        }
     }
 
     private void OnStepRowLostFocus(object? sender, RoutedEventArgs e)
@@ -32,10 +48,40 @@ public partial class StratBookTabView : UserControl
         }
     }
 
+    // Posted: the rows may be rebuilt by the same change and are laid out after it.
+    private void OnSelectionChanged(Guid? stepId)
+    {
+        if (stepId is not { } id || DataContext is not StratBookTabViewModel vm)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            int index = vm.Editor.Steps.ToList().FindIndex(r => r.Id == id);
+            if (index >= 0 && StepRows.ContainerFromIndex(index) is { } row)
+            {
+                row.BringIntoView();
+            }
+        }, DispatcherPriority.Background);
+    }
+
     // Filled here as well as on opening: a menu flyout with no items does not open.
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        if (_bound is not null)
+        {
+            _bound.StepSelection.Changed -= OnSelectionChanged;
+        }
+
+        _bound = DataContext as StratBookTabViewModel;
+        if (_bound is not null)
+        {
+            _bound.StepSelection.Changed += OnSelectionChanged;
+            OnSelectionChanged(_bound.StepSelection.SelectedStepId);
+        }
+
         if (DataContext is StratBookTabViewModel vm)
         {
             FillTemplateMenu(NewStratButton.Flyout, StratTemplates.Templates, vm.NewStratCommand, true);

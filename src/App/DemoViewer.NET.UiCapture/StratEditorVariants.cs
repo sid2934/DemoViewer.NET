@@ -21,10 +21,12 @@ namespace DemoViewer.NET.UiCapture;
 /// </summary>
 public static partial class Variants
 {
-    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false)
+    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false,
+        Action<StratBookTabViewModel>? then = null)
     {
         StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
         StratBookTabViewModel strats = SeededStratBook(layout, bare);
+        then?.Invoke(strats);
         StratBookHubViewModel hub = new(layout);
 
         List<WorkspaceTabDescriptor> sections =
@@ -54,6 +56,13 @@ public static partial class Variants
         hub.OnActivated(new StillContext());
         return new StratBookHubView { DataContext = hub };
     }
+
+    // The hold step selected, and Set On Map waiting for its click.
+    private static StratBookHubView StratEditorSetPlace() => StratEditor(true, true, then: vm =>
+    {
+        vm.StepSelection.Select(vm.Editor.Steps.First(r => r.Verb == "hold").Id);
+        vm.Canvas.BeginSetPlace();
+    });
 
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
     {

@@ -19,6 +19,8 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
+using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,10 +67,17 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private readonly Func<string?, LoadedMapAsset?> _mapLoader;
     private readonly Func<IEnumerable<string>> _keybindOverrides;
     private readonly LineupOriginSource? _lineupOrigins;
+    private readonly Func<string, Task<IZonePlaceResolver?>> _placesFor;
+    private readonly Action<Action> _post;
     private readonly StratSession _session;
     private readonly StepTrack _stepTrack = new();
 
     private int _activeIndex = -1;
+    private Guid? _activeStepId;
+    private ArmedPlace? _armed;
+    private Task<IZonePlaceResolver?>? _places;
+    private string? _placesMap;
+    private Guid? _pinnedStep;
     private CalloutResolver? _callouts;
     private bool _disposed;
     private bool _originsMoved;
@@ -95,13 +104,21 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <param name="keybindOverrides">The user's keymap rows; the settings file's when omitted.</param>
     /// <param name="readOnly">Plays the strat without editing it: no tools, no token drag, no step edits.</param>
     /// <param name="lineupOrigins">Puts a throw's actor at its lineup's throw origin; null projects none.</param>
+    /// <param name="placesFor">
+    ///     A map's zone places for Set On Map, loaded off the UI thread; the app's zone source through the processing
+    ///     queue when omitted.
+    /// </param>
+    /// <param name="post">Returns a late place lookup to the UI thread; the dispatcher when omitted.</param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
-        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null)
+        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
+        Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
         _lineupOrigins = lineupOrigins;
+        _placesFor = placesFor ?? QueuedPlaces;
+        _post = post ?? (action => Dispatcher.UIThread.Post(action));
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
@@ -187,8 +204,56 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
-    /// <summary>Whether a tool other than pan is selected: what makes the keymap's tool scope shadow Space and Esc.</summary>
-    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom;
+    /// <summary>
+    ///     Whether a tool other than pan is selected, or Set On Map is waiting for a click: what makes the keymap's
+    ///     tool scope shadow Space and Esc.
+    /// </summary>
+    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace;
+
+    /// <summary>What Set On Map would write on the active step: its <c>to</c>, its landing, or nothing.</summary>
+    public StratPlaceTarget PlaceTarget =>
+        EditableActiveStep() is not null && ActiveStep is { } step ? PlaceTargetFor(step) : StratPlaceTarget.None;
+
+    public bool CanSetPlace => PlaceTarget != StratPlaceTarget.None;
+
+    /// <summary>True while Set On Map waits for a click on the map.</summary>
+    public bool IsSettingPlace => _armed is not null;
+
+    /// <summary>The Set On Map button's words, naming the field the way the step row does.</summary>
+    public string SetPlaceText => PlaceTarget switch
+    {
+        StratPlaceTarget.To => "Set “" + StratStepFields.ToLabel(ActiveStep?.Verb) + "” on map",
+        StratPlaceTarget.Landing => "Set landing on map",
+        _ => ""
+    };
+
+    public string SetPlaceToolTip => PlaceTarget switch
+    {
+        StratPlaceTarget.To => string.Create(CultureInfo.InvariantCulture,
+            $"Click the map to set step {_activeIndex + 1}'s “{StratStepFields.ToLabel(ActiveStep?.Verb)}” to the place there (Esc cancels)"),
+        StratPlaceTarget.Landing => string.Create(CultureInfo.InvariantCulture,
+            $"Click the map where step {_activeIndex + 1}'s grenade lands: the point and the place there (Esc cancels)"),
+        _ => ""
+    };
+
+    /// <summary>
+    ///     The field a map click sets on a step (<see cref="StratStepFields" />): <c>to</c> for a verb that uses it
+    ///     (fake included), the landing for one that uses only utility and has a kind and no lineup (a lineup says
+    ///     where it lands), else nothing.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    public static StratPlaceTarget PlaceTargetFor(StratStep step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        if (StratStepFields.Uses(step.Verb, StratStepField.To))
+        {
+            return StratPlaceTarget.To;
+        }
+
+        return StratStepFields.Uses(step.Verb, StratStepField.Utility) && step.Utility is { LineupId: null }
+            ? StratPlaceTarget.Landing
+            : StratPlaceTarget.None;
+    }
 
     public bool IsTokenToolSelected => Annotations.ActiveTool == ToolKind.Token;
 
@@ -258,8 +323,109 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
-    /// <summary>Nothing to tag on a strat: every click goes to the pointer tools.</summary>
-    public bool TryTagPositionAt(MapLevel level, double worldX, double worldY) => false;
+    /// <summary>
+    ///     A plain left click while Set On Map waits: the place under it, on the clicked pane's floor, goes on the
+    ///     step the mode was started for. Otherwise false, and the click goes to the pointer tools.
+    /// </summary>
+    public bool TryTagPositionAt(MapLevel level, double worldX, double worldY)
+    {
+        ArgumentNullException.ThrowIfNull(level);
+        if (_armed is not { } armed)
+        {
+            return false;
+        }
+
+        if (armed.Pending)
+        {
+            return true;
+        }
+
+        armed.Pending = true;
+        double levelMinZ = MapSpace.QuantizeZ(level.ZMin);
+        Task<IZonePlaceResolver?> places = PlacesFor(armed.Map, false);
+        if (places.IsCompleted)
+        {
+            FinishPlace(armed, places, worldX, worldY, levelMinZ);
+        }
+        else
+        {
+            StatusLine = "reading this map's places…";
+            places.ContinueWith(_ => _post(() => FinishPlace(armed, places, worldX, worldY, levelMinZ)),
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Makes a step the active one: pauses, moves the playhead to the step's time, and keeps that step active
+    ///     there even when the next step shares its tick. False when the path being played does not hold it.
+    /// </summary>
+    /// <param name="stepId">The step.</param>
+    public bool SelectStep(Guid stepId)
+    {
+        if (_projection is not { } projection)
+        {
+            return false;
+        }
+
+        int index = projection.IndexOf(stepId);
+        if (index < 0)
+        {
+            StatusLine = "that step is not on the path being played";
+            return false;
+        }
+
+        if (_pinnedStep == stepId && _activeIndex == index && Transport.Tick == projection.Ticks[index])
+        {
+            return true;
+        }
+
+        _pinnedStep = stepId;
+        Transport.Pause();
+        if (Transport.Tick != projection.Ticks[index])
+        {
+            Transport.Seek(projection.Ticks[index]);
+        }
+        else
+        {
+            UpdateActiveStep();
+            Publish(false);
+        }
+
+        return true;
+    }
+
+    /// <summary>Starts Set On Map for the active step. False when the step takes no place from the map.</summary>
+    public bool BeginSetPlace()
+    {
+        if (_session.Document is not { } document || ActiveStep is not { } step || PlaceTarget is var target
+            && target == StratPlaceTarget.None)
+        {
+            return false;
+        }
+
+        _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1);
+        _ = PlacesFor(document.Map, true);
+        StatusLine = string.Create(CultureInfo.InvariantCulture,
+            $"click the map for step {_activeIndex + 1}'s {TargetLabel(target, step)}; Esc cancels");
+        RaiseSetPlace();
+        return true;
+    }
+
+    /// <summary>Stops Set On Map without writing. False when it was not on.</summary>
+    public bool CancelSetPlace()
+    {
+        if (_armed is null)
+        {
+            return false;
+        }
+
+        _armed = null;
+        StatusLine = "";
+        RaiseSetPlace();
+        return true;
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -270,6 +436,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         _disposed = true;
+        _armed = null;
         _session.Changed -= OnSessionChanged;
         if (_lineupOrigins is not null)
         {
@@ -417,6 +584,15 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private void DeleteStep() => ExecuteAction(Playback2DAction.DeleteStep);
 
     [RelayCommand]
+    private void ToggleSetPlace()
+    {
+        if (!CancelSetPlace())
+        {
+            BeginSetPlace();
+        }
+    }
+
+    [RelayCommand]
     private void SelectTokenTool()
     {
         if (!IsReadOnly)
@@ -527,9 +703,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         // The drag writes the active step's keyframe, so the canvas shows that step's moment while it does:
-        // what is dragged is what is placed.
+        // what is dragged is what is placed. Taken before the seek, which on a shared tick would pick the next step.
+        int pathIndex = _activeIndex;
+        _pinnedStep = projection.Path[pathIndex].Step.Id;
         Transport.Pause();
-        int tick = ActiveTick;
+        int tick = projection.Ticks[pathIndex];
         if (Transport.Tick != tick)
         {
             Transport.Seek(tick);
@@ -538,7 +716,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         TokenKeyframe start = Tracks.Get(slot) is { } track && track.TrySample(tick, out TokenKeyframe at)
             ? at
             : new TokenKeyframe(tick, 0, 0, projection.Canvas.DefaultLevelMinZ ?? 0, 0);
-        _drag = new DragState(slot, grip, _activeIndex, start.X, start.Y, start.LevelMinZ, start.YawDegrees);
+        _drag = new DragState(slot, grip, pathIndex, start.X, start.Y, start.LevelMinZ, start.YawDegrees);
     }
 
     /// <inheritdoc />
@@ -668,6 +846,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             // Another strat: its branches are not this one's, and a playhead from the last strat means nothing.
             _projectedStrat = document?.Id;
             _drag = null;
+            _pinnedStep = null;
+            _armed = null;
             _projection = null;
             _source = null;
             _syncingPaths = true;
@@ -703,7 +883,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         {
             _mapName = document.Map;
             ReplaceMapAsset(SafeLoad(document.Map));
+            if (!IsReadOnly)
+            {
+                _ = PlacesFor(document.Map, false);
+            }
         }
+
+        Guid? pinned = _pinnedStep;
 
         RefreshPathOptions(document);
         IReadOnlyList<StratPathStep> path = SelectedPath?.BranchId is { } branch
@@ -737,14 +923,19 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         int first = projection.Ticks.Count > 0 ? projection.Ticks[0] : 0;
         Transport.SetRange(first, projection.LastTick);
+
+        // A selected step stays selected through an edit, its time included; a new step becomes the selection.
+        _pinnedStep = pinned;
         if (_seekToStep is { } seekTo)
         {
             _seekToStep = null;
-            int index = projection.IndexOf(seekTo);
-            if (index >= 0)
-            {
-                Transport.Seek(projection.Ticks[index]);
-            }
+            _pinnedStep = seekTo;
+        }
+
+        if (_pinnedStep is { } pin && !Transport.IsPlaying && projection.IndexOf(pin) is var pinIndex and >= 0
+            && Transport.Tick != projection.Ticks[pinIndex])
+        {
+            Transport.Seek(projection.Ticks[pinIndex]);
         }
 
         _stepTrack.Update(projection, document, _callouts);
@@ -754,6 +945,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             ? "a step's time runs backwards: it plays at the step before it until the table is fixed"
             : "";
         UpdateActiveStep();
+        if (_armed is { } armed && (ActiveStep?.Id != armed.StepId || PlaceTarget != armed.Target))
+        {
+            _armed = null;
+        }
+
+        RaiseSetPlace();
         Publish(true);
     }
 
@@ -1091,6 +1288,19 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         if (_projection is { } projection && projection.Path.Count > 0)
         {
             index = projection.Schedule.At(Transport.Tick) is { } window ? projection.Schedule.IndexOf(window.StepId) : 0;
+            if (_pinnedStep is { } pin)
+            {
+                int pinned = projection.IndexOf(pin);
+                if (pinned >= 0 && projection.Ticks[pinned] == Transport.Tick)
+                {
+                    index = pinned;
+                }
+                else
+                {
+                    _pinnedStep = null;
+                }
+            }
+
             StepWindow active = projection.Schedule.Windows[index];
             AnnotationSession session = _ink.Session;
             session.DefaultVisibility = EnvelopeMode.Custom;
@@ -1099,11 +1309,20 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             session.SetCustomWindow(active.FromTick, active.UntilTick ?? projection.LastTick);
         }
 
-        if (index != _activeIndex)
+        Guid? id = _projection is { } p && index >= 0 ? p.Path[index].Step.Id : null;
+        if (index != _activeIndex || id != _activeStepId)
         {
             _activeIndex = index;
+            _activeStepId = id;
+            if (_armed is { } armed && armed.StepId != id)
+            {
+                _armed = null;
+                StatusLine = "";
+            }
+
             OnPropertyChanged(nameof(ActiveStepIndex));
             OnPropertyChanged(nameof(ActiveStep));
+            RaiseSetPlace();
         }
     }
 
@@ -1139,6 +1358,102 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         OnPropertyChanged(nameof(HasDocument));
         OnPropertyChanged(nameof(ClockText));
         OnPropertyChanged(nameof(Projection));
+    }
+
+    // ── Set On Map ───────────────────────────────────────────────────────────────────────────────
+
+    // One click, one write: the mode ends here whether the click found a place or not. A result that lands after
+    // a cancel, another strat or a deleted step writes nothing.
+    private void FinishPlace(ArmedPlace armed, Task<IZonePlaceResolver?> places, double x, double y, double levelMinZ)
+    {
+        if (!ReferenceEquals(_armed, armed))
+        {
+            return;
+        }
+
+        _armed = null;
+        RaiseSetPlace();
+        int index = _session.Document is { } open && open.Id == armed.StratId ? open.Steps.FindIndex(s => s.Id == armed.StepId) : -1;
+        if (index < 0 || _session.Document is not { } document)
+        {
+            StatusLine = "";
+            return;
+        }
+
+        IZonePlaceResolver? zones = places.IsCompletedSuccessfully ? places.Result : null;
+        string? place = zones?.ResolveOnFloor(x, y, levelMinZ);
+        StratStep step = document.Steps[index];
+        string label = TargetLabel(armed.Target, step);
+        string number = armed.Number.ToString(CultureInfo.InvariantCulture);
+
+        if (armed.Target == StratPlaceTarget.To)
+        {
+            if (place is null)
+            {
+                StatusLine = zones is null ? "no places for this map: nothing set" : "no place there: nothing set";
+                return;
+            }
+
+            IReadOnlyList<PatchOp> ops = StepAuthoringPatches.ToPlace(document, index, place);
+            Apply(ops);
+            StatusLine = ops.Count == 0 ? $"step {number}'s {label} is already {Display(place)}" : $"step {number}'s {label} is now {Display(place)}";
+            return;
+        }
+
+        if (step.Utility is null)
+        {
+            StatusLine = "";
+            return;
+        }
+
+        Apply(StepAuthoringPatches.Landing(document, index, place, x, y, levelMinZ));
+        StatusLine = place is null
+            ? $"no place there: step {number}'s landing is the point only"
+            : $"step {number} lands at {Display(place)}";
+    }
+
+    private static string TargetLabel(StratPlaceTarget target, StratStep step) =>
+        target == StratPlaceTarget.Landing ? "landing" : "“" + StratStepFields.ToLabel(step.Verb) + "”";
+
+    private string Display(string place) => _callouts is { } callouts && callouts.IsCanonical(place) ? callouts.Display(place) : place;
+
+    // One load per map, kept for the canvas's life; a failed one, or on request an empty one, is asked again.
+    private Task<IZonePlaceResolver?> PlacesFor(string map, bool retryEmpty)
+    {
+        bool stale = _places is null || !string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+                     || _places.IsFaulted || _places.IsCanceled
+                     || (retryEmpty && _places.IsCompletedSuccessfully && _places.Result is null);
+        if (stale)
+        {
+            _placesMap = map;
+            try
+            {
+                _places = _placesFor(map);
+            }
+            catch (Exception e)
+            {
+                _places = Task.FromException<IZonePlaceResolver?>(e);
+            }
+        }
+
+        return _places!;
+    }
+
+    // The zone source reads files under a lock the first time, so it runs as a queue item, at the front: a user
+    // opened the strat or clicked for a place.
+    private static Task<IZonePlaceResolver?> QueuedPlaces(string map) =>
+        QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.SectionCompute, "Strat places: " + map, "Strat Book",
+            () => (App.Services?.GetService<IZonePlaceResolverSource>() ?? NoZonePlaceResolverSource.Instance).TryGet(map),
+            null, DemoJobPriority.UserRequested);
+
+    private void RaiseSetPlace()
+    {
+        OnPropertyChanged(nameof(PlaceTarget));
+        OnPropertyChanged(nameof(CanSetPlace));
+        OnPropertyChanged(nameof(IsSettingPlace));
+        OnPropertyChanged(nameof(SetPlaceText));
+        OnPropertyChanged(nameof(SetPlaceToolTip));
+        OnPropertyChanged(nameof(IsToolActive));
     }
 
     // ── Map ──────────────────────────────────────────────────────────────────────────────────────
@@ -1195,6 +1510,17 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private static string[] SettingsOverrides() =>
         App.Services?.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? [];
 
+    // Set On Map waiting for its click. Pending once the click is in and the place lookup has not answered.
+    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number)
+    {
+        public Guid StratId { get; } = stratId;
+        public Guid StepId { get; } = stepId;
+        public StratPlaceTarget Target { get; } = target;
+        public string Map { get; } = map;
+        public int Number { get; } = number;
+        public bool Pending { get; set; }
+    }
+
     // A drag's working state. A class, not a struct: MoveTo updates it in place across forty samples.
     private sealed class DragState(string slot, TokenGrip grip, int pathIndex, float x, float y, double levelMinZ, float yaw)
     {
@@ -1208,6 +1534,19 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         public bool Moved { get; set; }
         public bool Turned { get; set; }
     }
+}
+
+/// <summary>What a Set On Map click writes on a step.</summary>
+public enum StratPlaceTarget
+{
+    /// <summary>The step takes no place from the map.</summary>
+    None,
+
+    /// <summary>The step's <c>to</c> place.</summary>
+    To,
+
+    /// <summary>The step's utility landing: the point, its level and the place under it.</summary>
+    Landing
 }
 
 /// <summary>A path the canvas can play: the main line, or the one through a branch.</summary>
