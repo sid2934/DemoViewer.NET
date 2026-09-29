@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.ViewModels.UtilityBook;
@@ -27,11 +29,16 @@ public class StratLineupPickerTests
     {
         private readonly ConcurrentQueue<Action> _posted = new();
 
-        public Harness()
+        public Harness(IDemoProcessingQueue? queue = null, bool defaultPicker = false)
         {
             (Index, Lineup) = StratThrowOriginTests.Indexed();
             Tab = new StratBookTabViewModel(new StratStore(null), null, _posted.Enqueue, false, grenades: Index,
-                lineupMap: map => new UtilityBookTabViewModel(Index, loadMapAsset: _ => null, retire: a => a(), lockedMap: map));
+                canvasMapLoader: defaultPicker ? null : _ => null,
+                lineupMap: defaultPicker
+                    ? null
+                    : (map, asset) => new UtilityBookTabViewModel(Index, loadMapAsset: _ => asset, retire: a => a(), lockedMap: map,
+                        ownsMapAsset: false,
+                        background: queue is null ? null : QueueWork.Section(queue, "Lineup picker", "utility", "section:lineup-picker")));
             Tab.Session.AutoSaveDelay = TimeSpan.FromHours(1);
             Tab.Session.IdleCommitDelay = TimeSpan.FromHours(1);
             Tab.SelectedMap = Map;
@@ -81,6 +88,89 @@ public class StratLineupPickerTests
         }
 
         public string StepJson() => JsonSerializer.SerializeToNode(Step, StratJsonContext.Default.StratStep)!.ToJsonString();
+    }
+
+    // Records each queued job's priority and runs it at once, as a queue with nothing else in it would.
+    private sealed class RecordingQueue : IDemoProcessingQueue
+    {
+        public ConcurrentQueue<DemoJobPriority> Priorities { get; } = new();
+        public System.Collections.ObjectModel.ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
+
+        public event Action? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? CapacityAvailable
+        {
+            add { }
+            remove { }
+        }
+
+        public int MaxConcurrency { get; set; } = 1;
+        public int MaxQueueSize { get; set; } = 200;
+        public bool BackgroundEnabled { get; set; } = true;
+        public bool IsPaused => false;
+        public int QueuedCount => 0;
+        public int RunningCount => 0;
+
+        public Task<CS2DemoKit.Parser.ParsedDemo> RequestForegroundAsync(string? path, ReadOnlyMemory<byte> bytes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
+
+        public int ActiveCount(QueueJobKind kind) => 0;
+
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request)
+        {
+            Priorities.Enqueue(request.Priority);
+            return new DoneHandle(request.RunAsync(new InlineContext()));
+        }
+
+        public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
+
+        public void RemoveByUser(Guid itemId)
+        {
+        }
+
+        public void CancelOwned(string ownerTag, string path)
+        {
+        }
+
+        public void Pause()
+        {
+        }
+
+        public void Resume()
+        {
+        }
+
+        private sealed class InlineContext : IQueueJobContext
+        {
+            public CancellationToken CancellationToken => CancellationToken.None;
+
+            public void Report(int done, int total, string? detail = null)
+            {
+            }
+
+            public Task StepAsideAsync() => Task.CompletedTask;
+
+            public void ReleaseSlot()
+            {
+            }
+        }
+
+        private sealed class DoneHandle(Task completion) : IDemoQueueHandle
+        {
+            public Guid Id { get; } = Guid.NewGuid();
+            public DemoQueueItemState State => completion.IsCompleted ? DemoQueueItemState.Completed : DemoQueueItemState.Running;
+            public Task Completion => completion;
+
+            public void Cancel()
+            {
+            }
+        }
     }
 
     private static Guid AliasOf(GrenadeLineup lineup) => lineup.AliasIds.First(a => a != lineup.Id);
@@ -140,24 +230,166 @@ public class StratLineupPickerTests
     }
 
     [Test]
-    public async Task TheTechniqueCombo_WritesTheKey_AndWheelingBackLeavesNothing()
+    public async Task TheTechniqueCombo_WheelingBackToTheMostThrown_LeavesNothing()
     {
         using Harness h = new();
         h.AddThrow();
         h.Tab.Session.Apply(PatchOp.ReplaceOp("/steps/0/utility", null,
             new JsonObject { ["kind"] = "smoke", ["lineupId"] = h.Lineup.Id.ToString() }));
         await h.WarmAsync();
-        StratStepRow row = h.Editor.Steps[0];
         int depth = h.Tab.Session.UndoDepth;
         string before = h.StepJson();
 
+        // The stored technique is null, which the combo shows as the most thrown one: K0, K1, K0.
+        StratStepRow row = h.Editor.Steps[0];
+        await Assert.That(row.Technique?.Key).IsEqualTo(h.Lineup.Techniques[0].Key);
         row.Technique = row.Techniques[1];
         await Assert.That(h.Step.Utility!.Technique).IsEqualTo(h.Lineup.Techniques[1].Key);
+        row = h.Editor.Steps[0];
+        row.Technique = row.Techniques[0];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.StepJson()).IsEqualTo(before).Because("no explicit copy of the default is left behind");
+            await Assert.That(h.Tab.Session.UndoDepth).IsEqualTo(depth);
+        }
+    }
+
+    [Test]
+    public async Task TheTechniqueCombo_WritesTheKey_AsOneEntry_ThatUndoes()
+    {
+        using Harness h = new();
+        h.AddThrow();
+        h.Tab.Session.Apply(PatchOp.ReplaceOp("/steps/0/utility", null,
+            new JsonObject { ["kind"] = "smoke", ["lineupId"] = h.Lineup.Id.ToString() }));
+        await h.WarmAsync();
+        int depth = h.Tab.Session.UndoDepth;
+        string before = h.StepJson();
+
+        h.Editor.Steps[0].Technique = h.Editor.Steps[0].Techniques[1];
         h.Editor.EndEditBurst();
-        await Assert.That(h.Tab.Session.UndoDepth).IsEqualTo(depth + 1);
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.Step.Utility!.Technique).IsEqualTo(h.Lineup.Techniques[1].Key);
+            await Assert.That(h.Tab.Session.UndoDepth).IsEqualTo(depth + 1);
+        }
 
         h.Tab.UndoCommand.Execute(null);
         await Assert.That(h.StepJson()).IsEqualTo(before);
+    }
+
+    [Test]
+    public async Task ConfirmingWhatTheStepAlreadyHas_WritesNothing_AndKeepsAnAliasId()
+    {
+        using Harness h = new();
+        h.AddThrow();
+        Guid alias = AliasOf(h.Lineup);
+        h.Tab.Session.Apply(PatchOp.ReplaceOp("/steps/0/utility", null,
+            new JsonObject { ["kind"] = "smoke", ["lineupId"] = alias.ToString() }));
+        await h.WarmAsync();
+        string before = h.StepJson();
+        int depth = h.Tab.Session.UndoDepth;
+
+        h.Tab.OpenLineupPickerCommand.Execute(h.Editor.Steps[0]);
+        LineupPickerViewModel picker = h.Tab.LineupPicker!;
+        await Assert.That(picker.CanConfirm).IsTrue().Because("the stored lineup opens selected");
+        picker.ConfirmCommand.Execute(null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.StepJson()).IsEqualTo(before);
+            await Assert.That(h.Tab.Session.UndoDepth).IsEqualTo(depth);
+            await Assert.That(h.Step.Utility!.LineupId).IsEqualTo(alias);
+            await Assert.That(h.Editor.ApplyLineupPick(h.Step.Id, "smoke", h.Lineup.Id, h.Lineup.Techniques[0].Key)).IsFalse();
+        }
+
+        // Another technique of the same lineup writes the technique only, and still keeps the alias id.
+        await Assert.That(h.Editor.ApplyLineupPick(h.Step.Id, "smoke", h.Lineup.Id, h.Lineup.Techniques[1].Key)).IsTrue();
+        using (Assert.Multiple())
+        {
+            await Assert.That(h.Step.Utility!.LineupId).IsEqualTo(alias);
+            await Assert.That(h.Step.Utility.Technique).IsEqualTo(h.Lineup.Techniques[1].Key);
+            await Assert.That(h.Tab.Session.UndoDepth).IsEqualTo(depth + 1);
+        }
+    }
+
+    [Test]
+    public async Task ThePicker_Closes_WhenTheTabHides_TheStratChanges_OrItsStepIsDeleted()
+    {
+        using Harness h = new();
+        StratStepRow row = h.AddThrow();
+
+        h.Tab.OpenLineupPickerCommand.Execute(row);
+        LineupPickerViewModel first = h.Tab.LineupPicker!;
+        h.Tab.OnDeactivated();
+        await Assert.That(h.Tab.LineupPicker).IsNull().Because("a hidden tab keeps no picker");
+        await Assert.That(first.Map.IsDisposed).IsTrue();
+
+        h.Tab.OpenLineupPickerCommand.Execute(h.Editor.Steps[0]);
+        LineupPickerViewModel second = h.Tab.LineupPicker!;
+        h.Editor.RemoveStepCommand.Execute(h.Editor.Steps[0]);
+        await Assert.That(h.Tab.LineupPicker).IsNull().Because("its step is gone");
+        await Assert.That(second.Map.IsDisposed).IsTrue();
+
+        StratStepRow again = h.AddThrow();
+        Guid stratId = h.Tab.Session.Document!.Id;
+        h.Tab.OpenLineupPickerCommand.Execute(again);
+        LineupPickerViewModel third = h.Tab.LineupPicker!;
+        h.Tab.NewStratCommand.Execute(null);
+        await Assert.That(h.Tab.Session.Document!.Id).IsNotEqualTo(stratId);
+        await Assert.That(h.Tab.LineupPicker).IsNull().Because("another strat is open");
+        await Assert.That(third.Map.IsDisposed).IsTrue();
+
+        StratStepRow last = h.AddThrow();
+        h.Tab.OpenLineupPickerCommand.Execute(last);
+        h.Tab.SelectedStrat = null;
+        await Assert.That(h.Tab.LineupPicker).IsNull().Because("no strat is open");
+    }
+
+    [Test]
+    public async Task OpeningThePicker_QueuesItsReadsAsUserWork()
+    {
+        RecordingQueue queue = new();
+        using Harness h = new(queue);
+        StratStepRow row = h.AddThrow();
+
+        h.Tab.OpenLineupPickerCommand.Execute(row);
+        h.Tab.LineupPicker!.Kind = "flash";
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Priorities).IsNotEmpty();
+            await Assert.That(queue.Priorities.All(p => p == DemoJobPriority.UserRequested)).IsTrue()
+                .Because("the picker is opened and driven by the user, so its reads go to the front");
+        }
+
+        h.Tab.LineupPicker!.CancelCommand.Execute(null);
+    }
+
+    [Test]
+    public async Task TheDefaultPicker_DrawsTheCanvasBundle_AndLeavesItToTheCanvas()
+    {
+        using Harness h = new(defaultPicker: true);
+        StratStepRow row = h.AddThrow();
+
+        h.Tab.OpenLineupPickerCommand.Execute(row);
+        LineupPickerViewModel picker = h.Tab.LineupPicker!;
+        for (int i = 0; i < 500 && !picker.Map.HasGroups; i++)
+        {
+            await Task.Delay(10);
+            h.Pump();
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(picker.Map.HasGroups).IsTrue();
+            await Assert.That(h.Tab.Canvas.MapAsset).IsNotNull().Because("the baked de_mirage bundle ships with the app");
+            await Assert.That(picker.Map.MapAsset).IsSameReferenceAs(h.Tab.Canvas.MapAsset);
+        }
+
+        LoadedMapAsset shared = h.Tab.Canvas.MapAsset!;
+        picker.CancelCommand.Execute(null);
+        h.Pump();
+        await Assert.That(h.Tab.Canvas.MapAsset).IsSameReferenceAs(shared).Because("the canvas still owns and draws it");
     }
 
     [Test]
