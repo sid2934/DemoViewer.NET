@@ -78,6 +78,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private Task<IZonePlaceResolver?>? _places;
     private string? _placesMap;
     private Guid? _pinnedStep;
+    private string? _selectedSlot;
     private CalloutResolver? _callouts;
     private bool _disposed;
     private bool _originsMoved;
@@ -210,6 +211,39 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// </summary>
     public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace;
 
+    /// <summary>
+    ///     The slot whose line is selected on the active step: the chosen one when the step has a line for it, else its
+    ///     first line; null for a step for everyone. Set On Map writes this line's place.
+    /// </summary>
+    public string? SelectedLineSlot => ActiveStep is { } step ? LineSlotOn(step, _selectedSlot) : null;
+
+    /// <summary>Chooses a line by its slot: the rows, and a press on a token, set it. Kept across steps.</summary>
+    /// <param name="slot">A slot letter, or null.</param>
+    public void SelectLine(string? slot)
+    {
+        if (string.Equals(_selectedSlot, slot, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _selectedSlot = slot;
+        if (_armed is { } armed && !string.Equals(armed.Slot, SelectedLineSlot, StringComparison.Ordinal))
+        {
+            CancelSetPlace();
+        }
+
+        RaiseSetPlace();
+    }
+
+    private static string? LineSlotOn(StratStep step, string? wanted)
+    {
+        IReadOnlyList<StepAssignment> lines = StratStepLines.Of(step);
+        return lines.Any(l => string.Equals(l.Slot, wanted, StringComparison.Ordinal)) ? wanted : lines.Count > 0 ? lines[0].Slot : null;
+    }
+
+    /// <summary>The place centres the projection faces tokens with, or null until the map's zones are in memory.</summary>
+    public PlaceCentreResolver? CurrentPlaceCentres => _session.Document is { } document ? PlaceCentres(document.Map) : null;
+
     /// <summary>What Set On Map would write on the active step: its <c>to</c>, its landing, or nothing.</summary>
     public StratPlaceTarget PlaceTarget =>
         EditableActiveStep() is not null && ActiveStep is { } step ? PlaceTargetFor(step) : StratPlaceTarget.None;
@@ -222,7 +256,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <summary>The Set On Map button's words, naming the field the way the step row does.</summary>
     public string SetPlaceText => PlaceTarget switch
     {
-        StratPlaceTarget.To => "Set “" + StratStepFields.ToLabel(ActiveStep?.Verb) + "” on map",
+        StratPlaceTarget.To => "Set " + (SelectedLineSlot is { } slot && ActiveStep is { } step && StratStepLines.HasLines(step) ? slot + "'s " : "")
+                               + "“" + StratStepFields.ToLabel(ActiveStep?.Verb) + "” on map",
         StratPlaceTarget.Landing => "Set landing on map",
         _ => ""
     };
@@ -295,6 +330,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public bool ShowVision => false;
 
     public bool ShowBombRing => false;
+
+    /// <summary>Each token shows where it looks; on the editing canvas a drag of the cone turns it.</summary>
+    public bool ShowViewCones => true;
 
     public bool ShowZones => false;
 
@@ -411,8 +449,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return false;
         }
 
+        string? slot = target == StratPlaceTarget.To && StratStepLines.HasLines(step) ? SelectedLineSlot : null;
         _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1,
-            string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {TargetLabel(target, step)}; Esc cancels"));
+            string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {(slot is null ? "" : slot + " ")}{TargetLabel(target, step)}; Esc cancels"),
+            slot);
         _ = PlacesFor(document.Map, true);
         StatusLine = _armed.Prompt;
         RaiseSetPlace();
@@ -674,13 +714,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         {
             // Only the tokens drawn in this pane: a stacked map shows the same XY on every floor.
             if (!pane.Level.Contains(marker.WorldZ) || marker.Slot < 0 || marker.Slot >= TokenSlots.All.Count
-                || TokenHitTest.Classify(marker.WorldX, marker.WorldY, marker.YawDegrees, world, worldRadius) is not { } hit)
+                || TokenHitTest.Classify(marker.WorldX, marker.WorldY, marker.YawDegrees, world, worldRadius, ShowViewCones) is not { } hit)
             {
                 continue;
             }
 
+            // A disc beats a cone: cones overlap other tokens, and a press on a token must move it.
             double dx = world.X - marker.WorldX, dy = world.Y - marker.WorldY;
-            double distance = dx * dx + dy * dy;
+            double distance = dx * dx + dy * dy + (hit == TokenGrip.Heading ? 1e12 : 0);
             if (distance < best)
             {
                 best = distance;
@@ -711,6 +752,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         // The drag writes the active step's keyframe, so the canvas shows that step's moment while it does:
         // what is dragged is what is placed. Taken before the seek, which on a shared tick would pick the next step.
         int pathIndex = _activeIndex;
+        if (StratVocabulary.Slots.Contains(slot))
+        {
+            SelectLine(slot);
+        }
+
         Transport.Pause();
         _pinnedStep = projection.Path[pathIndex].Step.Id;
         int tick = projection.Ticks[pathIndex];
@@ -750,7 +796,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         drag.Moved = true;
         Tracks.Replace(projection.TrackWith(slot, drag.PathIndex,
-            new TokenPlacement(drag.X, drag.Y, drag.LevelMinZ, drag.Yaw)));
+            new TokenPlacement(drag.X, drag.Y, drag.LevelMinZ, drag.Yaw), drag.Turned));
         Publish(false);
     }
 
@@ -771,11 +817,26 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return;
         }
 
+        int stepIndex = projection.Path[drag.PathIndex].StepIndex;
+
+        // A turn of one of the strat's own tokens is its line's view angle, which beats the watched place.
+        if (drag.Grip == TokenGrip.Heading && StratVocabulary.Slots.Contains(drag.Slot))
+        {
+            if (drag.Turned)
+            {
+                Apply(StratLinePatches.WatchYaw(document.Steps[stepIndex], string.Create(CultureInfo.InvariantCulture, $"/steps/{stepIndex}"),
+                    drag.Slot, drag.Yaw));
+            }
+
+            ReprojectIfOriginsMoved();
+            return;
+        }
+
         // A body move keeps the entry's own facing (absent: the previous keyframe's); a heading drag or a
         // Shift snap writes one.
         double? yaw = yawDegrees ?? (drag.Turned ? drag.Yaw : null);
         Apply([
-            StepAuthoringPatches.TokenPosition(document, projection.Path[drag.PathIndex].StepIndex, drag.Slot,
+            StepAuthoringPatches.TokenPosition(document, stepIndex, drag.Slot,
                 drag.X, drag.Y, drag.LevelMinZ, yaw)
         ]);
         ReprojectIfOriginsMoved();
@@ -1400,9 +1461,18 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 return;
             }
 
-            IReadOnlyList<PatchOp> ops = StepAuthoringPatches.ToPlace(document, index, place);
+            IReadOnlyList<PatchOp> ops = armed.Slot is { } slot
+                ? StratLinePatches.EditLine(step, string.Create(CultureInfo.InvariantCulture, $"/steps/{index}"), slot, line =>
+                {
+                    line.To ??= new PlaceRef();
+                    line.To.Place = place;
+                })
+                : StepAuthoringPatches.ToPlace(document, index, place);
             Apply(ops);
-            StatusLine = ops.Count == 0 ? $"step {number}'s {label} is already {Display(place)}" : $"step {number}'s {label} is now {Display(place)}";
+            string who = armed.Slot is null ? "" : armed.Slot + "'s ";
+            StatusLine = ops.Count == 0
+                ? $"step {number}: {who}{label} is already {Display(place)}"
+                : $"step {number}: {who}{label} is now {Display(place)}";
             return;
         }
 
@@ -1496,6 +1566,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         OnPropertyChanged(nameof(SetPlaceText));
         OnPropertyChanged(nameof(SetPlaceToolTip));
         OnPropertyChanged(nameof(IsToolActive));
+        OnPropertyChanged(nameof(SelectedLineSlot));
     }
 
     // ── Map ──────────────────────────────────────────────────────────────────────────────────────
@@ -1553,9 +1624,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         App.Services?.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? [];
 
     // Set On Map waiting for its click. Pending once the click is in and the place lookup has not answered.
-    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number, string prompt)
+    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number, string prompt, string? slot)
     {
         public string Prompt { get; } = prompt;
+
+        // The line whose place is set; null for the step's own to.
+        public string? Slot { get; } = slot;
         public Guid StratId { get; } = stratId;
         public Guid StepId { get; } = stepId;
         public StratPlaceTarget Target { get; } = target;

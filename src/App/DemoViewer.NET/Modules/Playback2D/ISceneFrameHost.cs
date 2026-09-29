@@ -66,6 +66,9 @@ internal interface ISceneFrameHost
     /// <summary>The bomb and its ring.</summary>
     bool ShowBombRing { get; }
 
+    /// <summary>A view cone on each token, whose drag turns it: the strat canvas's.</summary>
+    bool ShowViewCones => false;
+
     /// <summary>Zone outlines. <see cref="Zones" /> is only read while this is on.</summary>
     bool ShowZones { get; }
 
