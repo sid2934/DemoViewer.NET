@@ -399,7 +399,7 @@
         "playback2d.annotations",
         "hud.clock"
       ],
-      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. The smoke step's tick: A, B and the opponent O1 at their first keyframes, the molotov's arrow not yet visible (it starts at Molly), the smoke step's own arrow at full opacity (right at its window's FromTick, so no fade-in remains), hud.clock at 1:30. step-authoring.md §7 describes this tick as reading 1:55; that number predates the schema sample's atSeconds values, and the sample (schema-v1.sample.dvstrat.json) is what this entry actually projects, so the code's 1:30 is what is pinned here."
+      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. The smoke step's tick: A, B and the opponent O1 at their first keyframes, the molotov's arrow not yet visible (it starts at Molly), the smoke just released from its thrower and not yet drawn (a flight is one point at its release tick), the smoke step's own arrow at full opacity (right at its window's FromTick, so no fade-in remains), hud.clock at 1:30. step-authoring.md §7 describes this tick as reading 1:55; that number predates the schema sample's atSeconds values, and the sample (schema-v1.sample.dvstrat.json) is what this entry actually projects, so the code's 1:30 is what is pinned here."
     },
     {
       "name": "strat-mirage-exec-branch",
