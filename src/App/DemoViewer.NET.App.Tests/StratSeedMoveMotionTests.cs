@@ -155,10 +155,12 @@ public class StratSeedMoveMotionTests
     }
 
     [Test]
-    public async Task TheLurker_WalksToItsLine_ThenWalksItsRotate_AndNeverRuns()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TheLurker_WalksToItsLine_ThenWalksItsRotate_AndNeverRuns(bool marked)
     {
         IZonePlaceResolver map = Dust2();
-        StratSceneProjection projection = Project(ExecuteB(), map);
+        StratSceneProjection projection = Project(marked ? Marked() : ExecuteB(), map);
         TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
         int there = WalkTicks(650 - -610, 140 - -800);
         int rotate = Tick(39);

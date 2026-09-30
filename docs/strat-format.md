@@ -408,7 +408,9 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   position); then the destination; then a carried position; then where the token already is. An authored position
   and a destination conflict only on a position verb, where the position is the exact spot and the destination is
   not used. On a travel verb (move, push, rotate, `other`, lurk) they are two halves of one move: the position is
-  where the token is at the step's time and the destination is where it goes from there.
+  where the token is at the step's time and the destination is where it goes from there. In a captured or mined
+  strat (`origin` set, or the mined tag) a position is where the player was seen, so it is the spot on every verb and
+  a captured move does not run on to its majority `to` (`StratSceneProjection.IsObserved`).
 * **Several steps on one tick.** Positions on a tick settle before its destinations, and steps apply in path order.
   * A later step's destination for a slot replaces an earlier one's on that tick: the token leaves once, for the later
     target. A lurk's first area is the exception. It does not replace a place another step on that tick sent the

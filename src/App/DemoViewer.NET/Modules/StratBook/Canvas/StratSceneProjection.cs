@@ -303,7 +303,7 @@ public sealed class StratSceneProjection
         }
 
         PlaceSet places = new(placeCentres, placeArrivals, placeContains, canvas.DefaultLevelMinZ ?? 0, roundSeconds,
-            IsLegacyCarry(document));
+            IsLegacyCarry(document), IsObserved(document));
         Dictionary<string, SlotPlan> plans = Fanned(TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
             StringComparer.Ordinal));
         List<TokenTrack> tracks = [];
@@ -533,8 +533,9 @@ public sealed class StratSceneProjection
                 moved = false;
             }
 
-            // A travel verb's entry is its departure point; only a position verb's entry blocks its destination.
-            if (to is not null && !fromOrigin && (placement is null || motion is StepMotion.Travel or StepMotion.Lurk))
+            // A travel verb's entry is its departure point; only a position verb's entry blocks its destination. A
+            // captured entry is where the player was seen, so it is the spot on every verb.
+            if (to is not null && !fromOrigin && (placement is null || (!places.Observed && motion is StepMotion.Travel or StepMotion.Lurk)))
             {
                 SendTo(events, tick, i, motion, to, watch, lurking == tick);
                 departed = tick;
@@ -895,8 +896,20 @@ public sealed class StratSceneProjection
     ///     The file predates the carried mark (<see cref="IsLegacyCarry" />), so an unmarked copy of the entry before is
     ///     read as carried.
     /// </param>
+    /// <param name="Observed">The strat was captured or mined (<see cref="IsObserved" />).</param>
     internal sealed record PlaceSet(PlaceCentreResolver? Centres, PlaceArrivalResolver? Arrivals, PlaceContainsResolver? Contains,
-        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false);
+        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false, bool Observed = false);
+
+    /// <summary>
+    ///     Whether the strat was captured from a round or mined: its positions are where players were seen, so a travel
+    ///     step's position is where the token is, not where it leaves from.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    public static bool IsObserved(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal);
+    }
 
     /// <summary>
     ///     Whether an unmarked position that copies the slot's entry before it reads as carried: only in a file written
