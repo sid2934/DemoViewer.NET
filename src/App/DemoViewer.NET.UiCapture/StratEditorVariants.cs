@@ -201,6 +201,46 @@ public static partial class Variants
         return view;
     }
 
+    // A lurk whose rotate-to is a point picked outside every callout, and its lurk areas field focused with the
+    // callout list open over the editor at its narrowest.
+    private static StratBookHubView StratEditorLocationList()
+    {
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(false, false, configure: vm =>
+        {
+            strats = vm;
+            StratStep lurk = new()
+            {
+                Id = Guid.NewGuid(), AtSeconds = vm.Session.Document!.Steps[^1].AtSeconds - 5, Actor = "E", Verb = "lurk",
+                Lurk = new StepLurk
+                {
+                    Areas = ["PalaceInterior"],
+                    Rotate = new LurkRotate { AtSeconds = 40, To = new PlaceRef { X = -1234.4, Y = -560.6, LevelMinZ = -256 } }
+                }
+            };
+            vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(lurk, StratJsonContext.Default.StratStep)));
+        });
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (view.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault(c => c.Name == "StepRows") is not { } rows
+                || rows.ContainerFromIndex(strats!.Editor.Steps.Count - 1) is not { } row)
+            {
+                return;
+            }
+
+            row.BringIntoView();
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (row.GetVisualDescendants().OfType<Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
+                        ?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } box)
+                {
+                    box.Focus();
+                }
+            }, DispatcherPriority.Background);
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
     {
         StratStore store = new(null);

@@ -468,13 +468,14 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   no lines is a step for everyone, one line with no watch is a plain step (the actor rewritten, `assignments`
   removed), five bare lines to one place fold back into a step for everyone, anything else is `assignments` with the
   summary actor and no step-level `to`. A line's slot combo lists its own slot and the free ones, and is a burst field
-  like the verb. A line's watching shows when the verb uses it or the line holds one. Watching is an `AutoCompleteBox`: callouts comma separated, suggested from the map's places by the
-  owner's word (`StratLineRow.WatchFilter` matches the text after the last comma, `WatchSelector` keeps the ones
-  before it), stored canonical and shown as callouts, written on focus loss. The angle button (`135°`) shows only
+  like the verb. A line's watching shows when the verb uses it or the line holds one. Every place and watching
+  field in the row (and from, lands at, lurk areas and rotate to) is a location field (see "Location field"): stored
+  canonical, shown as callouts or coordinates, written on focus loss or a pick. The angle button (`135°`) shows only
   while `watch.yawDegrees` is set and clears it, so the cone faces the first watched place again. The line Set On
   Map writes has a 2 px `AccentInteractive` bar on its left (`Border.stratLine.lineSelected`); focus or a press in a
-  line's field selects its step and the line. At 1280 with the rail and list open the line's text fields are about
-  95 px each, so long callout lists trim inside the field.
+  line's field selects its step and the line. At 1280 with the rail and list open the line's fields are about
+  95 px each, so long callout lists trim inside the field; from, lands at and rotate to are 150 px, so a coordinate
+  with both buttons reads whole.
 - **Verb change:** the verb and a remove for each member the new verb does not use and the step has (a lurk
   included); each line's `to` and watch the verb does not use are cleared through `StratLinePatches` in the same
   entry, so a one-player line that loses its watch folds back into a plain step.
@@ -536,10 +537,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
   | Key | Where | Does |
   |---|---|---|
-  | Enter | a single-line field, or the row | commits the field, adds a step after the row |
+  | Enter | a single-line field, or the row | commits the field, adds a step after the row (a location field's list a user has typed in picks instead) |
   | Ctrl+D | anywhere in the row but an open combo | commits the field, duplicates the row |
   | Delete | the row itself, never inside a field | removes the row (and its branches); focus stays at that index |
-  | Escape | a field | leaves the field for its row, committing it |
+  | Escape | a field | leaves the field for its row, committing it (a location field's list a user has typed in closes first) |
   | Alt+Up / Alt+Down | a field or the row, not a combo (Alt+Down opens one) | moves the row |
   | Tab | | the visible fields left to right, then the next row's time |
 
@@ -575,10 +576,51 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Known:** the card's clip lookup (`LineupClipPlanner.FinishedGif`, two `File.Exists`) runs on the UI thread
   when a position is selected, as it does on the Utility Book tab.
 
+### Location field (the Strats editor)
+- **Files:** `Controls/PlaceField.axaml` (+ `.cs`), `Controls/PlaceFieldModel.cs` (the logic, `PlaceFieldOptions`),
+  `Services/Strats/StratLocations.cs` (reading and printing a location).
+- **Purpose:** one control for every location a step holds (from, to, lands at, watching, and the lurk and rotate
+  fields), so each can be typed, picked from the map's callouts, or picked on the map.
+- **In the step row:** `GroupPlaceField` and `GroupWatchField` (the compact who's place and watching; they write every
+  line, `StratLocationField.AllLines`), `LinePlaceField` and `LineWatchField` (one line's, by slot), `FromField`,
+  `LandingField`, `LurkAreasField` (multi) and `RotateToField`; `StrayToField` shows a step-level `to` beside lines,
+  disabled, beside its clear button. Each binds `Value` to the row's `*Value`, `PickCommandParameter` to its
+  `*Target` descriptor, `PickCommand` to the tab's `PickOnMapCommand`, and `ArmedTarget` to `Canvas.ArmedField`, so
+  the field that a map click will write shows it.
+- **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, lurk areas). Places are stored canonical and
+  shown by the owner's word; a place the map lacks shows as stored; a point alone shows as `(1234, -561)`, and keeps
+  its point for as long as its text is unchanged. Typed text resolves through the owner's callouts, else is stored as
+  typed, never numbers alone. A typed coordinate (`(1234, -560)`, `1234, -560` or `1234 -560`, negatives allowed) is a
+  point: its level is the stored point's, else the strat's default canvas level, else none. A commit (focus loss,
+  Enter or a click in the list) writes only when the value changed. A value pushed from outside (a map pick, an undo)
+  shows at once unless the field holds an edit not yet committed.
+- **List:** focus opens the map's callouts (`PlaceFieldOptions.For(resolver)`, built once per `CalloutResolver`
+  and shared by every field; typing filters that cached list, names starting with the text first, then names
+  containing it, matching display name, canonical name and every alias; an exact match comes first, so Enter and a
+  blur store the same place). The stored callout is highlighted. The list
+  opens below the field, or above when fewer than its rows (at most 200 px) fit below and more room is above
+  (`PlaceField.ChooseUp`), chosen again once layout settles, since a field reached by Tab is scrolled into view
+  after it opened. The list is drawn in the window's overlay layer. A multi field filters and replaces the text
+  after the last comma; commas inside a coordinate's parentheses do not split it.
+- **Keys:** the list a focus opens is only a view: Enter and Esc there close it and go on to the row (Enter adds a
+  step, Esc leaves the field), so the row's keys work as before. Once the user types, moves the highlight or opens the
+  list with Down, the list holds Up, Down, Enter (pick the highlighted callout, or commit the text) and Esc (close the
+  list), taking them at the window with a tunnel handler so the row's own tunnel handler never sees them. With no list
+  showing (closed, or no callout matches the text) the keys are the row's; Down opens the list, and Esc while the
+  field is armed on the map also cancels the pick (after the row's Esc, which it listens to handled). Picking the
+  stored callout writes nothing.
+- **Buttons:** inside the field's right edge, not tab stops: `⌖` pick on map (shown when `PickCommand` is set;
+  `AccentInteractive` and bold while `IsPicking`), and `✕` clear, shown only while the value holds a point without
+  a place. The buttons are 16 px wide with 2 px padding: at 95 px with both showing, the text keeps at least 45 px
+  (pinned by `StratLocationFieldTests`).
+- **Tokens:** list `CardBg` with a `BorderSubtle` border, rows `TextValue`, buttons `TextMid` with
+  `PanelHeaderHoverDeep` on hover.
+
 ### Map-first editing (the Strats editor and canvas)
 - **Files:** `ViewModels/StratBook/StratStepSelection.cs`, `SelectStep`, `BeginSetPlace` and `TryTagPositionAt` in
-  `Modules/StratBook/Canvas/StratCanvasViewModel.cs`, `ToPlace` and `Landing` in `StepAuthoringPatches.cs`, the row
-  handlers in `Views/StratBook/StratBookTabView.axaml.cs`, the toolbar toggle in `StratCanvasView.axaml`.
+  `Modules/StratBook/Canvas/StratCanvasViewModel.cs`, `Services/Strats/StratLocationPatches.cs` (the field descriptor
+  and its writer), the row handlers in `Views/StratBook/StratBookTabView.axaml.cs`, the toolbar toggle in
+  `StratCanvasView.axaml`.
 - **One selected step:** the canvas's active step. A press or focus in a step row selects that step: the transport
   pauses and moves to its time, and the step stays active there even when the next step shares its tick (the
   schedule alone would give the later one). The transport, the step track, `[` `]`, a new step and playback move
@@ -597,12 +639,22 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   and no lineup (a lineup says where it lands); wait, call, a lineup throw and a throw with no kind offer nothing.
   One click, one write, one undo entry, then the mode ends. The click comes through `TryTagPositionAt`, ahead of
   the pointer tools, and resolves with `IZonePlaceResolver.ResolveOnFloor` on the clicked pane's floor key.
-- **Misses:** a `to` click on no place writes nothing and says so on the status line. A landing click writes the
-  point and level anyway and drops the stored place, which named the old point. With no zones for the map (none
-  baked, or the read failed) a `to` click writes nothing and a landing click keeps the stored place.
-- **Cancel:** Esc (the mode counts as an active tool, so Esc resolves to cancel even under pan), the toggle, a
-  change of selected step or strat, or a verb change that drops the field. A click whose place lookup is still
-  in flight is dropped by any of them.
+- **Any location field:** the mode aims at one `StratLocationField` (step, line slot, every line or none, and
+  `from`, `to`, landing, watching, lurk area or rotate to). A compact who's place and watching write every line; a
+  row shown apart writes the selected line; the toolbar's `to` follows the same rule, and a lurk's toolbar field is a
+  lurk area. The toolbar toggle derives it from the verb as above; a location control's pick button
+  aims at its own field through `StratStepSelection.PickOnMap`, which selects the step and line first and cancels
+  when pressed again. `StratCanvasViewModel.ArmedField` says which field is armed; the toolbar then names it
+  (`Set “from” on map`, `Set B's watching on map`).
+- **Hits and misses:** a click inside a place stores the place and the point; a click in no place stores the point
+  alone and drops the stored place, which named another spot. On watching and lurk areas, a click adds the place, or the point
+  when it is in no place, and a place already watched adds nothing. With no zones for the map (none baked, or the
+  read failed) a click sets the point and keeps the stored place. The status line says which.
+- **Cancel:** Esc (the mode counts as an active tool, so Esc resolves to cancel even under pan; in the armed field
+  itself, Esc with its list closed), the toggle or the field's pick button again, a change of selected step or
+  strat, or an edit after which the field no longer applies (a verb that drops it, a landing without utility). A
+  toolbar-armed pick also ends when the toolbar would pick another field. A click whose place lookup is still in
+  flight is dropped by any of them.
 - **Places off the UI thread:** the map's zones load through the processing queue (`SectionCompute`, user
   priority) when the canvas first shows the map, one read in flight per map across canvases; a click before they
   land waits for that item.

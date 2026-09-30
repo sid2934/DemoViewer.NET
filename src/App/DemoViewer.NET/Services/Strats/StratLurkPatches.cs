@@ -22,15 +22,15 @@ public static class StratLurkPatches
         return step.Lurk is { } lurk ? Clone(lurk) : new StepLurk();
     }
 
-    /// <summary>Whether a lurk says nothing: no area, no rotate and no unknown field.</summary>
+    /// <summary>Whether a lurk says nothing: no area, no area point, no rotate and no unknown field.</summary>
     /// <param name="lurk">The lurk.</param>
     public static bool IsEmpty(StepLurk lurk) =>
-        lurk.Areas.Count == 0 && (lurk.Rotate is null || IsEmpty(lurk.Rotate)) && lurk.Extra is not { Count: > 0 };
+        lurk.Areas.Count == 0 && lurk.AreaPoints is not { Count: > 0 } && (lurk.Rotate is null || IsEmpty(lurk.Rotate)) && lurk.Extra is not { Count: > 0 };
 
     /// <summary>Whether a rotate says nothing: no time, condition, place or unknown field.</summary>
     /// <param name="rotate">The rotate.</param>
     public static bool IsEmpty(LurkRotate rotate) =>
-        rotate.AtSeconds is null && string.IsNullOrWhiteSpace(rotate.When) && string.IsNullOrEmpty(rotate.To?.Place)
+        rotate.AtSeconds is null && string.IsNullOrWhiteSpace(rotate.When) && !StratLocations.IsSet(rotate.To)
         && rotate.To?.Extra is not { Count: > 0 } && rotate.Extra is not { Count: > 0 };
 
     /// <summary>Ops that make the step's lurk <paramref name="target" />; empty when nothing changes.</summary>
@@ -98,6 +98,12 @@ public static class StratLurkPatches
     private static StepLurk? Canonical(StepLurk lurk)
     {
         lurk.Areas = [.. lurk.Areas.Where(a => !string.IsNullOrEmpty(a)).Distinct(StringComparer.Ordinal)];
+        if (lurk.AreaPoints is { } points)
+        {
+            points.RemoveAll(p => !StratLocations.HasPoint(p));
+            lurk.AreaPoints = points.Count == 0 ? null : points;
+        }
+
         if (lurk.Rotate is { } rotate)
         {
             if (string.IsNullOrWhiteSpace(rotate.When))
@@ -105,7 +111,7 @@ public static class StratLurkPatches
                 rotate.When = null;
             }
 
-            if (rotate.To is { } to && string.IsNullOrEmpty(to.Place) && to.Extra is not { Count: > 0 })
+            if (rotate.To is { } to && !StratLocations.IsSet(to) && to.Extra is not { Count: > 0 })
             {
                 rotate.To = null;
             }

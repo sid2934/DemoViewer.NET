@@ -83,14 +83,15 @@ public class StratStepKeysTests
             int steps = vm.Session.Document!.Steps.Count;
             int depth = vm.Session.UndoDepth;
 
-            AutoCompleteBox watching = RowContainer(view, index).GetVisualDescendants().OfType<AutoCompleteBox>().Single(a => a.Name == "GroupWatchField");
+            DemoViewer.NET.Controls.PlaceField watching = RowContainer(view, index).GetVisualDescendants().OfType<DemoViewer.NET.Controls.PlaceField>()
+                .Single(a => a.Name == "GroupWatchField");
             watching.GetVisualDescendants().OfType<TextBox>().First().Focus();
             Dispatcher.UIThread.RunJobs();
             window.KeyTextInput("Bombsite");
             Dispatcher.UIThread.RunJobs();
             await Assert.That(watching.IsDropDownOpen).IsTrue().Because("the map's callouts are suggested");
 
-            window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            // The first match is highlighted as you type; Enter picks it.
             window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();
             RowContainer(view, index).Focus();

@@ -73,6 +73,18 @@ public class StratEditorRoomTests
                 }
             }
 
+            // Each location field keeps room for its text beside its buttons.
+            List<string> narrow = [];
+            List<Controls.PlaceField> fields = [.. content.GetVisualDescendants().OfType<Controls.PlaceField>().Where(f => f.IsEffectivelyVisible)];
+            foreach (Controls.PlaceField field in fields)
+            {
+                double text = field.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().FirstOrDefault()?.Bounds.Width ?? 0;
+                if (text < 45)
+                {
+                    narrow.Add($"{field.Name} text {text:F0}");
+                }
+            }
+
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir,
                 collapsed ? "strat-editor-1280-collapsed.png" : "strat-editor-1280.png"), new PngBitmapEncoderOptions());
             window.Close();
@@ -83,6 +95,8 @@ public class StratEditorRoomTests
                 await Assert.That(scroll.Extent.Width).IsLessThanOrEqualTo(viewport + 0.5);
                 await Assert.That(overflow).IsEmpty()
                     .Because($"the editor is {viewport:F0} wide: {string.Join("; ", overflow.Take(8))}");
+                await Assert.That(fields.Count).IsGreaterThan(10).Because("the seeded rows show their location fields");
+                await Assert.That(narrow).IsEmpty().Because(string.Join("; ", narrow.Take(8)));
             }
         });
 
@@ -190,7 +204,7 @@ public class StratEditorRoomTests
 
         // Every field of the widest rows holds a value: other shows them all, and a throw has a lineup.
         int other = StratVocabulary.Verbs.ToList().IndexOf("other");
-        vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{other}/from", null, new JsonObject { ["place"] = "TSpawn" }));
+        vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{other}/from", null, new JsonObject { ["x"] = -1234.4, ["y"] = -2560.6, ["levelMinZ"] = -256 }));
         vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{other}/to", null, new JsonObject { ["place"] = "TopofMid" }));
         vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{other}/utility", null, new JsonObject
         {
@@ -212,7 +226,8 @@ public class StratEditorRoomTests
                 new StepAssignment { Slot = "C", To = new PlaceRef { Place = "Connector" }, Watch = new StepWatch { Places = ["Stairs", "Jungle"] } },
                 new StepAssignment
                 {
-                    Slot = "D", To = new PlaceRef { Place = "Stairs" }, Watch = new StepWatch { Places = ["TRamp", "PalaceAlley"], YawDegrees = 135 }
+                    Slot = "D", To = new PlaceRef { X = -1234.4, Y = -2560.6, LevelMinZ = -256 },
+                    Watch = new StepWatch { Places = ["TRamp", "PalaceAlley"], Points = [new PlaceRef { X = -900, Y = -1500, LevelMinZ = -256 }], YawDegrees = 135 }
                 }
             ]
         };
@@ -235,7 +250,11 @@ public class StratEditorRoomTests
         vm.Session.Apply(PatchOp.AddOp($"/steps/{lurk}/lurk", new JsonObject
         {
             ["areas"] = new JsonArray("PalaceInterior", "Connector", "Jungle"),
-            ["rotate"] = new JsonObject { ["atSeconds"] = 40, ["when"] = "after first kill", ["to"] = new JsonObject { ["place"] = "BombsiteB" } }
+            ["areaPoints"] = new JsonArray(new JsonObject { ["x"] = -900, ["y"] = -1500, ["levelMinZ"] = -256 }),
+            ["rotate"] = new JsonObject
+            {
+                ["atSeconds"] = 40, ["when"] = "after first kill", ["to"] = new JsonObject { ["x"] = -1234.4, ["y"] = -2560.6, ["levelMinZ"] = -256 }
+            }
         }));
 
         // The editor's catalog groups the map off the UI thread and posts back.

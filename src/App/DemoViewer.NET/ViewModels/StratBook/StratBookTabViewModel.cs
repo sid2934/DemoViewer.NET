@@ -475,6 +475,17 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     ///     Opens the lineup picker for a throw step on the strat's map, with the step's lineup selected when it has
     ///     one (an alias id resolved). Confirm writes kind, lineup and technique as one undo entry.
     /// </summary>
+    /// <summary>A location field's pick button: the next map click writes that field; again, it cancels.</summary>
+    /// <param name="field">The field.</param>
+    [RelayCommand]
+    private void PickOnMap(StratLocationField? field)
+    {
+        if (field is not null)
+        {
+            StepSelection.PickOnMap(field);
+        }
+    }
+
     [RelayCommand]
     private void OpenLineupPicker(StratStepRow? row)
     {
