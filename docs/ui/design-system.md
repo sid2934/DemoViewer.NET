@@ -473,7 +473,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   whole line moves to the slot picked, watch and angle included; a slot another line holds swaps the two lines'
   slots (`StratLinePatches.ChangeSlot`), so re-lettering players never needs a remove and `+ player`, which would
   drop the removed player's line. Swap rather than refuse: refusing left remove and re-add as the only way to
-  re-letter. A line's watching shows when the verb uses it or the line holds one. Every place and watching
+  re-letter. A split step for everyone lists only the line's own slot, since any change folds back to the same
+  step. A combo pick that writes nothing reprojects the row, so a combo never shows a value the file does not hold. A line's watching shows when the verb uses it or the line holds one. Every place and watching
   field in the row (and from, lands at, lurk areas and rotate to) is a location field (see "Location field"): stored
   canonical, shown as callouts or coordinates, written on focus loss or a pick. The angle button (`135°`) shows only
   while `watch.yawDegrees` is set and clears it, so the cone faces the first watched place again. The line Set On

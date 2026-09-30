@@ -58,8 +58,8 @@ public static class StratLinePatches
     /// <param name="lines">What the lines should be.</param>
     /// <param name="bySlot">
     ///     A change of who: when the kept lines are unchanged and in order and the new ones come last, a <c>remove</c>
-    ///     per player dropped and an <c>add</c> per player added, never an index-wise rewrite that moves one player's
-    ///     line onto another.
+    ///     per player dropped and an <c>add</c> per player added; otherwise the whole array. Never an index-wise rewrite
+    ///     that moves one player's line onto another.
     /// </param>
     public static List<PatchOp> Write(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines, bool bySlot = false)
     {
@@ -101,17 +101,7 @@ public static class StratLinePatches
     private static List<PatchOp> WriteLines(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines, bool bySlot)
     {
         List<StepAssignment> target = [.. lines.Select(Clone)];
-        foreach (StepAssignment line in target)
-        {
-            if (line.Watch is { } watch && IsEmpty(watch))
-            {
-                line.Watch = null;
-            }
-            else if (line.Watch is { Points.Count: 0 } noPoints)
-            {
-                noPoints.Points = null;
-            }
-        }
+        target.ForEach(Normalize);
 
         List<PatchOp> ops = [];
         bool stored = StratStepLines.HasLines(step);
@@ -172,9 +162,11 @@ public static class StratLinePatches
 
         List<StepAssignment> before = step.Assignments!;
         string array = stepPath + "/assignments";
-        if (bySlot && BySlot(before, target, array) is { } keyed)
+        if (bySlot && !before.Select(l => l.Slot).ToHashSet().SetEquals(target.Select(l => l.Slot)))
         {
-            ops.AddRange(keyed);
+            // Never index-wise: that would hand one player's unknown fields to another.
+            ops.AddRange(BySlot(before, target, array)
+                         ?? [PatchOp.ReplaceOp(array, null, new JsonArray(target.Select(l => (JsonNode?)Node(l)).ToArray()))]);
         }
         else if (target.Count == before.Count + 1 && before.Select(Json).SequenceEqual(target.Take(before.Count).Select(Json)))
         {
@@ -396,15 +388,28 @@ public static class StratLinePatches
     private static string WithoutYaw(StepWatch watch) =>
         JsonSerializer.Serialize(new StepWatch { Places = watch.Places, Points = watch.Points, Extra = watch.Extra }, StratJsonContext.Default.StepWatch);
 
-    // Null unless the kept lines are byte-equal and in order, with the added ones after them.
+    // The stored form: no empty watch, no empty points.
+    private static void Normalize(StepAssignment line)
+    {
+        if (line.Watch is { } watch && IsEmpty(watch))
+        {
+            line.Watch = null;
+        }
+        else if (line.Watch is { Points.Count: 0 } noPoints)
+        {
+            noPoints.Points = null;
+        }
+    }
+
+    // Null unless the kept lines, normalised, are equal and in order, with the added ones after them.
     private static List<PatchOp>? BySlot(List<StepAssignment> before, List<StepAssignment> target, string array)
     {
         HashSet<string> after = [.. target.Select(l => l.Slot)];
         HashSet<string> had = [.. before.Select(l => l.Slot)];
-        List<StepAssignment> kept = [.. before.Where(l => after.Contains(l.Slot))];
-        if ((kept.Count == before.Count && kept.Count == target.Count) || kept.Count > target.Count
-                                                                        || !kept.Select(Json).SequenceEqual(target.Take(kept.Count).Select(Json))
-                                                                        || target.Skip(kept.Count).Any(l => had.Contains(l.Slot)))
+        List<StepAssignment> kept = [.. before.Where(l => after.Contains(l.Slot)).Select(Clone)];
+        kept.ForEach(Normalize);
+        if (kept.Count > target.Count || !kept.Select(Json).SequenceEqual(target.Take(kept.Count).Select(Json))
+                                      || target.Skip(kept.Count).Any(l => had.Contains(l.Slot)))
         {
             return null;
         }

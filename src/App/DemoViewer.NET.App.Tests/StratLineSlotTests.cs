@@ -1,6 +1,7 @@
 #region
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
@@ -237,10 +238,10 @@ public class StratLineSlotTests
         using (Assert.Multiple())
         {
             await Assert.That(Lines(swapped)).IsEqualTo("D>BombsiteB/Back B>Window C>BombsiteB");
-            await Assert.That(swapped.Positions.Select(p => p.Slot)).IsEquivalentTo(["D", "C"])
-                .Because("B's carried position goes with its new destination; D's was placed by hand; C is untouched");
+            await Assert.That(swapped.Positions.Select(p => p.Slot)).IsEquivalentTo(["D", "C"], TUnit.Assertions.Enums.CollectionOrdering.Matching)
+                .Because("B's destination changed so its carried position is dropped; D's was placed by hand and stays; C's line is untouched");
             await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
-            await Assert.That(Row(vm, id).Lines.Select(l => l.Slot ?? "")).IsEquivalentTo(["D", "B", "C"]);
+            await Assert.That(Row(vm, id).Lines.Select(l => l.Slot ?? "")).IsEquivalentTo(["D", "B", "C"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
         }
 
         // Wheeling on to a free slot and back through the swap is still one burst from where it began.
@@ -258,6 +259,142 @@ public class StratLineSlotTests
         await Assert.That(Lines(Doc(vm, id))).IsEqualTo("C>BombsiteB/Back D>Window B>BombsiteB");
         vm.Session.Undo();
         await Assert.That(Bytes(vm)).IsEqualTo(before);
+    }
+
+    [Test]
+    public async Task OnASplitStepForEveryone_ALineOffersOnlyItsOwnSlot_AndARefusedPickShowsTheDocumentAgain()
+    {
+        StratStep step = ExecuteBStep8();
+        step.Assignments = null;
+        step.Verb = "hold";
+        step.To = new PlaceRef { Place = "BombsiteA" };
+        (StratBookTabViewModel vm, Guid id) = Open(step);
+        using StratBookTabViewModel scope = vm;
+        Row(vm, id).SplitCommand.Execute(null);
+        string before = Bytes(vm);
+        int depth = vm.Session.UndoDepth;
+
+        await Assert.That(Row(vm, id).Lines[0].SlotOptions).IsEquivalentTo(["A"]);
+
+        // What the combo's binding does on a pick: the row's Slot is set first.
+        Row(vm, id).Lines[0].Slot = "C";
+        using (Assert.Multiple())
+        {
+            await Assert.That(Bytes(vm)).IsEqualTo(before).Because("five lines to one place fold back to the same step");
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth);
+            await Assert.That(Row(vm, id).Lines.Select(l => l.Slot ?? ""))
+                .IsEquivalentTo(StratVocabulary.Slots, TUnit.Assertions.Enums.CollectionOrdering.Matching)
+                .Because("the row shows what the document holds, not the refused pick");
+        }
+
+        // A later edit of that line still goes to A.
+        Row(vm, id).Lines[0].PlaceText = "Connector";
+        await Assert.That(Doc(vm, id).Assignments!.Single(l => l.To?.Place == "Connector").Slot).IsEqualTo("A");
+    }
+
+    [Test]
+    public async Task ARefusedSlotOnStoredLines_ShowsTheDocumentAgain()
+    {
+        StratStep step = ExecuteBStep8();
+        (StratBookTabViewModel vm, Guid id) = Open(step);
+        using StratBookTabViewModel scope = vm;
+        string before = Bytes(vm);
+
+        Row(vm, id).Lines[0].Slot = "O1";
+        using (Assert.Multiple())
+        {
+            await Assert.That(Bytes(vm)).IsEqualTo(before);
+            await Assert.That(Row(vm, id).Lines[0].Slot).IsEqualTo("B");
+        }
+    }
+
+    [Test]
+    public async Task WhoOnLegacyLines_WritesByPlayer_AndLeavesTheKeptLinesBytesAlone()
+    {
+        StratStep step = ExecuteBStep8();
+        step.Verb = "push";
+        step.Assignments =
+        [
+            Line("B", "BombsiteB", "Back"),
+            new StepAssignment
+            {
+                Slot = "D", To = new PlaceRef { Place = "Window" }, Watch = new StepWatch { Places = ["Window"], Points = [] },
+                Extra = new Dictionary<string, JsonElement> { ["callNote"] = JsonSerializer.SerializeToElement("late") }
+            },
+            new StepAssignment { Slot = "C", To = new PlaceRef { Place = "BombsiteB" }, Watch = new StepWatch() }
+        ];
+        (StratBookTabViewModel vm, Guid id) = Open(step);
+        using StratBookTabViewModel scope = vm;
+        string before = Bytes(vm);
+        string Stored(int j) => JsonSerializer.Serialize(Doc(vm, id).Assignments![j], StratJsonContext.Default.StepAssignment);
+        string d = Stored(1);
+        string c = Stored(2);
+        await Assert.That(d).Contains("\"points\"");
+
+        StratStepRow row = Row(vm, id);
+        row.BeginWho();
+        row.WhoOptions.Single(o => o.Slot == "B").IsChecked = false;
+        row.WhoOptions.Single(o => o.Slot == "A").IsChecked = true;
+        row.CommitWho();
+        string after = Bytes(vm);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Session.PendingOps.Select(o => o.Op + " " + o.Path))
+                .IsEquivalentTo(["remove /steps/0/assignments/0", "add /steps/0/assignments/2"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(Stored(0)).IsEqualTo(d).Because("D's line, legacy empty points and unknown field included, is untouched");
+            await Assert.That(Stored(1)).IsEqualTo(c);
+            await Assert.That(Lines(Doc(vm, id))).IsEqualTo("D>Window/Window+callNote C>BombsiteB/ A>").Because("C keeps its legacy empty watch");
+        }
+
+        vm.Session.Undo();
+        await Assert.That(Bytes(vm)).IsEqualTo(before);
+        vm.Session.Redo();
+        await Assert.That(Bytes(vm)).IsEqualTo(after);
+    }
+
+    [Test]
+    public async Task ASwapAndAWhoChange_RedoAfterUndo_IsByteEqual()
+    {
+        StratStep step = ExecuteBStep8();
+        step.Verb = "push";
+        step.Assignments = [Line("B", "BombsiteB", "Back"), Line("D", "Window"), Line("C", "BombsiteB")];
+        step.Positions = [new StepPosition { Slot = "B", X = 10, Y = 20, Carried = true }];
+        (StratBookTabViewModel vm, Guid id) = Open(step);
+        using StratBookTabViewModel scope = vm;
+        string before = Bytes(vm);
+
+        Row(vm, id).Lines[0].Slot = "D";
+        vm.Editor.EndEditBurst();
+        string swapped = Bytes(vm);
+        Row(vm, id).BeginWho();
+        Row(vm, id).WhoOptions.Single(o => o.Slot == "C").IsChecked = false;
+        Row(vm, id).WhoOptions.Single(o => o.Slot == "E").IsChecked = true;
+        Row(vm, id).CommitWho();
+        string who = Bytes(vm);
+        await Assert.That(Lines(Doc(vm, id))).IsEqualTo("D>BombsiteB/Back B>Window E>");
+
+        vm.Session.Undo();
+        await Assert.That(Bytes(vm)).IsEqualTo(swapped);
+        vm.Session.Undo();
+        await Assert.That(Bytes(vm)).IsEqualTo(before);
+        vm.Session.Redo();
+        await Assert.That(Bytes(vm)).IsEqualTo(swapped);
+        vm.Session.Redo();
+        await Assert.That(Bytes(vm)).IsEqualTo(who);
+    }
+
+    [Test]
+    public async Task AMergedLineReplace_ThatChangesTheSlot_ReadsAsARemoveAndAnAdd_WithTheDestination()
+    {
+        StratDocument document = FiveSteps();
+        document.Steps[0].To = null;
+        document.Steps[0].Assignments = [Line("B", "BombsiteB"), Line("C", "Window")];
+        JsonNode? tree = StratHistory.ToNode(document);
+        PatchOp replace = PatchOp.ReplaceOp("/steps/0/assignments/1", null,
+            JsonSerializer.SerializeToNode(Line("A", "Connector"), StratJsonContext.Default.StepAssignment));
+
+        string summary = StratDiffPhrasing.Summary(tree, [replace]);
+        await Assert.That(summary).Contains("C removed, A added → Connector");
     }
 
     [Test]

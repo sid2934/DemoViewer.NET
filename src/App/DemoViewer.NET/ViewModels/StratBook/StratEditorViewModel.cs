@@ -678,6 +678,11 @@ public sealed partial class StratEditorViewModel : ObservableObject
         {
             _session.Apply(ops);
         }
+        else
+        {
+            // Nothing written means no reprojection, and the combo already shows the refused value.
+            Project();
+        }
 
         burst.HasEntry = ops.Count > 0;
         burst.Version = _session.Version;
@@ -1737,7 +1742,8 @@ public sealed partial class StratStepRow : ObservableObject
 
         for (int j = 0; j < lines.Count; j++)
         {
-            Lines[j].Load(j, lines[j], isImplicit, Verb, StratVocabulary.Slots);
+            // A split step for everyone folds back on any slot change, so its lines keep their own slot.
+            Lines[j].Load(j, lines[j], isImplicit, Verb, ExpandsAll ? [lines[j].Slot] : StratVocabulary.Slots);
         }
 
         SelectLine(_lineSlot);
@@ -2097,7 +2103,10 @@ public sealed partial class StratLineRow : ObservableObject
 
     public bool IsExplicit => !IsImplicit;
 
-    /// <summary>The slots this line may take: all five; one another line holds swaps the two.</summary>
+    /// <summary>
+    ///     The slots this line may take: all five, where one another line holds swaps the two; only its own on a split
+    ///     step for everyone.
+    /// </summary>
     public ObservableCollection<string> SlotOptions { get; } = [];
 
     /// <summary>What the verb calls the place: to, at or site.</summary>
