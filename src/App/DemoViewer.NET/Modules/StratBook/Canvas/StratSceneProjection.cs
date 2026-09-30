@@ -414,6 +414,13 @@ public sealed class StratSceneProjection
     public static PlaceRef? DestinationOf(StratStep step, string slot)
     {
         ArgumentNullException.ThrowIfNull(step);
+
+        // A step names only the strat's own five; "all" never sends the opponent tokens anywhere.
+        if (!StratVocabulary.Slots.Contains(slot))
+        {
+            return null;
+        }
+
         PlaceRef? to = MotionOf(step.Verb) switch
         {
             StepMotion.None => null,
@@ -527,7 +534,8 @@ public sealed class StratSceneProjection
             placements[i] = placement;
             last = placement ?? last;
 
-            if (StratStepLines.Involves(step, slot) && RotateTickOf(step, tick, places.RoundSeconds) is { } rotateTick
+            if (StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot)
+                                                    && RotateTickOf(step, tick, places.RoundSeconds) is { } rotateTick
                                                     && places.Arrivals is not null)
             {
                 PlaceRef rotateTo = step.Lurk!.Rotate!.To!;

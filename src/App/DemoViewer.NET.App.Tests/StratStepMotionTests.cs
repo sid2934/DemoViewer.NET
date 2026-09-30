@@ -61,12 +61,15 @@ public class StratStepMotionTests
     {
         StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_motion", "T", "execute", "motion", Created);
         StratStep one = Step(1, 110, StratVocabulary.ActorAll, "hold");
-        one.Positions = [.. StratVocabulary.Slots.Select((s, i) => Upper(s, 20 + 40 * i, 100))];
+        one.Positions = [.. StratVocabulary.Slots.Select((s, i) => Upper(s, 20 + 40 * i, 100)), .. Opponents()];
         one.Positions[0] = Upper("A", 100, 100);
         StratStep two = Step(2, 100, actor, verb, to: to);
         document.Steps = [one, two];
         return document;
     }
+
+    // The other side's five, as a new strat's seed places them.
+    private static IEnumerable<StepPosition> Opponents() => StratVocabulary.OpponentSlots.Select((s, i) => Upper(s, 1100 + 40 * i, 300));
 
     private static int RunTicks(double dx, double dy) =>
         Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * dx + dy * dy) / StratSceneProjection.RotateUnitsPerSecond * 64));
@@ -182,6 +185,13 @@ public class StratStepMotionTests
         {
             await Assert.That((b.X, b.Y)).IsEqualTo((ends[1].X, ends[1].Y));
             await Assert.That((d.X, d.Y)).IsEqualTo((ends[3].X, ends[3].Y));
+        }
+
+        // "all" is the strat's own five: the other side's tokens stay where the seed put them.
+        foreach (string opponent in StratVocabulary.OpponentSlots)
+        {
+            TokenTrack o = projection.Tracks.Single(t => t.Slot == opponent);
+            await Assert.That(o.Keyframes.All(k => k.X == o.Keyframes[0].X && k.Y == o.Keyframes[0].Y)).IsTrue().Because($"{opponent} never moves");
         }
 
         // Alone, a token goes to the centre.
@@ -301,7 +311,7 @@ public class StratStepMotionTests
     {
         StratDocument document = Sent("move", actor: StratVocabulary.ActorAll);
         document.Steps[1].To = null;
-        document.Steps[1].Positions = [.. document.Steps[0].Positions.Select(p =>
+        document.Steps[1].Positions = [.. document.Steps[0].Positions.Where(p => StratVocabulary.Slots.Contains(p.Slot)).Select(p =>
         {
             StepPosition copy = Upper(p.Slot, p.X, p.Y);
             copy.Carried = p.Slot != "C" ? true : null;
@@ -381,7 +391,7 @@ public class StratStepMotionTests
     {
         StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_motion", template.Side ?? "T", template.Type, template.Name, Created);
         StratStep seed = new() { Id = Guid.NewGuid(), AtSeconds = 115, Actor = StratVocabulary.ActorAll, Verb = "hold" };
-        seed.Positions = [.. StratVocabulary.Slots.Select((s, i) => Upper(s, 20 + 40 * i, 100))];
+        seed.Positions = [.. StratVocabulary.Slots.Select((s, i) => Upper(s, 20 + 40 * i, 100)), .. Opponents()];
         document.Steps = [seed];
         StratTemplates.Apply(document, template);
         return document;
