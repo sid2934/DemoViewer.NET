@@ -138,7 +138,7 @@ public static class StratLocationPatches
                 return Member(stepPath + "/from", step.From, next);
             case StratLocationKind.To when field.Slot is null:
                 List<PatchOp> to = Member(stepPath + "/to", step.To, next);
-                if (to.Count > 0 && next is not null)
+                if (to.Count > 0 && next is not null && StratStepFields.MovesToTo(step.Verb))
                 {
                     to.AddRange(StratLinePatches.DropCarried(step, stepPath, StratVocabulary.Slots.Where(s => StratStepLines.Involves(step, s))));
                 }
@@ -171,7 +171,8 @@ public static class StratLocationPatches
                     Areas = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!)],
                     AreaPoints = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e))]
                 });
-                if (areas.Count > 0 && areasAfter.Count > 0 && (areasBefore.Count == 0 || !SameEntry(areasBefore[0], areasAfter[0])))
+                if (areas.Count > 0 && areasAfter.Count > 0 && StratStepFields.MotionOf(step.Verb) == StepMotion.Lurk
+                    && (areasBefore.Count == 0 || !SameEntry(areasBefore[0], areasAfter[0])))
                 {
                     areas.AddRange(StratLinePatches.DropCarried(step, stepPath, StratVocabulary.Slots.Where(s => StratStepLines.Involves(step, s))));
                 }

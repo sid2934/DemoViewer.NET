@@ -256,6 +256,7 @@ public class StratStepMotionTests
     {
         // Written by Add step before the mark: step 2 and step 3 hold A where step 1 put it.
         StratDocument document = Sent("move");
+        await Assert.That(StratSceneProjection.IsLegacyCarry(document)).IsTrue();
         document.Steps[1].Positions = [Upper("A", 100, 100)];
         StratStep three = Step(3, 80, "C", "hold");
         three.Positions = [Upper("A", 100, 100)];
@@ -271,6 +272,115 @@ public class StratStepMotionTests
         // One that moved the token is a person's.
         document.Steps[1].Positions = [Upper("A", 100.5, 100)];
         await Assert.That(At(Track(document, "A"), Two).X).IsEqualTo(100.5f);
+    }
+
+    [Test]
+    public async Task ADuplicate_KeepsItsDrag_AndEveryMarkAsItWas()
+    {
+        // A file this build wrote (B's entry carried), A dragged on a step that sends A to the site.
+        StratDocument document = Sent("move");
+        StepPosition b = Upper("B", 60, 100);
+        b.Carried = true;
+        document.Steps[1].Positions = [Upper("A", 600, 600), b];
+        (StratStore _, StratSession session) = Opened(document);
+        session.Apply(StepAuthoringPatches.DuplicateStep(session.Document!, 1, Guid.NewGuid()));
+        StratDocument after = session.Document!;
+        List<StepPosition> copied = after.Steps[2].Positions;
+        TokenTrack a = Track(after, "A");
+        using (Assert.Multiple())
+        {
+            await Assert.That(copied.Single(p => p.Slot == "A").Carried).IsNull().Because("an authored entry stays authored");
+            await Assert.That(copied.Single(p => p.Slot == "B").Carried).IsTrue().Because("a carried entry stays carried");
+            await Assert.That(StratSceneProjection.IsLegacyCarry(after)).IsFalse();
+            await Assert.That((At(a, Project(after).Ticks[2]).X, At(a, Project(after).Ticks[2]).Y)).IsEqualTo((600f, 600f))
+                .Because("the duplicate's drag is not read as a copy");
+            await Assert.That(a.Keyframes.Any(k => k.X == 1200f)).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task AWatch_TurnsATokenAlreadyAtItsTarget()
+    {
+        // A holds Bombsite A watching TSpawn, already standing on the site's centre.
+        StratDocument document = Sent("hold");
+        document.Steps[0].Positions[0] = Upper("A", 1200, 200);
+        document.Steps[1].To = null;
+        document.Steps[1].Assignments = [new StepAssignment { Slot = "A", To = new PlaceRef { Place = "BombsiteA" }, Watch = new StepWatch { Places = ["TSpawn"] } }];
+        float toSpawn = (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(100 - 200, 100 - 1200) * 180 / Math.PI), 2);
+        await Assert.That(At(Track(document, "A"), Two).YawDegrees).IsEqualTo(toSpawn);
+
+        // The same on a push, a run with no distance to cover.
+        document.Steps[1].Verb = "push";
+        await Assert.That(At(Track(document, "A"), Two).YawDegrees).IsEqualTo(toSpawn);
+    }
+
+    [Test]
+    public async Task ARunner_FacesItsRun_ThenTurnsToWhatItWatches()
+    {
+        StratDocument document = Sent("push");
+        document.Steps[1].To = null;
+        document.Steps[1].Assignments = [new StepAssignment { Slot = "A", To = new PlaceRef { Place = "BombsiteA" }, Watch = new StepWatch { Places = ["TSpawn"] } }];
+        TokenTrack a = Track(document, "A");
+        int arrive = Two + RunTicks(1100, 100);
+        float run = (float)Math.Round(Math.Atan2(100, 1100) * 180 / Math.PI, 2);
+        float toSpawn = (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(100 - 200, 100 - 1200) * 180 / Math.PI), 2);
+        using (Assert.Multiple())
+        {
+            await Assert.That(At(a, Two).YawDegrees).IsEqualTo(run);
+            await Assert.That(At(a, arrive).YawDegrees).IsEqualTo(toSpawn);
+        }
+    }
+
+    [Test]
+    public async Task ADestination_KeepsItsStepsHoldAndInterpolation()
+    {
+        // A waits two seconds before running.
+        StratDocument held = Sent("move");
+        held.Steps[1].HoldSeconds = 2;
+        TokenTrack a = Track(held, "A");
+        int arrive = Two + 128 + RunTicks(1100, 100);
+        using (Assert.Multiple())
+        {
+            await Assert.That(At(a, Two + 100).X).IsEqualTo(100f).Because("the hold keeps it at the start");
+            await Assert.That(At(a, arrive).X).IsEqualTo(1200f);
+            await Assert.That(At(a, arrive - 5).X).IsLessThan(1200f);
+        }
+
+        // A hold interpolation jumps at arrival instead of running.
+        StratDocument jump = Sent("move");
+        jump.Steps[1].Interpolation = "hold";
+        TokenTrack j = Track(jump, "A");
+        await Assert.That(At(j, Two + RunTicks(1100, 100) - 1).X).IsEqualTo(100f);
+    }
+
+    [Test]
+    public async Task ATravelForATokenNeverPlaced_StartsAtItsDestination()
+    {
+        StratDocument document = Sent("move");
+        document.Steps[0].Positions.RemoveAll(p => p.Slot == "A");
+        TokenTrack a = Track(document, "A");
+        await Assert.That(a.Keyframes[0]).IsEqualTo(new TokenKeyframe(Two, 1200, 200, -512, 0));
+
+        document.Steps[1].Verb = "lurk";
+        document.Steps[1].To = null;
+        document.Steps[1].Lurk = new StepLurk { Areas = ["BombsiteA"] };
+        await Assert.That((Track(document, "A").Keyframes[0].X, Track(document, "A").Keyframes[0].Tick)).IsEqualTo((1200f, Two));
+    }
+
+    [Test]
+    public async Task SettingATo_OnAVerbThatDoesNotMove_KeepsTheCarriedEntry()
+    {
+        foreach (string verb in new[] { "throw", "wait", "call", "lurk" })
+        {
+            StratDocument document = Sent(verb);
+            document.Steps[1].To = null;
+            StepPosition copy = Upper("A", 100, 100);
+            copy.Carried = true;
+            document.Steps[1].Positions = [copy];
+            List<PatchOp> ops = StratLocationPatches.Write(document, 1, new StratLocationField(document.Steps[1].Id, null, StratLocationKind.To),
+                [new PlaceRef { Place = "BombsiteA" }]);
+            await Assert.That(ops.Any(o => o.Path.Contains("/positions/", StringComparison.Ordinal))).IsFalse().Because(verb);
+        }
     }
 
     [Test]
@@ -310,15 +420,16 @@ public class StratStepMotionTests
                 .Because("after the second call it never reaches Bombsite A");
         }
 
-        // Everyone runs for the site; B plants at its centre before B's run ends, and stays there.
+        // Everyone runs for the site; B plants there before B's run ends, at its own spot beside the others, and stays.
         StratDocument plant = Sent("move", actor: StratVocabulary.ActorAll);
         plant.Steps.Add(Step(3, 99, "B", "plant", to: "BombsiteA"));
         TokenTrack b = Track(plant, "B");
+        TokenKeyframe planted = At(b, turn);
         using (Assert.Multiple())
         {
-            await Assert.That((At(b, turn).X, At(b, turn).Y)).IsEqualTo((1200f, 200f));
-            await Assert.That(Enumerable.Range(turn, 2000).All(t => At(b, t).X == 1200f && At(b, t).Y == 200f)).IsTrue()
-                .Because("no slide back to its fan spot");
+            await Assert.That(Inside("BombsiteA", planted)).IsTrue();
+            await Assert.That(Enumerable.Range(turn, 2000).All(t => At(b, t).X == planted.X && At(b, t).Y == planted.Y)).IsTrue()
+                .Because("no slide on after the plant");
         }
 
         // A lurk that rotates before reaching its first area still rotates.
@@ -441,18 +552,26 @@ public class StratStepMotionTests
     {
         StratDocument document = FromTemplate(StratTemplates.Find("execute-a")!);
         StratSceneProjection projection = Project(document);
+        List<TokenKeyframe> ends = [];
         foreach ((string slot, double at) in new[] { ("A", 53.0), ("B", 52.0) })
         {
             TokenTrack track = projection.Tracks.Single(t => t.Slot == slot);
             int tick = StepSchedule.TickFor(at, 115);
             TokenKeyframe start = At(track, tick);
-            int arrive = tick + RunTicks(1200 - start.X, 200 - start.Y);
+            TokenKeyframe end = track.Keyframes[^1];
+            int arrive = tick + RunTicks(end.X - start.X, end.Y - start.Y);
+            ends.Add(end);
             using (Assert.Multiple())
             {
-                await Assert.That(At(track, arrive).X).IsEqualTo(1200f);
-                await Assert.That(Inside("BombsiteA", At(track, arrive))).IsTrue();
+                await Assert.That(At(track, arrive - 3).X).IsLessThan(end.X).Because($"{slot} is still running");
+                await Assert.That(At(track, arrive)).IsEqualTo(end with { Tick = arrive });
+                await Assert.That(Inside("BombsiteA", end)).IsTrue();
             }
         }
+
+        // Sent by two steps, but on the site together: each on its own spot, not stacked on the centre.
+        await Assert.That((ends[0].X, ends[0].Y)).IsNotEqualTo((ends[1].X, ends[1].Y));
+        await Assert.That(ends.All(k => (k.X, k.Y) != (1200f, 200f))).IsTrue();
     }
 
     [Test]

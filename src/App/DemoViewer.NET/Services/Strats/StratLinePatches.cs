@@ -61,7 +61,7 @@ public static class StratLinePatches
         ArgumentNullException.ThrowIfNull(step);
         ArgumentNullException.ThrowIfNull(lines);
         List<PatchOp> ops = WriteLines(step, stepPath, lines);
-        if (ops.Count > 0)
+        if (ops.Count > 0 && StratStepFields.MovesToTo(step.Verb))
         {
             PlaceRef? DestinationAfter(string slot) =>
                 lines.Count == 0 ? step.To : lines.FirstOrDefault(l => string.Equals(l.Slot, slot, StringComparison.Ordinal))?.To;
