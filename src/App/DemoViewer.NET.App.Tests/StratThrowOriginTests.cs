@@ -304,7 +304,7 @@ public class StratThrowOriginTests
     }
 
     // Five demos: three standing throws and two jump-throws from one spot into one landing, one lineup of two techniques.
-    internal static (GrenadeIndex Index, GrenadeLineup Lineup) Indexed()
+    internal static (GrenadeIndex Index, GrenadeLineup Lineup) Indexed(Action<GrenadeRow>? shape = null)
     {
         DemoCacheStore cache = new(null);
         for (int n = 1; n <= 5; n++)
@@ -323,6 +323,7 @@ public class StratThrowOriginTests
                 DetonationPosition = WorldPoint.From(Landing),
                 EndKind = GrenadeEndKind.Detonated
             };
+            shape?.Invoke(row);
             DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, Map, $"sha{n}");
             GrenadeDocument document = new()
             {
