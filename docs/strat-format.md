@@ -337,12 +337,13 @@ by every player the step names, like `from` and `utility`, and two lurkers who r
 
 The place rules wait for the map's zones, as the other place warnings do.
 
-**On the canvas**, a lurk step first sends its players to its first area from the step's time (see "Motion on the
+**On the canvas**, a lurk step first walks its players to its first area from the step's time (see "Motion on the
 canvas"). A rotate with a time and a place then moves every token the step names: from the rotate time the
-token runs from where it stands to the centre of the rotate-to place (`StratPlaceCentres.Arrival`: on the token's
+token walks from where it stands to the centre of the rotate-to place (`StratPlaceCentres.Arrival`: on the token's
 floor when the place has areas there, else on the floor holding most of the place, and the token arrives on that
 floor), at
-215 units a second (`StratSceneProjection.RotateUnitsPerSecond`, a rifle's run speed), and stays there. A later
+115 units a second (`StratSceneProjection.WalkUnitsPerSecond`, a rifle's shift-walk), and stays there. Nothing about a
+lurk runs. A later
 keyframe for the slot (an authored position, a lineup origin) still wins: if it comes before the token could
 arrive, the token heads to it from the rotate time instead. A rotate that is not later than its step, or whose
 place has no centre (or the zones are not in yet), moves nothing. "Later" is compared in strat ticks, the same
@@ -380,10 +381,12 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   |---|---|
   | move, push, rotate, `other`, and any verb outside the vocabulary | travel: leaves where it stands at the step's time and runs to the target |
   | hold, peek, fake, plant, defuse | position: at the target at the step's time, walking from its previous keyframe |
-  | lurk | travels to its first area (`areas`, then `areaPoints`) from the step's time; its rotate follows |
+  | lurk | travel: walks to its first area (`areas`, then `areaPoints`) from the step's time; its rotate walks too |
   | throw, wait, call | none: a throw's landing is where the grenade goes, not the player |
 
-  A run is at 215 units a second (`RotateUnitsPerSecond`), the lurk rotate's speed, and goes through the same code.
+  A run is at 215 units a second (`RunUnitsPerSecond`, a rifle's run). A lurker walks at 115 (`WalkUnitsPerSecond`, a
+  rifle's shift-walk): to its area, on its rotate, and on any trip a step sends it on at the lurk's own tick. Both go
+  through the same code, and the transport's end (`ContentEndTick`) covers the walk's arrival.
   A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
   instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
   that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A
@@ -402,7 +405,21 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   beats its `to` does not push another token off the centre. The same slot takes the same spot in any group; a token
   there alone goes to the centre.
 * **Precedence for a slot on a step:** a throw's lineup origin; then an authored position (a drag, or a set
-  position); then the destination; then a carried position; then where the token already is.
+  position); then the destination; then a carried position; then where the token already is. An authored position
+  and a destination conflict only on a position verb, where the position is the exact spot and the destination is
+  not used. On a travel verb (move, push, rotate, `other`, lurk) they are two halves of one move: the position is
+  where the token is at the step's time and the destination is where it goes from there.
+* **Several steps on one tick.** Positions on a tick settle before its destinations, and steps apply in path order.
+  * A later step's destination for a slot replaces an earlier one's on that tick: the token leaves once, for the later
+    target. A lurk's first area is the exception. It does not replace a place another step on that tick sent the
+    lurker to; the lurker walks to that place instead and works its areas from there.
+  * A position on a later step at that tick, for a slot a destination on the tick already sent, is where the token
+    leaves from. It does not pin the token, and a carried copy (marked, or legacy) is ignored as usual. The exception
+    is an exact spot: a lineup origin, or a position verb that names the slot. That spot wins and cancels the tick's
+    earlier destinations for the slot.
+
+  This is what a round-start seed turned into a move, with a lurk on the same tick, needs: the lurk's copies of the
+  spawn positions must not hold the five in spawn, whether or not the file still reads unmarked copies as carried.
 * **Carried positions.** Add step copies every token where the projection has it at the step before and writes
   `"carried": true` on each copy. A drag rewrites the entry without it. The field is written only when true, so a
   file without it loads and saves byte for byte as before. A carried position holds the token (so a later drag on an
