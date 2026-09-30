@@ -295,6 +295,42 @@ public class StratStepMotionTests
     }
 
     [Test]
+    public async Task ALaterDestination_CutsARunThatHasNotArrived()
+    {
+        // A runs for Bombsite A at 1:40 and is sent to Bombsite B a second later, long before arriving.
+        StratDocument twice = Sent("move");
+        twice.Steps.Add(Step(3, 99, "A", "move", to: "BombsiteB"));
+        TokenTrack a = Track(twice, "A");
+        int turn = StepSchedule.TickFor(99, 115);
+        using (Assert.Multiple())
+        {
+            await Assert.That(a.Keyframes[^1].LevelMinZ).IsEqualTo(-2048d);
+            await Assert.That((a.Keyframes[^1].X, a.Keyframes[^1].Y)).IsEqualTo((200f, 1200f));
+            await Assert.That(Enumerable.Range(turn, 2000).All(t => At(a, t).X < 1000f)).IsTrue()
+                .Because("after the second call it never reaches Bombsite A");
+        }
+
+        // Everyone runs for the site; B plants at its centre before B's run ends, and stays there.
+        StratDocument plant = Sent("move", actor: StratVocabulary.ActorAll);
+        plant.Steps.Add(Step(3, 99, "B", "plant", to: "BombsiteA"));
+        TokenTrack b = Track(plant, "B");
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(b, turn).X, At(b, turn).Y)).IsEqualTo((1200f, 200f));
+            await Assert.That(Enumerable.Range(turn, 2000).All(t => At(b, t).X == 1200f && At(b, t).Y == 200f)).IsTrue()
+                .Because("no slide back to its fan spot");
+        }
+
+        // A lurk that rotates before reaching its first area still rotates.
+        StratDocument lurk = Sent("lurk");
+        lurk.Steps[1].To = null;
+        lurk.Steps[1].Lurk = new StepLurk { Areas = ["BombsiteA"], Rotate = new LurkRotate { AtSeconds = 99, To = new PlaceRef { Place = "TSpawn" } } };
+        TokenTrack l = Track(lurk, "A");
+        await Assert.That((l.Keyframes[^1].X, l.Keyframes[^1].Y)).IsEqualTo((100f, 100f));
+        await Assert.That(l.Keyframes.Any(k => k.X == 1200f)).IsFalse();
+    }
+
+    [Test]
     public async Task ANewStep_DoesNotCarryATokenADestinationMoved()
     {
         StratDocument document = Sent("move");
