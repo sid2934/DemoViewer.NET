@@ -219,12 +219,15 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>Typed text as a field's locations, keeping stored entries its text still names (<see cref="PlaceFieldModel.Parse(string, IReadOnlyList{PlaceRef}, CalloutResolver?, bool)" />).</summary>
+    /// <summary>Typed text as a field's locations, keeping stored entries its text still names (<see cref="PlaceFieldModel.Parse(string, IReadOnlyList{PlaceRef}, CalloutResolver?, bool, double?)" />).</summary>
     /// <param name="text">The field's text.</param>
     /// <param name="current">The field's stored value.</param>
     /// <param name="multi">A list field.</param>
     internal List<PlaceRef> ParseLocations(string? text, IReadOnlyList<PlaceRef> current, bool multi) =>
-        PlaceFieldModel.Parse(text ?? "", current, _places, multi);
+        PlaceFieldModel.Parse(text ?? "", current, _places, multi, DefaultLevelMinZ);
+
+    /// <summary>The level a typed coordinate takes when its field holds no point: the strat canvas's default level.</summary>
+    public double? DefaultLevelMinZ => _session.Document?.Canvas?.DefaultLevelMinZ;
 
     /// <summary>What a location field shows: callouts, places the map lacks as stored, points as coordinates.</summary>
     /// <param name="value">The field's locations.</param>
@@ -1284,6 +1287,9 @@ public sealed partial class StratStepRow : ObservableObject
     /// <summary>The owner's words for the location fields' lists.</summary>
     public CalloutResolver Callouts => _owner.Places;
 
+    /// <summary>The level a typed coordinate takes in a field with no point.</summary>
+    public double? CurrentLevelMinZ => _owner.DefaultLevelMinZ;
+
     // What each location field writes, and the map pick it arms. The compact place and watching write every line.
     public StratLocationField FromTarget => new(Id, null, StratLocationKind.From);
 
@@ -2081,6 +2087,9 @@ public sealed partial class StratLineRow : ObservableObject
 
     /// <summary>The owner's words for the location fields' lists.</summary>
     public CalloutResolver Callouts => _row.Owner.Places;
+
+    /// <summary>The level a typed coordinate takes in a field with no point.</summary>
+    public double? CurrentLevelMinZ => _row.Owner.DefaultLevelMinZ;
 
     /// <summary>What the line's place field writes and picks: this slot's <c>to</c>.</summary>
     public StratLocationField PlaceTarget => new(_row.Id, Slot, StratLocationKind.To);

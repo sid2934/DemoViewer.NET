@@ -203,6 +203,9 @@ follows the rule for `positions[].levelMinZ`: the level's quantized lower Z, nev
 * **A map click** stores the place under the point and the point, or the point alone when it is in no
   place. With no zones for the map (none baked, or the read failed) there is no answer about the place, so
   the click sets the point and keeps whatever place was stored.
+* **Typing a coordinate** (`(1234, -560)`, or the two numbers with a comma or spaces) sets a point without a place.
+  It keeps the stored point's `levelMinZ`, else takes the strat's `canvas.defaultLevelMinZ`, else has none. Numbers
+  alone are never stored as a place.
 * **Typing a place** keeps the stored point only when it names the same place; any other place drops it,
   so a token never faces a point under another place's name. A landing is the exception it always was:
   typing "lands at" writes only `landing/place`, so a captured landing point survives; clearing it drops the place

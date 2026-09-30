@@ -590,10 +590,14 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, lurk areas). Places are stored canonical and
   shown by the owner's word; a place the map lacks shows as stored; a point alone shows as `(1234, -561)`, and keeps
   its point for as long as its text is unchanged. Typed text resolves through the owner's callouts, else is stored as
-  typed. A commit (focus loss, Enter or a click in the list) writes only when the value changed.
+  typed, never numbers alone. A typed coordinate (`(1234, -560)`, `1234, -560` or `1234 -560`, negatives allowed) is a
+  point: its level is the stored point's, else the strat's default canvas level, else none. A commit (focus loss,
+  Enter or a click in the list) writes only when the value changed. A value pushed from outside (a map pick, an undo)
+  shows at once unless the field holds an edit not yet committed.
 - **List:** focus opens the map's callouts (`PlaceFieldOptions.For(resolver)`, built once per `CalloutResolver`
   and shared by every field; typing filters that cached list, names starting with the text first, then names
-  containing it, matching display name, canonical name and every alias). The stored callout is highlighted. The list
+  containing it, matching display name, canonical name and every alias; an exact match comes first, so Enter and a
+  blur store the same place). The stored callout is highlighted. The list
   opens below the field, or above when fewer than its rows (at most 200 px) fit below and more room is above
   (`PlaceField.ChooseUp`), chosen again once layout settles, since a field reached by Tab is scrolled into view
   after it opened. The list is drawn in the window's overlay layer. A multi field filters and replaces the text

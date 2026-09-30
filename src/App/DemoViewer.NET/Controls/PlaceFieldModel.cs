@@ -1,6 +1,8 @@
 #region
 
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Text;
 using DemoViewer.NET.Services.Strats;
 
@@ -62,7 +64,10 @@ public sealed class PlaceFieldOptions
         return Cache.GetValue(resolver, r => new PlaceFieldOptions(r));
     }
 
-    /// <summary>The options matching typed text: names starting with it first, then names containing it. All for none.</summary>
+    /// <summary>
+    ///     The options matching typed text: a name equal to it first (so Enter and a blur store the same place), then
+    ///     names starting with it, then names containing it. All for none.
+    /// </summary>
     /// <param name="query">What was typed.</param>
     public IReadOnlyList<PlaceOption> Filter(string? query)
     {
@@ -72,10 +77,14 @@ public sealed class PlaceFieldOptions
             return All;
         }
 
-        List<PlaceOption> starts = [], contains = [];
+        List<PlaceOption> exact = [], starts = [], contains = [];
         foreach (PlaceOption option in All)
         {
-            if (option.Keys.Any(k => k.StartsWith(key, StringComparison.Ordinal)))
+            if (option.Keys.Any(k => string.Equals(k, key, StringComparison.Ordinal)))
+            {
+                exact.Add(option);
+            }
+            else if (option.Keys.Any(k => k.StartsWith(key, StringComparison.Ordinal)))
             {
                 starts.Add(option);
             }
@@ -85,7 +94,7 @@ public sealed class PlaceFieldOptions
             }
         }
 
-        return [.. starts, .. contains];
+        return [.. exact, .. starts, .. contains];
     }
 }
 
@@ -128,6 +137,12 @@ public sealed class PlaceFieldModel
     ///     Otherwise Enter is the host's, as it is with no list.
     /// </summary>
     public bool HasChoice => _typed || _moved;
+
+    /// <summary>Whether the text holds an edit not yet committed: a value pushed from outside then waits.</summary>
+    public bool HasPendingEdit => _typed;
+
+    /// <summary>The level key a typed coordinate takes when the field holds no point to take it from; null for none.</summary>
+    public double? CurrentLevelMinZ { get; set; }
 
     /// <summary>Whether the value holds a location with a point and no place: the clear button's cue.</summary>
     public bool HasPointOnly => _value.Any(v => !StratLocations.HasPlace(v) && StratLocations.HasPoint(v));
@@ -308,7 +323,27 @@ public sealed class PlaceFieldModel
         return [.. parts.Where(p => p.Length > 0)];
     }
 
-    private List<PlaceRef> Parse(string text) => Parse(text, _value, Options?.Resolver, IsMulti);
+    private List<PlaceRef> Parse(string text) => Parse(text, _value, Options?.Resolver, IsMulti, CurrentLevelMinZ);
+
+    // "(1234, -560)", "1234, -560", "1234 -560": two numbers, optional parentheses, a comma or spaces between.
+    private static readonly Regex PointPattern = new(
+        @"^\(?\s*(-?\d+(?:\.\d+)?)\s*(?:,\s*|\s+)(-?\d+(?:\.\d+)?)\s*\)?$", RegexOptions.CultureInvariant);
+
+    private static readonly Regex NumberOnly = new(@"^[\s()\-+.,\d]+$", RegexOptions.CultureInvariant);
+
+    /// <summary>Typed text as a world point: two numbers, with optional parentheses and a comma or spaces between.</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="x">World X.</param>
+    /// <param name="y">World Y.</param>
+    public static bool TryParsePoint(string text, out double x, out double y)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        Match match = PointPattern.Match(text.Trim());
+        x = y = 0;
+        return match.Success
+               && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out x)
+               && double.TryParse(match.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out y);
+    }
 
     /// <summary>
     ///     A field's text as locations. Text that reads as a stored entry keeps that entry (a point with it); text that
@@ -319,20 +354,57 @@ public sealed class PlaceFieldModel
     /// <param name="current">The stored value.</param>
     /// <param name="callouts">The owner's words, or null.</param>
     /// <param name="multi">A list field.</param>
-    public static List<PlaceRef> Parse(string text, IReadOnlyList<PlaceRef> current, CalloutResolver? callouts, bool multi)
+    /// <param name="levelMinZ">The level key a typed coordinate takes when no stored point gives one; null for none.</param>
+    public static List<PlaceRef> Parse(string text, IReadOnlyList<PlaceRef> current, CalloutResolver? callouts, bool multi,
+        double? levelMinZ = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(current);
+
+        // A single field's whole text may be a bare "x, y", which the comma split would cut in two.
+        IReadOnlyList<string> parts = !multi && TryParsePoint(text, out _, out _) ? [text.Trim()] : Split(text);
         List<PlaceRef> entries = [];
-        foreach (string part in Split(text))
+        HashSet<int> used = [];
+        double? storedLevel = current.FirstOrDefault(StratLocations.HasPoint)?.LevelMinZ;
+        foreach (string part in parts)
         {
-            PlaceRef? kept = current.FirstOrDefault(v => string.Equals(DisplayOf([v], callouts), part, StringComparison.Ordinal));
-            PlaceRef entry = kept is not null
-                ? StratLocations.Clone(kept)
-                : multi
-                    ? new PlaceRef { Place = callouts?.Resolve(part) ?? part }
-                    : StratLocations.Typed(current.Count > 0 ? current[0] : null, callouts?.Resolve(part) ?? part)!;
-            if (!entries.Any(e => StratLocations.Same(e, entry)))
+            // Each stored entry answers one part: two points that print alike stay two points.
+            int keptAt = -1;
+            for (int k = 0; k < current.Count; k++)
+            {
+                if (!used.Contains(k) && string.Equals(DisplayOf([current[k]], callouts), part, StringComparison.Ordinal))
+                {
+                    keptAt = k;
+                    break;
+                }
+            }
+
+            PlaceRef? entry;
+            if (keptAt >= 0)
+            {
+                used.Add(keptAt);
+                entry = StratLocations.Clone(current[keptAt]);
+            }
+            else if (TryParsePoint(part, out double x, out double y))
+            {
+                PlaceRef stored = !multi && current.Count > 0 ? current[0] : new PlaceRef();
+                entry = StratLocations.Clone(stored);
+                entry.Place = null;
+                entry.X = x;
+                entry.Y = y;
+                entry.LevelMinZ = stored.LevelMinZ ?? storedLevel ?? levelMinZ;
+            }
+            else if (NumberOnly.IsMatch(part))
+            {
+                entry = null; // numbers that are not a point are never a place
+            }
+            else
+            {
+                string place = callouts?.Resolve(part) ?? part;
+                entry = multi ? new PlaceRef { Place = place } : StratLocations.Typed(current.Count > 0 ? current[0] : null, place);
+            }
+
+            if (entry is not null && !entries.Any(e => SameEntry(e, entry)))
             {
                 entries.Add(entry);
             }
@@ -345,6 +417,12 @@ public sealed class PlaceFieldModel
 
         return entries;
     }
+
+    // One entry per place, and one per point by its coordinates, not by how it prints.
+    private static bool SameEntry(PlaceRef a, PlaceRef b) =>
+        StratLocations.HasPlace(a) || StratLocations.HasPlace(b)
+            ? string.Equals(a.Place, b.Place, StringComparison.Ordinal)
+            : a.X == b.X && a.Y == b.Y;
 
     private void Refilter()
     {
