@@ -69,6 +69,28 @@ public class StratVerbsWhoTests
         await Assert.That(Bytes(vm)).IsEqualTo(before).Because("undo restores the exact bytes");
     }
 
+    [Test]
+    public async Task ALurksWatching_AndItsAreas_AreWrittenApart()
+    {
+        (StratBookTabViewModel vm, StratStepRow row, int index) = Open(Plain(100, "E", "lurk"));
+        using StratBookTabViewModel scope = vm;
+        row.GroupWatchText = "Stairs, Connector";
+        StratStep step = vm.Session.Document!.Steps[index];
+        using (Assert.Multiple())
+        {
+            await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["Stairs", "Connector"]);
+            await Assert.That(StratLocations.LurkAreas(step.Lurk)).IsEmpty().Because("watching writes no area");
+        }
+
+        row.LurkAreasText = "PalaceInterior";
+        step = vm.Session.Document!.Steps[index];
+        using (Assert.Multiple())
+        {
+            await Assert.That(step.Lurk!.Areas).IsEquivalentTo(["PalaceInterior"]);
+            await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["Stairs", "Connector"]).Because("an area writes no watch");
+        }
+    }
+
     // ── Watching by verb ────────────────────────────────────────────────────────────────────────
 
     [Test]
@@ -603,7 +625,7 @@ public class StratVerbsWhoTests
         StratDocument document = Rotating();
         TokenTrack e = Track(document, "E");
         int rotate = StepSchedule.TickFor(90, 115);
-        int arrive = rotate + (int)Math.Ceiling(430 / StratSceneProjection.RotateUnitsPerSecond * 64);
+        int arrive = rotate + (int)Math.Ceiling(430 / StratSceneProjection.WalkUnitsPerSecond * 64);
         using (Assert.Multiple())
         {
             await Assert.That(At(e, rotate - 1).X).IsEqualTo(0f).Because("the lurk holds until the rotate");
@@ -658,7 +680,7 @@ public class StratVerbsWhoTests
 
         StratSceneProjection projection = canvas.Projection!;
         int rotate = StepSchedule.TickFor(30, 115);
-        int arrive = rotate + (int)Math.Ceiling(100 / StratSceneProjection.RotateUnitsPerSecond * 64);
+        int arrive = rotate + (int)Math.Ceiling(100 / StratSceneProjection.WalkUnitsPerSecond * 64);
         using (Assert.Multiple())
         {
             await Assert.That(projection.LastTick).IsEqualTo(StepSchedule.TickFor(60, 115));

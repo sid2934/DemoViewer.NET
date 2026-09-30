@@ -165,7 +165,7 @@ public static class StratLocationPatches
                     lurk.AreaPoints = areaPoints.Count == 0 ? null : areaPoints;
                 });
 
-                // A lurk runs to its first area, so a new first area is a new destination.
+                // A lurk walks to its first area, so a new first area is a new destination.
                 IReadOnlyList<PlaceRef> areasAfter = StratLocations.LurkAreas(new StepLurk
                 {
                     Areas = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!)],
