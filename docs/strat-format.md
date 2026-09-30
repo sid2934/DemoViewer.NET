@@ -175,7 +175,7 @@ book: a display name is looked up at render time and a roster rename never touch
   that slot on that step. The canvas, the preview and an export all sample the same projection. A step
   whose actor is `all` names no one to stand there, so it is not projected and the validator warns.
 * **`positions[]`**, **`strokes[]`**, **`holdSeconds`** and **`interpolation`** are Step Authoring's:
-  this schema reserves their shape (a `{ slot, x, y, levelMinZ, yawDegrees? }` per token, and the
+  this schema reserves their shape (a `{ slot, x, y, levelMinZ, yawDegrees?, carried? }` per token, and the
   `.dvann.json` element shape with the time fields left off, for `strokes[]`) so a document written before
   Step Authoring ships still opens once it does. `interpolation` is `linear | hold`, or null for "Step
   Authoring's default"; `path` is **reserved**, not yet a legal value, and a validator that meets it
@@ -217,8 +217,8 @@ follows the rule for `positions[].levelMinZ`: the level's quantized lower Z, nev
   zones in memory, and a nearest-place name would change once they load and could name a place across a
   wall. `StratLocations.Text` is the one formatter.
 * **The projection** uses the point when there is one and the place's centre otherwise
-  (`StratSceneProjection.Where`). Today only facing reads it: nothing moves a token toward a `to`, since
-  token positions are always authored (`positions[]`) or a lineup's throw origin.
+  (`StratSceneProjection.Where`), for facing and for motion: a `to` (the step's or a line's) and a lurk's first
+  area move the token there (see "Motion on the canvas").
 * **The validator** accepts a point without a place. A `move` (or a move line) warns when its `to` has
   neither. An unknown place still warns; a point is never checked against the zones.
 
@@ -337,7 +337,8 @@ by every player the step names, like `from` and `utility`, and two lurkers who r
 
 The place rules wait for the map's zones, as the other place warnings do.
 
-**On the canvas**, a rotate with a time and a place moves every token the step names: from the rotate time the
+**On the canvas**, a lurk step first sends its players to its first area from the step's time (see "Motion on the
+canvas"). A rotate with a time and a place then moves every token the step names: from the rotate time the
 token runs from where it stands to the centre of the rotate-to place (`StratPlaceCentres.Arrival`: on the token's
 floor when the place has areas there, else on the floor holding most of the place, and the token arrives on that
 floor), at
@@ -353,12 +354,61 @@ undone by the next step; one added before the rotate carries the lurker where it
 **Facing on the canvas.** A token's yaw at a step, in order: a throw's lineup origin (position and yaw; a
 throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
 else towards the first watched entry: a place's centre, on the token's level when the place has nav areas
-there, else over all its floors, or a watched point itself; else `positions[].yawDegrees`; else the yaw it had. A watching line on a
+there, else over all its floors, or a watched point itself; else `positions[].yawDegrees`; else, for a token a
+destination moves, the direction it travels; else the yaw it had. A watch on a step that sends the token somewhere
+is faced from the arrival, for the whole run. A watching line on a
 step with no position for its slot adds a keyframe where the token already stands, so no move is re-timed.
 Place centres are the area-weighted centroids of the map's baked zones (a custom zone with no areas uses
 the middle of its box), built once per map when the zones load through the processing queue; until they
 land, and on a map with no zones, only an explicit `yawDegrees` turns a token. A new step carries each
 token's facing as the projection shows it, from the canvas's Add step and the editor's alike.
+
+### Motion on the canvas
+
+A step's destination moves its tokens. The canvas, the Detected preview and an export all sample the one projection
+(`StratSceneProjection`), so they agree.
+
+* **Who and where.** Every player the step names: a single actor, each line, or all five for `all`. The target is
+  the location's point when it has one, else the place's arrival (`StratPlaceCentres.Arrival`: its centre on the
+  token's floor when the place has areas there, else on the floor holding most of it, and the token arrives on that
+  floor). A place the map lacks, or zones not loaded yet, moves nothing.
+* **By verb** (`StratSceneProjection.MotionOf`):
+
+  | Verbs | Motion |
+  |---|---|
+  | move, push, rotate, `other`, and any verb outside the vocabulary | travel: leaves where it stands at the step's time and runs to the target |
+  | hold, peek, fake, plant, defuse | position: at the target at the step's time, walking from its previous keyframe |
+  | lurk | travels to its first area (`areas`, then `areaPoints`) from the step's time; its rotate follows |
+  | throw, wait, call | none: a throw's landing is where the grenade goes, not the player |
+
+  A run is at 215 units a second (`RotateUnitsPerSecond`), the lurk rotate's speed, and goes through the same code.
+  A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
+  instead. A position verb with no time to walk, because the slot's last keyframe is at the same tick (a setup's
+  first step on the round-start seed), runs instead, so the move still plays.
+* **Several tokens, one place.** When a step sends more than one of its players to the same place (or the same
+  point), each stands on a ray fixed by its slot letter (A at 90 degrees, then every 72), at 64, 44 or 24 units from
+  the arrival, the widest still inside the place on that floor (`IZonePlaceResolver.ResolveOnFloor`); with no spot
+  inside, 32 units out. The same slot takes the same spot in any group. A token sent alone goes to the centre.
+* **Precedence for a slot on a step:** a throw's lineup origin; then an authored position (a drag, or a set
+  position); then the destination; then a carried position; then where the token already is.
+* **Carried positions.** Add step copies every token where the projection has it at the step before and writes
+  `"carried": true` on each copy. A drag rewrites the entry without it. The field is written only when true, so a
+  file without it loads and saves byte for byte as before. A carried position holds the token (so a later drag on an
+  earlier step does not move it) until a destination has moved that slot since its last origin or authored entry;
+  from then on the copy is stale and ignored, and the token stays where the destination left it. Add step does not
+  carry such a token at all, nor a lurker whose rotate has fired.
+
+  A file saved before the mark holds carried copies with no mark. An unmarked position whose `x`, `y` and
+  `levelMinZ` are each within 0.02 of the slot's last placement as the file places it (an earlier step's
+  `positions[]` entry, or its lineup origin) counts as carried. A drag that lands exactly where the token already
+  stood reads the same, which changes nothing but lets a destination win.
+* **Setting a destination** through the location fields or the line writer (`StratLocationPatches`,
+  `StratLinePatches`) removes the marked carried positions of the slots whose destination it sets on that step, in
+  the same undo entry, highest index first; a new first lurk area does the same for the lurk's players. An authored
+  position is never removed. The writers have no map, so they remove only marked entries; the projection alone
+  applies the unmarked rule.
+* **The clock.** The transport, the step row's last band and an export run to the last arrival
+  (`ContentEndTick`), so a run after the last step still plays.
 
 `steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
 along it; two steps may share a time.
