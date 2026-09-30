@@ -217,6 +217,41 @@ public static partial class Variants
         return view;
     }
 
+    // The A execute's throws landed on places, mid-execute: the Jungle smoke bloomed, the Connector smoke in flight.
+    private static StratBookHubView StratEditorExecuteThrows()
+    {
+        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        StratBookTabViewModel? strats = null;
+        string[] landings = ["Jungle", "Connector", "BombsiteA", "BombsiteA"];
+        StratBookHubView view = StratEditor(true, true, true, vm =>
+        {
+            strats = vm;
+            StratDocument document = vm.Session.Document!;
+            int n = 0;
+            List<PatchOp> ops = [];
+            for (int i = 0; i < document.Steps.Count && n < landings.Length; i++)
+            {
+                if (document.Steps[i].Utility is not { } utility)
+                {
+                    continue;
+                }
+
+                UtilityRef landed = new() { Kind = utility.Kind, Landing = new UtilityLanding { Place = landings[n++] } };
+                ops.Add(PatchOp.ReplaceOp($"/steps/{i}/utility",
+                    JsonSerializer.SerializeToNode(utility, StratJsonContext.Default.UtilityRef),
+                    JsonSerializer.SerializeToNode(landed, StratJsonContext.Default.UtilityRef)));
+            }
+
+            vm.Session.Apply([.. ops]);
+        }, zones, "execute-a");
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            strats!.Canvas.Transport.Pause();
+            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(57.8, 115));
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
     // A lurk whose rotate-to is a point picked outside every callout, and its lurk areas field focused with the
     // callout list open over the editor at its narrowest.
     private static StratBookHubView StratEditorLocationList()
