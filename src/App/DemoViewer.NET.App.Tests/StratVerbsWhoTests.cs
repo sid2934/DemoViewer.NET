@@ -204,6 +204,55 @@ public class StratVerbsWhoTests
     }
 
     [Test]
+    public async Task SplittingAStepForEveryone_ShowsFiveLines_AndOneEditWritesFive()
+    {
+        (StratBookTabViewModel vm, StratStepRow row, int index) = Open(Plain(100, StratVocabulary.ActorAll, "hold", "BombsiteA"));
+        using StratBookTabViewModel scope = vm;
+        string before = Bytes(vm);
+        int depth = vm.Session.UndoDepth;
+
+        row.SplitCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.ShowApart).IsTrue();
+            await Assert.That(row.Lines.Select(l => l.Slot ?? "")).IsEquivalentTo(StratVocabulary.Slots);
+            await Assert.That(row.Lines.All(l => l.IsExplicit)).IsTrue();
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth).Because("split writes nothing");
+        }
+
+        StratLineRow first = row.Lines[0];
+        row.Lines[2].PlaceText = "Connector";
+        StratStep step = vm.Session.Document!.Steps[index];
+        using (Assert.Multiple())
+        {
+            await Assert.That(step.Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
+                .IsEquivalentTo(["A>BombsiteA", "B>BombsiteA", "C>Connector", "D>BombsiteA", "E>BombsiteA"]);
+            await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll);
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+            await Assert.That(row.Lines[0]).IsSameReferenceAs(first).Because("the rows stay, so focus is kept");
+        }
+
+        row.Lines[2].PlaceText = "BombsiteA";
+        step = vm.Session.Document!.Steps[index];
+        using (Assert.Multiple())
+        {
+            await Assert.That(step.Assignments).IsNull().Because("five bare lines to one place fold back to all");
+            await Assert.That(row.ShowApart).IsTrue().Because("the row stays apart until joined");
+            await Assert.That(row.CanJoin).IsTrue();
+        }
+
+        int joined = vm.Session.UndoDepth;
+        row.JoinCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.ShowCompact).IsTrue();
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(joined).Because("join writes nothing");
+        }
+
+        await UndoesTo(vm, before, 2);
+    }
+
+    [Test]
     public async Task LinesThatDiffer_OpenApart()
     {
         StratStep step = Plain(100, StratVocabulary.ActorAll, "hold");

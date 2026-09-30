@@ -453,6 +453,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   or watching to differ in) shows the lines one per player; `join` under the lines shows once they agree again. The
   row only goes apart on split or on an edit that makes the lines differ (a cone drag on one player), and only
   comes back on join, so a commit never swaps the fields under the caret. Lines that already differ open apart.
+  Split on a step for everyone shows five lines, and a line's edit writes all five (the others keep the step's place);
+  editing them back to agree folds the file to `all` while the row stays apart until join.
 - **Lines** (`StratLineRow`, written only through `Services/Strats/StratLinePatches.cs`): shown apart, under line one, indented
   like the fields, a `48,*,*,Auto` grid per player: slot, place (labelled with the verb's `to`, `at` or `site`, shown
   when the verb uses it or it holds one), watching, then the angle and remove buttons; a `who / to / watching` label
