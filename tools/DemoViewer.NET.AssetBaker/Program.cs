@@ -41,6 +41,27 @@ if (args.Any(a => a.StartsWith("--list-icons", StringComparison.Ordinal)))
     return;
 }
 
+// ── --export-svg=<key>[,<key>...]: write the named icons' source SVG and stop ──
+// Keys are the bake's own (equipment/knife_karambit). Output goes to --out=<dir>, default ./icon-svg.
+if (args.FirstOrDefault(a => a.StartsWith("--export-svg=", StringComparison.Ordinal)) is { } exportArg)
+{
+    string? exportCs2 = args
+        .FirstOrDefault(a => a.StartsWith("--cs2=", StringComparison.Ordinal))?["--cs2=".Length..];
+
+    string exportPak = SteamLibrary.FindCs2Pak(exportCs2)
+                       ?? throw new DirectoryNotFoundException(
+                           "Counter-Strike 2 not found. Pass --cs2=<path to pak01_dir.vpk or install root>.");
+
+    string exportOut = args
+        .FirstOrDefault(a => a.StartsWith("--out=", StringComparison.Ordinal))?["--out=".Length..] ?? "icon-svg";
+
+    string[] exportKeys = exportArg["--export-svg=".Length..]
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    Console.WriteLine(Icons.ExportSvg(exportPak, exportKeys, exportOut));
+    return;
+}
+
 // ── --icons: bake the weapon/HUD iconography and stop ──
 // A separate mode, not a step of the map bake, because it shares nothing with one: it reads a single
 // archive (game/csgo/pak01_dir.vpk) straight out of the CS2 install and needs no staged cs2-assets/
