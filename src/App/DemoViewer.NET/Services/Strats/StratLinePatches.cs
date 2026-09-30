@@ -56,11 +56,16 @@ public static class StratLinePatches
     /// <param name="step">The step as it stands.</param>
     /// <param name="stepPath">Its pointer, <c>/steps/{i}</c>.</param>
     /// <param name="lines">What the lines should be.</param>
-    public static List<PatchOp> Write(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines)
+    /// <param name="bySlot">
+    ///     A change of who: when the kept lines are unchanged and in order and the new ones come last, a <c>remove</c>
+    ///     per player dropped and an <c>add</c> per player added, never an index-wise rewrite that moves one player's
+    ///     line onto another.
+    /// </param>
+    public static List<PatchOp> Write(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines, bool bySlot = false)
     {
         ArgumentNullException.ThrowIfNull(step);
         ArgumentNullException.ThrowIfNull(lines);
-        List<PatchOp> ops = WriteLines(step, stepPath, lines);
+        List<PatchOp> ops = WriteLines(step, stepPath, lines, bySlot);
         if (ops.Count > 0 && StratStepFields.MovesToTo(step.Verb))
         {
             PlaceRef? DestinationAfter(string slot) =>
@@ -93,7 +98,7 @@ public static class StratLinePatches
         }
     }
 
-    private static List<PatchOp> WriteLines(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines)
+    private static List<PatchOp> WriteLines(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines, bool bySlot)
     {
         List<StepAssignment> target = [.. lines.Select(Clone)];
         foreach (StepAssignment line in target)
@@ -167,7 +172,11 @@ public static class StratLinePatches
 
         List<StepAssignment> before = step.Assignments!;
         string array = stepPath + "/assignments";
-        if (target.Count == before.Count + 1 && before.Select(Json).SequenceEqual(target.Take(before.Count).Select(Json)))
+        if (bySlot && BySlot(before, target, array) is { } keyed)
+        {
+            ops.AddRange(keyed);
+        }
+        else if (target.Count == before.Count + 1 && before.Select(Json).SequenceEqual(target.Take(before.Count).Select(Json)))
         {
             ops.Add(PatchOp.AddOp(Invariant($"{array}/{before.Count}"), Node(target[^1])));
         }
@@ -286,7 +295,36 @@ public static class StratLinePatches
             }
         }
 
-        return Write(step, stepPath, target);
+        return Write(step, stepPath, target, true);
+    }
+
+    /// <summary>
+    ///     The line at <paramref name="line" /> moved whole to <paramref name="slot" />: place, watch, angle and
+    ///     unknown fields go with it. When another line holds that slot the two swap, so re-lettering players never
+    ///     drops one. Positions stay with their slot: they are tokens, not lines.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="stepPath">Its pointer.</param>
+    /// <param name="line">The line's index in <see cref="Copy" />.</param>
+    /// <param name="slot">The new slot.</param>
+    /// <param name="expandAll">Read a step for <c>all</c> as a line per slot (<see cref="Copy" />).</param>
+    public static List<PatchOp> ChangeSlot(StratStep step, string stepPath, int line, string slot, bool expandAll = false)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        List<StepAssignment> lines = Copy(step, expandAll);
+        if (line < 0 || line >= lines.Count || !StratVocabulary.Slots.Contains(slot))
+        {
+            return [];
+        }
+
+        string old = lines[line].Slot;
+        foreach (StepAssignment other in lines.Where((l, j) => j != line && string.Equals(l.Slot, slot, StringComparison.Ordinal)))
+        {
+            other.Slot = old;
+        }
+
+        lines[line].Slot = slot;
+        return Write(step, stepPath, lines);
     }
 
     /// <summary>
@@ -357,6 +395,36 @@ public static class StratLinePatches
 
     private static string WithoutYaw(StepWatch watch) =>
         JsonSerializer.Serialize(new StepWatch { Places = watch.Places, Points = watch.Points, Extra = watch.Extra }, StratJsonContext.Default.StepWatch);
+
+    // Null unless the kept lines are byte-equal and in order, with the added ones after them.
+    private static List<PatchOp>? BySlot(List<StepAssignment> before, List<StepAssignment> target, string array)
+    {
+        HashSet<string> after = [.. target.Select(l => l.Slot)];
+        HashSet<string> had = [.. before.Select(l => l.Slot)];
+        List<StepAssignment> kept = [.. before.Where(l => after.Contains(l.Slot))];
+        if ((kept.Count == before.Count && kept.Count == target.Count) || kept.Count > target.Count
+                                                                        || !kept.Select(Json).SequenceEqual(target.Take(kept.Count).Select(Json))
+                                                                        || target.Skip(kept.Count).Any(l => had.Contains(l.Slot)))
+        {
+            return null;
+        }
+
+        List<PatchOp> ops = [];
+        for (int j = before.Count - 1; j >= 0; j--)
+        {
+            if (!after.Contains(before[j].Slot))
+            {
+                ops.Add(PatchOp.RemoveOp(Invariant($"{array}/{j}"), null));
+            }
+        }
+
+        for (int k = kept.Count; k < target.Count; k++)
+        {
+            ops.Add(PatchOp.AddOp(Invariant($"{array}/{k}"), Node(target[k])));
+        }
+
+        return ops;
+    }
 
     private static int? RemovedAt(List<StepAssignment> before, List<StepAssignment> after)
     {
