@@ -469,9 +469,10 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <param name="index">The step's index.</param>
     /// <param name="line">The line's index in <see cref="StratStepLines.Of" />.</param>
     /// <param name="slot">The new slot.</param>
-    internal void ChangeLineSlot(int index, int line, string slot) => ApplyInBurst(index, "slot" + line, (start, path) =>
+    /// <param name="expandAll">The row shows a step for everyone as a line per slot.</param>
+    internal void ChangeLineSlot(int index, int line, string slot, bool expandAll = false) => ApplyInBurst(index, "slot" + line, (start, path) =>
     {
-        List<StepAssignment> lines = StratLinePatches.Copy(start);
+        List<StepAssignment> lines = StratLinePatches.Copy(start, expandAll);
         if (line >= lines.Count || lines.Exists(l => string.Equals(l.Slot, slot, StringComparison.Ordinal)))
         {
             return [];
@@ -484,7 +485,8 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <summary>One edit of a step's lines, as one undo entry, written in the stored shape (<see cref="StratLinePatches" />).</summary>
     /// <param name="index">The step's index.</param>
     /// <param name="edit">Changes a copy of the lines; the step as it stands is passed for reference.</param>
-    internal void EditLines(int index, Action<StratStep, List<StepAssignment>> edit)
+    /// <param name="expandAll">Read a step for everyone as a line per slot, as a row split apart shows it.</param>
+    internal void EditLines(int index, Action<StratStep, List<StepAssignment>> edit, bool expandAll = false)
     {
         if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
         {
@@ -493,7 +495,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
         EndEditBurst();
         StratStep step = document.Steps[index];
-        List<PatchOp> ops = StratLinePatches.Edit(step, StepPath(index), lines => edit(step, lines));
+        List<PatchOp> ops = StratLinePatches.Edit(step, StepPath(index), lines => edit(step, lines), expandAll);
         if (ops.Count > 0)
         {
             _session.Apply(ops);
@@ -762,7 +764,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
                 {
                     lines.RemoveAt(line);
                 }
-            });
+            }, row.ExpandsAll);
         }
     }
 
@@ -1208,6 +1210,11 @@ public sealed partial class StratStepRow : ObservableObject
     // Null until the first load; then sticky once the lines differ, so a commit never swaps the view under the caret.
     private bool? _split;
 
+    private bool? _linesImplicit;
+
+    /// <summary>A step for everyone shown apart: its lines are one per slot, and a line's edit writes all five.</summary>
+    internal bool ExpandsAll { get; private set; }
+
     internal StratStepRow(StratEditorViewModel owner, Guid id)
     {
         _owner = owner;
@@ -1304,7 +1311,7 @@ public sealed partial class StratStepRow : ObservableObject
     private void Split()
     {
         _split = true;
-        RefreshView();
+        _owner.Project();
         _owner.RaiseLinesViewChanged();
     }
 
@@ -1318,7 +1325,7 @@ public sealed partial class StratStepRow : ObservableObject
         }
 
         _split = false;
-        RefreshView();
+        _owner.Project();
         _owner.RaiseLinesViewChanged();
     }
 
@@ -1568,8 +1575,9 @@ public sealed partial class StratStepRow : ObservableObject
                            && (landing.X is not null || landing.Y is not null || landing.LevelMinZ is not null || landing.Extra is { Count: > 0 });
         LandingText = _owner.DisplayPlace(step.Utility?.Landing?.Place);
         Note = step.Note ?? "";
-        LoadLines(step);
         LoadGroup(step);
+        LoadLines(step);
+        LoadWho();
         LoadLurk(step);
 
         // A stored id resolves through the catalog, an alias id to the lineup that absorbed it; the row shows the
@@ -1600,11 +1608,15 @@ public sealed partial class StratStepRow : ObservableObject
     // Rebuilt only when the number of lines or their kind changes, so a field keeps focus across its own edit.
     private void LoadLines(StratStep step)
     {
-        IReadOnlyList<StepAssignment> lines = StratStepLines.Of(step);
         bool stored = StratStepLines.HasLines(step);
-        if (Lines.Count != lines.Count || HasStoredLines != stored)
+        ExpandsAll = !ShowCompact && !stored && string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal);
+        IReadOnlyList<StepAssignment> lines = ExpandsAll ? StratLinePatches.Copy(step, true) : StratStepLines.Of(step);
+        // Five lines read from a step for everyone and the five stored lines an edit of one makes are the same rows.
+        bool isImplicit = !stored && !ExpandsAll;
+        HasStoredLines = stored;
+        if (Lines.Count != lines.Count || _linesImplicit != isImplicit)
         {
-            HasStoredLines = stored;
+            _linesImplicit = isImplicit;
             Lines.Clear();
             for (int j = 0; j < lines.Count; j++)
             {
@@ -1619,7 +1631,7 @@ public sealed partial class StratStepRow : ObservableObject
             [
                 .. StratVocabulary.Slots.Where(s => s == own || lines.All(l => !string.Equals(l.Slot, s, StringComparison.Ordinal)))
             ];
-            Lines[j].Load(j, lines[j], !stored, Verb, options);
+            Lines[j].Load(j, lines[j], isImplicit, Verb, options);
         }
 
         SelectLine(_lineSlot);
@@ -1645,7 +1657,6 @@ public sealed partial class StratStepRow : ObservableObject
         GroupWatchText = _owner.DisplayPlaces(StratStepLines.Watching(shared));
         HasGroupAngle = shared?.Watch?.YawDegrees is not null;
         GroupAngleText = shared?.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
-        LoadWho();
         RefreshView();
         foreach (string name in (string[])
                  [nameof(WhoText), nameof(PlayerCount), nameof(HasGroupAngle), nameof(GroupAngleText), nameof(ShowGroupPlace), nameof(ShowGroupWatch)])
@@ -2081,14 +2092,14 @@ public sealed partial class StratLineRow : ObservableObject
         {
             watch.YawDegrees = null;
         }
-    });
+    }, _row.ExpandsAll);
 
     // Guarded like the pin combo: replacing SlotOptions pushes null, which is not the user's choice.
     partial void OnSlotChanged(string? value)
     {
         if (!_loading && value is not null)
         {
-            _row.Owner.ChangeLineSlot(_row.Index, Index, value);
+            _row.Owner.ChangeLineSlot(_row.Index, Index, value, _row.ExpandsAll);
         }
     }
 
@@ -2117,7 +2128,7 @@ public sealed partial class StratLineRow : ObservableObject
                 line.To ??= new PlaceRef();
                 line.To.Place = place;
             }
-        });
+        }, _row.ExpandsAll);
     }
 
     partial void OnWatchTextChanged(string value)
@@ -2135,7 +2146,7 @@ public sealed partial class StratLineRow : ObservableObject
                 lines[Index].Watch ??= new StepWatch();
                 lines[Index].Watch!.Places = places;
             }
-        });
+        }, _row.ExpandsAll);
     }
 
     private static string LastPart(string? search)
