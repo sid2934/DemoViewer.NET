@@ -54,7 +54,7 @@ public static class StratStepCarry
         int[] ticks = StratSceneProjection.TicksOf(path, roundSeconds, out _);
         StratSceneProjection.PlaceSet places = new(placeCentres, StratSceneProjection.ArrivalsFrom(placeCentres), null,
             document.Canvas?.DefaultLevelMinZ ?? 0, roundSeconds, StratSceneProjection.IsLegacyCarry(document),
-            StratSceneProjection.IsObserved(document));
+            StratSceneProjection.IsLegacyObserved(document));
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
             StratSceneProjection.SlotPlan plan = StratSceneProjection.PlanOf(path, ticks, origins, slot, places);
@@ -83,6 +83,7 @@ public static class StratStepCarry
                         YawDegrees = placement.YawDegrees is { } yaw ? Round(yaw) : null
                     };
                 copy.Carried = true;
+                copy.Observed = null;
                 carried.Add(copy);
                 break;
             }

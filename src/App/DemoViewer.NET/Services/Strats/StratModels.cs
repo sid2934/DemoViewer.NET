@@ -484,6 +484,12 @@ public sealed class StepPosition
     /// </summary>
     public bool? Carried { get; set; }
 
+    /// <summary>
+    ///     True when Create Strat From Round or Strat Mining wrote the entry where a player was seen; null (not written)
+    ///     otherwise. An observed entry is the token's spot on every verb; see docs/strat-format.md.
+    /// </summary>
+    public bool? Observed { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
