@@ -74,6 +74,12 @@
         <Style Selector="Border.stratLine ComboBox">
             <Setter Property="Padding" Value="6 0 0 0" />
         </Style>
+        <!-- The Who button reads as the combo boxes beside it: it opens a picker too. -->
+        <Style Selector="Button.stratWho">
+            <Setter Property="Background" Value="{DynamicResource ComboBoxBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ComboBoxBorderBrush}" />
+            <Setter Property="BorderThickness" Value="{DynamicResource ComboBoxBorderThemeThickness}" />
+        </Style>
         <Style Selector="TextBlock.stratFieldLabel">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
@@ -690,7 +696,7 @@
                             <Grid ColumnDefinitions="20,56,64,84,*" ColumnSpacing="4">
                                 <TextBlock Grid.Column="0" Text="#" Classes="stratFieldLabel" />
                                 <TextBlock Grid.Column="1" Text="at" Classes="stratFieldLabel" />
-                                <TextBlock Grid.Column="2" Text="actor" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="2" Text="who" Classes="stratFieldLabel" />
                                 <TextBlock Grid.Column="3" Text="verb" Classes="stratFieldLabel" />
                             </Grid>
                             <ItemsControl x:Name="StepRows" ItemsSource="{Binding Steps}">
@@ -710,10 +716,40 @@
                                                                VerticalAlignment="Center" Margin="6 0 0 0" />
                                                     <TextBox Grid.Column="1" FontSize="12" MinWidth="0"
                                                              Text="{Binding TimeText, UpdateSourceTrigger=LostFocus}" />
-                                                    <ComboBox Grid.Column="2" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
-                                                              ItemsSource="{x:Static vm:StratEditorViewModel.Actors}" SelectedItem="{Binding Actor}"
-                                                              IsEnabled="{Binding CanEditActor}"
-                                                              ToolTip.Tip="Who takes the step: everyone, or one player. With several players, the lines below say who." />
+                                                    <!-- Who: slot toggles in a flyout, written as one entry when it closes. -->
+                                                    <Button Grid.Column="2" Name="WhoButton" Classes="stratWho" FontSize="12" MinWidth="0"
+                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="6 4"
+                                                            ToolTip.Tip="Who takes the step: pick one or several players, or all">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="2">
+                                                            <TextBlock Text="{Binding WhoText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="▾" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                        <Button.Flyout>
+                                                            <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnWhoFlyoutOpened" Closed="OnWhoFlyoutClosed">
+                                                                <StackPanel Spacing="6">
+                                                                    <ItemsControl ItemsSource="{Binding WhoOptions}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <StackPanel Orientation="Horizontal" Spacing="3" />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:StratWhoOption">
+                                                                                <ToggleButton Content="{Binding Slot}" IsChecked="{Binding IsChecked}"
+                                                                                              Width="30" Padding="0 4" HorizontalContentAlignment="Center"
+                                                                                              ToolTip.Tip="{Binding Slot, StringFormat='Slot {0} takes part'}" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <Button Content="all" Classes="ghost" FontSize="11" Padding="8 2"
+                                                                                Command="{Binding WhoAllCommand}" ToolTip.Tip="Every player" />
+                                                                        <TextBlock Text="applied when this closes" Classes="stratFieldLabel" VerticalAlignment="Center" />
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Flyout>
+                                                        </Button.Flyout>
+                                                    </Button>
                                                     <ComboBox Grid.Column="3" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
                                                               ItemsSource="{x:Static vm:StratEditorViewModel.Verbs}" SelectedItem="{Binding Verb}"
                                                               ToolTip.Tip="Changing the verb clears the fields the new verb does not use" />
@@ -729,9 +765,9 @@
                                                                IsVisible="{Binding TimeIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
                                                                Text="{Binding TimeIssue.Glyph}" ToolTip.Tip="{Binding TimeIssue.Message}" />
                                                     <TextBlock Grid.Column="2" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding ActorIssue.IsRefusal, FallbackValue=False}"
-                                                               IsVisible="{Binding ActorIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                                               Text="{Binding ActorIssue.Glyph}" ToolTip.Tip="{Binding ActorIssue.Message}" />
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding WhoIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding WhoIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding WhoIssue.Glyph}" ToolTip.Tip="{Binding WhoIssue.Message}" />
                                                     <TextBlock Grid.Column="3" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
                                                                Margin="0 -9 -5 0" Classes.refusal="{Binding VerbIssue.IsRefusal, FallbackValue=False}"
                                                                IsVisible="{Binding VerbIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
@@ -755,8 +791,48 @@
                                                                 CommandParameter="{Binding}" />
                                                     </StackPanel>
                                                 </Grid>
-                                                <!-- Who goes where: one line per player, each with its place and what it watches. -->
+                                                <!-- Who goes where. Compact: the players share one place and one watching, and an
+                                                     edit writes every line. Apart: one line per player. -->
                                                 <StackPanel Margin="24 0 0 0" Spacing="3">
+                                                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="4" IsVisible="{Binding ShowCompact}">
+                                                        <StackPanel Grid.Column="0" Grid.ColumnSpan="{Binding GroupPlaceSpan}"
+                                                                    IsVisible="{Binding ShowGroupPlace}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="{Binding ToLabel}" Classes="stratFieldLabel" />
+                                                                <TextBlock Classes="stratIssue" Classes.refusal="{Binding GroupPlaceIssue.IsRefusal, FallbackValue=False}"
+                                                                           IsVisible="{Binding GroupPlaceIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                           Text="{Binding GroupPlaceIssue.Glyph}" ToolTip.Tip="{Binding GroupPlaceIssue.Message}" />
+                                                            </StackPanel>
+                                                            <TextBox Name="GroupPlaceField" FontSize="12" MinWidth="0" Watermark="place or callout"
+                                                                     Text="{Binding GroupPlaceText, UpdateSourceTrigger=LostFocus}"
+                                                                     ToolTip.Tip="Where they go; every player in the step" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="{Binding GroupWatchColumn}" Grid.ColumnSpan="{Binding GroupWatchSpan}"
+                                                                    IsVisible="{Binding ShowGroupWatch}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="watching" Classes="stratFieldLabel" />
+                                                                <TextBlock Classes="stratIssue" Classes.refusal="{Binding GroupWatchIssue.IsRefusal, FallbackValue=False}"
+                                                                           IsVisible="{Binding GroupWatchIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                           Text="{Binding GroupWatchIssue.Glyph}" ToolTip.Tip="{Binding GroupWatchIssue.Message}" />
+                                                            </StackPanel>
+                                                            <AutoCompleteBox Name="GroupWatchField" FontSize="12" MinWidth="0" Watermark="callouts"
+                                                                             MinimumPrefixLength="1" FilterMode="Custom"
+                                                                             ItemsSource="{Binding PlaceSuggestions}"
+                                                                             ItemFilter="{x:Static vm:StratLineRow.WatchFilter}"
+                                                                             TextSelector="{x:Static vm:StratLineRow.WatchSelector}"
+                                                                             Text="{Binding GroupWatchText, UpdateSourceTrigger=LostFocus}"
+                                                                             ToolTip.Tip="Callouts, comma separated; each cone faces the first unless an angle is set" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Bottom">
+                                                            <Button Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding HasGroupAngle}" IsTabStop="False"
+                                                                    Content="{Binding GroupAngleText}" Command="{Binding ClearGroupAngleCommand}"
+                                                                    ToolTip.Tip="Clear the view angle: face the first watched callout again" />
+                                                            <Button Content="split" Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding CanSplit}"
+                                                                    IsTabStop="False" Command="{Binding SplitCommand}"
+                                                                    ToolTip.Tip="One line per player, to give each their own place and watching" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Spacing="3" IsVisible="{Binding ShowApart}">
                                                     <Grid ColumnDefinitions="48,*,*,Auto" ColumnSpacing="4" IsVisible="{Binding HasLines}">
                                                         <TextBlock Grid.Column="0" Text="who" Classes="stratFieldLabel" />
                                                         <TextBlock Grid.Column="1" Text="{Binding ToLabel}" Classes="stratFieldLabel" />
@@ -779,6 +855,7 @@
                                                                                  IsVisible="{Binding ShowPlace}"
                                                                                  Text="{Binding PlaceText, UpdateSourceTrigger=LostFocus}" />
                                                                         <AutoCompleteBox Grid.Column="2" FontSize="12" MinWidth="0" Watermark="callouts"
+                                                                                         IsVisible="{Binding ShowWatch}"
                                                                                          MinimumPrefixLength="1" FilterMode="Custom"
                                                                                          ItemsSource="{Binding WatchSuggestions}"
                                                                                          ItemFilter="{x:Static vm:StratLineRow.WatchFilter}"
@@ -809,11 +886,17 @@
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
-                                                    <Button Content="+ player" Classes="ghost" FontSize="11" Padding="8 2" HorizontalAlignment="Left" IsTabStop="False"
-                                                            IsVisible="{Binding CanAddLine}"
-                                                            Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).AddLineCommand}"
-                                                            CommandParameter="{Binding}"
-                                                            ToolTip.Tip="Send another player somewhere in this step" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <Button Content="+ player" Classes="ghost" FontSize="11" Padding="8 2" IsTabStop="False"
+                                                                IsVisible="{Binding CanAddLine}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).AddLineCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="Send another player somewhere in this step" />
+                                                        <Button Content="join" Classes="ghost" FontSize="11" Padding="8 2" IsTabStop="False"
+                                                                IsVisible="{Binding CanJoin}" Command="{Binding JoinCommand}"
+                                                                ToolTip.Tip="The lines agree: show them as one who, one place and one watching" />
+                                                    </StackPanel>
+                                                    </StackPanel>
                                                 </StackPanel>
                                                 <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="24 0 0 0">
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowFrom}">
@@ -826,7 +909,7 @@
                                                         <TextBox Width="128" Watermark="place or callout"
                                                                  Text="{Binding FromText, UpdateSourceTrigger=LostFocus}" />
                                                     </StackPanel>
-                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowTo}">
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding IsStrayTo}">
                                                         <StackPanel Orientation="Horizontal" Spacing="3">
                                                             <TextBlock Text="{Binding ToLabel}" Classes="stratFieldLabel" />
                                                             <TextBlock Classes="stratIssue" Classes.refusal="{Binding ToIssue.IsRefusal, FallbackValue=False}"
@@ -890,6 +973,53 @@
                                                         </StackPanel>
                                                         <TextBox Width="128" Watermark="landing place"
                                                                  Text="{Binding LandingText, UpdateSourceTrigger=LostFocus}" />
+                                                    </StackPanel>
+                                                    <!-- A lurk: its areas, then when it rotates (a time, a condition, or both) and where to.
+                                                         The place fields are named so a shared location field can replace them. -->
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="lurk areas" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding LurkAreasIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding LurkAreasIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding LurkAreasIssue.Glyph}" ToolTip.Tip="{Binding LurkAreasIssue.Message}" />
+                                                        </StackPanel>
+                                                        <AutoCompleteBox Name="LurkAreasField" Width="200" Watermark="callouts"
+                                                                         MinimumPrefixLength="1" FilterMode="Custom"
+                                                                         ItemsSource="{Binding PlaceSuggestions}"
+                                                                         ItemFilter="{x:Static vm:StratLineRow.WatchFilter}"
+                                                                         TextSelector="{x:Static vm:StratLineRow.WatchSelector}"
+                                                                         Text="{Binding LurkAreasText, UpdateSourceTrigger=LostFocus}"
+                                                                         ToolTip.Tip="Places the lurk takes or works towards, comma separated" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="rotate at" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding RotateAtIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding RotateAtIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding RotateAtIssue.Glyph}" ToolTip.Tip="{Binding RotateAtIssue.Message}" />
+                                                        </StackPanel>
+                                                        <TextBox Name="RotateAtField" Width="56" Watermark="0:40"
+                                                                 Text="{Binding RotateAtText, UpdateSourceTrigger=LostFocus}"
+                                                                 ToolTip.Tip="The round clock time the lurk rotates at; later than the step" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <TextBlock Text="or when" Classes="stratFieldLabel" />
+                                                        <AutoCompleteBox Name="RotateWhenField" Width="128" Watermark="on the call"
+                                                                         MinimumPrefixLength="0" FilterMode="StartsWith"
+                                                                         ItemsSource="{x:Static vm:StratStepRow.RotateConditions}"
+                                                                         Text="{Binding RotateWhenText, UpdateSourceTrigger=LostFocus}"
+                                                                         ToolTip.Tip="What makes the lurk rotate, in words; with a time, whichever comes first" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="rotate to" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding RotateToIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding RotateToIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding RotateToIssue.Glyph}" ToolTip.Tip="{Binding RotateToIssue.Message}" />
+                                                        </StackPanel>
+                                                        <TextBox Name="RotateToField" Width="128" Watermark="place or callout"
+                                                                 Text="{Binding RotateToText, UpdateSourceTrigger=LostFocus}"
+                                                                 ToolTip.Tip="Where the lurk goes when it rotates" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField">
                                                         <TextBlock Text="note" Classes="stratFieldLabel" />

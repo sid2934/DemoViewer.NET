@@ -21,14 +21,20 @@ public enum StratLocationKind
     Landing,
 
     /// <summary>A line's watched entries: its places, then its points.</summary>
-    Watch
+    Watch,
+
+    /// <summary>The step's lurk areas: its places, then its points.</summary>
+    LurkArea,
+
+    /// <summary>Where the step's lurk rotates to.</summary>
+    RotateTo
 }
 
 /// <summary>
 ///     One location field: what a map pick or a location control writes. <see cref="Slot" /> names a line for
 ///     <see cref="StratLocationKind.To" /> (null is the step's own) and is required for
-///     <see cref="StratLocationKind.Watch" />. <see cref="Entry" /> is the watched entry a pick replaces, in reading
-///     order; null adds one.
+///     <see cref="StratLocationKind.Watch" />; <see cref="AllLines" /> writes every line, for a row that shows its
+///     lines as one. <see cref="Entry" /> is the list entry a pick replaces, in reading order; null adds one.
 /// </summary>
 /// <param name="StepId">The step.</param>
 /// <param name="Slot">The line's slot, or null for the step's own member.</param>
@@ -36,8 +42,14 @@ public enum StratLocationKind
 /// <param name="Entry">For a watch, the entry to replace; null appends.</param>
 public sealed record StratLocationField(Guid StepId, string? Slot, StratLocationKind Kind, int? Entry = null)
 {
-    /// <summary>Whether the field holds a list (watching) rather than one location.</summary>
-    public bool IsMulti => Kind == StratLocationKind.Watch;
+    /// <summary>The <see cref="Slot" /> that means every line of the step.</summary>
+    public const string AllLines = StratVocabulary.ActorAll;
+
+    /// <summary>Whether the field holds a list (watching, lurk areas) rather than one location.</summary>
+    public bool IsMulti => Kind is StratLocationKind.Watch or StratLocationKind.LurkArea;
+
+    /// <summary>Whether it writes every line rather than one.</summary>
+    public bool IsAllLines => string.Equals(Slot, AllLines, StringComparison.Ordinal);
 }
 
 /// <summary>
@@ -58,14 +70,20 @@ public static class StratLocationPatches
         {
             StratLocationKind.From => step.From,
             StratLocationKind.To when field.Slot is null => step.To,
-            StratLocationKind.To => StratStepLines.LineFor(step, field.Slot)?.To,
+            StratLocationKind.To => LineOf(step, field)?.To,
             StratLocationKind.Landing => step.Utility?.Landing is { } landing ? StratLocations.FromLanding(landing) : null,
+            StratLocationKind.RotateTo => step.Lurk?.Rotate?.To,
             _ => null
         };
 
         if (field.Kind == StratLocationKind.Watch)
         {
-            return field.Slot is null ? [] : StratLocations.Watched(StratStepLines.LineFor(step, field.Slot)?.Watch);
+            return field.Slot is null ? [] : StratLocations.Watched(LineOf(step, field)?.Watch);
+        }
+
+        if (field.Kind == StratLocationKind.LurkArea)
+        {
+            return StratLocations.LurkAreas(step.Lurk);
         }
 
         return single is null ? [] : [single];
@@ -86,10 +104,11 @@ public static class StratLocationPatches
             StratLocationKind.From => StratStepFields.Uses(step.Verb, StratStepField.From) || step.From is not null,
             StratLocationKind.To when field.Slot is null => !StratStepLines.HasLines(step)
                                                             && (StratStepFields.Uses(step.Verb, StratStepField.To) || step.To is not null),
-            StratLocationKind.To => StratVocabulary.Slots.Contains(field.Slot)
-                                    && (StratStepFields.Uses(step.Verb, StratStepField.To) || StratStepLines.LineFor(step, field.Slot)?.To is not null),
+            StratLocationKind.To => (field.IsAllLines || StratVocabulary.Slots.Contains(field.Slot))
+                                    && (StratStepFields.Uses(step.Verb, StratStepField.To) || LineOf(step, field)?.To is not null),
             StratLocationKind.Landing => step.Utility is not null,
-            StratLocationKind.Watch => field.Slot is not null && StratVocabulary.Slots.Contains(field.Slot),
+            StratLocationKind.Watch => field.IsAllLines || (field.Slot is not null && StratVocabulary.Slots.Contains(field.Slot)),
+            StratLocationKind.LurkArea or StratLocationKind.RotateTo => StratStepFields.Uses(step.Verb, StratStepField.Lurk) || step.Lurk is not null,
             _ => false
         };
     }
@@ -118,8 +137,25 @@ public static class StratLocationPatches
                 return Member(stepPath + "/from", step.From, next);
             case StratLocationKind.To when field.Slot is null:
                 return Member(stepPath + "/to", step.To, next);
+            case StratLocationKind.To when field.IsAllLines:
+                return StratLinePatches.EditAll(step, stepPath, line => line.To = next is null ? null : StratLocations.Clone(next));
             case StratLocationKind.To:
                 return StratLinePatches.EditLine(step, stepPath, field.Slot, line => line.To = next);
+            case StratLocationKind.RotateTo:
+                return StratLurkPatches.Edit(step, stepPath, lurk =>
+                {
+                    if (next is not null || lurk.Rotate is not null)
+                    {
+                        (lurk.Rotate ??= new LurkRotate()).To = next;
+                    }
+                });
+            case StratLocationKind.LurkArea:
+                return StratLurkPatches.Edit(step, stepPath, lurk =>
+                {
+                    lurk.Areas = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!).Distinct(StringComparer.Ordinal)];
+                    List<PlaceRef> areaPoints = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e)).Select(StratLocations.Clone)];
+                    lurk.AreaPoints = areaPoints.Count == 0 ? null : areaPoints;
+                });
             case StratLocationKind.Landing:
                 if (step.Utility is null)
                 {
@@ -143,12 +179,14 @@ public static class StratLocationPatches
             case StratLocationKind.Watch when field.Slot is not null:
                 List<string> places = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!).Distinct(StringComparer.Ordinal)];
                 List<PlaceRef> points = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e)).Select(StratLocations.Clone)];
-                return StratLinePatches.EditLine(step, stepPath, field.Slot, line =>
+                void SetWatch(StepAssignment line)
                 {
                     line.Watch ??= new StepWatch();
-                    line.Watch.Places = places;
-                    line.Watch.Points = points.Count == 0 ? null : points;
-                });
+                    line.Watch.Places = [.. places];
+                    line.Watch.Points = points.Count == 0 ? null : [.. points.Select(StratLocations.Clone)];
+                }
+
+                return field.IsAllLines ? StratLinePatches.EditAll(step, stepPath, SetWatch) : StratLinePatches.EditLine(step, stepPath, field.Slot, SetWatch);
             default:
                 return [];
         }
@@ -194,6 +232,12 @@ public static class StratLocationPatches
 
         return Write(document, stepIndex, field, entries);
     }
+
+    // A line field's line: the named slot's, or for every line the first, since the row shows them only while they agree.
+    private static StepAssignment? LineOf(StratStep step, StratLocationField field) =>
+        field.IsAllLines
+            ? StratLinePatches.Copy(step, true) is { Count: > 0 } lines ? lines[0] : null
+            : StratStepLines.LineFor(step, field.Slot!);
 
     private static bool SameEntry(PlaceRef a, PlaceRef b) =>
         StratLocations.HasPlace(a) || StratLocations.HasPlace(b)

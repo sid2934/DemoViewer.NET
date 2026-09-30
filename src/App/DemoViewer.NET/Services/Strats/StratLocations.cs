@@ -87,6 +87,20 @@ public static class StratLocations
         return entries;
     }
 
+    /// <summary>A lurk's areas in reading order: its places, then its points.</summary>
+    /// <param name="lurk">A lurk, or null.</param>
+    public static IReadOnlyList<PlaceRef> LurkAreas(StepLurk? lurk)
+    {
+        if (lurk is null)
+        {
+            return [];
+        }
+
+        List<PlaceRef> entries = [.. lurk.Areas.Where(p => !string.IsNullOrEmpty(p)).Select(p => new PlaceRef { Place = p })];
+        entries.AddRange(lurk.AreaPoints?.Where(HasPoint) ?? []);
+        return entries;
+    }
+
     /// <summary>
     ///     The location a map click sets: the place under the point and the point with its level. With no answer
     ///     about places (the map's zones are missing), the stored place stays, as a landing always did. From the

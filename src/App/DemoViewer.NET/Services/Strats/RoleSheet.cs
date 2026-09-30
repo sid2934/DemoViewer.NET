@@ -69,6 +69,11 @@ public static class StratStepPhrasing
             }
         }
 
+        if (step.Lurk is { } lurk && LurkText(lurk, callouts) is { } lurkText)
+        {
+            sentence.Append(StratLocations.LurkAreas(lurk).Count > 0 ? " " : "; ").Append(lurkText);
+        }
+
         // A point prints in its own parentheses already.
         if (StratLocations.Text(step.Utility?.Landing, callouts) is { } landing && (lines || !string.Equals(landing, to, StringComparison.Ordinal)))
         {
@@ -105,6 +110,51 @@ public static class StratStepPhrasing
         }
 
         return text.ToString();
+    }
+
+    /// <summary>
+    ///     A lurk's areas and rotate: <c>Palace, Connector; rotate to B site at 0:40 or on the call</c>. Just the rotate
+    ///     without areas, just the areas without a rotate, null with neither.
+    /// </summary>
+    /// <param name="lurk">The step's lurk.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string? LurkText(StepLurk lurk, CalloutResolver? callouts)
+    {
+        ArgumentNullException.ThrowIfNull(lurk);
+        string areas = string.Join(", ", StratLocations.LurkAreas(lurk).Select(a => StratLocations.Text(a, callouts)));
+        string? rotate = lurk.Rotate is { } r ? RotateText(r, callouts) : null;
+        return (areas.Length, rotate) switch
+        {
+            (0, null) => null,
+            (0, _) => rotate,
+            (_, null) => areas,
+            _ => areas + "; " + rotate
+        };
+    }
+
+    /// <summary><c>rotate to B site at 0:40 or on the call</c>; null for a rotate that says nothing.</summary>
+    /// <param name="rotate">The rotate.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string? RotateText(LurkRotate rotate, CalloutResolver? callouts)
+    {
+        ArgumentNullException.ThrowIfNull(rotate);
+        StringBuilder text = new("rotate");
+        if (StratLocations.Text(rotate.To, callouts) is { } to)
+        {
+            text.Append(" to ").Append(to);
+        }
+
+        if (rotate.AtSeconds is { } at)
+        {
+            text.Append(" at ").Append(StratClock.Format(at));
+        }
+
+        if (rotate.When is { Length: > 0 } when)
+        {
+            text.Append(rotate.AtSeconds is null ? " " : " or ").Append(when);
+        }
+
+        return text.Length == "rotate".Length ? null : text.ToString();
     }
 
     /// <summary><c>watching A site, CT</c>, or null when the line watches no place.</summary>

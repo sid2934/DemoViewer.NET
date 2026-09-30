@@ -27,8 +27,12 @@ public static class StratStepCarry
     ///     The projection's place centres, so a token turned by a watching line carries that facing; null carries
     ///     only an explicit view angle.
     /// </param>
+    /// <param name="atSeconds">
+    ///     The new step's time. A lurker whose rotate is at or before it, to a place that resolves, is not carried: the
+    ///     rotate has moved it. Null, or a time before the rotate, carries the lurker where it stood.
+    /// </param>
     public static List<StepPosition> PositionsAt(StratDocument document, int stepIndex, ThrowOriginResolver? throwOrigins,
-        PlaceCentreResolver? placeCentres = null)
+        PlaceCentreResolver? placeCentres = null, double? atSeconds = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         List<StepPosition> carried = [];
@@ -46,6 +50,11 @@ public static class StratStepCarry
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
             TokenPlacement?[] placements = StratSceneProjection.Placements(path, origins, slot, placeCentres);
+            if (atSeconds is { } at && placeCentres is not null && HasRotated(document, last, slot, at, placeCentres))
+            {
+                continue;
+            }
+
             for (int k = last; k >= 0; k--)
             {
                 if (placements[k] is not { } placement)
@@ -68,6 +77,30 @@ public static class StratStepCarry
         }
 
         return carried;
+    }
+
+    // Whether a rotate of a step up to `last` that names the slot fires by `atSeconds` and has a place to go to.
+    private static bool HasRotated(StratDocument document, int last, string slot, double atSeconds, PlaceCentreResolver centres)
+    {
+        if (!StratVocabulary.Slots.Contains(slot))
+        {
+            return false;
+        }
+
+        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
+        int at = StratLurkPatches.TickOf(atSeconds, roundSeconds);
+        for (int k = 0; k <= last; k++)
+        {
+            StratStep step = document.Steps[k];
+            if (StratStepLines.Involves(step, slot)
+                && StratSceneProjection.RotateTickOf(step, StratLurkPatches.TickOf(step.AtSeconds, roundSeconds), roundSeconds) is { } tick
+                && tick <= at && (StratLocations.HasPoint(step.Lurk!.Rotate!.To) || centres(step.Lurk.Rotate.To!.Place!, 0) is not null))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool Same(StepPosition stored, TokenPlacement placement) =>
