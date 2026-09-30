@@ -171,6 +171,7 @@ public class StratLineEditingTests
         (StratStore _, StratSession session) = Opened(document);
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
+        canvas.LinesShownApart = _ => true;
         canvas.SelectStep(document.Steps[1].Id);
 
         await Assert.That(canvas.SelectedLineSlot).IsEqualTo("A").Because("the first line until one is chosen");

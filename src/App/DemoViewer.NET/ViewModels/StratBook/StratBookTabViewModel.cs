@@ -219,6 +219,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
             placesFor: canvasPlaces, post: post);
         StepSelection = new StratStepSelection(Editor, Canvas);
+        Canvas.LinesShownApart = Editor.ShowsLinesApart;
+        Editor.LinesViewChanged += Canvas.RefreshSetPlace;
 
         // Place warnings from the canvas's loaded zones: none until they land, then a fresh validation.
         Session.PlaceLookup = map => Canvas.LoadedPlaces(map);

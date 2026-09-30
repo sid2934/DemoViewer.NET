@@ -81,20 +81,25 @@ public class StratStepFieldsTests
         {
             await Assert.That(StratStepFields.For("move")).IsEqualTo(StratStepField.From | StratStepField.To);
             await Assert.That(StratStepFields.For("rotate")).IsEqualTo(StratStepField.From | StratStepField.To);
-            await Assert.That(StratStepFields.For("hold")).IsEqualTo(StratStepField.To);
-            await Assert.That(StratStepFields.For("peek")).IsEqualTo(StratStepField.To);
+            await Assert.That(StratStepFields.For("push")).IsEqualTo(StratStepField.From | StratStepField.To | StratStepField.Watch);
+            await Assert.That(StratStepFields.For("hold")).IsEqualTo(StratStepField.To | StratStepField.Watch);
+            await Assert.That(StratStepFields.For("peek")).IsEqualTo(StratStepField.To | StratStepField.Watch);
+            await Assert.That(StratStepFields.For("lurk")).IsEqualTo(StratStepField.Watch | StratStepField.Lurk);
             await Assert.That(StratStepFields.For("plant")).IsEqualTo(StratStepField.To);
             await Assert.That(StratStepFields.For("defuse")).IsEqualTo(StratStepField.To);
             await Assert.That(StratStepFields.For("throw")).IsEqualTo(StratStepField.Utility);
-            await Assert.That(StratStepFields.For("fake")).IsEqualTo(StratStepField.To | StratStepField.Utility);
+            await Assert.That(StratStepFields.For("fake")).IsEqualTo(StratStepField.To | StratStepField.Utility | StratStepField.Watch);
             await Assert.That(StratStepFields.For("wait")).IsEqualTo(StratStepField.None);
             await Assert.That(StratStepFields.For("call")).IsEqualTo(StratStepField.None);
             await Assert.That(StratStepFields.For("other")).IsEqualTo(StratStepField.All);
+            await Assert.That(StratStepFields.For("other")).IsEqualTo(StratStepField.From | StratStepField.To | StratStepField.Utility | StratStepField.Watch)
+                .Because("a lurk's fields belong to the lurk verb alone");
             await Assert.That(StratStepFields.For("teleport")).IsEqualTo(StratStepField.All)
                 .Because("a verb the validator refuses still shows everything it holds");
             await Assert.That(StratStepFields.ToLabel("plant")).IsEqualTo("site");
             await Assert.That(StratStepFields.ToLabel("hold")).IsEqualTo("at");
             await Assert.That(StratStepFields.ToLabel("move")).IsEqualTo("to");
+            await Assert.That(StratStepFields.ToLabel("push")).IsEqualTo("to");
         }
     }
 
