@@ -848,7 +848,7 @@
                                                                         <ComboBox Grid.Column="0" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
                                                                                   IsVisible="{Binding IsExplicit}"
                                                                                   ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding Slot}"
-                                                                                  ToolTip.Tip="The player this line is for" />
+                                                                                  ToolTip.Tip="The player this line is for; picking a player who has a line swaps the two" />
                                                                         <TextBlock Grid.Column="0" Text="{Binding Slot}" FontSize="12" FontWeight="SemiBold"
                                                                                    VerticalAlignment="Center" Margin="6 0 0 0" IsVisible="{Binding IsImplicit}"
                                                                                    Foreground="{DynamicResource TextValue}" />

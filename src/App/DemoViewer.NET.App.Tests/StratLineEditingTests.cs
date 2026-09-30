@@ -116,9 +116,11 @@ public class StratLineEditingTests
         vm.Editor.Steps[step].Lines[1].Slot = "C";
         vm.Editor.Steps[step].Lines[1].Slot = "D";
         await Assert.That(Doc(vm, step).Assignments![1].Slot).IsEqualTo("D");
-        await Assert.That(vm.Editor.Steps[step].Lines[1].SlotOptions).DoesNotContain("A").Because("A has a line");
-        vm.Editor.Steps[step].Lines[1].Slot = "B";
+        await Assert.That(vm.Editor.Steps[step].Lines[1].SlotOptions).Contains("A").Because("A has a line, and picking it swaps the two");
         vm.Editor.ChangeLineSlot(step, 1, "A");
+        await Assert.That(Doc(vm, step).Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
+            .IsEquivalentTo(["B>BombsiteA", "A>Connector"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        vm.Editor.Steps[step].Lines[1].Slot = "B";
         using (Assert.Multiple())
         {
             await Assert.That(Shape(Doc(vm, step))).IsEqualTo(before);

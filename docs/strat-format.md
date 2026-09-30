@@ -283,6 +283,14 @@ line for each (`StratLinePatches.SetWho`, one entry): a new player copies the pl
 they all agree, and all five bare lines to one place fold back to `all` as below. Lines that agree apart from
 their slot are what the editor shows as one "who" with one place and one watching; nothing in the file marks it.
 
+**A line belongs to its player.** A change of who writes a `remove` for each player dropped and an `add` at the
+end for each player added; the other lines keep their index and their bytes, unknown fields included, so no
+edit moves one player's `to` or `watch` onto another. Only removing a player drops their line. A line's slot
+change moves the whole line to the new slot, and a slot another line already holds swaps the two: both are
+`replace` ops on `slot`, and undo restores the exact bytes. `positions[]` stays keyed by slot through a slot
+change, because it places tokens (opponents included) rather than lines; a carried position whose slot's
+destination changes is dropped, as for any destination edit.
+
 `StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). Every consumer
 goes through it except the Create Strat From Round preview, which only ever shows captured one-actor steps.
 `StratLinePatches` is the one writer: the editor's lines, Set on map and the canvas's cone drag change a copy
