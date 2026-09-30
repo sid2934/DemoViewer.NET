@@ -53,7 +53,8 @@ public static class StratStepCarry
         double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
         int[] ticks = StratSceneProjection.TicksOf(path, roundSeconds, out _);
         StratSceneProjection.PlaceSet places = new(placeCentres, StratSceneProjection.ArrivalsFrom(placeCentres), null,
-            document.Canvas?.DefaultLevelMinZ ?? 0, roundSeconds, StratSceneProjection.IsLegacyCarry(document));
+            document.Canvas?.DefaultLevelMinZ ?? 0, roundSeconds, StratSceneProjection.IsLegacyCarry(document),
+            StratSceneProjection.IsObserved(document));
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
             StratSceneProjection.SlotPlan plan = StratSceneProjection.PlanOf(path, ticks, origins, slot, places);

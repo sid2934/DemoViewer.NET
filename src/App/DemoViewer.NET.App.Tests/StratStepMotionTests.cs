@@ -247,6 +247,12 @@ public class StratStepMotionTests
             await Assert.That((At(a, arrive).X, At(a, arrive).Y)).IsEqualTo((1200f, 200f));
         }
 
+        // In a captured strat it is where the player was seen, so a captured move does not run on to its majority place.
+        dragged.Origin = new StratOrigin { DemoSha256 = "ab", Round = 3 };
+        await Assert.That(StratSceneProjection.IsObserved(dragged)).IsTrue();
+        await Assert.That(Track(dragged, "A").Keyframes.Any(k => k.X == 1200f)).IsFalse();
+        dragged.Origin = null;
+
         // On a position verb it is the exact spot.
         dragged.Steps[1].Verb = "hold";
         TokenTrack held = Track(dragged, "A");
