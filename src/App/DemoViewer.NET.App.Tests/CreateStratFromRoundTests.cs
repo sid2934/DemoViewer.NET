@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core.Keyframes;
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json.Nodes;
@@ -187,6 +188,30 @@ public class CreateStratFromRoundTests
             await Assert.That(map['B']).IsEqualTo(100UL).Because("the rest in controller-slot order");
             await Assert.That(map['C']).IsEqualTo(101UL);
             await Assert.That(map['E']).IsEqualTo(102UL).Because("a default naming nobody in the round is skipped");
+        }
+    }
+
+    [Test]
+    public async Task AStationaryPlanter_KeepsItsCapturedSpot_OverThePlantSitesCentre()
+    {
+        // Slot 3 plants where it stood at freeze end, so the plant step's position copies the one before it.
+        List<CapturedPawn> planting = [.. Everyone().Select(p => p.PlayerSlot == 3 ? p with { Place = "BombsiteA" } : p)];
+        RoundCapture capture = Round(new CaptureMoment(At(40), CaptureTrigger.Plant, planting, null, 3, 2));
+        StratOrigin origin = new() { DemoSha256 = "ab", Round = 7, FileName = "x.dem" };
+        StratDocument document = StratFromRound.Document(capture, Options(capture), StratOwner.Me(), "de_mirage", "r7", origin, null,
+            new DateTime(2026, 9, 25, 0, 0, 0, DateTimeKind.Utc));
+        int plant = document.Steps.FindIndex(s => s.Verb == "plant");
+        StratStep step = document.Steps[plant];
+        StepPosition captured = step.Positions.Single(p => p.Slot == step.Actor);
+
+        StratSceneProjection projection = StratSceneProjection.Build(document, StratPath.MainLine(document), null,
+            (place, _) => place == "BombsiteA" ? (5000, 5000) : null, (place, level) => place == "BombsiteA" ? (5000, 5000, level) : null);
+        TokenTrack track = projection.Tracks.Single(t => t.Slot == step.Actor);
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratSceneProjection.IsLegacyCarry(document)).IsFalse().Because("a captured strat never had Add step's copies");
+            await Assert.That(track.TrySample(projection.Ticks[plant], out TokenKeyframe at)).IsTrue();
+            await Assert.That((at.X, at.Y)).IsEqualTo(((float)captured.X, (float)captured.Y)).Because("the captured spot is where it planted");
         }
     }
 

@@ -355,8 +355,9 @@ undone by the next step; one added before the rotate carries the lurker where it
 throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
 else towards the first watched entry: a place's centre, on the token's level when the place has nav areas
 there, else over all its floors, or a watched point itself; else `positions[].yawDegrees`; else, for a token a
-destination moves, the direction it travels; else the yaw it had. A watch on a step that sends the token somewhere
-is faced from the arrival, for the whole run. A watching line on a
+destination moves, the direction it travels; else the yaw it had. A token running to a destination faces the way
+it runs and turns to its watch on arrival, faced from the arrival point; one already there turns at the step's
+time. A watching line on a
 step with no position for its slot adds a keyframe where the token already stands, so no move is re-timed.
 Place centres are the area-weighted centroids of the map's baked zones (a custom zone with no areas uses
 the middle of its box), built once per map when the zones load through the processing queue; until they
@@ -385,12 +386,21 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   A run is at 215 units a second (`RotateUnitsPerSecond`), the lurk rotate's speed, and goes through the same code.
   A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
   instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
-  that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A position verb with no time to walk, because the slot's last keyframe is at the same tick (a setup's
-  first step on the round-start seed), runs instead, so the move still plays.
-* **Several tokens, one place.** When a step sends more than one of its players to the same place (or the same
-  point), each stands on a ray fixed by its slot letter (A at 90 degrees, then every 72), at 64, 44 or 24 units from
-  the arrival, the widest still inside the place on that floor (`IZonePlaceResolver.ResolveOnFloor`); with no spot
-  inside, 32 units out. The same slot takes the same spot in any group. A token sent alone goes to the centre.
+  that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A
+  position verb with no time to walk, because the slot's last keyframe is at the same tick (a setup's first step on
+  the round-start seed), runs instead, so the move still plays. A token with no keyframe before the step starts at
+  its destination at the step's time.
+
+  The step's `holdSeconds` and `interpolation` shape a destination as they shape an authored entry: a hold delays
+  the run's start (and its arrival by as much), and `hold` interpolation jumps at the end of the move instead of
+  gliding.
+* **Several tokens, one place.** When more than one token is sent to the same place (or the same point) and they
+  are there at the same time, whichever steps sent them, each stands on a ray fixed by its slot letter (A at 90
+  degrees, then every 72), at 64, 44 or 24 units from the arrival, the widest still inside the place on that floor
+  (`IZonePlaceResolver.ResolveOnFloor`); with no spot inside, 32 units out. A token is there from its step's time
+  until its next destination or placed entry. Only destinations that win by precedence count, so a slot whose drag
+  beats its `to` does not push another token off the centre. The same slot takes the same spot in any group; a token
+  there alone goes to the centre.
 * **Precedence for a slot on a step:** a throw's lineup origin; then an authored position (a drag, or a set
   position); then the destination; then a carried position; then where the token already is.
 * **Carried positions.** Add step copies every token where the projection has it at the step before and writes
@@ -400,13 +410,20 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   from then on the copy is stale and ignored, and the token stays where the destination left it. Add step does not
   carry such a token at all, nor a lurker whose rotate has fired.
 
-  A file saved before the mark holds carried copies with no mark. An unmarked position whose `x`, `y` and
-  `levelMinZ` are each within 0.02 of the slot's last placement as the file places it (an earlier step's
-  `positions[]` entry, or its lineup origin) counts as carried. A drag that lands exactly where the token already
-  stood reads the same, which changes nothing but lets a destination win.
+  A file saved before the mark holds carried copies with no mark. In such a file only, an unmarked position whose
+  `x`, `y` and `levelMinZ` are each within 0.02 of the slot's last placement as the file places it (an earlier step's
+  `positions[]` entry, or its lineup origin) counts as carried (`StratSceneProjection.IsLegacyCarry`). A file is
+  such a file when no position anywhere in it has a `carried` key and it has no `origin` and no mined tag: a
+  captured or mined strat never had Add step's copies, and its identical positions are real (a planter who did not
+  move). The first write that adds a mark (an Add step) turns the rule off for the file for good; from then on only
+  marked entries are carried. Duplicate copies each position's mark as it is, so a duplicated drag stays authored.
+  In a file the rule still reads, a duplicate of an authored position reads as carried, since it looks exactly like
+  one of the old copies.
 * **Setting a destination** through the location fields or the line writer (`StratLocationPatches`,
   `StratLinePatches`) removes the marked carried positions of the slots whose destination it sets on that step, in
-  the same undo entry, highest index first; a new first lurk area does the same for the lurk's players. An authored
+  the same undo entry, highest index first; a new first lurk area on a lurk does the same for the lurk's players.
+  Only when the verb moves for it (`StratStepFields.MovesToTo`): a `to` on a throw, wait, call or lurk removes
+  nothing. An authored
   position is never removed. The writers have no map, so they remove only marked entries; the projection alone
   applies the unmarked rule. The history reads the removal as `B's carried position dropped`.
 * **The clock.** The transport, the step row's last band and an export run to the last arrival

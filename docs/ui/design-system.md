@@ -675,8 +675,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   opponent token writes its position's yaw as before. The line's angle button clears it.
 - **Motion from destinations:** a step's `to` (the step's, a line's or the compact who's) and a lurk's first area
   move the tokens it names. Move, push, rotate and other run there from the step's time at 215 u/s; hold, peek,
-  fake, plant and defuse are there at the step's time; throw, wait and call do not move. Several players sent to one
-  place fan out inside it, each slot on its own spot. A drag on that step wins over the destination; setting a `to`
+  fake, plant and defuse are there at the step's time; throw, wait and call do not move. Tokens at one place at the
+  same time fan out inside it, each slot on its own spot, whichever steps sent them. A runner faces its run and
+  turns to what it watches on arrival. A drag on that step wins over the destination; setting a `to`
   drops the slot's carried entry in the same undo entry. docs/strat-format.md, "Motion on the canvas", has the rules.
 - **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
   (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as

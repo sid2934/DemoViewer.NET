@@ -19,6 +19,22 @@ public enum StratStepField
     All = From | To | Utility | Watch
 }
 
+/// <summary>What a step's verb does with its destination (<see cref="StratStepFields.MotionOf" />).</summary>
+public enum StepMotion
+{
+    /// <summary>No motion from the destination: throw, wait, call.</summary>
+    None,
+
+    /// <summary>The token leaves where it stands at the step's time and runs there.</summary>
+    Travel,
+
+    /// <summary>The token is there at the step's time.</summary>
+    Position,
+
+    /// <summary>The token runs to the lurk's first area from the step's time.</summary>
+    Lurk
+}
+
 /// <summary>
 ///     Which members each verb uses: the editor shows these, and a verb change clears the rest, so an export
 ///     never prints a value the row hides. A verb outside the vocabulary (refused by the validator) gets all.
@@ -46,6 +62,24 @@ public static class StratStepFields
 
     /// <summary>Whether <paramref name="verb" /> uses <paramref name="field" />.</summary>
     public static bool Uses(string? verb, StratStepField field) => (For(verb) & field) == field;
+
+    /// <summary>
+    ///     What <paramref name="verb" /> does with its destination: move, push, rotate, <c>other</c> and any verb outside
+    ///     the vocabulary travel there; hold, peek, fake, plant and defuse are there at the step's time; a lurk runs to
+    ///     its first area and never moves for a <c>to</c>; throw, wait and call do not move.
+    /// </summary>
+    /// <param name="verb">A step verb.</param>
+    public static StepMotion MotionOf(string? verb) => verb switch
+    {
+        "hold" or "peek" or "fake" or "plant" or "defuse" => StepMotion.Position,
+        "lurk" => StepMotion.Lurk,
+        "throw" or "wait" or "call" => StepMotion.None,
+        _ => StepMotion.Travel
+    };
+
+    /// <summary>Whether <paramref name="verb" /> moves its players to their <c>to</c>.</summary>
+    /// <param name="verb">A step verb.</param>
+    public static bool MovesToTo(string? verb) => MotionOf(verb) is StepMotion.Travel or StepMotion.Position;
 
     /// <summary>What the row calls the <c>to</c> place for <paramref name="verb" />.</summary>
     /// <param name="verb">A step verb.</param>
