@@ -476,10 +476,10 @@ public static class StratDiffPhrasing
             case ["steps", var index, "assignments", _]:
                 JsonNode? line = op.Op == PatchOp.Add ? op.Value : StratHistory.ValueAt(tree, op.Path) ?? op.From;
                 string slot = Text(line?["slot"]) ?? "a player";
-                string? lineTo = Text(line?["to"]?["place"]);
+                string? lineTo = StratLocations.NodeText(line?["to"], callouts);
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + op.Op switch
                 {
-                    PatchOp.Add => slot + " added" + (lineTo is null ? "" : " → " + Place(lineTo, callouts)),
+                    PatchOp.Add => slot + " added" + (lineTo is null ? "" : " → " + lineTo),
                     PatchOp.Remove => slot + " removed",
                     _ => slot + "'s line replaced"
                 };
@@ -562,9 +562,17 @@ public static class StratDiffPhrasing
                 return op.Op == PatchOp.Remove || Number(op.Value) is not { } yaw
                     ? "view angle cleared"
                     : "view angle set to " + yaw.ToString("0.#", CultureInfo.InvariantCulture) + "°";
-            case ["watch"] or ["watch", "places"]:
-                JsonNode? watched = rest.Length == 1 ? op.Value?["places"] : op.Value;
-                string[] names = watched is JsonArray list ? [.. list.Select(Text).OfType<string>().Select(p => Place(p, callouts))] : [];
+            case ["watch", "points", _]:
+                string? point = StratLocations.NodeText(op.Op == PatchOp.Remove ? StratHistory.ValueAt(tree, op.Path) ?? op.From : op.Value, callouts);
+                return (op.Op == PatchOp.Remove ? "watching removed: " : "watching added: ") + (point ?? "a point");
+            case ["watch"] or ["watch", "places"] or ["watch", "points"]:
+                JsonNode? watched = rest.Length == 1 ? op.Value?["places"] : rest[1] == "places" ? op.Value : null;
+                JsonNode? points = rest.Length == 1 ? op.Value?["points"] : rest[1] == "points" ? op.Value : null;
+                string[] names =
+                [
+                    .. watched is JsonArray list ? list.Select(Text).OfType<string>().Select(p => Place(p, callouts)) : [],
+                    .. points is JsonArray pointList ? pointList.Select(p => StratLocations.NodeText(p, callouts)).OfType<string>() : []
+                ];
                 return op.Op == PatchOp.Remove || names.Length == 0 ? "watching cleared" : "watching set to " + string.Join(", ", names);
             default:
                 return FieldChange(rest, op, callouts);
@@ -576,7 +584,7 @@ public static class StratDiffPhrasing
     {
         if (value is JsonObject obj)
         {
-            return obj.Count == 1 && Text(obj["place"]) is { } inner ? Place(inner, callouts) : null;
+            return StratLocations.IsLocationNode(obj) ? StratLocations.NodeText(obj, callouts) : null;
         }
 
         if (Number(value) is { } number)
@@ -622,18 +630,19 @@ public static class StratDiffPhrasing
         string actor = Text(obj["actor"]) ?? StratVocabulary.ActorAll;
         string verb = Text(obj["verb"]) ?? "move";
         string? utility = Text(obj["utility"]?["kind"]);
-        string? to = Text(obj["to"]?["place"]);
+        string? to = StratLocations.NodeText(obj["to"], callouts);
         bool plural = actor == StratVocabulary.ActorAll;
         if (LineSlots(obj) is { } slots)
         {
             // Lines replace the step's actor and to; a single line's place is the step's destination.
             actor = slots.Length == StratVocabulary.Slots.Count ? StratVocabulary.ActorAll : string.Join(", ", slots);
             plural = slots.Length > 1;
-            to = slots.Length == 1 ? Text(obj["assignments"]?[0]?["to"]?["place"]) : null;
+            to = slots.Length == 1 ? StratLocations.NodeText(obj["assignments"]?[0]?["to"], callouts) : null;
         }
 
         bool lines = LineSlots(obj) is not null;
-        string? target = Text(obj["utility"]?["landing"]?["place"]) ?? to ?? (lines ? null : Text(obj["from"]?["place"]));
+        string? target = StratLocations.NodeText(obj["utility"]?["landing"], callouts) ?? to
+            ?? (lines ? null : StratLocations.NodeText(obj["from"], callouts));
 
         StringBuilder sentence = new(actor);
         sentence.Append(' ').Append(plural ? verb : ThirdPerson(verb));
@@ -652,11 +661,11 @@ public static class StratDiffPhrasing
                     "wait" or "call" or "other" => " at ",
                     _ => " "
                 };
-            sentence.Append(preposition).Append(Place(target, callouts));
+            sentence.Append(preposition).Append(target);
         }
-        else if (lines && Text(obj["from"]?["place"]) is { } from)
+        else if (lines && StratLocations.NodeText(obj["from"], callouts) is { } from)
         {
-            sentence.Append(" from ").Append(Place(from, callouts));
+            sentence.Append(" from ").Append(from);
         }
 
         if (Number(obj["atSeconds"]) is { } at)

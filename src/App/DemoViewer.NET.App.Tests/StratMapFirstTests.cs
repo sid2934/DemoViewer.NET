@@ -162,6 +162,8 @@ public class StratMapFirstTests
         using (Assert.Multiple())
         {
             await Assert.That(session.Document!.Steps[1].To!.Place).IsEqualTo("Hut");
+            await Assert.That(session.Document!.Steps[1].To!.X).IsEqualTo(50).Because("a click inside a place stores the place and the point");
+            await Assert.That(session.Document!.Steps[1].To!.LevelMinZ).IsEqualTo(-512);
             await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
             await Assert.That(canvas.IsSettingPlace).IsFalse().Because("one click, one write");
             await Assert.That(canvas.StatusLine).Contains("Hut");
@@ -235,9 +237,10 @@ public class StratMapFirstTests
     }
 
     [Test]
-    public async Task AMiss_WritesNothing_ButALandingMiss_KeepsThePoint()
+    public async Task AMiss_StoresThePointAlone_AsOneEntry_AndALandingMiss_DropsItsPlace()
     {
         StratDocument document = FiveSteps();
+        document.Steps[1].To = new PlaceRef { Place = "Ramp" };
         document.Steps[3].Verb = "throw";
         document.Steps[3].Utility = new UtilityRef { Kind = "flash", Landing = new UtilityLanding { Place = "Hut" } };
         (StratStore _, StratSession session) = Opened(document);
@@ -245,19 +248,28 @@ public class StratMapFirstTests
 
         canvas.SelectStep(document.Steps[1].Id);
         canvas.BeginSetPlace();
-        await Assert.That(canvas.TryTagPositionAt(Upper, 5_000, 5_000)).IsTrue();
+        await Assert.That(canvas.TryTagPositionAt(Upper, 5_000.123, -560)).IsTrue();
+        PlaceRef to = session.Document!.Steps[1].To!;
         using (Assert.Multiple())
         {
-            await Assert.That(session.UndoDepth).IsEqualTo(0);
-            await Assert.That(session.Document!.Steps[1].To).IsNull();
-            await Assert.That(canvas.StatusLine).Contains("no place there");
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
+            await Assert.That(to.Place).IsNull().Because("Ramp named where the step went before");
+            await Assert.That(to.X).IsEqualTo(5_000.12);
+            await Assert.That(to.Y).IsEqualTo(-560);
+            await Assert.That(to.LevelMinZ).IsEqualTo(-512);
+            await Assert.That(canvas.StatusLine).Contains("no place there").And.Contains("(5000, -560)");
             await Assert.That(canvas.IsSettingPlace).IsFalse();
         }
 
-        // The lower floor has no places: the upper floor's Hut does not answer a click there.
+        // The lower floor has no places: the upper floor's Hut does not answer a click there, so it is a point too.
         canvas.BeginSetPlace();
         canvas.TryTagPositionAt(Lower, 50, 50);
-        await Assert.That(session.UndoDepth).IsEqualTo(0);
+        using (Assert.Multiple())
+        {
+            await Assert.That(session.UndoDepth).IsEqualTo(2);
+            await Assert.That(session.Document!.Steps[1].To!.Place).IsNull();
+            await Assert.That(session.Document!.Steps[1].To!.LevelMinZ).IsEqualTo(MapSpace.QuantizeZ(-2000));
+        }
 
         canvas.SelectStep(document.Steps[3].Id);
         canvas.BeginSetPlace();
@@ -265,11 +277,33 @@ public class StratMapFirstTests
         UtilityLanding landing = session.Document!.Steps[3].Utility!.Landing!;
         using (Assert.Multiple())
         {
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
+            await Assert.That(session.UndoDepth).IsEqualTo(3);
             await Assert.That(landing.X).IsEqualTo(5_000);
             await Assert.That(landing.Y).IsEqualTo(4_000);
             await Assert.That(landing.Place).IsNull().Because("the old place named where it used to land");
-            await Assert.That(canvas.StatusLine).Contains("point only");
+            await Assert.That(canvas.StatusLine).Contains("the point (5000, 4000)");
+        }
+    }
+
+    [Test]
+    public async Task AToClick_WithNoZones_KeepsTheStoredPlace_AndSetsThePoint()
+    {
+        StratDocument document = FiveSteps();
+        document.Steps[1].To = new PlaceRef { Place = "Hut" };
+        (StratStore _, StratSession session) = Opened(document);
+        using StratCanvasViewModel canvas = MapCanvas(session, _ => Task.FromResult<IZonePlaceResolver?>(null));
+        canvas.SelectStep(document.Steps[1].Id);
+        canvas.BeginSetPlace();
+        canvas.TryTagPositionAt(Upper, 700, 800);
+
+        PlaceRef to = session.Document!.Steps[1].To!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(to.Place).IsEqualTo("Hut");
+            await Assert.That(to.X).IsEqualTo(700);
+            await Assert.That(to.Y).IsEqualTo(800);
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
+            await Assert.That(canvas.StatusLine).Contains("no places for this map");
         }
     }
 

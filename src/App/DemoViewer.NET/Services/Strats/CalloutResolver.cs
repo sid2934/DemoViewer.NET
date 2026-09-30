@@ -26,6 +26,7 @@ public sealed class CalloutResolver
     };
 
     private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
+    private readonly List<(string Alias, string Place)> _aliasList = [];
     private readonly Dictionary<string, string> _canonical = new(StringComparer.Ordinal);
     private readonly HashSet<string> _canonicalExact = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _primary = new(StringComparer.Ordinal);
@@ -59,7 +60,11 @@ public sealed class CalloutResolver
                 continue;
             }
 
-            _aliases.TryAdd(key, alias.Place);
+            if (_aliases.TryAdd(key, alias.Place))
+            {
+                _aliasList.Add((alias.Alias.Trim(), alias.Place));
+            }
+
             if (alias.Primary)
             {
                 _primary.TryAdd(alias.Place, alias.Alias.Trim());
@@ -69,6 +74,9 @@ public sealed class CalloutResolver
 
     /// <summary>The canonical names, in the order given, without duplicates.</summary>
     public IReadOnlyList<string> CanonicalNames { get; }
+
+    /// <summary>Every alias that resolves, as written, with its place: what a place list also matches on.</summary>
+    public IReadOnlyList<(string Alias, string Place)> Aliases => _aliasList;
 
     /// <summary><c>zones:&lt;zonesVersion&gt;</c> or <c>embedded</c> when built by <see cref="For" />; null otherwise.</summary>
     public string? Source { get; }

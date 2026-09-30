@@ -365,8 +365,8 @@ public sealed class StratSceneProjection
 
     /// <summary>
     ///     The yaw a watch turns a token standing at <paramref name="at" /> to: the explicit angle, else towards
-    ///     the first watched place. Null when neither applies (no angle, the place is unknown, or the token
-    ///     stands on its centre).
+    ///     the first watched entry (places, then points). Null when neither applies (no angle, the place is unknown,
+    ///     or the token stands on it).
     /// </summary>
     /// <param name="watch">The line's watch.</param>
     /// <param name="at">Where the token stands.</param>
@@ -379,8 +379,8 @@ public sealed class StratSceneProjection
             return (float)StratFromRound.NormalizeYaw(explicitYaw);
         }
 
-        if (centres is null || watch.Places.FirstOrDefault(p => !string.IsNullOrEmpty(p)) is not { } first
-                            || centres(first, at.LevelMinZ) is not { } centre)
+        IReadOnlyList<PlaceRef> watched = StratLocations.Watched(watch);
+        if (watched.Count == 0 || Where(watched[0], at.LevelMinZ, centres) is not { } centre)
         {
             return null;
         }
@@ -392,6 +392,21 @@ public sealed class StratSceneProjection
         }
 
         return (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2);
+    }
+
+    /// <summary>Where a location is for a token on <paramref name="levelMinZ" />: its point when it has one, else its place's centre.</summary>
+    /// <param name="location">A location.</param>
+    /// <param name="levelMinZ">The token's level key, for the place's centre on that floor.</param>
+    /// <param name="centres">Where places are; null for nowhere.</param>
+    public static (double X, double Y)? Where(PlaceRef location, double levelMinZ, PlaceCentreResolver? centres)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        if (StratLocations.HasPoint(location))
+        {
+            return (location.X!.Value, location.Y!.Value);
+        }
+
+        return centres is not null && StratLocations.HasPlace(location) ? centres(location.Place!, levelMinZ) : null;
     }
 
     // Closer than this to a place's centre, there is no direction worth turning to.

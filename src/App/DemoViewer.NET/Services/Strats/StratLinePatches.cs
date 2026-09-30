@@ -44,10 +44,10 @@ public static class StratLinePatches
     public static bool IsBare(StepAssignment line) =>
         line.Extra is not { Count: > 0 } && (line.Watch is null || IsEmpty(line.Watch));
 
-    /// <summary>A watch with no place, no angle and no unknown field: stored as no watch.</summary>
+    /// <summary>A watch with no place, no point, no angle and no unknown field: stored as no watch.</summary>
     /// <param name="watch">The watch.</param>
     public static bool IsEmpty(StepWatch watch) =>
-        watch.Places.Count == 0 && watch.YawDegrees is null && watch.Extra is not { Count: > 0 };
+        watch.Places.Count == 0 && watch.Points is not { Count: > 0 } && watch.YawDegrees is null && watch.Extra is not { Count: > 0 };
 
     /// <summary>
     ///     Ops that rewrite a step's who and where to <paramref name="lines" />. Empty when nothing changes. A line
@@ -66,6 +66,10 @@ public static class StratLinePatches
             if (line.Watch is { } watch && IsEmpty(watch))
             {
                 line.Watch = null;
+            }
+            else if (line.Watch is { Points.Count: 0 } noPoints)
+            {
+                noPoints.Points = null;
             }
         }
 
@@ -241,7 +245,7 @@ public static class StratLinePatches
     }
 
     private static string WithoutYaw(StepWatch watch) =>
-        JsonSerializer.Serialize(new StepWatch { Places = watch.Places, Extra = watch.Extra }, StratJsonContext.Default.StepWatch);
+        JsonSerializer.Serialize(new StepWatch { Places = watch.Places, Points = watch.Points, Extra = watch.Extra }, StratJsonContext.Default.StepWatch);
 
     private static int? RemovedAt(List<StepAssignment> before, List<StepAssignment> after)
     {
