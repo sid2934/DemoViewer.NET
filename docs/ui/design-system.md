@@ -446,7 +446,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   flyout closes (`StratStepRow.CommitWho`, `StratLinePatches.SetWho`), so picking two players is one undo entry. None
   checked writes nothing and the toggles show the step again. Opening takes a snapshot (`BeginWho`); a reprojection
   while it is open (an edit elsewhere, the zones landing) leaves the toggles alone, and closing writes the players
-  added and removed since the snapshot onto the step as it then is, by the step's id. A step deleted, or a strat
+  added and removed since the snapshot onto the step as it then is, by the step's id. A player unticked and ticked
+  again in one session is no change, so their line is kept. The write is by slot: a remove per player dropped and
+  an add per player added, never an index-wise rewrite that would hand one player's line to another. A step deleted, or a strat
   switched, while it is open writes nothing. A flyout rather than a wider control: the 64 px column
   is all line one has at 1280.
 - **One place and watching for players who agree** (`ShowCompact`): while every line says the same apart from its
@@ -467,8 +469,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   everyone that names the first player, who takes the step's place. The writer keeps the stored shape on every edit:
   no lines is a step for everyone, one line with no watch is a plain step (the actor rewritten, `assignments`
   removed), five bare lines to one place fold back into a step for everyone, anything else is `assignments` with the
-  summary actor and no step-level `to`. A line's slot combo lists its own slot and the free ones, and is a burst field
-  like the verb. A line's watching shows when the verb uses it or the line holds one. Every place and watching
+  summary actor and no step-level `to`. A line's slot combo lists all five and is a burst field like the verb. The
+  whole line moves to the slot picked, watch and angle included; a slot another line holds swaps the two lines'
+  slots (`StratLinePatches.ChangeSlot`), so re-lettering players never needs a remove and `+ player`, which would
+  drop the removed player's line. Swap rather than refuse: refusing left remove and re-add as the only way to
+  re-letter. A split step for everyone lists only the line's own slot, since any change folds back to the same
+  step. A combo pick that writes nothing reprojects the row, so a combo never shows a value the file does not hold. A line's watching shows when the verb uses it or the line holds one. Every place and watching
   field in the row (and from, lands at, lurk areas and rotate to) is a location field (see "Location field"): stored
   canonical, shown as callouts or coordinates, written on focus loss or a pick. The angle button (`135°`) shows only
   while `watch.yawDegrees` is set and clears it, so the cone faces the first watched place again. The line Set On
