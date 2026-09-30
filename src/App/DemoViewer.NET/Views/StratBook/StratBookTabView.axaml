@@ -725,7 +725,7 @@
                                                             <TextBlock Grid.Column="1" Text="▾" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
                                                         </Grid>
                                                         <Button.Flyout>
-                                                            <Flyout Placement="BottomEdgeAlignedLeft" Closed="OnWhoFlyoutClosed">
+                                                            <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnWhoFlyoutOpened" Closed="OnWhoFlyoutClosed">
                                                                 <StackPanel Spacing="6">
                                                                     <ItemsControl ItemsSource="{Binding WhoOptions}">
                                                                         <ItemsControl.ItemsPanel>

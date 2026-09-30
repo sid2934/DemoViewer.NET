@@ -88,6 +88,14 @@ public partial class StratBookTabView : UserControl
     }
 
     // The toggles are staged while the flyout is open, so picking two players is one undo entry.
+    private void OnWhoFlyoutOpened(object? sender, EventArgs e)
+    {
+        if (sender is Flyout { Target.DataContext: StratStepRow row })
+        {
+            row.BeginWho();
+        }
+    }
+
     private void OnWhoFlyoutClosed(object? sender, EventArgs e)
     {
         if (sender is Flyout { Target.DataContext: StratStepRow row })
