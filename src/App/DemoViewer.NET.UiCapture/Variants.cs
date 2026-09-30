@@ -239,6 +239,7 @@ public static partial class Variants
             ["strat-editor-lines-open"] = () => StratEditorLines(false),
             ["strat-editor-who-lurk"] = StratEditorWhoLurk,
             ["strat-editor-location-list"] = StratEditorLocationList,
+            ["strat-editor-execute-motion"] = StratEditorExecuteMotion,
             ["strat-lineup-picker"] = StratLineupPicker
         };
 
