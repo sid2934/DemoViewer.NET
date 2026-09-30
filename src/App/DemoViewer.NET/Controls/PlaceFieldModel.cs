@@ -99,6 +99,7 @@ public sealed class PlaceFieldModel
 {
     private List<PlaceRef> _value = [];
     private bool _typed;
+    private bool _moved;
 
     /// <param name="isMulti">A list of locations (watching) rather than one.</param>
     public PlaceFieldModel(bool isMulti = false) => IsMulti = isMulti;
@@ -121,6 +122,12 @@ public sealed class PlaceFieldModel
     public int Highlight { get; private set; } = -1;
 
     public bool IsOpen { get; private set; }
+
+    /// <summary>
+    ///     Whether the user has typed or moved the highlight since the list opened: only then does Enter pick from it.
+    ///     Otherwise Enter is the host's, as it is with no list.
+    /// </summary>
+    public bool HasChoice => _typed || _moved;
 
     /// <summary>Whether the value holds a location with a point and no place: the clear button's cue.</summary>
     public bool HasPointOnly => _value.Any(v => !StratLocations.HasPlace(v) && StratLocations.HasPoint(v));
@@ -153,7 +160,8 @@ public sealed class PlaceFieldModel
     }
 
     /// <summary>Opens the list: every callout until something is typed, the current one highlighted.</summary>
-    public void Open()
+    /// <param name="byKey">Opened with Down: Enter then picks the highlighted callout.</param>
+    public void Open(bool byKey = false)
     {
         if (Options is null)
         {
@@ -161,6 +169,7 @@ public sealed class PlaceFieldModel
         }
 
         IsOpen = true;
+        _moved = byKey;
         Refilter();
     }
 
@@ -203,6 +212,7 @@ public sealed class PlaceFieldModel
             return IsOpen;
         }
 
+        _moved = true;
         Highlight = Math.Clamp(Highlight < 0 ? (delta > 0 ? 0 : Items.Count - 1) : Highlight + delta, 0, Items.Count - 1);
         Raise();
         return true;
@@ -298,24 +308,36 @@ public sealed class PlaceFieldModel
         return [.. parts.Where(p => p.Length > 0)];
     }
 
-    private List<PlaceRef> Parse(string text)
+    private List<PlaceRef> Parse(string text) => Parse(text, _value, Options?.Resolver, IsMulti);
+
+    /// <summary>
+    ///     A field's text as locations. Text that reads as a stored entry keeps that entry (a point with it); text that
+    ///     resolves is its canonical place; anything else is stored as typed. A single field takes the first entry, and
+    ///     a different place there drops the stored point (<see cref="StratLocations.Typed" />).
+    /// </summary>
+    /// <param name="text">The field's text.</param>
+    /// <param name="current">The stored value.</param>
+    /// <param name="callouts">The owner's words, or null.</param>
+    /// <param name="multi">A list field.</param>
+    public static List<PlaceRef> Parse(string text, IReadOnlyList<PlaceRef> current, CalloutResolver? callouts, bool multi)
     {
-        CalloutResolver? callouts = Options?.Resolver;
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(current);
         List<PlaceRef> entries = [];
         foreach (string part in Split(text))
         {
-            PlaceRef? kept = _value.FirstOrDefault(v => string.Equals(DisplayOf([v], callouts), part, StringComparison.Ordinal));
+            PlaceRef? kept = current.FirstOrDefault(v => string.Equals(DisplayOf([v], callouts), part, StringComparison.Ordinal));
             PlaceRef entry = kept is not null
                 ? StratLocations.Clone(kept)
-                : IsMulti
+                : multi
                     ? new PlaceRef { Place = callouts?.Resolve(part) ?? part }
-                    : StratLocations.Typed(_value.Count > 0 ? _value[0] : null, callouts?.Resolve(part) ?? part)!;
+                    : StratLocations.Typed(current.Count > 0 ? current[0] : null, callouts?.Resolve(part) ?? part)!;
             if (!entries.Any(e => StratLocations.Same(e, entry)))
             {
                 entries.Add(entry);
             }
 
-            if (!IsMulti)
+            if (!multi)
             {
                 break;
             }

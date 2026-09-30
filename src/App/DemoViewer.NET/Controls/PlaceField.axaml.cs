@@ -44,6 +44,8 @@ public partial class PlaceField : UserControl
 
     public static readonly StyledProperty<bool> IsPickingProperty = AvaloniaProperty.Register<PlaceField, bool>(nameof(IsPicking));
 
+    public static readonly StyledProperty<object?> ArmedTargetProperty = AvaloniaProperty.Register<PlaceField, object?>(nameof(ArmedTarget));
+
     public static readonly StyledProperty<string?> PlaceholderTextProperty =
         AvaloniaProperty.Register<PlaceField, string?>(nameof(PlaceholderText));
 
@@ -113,6 +115,13 @@ public partial class PlaceField : UserControl
         set => SetValue(IsPickingProperty, value);
     }
 
+    /// <summary>What the map is armed for, if anything: <see cref="IsPicking" /> follows it equalling <see cref="PickCommandParameter" />.</summary>
+    public object? ArmedTarget
+    {
+        get => GetValue(ArmedTargetProperty);
+        set => SetValue(ArmedTargetProperty, value);
+    }
+
     public string? PlaceholderText
     {
         get => GetValue(PlaceholderTextProperty);
@@ -166,6 +175,10 @@ public partial class PlaceField : UserControl
         else if (change.Property == PickCommandProperty)
         {
             PickButton.IsVisible = PickCommand is not null;
+        }
+        else if (change.Property == ArmedTargetProperty || change.Property == PickCommandParameterProperty)
+        {
+            SetCurrentValue(IsPickingProperty, ArmedTarget is not null && Equals(ArmedTarget, PickCommandParameter));
         }
         else if (change.Property == IsPickingProperty)
         {
@@ -248,7 +261,7 @@ public partial class PlaceField : UserControl
 
         if (e.Key == Key.Down && !e.Handled)
         {
-            _model.Open();
+            _model.Open(true);
             e.Handled = true;
         }
         else if (e.Key == Key.Escape && IsPicking)
@@ -274,6 +287,10 @@ public partial class PlaceField : UserControl
             case Key.Down:
                 _model.Move(1);
                 break;
+            // Enter is the list's only once the user has typed or moved in it; before that it is the host's.
+            case Key.Enter when !_model.HasChoice:
+                _model.Dismiss();
+                return;
             case Key.Enter:
                 if (_model.Accept() is { } picked)
                 {
@@ -314,7 +331,11 @@ public partial class PlaceField : UserControl
             if (!string.Equals(FieldBox.Text ?? "", _model.Text, StringComparison.Ordinal))
             {
                 FieldBox.Text = _model.Text;
-                FieldBox.CaretIndex = _model.Text.Length;
+                // Only while focused: moving the caret of an unfocused box scrolls the editor to it.
+                if (FieldBox.IsFocused)
+                {
+                    FieldBox.CaretIndex = _model.Text.Length;
+                }
             }
 
             ClearButton.IsVisible = _model.HasPointOnly;
@@ -333,6 +354,7 @@ public partial class PlaceField : UserControl
             if (open && !DropDown.IsOpen)
             {
                 PlaceList();
+                Avalonia.Threading.Dispatcher.UIThread.Post(Replace, Avalonia.Threading.DispatcherPriority.Loaded);
             }
 
             DropDown.IsOpen = open;
@@ -349,6 +371,28 @@ public partial class PlaceField : UserControl
         finally
         {
             _syncing = false;
+        }
+    }
+
+    // A field focused by Tab is scrolled into view after it opened its list: choose the side again once it has moved.
+    private void Replace()
+    {
+        if (!DropDown.IsOpen)
+        {
+            return;
+        }
+
+        bool up = OpensUp;
+        PlaceList();
+        if (up != OpensUp)
+        {
+            DropDown.IsOpen = false;
+            DropDown.IsOpen = true;
+        }
+
+        if (_model.Highlight >= 0 && _model.Highlight < _model.Items.Count)
+        {
+            OptionList.ScrollIntoView(_model.Highlight);
         }
     }
 
