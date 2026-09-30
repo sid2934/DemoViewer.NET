@@ -341,7 +341,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     public bool ShowRadar => true;
 
-    public bool ShowTrails => false;
+    public bool ShowTrails => true;
 
     public bool ShowAreaEffects => true;
 
@@ -1043,7 +1043,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
         StratSceneProjection projection = StratSceneProjection.Build(document, path,
             _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
-            PlaceCentres(document.Map), PlaceArrivals(document.Map), PlaceContains(document.Map));
+            PlaceCentres(document.Map), PlaceArrivals(document.Map), PlaceContains(document.Map),
+            _lineupOrigins is { } flights ? (map, utility) => flights.ResolveFlight(map, utility, levelFor) : null);
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -1474,6 +1475,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                     discontinuity),
                 Markers = [.. pooled.Markers],
                 AreaEffects = [.. pooled.AreaEffects],
+                Trails = CopyTrails(pooled.Trails),
                 GameInfo = pooled.GameInfo,
                 Map = pooled.Map
             };
@@ -1486,6 +1488,20 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         Timeline.UpdatePlayhead(tick, tick);
         RaiseState();
         FrameUpdated?.Invoke();
+    }
+
+    // A pooled trail is refilled two frames on while the render thread may still hold this one.
+    private static List<GrenadeTrail> CopyTrails(IReadOnlyList<GrenadeTrail> pooled)
+    {
+        List<GrenadeTrail> copies = new(pooled.Count);
+        foreach (GrenadeTrail trail in pooled)
+        {
+            GrenadeTrail copy = new() { Kind = trail.Kind, Team = trail.Team, LastTick = trail.LastTick, Alpha = trail.Alpha };
+            copy.Points.AddRange(trail.Points);
+            copies.Add(copy);
+        }
+
+        return copies;
     }
 
     private void RaiseState()

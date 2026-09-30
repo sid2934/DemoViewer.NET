@@ -429,6 +429,32 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
 * **The clock.** The transport, the step row's last band and an export run to the last arrival
   (`ContentEndTick`), so a run after the last step still plays.
 
+### Utility on the canvas
+
+Every step with a `utility` throws it (`StratThrows`, the projection's utility pass): a projectile leaves the
+thrower at the step's time, flies to the landing and goes off there. The canvas, the Detected preview and an export
+draw it from the same projection.
+
+* **Thrower.** With a lineup that resolves, the technique's mean release point (the same origin the token stands
+  on) and one grenade, however many lines the step has. Otherwise each line's slot, or the single actor, from where
+  its token is at the step's time. A throw with no one to throw it goes off at the step's time with no flight.
+* **Landing.** A resolved lineup's landing group detonation point (`GrenadeCluster.Landing`). Otherwise
+  `utility.landing`'s point, else its place's arrival centre. With none of these the step draws nothing.
+* **Flight.** A lineup flies for its technique's median air time (release to rest) and goes off at its median
+  detonation time, never earlier. When the Grenade Index stores a flight for the technique, the preview follows its
+  shape, bent so it starts on the origin and ends on the landing; otherwise a straight line. A throw without a
+  lineup, or a lineup with no recorded air time, flies at 800 units a second, between 0.5 and 3.5 s, and goes off
+  on landing. The line fades over 2 s after the projectile stops.
+* **Effect by kind** (`StratFrameSource.EffectTicks`): a smoke for 18 s, blooming from 35% of its radius over the
+  first second; a molotov's fire for 7 s; a flash's pop for 0.5 s; an HE's burst for 0.6 s; a decoy's marker for
+  15 s. No smoke occlusion.
+* **Colour.** The flight is the thrower's side colour. The effects keep the demo colours.
+* **The clock.** `ContentEndTick` covers the last effect and the last line's fade, so the transport and an export
+  run until the smoke clears.
+* **Lineup data** comes from `LineupOriginSource`, which groups each map once off the UI thread: per technique the
+  landing, the air and detonation times, and the stored flight. A lineup not grouped yet draws as if it had none
+  until the map is ready.
+
 `steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
 along it; two steps may share a time.
 

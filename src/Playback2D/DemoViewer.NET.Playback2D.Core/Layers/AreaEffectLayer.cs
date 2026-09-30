@@ -18,6 +18,8 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 /// </summary>
 public sealed class AreaEffectLayer : ISceneLayer
 {
+    private const float DecoyMinRadius = 5f;
+
     private readonly SKPaint _fill;
     private readonly SKPaint _stroke;
 
@@ -76,21 +78,45 @@ public sealed class AreaEffectLayer : ISceneLayer
             // invisible cells reads as "the fire went out".
             float r = (float)Math.Max(2, fx.WorldRadius * ctx.Transform.EffectiveScale);
 
-            if (fx.Kind == AreaEffectKind.Smoke)
+            float alpha = Math.Clamp(fx.Alpha, 0f, 1f);
+            switch (fx.Kind)
             {
-                _fill.Color = ctx.Palette.Smoke;
-                canvas.DrawCircle((float)sx, (float)sy, r, _fill);
-                _stroke.Color = ctx.Palette.SmokeStroke;
-                _stroke.StrokeWidth = ctx.Palette.Strokes.SmokeStroke;
-                canvas.DrawCircle((float)sx, (float)sy, r, _stroke);
-            }
-            else
-            {
-                _fill.Color = ctx.Palette.Fire;
-                canvas.DrawCircle((float)sx, (float)sy, r, _fill);
+                case AreaEffectKind.Smoke:
+                    _fill.Color = Faded(ctx.Palette.Smoke, alpha);
+                    canvas.DrawCircle((float)sx, (float)sy, r, _fill);
+                    _stroke.Color = Faded(ctx.Palette.SmokeStroke, alpha);
+                    _stroke.StrokeWidth = ctx.Palette.Strokes.SmokeStroke;
+                    canvas.DrawCircle((float)sx, (float)sy, r, _stroke);
+                    break;
+                case AreaEffectKind.Flash:
+                    DrawPop(canvas, (float)sx, (float)sy, r, ctx.Palette.TrailFlash, alpha);
+                    break;
+                case AreaEffectKind.Explosion:
+                    DrawPop(canvas, (float)sx, (float)sy, r, ctx.Palette.TrailHe, alpha);
+                    break;
+                case AreaEffectKind.Decoy:
+                    // A decoy's world size is a pixel at the map's fit, so the ring keeps a readable floor.
+                    DrawPop(canvas, (float)sx, (float)sy, Math.Max(DecoyMinRadius, r), ctx.Palette.TrailDecoy, alpha);
+                    break;
+                default:
+                    _fill.Color = Faded(ctx.Palette.Fire, alpha);
+                    canvas.DrawCircle((float)sx, (float)sy, r, _fill);
+                    break;
             }
         }
     }
+
+    private void DrawPop(SKCanvas canvas, float x, float y, float r, SKColor colour, float alpha)
+    {
+        _fill.Color = Faded(colour.WithAlpha(0x70), alpha);
+        canvas.DrawCircle(x, y, r, _fill);
+        _stroke.Color = Faded(colour, alpha);
+        _stroke.StrokeWidth = 2f;
+        canvas.DrawCircle(x, y, r, _stroke);
+    }
+
+    private static SKColor Faded(SKColor colour, float alpha) =>
+        alpha >= 1f ? colour : colour.WithAlpha((byte)Math.Round(colour.Alpha * alpha));
 
     /// <inheritdoc />
     public void Dispose()

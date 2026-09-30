@@ -12,7 +12,37 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 /// <param name="Lineup">The lineup.</param>
 /// <param name="Title">Its landing group's card title (<see cref="LineupClipPlanner.Title" />).</param>
 /// <param name="Kind">What is thrown.</param>
-public sealed record MapLineup(GrenadeLineup Lineup, string Title, GrenadeKind Kind);
+public sealed record MapLineup(GrenadeLineup Lineup, string Title, GrenadeKind Kind)
+{
+    /// <summary>Where the lineup's landing group goes off.</summary>
+    public WorldPoint Landing { get; init; }
+
+    /// <summary>Per technique key, how its throw flies; built with the map, never on the UI thread.</summary>
+    public IReadOnlyDictionary<string, LineupThrow> Throws { get; init; } = new Dictionary<string, LineupThrow>();
+}
+
+/// <summary>One technique's throw as the strat preview plays it.</summary>
+/// <param name="Origin">The technique's mean release point.</param>
+/// <param name="AirSeconds">Release to rest: the members' median air time.</param>
+/// <param name="PopSeconds">Release to going off, never less than <paramref name="AirSeconds" />.</param>
+/// <param name="Path">The stored representative flight, seconds from release, or null when none is stored.</param>
+public sealed record LineupThrow(WorldPoint Origin, double AirSeconds, double PopSeconds, IReadOnlyList<ThrowPathPoint>? Path);
+
+/// <summary>One point of a recorded flight.</summary>
+/// <param name="Seconds">Seconds since release.</param>
+/// <param name="Position">World position.</param>
+public readonly record struct ThrowPathPoint(double Seconds, WorldPoint Position);
+
+/// <summary>A resolved lineup throw in the canvas's level keys, for <see cref="ThrowFlightResolver" />.</summary>
+/// <param name="Origin">Where the thrower stands.</param>
+/// <param name="LandingX">World X of the landing group's detonation point.</param>
+/// <param name="LandingY">World Y of it.</param>
+/// <param name="LandingLevelMinZ">Its level key.</param>
+/// <param name="AirSeconds">Release to rest.</param>
+/// <param name="PopSeconds">Release to going off.</param>
+/// <param name="Path">The recorded flight, each point with its level key, or null.</param>
+public sealed record LineupFlight(TokenPlacement Origin, double LandingX, double LandingY, double LandingLevelMinZ,
+    double AirSeconds, double PopSeconds, IReadOnlyList<(double Seconds, float X, float Y, double LevelMinZ)>? Path);
 
 /// <summary>A grouped map: every lineup once, most thrown first, and each by every id that names it.</summary>
 /// <param name="Lineups">Every lineup once.</param>
@@ -20,7 +50,7 @@ public sealed record MapLineup(GrenadeLineup Lineup, string Title, GrenadeKind K
 public sealed record MapLineups(IReadOnlyList<MapLineup> Lineups, IReadOnlyDictionary<Guid, MapLineup> ById);
 
 /// <summary>
-///     A map's lineups by every id that names them, alias ids included, for <see cref="ThrowOriginResolver" />
+///     A map's lineups by every id that names them, alias ids included, for <see cref="ThrowOriginResolver" />, <see cref="ThrowFlightResolver" />
 ///     and the strat editor's lineup choices.
 ///     A map is grouped once off the UI thread and kept until the index changes; a lookup before that answers
 ///     null and <see cref="Changed" /> fires when the map is ready.
@@ -68,6 +98,33 @@ public sealed class LineupOriginSource : IDisposable
         }
 
         return For(map)?.ById.TryGetValue(id, out MapLineup? found) == true ? PlacementOf(found.Lineup, utility.Technique, levelFor) : null;
+    }
+
+    /// <summary>
+    ///     How <paramref name="utility" />'s lineup is thrown and where it lands, or null (not ready, or not found).
+    /// </summary>
+    /// <param name="map">The map.</param>
+    /// <param name="utility">A step's utility with a lineup id.</param>
+    /// <param name="levelFor">A world Z's level key.</param>
+    public LineupFlight? ResolveFlight(string map, UtilityRef utility, Func<double, double> levelFor)
+    {
+        ArgumentNullException.ThrowIfNull(levelFor);
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(utility);
+        if (utility.LineupId is not { } id || map.Length == 0 || For(map)?.ById.TryGetValue(id, out MapLineup? found) != true)
+        {
+            return null;
+        }
+
+        string? key = GrenadeLineups.TechniqueFor(found!.Lineup, utility.Technique)?.Key;
+        if (!found.Throws.TryGetValue(key ?? "", out LineupThrow? thrown))
+        {
+            return null;
+        }
+
+        TokenPlacement origin = PlacementOf(found.Lineup, utility.Technique, levelFor);
+        return new LineupFlight(origin, found.Landing.X, found.Landing.Y, levelFor(found.Landing.Z), thrown.AirSeconds,
+            thrown.PopSeconds, thrown.Path?.Select(p => (p.Seconds, p.Position.X, p.Position.Y, levelFor(p.Position.Z))).ToList());
     }
 
     /// <summary>The map's grouped lineups, or null while it is being grouped (<see cref="Changed" /> fires when ready).</summary>
@@ -132,10 +189,19 @@ public sealed class LineupOriginSource : IDisposable
 
     /// <summary>Every lineup of a query result once, with its title, keyed by each id that names it.</summary>
     /// <param name="clusters">The map's query result.</param>
-    public static MapLineups Build(IReadOnlyList<GrenadeCluster> clusters)
+    /// <param name="paths">A technique's stored flight (<see cref="GrenadeIndex.PathFor" />), or null for none.</param>
+    public static MapLineups Build(IReadOnlyList<GrenadeCluster> clusters,
+        Func<GrenadeLineup, LineupTechnique?, IReadOnlyList<TrajectoryPoint>?>? paths = null)
     {
         ArgumentNullException.ThrowIfNull(clusters);
-        List<MapLineup> all = [.. clusters.SelectMany(c => c.Lineups.Select(l => new MapLineup(l, LineupClipPlanner.Title(c), c.Kind)))];
+        List<MapLineup> all =
+        [
+            .. clusters.SelectMany(c => c.Lineups.Select(l => new MapLineup(l, LineupClipPlanner.Title(c), c.Kind)
+            {
+                Landing = c.Landing,
+                Throws = ThrowsOf(l, paths)
+            }))
+        ];
         Dictionary<Guid, MapLineup> byId = [];
         foreach (MapLineup entry in all)
         {
@@ -154,6 +220,58 @@ public sealed class LineupOriginSource : IDisposable
     }
 
     /// <summary>
+    ///     Each technique's throw, by key; a lineup without techniques (the grid grouping) keys its throws under "".
+    /// </summary>
+    /// <param name="lineup">The lineup.</param>
+    /// <param name="paths">A technique's stored flight, or null for none.</param>
+    public static Dictionary<string, LineupThrow> ThrowsOf(GrenadeLineup lineup,
+        Func<GrenadeLineup, LineupTechnique?, IReadOnlyList<TrajectoryPoint>?>? paths)
+    {
+        ArgumentNullException.ThrowIfNull(lineup);
+        Dictionary<string, LineupThrow> throws = new(StringComparer.Ordinal);
+        if (lineup.Techniques.Count == 0)
+        {
+            if (lineup.Throws.Count > 0)
+            {
+                throws[""] = ThrowOf(lineup.Origin, lineup.Throws, paths?.Invoke(lineup, null));
+            }
+
+            return throws;
+        }
+
+        foreach (LineupTechnique technique in lineup.Techniques)
+        {
+            throws[technique.Key] = ThrowOf(technique.Origin, technique.Throws, paths?.Invoke(lineup, technique));
+        }
+
+        return throws;
+    }
+
+    private static LineupThrow ThrowOf(WorldPoint origin, IReadOnlyList<IndexedGrenade> members, IReadOnlyList<TrajectoryPoint>? path)
+    {
+        double air = Median(members.Where(g => g.Row.AirTimeTicks > 0).Select(g => (double)g.AirTimeSeconds));
+        double pop = Median(members.Where(g => g.Row.DetonationTick > g.Row.SpawnTick)
+            .Select(g => (g.Row.DetonationTick!.Value - g.Row.SpawnTick) / (double)Math.Max(1, g.TickRate)));
+        int rate = Math.Max(1, members.Count > 0 ? members[0].TickRate : 64);
+        List<ThrowPathPoint>? points = path is { Count: >= 2 }
+            ? [.. path.Select(p => new ThrowPathPoint((p.Tick - path[0].Tick) / (double)rate, new WorldPoint(p.X, p.Y, p.Z)))]
+            : null;
+        if (air <= 0)
+        {
+            air = points is { } flown ? flown[^1].Seconds : pop;
+        }
+
+        return new LineupThrow(origin, air, Math.Max(air, pop), points);
+    }
+
+    // 0 for none.
+    private static double Median(IEnumerable<double> values)
+    {
+        List<double> sorted = [.. values.Where(double.IsFinite).Order()];
+        return sorted.Count == 0 ? 0 : sorted.Count % 2 == 1 ? sorted[sorted.Count / 2] : (sorted[sorted.Count / 2 - 1] + sorted[sorted.Count / 2]) / 2;
+    }
+
+    /// <summary>
     ///     Groups a map now, on the caller's thread, again while the index changes under it. For tests and a
     ///     caller already off the UI thread.
     /// </summary>
@@ -169,7 +287,7 @@ public sealed class LineupOriginSource : IDisposable
                 generation = _generation;
             }
 
-            MapLineups lineups = Build(_index.Query(new GrenadeQuery(map)));
+            MapLineups lineups = Build(_index.Query(new GrenadeQuery(map)), _index.PathFor);
             lock (_gate)
             {
                 if (generation == _generation)

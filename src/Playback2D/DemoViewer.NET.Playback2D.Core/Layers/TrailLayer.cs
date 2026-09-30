@@ -89,7 +89,7 @@ public sealed class TrailLayer : ISceneLayer
             return;
         }
 
-        SKColor colour = ColourFor(trail.Kind, ctx.Palette);
+        SKColor colour = trail.Team is 2 or 3 ? ctx.Palette.TeamFill(trail.Team) : ColourFor(trail.Kind, ctx.Palette);
         double alpha = Math.Clamp(trail.Alpha, 0, 1);
 
         TrailGeometry.FloorSegmentRuns(points, in ctx, _runs);
