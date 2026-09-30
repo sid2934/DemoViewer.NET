@@ -168,7 +168,7 @@ public class StratStepMotionTests
         {
             await Assert.That(ends.Select(k => (k.X, k.Y)).Distinct().Count()).IsEqualTo(5).Because("no two tokens stack");
             await Assert.That(ends.All(k => Inside("BombsiteA", k))).IsTrue();
-            await Assert.That(ends.All(k => Math.Abs(k.X - 1200) <= 64 && Math.Abs(k.Y - 200) <= 64)).IsTrue();
+            await Assert.That(ends.All(k => Math.Abs(k.X - 1200) <= 160 && Math.Abs(k.Y - 200) <= 160)).IsTrue();
         }
 
         // The same spot for a slot every time, and a group of two lines fans the same way.
@@ -199,7 +199,7 @@ public class StratStepMotionTests
 
         // A place too small for the spots: a small ring around its arrival.
         (double X, double Y) ring = StratSceneProjection.SpotFor("Tiny", (0, 0, 0), "A", (_, _, _, _) => false);
-        await Assert.That(Math.Round(Math.Sqrt(ring.X * ring.X + ring.Y * ring.Y), 3)).IsEqualTo(32d);
+        await Assert.That(Math.Round(Math.Sqrt(ring.X * ring.X + ring.Y * ring.Y), 3)).IsEqualTo(96d);
     }
 
     [Test]

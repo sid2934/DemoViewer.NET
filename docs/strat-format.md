@@ -396,9 +396,9 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   gliding.
 * **Several tokens, one place.** When more than one token is sent to the same place (or the same point) and they
   are there at the same time, whichever steps sent them, each stands on a ray fixed by its slot letter (A at 90
-  degrees, then every 72), at 64, 44 or 24 units from the arrival, the widest still inside the place on that floor
-  (`IZonePlaceResolver.ResolveOnFloor`); with no spot inside, 32 units out. A token is there from its step's time
-  until its next destination or placed entry. Only destinations that win by precedence count, so a slot whose drag
+  degrees, then every 72), at 160, 120, 80 or 48 units from the arrival, the widest still inside the place on that
+  floor (`IZonePlaceResolver.ResolveOnFloor`); with no spot inside, 96 units out. Nearer spots overlap once the map
+  is fitted to the pane. A token is there from its step's time until its next destination or placed entry. Only destinations that win by precedence count, so a slot whose drag
   beats its `to` does not push another token off the centre. The same slot takes the same spot in any group; a token
   there alone goes to the centre.
 * **Precedence for a slot on a step:** a throw's lineup origin; then an authored position (a drag, or a set

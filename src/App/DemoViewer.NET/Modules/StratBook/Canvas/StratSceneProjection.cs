@@ -738,9 +738,9 @@ public sealed class StratSceneProjection
     }
 
     // Tried outward in; the first inside the place wins.
-    private static readonly double[] SpotRadii = [64, 44, 24];
+    private static readonly double[] SpotRadii = [160, 120, 80, 48];
 
-    private const double RingRadius = 32;
+    private const double RingRadius = 96;
 
     /// <summary>
     ///     Where one of several tokens sent to one place stands: on a ray fixed by its slot letter, so its spot does not
