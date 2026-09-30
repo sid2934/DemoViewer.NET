@@ -50,7 +50,7 @@ public sealed record LineupFlight(TokenPlacement Origin, double LandingX, double
 public sealed record MapLineups(IReadOnlyList<MapLineup> Lineups, IReadOnlyDictionary<Guid, MapLineup> ById);
 
 /// <summary>
-///     A map's lineups by every id that names them, alias ids included, for <see cref="ThrowOriginResolver" />
+///     A map's lineups by every id that names them, alias ids included, for <see cref="ThrowOriginResolver" />, <see cref="ThrowFlightResolver" />
 ///     and the strat editor's lineup choices.
 ///     A map is grouped once off the UI thread and kept until the index changes; a lookup before that answers
 ///     null and <see cref="Changed" /> fires when the map is ready.
