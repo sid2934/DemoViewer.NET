@@ -261,6 +261,32 @@ public class StratLineSlotTests
     }
 
     [Test]
+    public async Task ASwapAndAWhoChange_Commit_PhraseBothSlots_AndTheLogReplaysToTheSameBytes()
+    {
+        StratDocument document = FiveSteps();
+        StratStep step = document.Steps[0];
+        step.To = null;
+        step.Verb = "push";
+        step.Assignments = [Line("B", "BombsiteB", "Back"), Line("D", "Window"), Line("C", "BombsiteB")];
+        (StratStore store, StratSession session) = Opened(document);
+
+        session.Apply(StratLinePatches.ChangeSlot(session.Document!.Steps[0], "/steps/0", 0, "D"));
+        StratSaveResult swap = session.Commit()!;
+        session.Apply(StratLinePatches.SetWho(session.Document!.Steps[0], "/steps/0", ["B", "D", "A"]));
+        StratSaveResult who = session.Commit()!;
+        IReadOnlyList<HistoryEntry> log = store.History(document.Id);
+        using (Assert.Multiple())
+        {
+            await Assert.That(swap.Saved && who.Saved).IsTrue();
+            await Assert.That(log[^2].Summary).Contains("B slot B → D").And.Contains("slot D → B");
+            await Assert.That(log[^1].Summary).Contains("C removed").And.Contains("A added");
+            await Assert.That(Lines(session.Document!.Steps[0])).IsEqualTo("D>BombsiteB/Back B>Window A>");
+            await Assert.That(StratStore.Serialize(StratHistory.Materialize(log, log[^1].Revision)!))
+                .IsEqualTo(StratStore.Serialize(session.Document!));
+        }
+    }
+
+    [Test]
     public async Task ChangeSlot_OnTheWriter_SwapsAndKeepsUnknownFields_WithTheirLine()
     {
         StratDocument document = FiveSteps();
