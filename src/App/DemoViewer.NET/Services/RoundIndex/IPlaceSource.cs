@@ -107,6 +107,16 @@ public interface IZonePlaceResolver
     /// <param name="floorKey">The floor's key: <c>MapSpace.QuantizeZ</c> of the band's lower Z.</param>
     (double X, double Y)? PlaceCentre(string place, double floorKey) => null;
 
+    /// <summary>
+    ///     Where a token arrives at a place: its centre on <paramref name="floorKey" /> when it has areas there, else
+    ///     on its largest floor, with that floor's key; the given key for a place with no floors. Null for a place the
+    ///     map lacks.
+    /// </summary>
+    /// <param name="place">A raw place name.</param>
+    /// <param name="floorKey">The token's floor key.</param>
+    (double X, double Y, double FloorKey)? PlaceArrival(string place, double floorKey) =>
+        PlaceCentre(place, floorKey) is { } centre ? (centre.X, centre.Y, floorKey) : null;
+
     /// <summary>The map's place names, custom zones included; empty when the source has no list.</summary>
     IReadOnlyList<string> PlaceNames => [];
 }

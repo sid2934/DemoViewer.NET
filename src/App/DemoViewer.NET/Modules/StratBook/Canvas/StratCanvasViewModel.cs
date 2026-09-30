@@ -235,9 +235,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         RaiseSetPlace();
     }
 
-    private static string? LineSlotOn(StratStep step, string? wanted)
+    private string? LineSlotOn(StratStep step, string? wanted)
     {
-        IReadOnlyList<StepAssignment> lines = StratStepLines.Of(step);
+        IReadOnlyList<StepAssignment> lines = WritesOneLine(step) && !StratStepLines.HasLines(step)
+            ? StratLinePatches.Copy(step, true)
+            : StratStepLines.Of(step);
         return lines.Any(l => string.Equals(l.Slot, wanted, StringComparison.Ordinal)) ? wanted : lines.Count > 0 ? lines[0].Slot : null;
     }
 
@@ -256,7 +258,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <summary>The Set On Map button's words, naming the field the way the step row does.</summary>
     public string SetPlaceText => PlaceTarget switch
     {
-        StratPlaceTarget.To => "Set " + (SelectedLineSlot is { } slot && ActiveStep is { } step && StratStepLines.HasLines(step)
+        StratPlaceTarget.To => "Set " + (SelectedLineSlot is { } slot && ActiveStep is { } step && WritesOneLine(step)
                                                                      && !WritesAllLines(step)
                                    ? slot + "'s "
                                    : "")
@@ -461,7 +463,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         bool allLines = target == StratPlaceTarget.To && WritesAllLines(step);
-        string? slot = target == StratPlaceTarget.To && StratStepLines.HasLines(step) && !allLines ? SelectedLineSlot : null;
+        string? slot = target == StratPlaceTarget.To && WritesOneLine(step) && !allLines ? SelectedLineSlot : null;
         _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1,
             string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {(slot is null ? "" : slot + " ")}{TargetLabel(target, step)}; Esc cancels"),
             slot, allLines);
@@ -831,8 +833,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         int stepIndex = projection.Path[drag.PathIndex].StepIndex;
 
-        // A turn of one of the strat's own tokens is its line's view angle, which beats the watched place.
-        if (drag.Grip == TokenGrip.Heading && StratVocabulary.Slots.Contains(drag.Slot))
+        // A turn of one of the strat's own tokens is its line's view angle, which beats the watched place, on a verb
+        // that watches or a line that already does. Otherwise it is the position's yaw, as before lines.
+        StratStep turned = document.Steps[stepIndex];
+        if (drag.Grip == TokenGrip.Heading && StratVocabulary.Slots.Contains(drag.Slot)
+                                           && (StratStepFields.Uses(turned.Verb, StratStepField.Watch)
+                                               || StratStepLines.LineFor(turned, drag.Slot)?.Watch is not null))
         {
             if (drag.Turned)
             {
@@ -992,7 +998,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
         StratSceneProjection projection = StratSceneProjection.Build(document, path,
             _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
-            PlaceCentres(document.Map));
+            PlaceCentres(document.Map), PlaceArrivals(document.Map));
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -1013,10 +1019,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         WorldBounds bounds = MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection);
         _source = new StratFrameSource(new StratSceneSpec(Tracks, projection.Schedule, _ink.Session, projection.Labels,
             document.Map, MapAsset is { } radarAsset ? MapAssetPipeline.DescribeRadars(radarAsset) : [], bounds, null,
-            projection.Utility, projection.RoundSeconds, 0, projection.LastTick, StepSchedule.TicksPerSecond, 1));
+            projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1));
 
         int first = projection.Ticks.Count > 0 ? projection.Ticks[0] : 0;
-        Transport.SetRange(first, projection.LastTick);
+        Transport.SetRange(first, projection.ContentEndTick);
 
         // A selected step stays selected through an edit, its time included; a new step becomes the selection.
         _pinnedStep = pinned;
@@ -1033,7 +1039,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         _stepTrack.Update(projection, document, _callouts);
-        Timeline.Rebuild(new StratTimelineData(projection.LastTick));
+        Timeline.Rebuild(new StratTimelineData(projection.ContentEndTick));
 
         StatusLine = projection.ClockClamped
             ? "a step's time runs backwards: it plays at the step before it until the table is fixed"
@@ -1547,6 +1553,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private bool WritesAllLines(StratStep step) =>
         step.Assignments is { Count: > 1 } lines && StratLinePatches.Agree(lines) && LinesShownApart?.Invoke(step.Id) != true;
 
+    // A map click sets one player's place: the step stores lines, or the editor shows a step for everyone split.
+    private bool WritesOneLine(StratStep step) =>
+        StratStepLines.HasLines(step)
+        || (string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal) && LinesShownApart?.Invoke(step.Id) == true);
+
     /// <summary>Whether the editor shows a step's lines one per player; the tab wires it to the editor.</summary>
     public Func<Guid, bool>? LinesShownApart { get; set; }
 
@@ -1556,6 +1567,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private string Display(string place) => _callouts is { } callouts && callouts.IsCanonical(place) ? callouts.Display(place) : place;
 
     // Only once the map's zones are in memory; until then a watching token keeps its authored facing.
+    /// <summary>Where a rotating lurker arrives, or null until the map's zones are in memory.</summary>
+    public PlaceArrivalResolver? CurrentPlaceArrivals => _session.Document is { } document ? PlaceArrivals(document.Map) : null;
+
+    private PlaceArrivalResolver? PlaceArrivals(string map) =>
+        _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+            ? zones.PlaceArrival
+            : null;
+
     private PlaceCentreResolver? PlaceCentres(string map) =>
         _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
             ? zones.PlaceCentre

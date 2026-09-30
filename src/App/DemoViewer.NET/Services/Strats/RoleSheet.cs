@@ -71,11 +71,11 @@ public static class StratStepPhrasing
 
         if (step.Lurk is { } lurk && LurkText(lurk, callouts) is { } lurkText)
         {
-            sentence.Append(lurk.Areas.Count > 0 ? " " : "; ").Append(lurkText);
+            sentence.Append(lurk.Areas.Exists(a => a.Length > 0) ? " " : "; ").Append(lurkText);
         }
 
         string? landing = step.Utility?.Landing?.Place;
-        if (landing is not null && (lines ||!string.Equals(landing, step.To?.Place, StringComparison.Ordinal)))
+        if (landing is not null && (lines || !string.Equals(landing, step.To?.Place, StringComparison.Ordinal)))
         {
             sentence.Append(" (").Append(StratDiffPhrasing.Place(landing, callouts)).Append(')');
         }

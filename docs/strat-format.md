@@ -137,7 +137,7 @@ book: a display name is looked up at render time and a roster rename never touch
 ```
 
 * **`actor`** is a slot letter, or `all` for every slot at once. **`verb`** is one of the closed list
-  `move | hold | throw | plant | defuse | peek | fake | rotate | wait | call | other | push | lurk`; outside
+  `move | push | rotate | hold | peek | lurk | throw | fake | plant | defuse | wait | call | other`; outside
   it the validator **refuses** the document, because Role View and the call sheet phrase a line by verb.
   `push` (an aggressive advance onto a place) and `lurk` came later than the rest: a build older than them
   refuses a strat that uses either.
@@ -288,12 +288,17 @@ by every player the step names, like `from` and `utility`, and two lurkers who r
 The place rules wait for the map's zones, as the other place warnings do.
 
 **On the canvas**, a rotate with a time and a place moves every token the step names: from the rotate time the
-token runs from where it stands to the centre of the rotate-to place on its own level (`StratPlaceCentres`), at
+token runs from where it stands to the centre of the rotate-to place (`StratPlaceCentres.Arrival`: on the token's
+floor when the place has areas there, else on the floor holding most of the place, and the token arrives on that
+floor), at
 215 units a second (`StratSceneProjection.RotateUnitsPerSecond`, a rifle's run speed), and stays there. A later
 keyframe for the slot (an authored position, a lineup origin) still wins: if it comes before the token could
 arrive, the token heads to it from the rotate time instead. A rotate that is not later than its step, or whose
-place has no centre (or the zones are not in yet), moves nothing. A step added after a rotating lurk does not
-carry the lurker's old position, so the rotate is not undone by the next step.
+place has no centre (or the zones are not in yet), moves nothing. "Later" is compared in strat ticks, the same
+test the validator uses (`StratLurkPatches.IsLater`). The transport and an export run to the last arrival when it
+comes after the last step (`StratSceneProjection.ContentEndTick`), so a rotate after the last step still plays. A
+step added at or after a rotate whose place resolves does not carry the lurker's old position, so the rotate is not
+undone by the next step; one added before the rotate carries the lurker where it stands.
 
 **Facing on the canvas.** A token's yaw at a step, in order: a throw's lineup origin (position and yaw; a
 throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
