@@ -153,7 +153,7 @@ public sealed class StratExportJob : IExportRunner
         ArgumentNullException.ThrowIfNull(projection);
 
         int first = projection.Ticks.Count > 0 ? projection.Ticks[0] : 0;
-        int end = projection.LastTick + TailTicks;
+        int end = projection.ContentEndTick + TailTicks;
         List<ExportRangeOption> ranges =
         [
             new(Describe("First step to last + 2 s", first, end, projection.RoundSeconds), first, end)

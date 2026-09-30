@@ -199,7 +199,10 @@ public class StratCanvasTests
     [Test]
     public async Task ADrag_OnAStepWithNoEntryForTheSlot_AddsOne_AndACancelChangesNothing()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
+        // A hold watches, so a turn there is a line's view angle.
+        StratDocument document = FiveSteps();
+        document.Steps[1].Verb = "hold";
+        (StratStore _, StratSession session) = Opened(document);
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
         canvas.Timeline.RequestSeekToFrame(Step2);
 

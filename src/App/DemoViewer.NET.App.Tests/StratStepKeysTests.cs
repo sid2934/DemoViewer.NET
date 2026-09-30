@@ -35,7 +35,7 @@ public class StratStepKeysTests
     private static List<Control> Fields(ContentPresenter row) =>
     [
         .. row.GetVisualDescendants().OfType<Control>()
-            .Where(c => c is TextBox or ComboBox && c.IsEffectivelyVisible)
+            .Where(c => (c is TextBox or ComboBox || c.Name == "WhoButton") && c.IsEffectivelyVisible)
     ];
 
     private static StratStepRow? FocusedRow(Window window) =>
@@ -48,7 +48,7 @@ public class StratStepKeysTests
             using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
             StratStep step = StratStepEditingTests.Step(90, "all", "move");
             step.To = null;
-            step.Assignments = [new StepAssignment { Slot = "B" }, new StepAssignment { Slot = "C" }];
+            step.Assignments = [new StepAssignment { Slot = "B", To = new PlaceRef { Place = "BombsiteA" } }, new StepAssignment { Slot = "C" }];
             StratStepEditingTests.Seed(vm, StratStepEditingTests.Step(100, "A", "move"), step);
             (Window window, StratBookTabView view) = Show(vm);
             int index = vm.Editor.Steps.Count - 1;
@@ -83,7 +83,7 @@ public class StratStepKeysTests
             int steps = vm.Session.Document!.Steps.Count;
             int depth = vm.Session.UndoDepth;
 
-            AutoCompleteBox watching = RowContainer(view, index).GetVisualDescendants().OfType<AutoCompleteBox>().Single();
+            AutoCompleteBox watching = RowContainer(view, index).GetVisualDescendants().OfType<AutoCompleteBox>().Single(a => a.Name == "GroupWatchField");
             watching.GetVisualDescendants().OfType<TextBox>().First().Focus();
             Dispatcher.UIThread.RunJobs();
             window.KeyTextInput("Bombsite");
@@ -191,9 +191,9 @@ public class StratStepKeysTests
             List<Control> second = Fields(RowContainer(view, 1));
             List<object> expected = [.. first, second[0]];
 
-            // A one-player move shows time, actor, verb, its line's to and watching, from and note; the next row
-            // starts at its time.
-            await Assert.That(first.Count).IsEqualTo(7);
+            // A one-player move shows time, who, verb, its to (a move watches no place), from and note; the next
+            // row starts at its time.
+            await Assert.That(first.Count).IsEqualTo(6);
             first[0].Focus();
             List<object> walked = [window.FocusManager!.GetFocusedElement()!];
             for (int i = 1; i < expected.Count; i++)
@@ -218,7 +218,8 @@ public class StratStepKeysTests
             Dispatcher.UIThread.RunJobs();
 
             TextBlock Marker() => RowContainer(view, 0).GetVisualDescendants().OfType<TextBlock>()
-                .Single(t => t.Classes.Contains("stratIssue") && t.Text == "⚠" && t.GetVisualParent() is StackPanel { Orientation: Avalonia.Layout.Orientation.Horizontal });
+                .Single(t => t.Classes.Contains("stratIssue") && t.Text == "⚠" && t.IsEffectivelyVisible
+                           && t.GetVisualParent() is StackPanel { Orientation: Avalonia.Layout.Orientation.Horizontal });
 
             TextBlock marker = Marker();
             using (Assert.Multiple())

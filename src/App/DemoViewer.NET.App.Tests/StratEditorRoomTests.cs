@@ -218,6 +218,26 @@ public class StratEditorRoomTests
         };
         vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(lines, StratJsonContext.Default.StratStep)));
 
+        // Two players shown as one, with a shared angle and split: the widest compact row. And a lurk with every field set.
+        StratStep pair = new()
+        {
+            Id = Guid.NewGuid(), AtSeconds = -52, Actor = StratVocabulary.ActorAll, Verb = "hold",
+            Assignments =
+            [
+                .. StratVocabulary.Slots.Skip(1).Take(2).Select(s => new StepAssignment
+                {
+                    Slot = s, To = new PlaceRef { Place = "PalaceInterior" }, Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn", "Jungle"], YawDegrees = 135 }
+                })
+            ]
+        };
+        vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(pair, StratJsonContext.Default.StratStep)));
+        int lurk = StratVocabulary.Verbs.ToList().IndexOf("lurk");
+        vm.Session.Apply(PatchOp.AddOp($"/steps/{lurk}/lurk", new JsonObject
+        {
+            ["areas"] = new JsonArray("PalaceInterior", "Connector", "Jungle"),
+            ["rotate"] = new JsonObject { ["atSeconds"] = 40, ["when"] = "after first kill", ["to"] = new JsonObject { ["place"] = "BombsiteB" } }
+        }));
+
         // The editor's catalog groups the map off the UI thread and posts back.
         for (int i = 0; i < 500 && vm.Editor.ResolveLineup(lineup.Id) is null; i++)
         {

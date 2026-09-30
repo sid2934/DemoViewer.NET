@@ -88,7 +88,7 @@ public static class StratStepLines
     }
 
     /// <summary>
-    ///     The step as <paramref name="line" />'s slot alone: the step's verb, from, utility and note, the line's
+    ///     The step as <paramref name="line" />'s slot alone: the step's verb, from, utility, lurk and note, the line's
     ///     slot and place. For phrasing one player's part; never stored.
     /// </summary>
     /// <param name="step">The step.</param>
@@ -106,7 +106,8 @@ public static class StratStepLines
             From = step.From,
             To = line.To,
             Utility = step.Utility,
-            Note = step.Note
+            Note = step.Note,
+            Lurk = step.Lurk
         };
     }
 
