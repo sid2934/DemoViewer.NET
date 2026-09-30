@@ -404,6 +404,20 @@ public sealed partial class StratEditorViewModel : ObservableObject
             return false;
         }
 
+        return SetWho(document.Steps[index].Id, slots);
+    }
+
+    /// <summary><see cref="SetWho(int, IReadOnlyCollection{string})" /> by step id; nothing when the step is gone.</summary>
+    /// <param name="stepId">The step.</param>
+    /// <param name="slots">The slots that take part.</param>
+    /// <returns>Whether it wrote.</returns>
+    public bool SetWho(Guid stepId, IReadOnlyCollection<string> slots)
+    {
+        if (IsProjecting || _session.Document is not { } document || document.Steps.FindIndex(s => s.Id == stepId) is var index && index < 0)
+        {
+            return false;
+        }
+
         EndEditBurst();
         List<PatchOp> ops = StratLinePatches.SetWho(document.Steps[index], StepPath(index), slots);
         if (ops.Count == 0)
@@ -414,6 +428,9 @@ public sealed partial class StratEditorViewModel : ObservableObject
         _session.Apply(ops);
         return true;
     }
+
+    /// <summary>The open strat's id, or null.</summary>
+    internal Guid? DocumentId => _session.Document?.Id;
 
     /// <summary>One edit of every line at once, for a row that shows its lines as one; one undo entry.</summary>
     /// <param name="index">The step's index.</param>
@@ -1286,14 +1303,39 @@ public sealed partial class StratStepRow : ObservableObject
 
     public StratFieldIssue? RotateToIssue { get; private set; }
 
-    /// <summary>Writes the Who flyout's toggles as one undo entry; none checked writes nothing.</summary>
+    /// <summary>
+    ///     The Who flyout opened: its toggles are staged from here, and a reprojection leaves them alone until
+    ///     <see cref="CommitWho" />.
+    /// </summary>
+    public void BeginWho()
+    {
+        LoadWho();
+        _whoOpen = new WhoSnapshot(_owner.DocumentId, [.. WhoOptions.Where(o => o.IsChecked).Select(o => o.Slot)]);
+    }
+
+    /// <summary>
+    ///     Writes the Who flyout's toggles as one undo entry: the players added and removed since it opened, applied to
+    ///     the step as it now is. Nothing when none would be left, or when the step or the strat is no longer the one it
+    ///     opened on.
+    /// </summary>
     public void CommitWho()
     {
-        List<string> slots = [.. WhoOptions.Where(o => o.IsChecked).Select(o => o.Slot)];
-        if (!_owner.SetWho(_index, slots))
+        WhoSnapshot? open = _whoOpen;
+        _whoOpen = null;
+        HashSet<string> staged = [.. WhoOptions.Where(o => o.IsChecked).Select(o => o.Slot)];
+        HashSet<string> before = open?.Checked ?? [.. _players];
+        if (open is null || open.StratId == _owner.DocumentId)
         {
-            LoadWho();
+            HashSet<string> target = [.. _players];
+            target.ExceptWith(before.Except(staged));
+            target.UnionWith(staged.Except(before));
+            if (!target.SetEquals(_players) && _owner.SetWho(Id, target))
+            {
+                return;
+            }
         }
+
+        LoadWho();
     }
 
     /// <summary>Checks all five in the flyout; written with the rest on <see cref="CommitWho" />.</summary>
@@ -1341,14 +1383,25 @@ public sealed partial class StratStepRow : ObservableObject
 
     private bool _agree = true;
 
+    // The open flyout's toggles are the user's until it closes.
     private void LoadWho()
     {
+        if (_whoOpen is not null)
+        {
+            return;
+        }
+
         foreach (StratWhoOption option in WhoOptions)
         {
-            option.IsChecked = PlayerCount == StratVocabulary.Slots.Count && !HasLines
-                               || Lines.Any(l => string.Equals(l.Slot, option.Slot, StringComparison.Ordinal));
+            option.IsChecked = _players.Contains(option.Slot, StringComparer.Ordinal);
         }
     }
+
+    private List<string> _players = [];
+
+    private WhoSnapshot? _whoOpen;
+
+    private sealed record WhoSnapshot(Guid? StratId, HashSet<string> Checked);
 
     private void RefreshView()
     {
@@ -1645,6 +1698,7 @@ public sealed partial class StratStepRow : ObservableObject
     private void LoadGroup(StratStep step)
     {
         List<StepAssignment> expanded = StratLinePatches.Copy(step, true);
+        _players = [.. expanded.Select(l => l.Slot)];
         PlayerCount = expanded.Count;
         _agree = StratLinePatches.Agree(expanded);
         _split = _split is null ? !_agree : _split.Value || !_agree;

@@ -41,6 +41,11 @@ public class StratWhoFlyoutTests
             toggles.Single(t => (string?)t.Content == "C").IsChecked = true;
             toggles.Single(t => (string?)t.Content == "D").IsChecked = true;
             await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth).Because("nothing is written while the flyout is open");
+
+            // A reprojection while it is open (the zones landing does one) leaves the staged picks alone.
+            vm.Editor.Project();
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(toggles.Single(t => (string?)t.Content == "C").IsChecked).IsTrue();
             flyout.Hide();
             Dispatcher.UIThread.RunJobs();
 
