@@ -486,6 +486,11 @@ public static class StratDiffPhrasing
             case ["steps", var index, "assignments", var lineIndex, .. var rest]:
                 string who = Text(StratHistory.ValueAt(tree, $"/steps/{index}/assignments/{lineIndex}/slot")) ?? "a player";
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + who + " " + LineChange(tree, rest, op, callouts);
+            case ["steps", var index, "positions", _] when op.Op == PatchOp.Remove
+                                                          && (StratHistory.ValueAt(tree, op.Path) ?? op.From) is JsonObject removed
+                                                          && removed["carried"] is JsonValue mark && mark.GetValueKind() == JsonValueKind.True:
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + (Text(removed["slot"]) ?? "a token")
+                       + "'s carried position dropped";
             case ["steps", var index, "lurk", .. var rest]:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + LurkChange(tree, rest, op, callouts);
             case ["steps", var index, .. var rest]:

@@ -358,7 +358,10 @@ public class StratStepMotionTests
         int depth = session.UndoDepth;
 
         StratLocationField field = new(document.Steps[1].Id, "B", StratLocationKind.To);
-        session.Apply(StratLocationPatches.Write(session.Document!, 1, field, [new PlaceRef { Place = "BombsiteA" }]));
+        List<PatchOp> ops = StratLocationPatches.Write(session.Document!, 1, field, [new PlaceRef { Place = "BombsiteA" }]);
+        string said = StratDiffPhrasing.Summary(StratHistory.ToNode(session.Document!), ops);
+        await Assert.That(said).EndsWith("B's carried position dropped").Because("the history says what went, not that B left the step");
+        session.Apply(ops);
         List<StepPosition> after = session.Document!.Steps[1].Positions;
         using (Assert.Multiple())
         {

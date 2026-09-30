@@ -408,7 +408,7 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   `StratLinePatches`) removes the marked carried positions of the slots whose destination it sets on that step, in
   the same undo entry, highest index first; a new first lurk area does the same for the lurk's players. An authored
   position is never removed. The writers have no map, so they remove only marked entries; the projection alone
-  applies the unmarked rule.
+  applies the unmarked rule. The history reads the removal as `B's carried position dropped`.
 * **The clock.** The transport, the step row's last band and an export run to the last arrival
   (`ContentEndTick`), so a run after the last step still plays.
 
