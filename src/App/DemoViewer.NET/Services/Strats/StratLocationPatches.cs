@@ -137,7 +137,13 @@ public static class StratLocationPatches
             case StratLocationKind.From:
                 return Member(stepPath + "/from", step.From, next);
             case StratLocationKind.To when field.Slot is null:
-                return Member(stepPath + "/to", step.To, next);
+                List<PatchOp> to = Member(stepPath + "/to", step.To, next);
+                if (to.Count > 0 && next is not null && StratStepFields.MovesToTo(step.Verb))
+                {
+                    to.AddRange(StratLinePatches.DropCarried(step, stepPath, StratVocabulary.Slots.Where(s => StratStepLines.Involves(step, s))));
+                }
+
+                return to;
             case StratLocationKind.To when field.IsAllLines:
                 return StratLinePatches.EditAll(step, stepPath, line => line.To = next is null ? null : StratLocations.Clone(next));
             case StratLocationKind.To:
@@ -151,12 +157,27 @@ public static class StratLocationPatches
                     }
                 });
             case StratLocationKind.LurkArea:
-                return StratLurkPatches.Edit(step, stepPath, lurk =>
+                IReadOnlyList<PlaceRef> areasBefore = StratLocations.LurkAreas(step.Lurk);
+                List<PatchOp> areas = StratLurkPatches.Edit(step, stepPath, lurk =>
                 {
                     lurk.Areas = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!).Distinct(StringComparer.Ordinal)];
                     List<PlaceRef> areaPoints = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e)).Select(StratLocations.Clone)];
                     lurk.AreaPoints = areaPoints.Count == 0 ? null : areaPoints;
                 });
+
+                // A lurk runs to its first area, so a new first area is a new destination.
+                IReadOnlyList<PlaceRef> areasAfter = StratLocations.LurkAreas(new StepLurk
+                {
+                    Areas = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!)],
+                    AreaPoints = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e))]
+                });
+                if (areas.Count > 0 && areasAfter.Count > 0 && StratStepFields.MotionOf(step.Verb) == StepMotion.Lurk
+                    && (areasBefore.Count == 0 || !SameEntry(areasBefore[0], areasAfter[0])))
+                {
+                    areas.AddRange(StratLinePatches.DropCarried(step, stepPath, StratVocabulary.Slots.Where(s => StratStepLines.Involves(step, s))));
+                }
+
+                return areas;
             case StratLocationKind.Landing:
                 if (step.Utility is null)
                 {

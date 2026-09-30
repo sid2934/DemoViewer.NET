@@ -26,10 +26,10 @@ namespace DemoViewer.NET.UiCapture;
 public static partial class Variants
 {
     private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false,
-        Action<StratBookTabViewModel>? configure = null)
+        Action<StratBookTabViewModel>? configure = null, IZonePlaceResolver? places = null, string? template = null)
     {
         StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
-        StratBookTabViewModel strats = SeededStratBook(layout, bare);
+        StratBookTabViewModel strats = SeededStratBook(layout, bare, places, template);
         configure?.Invoke(strats);
         StratBookHubViewModel hub = new(layout);
 
@@ -201,6 +201,22 @@ public static partial class Variants
         return view;
     }
 
+    // At 0:41, after the plant, A and B stand side by side on the site.
+    // The A execute from its template, mid-execute: A and B running from spawn onto the site, the others where their
+    // throws left them. The zones are read before the view is up, so the capture has the arrivals.
+    private static StratBookHubView StratEditorExecuteMotion(double atSeconds = 48)
+    {
+        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(true, true, true, vm => strats = vm, zones, "execute-a");
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            strats!.Canvas.Transport.Pause();
+            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, 115));
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
     // A lurk whose rotate-to is a point picked outside every callout, and its lurk areas field focused with the
     // callout list open over the editor at its narrowest.
     private static StratBookHubView StratEditorLocationList()
@@ -241,15 +257,22 @@ public static partial class Variants
         return view;
     }
 
-    private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)
+    private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare, IZonePlaceResolver? places = null,
+        string? template = null)
     {
         StratStore store = new(null);
-        StratBookTabViewModel vm = new(store, null, null, false, layout: layout,
-            canvasPlaces: map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)));
+
+        // Read before New Strat asks, so the strat is created with its spawn step before the capture.
+        StratSpawnSource? spawns = template is null ? null : new StratSpawnSource();
+        spawns?.ForAsync("de_mirage").Wait();
+        StratBookTabViewModel vm = new(store, null, null, false, layout: layout, spawns: spawns,
+            canvasPlaces: places is not null
+                ? _ => Task.FromResult<IZonePlaceResolver?>(places)
+                : map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)));
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = "de_mirage";
-        vm.NewStratCommand.Execute(null);
+        vm.NewStratCommand.Execute(template);
         if (bare)
         {
             return vm;

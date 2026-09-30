@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Strats.Mining;
 
 #endregion
 
@@ -114,6 +115,15 @@ public delegate (double X, double Y)? PlaceCentreResolver(string place, double l
 /// <param name="levelMinZ">The token's level key.</param>
 public delegate (double X, double Y, double LevelMinZ)? PlaceArrivalResolver(string place, double levelMinZ);
 
+/// <summary>
+///     Whether a point is inside a place on a floor, for spreading tokens sent to one place. Answers from memory.
+/// </summary>
+/// <param name="place">A canonical place name.</param>
+/// <param name="x">World X.</param>
+/// <param name="y">World Y.</param>
+/// <param name="levelMinZ">The floor's level key.</param>
+public delegate bool PlaceContainsResolver(string place, double x, double y, double levelMinZ);
+
 /// <summary>Where a projected stroke came from: the path step and its index in that step's <c>strokes[]</c>.</summary>
 /// <param name="PathIndex">The step's position on the path.</param>
 /// <param name="StrokeIndex">The stroke's index in the step's <c>strokes[]</c>.</param>
@@ -137,9 +147,8 @@ public sealed class StratSceneProjection
     /// </summary>
     public const double RotateUnitsPerSecond = 215;
 
-    private readonly PlaceArrivalResolver? _arrivals;
-    private readonly PlaceCentreResolver? _centres;
-    private readonly Dictionary<string, List<Rotation>> _rotations;
+    private readonly PlaceSet _places;
+    private readonly Dictionary<string, SlotPlan> _plans;
     private readonly Dictionary<Guid, StrokeRef> _strokes;
     private readonly ThrowOrigin?[] _throwOrigins;
     private readonly TokenStep[] _tokenSteps;
@@ -147,12 +156,11 @@ public sealed class StratSceneProjection
     private StratSceneProjection(IReadOnlyList<StratPathStep> path, StepSchedule schedule, IReadOnlyList<int> ticks,
         TokenStep[] tokenSteps, ThrowOrigin?[] throwOrigins, IReadOnlyList<TokenTrack> tracks,
         IReadOnlyList<AnnotationElement> elements, Dictionary<Guid, StrokeRef> strokes, IReadOnlyList<TokenLabel> labels,
-        IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped, PlaceCentreResolver? centres,
-        Dictionary<string, List<Rotation>> rotations, PlaceArrivalResolver? arrivals)
+        IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped, PlaceSet places,
+        Dictionary<string, SlotPlan> plans)
     {
-        _arrivals = arrivals;
-        _centres = centres;
-        _rotations = rotations;
+        _places = places;
+        _plans = plans;
         _tokenSteps = tokenSteps;
         _throwOrigins = throwOrigins;
         Path = path;
@@ -205,8 +213,8 @@ public sealed class StratSceneProjection
     public int LastTick => Schedule.LastTick;
 
     /// <summary>
-    ///     The last tick anything moves: the last step's, or a lurk rotate's arrival after it. The transport and an
-    ///     export run to here, so a rotate after the last step still plays.
+    ///     The last tick anything moves: the last step's, or a run's arrival after it (a destination's or a lurk
+    ///     rotate's). The transport, the step row and an export run to here, so a run after the last step still plays.
     /// </summary>
     public int ContentEndTick => Math.Max(LastTick, Tracks.Count == 0 ? 0 : Tracks.Max(t => t.Keyframes.Count == 0 ? 0 : t.Keyframes[^1].Tick));
 
@@ -254,11 +262,13 @@ public sealed class StratSceneProjection
     /// <param name="throwOrigins">Resolves a throw's lineup to where it is thrown from; null projects no throw origins.</param>
     /// <param name="placeCentres">Where a watched place is, for a token's facing; null faces only an explicit view angle.</param>
     /// <param name="placeArrivals">
-    ///     Where a rotating lurker arrives, on the place's own floor; null arrives at <paramref name="placeCentres" />'s
-    ///     centre on the token's floor.
+    ///     Where a token sent to a place arrives, on the place's own floor; null arrives at
+    ///     <paramref name="placeCentres" />'s centre on the token's floor.
     /// </param>
+    /// <param name="placeContains">Whether a point is in a place, to keep fanned-out tokens inside it; null keeps to a ring.</param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
-        ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null)
+        ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null,
+        PlaceContainsResolver? placeContains = null)
     {
         placeArrivals ??= ArrivalsFrom(placeCentres);
         ArgumentNullException.ThrowIfNull(document);
@@ -267,23 +277,7 @@ public sealed class StratSceneProjection
         double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
         StratCanvas canvas = document.Canvas ?? new StratCanvas();
 
-        // Ticks from each step's own time, held non-decreasing: the schedule refuses a clock that runs
-        // backwards, and a strat mid-edit in the step table (or a branch into a strat whose times start
-        // earlier) is still worth drawing in order.
-        int[] ticks = new int[path.Count];
-        bool clamped = false;
-        for (int i = 0; i < path.Count; i++)
-        {
-            int tick = Math.Max(0, StepSchedule.TickFor(path[i].Step.AtSeconds, roundSeconds));
-            if (i > 0 && tick < ticks[i - 1])
-            {
-                tick = ticks[i - 1];
-                clamped = true;
-            }
-
-            ticks[i] = tick;
-        }
-
+        int[] ticks = TicksOf(path, roundSeconds, out bool clamped);
         StepSchedule schedule = new(path.Select((p, i) => (p.Step.Id, ticks[i])));
 
         TokenStep[] tokenSteps = new TokenStep[path.Count];
@@ -302,14 +296,17 @@ public sealed class StratSceneProjection
             }
         }
 
-        Dictionary<string, List<Rotation>> rotations = RotationsOf(path, ticks, roundSeconds);
+        PlaceSet places = new(placeCentres, placeArrivals, placeContains, canvas.DefaultLevelMinZ ?? 0, roundSeconds,
+            IsLegacyCarry(document));
+        Dictionary<string, SlotPlan> plans = Fanned(TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
+            StringComparer.Ordinal));
         List<TokenTrack> tracks = [];
         foreach (string slot in TokenSlots.All)
         {
-            TokenPlacement?[] placements = Placements(path, origins, slot, placeCentres);
-            if (placements.Any(p => p is not null))
+            TokenTrack track = TrackOf(plans[slot], slot, tokenSteps, places);
+            if (track.Keyframes.Count > 0)
             {
-                tracks.Add(Rotated(TokenTrackBuilder.Build(slot, tokenSteps, placements), rotations, placeArrivals));
+                tracks.Add(track);
             }
         }
 
@@ -334,47 +331,37 @@ public sealed class StratSceneProjection
         }
 
         return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, LabelsFor(document),
-            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped, placeCentres, rotations, placeArrivals);
+            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped, places, plans);
+    }
+
+    /// <summary>
+    ///     Each step's tick from its own time, held non-decreasing: the schedule refuses a clock that runs backwards, and
+    ///     a strat mid-edit in the step table (or a branch into a strat whose times start earlier) is still worth drawing
+    ///     in order.
+    /// </summary>
+    internal static int[] TicksOf(IReadOnlyList<StratPathStep> path, double roundSeconds, out bool clamped)
+    {
+        int[] ticks = new int[path.Count];
+        clamped = false;
+        for (int i = 0; i < path.Count; i++)
+        {
+            int tick = Math.Max(0, StepSchedule.TickFor(path[i].Step.AtSeconds, roundSeconds));
+            if (i > 0 && tick < ticks[i - 1])
+            {
+                tick = ticks[i - 1];
+                clamped = true;
+            }
+
+            ticks[i] = tick;
+        }
+
+        return ticks;
     }
 
     /// <summary>Arrivals at <paramref name="centres" />' centre on the token's own floor; null for null.</summary>
     /// <param name="centres">Place centres, or null.</param>
     public static PlaceArrivalResolver? ArrivalsFrom(PlaceCentreResolver? centres) =>
         centres is null ? null : (place, level) => centres(place, level) is { } c ? (c.X, c.Y, level) : null;
-
-    /// <summary>
-    ///     Per slot, the lurk rotates that move its token: a step's rotate with a time later than the step and a
-    ///     rotate-to place, for every slot the step names.
-    /// </summary>
-    private static Dictionary<string, List<Rotation>> RotationsOf(IReadOnlyList<StratPathStep> path, int[] ticks, double roundSeconds)
-    {
-        Dictionary<string, List<Rotation>> rotations = new(StringComparer.Ordinal);
-        for (int i = 0; i < path.Count; i++)
-        {
-            StratStep step = path[i].Step;
-            if (RotateTickOf(step, ticks[i], roundSeconds) is not { } tick)
-            {
-                continue;
-            }
-
-            foreach (string slot in StratVocabulary.Slots.Where(s => StratStepLines.Involves(step, s)))
-            {
-                if (!rotations.TryGetValue(slot, out List<Rotation>? list))
-                {
-                    rotations[slot] = list = [];
-                }
-
-                list.Add(new Rotation(tick, step.Lurk!.Rotate!.To!));
-            }
-        }
-
-        foreach (List<Rotation> list in rotations.Values)
-        {
-            list.Sort((a, b) => a.Tick.CompareTo(b.Tick));
-        }
-
-        return rotations;
-    }
 
     /// <summary>
     ///     The tick a step's lurk rotates at, or null when it does not move a token: no time, no rotate-to place, or a
@@ -395,86 +382,38 @@ public sealed class StratSceneProjection
         return tick > stepTick ? tick : null;
     }
 
-    private static TokenTrack Rotated(TokenTrack track, Dictionary<string, List<Rotation>> rotations, PlaceArrivalResolver? arrivals)
+    /// <summary>
+    ///     What a step's verb does with its destination: move, push, rotate, <c>other</c> and any verb outside the
+    ///     vocabulary travel there; hold, peek, fake, plant and defuse are there at the step's time; a lurk travels to
+    ///     its first area; throw, wait and call do not move for it.
+    /// </summary>
+    /// <param name="verb">A step verb.</param>
+    public static StepMotion MotionOf(string? verb) => StratStepFields.MotionOf(verb);
+
+    /// <summary>
+    ///     Where the step's verb sends <paramref name="slot" />: its <c>to</c> (the line's, or the step's), or for a lurk
+    ///     its first area. Null when the verb does not move for a destination or the slot has none.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="slot">A slot letter.</param>
+    public static PlaceRef? DestinationOf(StratStep step, string slot)
     {
-        if (arrivals is null || !rotations.TryGetValue(track.Slot, out List<Rotation>? list))
+        ArgumentNullException.ThrowIfNull(step);
+
+        // A step names only the strat's own five; "all" never sends the opponent tokens anywhere.
+        if (!StratVocabulary.Slots.Contains(slot))
         {
-            return track;
+            return null;
         }
 
-        foreach (Rotation rotation in list)
+        PlaceRef? to = MotionOf(step.Verb) switch
         {
-            track = Rotate(track, rotation, arrivals);
-        }
-
-        return track;
+            StepMotion.None => null,
+            StepMotion.Lurk => StratStepLines.Involves(step, slot) && StratLocations.LurkAreas(step.Lurk) is { Count: > 0 } areas ? areas[0] : null,
+            _ => StratStepLines.LocationFor(step, slot)
+        };
+        return StratLocations.IsSet(to) ? to : null;
     }
-
-    // From the rotate tick the token runs from where it stands to the place's centre on its own level. A later
-    // keyframe it cannot reach first wins: the token heads there from the rotate tick instead.
-    private static TokenTrack Rotate(TokenTrack track, Rotation rotation, PlaceArrivalResolver arrivals)
-    {
-        if (!track.TrySample(rotation.Tick, out TokenKeyframe start) || ArrivalAt(rotation.To, start.LevelMinZ, arrivals) is not { } centre)
-        {
-            return track;
-        }
-
-        double dx = centre.X - start.X, dy = centre.Y - start.Y;
-        double distance = Math.Sqrt(dx * dx + dy * dy);
-        if (distance < MinFacingDistance)
-        {
-            return track;
-        }
-
-        float yaw = (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2);
-        int arrive = rotation.Tick + Math.Max(1, (int)Math.Ceiling(distance / RotateUnitsPerSecond * StepSchedule.TicksPerSecond));
-
-        List<TokenKeyframe> keyframes = [];
-        List<int> holds = [];
-        List<TokenInterpolation> segments = [];
-        IReadOnlyList<TokenKeyframe> old = track.Keyframes;
-        int k = 0;
-        for (; k < old.Count && old[k].Tick < rotation.Tick; k++)
-        {
-            keyframes.Add(old[k]);
-            holds.Add(track.HoldTicks[k]);
-            segments.Add(track.Segments[k]);
-        }
-
-        while (k < old.Count && old[k].Tick == rotation.Tick)
-        {
-            k++;
-        }
-
-        // Pinned a tick early so the token turns at the rotate, not across the whole lurk.
-        if ((keyframes.Count == 0 || keyframes[^1].Tick < rotation.Tick - 1) && track.TrySample(rotation.Tick - 1, out TokenKeyframe held))
-        {
-            keyframes.Add(held);
-            holds.Add(0);
-            segments.Add(TokenInterpolation.Linear);
-        }
-
-        keyframes.Add(start with { YawDegrees = yaw });
-        holds.Add(0);
-        segments.Add(TokenInterpolation.Linear);
-        if (k >= old.Count || old[k].Tick > arrive)
-        {
-            keyframes.Add(new TokenKeyframe(arrive, (float)centre.X, (float)centre.Y, centre.LevelMinZ, yaw));
-            holds.Add(0);
-            segments.Add(TokenInterpolation.Linear);
-        }
-
-        for (; k < old.Count; k++)
-        {
-            keyframes.Add(old[k]);
-            holds.Add(track.HoldTicks[k]);
-            segments.Add(track.Segments[k]);
-        }
-
-        return new TokenTrack(track.Slot, keyframes, holds, segments);
-    }
-
-    private sealed record Rotation(int Tick, PlaceRef To);
 
     // A picked point is where the token goes, on the point's own level; a place goes through the arrivals.
     private static (double X, double Y, double LevelMinZ)? ArrivalAt(PlaceRef to, double levelMinZ, PlaceArrivalResolver arrivals) =>
@@ -490,54 +429,441 @@ public sealed class StratSceneProjection
     /// <param name="pathIndex">The step being written.</param>
     /// <param name="placement">The entry the drag has reached.</param>
     /// <param name="keepYaw">The placement's yaw is the drag's own (a turn), not to be replaced by the line's watch.</param>
-    public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement, bool keepYaw = false) =>
-        Rotated(TokenTrackBuilder.Build(slot, _tokenSteps, Placements(Path, _throwOrigins, slot, _centres, pathIndex, placement, keepYaw)),
-            _rotations, _arrivals);
+    public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement, bool keepYaw = false)
+    {
+        SlotPlan plan = PlanOf(Path, Ticks, _throwOrigins, slot, _places, pathIndex, placement, keepYaw);
+        if (_plans.TryGetValue(slot, out SlotPlan? projected))
+        {
+            // The drag moves one token; the spots stand as projected.
+            plan = plan with
+            {
+                Events = [.. plan.Events.Select(e => e with
+                {
+                    Fan = projected.Events.Any(p => p.Fan && p.Tick == e.Tick && p.Order == e.Order && p.Kind == e.Kind)
+                })]
+            };
+        }
+
+        return TrackOf(plan, slot, _tokenSteps, _places);
+    }
 
     /// <summary>
-    ///     Per path step, the entry <paramref name="slot" />'s track is built from (null for none). A throw's lineup
-    ///     origin wins, its yaw included. Otherwise the authored position, turned by the slot's line: its
-    ///     <c>watch.yawDegrees</c>, else towards the first watched place's centre on the token's level. A watching
-    ///     line on a step with no position for the slot adds an entry where the token stands, which the
-    ///     stationary rule already holds it at, so no move is re-timed. With nothing to face, nothing is added.
+    ///     Per slot, how the path places it (docs/strat-format.md, "Motion on the canvas"): an entry per step, in
+    ///     order of precedence a throw's lineup origin, an authored position, the step's destination, a carried
+    ///     position; and the runs, arrivals and turns the destinations and lurk rotates add on the strat clock.
     /// </summary>
     /// <param name="path">The steps.</param>
+    /// <param name="ticks">Each step's tick.</param>
     /// <param name="origins">Each step's throw origin, or null entries; null for none at all.</param>
     /// <param name="slot">The token.</param>
-    /// <param name="centres">Where watched places are; null faces only an explicit view angle.</param>
+    /// <param name="places">Where places are; nothing moves for a destination without them.</param>
     /// <param name="overrideIndex">A step whose authored entry is replaced, for a drag in progress; -1 for none.</param>
     /// <param name="overridePlacement">That step's entry.</param>
     /// <param name="keepOverrideYaw">The override's yaw stands; the line's watch does not turn it.</param>
-    internal static TokenPlacement?[] Placements(IReadOnlyList<StratPathStep> path, ThrowOrigin?[]? origins, string slot,
-        PlaceCentreResolver? centres, int overrideIndex = -1, TokenPlacement? overridePlacement = null, bool keepOverrideYaw = false)
+    internal static SlotPlan PlanOf(IReadOnlyList<StratPathStep> path, IReadOnlyList<int> ticks, ThrowOrigin?[]? origins, string slot,
+        PlaceSet places, int overrideIndex = -1, TokenPlacement? overridePlacement = null, bool keepOverrideYaw = false)
     {
         TokenPlacement?[] placements = new TokenPlacement?[path.Count];
-        TokenPlacement? last = null;
+        List<SlotEvent> events = [];
+        List<int> rotates = [];
+        TokenPlacement? last = null, lastStored = null;
+
+        // Since the slot's last origin or authored entry, a destination or a rotate has moved it: a carried entry is
+        // stale then, and where it stands is only known once the runs are laid out.
+        bool moved = false;
         for (int i = 0; i < path.Count; i++)
         {
             StratStep step = path[i].Step;
-            TokenPlacement? placement;
-            if (i != overrideIndex && origins is not null && origins[i] is { } origin
-                && string.Equals(origin.Slot, slot, StringComparison.Ordinal))
+            int tick = ticks[i];
+            if (rotates.RemoveAll(t => t <= tick) > 0)
+            {
+                moved = true;
+            }
+
+            StepWatch? watch = StratStepLines.HasLines(step) ? StratStepLines.LineFor(step, slot)?.Watch : null;
+            TokenPlacement? stored = PlacementOf(step, slot, out bool marked);
+            bool carried = stored is { } s && (marked || (places.LegacyCarry && SameSpot(s, lastStored)));
+            TokenPlacement? placement = null;
+            bool authored = true;
+            bool fromOrigin = false;
+            if (i != overrideIndex && origins is not null && origins[i] is { } origin && string.Equals(origin.Slot, slot, StringComparison.Ordinal))
             {
                 placement = origin.Placement;
+                fromOrigin = true;
+            }
+            else if (i == overrideIndex && overridePlacement is { } dragged)
+            {
+                placement = keepOverrideYaw ? dragged : Turned(dragged, watch, places.Centres);
+            }
+            else if (stored is { } own && !carried)
+            {
+                placement = Turned(own, watch, places.Centres);
             }
             else
             {
-                placement = i == overrideIndex ? overridePlacement : PlacementOf(step, slot);
-                if (!(keepOverrideYaw && i == overrideIndex)
-                    && StratStepLines.HasLines(step) && StratStepLines.LineFor(step, slot)?.Watch is { } watch
-                    && (placement ?? last) is { } at && FacingOf(watch, at, centres) is { } yaw)
+                authored = false;
+                if (DestinationOf(step, slot) is { } to && places.Arrivals is { } arrivals
+                                                         && ArrivalAt(to, (last ?? stored)?.LevelMinZ ?? places.DefaultLevelMinZ, arrivals) is not null)
                 {
+                    events.Add(new SlotEvent(tick, i, MotionOf(step.Verb) == StepMotion.Position ? SlotEventKind.Arrive : SlotEventKind.Travel,
+                        to, watch, false, true));
+                    moved = true;
+                }
+                else if (stored is { } kept && !moved)
+                {
+                    placement = Turned(kept, watch, places.Centres);
+                }
+                else if (watch is not null && moved)
+                {
+                    events.Add(new SlotEvent(tick, i, SlotEventKind.Face, null, watch, false, true));
+                }
+                else if (watch is not null && last is { } at && FacingOf(watch, at, places.Centres) is { } yaw)
+                {
+                    // Where the token stands, so the stationary rule re-times no move.
                     placement = at with { YawDegrees = yaw };
                 }
             }
 
+            lastStored = fromOrigin ? placement : stored ?? lastStored;
+
+            if (authored)
+            {
+                moved = false;
+            }
+
             placements[i] = placement;
             last = placement ?? last;
+
+            if (StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot)
+                                                    && RotateTickOf(step, tick, places.RoundSeconds) is { } rotateTick
+                                                    && places.Arrivals is not null)
+            {
+                PlaceRef rotateTo = step.Lurk!.Rotate!.To!;
+                events.Add(new SlotEvent(rotateTick, i, SlotEventKind.Travel, rotateTo, null, false, false));
+                rotates.Add(rotateTick);
+            }
         }
 
-        return placements;
+        events.Sort((a, b) => a.Tick != b.Tick ? a.Tick.CompareTo(b.Tick) : a.Order.CompareTo(b.Order));
+        return new SlotPlan(placements, [.. ticks], events, moved);
+    }
+
+    // A watching line turns the entry: its angle, else towards the first watched entry.
+    private static TokenPlacement Turned(TokenPlacement at, StepWatch? watch, PlaceCentreResolver? centres) =>
+        watch is not null && FacingOf(watch, at, centres) is { } yaw ? at with { YawDegrees = yaw } : at;
+
+    /// <summary>
+    ///     The plans with <see cref="SlotEvent.Fan" /> set on every destination another slot shares while both are
+    ///     there: the same place or point, from the event's tick until the slot's next destination or entry. Which step
+    ///     sent each does not matter. Only events the precedence let through count, so a token alone goes to the centre.
+    /// </summary>
+    /// <param name="plans">Every slot's plan.</param>
+    internal static Dictionary<string, SlotPlan> Fanned(Dictionary<string, SlotPlan> plans)
+    {
+        List<(string Slot, int Index, string Key, int From, int Until)> stays = [];
+        foreach ((string slot, SlotPlan plan) in plans)
+        {
+            for (int k = 0; k < plan.Events.Count; k++)
+            {
+                SlotEvent e = plan.Events[k];
+                if (e.To is null)
+                {
+                    continue;
+                }
+
+                int until = plan.Events.Skip(k + 1).FirstOrDefault(x => x.To is not null && x.Tick > e.Tick)?.Tick ?? int.MaxValue;
+                for (int i = 0; i < plan.Placements.Length; i++)
+                {
+                    if (plan.Placements[i] is not null && plan.Ticks[i] > e.Tick)
+                    {
+                        until = Math.Min(until, plan.Ticks[i]);
+                        break;
+                    }
+                }
+
+                stays.Add((slot, k, DestinationKey(e.To), e.Tick, until));
+            }
+        }
+
+        Dictionary<string, SlotPlan> fanned = new(plans, StringComparer.Ordinal);
+        foreach ((string slot, int index, string key, int from, int until) in stays)
+        {
+            if (stays.Any(o => o.Slot != slot && o.Key == key && o.From < until && from < o.Until))
+            {
+                SlotPlan plan = fanned[slot];
+                List<SlotEvent> events = [.. plan.Events];
+                events[index] = events[index] with { Fan = true };
+                fanned[slot] = plan with { Events = events };
+            }
+        }
+
+        return fanned;
+    }
+
+    private static string DestinationKey(PlaceRef to) =>
+        StratLocations.HasPoint(to)
+            ? string.Create(CultureInfo.InvariantCulture, $"{to.X}|{to.Y}|{to.LevelMinZ}")
+            : "place:" + to.Place;
+
+    // Within this of the entry before it, an unmarked position is one Add step copied before carried entries were
+    // marked: two decimals in the file against a float on the clock.
+    private const double CarriedEpsilon = 0.02;
+
+    private static bool SameSpot(TokenPlacement a, TokenPlacement? b) =>
+        b is { } p && Math.Abs(a.X - p.X) <= CarriedEpsilon && Math.Abs(a.Y - p.Y) <= CarriedEpsilon
+        && Math.Abs(a.LevelMinZ - p.LevelMinZ) <= CarriedEpsilon;
+
+    /// <summary>
+    ///     A slot's track: the builder's keyframes from its entries, then each event on the strat clock in order. A run
+    ///     leaves where the token stands at its tick and arrives at <see cref="RotateUnitsPerSecond" />; a later entry it
+    ///     cannot reach first wins, and the token heads there from the run's tick instead. An arrival puts the token at
+    ///     the place at its tick, walking from its previous keyframe, and runs instead when it has no time to walk.
+    /// </summary>
+    internal static TokenTrack TrackOf(SlotPlan plan, string slot, IReadOnlyList<TokenStep> steps, PlaceSet places)
+    {
+        List<TrackEntry> entries = [.. steps.Select((s, i) => new TrackEntry(s, plan.Placements[i], false, i))];
+
+        // A rebuild per event: events are at most the steps plus the lurk rotates, so this is steps squared over a few
+        // dozen steps, far under a frame.
+        foreach (SlotEvent e in plan.Events)
+        {
+            TokenTrack track = Build(slot, entries);
+            bool standing = track.TrySample(e.Tick, out TokenKeyframe at);
+            TokenStep shape = e.Shaped ? steps[e.Order] with { Tick = e.Tick } : new TokenStep(e.Tick, 0, TokenInterpolation.Linear);
+            if (e.Kind == SlotEventKind.Face)
+            {
+                if (standing && FacingOf(e.Watch!, Placement(at), places.Centres) is { } yaw)
+                {
+                    Place(entries, e, shape, Placement(at) with { YawDegrees = yaw });
+                }
+
+                continue;
+            }
+
+            if (Target(e, slot, standing ? at.LevelMinZ : places.DefaultLevelMinZ, places) is not { } target)
+            {
+                continue;
+            }
+
+            // A new destination cuts a run that has not arrived: the token turns from where it is now.
+            bool cut = entries.RemoveAll(x => x.Arrival && x.Step.Tick > e.Tick) > 0;
+            float? watched = e.Watch is not null ? FacingOf(e.Watch, target, places.Centres) : null;
+            if (!standing)
+            {
+                // Nowhere to leave from: the token starts at its destination.
+                Place(entries, e, shape, target with { YawDegrees = watched });
+                continue;
+            }
+
+            double dx = target.X - at.X, dy = target.Y - at.Y;
+            float? heading = dx * dx + dy * dy >= MinFacingDistance * MinFacingDistance
+                ? (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2)
+                : null;
+            if (e.Kind == SlotEventKind.Arrive && LastKeyTick(entries, e.Tick) != e.Tick)
+            {
+                Place(entries, e, shape, target with { YawDegrees = watched ?? heading });
+                continue;
+            }
+
+            if (heading is not { } runYaw)
+            {
+                // Already there: it stops where it is, turned to what it watches.
+                if (cut || watched is not null)
+                {
+                    Place(entries, e, shape, Placement(at) with { YawDegrees = watched ?? at.YawDegrees });
+                }
+
+                continue;
+            }
+
+            Run(entries, track, e, shape, at, target, runYaw, watched ?? runYaw);
+        }
+
+        return Build(slot, entries);
+    }
+
+    // From the tick the token runs from where it stands to the target, facing the way it runs, and turns to what it
+    // watches on arrival. The step's hold delays the start. A later entry it cannot reach first wins.
+    private static void Run(List<TrackEntry> entries, TokenTrack track, SlotEvent e, TokenStep shape, TokenKeyframe start,
+        TokenPlacement target, float runYaw, float arriveYaw)
+    {
+        int tick = e.Tick;
+        double distance = Math.Sqrt((target.X - start.X) * (double)(target.X - start.X) + (target.Y - start.Y) * (double)(target.Y - start.Y));
+        int arrive = tick + shape.HoldTicks + Math.Max(1, (int)Math.Ceiling(distance / RotateUnitsPerSecond * StepSchedule.TicksPerSecond));
+
+        // Pinned a tick early so the token turns at the run, not across the whole step before it.
+        if (LastKeyTick(entries, tick - 1) < tick - 1 && track.TrySample(tick - 1, out TokenKeyframe held))
+        {
+            Insert(entries, tick - 1, Placement(held));
+        }
+
+        Place(entries, e, shape, Placement(start) with { YawDegrees = runYaw });
+        int next = entries.FindIndex(x => x.Step.Tick > tick && x.Placement is not null);
+        bool blocked = next >= 0 && entries[next].Step.Tick <= arrive;
+        int until = blocked ? entries[next].Step.Tick : arrive;
+
+        // A step with no entry inside the run would pin the token where it started.
+        entries.RemoveAll(x => x.Placement is null && x.Step.Tick > tick && x.Step.Tick < until);
+        if (!blocked)
+        {
+            Insert(entries, arrive, target with { YawDegrees = arriveYaw }, true);
+        }
+    }
+
+    // An event's entry at its tick: its own step's entry when that step owns the tick, so the step's hold and
+    // interpolation shape the move out of it as they do an authored entry's; else one after every entry at the tick.
+    private static void Place(List<TrackEntry> entries, SlotEvent e, TokenStep shape, TokenPlacement placement)
+    {
+        int own = e.Shaped ? entries.FindIndex(x => x.PathIndex == e.Order && x.Step.Tick == e.Tick) : -1;
+        if (own >= 0 && entries.FindLastIndex(x => x.Step.Tick == e.Tick) == own)
+        {
+            entries[own] = entries[own] with { Placement = placement };
+            return;
+        }
+
+        int at = entries.FindIndex(x => x.Step.Tick > e.Tick);
+        entries.Insert(at < 0 ? entries.Count : at, new TrackEntry(shape, placement));
+    }
+
+    // Where an event sends the token: the point, else the place's arrival; fanned out when another token is there too.
+    private static TokenPlacement? Target(SlotEvent e, string slot, double levelMinZ, PlaceSet places)
+    {
+        if (places.Arrivals is not { } arrivals || e.To is null || ArrivalAt(e.To, levelMinZ, arrivals) is not { } centre)
+        {
+            return null;
+        }
+
+        (double x, double y) = e.Fan ? SpotFor(e.To.Place, centre, slot, places.Contains) : (centre.X, centre.Y);
+        return new TokenPlacement((float)x, (float)y, centre.LevelMinZ, null);
+    }
+
+    // Tried outward in; the first inside the place wins.
+    private static readonly double[] SpotRadii = [160, 120, 80, 48];
+
+    private const double RingRadius = 96;
+
+    /// <summary>
+    ///     Where one of several tokens sent to one place stands: on a ray fixed by its slot letter, so its spot does not
+    ///     move when the group changes, at the widest of <see cref="SpotRadii" /> still inside the place on the arrival's
+    ///     floor, else on a small ring.
+    /// </summary>
+    /// <param name="place">The place, or null for a point.</param>
+    /// <param name="centre">The arrival.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="contains">Whether a point is in a place on a floor; null keeps to the ring.</param>
+    internal static (double X, double Y) SpotFor(string? place, (double X, double Y, double LevelMinZ) centre, string slot,
+        PlaceContainsResolver? contains)
+    {
+        int k = Math.Max(0, IndexOfSlot(slot));
+        double angle = (90 + 72 * k) * Math.PI / 180;
+        (double cos, double sin) = (Math.Cos(angle), Math.Sin(angle));
+        if (place is not null && contains is not null)
+        {
+            foreach (double r in SpotRadii)
+            {
+                (double x, double y) = (centre.X + r * cos, centre.Y + r * sin);
+                if (contains(place, x, y, centre.LevelMinZ))
+                {
+                    return (x, y);
+                }
+            }
+        }
+
+        return (centre.X + RingRadius * cos, centre.Y + RingRadius * sin);
+    }
+
+    private static int IndexOfSlot(string slot)
+    {
+        for (int i = 0; i < StratVocabulary.Slots.Count; i++)
+        {
+            if (string.Equals(StratVocabulary.Slots[i], slot, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static TokenPlacement Placement(TokenKeyframe k) => new(k.X, k.Y, k.LevelMinZ, k.YawDegrees);
+
+    // The tick of the last entry at or before `tick` that places the token, or int.MinValue for none.
+    private static int LastKeyTick(List<TrackEntry> entries, int tick)
+    {
+        int found = int.MinValue;
+        foreach (TrackEntry entry in entries)
+        {
+            if (entry.Step.Tick > tick)
+            {
+                break;
+            }
+
+            if (entry.Placement is not null)
+            {
+                found = entry.Step.Tick;
+            }
+        }
+
+        return found;
+    }
+
+    // After every entry at the tick, so it wins the tick as the later step does.
+    private static void Insert(List<TrackEntry> entries, int tick, TokenPlacement placement, bool arrival = false)
+    {
+        int at = entries.FindIndex(x => x.Step.Tick > tick);
+        entries.Insert(at < 0 ? entries.Count : at, new TrackEntry(new TokenStep(tick, 0, TokenInterpolation.Linear), placement, arrival, -1));
+    }
+
+    private static TokenTrack Build(string slot, List<TrackEntry> entries) =>
+        TokenTrackBuilder.Build(slot, [.. entries.Select(x => x.Step)], [.. entries.Select(x => x.Placement)]);
+
+    // Arrival: the end of a run, which a later destination may cut. PathIndex: the step it is, or -1 for one added.
+    private readonly record struct TrackEntry(TokenStep Step, TokenPlacement? Placement, bool Arrival = false, int PathIndex = -1);
+
+    internal enum SlotEventKind
+    {
+        Travel,
+        Arrive,
+        Face
+    }
+
+    /// <summary>Something that moves or turns a token at a tick, laid out once the entries are.</summary>
+    /// <param name="Tick">When it happens.</param>
+    /// <param name="Order">The path index of the step it comes from.</param>
+    /// <param name="Kind">A run, an arrival or a turn.</param>
+    /// <param name="To">Where it sends the token; null for a turn.</param>
+    /// <param name="Watch">The line's watch at that step.</param>
+    /// <param name="Fan">Another token is at the same destination at the same time.</param>
+    /// <param name="Shaped">At its step's tick, so the step's hold and interpolation shape it.</param>
+    internal sealed record SlotEvent(int Tick, int Order, SlotEventKind Kind, PlaceRef? To, StepWatch? Watch, bool Fan, bool Shaped);
+
+    /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
+    internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved);
+
+    /// <summary>What the projection knows about the map's places, and the clock the rotates run on.</summary>
+    /// <param name="Centres">Where places are, for facing.</param>
+    /// <param name="Arrivals">Where a token sent to a place arrives.</param>
+    /// <param name="Contains">Whether a point is in a place, for fanned-out spots.</param>
+    /// <param name="DefaultLevelMinZ">The level for a token with none yet.</param>
+    /// <param name="RoundSeconds">The strat's round length, for the rotate clock.</param>
+    /// <param name="LegacyCarry">
+    ///     The file predates the carried mark (<see cref="IsLegacyCarry" />), so an unmarked copy of the entry before is
+    ///     read as carried.
+    /// </param>
+    internal sealed record PlaceSet(PlaceCentreResolver? Centres, PlaceArrivalResolver? Arrivals, PlaceContainsResolver? Contains,
+        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false);
+
+    /// <summary>
+    ///     Whether an unmarked position that copies the slot's entry before it reads as carried: only in a file written
+    ///     before the mark. A captured or mined strat never had Add step's copies, and one <c>carried</c> key anywhere
+    ///     means this build wrote the file, which marks every copy it makes.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    public static bool IsLegacyCarry(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return document.Origin is null && !document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal)
+                                       && !document.Steps.Any(s => s.Positions.Any(p => p.Carried is not null));
     }
 
     /// <summary>
@@ -653,11 +979,12 @@ public sealed class StratSceneProjection
         return new ThrowOrigin(actor, placement);
     }
 
-    private static TokenPlacement? PlacementOf(StratStep step, string slot)
+    private static TokenPlacement? PlacementOf(StratStep step, string slot, out bool carried)
     {
         // The last entry for a slot wins: a document holding two is refused by nothing today, and the later
         // one is what an edit that appended it meant.
         TokenPlacement? found = null;
+        carried = false;
         foreach (StepPosition position in step.Positions)
         {
             if (!string.Equals(position.Slot, slot, StringComparison.Ordinal)
@@ -666,6 +993,7 @@ public sealed class StratSceneProjection
                 continue;
             }
 
+            carried = position.Carried == true;
             found = new TokenPlacement((float)position.X, (float)position.Y,
                 double.IsFinite(position.LevelMinZ) ? position.LevelMinZ : 0,
                 position.YawDegrees is { } yaw && double.IsFinite(yaw) ? (float)yaw : null);

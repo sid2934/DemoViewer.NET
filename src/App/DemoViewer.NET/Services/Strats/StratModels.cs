@@ -478,6 +478,12 @@ public sealed class StepPosition
 
     public double? YawDegrees { get; set; }
 
+    /// <summary>
+    ///     True when Add step wrote the entry as where the token already stood; null (not written) when a person placed
+    ///     it. A carried entry gives way to the step's destination; see docs/strat-format.md.
+    /// </summary>
+    public bool? Carried { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
