@@ -505,8 +505,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   on the round clock than the step before, held between its neighbours and no earlier than -1:00 unless that step
   already is, so it is never refused. The new step is a move by `all` that starts with every token written where
   the projection has it at the step before, and no strokes (`StepAuthoringPatches.AddCarriedStep`, which the
-  canvas's Add step uses too). A copy, not a reference: the stationary rule would show the same places without one,
-  but then a later drag on the earlier step would move the new step's tokens too. A thrower whose lineup resolves
+  canvas's Add step uses too), each marked `carried`. A copy, not a reference: the stationary rule would show the same
+  places without one, but then a later drag on the earlier step would move the new step's tokens too. The mark lets
+  the new step's destination win over the copy; a token a destination has already sent somewhere is not carried. A thrower whose lineup resolves
   is written at the lineup origin (level on the canvas's floors, the throw's yaw); an unresolved lineup (still
   grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
   the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
@@ -672,11 +673,18 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   first, so the others stay in it); on a verb without watching (move, rotate, throw and the rest) it writes the
   position's yaw, as before lines. The drag shows the turned yaw, and one entry is written on release. Turning an
   opponent token writes its position's yaw as before. The line's angle button clears it.
+- **Motion from destinations:** a step's `to` (the step's, a line's or the compact who's) and a lurk's first area
+  move the tokens it names. Move, push, rotate and other run there from the step's time at 215 u/s; hold, peek,
+  fake, plant and defuse are there at the step's time; throw, wait and call do not move. Tokens at one place at the
+  same time fan out inside it, each slot on its own spot, whichever steps sent them. A runner faces its run and
+  turns to what it watches on arrival. A drag on that step wins over the destination; setting a `to`
+  drops the slot's carried entry in the same undo entry. docs/strat-format.md, "Motion on the canvas", has the rules.
 - **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
   (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as
   on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. One op per drag, the
   lineup refusal kept; it writes the selected step, taken before the drag seeks, so a step on a shared tick is
-  written, not the one after it.
+  written, not the one after it. The entry it writes is authored (no `carried` mark), so it beats the step's
+  destination.
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,
