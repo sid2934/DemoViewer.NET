@@ -227,7 +227,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         _selectedSlot = slot;
-        if (_armed is { } armed && !string.Equals(armed.Slot, SelectedLineSlot, StringComparison.Ordinal))
+        if (_armed is { Slot: not null } armed && !string.Equals(armed.Slot, SelectedLineSlot, StringComparison.Ordinal))
         {
             CancelSetPlace();
         }
@@ -256,9 +256,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <summary>The Set On Map button's words, naming the field the way the step row does.</summary>
     public string SetPlaceText => PlaceTarget switch
     {
-        StratPlaceTarget.To => "Set " + (SelectedLineSlot is { } slot && ActiveStep is { } step && StratStepLines.HasLines(step) ? slot + "'s " : "")
+        StratPlaceTarget.To => "Set " + (SelectedLineSlot is { } slot && ActiveStep is { } step && StratStepLines.HasLines(step)
+                                                                     && !WritesAllLines(step)
+                                   ? slot + "'s "
+                                   : "")
                                + "“" + StratStepFields.ToLabel(ActiveStep?.Verb) + "” on map",
         StratPlaceTarget.Landing => "Set landing on map",
+        StratPlaceTarget.LurkArea => "Set “lurk area” on map",
         _ => ""
     };
 
@@ -268,6 +272,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             $"Click the map to set step {_activeIndex + 1}'s “{StratStepFields.ToLabel(ActiveStep?.Verb)}” to the place there (Esc cancels)"),
         StratPlaceTarget.Landing => string.Create(CultureInfo.InvariantCulture,
             $"Click the map where step {_activeIndex + 1}'s grenade lands: the point and the place there (Esc cancels)"),
+        StratPlaceTarget.LurkArea => string.Create(CultureInfo.InvariantCulture,
+            $"Click the map to add the place there to step {_activeIndex + 1}'s lurk areas (Esc cancels)"),
         _ => ""
     };
 
@@ -283,6 +289,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         if (StratStepFields.Uses(step.Verb, StratStepField.To))
         {
             return StratPlaceTarget.To;
+        }
+
+        if (StratStepFields.Uses(step.Verb, StratStepField.Lurk))
+        {
+            return StratPlaceTarget.LurkArea;
         }
 
         return StratStepFields.Uses(step.Verb, StratStepField.Utility) && step.Utility is { LineupId: null }
@@ -449,10 +460,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             return false;
         }
 
-        string? slot = target == StratPlaceTarget.To && StratStepLines.HasLines(step) ? SelectedLineSlot : null;
+        bool allLines = target == StratPlaceTarget.To && WritesAllLines(step);
+        string? slot = target == StratPlaceTarget.To && StratStepLines.HasLines(step) && !allLines ? SelectedLineSlot : null;
         _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1,
             string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {(slot is null ? "" : slot + " ")}{TargetLabel(target, step)}; Esc cancels"),
-            slot);
+            slot, allLines);
         _ = PlacesFor(document.Map, true);
         StatusLine = _armed.Prompt;
         RaiseSetPlace();
@@ -1465,18 +1477,43 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 return;
             }
 
+            string stepPath = string.Create(CultureInfo.InvariantCulture, $"/steps/{index}");
             IReadOnlyList<PatchOp> ops = armed.Slot is { } slot
-                ? StratLinePatches.EditLine(step, string.Create(CultureInfo.InvariantCulture, $"/steps/{index}"), slot, line =>
+                ? StratLinePatches.EditLine(step, stepPath, slot, line =>
                 {
                     line.To ??= new PlaceRef();
                     line.To.Place = place;
                 })
-                : StepAuthoringPatches.ToPlace(document, index, place);
+                : armed.AllLines
+                    ? StratLinePatches.EditAll(step, stepPath, line => line.To = new PlaceRef { Place = place })
+                    : StepAuthoringPatches.ToPlace(document, index, place);
             Apply(ops);
             string who = armed.Slot is null ? "" : armed.Slot + "'s ";
             StatusLine = ops.Count == 0
                 ? $"step {number}: {who}{label} is already {Display(place)}"
                 : $"step {number}: {who}{label} is now {Display(place)}";
+            return;
+        }
+
+        if (armed.Target == StratPlaceTarget.LurkArea)
+        {
+            if (place is null)
+            {
+                StatusLine = zones is null ? "no places for this map: nothing set" : "no place there: nothing set";
+                return;
+            }
+
+            List<PatchOp> added = StratLurkPatches.Edit(step, string.Create(CultureInfo.InvariantCulture, $"/steps/{index}"), lurk =>
+            {
+                if (!lurk.Areas.Contains(place, StringComparer.Ordinal))
+                {
+                    lurk.Areas.Add(place);
+                }
+            });
+            Apply(added);
+            StatusLine = added.Count == 0
+                ? $"step {number} already lurks {Display(place)}"
+                : $"step {number} lurks {Display(place)} too";
             return;
         }
 
@@ -1496,8 +1533,25 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 : $"step {number} lands at {Display(place)}";
     }
 
-    private static string TargetLabel(StratPlaceTarget target, StratStep step) =>
-        target == StratPlaceTarget.Landing ? "landing" : "“" + StratStepFields.ToLabel(step.Verb) + "”";
+    private static string TargetLabel(StratPlaceTarget target, StratStep step) => target switch
+    {
+        StratPlaceTarget.Landing => "landing",
+        StratPlaceTarget.LurkArea => "“lurk area”",
+        _ => "“" + StratStepFields.ToLabel(step.Verb) + "”"
+    };
+
+    /// <summary>
+    ///     Whether the row shows the step's lines as one (they agree and it is not split), so a map click sets every
+    ///     line's place; null <see cref="LinesShownApart" /> reads agreement alone.
+    /// </summary>
+    private bool WritesAllLines(StratStep step) =>
+        step.Assignments is { Count: > 1 } lines && StratLinePatches.Agree(lines) && LinesShownApart?.Invoke(step.Id) != true;
+
+    /// <summary>Whether the editor shows a step's lines one per player; the tab wires it to the editor.</summary>
+    public Func<Guid, bool>? LinesShownApart { get; set; }
+
+    /// <summary>Re-reads the Set On Map words after the editor shows a step's lines differently.</summary>
+    public void RefreshSetPlace() => RaiseSetPlace();
 
     private string Display(string place) => _callouts is { } callouts && callouts.IsCanonical(place) ? callouts.Display(place) : place;
 
@@ -1663,9 +1717,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         App.Services?.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? [];
 
     // Set On Map waiting for its click. Pending once the click is in and the place lookup has not answered.
-    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number, string prompt, string? slot)
+    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number, string prompt, string? slot,
+        bool allLines)
     {
         public string Prompt { get; } = prompt;
+
+        // Every line's place, for lines the row shows as one.
+        public bool AllLines { get; } = allLines;
 
         // The line whose place is set; null for the step's own to.
         public string? Slot { get; } = slot;
@@ -1702,7 +1760,10 @@ public enum StratPlaceTarget
     To,
 
     /// <summary>The step's utility landing: the point, its level and the place under it.</summary>
-    Landing
+    Landing,
+
+    /// <summary>A place added to the step's lurk areas.</summary>
+    LurkArea
 }
 
 /// <summary>A path the canvas can play: the main line, or the one through a branch.</summary>
