@@ -19,8 +19,9 @@ namespace DemoViewer.NET.Services.Strats;
 ///     Who goes where, for a step several players take different parts in; <paramref name="Actor" /> and
 ///     <paramref name="To" /> are then <see cref="StratStepLines.ActorFor" /> of the lines and null.
 /// </param>
+/// <param name="RotateWhen">A lurk's rotate condition, or null for no lurk.</param>
 public sealed record StratTemplateStep(double AtSeconds, string Actor, string Verb, string? To = null, string? Utility = null,
-    string? Note = null, IReadOnlyList<StratTemplateLine>? Lines = null);
+    string? Note = null, IReadOnlyList<StratTemplateLine>? Lines = null, string? RotateWhen = null);
 
 /// <summary>One line of a template step: a slot and its place, or null for none.</summary>
 public sealed record StratTemplateLine(string Slot, string? To = null);
@@ -105,7 +106,8 @@ public static class StratTemplates
                 Note = s.Note,
                 Assignments = s.Lines is null
                     ? null
-                    : [.. s.Lines.Select(l => new StepAssignment { Slot = l.Slot, To = l.To is null ? null : new PlaceRef { Place = l.To } })]
+                    : [.. s.Lines.Select(l => new StepAssignment { Slot = l.Slot, To = l.To is null ? null : new PlaceRef { Place = l.To } })],
+                Lurk = s.RotateWhen is null ? null : new StepLurk { Rotate = new LurkRotate { When = s.RotateWhen } }
             })
         ];
     }
@@ -156,7 +158,7 @@ public static class StratTemplates
                && first.AtSeconds >= document.Clock.RoundSeconds
                && string.Equals(first.Actor, All, StringComparison.Ordinal)
                && string.Equals(first.Verb, "hold", StringComparison.Ordinal)
-               && first.From is null && first.To is null && first.Utility is null
+               && first.From is null && first.To is null && first.Utility is null && first.Lurk is null
                && !StratStepLines.HasLines(first)
                && string.IsNullOrEmpty(first.Note);
     }
@@ -269,7 +271,7 @@ public static class StratTemplates
         ["entry", "support", "mid", "support", "lurk"],
         [
             new(105, "C", "hold", Note: "take mid control"),
-            new(105, "E", "hold", Note: "lurk: hold the far side, report rotations"),
+            new(105, "E", "lurk", Note: "hold the far side, report rotations", RotateWhen: "on the call"),
             new(100, "D", "throw", Utility: "smoke", Note: "smoke to take space"),
             new(95, "A", "peek", Note: "take the first map-control fight with a trade"),
             new(75, All, "call", Note: "read the info, call the site"),

@@ -155,10 +155,11 @@ public static class StratLinePatches
     /// <param name="step">The step.</param>
     /// <param name="stepPath">Its pointer.</param>
     /// <param name="edit">Changes the copy.</param>
-    public static List<PatchOp> Edit(StratStep step, string stepPath, Action<List<StepAssignment>> edit)
+    /// <param name="expandAll">Read a step for <c>all</c> as a line per slot (<see cref="Copy" />).</param>
+    public static List<PatchOp> Edit(StratStep step, string stepPath, Action<List<StepAssignment>> edit, bool expandAll = false)
     {
         ArgumentNullException.ThrowIfNull(edit);
-        List<StepAssignment> lines = Copy(step);
+        List<StepAssignment> lines = Copy(step, expandAll);
         edit(lines);
         return Write(step, stepPath, lines);
     }
@@ -199,6 +200,69 @@ public static class StratLinePatches
             line.Watch.YawDegrees = yawDegrees is { } yaw ? Math.Round(StratFromRound.NormalizeYaw(yaw), 2) : null;
         });
 
+    /// <summary>
+    ///     Whether every line says the same apart from its slot: one place, one watch, one angle. What the row shows as
+    ///     one "who" with one place and one watching. True for one line or none.
+    /// </summary>
+    /// <param name="lines">The lines.</param>
+    public static bool Agree(IReadOnlyList<StepAssignment> lines)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        if (lines.Count < 2)
+        {
+            return true;
+        }
+
+        string first = WithoutSlot(lines[0]);
+        return lines.Skip(1).All(l => string.Equals(WithoutSlot(l), first, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     The step's players set to <paramref name="slots" />, as one write. A slot that keeps its line keeps it; a new
+    ///     one copies the shared place and watch while the lines agree, and starts empty once they differ. Five bare lines
+    ///     to one place fold back to <c>all</c>. Nothing for an empty set.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="stepPath">Its pointer.</param>
+    /// <param name="slots">The slots that take part.</param>
+    public static List<PatchOp> SetWho(StratStep step, string stepPath, IReadOnlyCollection<string> slots)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        ArgumentNullException.ThrowIfNull(slots);
+        if (slots.Count == 0)
+        {
+            return [];
+        }
+
+        List<StepAssignment> lines = Copy(step, true);
+        StepAssignment? shared = lines.Count > 0 && Agree(lines) ? lines[0] : null;
+        List<StepAssignment> target = [.. lines.Where(l => slots.Contains(l.Slot))];
+        foreach (string slot in StratVocabulary.Slots)
+        {
+            if (slots.Contains(slot) && !target.Exists(l => string.Equals(l.Slot, slot, StringComparison.Ordinal)))
+            {
+                StepAssignment line = shared is null ? new StepAssignment() : Clone(shared);
+                line.Slot = slot;
+                target.Add(line);
+            }
+        }
+
+        return Write(step, stepPath, target);
+    }
+
+    /// <summary>
+    ///     One edit applied to every line, for a row that shows its lines as one. A step for <c>all</c> is read as a
+    ///     line per slot, so a watch keeps all five and a place alone folds back.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="stepPath">Its pointer.</param>
+    /// <param name="edit">Changes one line.</param>
+    public static List<PatchOp> EditAll(StratStep step, string stepPath, Action<StepAssignment> edit)
+    {
+        ArgumentNullException.ThrowIfNull(edit);
+        return Edit(step, stepPath, lines => lines.ForEach(edit), true);
+    }
+
     /// <summary>The first slot with no line on the step, or null when all five have one.</summary>
     /// <param name="lines">The lines.</param>
     public static string? FreeSlot(IReadOnlyList<StepAssignment> lines) =>
@@ -238,6 +302,18 @@ public static class StratLinePatches
         {
             ops.Add(PatchOp.ReplaceOp(path + "/watch", null, JsonSerializer.SerializeToNode(after.Watch, StratJsonContext.Default.StepWatch)));
         }
+    }
+
+    private static string WithoutSlot(StepAssignment line)
+    {
+        StepAssignment copy = Clone(line);
+        copy.Slot = "";
+        if (copy.Watch is { } watch && IsEmpty(watch))
+        {
+            copy.Watch = null;
+        }
+
+        return Json(copy);
     }
 
     private static string WithoutYaw(StepWatch watch) =>

@@ -46,11 +46,18 @@ public static class StratStepCarry
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
             TokenPlacement?[] placements = StratSceneProjection.Placements(path, origins, slot, placeCentres);
+            int rotated = LastRotation(document, last, slot);
             for (int k = last; k >= 0; k--)
             {
                 if (placements[k] is not { } placement)
                 {
                     continue;
+                }
+
+                // A lurk rotate after this entry moves the token later; a carried copy would pull it back.
+                if (k <= rotated)
+                {
+                    break;
                 }
 
                 // An authored entry the projection did not turn is carried as stored, unknown fields included.
@@ -68,6 +75,24 @@ public static class StratStepCarry
         }
 
         return carried;
+    }
+
+    // The last step at or before `last` whose lurk rotate moves the slot's token, or -1.
+    private static int LastRotation(StratDocument document, int last, string slot)
+    {
+        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
+        for (int k = last; k >= 0; k--)
+        {
+            StratStep step = document.Steps[k];
+            int tick = Math.Max(0, StepSchedule.TickFor(step.AtSeconds, roundSeconds));
+            if (StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot)
+                                                      && StratSceneProjection.RotateTickOf(step, tick, roundSeconds) is not null)
+            {
+                return k;
+            }
+        }
+
+        return -1;
     }
 
     private static bool Same(StepPosition stored, TokenPlacement placement) =>

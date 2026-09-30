@@ -286,6 +286,24 @@ public static class StratValidator
                 }
             }
 
+            if (step.Lurk is { } lurk)
+            {
+                for (int k = 0; k < lurk.Areas.Count; k++)
+                {
+                    CheckPlace(places, lurk.Areas[k], $"{pointer}/lurk/areas/{k}", document.Map, issues);
+                }
+
+                if (lurk.Rotate is { } rotate)
+                {
+                    CheckPlace(places, rotate.To?.Place, pointer + "/lurk/rotate/to/place", document.Map, issues);
+                    if (rotate.AtSeconds is { } rotateAt && rotateAt >= step.AtSeconds)
+                    {
+                        issues.Add(Warn(pointer + "/lurk/rotate/atSeconds",
+                            $"the rotate at {StratClock.Format(rotateAt)} is not later in the round than the step at {StratClock.Format(step.AtSeconds)}"));
+                    }
+                }
+            }
+
             for (int p = 0; p < step.Positions.Count; p++)
             {
                 string slot = step.Positions[p].Slot;
