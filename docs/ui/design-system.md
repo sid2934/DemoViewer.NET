@@ -415,7 +415,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 ### Strat step row (the Strats editor)
 - **Files:** the `StepRows` template in `Views/StratBook/StratBookTabView.axaml`, `StratStepRow` in
   `ViewModels/StratBook/StratEditorViewModel.cs`, the table in `Services/Strats/StratStepFields.cs`.
-- **Layout:** line one is `#`, at, actor and verb in fixed columns (20, 56, 64, 84) with move up and move down
+- **Layout:** line one is `#`, at, who and verb in fixed columns (20, 56, 64, 84) with move up and move down
   stacked (`.icon-btn.stepMove`, 15 px each), duplicate and remove (`.icon-btn`) on the right; line two is a
   `WrapPanel` of label-over-field pairs indented under "at". At 1280 with the rail and the list open the editor is
   315 px and line one fills it: a fifth button or a wider column needs room taken from somewhere else.
@@ -429,14 +429,31 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   |---|---|---|
   | move | from, to (the validator warns on a move without `to`) | to |
   | rotate | from, to | to |
-  | hold, peek | to | at |
+  | push | from, to, watching | to |
+  | hold, peek | to, watching | at |
   | plant, defuse | to (`StratFromRound` writes a plant's place there) | site |
   | throw | utility, then lineup, then lands at only while no lineup is picked | |
-  | fake | to, utility | at |
+  | fake | to, utility, watching | at |
+  | lurk | watching, lurk areas, rotate at, or when, rotate to | |
   | wait, call | note only | |
-  | other, or a verb outside the vocabulary | from, to, utility | to |
+  | other, or a verb outside the vocabulary | from, to, utility, watching | to |
 
-- **Lines** (`StratLineRow`, written only through `Services/Strats/StratLinePatches.cs`): under line one, indented
+  Move and rotate take no watching: a moving player watches their path, and the facing that matters belongs to
+  the hold or push after it.
+
+- **Who** (`Button.stratWho`, styled like the combo boxes beside it, with a `▾`): the step's players, `all` or
+  `B, C`. Its flyout holds A to E as 30 px toggles and an `all` button; the toggles are staged and written when the
+  flyout closes (`StratStepRow.CommitWho`, `StratLinePatches.SetWho`), so picking two players is one undo entry. None
+  checked writes nothing and the toggles show the step again. A flyout rather than a wider control: the 64 px column
+  is all line one has at 1280.
+- **One place and watching for players who agree** (`ShowCompact`): while every line says the same apart from its
+  slot (place, watch and angle), the row shows one `to` and one `watching` under line one, a `*,*,Auto` grid (a
+  field takes both columns while the other is hidden), and an edit writes every line (`StratLinePatches.EditAll`).
+  A step for everyone is five agreeing lines; one player is one. `split` (shown with more than one player and a place
+  or watching to differ in) shows the lines one per player; `join` under the lines shows once they agree again. The
+  row only goes apart on split or on an edit that makes the lines differ (a cone drag on one player), and only
+  comes back on join, so a commit never swaps the fields under the caret. Lines that already differ open apart.
+- **Lines** (`StratLineRow`, written only through `Services/Strats/StratLinePatches.cs`): shown apart, under line one, indented
   like the fields, a `48,*,*,Auto` grid per player: slot, place (labelled with the verb's `to`, `at` or `site`, shown
   when the verb uses it or it holds one), watching, then the angle and remove buttons; a `who / to / watching` label
   row above, and `+ player` under them. A step for everyone has no lines and keeps its own `to` field; a one-player
@@ -446,15 +463,16 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   no lines is a step for everyone, one line with no watch is a plain step (the actor rewritten, `assignments`
   removed), five bare lines to one place fold back into a step for everyone, anything else is `assignments` with the
   summary actor and no step-level `to`. A line's slot combo lists its own slot and the free ones, and is a burst field
-  like the verb. Watching is an `AutoCompleteBox`: callouts comma separated, suggested from the map's places by the
+  like the verb. A line's watching shows when the verb uses it or the line holds one. Watching is an `AutoCompleteBox`: callouts comma separated, suggested from the map's places by the
   owner's word (`StratLineRow.WatchFilter` matches the text after the last comma, `WatchSelector` keeps the ones
   before it), stored canonical and shown as callouts, written on focus loss. The angle button (`135°`) shows only
   while `watch.yawDegrees` is set and clears it, so the cone faces the first watched place again. The line Set On
   Map writes has a 2 px `AccentInteractive` bar on its left (`Border.stratLine.lineSelected`); focus or a press in a
   line's field selects its step and the line. At 1280 with the rail and list open the line's text fields are about
   95 px each, so long callout lists trim inside the field.
-- **Verb change:** the verb and a remove for each member the new verb does not use and the step has, and for each
-  line's `to` when the verb does not use one.
+- **Verb change:** the verb and a remove for each member the new verb does not use and the step has (a lurk
+  included); each line's `to` and watch the verb does not use are cleared through `StratLinePatches` in the same
+  entry, so a one-player line that loses its watch folds back into a plain step.
   Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and LAN print print
   whatever is set, which is why the clear is not optional.
 - **Combo box bursts:** a closed combo box changes value on the mouse wheel and on Up/Down, so the verb, kind
@@ -487,6 +505,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
   the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
   ids), a fresh step id, 5 s later held before the next step. Each is one undo entry and focuses the new row's time.
+- **Lurk fields** (`ShowLurk`): lurk areas (an `AutoCompleteBox` of callouts like watching, 200 px), rotate at
+  (56 px, a round clock time; text that is not one shows the stored time again), or when (an `AutoCompleteBox`
+  suggesting `StratVocabulary.RotateConditions`, free text stored), rotate to (128 px, like `to`). All written
+  through `StratLurkPatches` on focus loss, one entry each. The place fields are the plain ones the row uses for
+  `to` and watching, named `LurkAreasField` and `RotateToField` (and `GroupPlaceField`, `GroupWatchField` on the
+  compact row) so a shared location field can replace them by name.
 - **Inline checks:** each row marks the validator's warnings and refusals beside the field their pointer names
   (`StratStepRow.SetIssues`): a `⚠` in `AccentCaution` for a warning, a filled `!` badge on `AccentError` for a
   refusal, the message in the tooltip, and every message again as a text line under the row for keyboard and
@@ -577,8 +601,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Places off the UI thread:** the map's zones load through the processing queue (`SectionCompute`, user
   priority) when the canvas first shows the map, one read in flight per map across canvases; a click before they
   land waits for that item.
-- **Set on map on lines:** on a step with lines the toggle names the line (`Set C's “to” on map`) and the click writes
-  that line's place, one entry, adding nothing else.
+- **Set on map on lines:** on a step with lines shown apart the toggle names the line (`Set C's “to” on map`) and the
+  click writes that line's place, one entry, adding nothing else. On lines the row shows as one it says `Set “to” on
+  map` and writes every line's place (`StratCanvasViewModel.LinesShownApart`, wired to the editor's
+  `ShowsLinesApart`). A lurk offers `Set “lurk area” on map`: the click adds the place to the lurk's areas.
 - **View cones:** every live token on the strat canvas and the Detected preview draws a wedge along its yaw
   (`MarkerLayer.DrawViewCones`, from `ISceneFrameHost.ShowViewCones`): 30 degrees either side, 36 px past the disc,
   the team colour at alpha 56, behind the heading stub. Replays and exports draw none. On the editing canvas a press
