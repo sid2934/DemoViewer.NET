@@ -3,6 +3,7 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Services.Strats;
 
 #endregion
 
@@ -64,6 +65,29 @@ public sealed class StratStepSelection : IDisposable
         _canvas.SelectLine(slot);
         Select(stepId);
     }
+
+    /// <summary>
+    ///     A location control's "pick on map": selects the field's step and line, then arms the canvas so the next map
+    ///     click writes that field. Again on the field while it is armed, it cancels. False when nothing was armed.
+    /// </summary>
+    /// <param name="field">The field the click writes.</param>
+    public bool PickOnMap(StratLocationField field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (_canvas.ArmedField == field)
+        {
+            _canvas.CancelSetPlace();
+            return false;
+        }
+
+        bool armed = _canvas.BeginSetPlace(field);
+        Sync();
+        return armed;
+    }
+
+    /// <summary>Whether a map click will write <paramref name="field" />.</summary>
+    /// <param name="field">A location field.</param>
+    public bool IsPicking(StratLocationField field) => _canvas.ArmedField == field;
 
     private void OnCanvasChanged(object? sender, PropertyChangedEventArgs e)
     {

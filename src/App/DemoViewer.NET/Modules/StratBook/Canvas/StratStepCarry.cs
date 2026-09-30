@@ -94,7 +94,7 @@ public static class StratStepCarry
             StratStep step = document.Steps[k];
             if (StratStepLines.Involves(step, slot)
                 && StratSceneProjection.RotateTickOf(step, StratLurkPatches.TickOf(step.AtSeconds, roundSeconds), roundSeconds) is { } tick
-                && tick <= at && centres(step.Lurk!.Rotate!.To!.Place!, 0) is not null)
+                && tick <= at && (StratLocations.HasPoint(step.Lurk!.Rotate!.To) || centres(step.Lurk.Rotate.To!.Place!, 0) is not null))
             {
                 return true;
             }

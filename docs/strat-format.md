@@ -141,9 +141,10 @@ book: a display name is looked up at render time and a roster rename never touch
   it the validator **refuses** the document, because Role View and the call sheet phrase a line by verb.
   `push` (an aggressive advance onto a place) and `lurk` came later than the rest: a build older than them
   refuses a strat that uses either.
-* **`from`**/**`to`** are canonical **places** (a nav place name, e.g. `TRamp`), never a team's callout
-  word for one; `""` (what the pawn reports before its place is first networked) is treated as
-  unresolved, the same as null.
+* **`from`**/**`to`** are **locations** (see "Locations" below): a canonical **place** (a nav place name,
+  e.g. `TRamp`), never a team's callout word for one, and optionally the world point it was picked at;
+  `""` (what the pawn reports before its place is first networked) is treated as unresolved, the same as
+  null.
 * **`utility`** is present only on a step that throws something: `kind` is `smoke | molotov | he |
   flash | decoy`; `lineupId` is a GUID naming one Utility Book lineup (Lineup On A Strat Step); `landing`
   names where the grenade should land, as a place and (once Step Authoring writes it) a world point.
@@ -187,6 +188,43 @@ book: a display name is looked up at render time and a roster rename never touch
   largest buy zone in the map's baked `zones.json`; the five tokens take five of its nav areas, spread
   apart, at the level of the area they stand on. A map with no zones gets the strat without the step.
 
+### Locations
+
+```jsonc
+{ "place": "BombsiteA", "x": -300.5, "y": -2100, "levelMinZ": -256 }   // picked inside a place
+{ "x": 1234.4, "y": -560.6, "levelMinZ": -256 }                         // picked outside every place
+{ "place": "TRamp" }                                                     // typed, or written before points
+```
+
+`from`, `to`, a line's `to` and `utility.landing` share one shape. `x`, `y` and `levelMinZ` are optional
+and written only when set, so a file without points loads and saves byte for byte as before. `levelMinZ`
+follows the rule for `positions[].levelMinZ`: the level's quantized lower Z, never a floor index.
+
+* **A map click** stores the place under the point and the point, or the point alone when it is in no
+  place. With no zones for the map (none baked, or the read failed) there is no answer about the place, so
+  the click sets the point and keeps whatever place was stored.
+* **Typing a coordinate** (`(1234, -560)`, or the two numbers with a comma or spaces) sets a point without a place.
+  It keeps the stored point's `levelMinZ`, else takes the strat's `canvas.defaultLevelMinZ`, else has none. Numbers
+  alone are never stored as a place.
+* **Typing a place** keeps the stored point only when it names the same place; any other place drops it,
+  so a token never faces a point under another place's name. A landing is the exception it always was:
+  typing "lands at" writes only `landing/place`, so a captured landing point survives; clearing it drops the place
+  first and a second clear removes the point.
+* **Printing.** Every reader (the call sheet, the role sheets and LAN print, the history, the Detected
+  preview, the step track and the canvas's status line) prints the place's callout when there is a place.
+  A point alone prints as its world coordinate rounded to whole units, `(1234, -561)`. Not "near
+  <place>": the exports are pure over the model and the owner's callouts and run with or without the map's
+  zones in memory, and a nearest-place name would change once they load and could name a place across a
+  wall. `StratLocations.Text` is the one formatter.
+* **The projection** uses the point when there is one and the place's centre otherwise
+  (`StratSceneProjection.Where`). Today only facing reads it: nothing moves a token toward a `to`, since
+  token positions are always authored (`positions[]`) or a lineup's throw origin.
+* **The validator** accepts a point without a place. A `move` (or a move line) warns when its `to` has
+  neither. An unknown place still warns; a point is never checked against the zones.
+
+`tests/fixtures/strats/schema-v1.locations.dvstrat.json` pins the shapes (a place with a point, point-only
+`from`, `to` and landing, a watched point), through `StratLocationFieldTests`.
+
 ### Lines: several players in one step (`assignments`)
 
 ```jsonc
@@ -206,8 +244,17 @@ optional and is not written when absent, so a file without it loads and saves by
 
 * **A line** is `slot` (`A` to `E`), `to` (a place, the same shape as the step's) and `watch`. A slot has
   at most one line per step; an unknown or repeated slot is refused.
-* **`watch`** is `places` (canonical place names, never callouts, first one first) and an optional
-  `yawDegrees` (world yaw, 0 = +X and 90 = +Y, as `positions[].yawDegrees`) that overrides facing the first place.
+* **`watch`** is `places` (canonical place names, never callouts, first one first), an optional
+  `points` (watched map points outside every place, `{ x, y, levelMinZ }` each, written only when there is
+  one) and an optional `yawDegrees` (world yaw, 0 = +X and 90 = +Y, as `positions[].yawDegrees`) that
+  overrides facing. The watched entries read places first, then points, and the token faces the first
+  entry. A map pick on the watching field adds the place under the click, or the point when the click is in
+  no place, and a place already watched is not added twice.
+
+  `points` is a sibling of `places` rather than a list that mixes names and objects, because an older build
+  must still load a newer file: its `places` is a list of strings and would refuse an object in it, while an
+  unknown `points` lands in its extension data and round-trips. The cost is that a point always reads after
+  the places; to face a point first, clear the places or drag the cone.
 * **A line's position** is the step's `positions[]` entry for that slot. Lines add no position of their own.
 * **`from`, `utility`, `lurk` and `note`** stay on the step and are shared by its lines.
 * **Which verbs watch** is the editor's table (`StratStepFields`): push, hold, peek, fake and lurk do; move and
@@ -245,7 +292,7 @@ plain step, five bare lines to one place fold back into a step for everyone). Th
 | Rule | Severity | Pointer |
 |---|---|---|
 | slot not `A` to `E`, or a second line for a slot | refusal | `/steps/i/assignments/j/slot` |
-| a `move` line with no `to` | warning | `/steps/i/assignments/j/to` |
+| a `move` line whose `to` has no place and no point | warning | `/steps/i/assignments/j/to` |
 | a `to` place the map lacks | warning | `/steps/i/assignments/j/to/place` |
 | a watched place the map lacks | warning | `/steps/i/assignments/j/watch/places/k` |
 | `actor` is not the lines' single slot or `all` | warning | `/steps/i/actor` |
@@ -270,11 +317,14 @@ A lurk says where the player works and when and where they rotate. It is optiona
 so a file without it loads and saves byte for byte as before. It lives on the step, not on a line: it is shared
 by every player the step names, like `from` and `utility`, and two lurkers who rotate differently are two steps.
 
-* **`areas`** are canonical places the lurk takes control of or works towards, first first.
+* **`areas`** are canonical places the lurk takes control of or works towards, first first. **`areaPoints`**
+  (optional, written only when there is one) holds areas picked on the map outside every place, `{ x, y, levelMinZ }`
+  each, after the places in reading order: a sibling of `areas` for the same reason `watch.points` is one.
 * **`rotate`** is when the lurk rotates and where to. `atSeconds` is round clock remaining (later in the round,
   so lower than the step's own); `when` is free text ("on the call", "on contact", "bomb planted", "after first
-  kill" are the editor's suggestions, not a vocabulary); `to` is a place. A rotate with a time and a condition
-  means whichever comes first.
+  kill" are the editor's suggestions, not a vocabulary); `to` is a location (a place, a point, or both). A rotate
+  with a time and a condition means whichever comes first. On the canvas a rotating token walks to the point when
+  `to` has one, else to the place.
 * `StratLurkPatches` is the one writer: it drops a `rotate` with no time, condition or place and a `lurk` with no
   area and no rotate, so a step never carries an empty object. The editor's verb change removes a lurk from a verb
   other than `lurk`, in the same entry.
@@ -302,8 +352,8 @@ undone by the next step; one added before the rotate carries the lurker where it
 
 **Facing on the canvas.** A token's yaw at a step, in order: a throw's lineup origin (position and yaw; a
 throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
-else towards the centre of the first watched place, on the token's level when the place has nav areas
-there, else over all its floors; else `positions[].yawDegrees`; else the yaw it had. A watching line on a
+else towards the first watched entry: a place's centre, on the token's level when the place has nav areas
+there, else over all its floors, or a watched point itself; else `positions[].yawDegrees`; else the yaw it had. A watching line on a
 step with no position for its slot adds a keyframe where the token already stands, so no move is re-timed.
 Place centres are the area-weighted centroids of the map's baked zones (a custom zone with no areas uses
 the middle of its box), built once per map when the zones load through the processing queue; until they
@@ -449,7 +499,8 @@ metadata line, one bullet per step with its round-clock time bolded, and a branc
 A step's line names its actor, its verb, an optional utility kind, its `from` and `to` places (through
 the owner's callouts when given, else the canonical name split into words), a lurk's areas and rotate
 (`E lurks Palace, Connector; rotate to B site at 0:40 or on the call`), and, only when it differs
-from `to`, the utility's landing place in parentheses. A step with lines is headed by its slots (`All`
+from `to`, the utility's landing place in parentheses. A location with only a point prints as its
+coordinate, `(1234, -561)`, and a point-only landing prints without the extra parentheses. A step with lines is headed by its slots (`All`
 when the lines name all five) and its shared `from` (`B, C, D move from T Ramp`), and each line follows as an indented bullet:
 `B → Palace, watching A site, CT`, or `B at Palace` for a verb whose place is where it stands (hold, peek,
 fake, plant, defuse). The step track's tooltip and the Detected preview, which have one line per step,
