@@ -307,6 +307,40 @@ public class SceneLayerTests
     }
 
     [Test]
+    [Arguments(AreaEffectKind.Flash)]
+    [Arguments(AreaEffectKind.Explosion)]
+    [Arguments(AreaEffectKind.Decoy)]
+    public async Task AreaEffectLayer_DrawsAPop_InItsKindsColour_AndNothingOnceFaded(AreaEffectKind kind)
+    {
+        SKColor colour = kind switch
+        {
+            AreaEffectKind.Flash => ScenePalette.Dark.TrailFlash,
+            AreaEffectKind.Explosion => ScenePalette.Dark.TrailHe,
+            _ => ScenePalette.Dark.TrailDecoy
+        };
+
+        using AreaEffectLayer layer = new();
+        SKColor[] shown = Render(layer, new Scene2DFrame { AreaEffects = [new AreaEffect(kind, 0, 0, 0, 120)] });
+        SKColor[] faded = Render(layer, new Scene2DFrame { AreaEffects = [new AreaEffect(kind, 0, 0, 0, 120, 0)] });
+
+        await Assert.That(CountColour(shown, colour)).IsGreaterThan(0);
+        await Assert.That(InkPixels(faded)).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task TrailLayer_ColoursAThrowersTrail_ByItsSide()
+    {
+        GrenadeTrail trail = new() { Kind = GrenadeKind.Smoke, Team = 3 };
+        trail.Points.AddRange([new GrenadeTrailPoint(-300, 0, 0), new GrenadeTrailPoint(300, 0, 0)]);
+
+        using TrailLayer layer = new();
+        SKColor[] pixels = Render(layer, new Scene2DFrame { Trails = [trail] });
+
+        // The grey smoke colour never has blue this far above red; the CT blue does.
+        await Assert.That(pixels.Count(p => p.Blue > p.Red + 80)).IsGreaterThan(0);
+    }
+
+    [Test]
     public async Task FloorLabelLayer_DrawsNothingOnASingleLevelPane()
     {
         using FloorLabelLayer layer = new();

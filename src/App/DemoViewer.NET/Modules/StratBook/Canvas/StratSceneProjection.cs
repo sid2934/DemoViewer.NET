@@ -200,7 +200,7 @@ public sealed class StratSceneProjection
     /// <summary>Per slot, the marker text and side.</summary>
     public IReadOnlyList<TokenLabel> Labels { get; }
 
-    /// <summary>Smoke and fire landings from steps that carry a landing point.</summary>
+    /// <summary>Every throw on the path: its flight, its landing and when it goes off (<see cref="StratThrows" />).</summary>
     public IReadOnlyList<UtilityCue> Utility { get; }
 
     /// <summary>The strat's round length, whole seconds, for the clock.</summary>
@@ -219,10 +219,15 @@ public sealed class StratSceneProjection
     public int LastTick => Schedule.LastTick;
 
     /// <summary>
-    ///     The last tick anything moves: the last step's, or a run's arrival after it (a destination's or a lurk
-    ///     rotate's). The transport, the step row and an export run to here, so a run after the last step still plays.
+    ///     The last tick anything moves or shows: the last step's, a run's arrival after it (a destination's or a lurk
+    ///     rotate's), or a throw's last effect tick. The transport, the step row and an export run to here, so a run
+    ///     after the last step still plays and a smoke plays out.
     /// </summary>
-    public int ContentEndTick => Math.Max(LastTick, Tracks.Count == 0 ? 0 : Tracks.Max(t => t.Keyframes.Count == 0 ? 0 : t.Keyframes[^1].Tick));
+    public int ContentEndTick => Math.Max(Math.Max(LastTick, Tracks.Count == 0 ? 0 : Tracks.Max(t => t.Keyframes.Count == 0 ? 0 : t.Keyframes[^1].Tick)),
+        UtilityEndTick);
+
+    /// <summary>The last tick a throw draws: its effect's end, or its flight line's fade. 0 with none.</summary>
+    public int UtilityEndTick => Utility.Count == 0 ? 0 : Utility.Max(StratFrameSource.EndTickOf) - 1;
 
     /// <summary>
     ///     The projected document's clock header: <c>ClockIdentity("dv-strat-clock", 64, lastTick + 1, 0,
@@ -272,9 +277,10 @@ public sealed class StratSceneProjection
     ///     <paramref name="placeCentres" />'s centre on the token's floor.
     /// </param>
     /// <param name="placeContains">Whether a point is in a place, to keep fanned-out tokens inside it; null keeps to a ring.</param>
+    /// <param name="throwFlights">Resolves a throw's lineup to its flight and landing; null flies only authored landings.</param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
         ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null,
-        PlaceContainsResolver? placeContains = null)
+        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null)
     {
         placeArrivals ??= ArrivalsFrom(placeCentres);
         ArgumentNullException.ThrowIfNull(document);
@@ -336,8 +342,11 @@ public sealed class StratSceneProjection
             }
         }
 
-        return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, LabelsFor(document),
-            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped, places, plans);
+        IReadOnlyList<TokenLabel> labels = LabelsFor(document);
+        List<UtilityCue> utility = StratThrows.Cues(document.Map, path, ticks, tracks, labels, throwFlights, placeArrivals,
+            canvas.DefaultLevelMinZ ?? 0);
+        return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, labels,
+            utility, (int)Math.Round(roundSeconds), canvas, clamped, places, plans);
     }
 
     /// <summary>
@@ -1060,37 +1069,7 @@ public sealed class StratSceneProjection
         return found;
     }
 
-    private static List<UtilityCue> UtilityFor(IReadOnlyList<StratPathStep> path, int[] ticks)
-    {
-        List<UtilityCue> cues = [];
-        for (int i = 0; i < path.Count; i++)
-        {
-            if (path[i].Step.Utility is not { Landing: { X: { } x, Y: { } y } landing } utility
-                || GrenadeOf(utility.Kind) is not { } kind)
-            {
-                continue;
-            }
-
-            // The middle of the level's first quantum, as a token's marker Z is, so the effect lands on the
-            // pane of the floor the landing names.
-            float z = (float)((landing.LevelMinZ ?? 0) + MapSpace.LevelQuantum / 2);
-            cues.Add(new UtilityCue(ticks[i], kind, (float)x, (float)y, z));
-        }
-
-        return cues;
-    }
-
     internal sealed record ThrowOrigin(string Slot, TokenPlacement Placement);
-
-    private static GrenadeKind? GrenadeOf(string? kind) => kind switch
-    {
-        "smoke" => GrenadeKind.Smoke,
-        "molotov" => GrenadeKind.Molotov,
-        "he" => GrenadeKind.He,
-        "flash" => GrenadeKind.Flash,
-        "decoy" => GrenadeKind.Decoy,
-        _ => null
-    };
 }
 
 /// <summary>

@@ -85,8 +85,8 @@ public class StratSceneProjectionTests
                 .Because("an entry with no yaw keeps the previous keyframe's");
             await Assert.That(c.HoldTicks[0]).IsEqualTo(160).Because("holdSeconds 2.5 × 64");
             await Assert.That(c.Segments[0]).IsEqualTo(TokenInterpolation.Hold);
-            await Assert.That(projection.Utility.Single()).IsEqualTo(new UtilityCue(Smoke, GrenadeKind.Smoke, -1024.5f, -1616f, -224f))
-                .Because("the molotov names only a place, so only the smoke has a point to draw");
+            await Assert.That(projection.Utility.Single() is { Kind: GrenadeKind.Smoke, X: -1024.5f, Y: -1616f, Z: -224f, ThrowTick: Smoke })
+                .IsTrue().Because("the molotov names only a place and no place resolves, so only the smoke lands");
             await Assert.That(projection.Labels.Single(l => l.Slot == "O1")).IsEqualTo(new TokenLabel("O1", "1", 3));
             await Assert.That(projection.Clock.Kind).IsEqualTo("dv-strat-clock");
             await Assert.That(projection.Clock.FrameCount).IsEqualTo(All + 1);
