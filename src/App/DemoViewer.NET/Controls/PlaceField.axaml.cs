@@ -46,6 +46,9 @@ public partial class PlaceField : UserControl
 
     public static readonly StyledProperty<object?> ArmedTargetProperty = AvaloniaProperty.Register<PlaceField, object?>(nameof(ArmedTarget));
 
+    public static readonly StyledProperty<double?> CurrentLevelMinZProperty =
+        AvaloniaProperty.Register<PlaceField, double?>(nameof(CurrentLevelMinZ));
+
     public static readonly StyledProperty<string?> PlaceholderTextProperty =
         AvaloniaProperty.Register<PlaceField, string?>(nameof(PlaceholderText));
 
@@ -122,6 +125,13 @@ public partial class PlaceField : UserControl
         set => SetValue(ArmedTargetProperty, value);
     }
 
+    /// <summary>The level key a typed coordinate takes when the field holds no point to take it from.</summary>
+    public double? CurrentLevelMinZ
+    {
+        get => GetValue(CurrentLevelMinZProperty);
+        set => SetValue(CurrentLevelMinZProperty, value);
+    }
+
     public string? PlaceholderText
     {
         get => GetValue(PlaceholderTextProperty);
@@ -156,7 +166,7 @@ public partial class PlaceField : UserControl
         if (change.Property == IsMultiProperty)
         {
             _model.Changed -= Sync;
-            _model = new PlaceFieldModel(IsMulti) { Options = _model.Options };
+            _model = new PlaceFieldModel(IsMulti) { Options = _model.Options, CurrentLevelMinZ = CurrentLevelMinZ };
             _model.Changed += Sync;
             _model.Load(Value);
         }
@@ -168,7 +178,7 @@ public partial class PlaceField : UserControl
                 _model.Load(Value);
             }
         }
-        else if (change.Property == ValueProperty && !_syncing && !FieldBox.IsFocused)
+        else if (change.Property == ValueProperty && !_syncing && (!FieldBox.IsFocused || !_model.HasPendingEdit))
         {
             _model.Load(Value);
         }
@@ -183,6 +193,10 @@ public partial class PlaceField : UserControl
         else if (change.Property == IsPickingProperty)
         {
             PseudoClasses.Set(":picking", IsPicking);
+        }
+        else if (change.Property == CurrentLevelMinZProperty)
+        {
+            _model.CurrentLevelMinZ = CurrentLevelMinZ;
         }
         else if (change.Property == PlaceholderTextProperty)
         {
