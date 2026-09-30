@@ -201,9 +201,10 @@ public static partial class Variants
         return view;
     }
 
+    // At 0:41, after the plant, A and B stand side by side on the site.
     // The A execute from its template, mid-execute: A and B running from spawn onto the site, the others where their
     // throws left them. The zones are read before the view is up, so the capture has the arrivals.
-    private static StratBookHubView StratEditorExecuteMotion()
+    private static StratBookHubView StratEditorExecuteMotion(double atSeconds = 48)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
@@ -211,7 +212,7 @@ public static partial class Variants
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
-            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(48, 115));
+            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, 115));
         }, DispatcherPriority.Background);
         return view;
     }
