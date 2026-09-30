@@ -242,7 +242,7 @@ public static class StratValidator
             {
                 ValidateLines(document, step, pointer, places, issues);
             }
-            else if (step.Verb == "move" && string.IsNullOrEmpty(step.To?.Place))
+            else if (step.Verb == "move" && !StratLocations.IsSet(step.To))
             {
                 issues.Add(Warn(pointer + "/to", "a move has no destination place"));
             }
@@ -339,7 +339,7 @@ public static class StratValidator
                 issues.Add(Refuse(at + "/slot", $"slot {line.Slot} already has a line in this step, at {pointer}/assignments/{seen[line.Slot]}"));
             }
 
-            if (step.Verb == "move" && string.IsNullOrEmpty(line.To?.Place))
+            if (step.Verb == "move" && !StratLocations.IsSet(line.To))
             {
                 issues.Add(Warn(at + "/to", $"{line.Slot}'s move has no destination place"));
             }

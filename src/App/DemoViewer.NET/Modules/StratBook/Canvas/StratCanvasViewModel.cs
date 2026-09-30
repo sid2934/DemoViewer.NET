@@ -227,7 +227,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         _selectedSlot = slot;
-        if (_armed is { } armed && !string.Equals(armed.Slot, SelectedLineSlot, StringComparison.Ordinal))
+        if (_armed is { Field.Slot: { } armedSlot } && !string.Equals(armedSlot, SelectedLineSlot, StringComparison.Ordinal))
         {
             CancelSetPlace();
         }
@@ -248,13 +248,18 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public StratPlaceTarget PlaceTarget =>
         EditableActiveStep() is not null && ActiveStep is { } step ? PlaceTargetFor(step) : StratPlaceTarget.None;
 
-    public bool CanSetPlace => PlaceTarget != StratPlaceTarget.None;
+    public bool CanSetPlace => PlaceTarget != StratPlaceTarget.None || _armed is not null;
 
     /// <summary>True while Set On Map waits for a click on the map.</summary>
     public bool IsSettingPlace => _armed is not null;
 
+    /// <summary>The location field a map click will write, or null when Set On Map is off.</summary>
+    public StratLocationField? ArmedField => _armed?.Field;
+
     /// <summary>The Set On Map button's words, naming the field the way the step row does.</summary>
-    public string SetPlaceText => PlaceTarget switch
+    public string SetPlaceText => _armed is { } armed && ActiveStep is { } armedStep && !IsToolbarField(armed.Field, armedStep)
+        ? "Set " + FieldLabel(armed.Field, armedStep) + " on map"
+        : PlaceTarget switch
     {
         StratPlaceTarget.To => "Set " + (SelectedLineSlot is { } slot && ActiveStep is { } step && StratStepLines.HasLines(step) ? slot + "'s " : "")
                                + "“" + StratStepFields.ToLabel(ActiveStep?.Verb) + "” on map",
@@ -440,24 +445,62 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
-    /// <summary>Starts Set On Map for the active step. False when the step takes no place from the map.</summary>
+    /// <summary>Starts Set On Map for the active step's toolbar field. False when the step takes no place from the map.</summary>
     public bool BeginSetPlace()
     {
-        if (_session.Document is not { } document || ActiveStep is not { } step || PlaceTarget is var target
-            && target == StratPlaceTarget.None)
+        if (PlaceTarget == StratPlaceTarget.None || ActiveStep is not { } step || ToolbarField(step) is not { } field || !BeginSetPlace(field))
         {
             return false;
         }
 
-        string? slot = target == StratPlaceTarget.To && StratStepLines.HasLines(step) ? SelectedLineSlot : null;
-        _armed = new ArmedPlace(document.Id, step.Id, target, document.Map, _activeIndex + 1,
-            string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {(slot is null ? "" : slot + " ")}{TargetLabel(target, step)}; Esc cancels"),
-            slot);
+        _armed!.FromToolbar = true;
+        return true;
+    }
+
+    /// <summary>
+    ///     Starts Set On Map for one location field: its step (and line) becomes the selection, then the next map click
+    ///     writes that field. False when the step is not editable on the path played or the field does not apply.
+    /// </summary>
+    /// <param name="field">The field the click writes.</param>
+    public bool BeginSetPlace(StratLocationField field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (_session.Document is not { } document || IsReadOnly)
+        {
+            return false;
+        }
+
+        CancelSetPlace();
+        if (field.Slot is not null)
+        {
+            SelectLine(field.Slot);
+        }
+
+        // Only a step that is not already active is selected: the toolbar's pick leaves the playhead inside its window.
+        if ((ActiveStep?.Id != field.StepId && !SelectStep(field.StepId)) || EditableActiveStep() is null || ActiveStep is not { } step || step.Id != field.StepId
+            || !StratLocationPatches.Applies(step, field))
+        {
+            return false;
+        }
+
+        _armed = new ArmedPlace(document.Id, field, document.Map, _activeIndex + 1,
+            string.Create(CultureInfo.InvariantCulture, $"click the map for step {_activeIndex + 1}'s {FieldLabel(field, step)}; Esc cancels"));
         _ = PlacesFor(document.Map, true);
         StatusLine = _armed.Prompt;
         RaiseSetPlace();
         return true;
     }
+
+    // What the toolbar toggle sets on a step: its to (the selected line's on a step with lines), or its landing.
+    private StratLocationField? ToolbarField(StratStep step) => PlaceTargetFor(step) switch
+    {
+        StratPlaceTarget.To => new StratLocationField(step.Id, StratStepLines.HasLines(step) ? LineSlotOn(step, _selectedSlot) : null,
+            StratLocationKind.To),
+        StratPlaceTarget.Landing => new StratLocationField(step.Id, null, StratLocationKind.Landing),
+        _ => null
+    };
+
+    private bool IsToolbarField(StratLocationField field, StratStep step) => ToolbarField(step) == field;
 
     /// <summary>Stops Set On Map without writing. False when it was not on.</summary>
     public bool CancelSetPlace()
@@ -1027,7 +1070,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             ? "a step's time runs backwards: it plays at the step before it until the table is fixed"
             : "";
         UpdateActiveStep();
-        if (_armed is { } armed && (ActiveStep?.Id != armed.StepId || PlaceTarget != armed.Target))
+        if (_armed is { } armed && (ActiveStep is not { } armedStep || armedStep.Id != armed.StepId
+                                    || (armed.FromToolbar ? ToolbarField(armedStep) != armed.Field : !StratLocationPatches.Applies(armedStep, armed.Field))))
         {
             _armed = null;
         }
@@ -1454,50 +1498,40 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         IZonePlaceResolver? zones = places.IsCompletedSuccessfully ? places.Result : null;
         string? place = zones?.ResolveOnFloor(x, y, levelMinZ);
         StratStep step = document.Steps[index];
-        string label = TargetLabel(armed.Target, step);
-        string number = armed.Number.ToString(CultureInfo.InvariantCulture);
-
-        if (armed.Target == StratPlaceTarget.To)
-        {
-            if (place is null)
-            {
-                StatusLine = zones is null ? "no places for this map: nothing set" : "no place there: nothing set";
-                return;
-            }
-
-            IReadOnlyList<PatchOp> ops = armed.Slot is { } slot
-                ? StratLinePatches.EditLine(step, string.Create(CultureInfo.InvariantCulture, $"/steps/{index}"), slot, line =>
-                {
-                    line.To ??= new PlaceRef();
-                    line.To.Place = place;
-                })
-                : StepAuthoringPatches.ToPlace(document, index, place);
-            Apply(ops);
-            string who = armed.Slot is null ? "" : armed.Slot + "'s ";
-            StatusLine = ops.Count == 0
-                ? $"step {number}: {who}{label} is already {Display(place)}"
-                : $"step {number}: {who}{label} is now {Display(place)}";
-            return;
-        }
-
-        if (step.Utility is null)
+        if (!StratLocationPatches.Applies(step, armed.Field))
         {
             StatusLine = "";
             return;
         }
 
-        // Without zones there is no answer about the place, so the stored one stays; with zones, a miss drops it.
-        string? landingPlace = zones is null ? step.Utility.Landing?.Place : place;
-        Apply(StepAuthoringPatches.Landing(document, index, landingPlace, x, y, levelMinZ));
+        string label = FieldLabel(armed.Field, step);
+        string number = armed.Number.ToString(CultureInfo.InvariantCulture);
+
+        // A miss stores the point alone; without zones there is no answer about the place, so a stored one stays.
+        List<PatchOp> ops = StratLocationPatches.Pick(document, index, armed.Field, place, x, y, levelMinZ, zones is not null);
+        Apply(ops);
+        string shown = place is not null ? Display(place) : StratLocations.PointText(x, y);
         StatusLine = zones is null
-            ? $"no places for this map: step {number}'s landing point is set, its place kept"
-            : place is null
-                ? $"no place there: step {number}'s landing is the point only"
-                : $"step {number} lands at {Display(place)}";
+            ? $"no places for this map: step {number}'s {label} is the point {StratLocations.PointText(x, y)}, its place kept"
+            : ops.Count == 0
+                ? $"step {number}: {label} is already {shown}"
+                : place is null
+                    ? $"no place there: step {number}'s {label} is the point {shown}"
+                    : $"step {number}: {label} is now {shown}";
     }
 
-    private static string TargetLabel(StratPlaceTarget target, StratStep step) =>
-        target == StratPlaceTarget.Landing ? "landing" : "“" + StratStepFields.ToLabel(step.Verb) + "”";
+    // The field as the row names it: "“to”", "C's “at”", "landing", "“from”", "B's watching".
+    private static string FieldLabel(StratLocationField field, StratStep step)
+    {
+        string who = field.Slot is { } slot && (field.Kind == StratLocationKind.Watch || StratStepLines.HasLines(step)) ? slot + "'s " : "";
+        return who + field.Kind switch
+        {
+            StratLocationKind.From => "“from”",
+            StratLocationKind.Landing => "landing",
+            StratLocationKind.Watch => "watching",
+            _ => "“" + StratStepFields.ToLabel(step.Verb) + "”"
+        };
+    }
 
     private string Display(string place) => _callouts is { } callouts && callouts.IsCanonical(place) ? callouts.Display(place) : place;
 
@@ -1602,6 +1636,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         OnPropertyChanged(nameof(PlaceTarget));
         OnPropertyChanged(nameof(CanSetPlace));
         OnPropertyChanged(nameof(IsSettingPlace));
+        OnPropertyChanged(nameof(ArmedField));
         OnPropertyChanged(nameof(SetPlaceText));
         OnPropertyChanged(nameof(SetPlaceToolTip));
         OnPropertyChanged(nameof(IsToolActive));
@@ -1663,18 +1698,18 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         App.Services?.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? [];
 
     // Set On Map waiting for its click. Pending once the click is in and the place lookup has not answered.
-    private sealed class ArmedPlace(Guid stratId, Guid stepId, StratPlaceTarget target, string map, int number, string prompt, string? slot)
+    private sealed class ArmedPlace(Guid stratId, StratLocationField field, string map, int number, string prompt)
     {
         public string Prompt { get; } = prompt;
-
-        // The line whose place is set; null for the step's own to.
-        public string? Slot { get; } = slot;
+        public StratLocationField Field { get; } = field;
         public Guid StratId { get; } = stratId;
-        public Guid StepId { get; } = stepId;
-        public StratPlaceTarget Target { get; } = target;
+        public Guid StepId => Field.StepId;
         public string Map { get; } = map;
         public int Number { get; } = number;
         public bool Pending { get; set; }
+
+        // Armed by the toolbar toggle: it ends when the toolbar would pick another field, as the toggle always did.
+        public bool FromToolbar { get; set; }
     }
 
     // A drag's working state. A class, not a struct: MoveTo updates it in place across forty samples.

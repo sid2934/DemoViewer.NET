@@ -48,8 +48,8 @@ public static class StratStepPhrasing
             sentence.Append(' ').Append(kind);
         }
 
-        string? from = step.From?.Place is { } f ? StratDiffPhrasing.Place(f, callouts) : null;
-        string? to = !lines && step.To?.Place is { } t ? StratDiffPhrasing.Place(t, callouts) : null;
+        string? from = StratLocations.Text(step.From, callouts);
+        string? to = lines ? null : StratLocations.Text(step.To, callouts);
         if (from is not null || to is not null)
         {
             // With lines the places are the lines'; a bare place here would read as the destination.
@@ -69,10 +69,10 @@ public static class StratStepPhrasing
             }
         }
 
-        string? landing = step.Utility?.Landing?.Place;
-        if (landing is not null && (lines || !string.Equals(landing, step.To?.Place, StringComparison.Ordinal)))
+        // A point prints in its own parentheses already.
+        if (StratLocations.Text(step.Utility?.Landing, callouts) is { } landing && (lines || !string.Equals(landing, to, StringComparison.Ordinal)))
         {
-            sentence.Append(" (").Append(StratDiffPhrasing.Place(landing, callouts)).Append(')');
+            sentence.Append(string.IsNullOrEmpty(step.Utility!.Landing!.Place) ? " " + landing : " (" + landing + ")");
         }
 
         if (step.Utility?.LineupId is { } lineupId)
@@ -94,9 +94,9 @@ public static class StratStepPhrasing
     {
         ArgumentNullException.ThrowIfNull(line);
         StringBuilder text = new(line.Slot);
-        if (line.To?.Place is { Length: > 0 } to)
+        if (StratLocations.Text(line.To, callouts) is { } to)
         {
-            text.Append(StratStepFields.ToLabel(verb) == "to" ? " → " : " at ").Append(StratDiffPhrasing.Place(to, callouts));
+            text.Append(StratStepFields.ToLabel(verb) == "to" ? " → " : " at ").Append(to);
         }
 
         if (Watching(line, callouts) is { } watching)
@@ -112,8 +112,8 @@ public static class StratStepPhrasing
     /// <param name="callouts">Place names; null for canonical ones.</param>
     public static string? Watching(StepAssignment? line, CalloutResolver? callouts)
     {
-        IReadOnlyList<string> places = StratStepLines.Watching(line);
-        return places.Count == 0 ? null : "watching " + string.Join(", ", places.Select(p => StratDiffPhrasing.Place(p, callouts)));
+        IReadOnlyList<PlaceRef> watched = StratLocations.Watched(line?.Watch);
+        return watched.Count == 0 ? null : "watching " + string.Join(", ", watched.Select(p => StratLocations.Text(p, callouts)));
     }
 
     /// <summary>

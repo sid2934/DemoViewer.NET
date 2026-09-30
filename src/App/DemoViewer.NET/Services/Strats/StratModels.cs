@@ -395,14 +395,29 @@ public sealed class StepWatch
     /// <summary>World yaw, 0 = +X; overrides facing the first place.</summary>
     public double? YawDegrees { get; set; }
 
+    /// <summary>
+    ///     Watched map points outside every place, after the places in reading order. Null, never empty, when there
+    ///     are none: a sibling of <see cref="Places" /> so an older build keeps it in its extension data.
+    /// </summary>
+    public List<PlaceRef>? Points { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
-/// <summary>A canonical nav place name. Steps store places, never callouts.</summary>
+/// <summary>
+///     A location: a canonical nav place name, the world point picked on the map, or both. Steps store places,
+///     never callouts. The point's level key follows <see cref="StepPosition.LevelMinZ" />.
+/// </summary>
 public sealed class PlaceRef
 {
     public string? Place { get; set; }
+
+    public double? X { get; set; }
+
+    public double? Y { get; set; }
+
+    public double? LevelMinZ { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
