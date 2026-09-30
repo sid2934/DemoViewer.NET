@@ -25,7 +25,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 /// <param name="Radars">The bundle's decoded radar layers.</param>
 /// <param name="MapBounds">The bundle's world rectangle, so the camera frames the map on frame 0.</param>
 /// <param name="SectionHeights">The map's floor boundaries, or null for a single-level map.</param>
-/// <param name="Utility">Landings from steps that carry a landing point, in any order.</param>
+/// <param name="Utility">The path's throws, in any order.</param>
 /// <param name="RoundSeconds">The strat's round length; the HUD clock counts down from it.</param>
 /// <param name="StartTick">First strat tick rendered.</param>
 /// <param name="EndTick">Last strat tick the range covers, inclusive.</param>
@@ -53,10 +53,30 @@ public sealed record StratSceneSpec(
 /// <param name="Team">2 for T, 3 for CT, as <see cref="PlayerMarker.Team" /> carries it.</param>
 public readonly record struct TokenLabel(string Slot, string? Label, int Team);
 
-/// <summary>A grenade landing on the strat frame clock, from a step's <c>utility.landing</c>.</summary>
-/// <param name="Tick">The step's tick: the moment it lands.</param>
-/// <param name="Kind">The grenade. Only a smoke and a molotov leave anything on the floor.</param>
+/// <summary>A grenade going off on the strat frame clock, and the flight that brought it there.</summary>
+/// <param name="Tick">The moment it goes off: its effect starts here.</param>
+/// <param name="Kind">The grenade.</param>
 /// <param name="X">World X of the landing.</param>
 /// <param name="Y">World Y of the landing.</param>
 /// <param name="Z">World Z the effect is drawn at, which picks its floor pane.</param>
-public readonly record struct UtilityCue(int Tick, GrenadeKind Kind, float X, float Y, float Z);
+public readonly record struct UtilityCue(int Tick, GrenadeKind Kind, float X, float Y, float Z)
+{
+    /// <summary>The thrower's side, 2 = T and 3 = CT, which colours the flight; 0 colours it by kind.</summary>
+    public int Team { get; init; }
+
+    /// <summary>
+    ///     The flight from release to rest, ticks ascending, at least two points; null draws no projectile.
+    ///     Its last tick is at or before <see cref="Tick" />.
+    /// </summary>
+    public IReadOnlyList<FlightPoint>? Flight { get; init; }
+
+    /// <summary>The release tick: the flight's first, else <see cref="Tick" />.</summary>
+    public int ThrowTick => Flight is { Count: > 0 } flight ? flight[0].Tick : Tick;
+}
+
+/// <summary>One point of a strat grenade's flight.</summary>
+/// <param name="Tick">Strat tick the projectile is here.</param>
+/// <param name="X">World X.</param>
+/// <param name="Y">World Y.</param>
+/// <param name="Z">World Z, which picks the floor pane.</param>
+public readonly record struct FlightPoint(int Tick, float X, float Y, float Z);
