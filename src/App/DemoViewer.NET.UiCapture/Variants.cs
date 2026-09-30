@@ -241,6 +241,7 @@ public static partial class Variants
             ["strat-editor-location-list"] = StratEditorLocationList,
             ["strat-editor-execute-motion"] = () => StratEditorExecuteMotion(),
             ["strat-editor-execute-arrived"] = () => StratEditorExecuteMotion(41),
+            ["strat-editor-execute-throws"] = StratEditorExecuteThrows,
             ["strat-lineup-picker"] = StratLineupPicker
         };
 

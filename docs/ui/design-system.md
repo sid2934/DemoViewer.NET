@@ -685,6 +685,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   lineup refusal kept; it writes the selected step, taken before the drag seeks, so a step on a shared tick is
   written, not the one after it. The entry it writes is authored (no `carried` mark), so it beats the step's
   destination.
+- **Utility in flight:** the strat canvas and the Detected preview turn trails on
+  (`StratCanvasViewModel.ShowTrails`), and an export names the trail layer (`StratExportJob.LayerIds`). A throw draws as a demo grenade does, through `TrailLayer` and
+  `AreaEffectLayer`: the flight line and head dot in the thrower's side colour (`TeamT` / `TeamCt`), fading 2 s
+  after it stops; then a smoke disc that blooms over 1 s, the fire cells, or a pop. A flash pops in `TrailFlash`,
+  an HE bursts in `TrailHe`, both growing and fading over about half a second; a decoy is a `TrailDecoy` ring of at
+  least 5 px. No new colour tokens. docs/strat-format.md, "Utility on the canvas", has the timings.
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,

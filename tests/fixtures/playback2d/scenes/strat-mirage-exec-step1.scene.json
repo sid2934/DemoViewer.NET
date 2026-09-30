@@ -78,15 +78,7 @@
         "steamId": 0
       }
     ],
-    "areaEffects": [
-      {
-        "kind": "Smoke",
-        "worldX": -1024.5,
-        "worldY": -1616,
-        "worldZ": -224,
-        "worldRadius": 144
-      }
-    ],
+    "areaEffects": [],
     "trails": [],
     "killFeed": [],
     "gameInfo": {
@@ -140,5 +132,5 @@
     "followSlot": -1
   },
   "sourceDemoId": "schema-v1.sample.dvstrat.json, extended (step-authoring.md \u00A77)",
-  "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, \u0027Current limitations\u0027), so only StratGoldenCaptureTests can verify it. The smoke step\u0027s tick: A, B and the opponent O1 at their first keyframes, the molotov\u0027s arrow not yet visible (it starts at Molly), the smoke step\u0027s own arrow at full opacity (right at its window\u0027s FromTick, so no fade-in remains), hud.clock at 1:30. step-authoring.md \u00A77 describes this tick as reading 1:55; that number predates the schema sample\u0027s atSeconds values, and the sample (schema-v1.sample.dvstrat.json) is what this entry actually projects, so the code\u0027s 1:30 is what is pinned here."
+  "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, \u0027Current limitations\u0027), so only StratGoldenCaptureTests can verify it. The smoke step\u0027s tick: A, B and the opponent O1 at their first keyframes, the molotov\u0027s arrow not yet visible (it starts at Molly), the smoke just released from its thrower and not yet drawn (a flight is one point at its release tick), the smoke step\u0027s own arrow at full opacity (right at its window\u0027s FromTick, so no fade-in remains), hud.clock at 1:30. step-authoring.md \u00A77 describes this tick as reading 1:55; that number predates the schema sample\u0027s atSeconds values, and the sample (schema-v1.sample.dvstrat.json) is what this entry actually projects, so the code\u0027s 1:30 is what is pinned here."
 }
