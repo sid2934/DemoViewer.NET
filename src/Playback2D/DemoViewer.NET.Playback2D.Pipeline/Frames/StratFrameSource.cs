@@ -10,7 +10,7 @@ using DemoViewer.NET.Playback2D.Core.Keyframes;
 namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 /// <summary>
-///     A strat as a frame source: tokens sampled off their tracks, smokes and fires from the utility
+///     A strat as a frame source: tokens sampled off their tracks, each throw's flight and effect from the utility
 ///     landings, and a round clock, all on the strat frame clock at <see cref="StepSchedule.TicksPerSecond" />
 ///     (step-authoring.md §3.6). The export session, the goldens and a later <c>dv2d strat</c> drive it
 ///     exactly as they drive a demo.
@@ -34,9 +34,32 @@ public sealed class StratFrameSource : ISceneFrameSource
     /// <summary>How long a molotov burns: the nominal CS2 duration.</summary>
     public const double FireSeconds = 7;
 
+    /// <summary>How long a decoy's marker stays: the nominal CS2 duration.</summary>
+    public const double DecoySeconds = 15;
+
+    /// <summary>How long a flashbang's pop shows.</summary>
+    public const double FlashSeconds = 0.5;
+
+    /// <summary>How long an HE's burst shows.</summary>
+    public const double HeSeconds = 0.6;
+
+    /// <summary>How long a smoke takes to bloom to its full radius.</summary>
+    public const double SmokeBloomSeconds = 1;
+
+    /// <summary>A flight line fades over this long after the projectile stops: <c>SceneFrameBuilder</c>'s.</summary>
+    public const double TrailFadeSeconds = 2;
+
     // SceneFrameBuilder's own sizes, so a strat smoke reads the same as a demo one.
     private const float SmokeRadiusWorld = 144;
     private const float FireCellRadiusWorld = 28;
+
+    private const float SmokeBloomFrom = 0.35f;
+    private const float FlashRadiusFrom = 48;
+    private const float FlashRadiusTo = 220;
+    private const float HeRadiusFrom = 40;
+    private const float HeRadiusTo = 180;
+    private const float DecoyRadiusWorld = 20;
+    private const int TrailFadeTicks = (int)(TrailFadeSeconds * StepSchedule.TicksPerSecond);
 
     // A molotov has no networked cells here, so it spreads as a fixed ring round the landing: the centre
     // plus six at this distance, close enough that the discs overlap into one patch.
@@ -168,6 +191,8 @@ public sealed class StratFrameSource : ISceneFrameSource
 
         slot.AreaEffects.Clear();
         AddAreaEffects(tick, slot.AreaEffects);
+        slot.Trails.Clear();
+        AddTrails(tick, slot);
 
         double remaining = RoundSecondsAt(_spec.RoundSeconds, tick);
         Scene2DFrame frame = slot.Frame;
@@ -190,30 +215,50 @@ public sealed class StratFrameSource : ISceneFrameSource
     public static double RoundSecondsAt(int roundSeconds, int tick) =>
         roundSeconds - tick / (double)StepSchedule.TicksPerSecond;
 
+    /// <summary>How many ticks a kind's effect shows from the moment it goes off.</summary>
+    /// <param name="kind">The grenade.</param>
+    public static int EffectTicks(GrenadeKind kind) => (int)(StepSchedule.TicksPerSecond * kind switch
+    {
+        GrenadeKind.Smoke => SmokeSeconds,
+        GrenadeKind.Molotov => FireSeconds,
+        GrenadeKind.Decoy => DecoySeconds,
+        GrenadeKind.Flash => FlashSeconds,
+        _ => HeSeconds
+    });
+
+    /// <summary>The first tick a cue draws nothing: past its effect and its faded flight line.</summary>
+    /// <param name="cue">A throw.</param>
+    public static int EndTickOf(UtilityCue cue) =>
+        Math.Max(cue.Tick + EffectTicks(cue.Kind), cue.Flight is { Count: > 0 } flight ? flight[^1].Tick + TrailFadeTicks : 0);
+
     private void AddAreaEffects(int tick, List<AreaEffect> into)
     {
-        const int smokeTicks = (int)(SmokeSeconds * StepSchedule.TicksPerSecond);
-        const int fireTicks = (int)(FireSeconds * StepSchedule.TicksPerSecond);
-
         foreach (UtilityCue cue in _spec.Utility)
         {
-            // A flash or an HE is over in an instant and leaves nothing on the floor to draw.
-            int lasts = cue.Kind switch
-            {
-                GrenadeKind.Smoke => smokeTicks,
-                GrenadeKind.Molotov => fireTicks,
-                _ => 0
-            };
-
+            int lasts = EffectTicks(cue.Kind);
             if (tick < cue.Tick || tick >= cue.Tick + lasts)
             {
                 continue;
             }
 
-            if (cue.Kind == GrenadeKind.Smoke)
+            float t = (tick - cue.Tick) / (float)lasts;
+            float seconds = (tick - cue.Tick) / (float)StepSchedule.TicksPerSecond;
+            switch (cue.Kind)
             {
-                into.Add(new AreaEffect(AreaEffectKind.Smoke, cue.X, cue.Y, cue.Z, SmokeRadiusWorld));
-                continue;
+                case GrenadeKind.Smoke:
+                    into.Add(new AreaEffect(AreaEffectKind.Smoke, cue.X, cue.Y, cue.Z, SmokeRadiusWorld * Bloom(seconds)));
+                    continue;
+                case GrenadeKind.Flash:
+                    into.Add(new AreaEffect(AreaEffectKind.Flash, cue.X, cue.Y, cue.Z,
+                        FlashRadiusFrom + (FlashRadiusTo - FlashRadiusFrom) * EaseOut(t), 1 - t));
+                    continue;
+                case GrenadeKind.He:
+                    into.Add(new AreaEffect(AreaEffectKind.Explosion, cue.X, cue.Y, cue.Z,
+                        HeRadiusFrom + (HeRadiusTo - HeRadiusFrom) * EaseOut(t), 1 - t));
+                    continue;
+                case GrenadeKind.Decoy:
+                    into.Add(new AreaEffect(AreaEffectKind.Decoy, cue.X, cue.Y, cue.Z, DecoyRadiusWorld));
+                    continue;
             }
 
             into.Add(new AreaEffect(AreaEffectKind.Fire, cue.X, cue.Y, cue.Z, FireCellRadiusWorld));
@@ -224,6 +269,66 @@ public sealed class StratFrameSource : ISceneFrameSource
                     cue.X + (float)(FireSpreadWorld * Math.Cos(angle)),
                     cue.Y + (float)(FireSpreadWorld * Math.Sin(angle)),
                     cue.Z, FireCellRadiusWorld));
+            }
+        }
+    }
+
+    // Starts at SmokeBloomFrom of the radius and eases out to the full cloud.
+    private static float Bloom(float seconds) =>
+        seconds >= SmokeBloomSeconds
+            ? 1f
+            : SmokeBloomFrom + (1 - SmokeBloomFrom) * EaseOut(seconds / (float)SmokeBloomSeconds);
+
+    private static float EaseOut(float t) => 1 - (1 - t) * (1 - t);
+
+    // Each cue owns one pooled trail per frame slot, refilled from its flight up to the tick.
+    private void AddTrails(int tick, FrameSlot slot)
+    {
+        IReadOnlyList<UtilityCue> cues = _spec.Utility;
+        for (int i = 0; i < cues.Count; i++)
+        {
+            UtilityCue cue = cues[i];
+            if (cue.Flight is not { Count: >= 2 } flight || tick < flight[0].Tick)
+            {
+                continue;
+            }
+
+            int landed = flight[^1].Tick;
+            if (tick >= landed + TrailFadeTicks)
+            {
+                continue;
+            }
+
+            GrenadeTrail trail = slot.TrailFor(i, cue.Kind);
+            trail.Team = cue.Team;
+            trail.Points.Clear();
+            trail.Points.Add(new GrenadeTrailPoint(flight[0].X, flight[0].Y, flight[0].Z));
+            for (int k = 1; k < flight.Count; k++)
+            {
+                FlightPoint to = flight[k];
+                if (to.Tick <= tick)
+                {
+                    trail.Points.Add(new GrenadeTrailPoint(to.X, to.Y, to.Z));
+                    continue;
+                }
+
+                FlightPoint from = flight[k - 1];
+                if (tick == from.Tick)
+                {
+                    break;
+                }
+
+                float f = (tick - from.Tick) / (float)(to.Tick - from.Tick);
+                trail.Points.Add(new GrenadeTrailPoint(from.X + (to.X - from.X) * f, from.Y + (to.Y - from.Y) * f,
+                    from.Z + (to.Z - from.Z) * f));
+                break;
+            }
+
+            trail.LastTick = Math.Min(tick, landed);
+            trail.Alpha = tick <= landed ? 1.0 : 1.0 - (tick - landed) / (double)TrailFadeTicks;
+            if (trail.Points.Count >= 2)
+            {
+                slot.Trails.Add(trail);
             }
         }
     }
@@ -242,19 +347,34 @@ public sealed class StratFrameSource : ISceneFrameSource
         return _clockCacheText;
     }
 
-    // One published frame and the pooled lists wired into it, the SceneFrameBuilder shape. Trails and the
-    // kill feed stay the frame's empty defaults: a strat has neither.
+    // One published frame and the pooled lists wired into it, the SceneFrameBuilder shape. The kill feed
+    // stays the frame's empty default: a strat has none.
     private sealed class FrameSlot
     {
+        private readonly Dictionary<int, GrenadeTrail> _trailPool = [];
+
         public FrameSlot() =>
             Frame = new Scene2DFrame
             {
                 Markers = Markers,
-                AreaEffects = AreaEffects
+                AreaEffects = AreaEffects,
+                Trails = Trails
             };
 
         public Scene2DFrame Frame { get; }
         public List<PlayerMarker> Markers { get; } = new(TokenSlots.All.Count);
         public List<AreaEffect> AreaEffects { get; } = new(16);
+        public List<GrenadeTrail> Trails { get; } = new(8);
+
+        public GrenadeTrail TrailFor(int cue, GrenadeKind kind)
+        {
+            if (!_trailPool.TryGetValue(cue, out GrenadeTrail? trail))
+            {
+                trail = new GrenadeTrail { Kind = kind };
+                _trailPool[cue] = trail;
+            }
+
+            return trail;
+        }
     }
 }

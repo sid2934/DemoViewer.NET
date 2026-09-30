@@ -127,10 +127,90 @@ public class StratFrameSourceTests
         AreaEffect smoke = source.FrameAt(SmokeTick).AreaEffects.Single(e => e.Kind == AreaEffectKind.Smoke);
         await Assert.That(smoke.WorldX).IsEqualTo(-300f);
         await Assert.That(smoke.WorldY).IsEqualTo(200f);
+        await Assert.That(smoke.WorldRadius).IsLessThan(144f).Because("it blooms over the first second");
+        await Assert.That(source.FrameAt(SmokeTick + 32).AreaEffects.Single().WorldRadius).IsGreaterThan(smoke.WorldRadius);
+        await Assert.That(source.FrameAt(SmokeTick + 64).AreaEffects.Single().WorldRadius).IsEqualTo(144f);
     }
 
     [Test]
-    public async Task Molotov_BurnsFor7Seconds_AndAFlashDrawsNothing()
+    public async Task AFlight_DrawsItsHeadBetweenItsEnds_InTheThrowersColour_ThenFades()
+    {
+        StratFrameSource source = new(Spec(0, SmokeTick + 18 * 64, 64, 1.0));
+
+        // A frame is valid until the call after next, so each is read before the next is built.
+        int before = source.FrameAt(SmokeTick - 129).Trails.Count;
+        int atRelease = source.FrameAt(SmokeTick - 128).Trails.Count;
+        GrenadeTrail flying = source.FrameAt(SmokeTick - 64).Trails.Single();
+        (GrenadeTrailPoint tail, GrenadeTrailPoint head, double alpha, int team, GrenadeKind kind) =
+            (flying.Points[0], flying.Points[^1], flying.Alpha, flying.Team, flying.Kind);
+        GrenadeTrail landed = source.FrameAt(SmokeTick + 64).Trails.Single();
+        (GrenadeTrailPoint rest, double faded) = (landed.Points[^1], landed.Alpha);
+        using (Assert.Multiple())
+        {
+            await Assert.That(before).IsEqualTo(0);
+            await Assert.That(atRelease).IsEqualTo(0).Because("one point is not a line yet");
+            await Assert.That(tail).IsEqualTo(new GrenadeTrailPoint(0, -800, 0));
+            await Assert.That(head).IsEqualTo(new GrenadeTrailPoint(-150, -300, 0));
+            await Assert.That(alpha).IsEqualTo(1.0);
+            await Assert.That(team).IsEqualTo(2);
+            await Assert.That(kind).IsEqualTo(GrenadeKind.Smoke);
+            await Assert.That(rest).IsEqualTo(new GrenadeTrailPoint(-300, 200, 0));
+            await Assert.That(faded).IsEqualTo(0.5);
+            await Assert.That(source.FrameAt(SmokeTick + 128).Trails.Count).IsEqualTo(0);
+        }
+    }
+
+    [Test]
+    [Arguments(GrenadeKind.Flash, AreaEffectKind.Flash, 32)]
+    [Arguments(GrenadeKind.He, AreaEffectKind.Explosion, 38)]
+    [Arguments(GrenadeKind.Decoy, AreaEffectKind.Decoy, 960)]
+    [Arguments(GrenadeKind.Molotov, AreaEffectKind.Fire, 448)]
+    [Arguments(GrenadeKind.Smoke, AreaEffectKind.Smoke, 1152)]
+    public async Task EachKind_GoesOffAsItsEffect_ForItsDuration(GrenadeKind kind, AreaEffectKind effect, int ticks)
+    {
+        StratSceneSpec spec = Spec(0, 3000, 64, 1.0) with { Utility = [new UtilityCue(100, kind, 10, 20, 0)] };
+        StratFrameSource source = new(spec);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratFrameSource.EffectTicks(kind)).IsEqualTo(ticks);
+            await Assert.That(source.FrameAt(99).AreaEffects.Count).IsEqualTo(0);
+            await Assert.That(source.FrameAt(100).AreaEffects.Select(e => e.Kind).Distinct()).IsEquivalentTo([effect]);
+            await Assert.That(source.FrameAt(100 + ticks - 1).AreaEffects.Count).IsGreaterThan(0);
+            await Assert.That(source.FrameAt(100 + ticks).AreaEffects.Count).IsEqualTo(0);
+            await Assert.That(StratFrameSource.EndTickOf(spec.Utility[0])).IsEqualTo(100 + ticks);
+        }
+    }
+
+    [Test]
+    public async Task APop_FadesAsItGrows()
+    {
+        StratFrameSource source = new(Spec(0, 400, 64, 1.0));
+
+        AreaEffect first = source.FrameAt(100).AreaEffects.Single();
+        AreaEffect later = source.FrameAt(116).AreaEffects.Single();
+
+        await Assert.That(first.Kind).IsEqualTo(AreaEffectKind.Flash);
+        await Assert.That(later.WorldRadius).IsGreaterThan(first.WorldRadius);
+        await Assert.That(later.Alpha).IsLessThan(first.Alpha);
+    }
+
+    [Test]
+    public async Task Scrubbing_BackAndForth_DrawsTheSameFrames()
+    {
+        StratFrameSource source = new(Spec(0, 1600, 64, 1.0));
+        int[] ticks = [250, SmokeTick - 30, SmokeTick + 40, 100, 900, SmokeTick - 30, 250, SmokeTick + 40];
+
+        string[] seen = [.. ticks.Select(t => Describe(source.FrameAt(t)))];
+
+        await Assert.That(seen[5]).IsEqualTo(seen[1]);
+        await Assert.That(seen[6]).IsEqualTo(seen[0]);
+        await Assert.That(seen[7]).IsEqualTo(seen[2]);
+        await Assert.That(seen[1]).Contains("Smoke:2:1:");
+    }
+
+    [Test]
+    public async Task Molotov_BurnsFor7Seconds_AndAFlashIsGoneAfterItsPop()
     {
         StratFrameSource source = new(Spec(0, MolotovTick + 7 * 64 + 10, 64, 1.0));
 
@@ -139,8 +219,9 @@ public class StratFrameSourceTests
         await Assert.That(Fires(source.FrameAt(MolotovTick + 7 * 64 - 1))).IsGreaterThan(0);
         await Assert.That(Fires(source.FrameAt(MolotovTick + 7 * 64))).IsEqualTo(0);
 
-        // The flash cue sits at tick 100 with no smoke or fire up yet.
-        await Assert.That(source.FrameAt(100).AreaEffects.Count).IsEqualTo(0);
+        // The flash cue sits at tick 100 and pops for half a second.
+        await Assert.That(source.FrameAt(100).AreaEffects.Single().Kind).IsEqualTo(AreaEffectKind.Flash);
+        await Assert.That(source.FrameAt(132).AreaEffects.Count).IsEqualTo(0);
     }
 
     [Test]
@@ -283,7 +364,11 @@ public class StratFrameSourceTests
             "de_mirage", [], Bounds, null,
             [
                 new UtilityCue(100, GrenadeKind.Flash, 0, 0, 0),
-                new UtilityCue(SmokeTick, GrenadeKind.Smoke, -300, 200, 0),
+                new UtilityCue(SmokeTick, GrenadeKind.Smoke, -300, 200, 0)
+                {
+                    Team = 2,
+                    Flight = [new FlightPoint(SmokeTick - 128, 0, -800, 0), new FlightPoint(SmokeTick, -300, 200, 0)]
+                },
                 new UtilityCue(MolotovTick, GrenadeKind.Molotov, 400, -100, 0)
             ],
             RoundSeconds, start, end, fps, speed);
@@ -297,6 +382,7 @@ public class StratFrameSourceTests
     // sources at different rates number their frames differently.
     private static string Describe(Scene2DFrame frame) =>
         string.Join(";", frame.Markers.Select(m => $"{m.Slot}:{m.WorldX}:{m.WorldY}:{m.WorldZ}:{m.YawDegrees}:{m.Label}")) +
-        "|" + string.Join(";", frame.AreaEffects.Select(e => $"{e.Kind}:{e.WorldX}:{e.WorldY}")) +
+        "|" + string.Join(";", frame.AreaEffects.Select(e => $"{e.Kind}:{e.WorldX}:{e.WorldY}:{e.WorldRadius}:{e.Alpha}")) +
+        "|" + string.Join(";", frame.Trails.Select(t => $"{t.Kind}:{t.Team}:{t.Alpha}:" + string.Join(",", t.Points))) +
         "|" + frame.GameInfo.RoundTime + "|" + frame.GameInfo.RoundSeconds;
 }

@@ -1230,7 +1230,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         {
             context.DrawEllipse(SmokeFill, SmokePen, center, r, r);
         }
-        else
+        else if (fx.Kind == AreaEffectKind.Fire)
         {
             context.DrawEllipse(FireFill, null, center, r, r);
         }
