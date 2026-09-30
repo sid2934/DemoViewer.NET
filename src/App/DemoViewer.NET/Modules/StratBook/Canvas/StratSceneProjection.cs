@@ -601,6 +601,9 @@ public sealed class StratSceneProjection
                 continue;
             }
 
+            // A new destination cuts a run that has not arrived: the token turns from where it is now.
+            bool cut = entries.RemoveAll(x => x.Arrival && x.Step.Tick > e.Tick) > 0;
+
             double dx = target.X - at.X, dy = target.Y - at.Y;
             float? heading = standing && dx * dx + dy * dy >= MinFacingDistance * MinFacingDistance
                 ? (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2)
@@ -614,6 +617,12 @@ public sealed class StratSceneProjection
 
             if (heading is not { } yaw2)
             {
+                // Already there: a cut run stops where the token is.
+                if (cut)
+                {
+                    Insert(entries, e.Tick, Placement(at));
+                }
+
                 continue;
             }
 
@@ -644,7 +653,7 @@ public sealed class StratSceneProjection
         entries.RemoveAll(x => x.Placement is null && x.Step.Tick > tick && x.Step.Tick < until);
         if (!blocked)
         {
-            Insert(entries, arrive, target with { YawDegrees = yaw });
+            Insert(entries, arrive, target with { YawDegrees = yaw }, true);
         }
     }
 
@@ -731,16 +740,17 @@ public sealed class StratSceneProjection
     }
 
     // After every entry at the tick, so it wins the tick as the later step does.
-    private static void Insert(List<TrackEntry> entries, int tick, TokenPlacement placement)
+    private static void Insert(List<TrackEntry> entries, int tick, TokenPlacement placement, bool arrival = false)
     {
         int at = entries.FindIndex(x => x.Step.Tick > tick);
-        entries.Insert(at < 0 ? entries.Count : at, new TrackEntry(new TokenStep(tick, 0, TokenInterpolation.Linear), placement));
+        entries.Insert(at < 0 ? entries.Count : at, new TrackEntry(new TokenStep(tick, 0, TokenInterpolation.Linear), placement, arrival));
     }
 
     private static TokenTrack Build(string slot, List<TrackEntry> entries) =>
         TokenTrackBuilder.Build(slot, [.. entries.Select(x => x.Step)], [.. entries.Select(x => x.Placement)]);
 
-    private readonly record struct TrackEntry(TokenStep Step, TokenPlacement? Placement);
+    // Arrival: the end of a run, which a later destination may cut.
+    private readonly record struct TrackEntry(TokenStep Step, TokenPlacement? Placement, bool Arrival = false);
 
     internal enum SlotEventKind
     {

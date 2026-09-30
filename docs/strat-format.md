@@ -368,7 +368,8 @@ token's facing as the projection shows it, from the canvas's Add step and the ed
 A step's destination moves its tokens. The canvas, the Detected preview and an export all sample the one projection
 (`StratSceneProjection`), so they agree.
 
-* **Who and where.** Every player the step names: a single actor, each line, or all five for `all`. The target is
+* **Who and where.** Every player the step names: a single actor, each line, or all five for `all`. `all` is the
+  strat's own five; the opponent tokens `O1`..`O5` never move for a destination or a rotate. The target is
   the location's point when it has one, else the place's arrival (`StratPlaceCentres.Arrival`: its centre on the
   token's floor when the place has areas there, else on the floor holding most of it, and the token arrives on that
   floor). A place the map lacks, or zones not loaded yet, moves nothing.
@@ -383,7 +384,8 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
 
   A run is at 215 units a second (`RotateUnitsPerSecond`), the lurk rotate's speed, and goes through the same code.
   A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
-  instead. A position verb with no time to walk, because the slot's last keyframe is at the same tick (a setup's
+  instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
+  that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A position verb with no time to walk, because the slot's last keyframe is at the same tick (a setup's
   first step on the round-start seed), runs instead, so the move still plays.
 * **Several tokens, one place.** When a step sends more than one of its players to the same place (or the same
   point), each stands on a ray fixed by its slot letter (A at 90 degrees, then every 72), at 64, 44 or 24 units from
