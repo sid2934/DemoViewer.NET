@@ -14,13 +14,15 @@ namespace DemoViewer.NET.Services.Strats;
 public sealed class StratPlaceCentres
 {
     private readonly Dictionary<string, Dictionary<double, (double X, double Y)>> _byFloor;
+    private readonly Dictionary<string, double> _mainFloor;
     private readonly Dictionary<string, (double X, double Y)> _overall;
 
     private StratPlaceCentres(Dictionary<string, Dictionary<double, (double X, double Y)>> byFloor,
-        Dictionary<string, (double X, double Y)> overall)
+        Dictionary<string, (double X, double Y)> overall, Dictionary<string, double> mainFloor)
     {
         _byFloor = byFloor;
         _overall = overall;
+        _mainFloor = mainFloor;
     }
 
     /// <summary>The centres of every place in <paramref name="zones" />.</summary>
@@ -44,6 +46,7 @@ public sealed class StratPlaceCentres
 
         Dictionary<string, Dictionary<double, (double X, double Y)>> byFloor = new(StringComparer.Ordinal);
         Dictionary<string, (double X, double Y)> overall = new(StringComparer.Ordinal);
+        Dictionary<string, (double Floor, double W)> largest = new(StringComparer.Ordinal);
         foreach (((int place, double floor), (double x, double y, double w)) in floorSums)
         {
             if (zones.PlaceName(place) is not { } name)
@@ -57,6 +60,10 @@ public sealed class StratPlaceCentres
             }
 
             floors[floor] = (x / w, y / w);
+            if (!largest.TryGetValue(name, out (double Floor, double W) best) || w > best.W || (w == best.W && floor < best.Floor))
+            {
+                largest[name] = (floor, w);
+            }
         }
 
         foreach ((int place, (double x, double y, double w)) in sums)
@@ -76,7 +83,7 @@ public sealed class StratPlaceCentres
             }
         }
 
-        return new StratPlaceCentres(byFloor, overall);
+        return new StratPlaceCentres(byFloor, overall, largest.ToDictionary(p => p.Key, p => p.Value.Floor, StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -99,6 +106,35 @@ public sealed class StratPlaceCentres
         }
 
         return _overall.TryGetValue(place, out (double X, double Y) centre) ? centre : null;
+    }
+
+    /// <summary>
+    ///     Where a token arrives at the place: its centre on <paramref name="floorKey" /> when it has areas there, else
+    ///     on the floor holding most of its area, with that floor's key; the overall centre and the given key for a
+    ///     place with no areas. Null for a place the map does not have.
+    /// </summary>
+    /// <param name="place">A canonical place name.</param>
+    /// <param name="floorKey">The token's level key, which is the zones' floor key.</param>
+    public (double X, double Y, double FloorKey)? Arrival(string place, double floorKey)
+    {
+        if (string.IsNullOrEmpty(place))
+        {
+            return null;
+        }
+
+        if (_byFloor.TryGetValue(place, out Dictionary<double, (double X, double Y)>? floors) && floors.Count > 0)
+        {
+            if (floors.TryGetValue(floorKey, out (double X, double Y) here))
+            {
+                return (here.X, here.Y, floorKey);
+            }
+
+            double main = _mainFloor[place];
+            (double X, double Y) there = floors[main];
+            return (there.X, there.Y, main);
+        }
+
+        return _overall.TryGetValue(place, out (double X, double Y) centre) ? (centre.X, centre.Y, floorKey) : null;
     }
 
     private static (double X, double Y, double W) Add((double X, double Y, double W) sum, ZoneArea area, double w) =>

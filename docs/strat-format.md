@@ -137,8 +137,10 @@ book: a display name is looked up at render time and a roster rename never touch
 ```
 
 * **`actor`** is a slot letter, or `all` for every slot at once. **`verb`** is one of the closed list
-  `move | hold | throw | plant | defuse | peek | fake | rotate | wait | call | other`; outside it the
-  validator **refuses** the document, because Role View and the call sheet phrase a line by verb.
+  `move | push | rotate | hold | peek | lurk | throw | fake | plant | defuse | wait | call | other`; outside
+  it the validator **refuses** the document, because Role View and the call sheet phrase a line by verb.
+  `push` (an aggressive advance onto a place) and `lurk` came later than the rest: a build older than them
+  refuses a strat that uses either.
 * **`from`**/**`to`** are **locations** (see "Locations" below): a canonical **place** (a nav place name,
   e.g. `TRamp`), never a team's callout word for one, and optionally the world point it was picked at;
   `""` (what the pawn reports before its place is first networked) is treated as unresolved, the same as
@@ -224,7 +226,7 @@ follows the rule for `positions[].levelMinZ`: the level's quantized lower Z, nev
 
 ```jsonc
 {
-  "atSeconds": 65.0, "actor": "all", "verb": "move", "from": { "place": "TRamp" },
+  "atSeconds": 65.0, "actor": "all", "verb": "push", "from": { "place": "TRamp" },
   "assignments": [
     { "slot": "B", "to": { "place": "PalaceInterior" }, "watch": { "places": ["BombsiteA", "CTSpawn"] } },
     { "slot": "C", "to": { "place": "Connector" }, "watch": { "places": ["Stairs"] } },
@@ -251,7 +253,11 @@ optional and is not written when absent, so a file without it loads and saves by
   unknown `points` lands in its extension data and round-trips. The cost is that a point always reads after
   the places; to face a point first, clear the places or drag the cone.
 * **A line's position** is the step's `positions[]` entry for that slot. Lines add no position of their own.
-* **`from`, `utility` and `note`** stay on the step and are shared by its lines.
+* **`from`, `utility`, `lurk` and `note`** stay on the step and are shared by its lines.
+* **Which verbs watch** is the editor's table (`StratStepFields`): push, hold, peek, fake and lurk do; move and
+  rotate do not, since a moving player watches their path and the facing that matters comes with the hold or
+  push that follows; throw, plant, defuse, wait and call do not. A file may still hold a watch on any verb and it
+  is read the same way. The editor's verb change clears a watch the new verb does not use, in the same entry.
 
 The rule that ties this to `actor` and `to`:
 
@@ -268,6 +274,11 @@ The rule that ties this to `actor` and `to`:
 
 Create Strat From Round and Strat Mining still write one actor per step; lines come from the step
 templates and the editor.
+
+**Several players doing one thing** needs no shape of its own. The editor's Who picks several players and writes a
+line for each (`StratLinePatches.SetWho`, one entry): a new player copies the place and watch the lines share, if
+they all agree, and all five bare lines to one place fold back to `all` as below. Lines that agree apart from
+their slot are what the editor shows as one "who" with one place and one watching; nothing in the file marks it.
 
 `StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). Every consumer
 goes through it except the Create Strat From Round preview, which only ever shows captured one-actor steps.
@@ -286,6 +297,52 @@ plain step, five bare lines to one place fold back into a step for everyone). Th
 
 With lines, the step-level "a move has no destination place" warning is not raised; each move line is
 checked instead. A lineup throw by a step whose lines name more than one slot warns as `all` does.
+
+### A lurk (`lurk`)
+
+```jsonc
+{
+  "atSeconds": 70.0, "actor": "E", "verb": "lurk",
+  "lurk": {
+    "areas": ["PalaceInterior", "Connector"],
+    "rotate": { "atSeconds": 40, "when": "on the call", "to": { "place": "BombsiteB" } }
+  }
+}
+```
+
+A lurk says where the player works and when and where they rotate. It is optional and not written when absent,
+so a file without it loads and saves byte for byte as before. It lives on the step, not on a line: it is shared
+by every player the step names, like `from` and `utility`, and two lurkers who rotate differently are two steps.
+
+* **`areas`** are canonical places the lurk takes control of or works towards, first first.
+* **`rotate`** is when the lurk rotates and where to. `atSeconds` is round clock remaining (later in the round,
+  so lower than the step's own); `when` is free text ("on the call", "on contact", "bomb planted", "after first
+  kill" are the editor's suggestions, not a vocabulary); `to` is a place. A rotate with a time and a condition
+  means whichever comes first.
+* `StratLurkPatches` is the one writer: it drops a `rotate` with no time, condition or place and a `lurk` with no
+  area and no rotate, so a step never carries an empty object. The editor's verb change removes a lurk from a verb
+  other than `lurk`, in the same entry.
+
+| Rule | Severity | Pointer |
+|---|---|---|
+| an area the map lacks | warning | `/steps/i/lurk/areas/k` |
+| a rotate-to place the map lacks | warning | `/steps/i/lurk/rotate/to/place` |
+| a rotate time not later than the step (`atSeconds` not lower) | warning | `/steps/i/lurk/rotate/atSeconds` |
+
+The place rules wait for the map's zones, as the other place warnings do.
+
+**On the canvas**, a rotate with a time and a place moves every token the step names: from the rotate time the
+token runs from where it stands to the centre of the rotate-to place (`StratPlaceCentres.Arrival`: on the token's
+floor when the place has areas there, else on the floor holding most of the place, and the token arrives on that
+floor), at
+215 units a second (`StratSceneProjection.RotateUnitsPerSecond`, a rifle's run speed), and stays there. A later
+keyframe for the slot (an authored position, a lineup origin) still wins: if it comes before the token could
+arrive, the token heads to it from the rotate time instead. A rotate that is not later than its step, or whose
+place has no centre (or the zones are not in yet), moves nothing. "Later" is compared in strat ticks, the same
+test the validator uses (`StratLurkPatches.IsLater`). The transport and an export run to the last arrival when it
+comes after the last step (`StratSceneProjection.ContentEndTick`), so a rotate after the last step still plays. A
+step added at or after a rotate whose place resolves does not carry the lurker's old position, so the rotate is not
+undone by the next step; one added before the rotate carries the lurker where it stands.
 
 **Facing on the canvas.** A token's yaw at a step, in order: a throw's lineup origin (position and yaw; a
 throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
@@ -371,7 +428,8 @@ with an RFC 6901 `path`); `from` is this format's own addition to `remove`/`repl
 the op displaced, so a line can be phrased and inverted without replaying the whole log. Revision 1 is
 always a single `add` at `""` (the whole document). `StratHistory.Materialize(log, revision)` rebuilds
 the document as of any revision from the log alone; `StratDiffPhrasing` turns an entry's ops into the
-words a person reads ("molotov moved from 1:22 to 1:16", "step added: A peeks Connector at 1:05").
+words a person reads ("molotov moved from 1:22 to 1:16", "step added: A peeks Connector at 1:05", "E's lurk:
+rotate time 0:40 → 0:35", "E's lurk: lurk areas set to Palace, Connector").
 
 A commit happens at an explicit Save, a tab deactivate, a demo swap, shutdown, or 30 seconds of no
 further edit; consecutive ops on the same path inside one commit merge into one, so a canvas drag that
@@ -400,7 +458,7 @@ already holds the steps.
 | Rush | T | A or B | utility on the run from 1:50, everyone onto the site, plant at 1:35 |
 | Split | T | A or B | two groups set up (one step, lines A and D), utility from both sides, entries together at 0:55 (lines A and D) |
 | Fake | T | hit A or B | fake verbs with utility at the other site from 1:25, then an execute |
-| Default | T | none | map control, a call at 1:15, regroup at 1:00 |
+| Default | T | none | map control, a lurk that rotates on the call, a call at 1:15, regroup at 1:00 |
 | Anti-eco | either | none | hold, call, wait |
 | Setup | CT | none | a 2-1-2 hold from round start (one step, a line per slot), early utility, rotation call |
 | Retake | CT | A or B | after the plant (negative `atSeconds`): call, group, utility, retake, defuse by -0:25 |
@@ -433,7 +491,8 @@ metadata line, one bullet per step with its round-clock time bolded, and a branc
 ```
 
 A step's line names its actor, its verb, an optional utility kind, its `from` and `to` places (through
-the owner's callouts when given, else the canonical name split into words), and, only when it differs
+the owner's callouts when given, else the canonical name split into words), a lurk's areas and rotate
+(`E lurks Palace, Connector; rotate to B site at 0:40 or on the call`), and, only when it differs
 from `to`, the utility's landing place in parentheses. A location with only a point prints as its
 coordinate, `(1234, -561)`, and a point-only landing prints without the extra parentheses. A step with lines is headed by its slots (`All`
 when the lines name all five) and its shared `from` (`B, C, D move from T Ramp`), and each line follows as an indented bullet:

@@ -335,35 +335,150 @@ public sealed partial class StratEditorViewModel : ObservableObject
             return [];
         }
 
+        // Each op is also applied to `mid`, so the lines writer computes against the step as those ops leave it.
+        StratStep mid = CloneStep(start);
+        mid.Verb = verb;
         List<PatchOp> ops = [PatchOp.ReplaceOp(path + "/verb", null, JsonValue.Create(verb))];
-        if (start.From is not null && !StratStepFields.Uses(verb, StratStepField.From))
+        if (mid.From is not null && !StratStepFields.Uses(verb, StratStepField.From))
         {
             ops.Add(PatchOp.RemoveOp(path + "/from", null));
+            mid.From = null;
         }
 
-        if (start.To is not null && !StratStepFields.Uses(verb, StratStepField.To))
+        bool clearTo = !StratStepFields.Uses(verb, StratStepField.To);
+        if (mid.To is not null && clearTo)
         {
             ops.Add(PatchOp.RemoveOp(path + "/to", null));
+            mid.To = null;
         }
 
-        if (start.Utility is not null && !StratStepFields.Uses(verb, StratStepField.Utility))
+        if (mid.Utility is not null && !StratStepFields.Uses(verb, StratStepField.Utility))
         {
             ops.Add(PatchOp.RemoveOp(path + "/utility", null));
+            mid.Utility = null;
         }
 
-        if (start.Assignments is { } lines && !StratStepFields.Uses(verb, StratStepField.To))
+        if (mid.Lurk is not null && !StratStepFields.Uses(verb, StratStepField.Lurk))
         {
-            for (int j = 0; j < lines.Count; j++)
+            ops.Add(PatchOp.RemoveOp(path + "/lurk", null));
+            mid.Lurk = null;
+        }
+
+        bool clearWatch = !StratStepFields.Uses(verb, StratStepField.Watch);
+        List<StepAssignment> lines = StratLinePatches.Copy(mid);
+        bool linesChanged = false;
+        foreach (StepAssignment line in lines)
+        {
+            if (clearTo && line.To is not null)
             {
-                if (lines[j].To is not null)
-                {
-                    ops.Add(PatchOp.RemoveOp(Invariant($"{path}/assignments/{j}/to"), null));
-                }
+                line.To = null;
+                linesChanged = true;
             }
+
+            if (clearWatch && line.Watch is not null)
+            {
+                line.Watch = null;
+                linesChanged = true;
+            }
+        }
+
+        if (linesChanged)
+        {
+            ops.AddRange(StratLinePatches.Write(mid, path, lines));
         }
 
         return ops;
     });
+
+    /// <summary>
+    ///     Who takes the step, as one undo entry through <see cref="StratLinePatches.SetWho" />. An empty set writes
+    ///     nothing: a step always names someone.
+    /// </summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="slots">The slots that take part.</param>
+    /// <returns>Whether it wrote.</returns>
+    public bool SetWho(int index, IReadOnlyCollection<string> slots)
+    {
+        if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
+        {
+            return false;
+        }
+
+        return SetWho(document.Steps[index].Id, slots);
+    }
+
+    /// <summary><see cref="SetWho(int, IReadOnlyCollection{string})" /> by step id; nothing when the step is gone.</summary>
+    /// <param name="stepId">The step.</param>
+    /// <param name="slots">The slots that take part.</param>
+    /// <returns>Whether it wrote.</returns>
+    public bool SetWho(Guid stepId, IReadOnlyCollection<string> slots)
+    {
+        if (IsProjecting || _session.Document is not { } document || document.Steps.FindIndex(s => s.Id == stepId) is var index && index < 0)
+        {
+            return false;
+        }
+
+        EndEditBurst();
+        List<PatchOp> ops = StratLinePatches.SetWho(document.Steps[index], StepPath(index), slots);
+        if (ops.Count == 0)
+        {
+            return false;
+        }
+
+        _session.Apply(ops);
+        return true;
+    }
+
+    /// <summary>The open strat's id, or null.</summary>
+    internal Guid? DocumentId => _session.Document?.Id;
+
+    /// <summary>One edit of every line at once, for a row that shows its lines as one; one undo entry.</summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="edit">Changes one line.</param>
+    internal void EditAllLines(int index, Action<StepAssignment> edit)
+    {
+        if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
+        {
+            return;
+        }
+
+        EndEditBurst();
+        List<PatchOp> ops = StratLinePatches.EditAll(document.Steps[index], StepPath(index), edit);
+        if (ops.Count > 0)
+        {
+            _session.Apply(ops);
+        }
+    }
+
+    /// <summary>One edit of a step's lurk, one undo entry, written through <see cref="StratLurkPatches" />.</summary>
+    /// <param name="index">The step's index.</param>
+    /// <param name="edit">Changes a copy of the lurk.</param>
+    internal void EditLurk(int index, Action<StepLurk> edit)
+    {
+        if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
+        {
+            return;
+        }
+
+        EndEditBurst();
+        List<PatchOp> ops = StratLurkPatches.Edit(document.Steps[index], StepPath(index), edit);
+        if (ops.Count > 0)
+        {
+            _session.Apply(ops);
+        }
+    }
+
+    /// <summary>Whether the step's row shows its lines one per player; false for a row that shows them as one, or no row.</summary>
+    /// <param name="stepId">The step.</param>
+    public bool ShowsLinesApart(Guid stepId) => Steps.FirstOrDefault(r => r.Id == stepId) is { ShowCompact: false, HasLines: true };
+
+    /// <summary>A row switched between its lines as one and one per player; Set On Map reads <see cref="ShowsLinesApart" />.</summary>
+    public event Action? LinesViewChanged;
+
+    internal void RaiseLinesViewChanged() => LinesViewChanged?.Invoke();
+
+    private static StratStep CloneStep(StratStep step) =>
+        JsonSerializer.SerializeToNode(step, StratJsonContext.Default.StratStep)!.Deserialize(StratJsonContext.Default.StratStep)!;
 
     // ── Lines ────────────────────────────────────────────────────────────────────────────────────
 
@@ -371,9 +486,10 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <param name="index">The step's index.</param>
     /// <param name="line">The line's index in <see cref="StratStepLines.Of" />.</param>
     /// <param name="slot">The new slot.</param>
-    internal void ChangeLineSlot(int index, int line, string slot) => ApplyInBurst(index, "slot" + line, (start, path) =>
+    /// <param name="expandAll">The row shows a step for everyone as a line per slot.</param>
+    internal void ChangeLineSlot(int index, int line, string slot, bool expandAll = false) => ApplyInBurst(index, "slot" + line, (start, path) =>
     {
-        List<StepAssignment> lines = StratLinePatches.Copy(start);
+        List<StepAssignment> lines = StratLinePatches.Copy(start, expandAll);
         if (line >= lines.Count || lines.Exists(l => string.Equals(l.Slot, slot, StringComparison.Ordinal)))
         {
             return [];
@@ -386,7 +502,8 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <summary>One edit of a step's lines, as one undo entry, written in the stored shape (<see cref="StratLinePatches" />).</summary>
     /// <param name="index">The step's index.</param>
     /// <param name="edit">Changes a copy of the lines; the step as it stands is passed for reference.</param>
-    internal void EditLines(int index, Action<StratStep, List<StepAssignment>> edit)
+    /// <param name="expandAll">Read a step for everyone as a line per slot, as a row split apart shows it.</param>
+    internal void EditLines(int index, Action<StratStep, List<StepAssignment>> edit, bool expandAll = false)
     {
         if (IsProjecting || _session.Document is not { } document || index < 0 || index >= document.Steps.Count)
         {
@@ -395,7 +512,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
         EndEditBurst();
         StratStep step = document.Steps[index];
-        List<PatchOp> ops = StratLinePatches.Edit(step, StepPath(index), lines => edit(step, lines));
+        List<PatchOp> ops = StratLinePatches.Edit(step, StepPath(index), lines => edit(step, lines), expandAll);
         if (ops.Count > 0)
         {
             _session.Apply(ops);
@@ -664,7 +781,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
                 {
                     lines.RemoveAt(line);
                 }
-            });
+            }, row.ExpandsAll);
         }
     }
 
@@ -979,6 +1096,15 @@ public sealed record StratFieldIssue(bool IsRefusal, string Message)
 {
     public string Glyph => IsRefusal ? "!" : "⚠";
 
+    /// <summary>Several fields' marks as one: a refusal if any is, every message once. Null with none.</summary>
+    internal static StratFieldIssue? Merge(IReadOnlyList<StratFieldIssue?> issues)
+    {
+        List<StratFieldIssue> present = [.. issues.OfType<StratFieldIssue>()];
+        return present.Count == 0
+            ? null
+            : new StratFieldIssue(present.Exists(i => i.IsRefusal), string.Join(Environment.NewLine, present.Select(i => i.Message).Distinct()));
+    }
+
     internal static StratFieldIssue? From(Dictionary<string, List<StratIssue>> byField, string field) =>
         byField.TryGetValue(field, out List<StratIssue>? issues)
             ? new StratFieldIssue(issues.Any(i => i.Severity == StratIssueSeverity.Refusal),
@@ -1080,10 +1206,211 @@ public sealed partial class StratStepRow : ObservableObject
     [ObservableProperty]
     private string _verb = "move";
 
+    [ObservableProperty]
+    private string _groupPlaceText = "";
+
+    [ObservableProperty]
+    private string _groupWatchText = "";
+
+    [ObservableProperty]
+    private string _lurkAreasText = "";
+
+    [ObservableProperty]
+    private string _rotateAtText = "";
+
+    [ObservableProperty]
+    private string _rotateWhenText = "";
+
+    [ObservableProperty]
+    private string _rotateToText = "";
+
+    // Null until the first load; then sticky once the lines differ, so a commit never swaps the view under the caret.
+    private bool? _split;
+
+    private bool? _linesImplicit;
+
+    /// <summary>A step for everyone shown apart: its lines are one per slot, and a line's edit writes all five.</summary>
+    internal bool ExpandsAll { get; private set; }
+
     internal StratStepRow(StratEditorViewModel owner, Guid id)
     {
         _owner = owner;
         Id = id;
+        WhoOptions = [.. StratVocabulary.Slots.Select(s => new StratWhoOption(s))];
+    }
+
+    /// <summary>The Who flyout's toggles, A to E. Staged: <see cref="CommitWho" /> writes them as one entry.</summary>
+    public IReadOnlyList<StratWhoOption> WhoOptions { get; }
+
+    /// <summary>Who takes the step: <c>all</c>, or its players in slot order.</summary>
+    public string WhoText { get; private set; } = StratVocabulary.ActorAll;
+
+    /// <summary>
+    ///     The row shows its players as one "who" with one place and one watching: every line agrees and the user has
+    ///     not split them. Otherwise one line per player.
+    /// </summary>
+    public bool ShowCompact { get; private set; } = true;
+
+    public bool ShowApart => !ShowCompact;
+
+    /// <summary>How many players the step names; five for a step for everyone.</summary>
+    public int PlayerCount { get; private set; }
+
+    /// <summary>Split is offered on a compact row with more than one player and a place or watching to differ in.</summary>
+    public bool CanSplit => ShowCompact && PlayerCount > 1 && (ShowGroupPlace || ShowGroupWatch);
+
+    // Each compact field takes both columns while the other is hidden.
+    public int GroupPlaceSpan => ShowGroupWatch ? 1 : 2;
+
+    public int GroupWatchColumn => ShowGroupPlace ? 1 : 0;
+
+    public int GroupWatchSpan => ShowGroupPlace ? 1 : 2;
+
+    /// <summary>Join is offered on a row shown apart once its lines agree again.</summary>
+    public bool CanJoin { get; private set; }
+
+    /// <summary>The compact place shows when the verb uses one or the lines hold one.</summary>
+    public bool ShowGroupPlace => StratStepFields.Uses(Verb, StratStepField.To) || GroupPlaceText.Length > 0;
+
+    /// <summary>The compact watching shows when the verb uses it or the lines hold one.</summary>
+    public bool ShowGroupWatch => StratStepFields.Uses(Verb, StratStepField.Watch) || GroupWatchText.Length > 0;
+
+    /// <summary>The lines share an explicit view angle.</summary>
+    public bool HasGroupAngle { get; private set; }
+
+    public string GroupAngleText { get; private set; } = "";
+
+    /// <summary>The lurk's fields show when the verb is a lurk or the step holds one.</summary>
+    public bool ShowLurk => StratStepFields.Uses(Verb, StratStepField.Lurk) || _hasLurk;
+
+    private bool _hasLurk;
+
+    /// <summary>The rotate conditions the "or when" field suggests.</summary>
+    public static IReadOnlyList<string> RotateConditions => StratVocabulary.RotateConditions;
+
+    /// <summary>Suggestions for a place list field: the map's places by the owner's word.</summary>
+    public IReadOnlyList<string> PlaceSuggestions => _owner.PlaceSuggestions;
+
+    public StratFieldIssue? WhoIssue { get; private set; }
+
+    public StratFieldIssue? GroupPlaceIssue { get; private set; }
+
+    public StratFieldIssue? GroupWatchIssue { get; private set; }
+
+    public StratFieldIssue? LurkAreasIssue { get; private set; }
+
+    public StratFieldIssue? RotateAtIssue { get; private set; }
+
+    public StratFieldIssue? RotateToIssue { get; private set; }
+
+    /// <summary>
+    ///     The Who flyout opened: its toggles are staged from here, and a reprojection leaves them alone until
+    ///     <see cref="CommitWho" />.
+    /// </summary>
+    public void BeginWho()
+    {
+        LoadWho();
+        _whoOpen = new WhoSnapshot(_owner.DocumentId, [.. WhoOptions.Where(o => o.IsChecked).Select(o => o.Slot)]);
+    }
+
+    /// <summary>
+    ///     Writes the Who flyout's toggles as one undo entry: the players added and removed since it opened, applied to
+    ///     the step as it now is. Nothing when none would be left, or when the step or the strat is no longer the one it
+    ///     opened on.
+    /// </summary>
+    public void CommitWho()
+    {
+        WhoSnapshot? open = _whoOpen;
+        _whoOpen = null;
+        HashSet<string> staged = [.. WhoOptions.Where(o => o.IsChecked).Select(o => o.Slot)];
+        HashSet<string> before = open?.Checked ?? [.. _players];
+        if (open is null || open.StratId == _owner.DocumentId)
+        {
+            HashSet<string> target = [.. _players];
+            target.ExceptWith(before.Except(staged));
+            target.UnionWith(staged.Except(before));
+            if (!target.SetEquals(_players) && _owner.SetWho(Id, target))
+            {
+                return;
+            }
+        }
+
+        LoadWho();
+    }
+
+    /// <summary>Checks all five in the flyout; written with the rest on <see cref="CommitWho" />.</summary>
+    [RelayCommand]
+    private void WhoAll()
+    {
+        foreach (StratWhoOption option in WhoOptions)
+        {
+            option.IsChecked = true;
+        }
+    }
+
+    /// <summary>Shows the players one line each, to give them different places; writes nothing.</summary>
+    [RelayCommand]
+    private void Split()
+    {
+        _split = true;
+        _owner.Project();
+        _owner.RaiseLinesViewChanged();
+    }
+
+    /// <summary>Shows lines that agree as one again; writes nothing.</summary>
+    [RelayCommand]
+    private void Join()
+    {
+        if (!CanJoin)
+        {
+            return;
+        }
+
+        _split = false;
+        _owner.Project();
+        _owner.RaiseLinesViewChanged();
+    }
+
+    /// <summary>Drops the lines' shared view angle: each faces its first watched place again.</summary>
+    [RelayCommand]
+    private void ClearGroupAngle() => _owner.EditAllLines(_index, line =>
+    {
+        if (line.Watch is { } watch)
+        {
+            watch.YawDegrees = null;
+        }
+    });
+
+    private bool _agree = true;
+
+    // The open flyout's toggles are the user's until it closes.
+    private void LoadWho()
+    {
+        if (_whoOpen is not null)
+        {
+            return;
+        }
+
+        foreach (StratWhoOption option in WhoOptions)
+        {
+            option.IsChecked = _players.Contains(option.Slot, StringComparer.Ordinal);
+        }
+    }
+
+    private List<string> _players = [];
+
+    private WhoSnapshot? _whoOpen;
+
+    private sealed record WhoSnapshot(Guid? StratId, HashSet<string> Checked);
+
+    private void RefreshView()
+    {
+        ShowCompact = _agree && (_split != true || PlayerCount < 2);
+        CanJoin = !ShowCompact && _agree && PlayerCount > 1;
+        foreach (string name in (string[])[nameof(ShowCompact), nameof(ShowApart), nameof(CanSplit), nameof(CanJoin)])
+        {
+            OnPropertyChanged(name);
+        }
     }
 
     public Guid Id { get; }
@@ -1202,16 +1529,26 @@ public sealed partial class StratStepRow : ObservableObject
         TechniqueIssue = StratFieldIssue.From(byField, nameof(TechniqueIssue));
         LandingIssue = StratFieldIssue.From(byField, nameof(LandingIssue));
         RowIssue = StratFieldIssue.From(byField, nameof(RowIssue));
+        LurkAreasIssue = StratFieldIssue.From(byField, nameof(LurkAreasIssue));
+        RotateAtIssue = StratFieldIssue.From(byField, nameof(RotateAtIssue));
+        RotateToIssue = StratFieldIssue.From(byField, nameof(RotateToIssue));
         IssueText = string.Join(Environment.NewLine, lines);
         for (int j = 0; j < Lines.Count; j++)
         {
             Lines[j].SetIssues(perLine[j]);
         }
 
+        // A compact row shows every line's marks on its one who, place and watching.
+        WhoIssue = StratFieldIssue.Merge([ActorIssue, .. Lines.Select(l => l.SlotIssue)]);
+        GroupPlaceIssue = StratFieldIssue.Merge(HasLines ? [.. Lines.Select(l => l.PlaceIssue)] : IsStrayTo ? [] : [ToIssue]);
+        GroupWatchIssue = StratFieldIssue.Merge([.. Lines.Select(l => l.WatchIssue)]);
+
         foreach (string name in (string[])
                  [
                      nameof(TimeIssue), nameof(ActorIssue), nameof(VerbIssue), nameof(FromIssue), nameof(ToIssue), nameof(UtilityIssue),
-                     nameof(LineupIssue), nameof(TechniqueIssue), nameof(LandingIssue), nameof(RowIssue), nameof(IssueText), nameof(HasIssues)
+                     nameof(LineupIssue), nameof(TechniqueIssue), nameof(LandingIssue), nameof(RowIssue), nameof(IssueText), nameof(HasIssues),
+                     nameof(LurkAreasIssue), nameof(RotateAtIssue), nameof(RotateToIssue), nameof(WhoIssue), nameof(GroupPlaceIssue),
+                     nameof(GroupWatchIssue)
                  ])
         {
             OnPropertyChanged(name);
@@ -1249,6 +1586,13 @@ public sealed partial class StratStepRow : ObservableObject
             ("utility", "technique") => ShowTechnique ? nameof(TechniqueIssue) : nameof(RowIssue),
             ("utility", "landing") => ShowLanding ? nameof(LandingIssue) : nameof(RowIssue),
             ("utility", _) when ShowUtility => nameof(UtilityIssue),
+            ("lurk", "areas") when ShowLurk => nameof(LurkAreasIssue),
+            ("lurk", "rotate") when ShowLurk => (parts.Length > 5 ? parts[5] : "") switch
+            {
+                "atSeconds" => nameof(RotateAtIssue),
+                "to" => nameof(RotateToIssue),
+                _ => nameof(RowIssue)
+            },
             _ => nameof(RowIssue)
         };
     }
@@ -1264,6 +1608,9 @@ public sealed partial class StratStepRow : ObservableObject
         nameof(LineupIssue) => "lineup",
         nameof(TechniqueIssue) => "thrown",
         nameof(LandingIssue) => "lands at",
+        nameof(LurkAreasIssue) => "lurk areas",
+        nameof(RotateAtIssue) => "rotate at",
+        nameof(RotateToIssue) => "rotate to",
         _ => "step"
     };
 
@@ -1281,7 +1628,10 @@ public sealed partial class StratStepRow : ObservableObject
                            && (landing.X is not null || landing.Y is not null || landing.LevelMinZ is not null || landing.Extra is { Count: > 0 });
         LandingText = _owner.DisplayPlace(step.Utility?.Landing?.Place);
         Note = step.Note ?? "";
+        LoadGroup(step);
         LoadLines(step);
+        LoadWho();
+        LoadLurk(step);
 
         // A stored id resolves through the catalog, an alias id to the lineup that absorbed it; the row shows the
         // lineup and never rewrites the stored id. One the catalog cannot resolve (a reindex moved the throw, the
@@ -1311,11 +1661,15 @@ public sealed partial class StratStepRow : ObservableObject
     // Rebuilt only when the number of lines or their kind changes, so a field keeps focus across its own edit.
     private void LoadLines(StratStep step)
     {
-        IReadOnlyList<StepAssignment> lines = StratStepLines.Of(step);
         bool stored = StratStepLines.HasLines(step);
-        if (Lines.Count != lines.Count || HasStoredLines != stored)
+        ExpandsAll = !ShowCompact && !stored && string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal);
+        IReadOnlyList<StepAssignment> lines = ExpandsAll ? StratLinePatches.Copy(step, true) : StratStepLines.Of(step);
+        // Five lines read from a step for everyone and the five stored lines an edit of one makes are the same rows.
+        bool isImplicit = !stored && !ExpandsAll;
+        HasStoredLines = stored;
+        if (Lines.Count != lines.Count || _linesImplicit != isImplicit)
         {
-            HasStoredLines = stored;
+            _linesImplicit = isImplicit;
             Lines.Clear();
             for (int j = 0; j < lines.Count; j++)
             {
@@ -1330,7 +1684,7 @@ public sealed partial class StratStepRow : ObservableObject
             [
                 .. StratVocabulary.Slots.Where(s => s == own || lines.All(l => !string.Equals(l.Slot, s, StringComparison.Ordinal)))
             ];
-            Lines[j].Load(j, lines[j], !stored, Verb, options);
+            Lines[j].Load(j, lines[j], isImplicit, Verb, options);
         }
 
         SelectLine(_lineSlot);
@@ -1338,6 +1692,134 @@ public sealed partial class StratStepRow : ObservableObject
         OnPropertyChanged(nameof(HasLines));
         OnPropertyChanged(nameof(CanEditActor));
         OnPropertyChanged(nameof(CanAddLine));
+    }
+
+    // Who, and the one place and watching the lines share while they agree. A step for everyone reads as five lines.
+    private void LoadGroup(StratStep step)
+    {
+        List<StepAssignment> expanded = StratLinePatches.Copy(step, true);
+        _players = [.. expanded.Select(l => l.Slot)];
+        PlayerCount = expanded.Count;
+        _agree = StratLinePatches.Agree(expanded);
+        _split = _split is null ? !_agree : _split.Value || !_agree;
+        WhoText = PlayerCount == StratVocabulary.Slots.Count || PlayerCount == 0
+            ? StratVocabulary.ActorAll
+            : string.Join(", ", StratVocabulary.Slots.Where(s => expanded.Exists(l => l.Slot == s)));
+
+        StepAssignment? shared = _agree ? expanded.FirstOrDefault() : null;
+        GroupPlaceText = _owner.DisplayPlace(shared?.To?.Place);
+        GroupWatchText = _owner.DisplayPlaces(StratStepLines.Watching(shared));
+        HasGroupAngle = shared?.Watch?.YawDegrees is not null;
+        GroupAngleText = shared?.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
+        RefreshView();
+        foreach (string name in (string[])
+                 [nameof(WhoText), nameof(PlayerCount), nameof(HasGroupAngle), nameof(GroupAngleText), nameof(ShowGroupPlace), nameof(ShowGroupWatch)])
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    private void LoadLurk(StratStep step)
+    {
+        StepLurk? lurk = step.Lurk;
+        _hasLurk = lurk is not null;
+        LurkAreasText = _owner.DisplayPlaces(lurk?.Areas ?? []);
+        RotateAtText = lurk?.Rotate?.AtSeconds is { } at ? StratClock.Format(at) : "";
+        RotateWhenText = lurk?.Rotate?.When ?? "";
+        RotateToText = _owner.DisplayPlace(lurk?.Rotate?.To?.Place);
+        OnPropertyChanged(nameof(ShowLurk));
+    }
+
+    partial void OnGroupPlaceTextChanged(string value)
+    {
+        RaiseShown();
+        if (_owner.IsProjecting)
+        {
+            return;
+        }
+
+        string? place = _owner.ResolvePlace(value);
+        _owner.EditAllLines(_index, line => line.To = place is null ? null : new PlaceRef { Place = place });
+    }
+
+    partial void OnGroupWatchTextChanged(string value)
+    {
+        RaiseShown();
+        if (_owner.IsProjecting)
+        {
+            return;
+        }
+
+        List<string> places = _owner.ResolvePlaces(value);
+        _owner.EditAllLines(_index, line =>
+        {
+            line.Watch ??= new StepWatch();
+            line.Watch.Places = [.. places];
+        });
+    }
+
+    partial void OnLurkAreasTextChanged(string value)
+    {
+        if (_owner.IsProjecting)
+        {
+            return;
+        }
+
+        List<string> places = _owner.ResolvePlaces(value);
+        _owner.EditLurk(_index, lurk => lurk.Areas = places);
+    }
+
+    partial void OnRotateAtTextChanged(string value)
+    {
+        if (_owner.IsProjecting)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            _owner.EditLurk(_index, lurk => (lurk.Rotate ??= new LurkRotate()).AtSeconds = null);
+        }
+        else if (StratClock.TryParse(value, out double at))
+        {
+            _owner.EditLurk(_index, lurk => (lurk.Rotate ??= new LurkRotate()).AtSeconds = at);
+        }
+        else
+        {
+            // Not a time: show the stored one again.
+            _owner.Project();
+        }
+    }
+
+    partial void OnRotateWhenTextChanged(string value)
+    {
+        if (!_owner.IsProjecting)
+        {
+            _owner.EditLurk(_index, lurk => (lurk.Rotate ??= new LurkRotate()).When = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+        }
+    }
+
+    partial void OnRotateToTextChanged(string value)
+    {
+        if (_owner.IsProjecting)
+        {
+            return;
+        }
+
+        string? place = _owner.ResolvePlace(value);
+        _owner.EditLurk(_index, lurk =>
+        {
+            LurkRotate rotate = lurk.Rotate ??= new LurkRotate();
+            if (place is null)
+            {
+                rotate.To = null;
+            }
+            else
+            {
+                rotate.To ??= new PlaceRef();
+                rotate.To.Place = place;
+            }
+        });
     }
 
     /// <summary>Marks the selected line; null or a slot with no line marks none.</summary>
@@ -1375,6 +1857,13 @@ public sealed partial class StratStepRow : ObservableObject
         OnPropertyChanged(nameof(ShowLineup));
         OnPropertyChanged(nameof(ShowLanding));
         OnPropertyChanged(nameof(ToLabel));
+        OnPropertyChanged(nameof(ShowGroupPlace));
+        OnPropertyChanged(nameof(ShowGroupWatch));
+        OnPropertyChanged(nameof(GroupPlaceSpan));
+        OnPropertyChanged(nameof(GroupWatchColumn));
+        OnPropertyChanged(nameof(GroupWatchSpan));
+        OnPropertyChanged(nameof(CanSplit));
+        OnPropertyChanged(nameof(ShowLurk));
     }
 
     private string Path(string field) => string.Create(CultureInfo.InvariantCulture, $"/steps/{_index}/{field}");
@@ -1546,6 +2035,9 @@ public sealed partial class StratLineRow : ObservableObject
     /// <summary>The verb uses a place, or this line holds one.</summary>
     public bool ShowPlace { get; private set; }
 
+    /// <summary>The verb uses watching, or this line holds a watch.</summary>
+    public bool ShowWatch { get; private set; }
+
     /// <summary>An explicit view angle is set: the cone points there, not at the first watched place.</summary>
     public bool HasAngle { get; private set; }
 
@@ -1593,6 +2085,7 @@ public sealed partial class StratLineRow : ObservableObject
             WatchText = _row.Owner.DisplayPlaces(StratStepLines.Watching(line));
             PlaceLabel = StratStepFields.ToLabel(verb);
             ShowPlace = StratStepFields.Uses(verb, StratStepField.To) || PlaceText.Length > 0;
+            ShowWatch = StratStepFields.Uses(verb, StratStepField.Watch) || WatchText.Length > 0 || line.Watch?.YawDegrees is not null;
             HasAngle = line.Watch?.YawDegrees is not null;
             AngleText = line.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
         }
@@ -1602,7 +2095,7 @@ public sealed partial class StratLineRow : ObservableObject
         }
 
         foreach (string name in (string[])
-                 [nameof(Index), nameof(IsImplicit), nameof(IsExplicit), nameof(PlaceLabel), nameof(ShowPlace), nameof(HasAngle), nameof(AngleText)])
+                 [nameof(Index), nameof(IsImplicit), nameof(IsExplicit), nameof(PlaceLabel), nameof(ShowPlace), nameof(ShowWatch), nameof(HasAngle), nameof(AngleText)])
         {
             OnPropertyChanged(name);
         }
@@ -1653,14 +2146,14 @@ public sealed partial class StratLineRow : ObservableObject
         {
             watch.YawDegrees = null;
         }
-    });
+    }, _row.ExpandsAll);
 
     // Guarded like the pin combo: replacing SlotOptions pushes null, which is not the user's choice.
     partial void OnSlotChanged(string? value)
     {
         if (!_loading && value is not null)
         {
-            _row.Owner.ChangeLineSlot(_row.Index, Index, value);
+            _row.Owner.ChangeLineSlot(_row.Index, Index, value, _row.ExpandsAll);
         }
     }
 
@@ -1689,7 +2182,7 @@ public sealed partial class StratLineRow : ObservableObject
                 line.To ??= new PlaceRef();
                 line.To.Place = place;
             }
-        });
+        }, _row.ExpandsAll);
     }
 
     partial void OnWatchTextChanged(string value)
@@ -1707,7 +2200,7 @@ public sealed partial class StratLineRow : ObservableObject
                 lines[Index].Watch ??= new StepWatch();
                 lines[Index].Watch!.Places = places;
             }
-        });
+        }, _row.ExpandsAll);
     }
 
     private static string LastPart(string? search)
@@ -1716,6 +2209,15 @@ public sealed partial class StratLineRow : ObservableObject
         int comma = text.LastIndexOf(',');
         return (comma < 0 ? text : text[(comma + 1)..]).TrimStart();
     }
+}
+
+/// <summary>One slot's toggle in a step row's Who flyout.</summary>
+public sealed partial class StratWhoOption(string slot) : ObservableObject
+{
+    [ObservableProperty]
+    private bool _isChecked;
+
+    public string Slot { get; } = slot;
 }
 
 /// <summary>One branch: after which step, on what condition, continuing where (§3.3.4).</summary>

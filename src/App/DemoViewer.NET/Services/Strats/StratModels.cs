@@ -40,7 +40,10 @@ public static class StratVocabulary
 
     /// <summary>The closed verb list (§3.3.2). Outside it is a refusal, because Role View phrases by verb.</summary>
     public static readonly IReadOnlyList<string> Verbs =
-        ["move", "hold", "throw", "plant", "defuse", "peek", "fake", "rotate", "wait", "call", "other"];
+        ["move", "push", "rotate", "hold", "peek", "lurk", "throw", "fake", "plant", "defuse", "wait", "call", "other"];
+
+    /// <summary>The rotate conditions a lurk's row suggests. The file stores free text; these are not a vocabulary.</summary>
+    public static readonly IReadOnlyList<string> RotateConditions = ["on the call", "on contact", "bomb planted", "after first kill"];
 
     /// <summary>Grenade kinds a step's utility may name (§3.3.3).</summary>
     public static readonly IReadOnlyList<string> UtilityKinds = ["smoke", "molotov", "he", "flash", "decoy"];
@@ -364,6 +367,42 @@ public sealed class StratStep
     ///     <see cref="To" />. With lines, <see cref="StratStepLines" /> is the only reader; see docs/strat-format.md.
     /// </summary>
     public List<StepAssignment>? Assignments { get; set; }
+
+    /// <summary>A lurk's areas and rotate, shared by every line of the step. Null (not written) when the step has none.</summary>
+    public StepLurk? Lurk { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>Where a lurk works and when it rotates. Written only through <see cref="StratLurkPatches" />, which drops it when empty.</summary>
+public sealed class StepLurk
+{
+    /// <summary>Canonical places the lurk takes or works towards, first first.</summary>
+    public List<string> Areas { get; set; } = [];
+
+    /// <summary>
+    ///     Areas picked on the map outside every place, after <see cref="Areas" />. Null, never empty, when there are
+    ///     none: a sibling so an older build keeps it in its extension data, as <see cref="StepWatch.Points" />.
+    /// </summary>
+    public List<PlaceRef>? AreaPoints { get; set; }
+
+    public LurkRotate? Rotate { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>When a lurk rotates (a round clock time, a condition, or both) and where to.</summary>
+public sealed class LurkRotate
+{
+    /// <summary>Round clock remaining; later in the round than the step, so lower.</summary>
+    public double? AtSeconds { get; set; }
+
+    /// <summary>Free text, such as "on the call".</summary>
+    public string? When { get; set; }
+
+    public PlaceRef? To { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
