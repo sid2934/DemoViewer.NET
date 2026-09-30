@@ -563,13 +563,15 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   (`PlaceField.ChooseUp`). A multi field filters and replaces the text after the last comma; commas inside a
   coordinate's parentheses do not split it.
 - **Keys:** with the list open, Up and Down move, Enter picks the highlighted callout (or commits the text), Esc closes
-  the list. The control takes those four at the window with a tunnel handler while its list is open, so a step
-  row's own tunnel handler (Enter adds a step, Esc leaves the field) never sees them. With the list closed, Down
-  opens it, and Esc while the field is armed on the map cancels the pick (after the row's Esc, which it listens to
-  handled).
+  the list. The control takes those four at the window with a tunnel handler while its list is showing, so a step
+  row's own tunnel handler (Enter adds a step, Esc leaves the field) never sees them. With no list showing (closed,
+  or no callout matches the text) the keys are the row's; Down opens the list, and Esc while the field is armed on
+  the map cancels the pick (after the row's Esc, which it listens to handled). Picking the stored callout writes
+  nothing.
 - **Buttons:** inside the field's right edge, not tab stops: `⌖` pick on map (shown when `PickCommand` is set;
   `AccentInteractive` and bold while `IsPicking`), and `✕` clear, shown only while the value holds a point without
-  a place. The buttons are 16 px wide with 2 px padding, so the field works at the row's ~95 px widths.
+  a place. The buttons are 16 px wide with 2 px padding: at 95 px with both showing, the text keeps at least 45 px
+  (pinned by `StratLocationFieldTests`).
 - **Tokens:** list `CardBg` with a `BorderSubtle` border, rows `TextValue`, buttons `TextMid` with
   `PanelHeaderHoverDeep` on hover.
 
