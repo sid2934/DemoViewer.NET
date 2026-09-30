@@ -522,22 +522,16 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
     // ── Lines ────────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>A line's slot. Part of the combo box's burst, so wheeling through slots loses nothing.</summary>
+    /// <summary>
+    ///     A line's slot: the whole line moves, and a slot another line holds swaps the two
+    ///     (<see cref="StratLinePatches.ChangeSlot" />). Part of the combo box's burst, so wheeling through slots loses nothing.
+    /// </summary>
     /// <param name="index">The step's index.</param>
     /// <param name="line">The line's index in <see cref="StratStepLines.Of" />.</param>
     /// <param name="slot">The new slot.</param>
     /// <param name="expandAll">The row shows a step for everyone as a line per slot.</param>
-    internal void ChangeLineSlot(int index, int line, string slot, bool expandAll = false) => ApplyInBurst(index, "slot" + line, (start, path) =>
-    {
-        List<StepAssignment> lines = StratLinePatches.Copy(start, expandAll);
-        if (line >= lines.Count || lines.Exists(l => string.Equals(l.Slot, slot, StringComparison.Ordinal)))
-        {
-            return [];
-        }
-
-        lines[line].Slot = slot;
-        return StratLinePatches.Write(start, path, lines);
-    });
+    internal void ChangeLineSlot(int index, int line, string slot, bool expandAll = false) => ApplyInBurst(index, "slot" + line,
+        (start, path) => StratLinePatches.ChangeSlot(start, path, line, slot, expandAll));
 
     /// <summary>One edit of a step's lines, as one undo entry, written in the stored shape (<see cref="StratLinePatches" />).</summary>
     /// <param name="index">The step's index.</param>
@@ -1743,12 +1737,7 @@ public sealed partial class StratStepRow : ObservableObject
 
         for (int j = 0; j < lines.Count; j++)
         {
-            string own = lines[j].Slot;
-            IReadOnlyList<string> options =
-            [
-                .. StratVocabulary.Slots.Where(s => s == own || lines.All(l => !string.Equals(l.Slot, s, StringComparison.Ordinal)))
-            ];
-            Lines[j].Load(j, lines[j], isImplicit, Verb, options);
+            Lines[j].Load(j, lines[j], isImplicit, Verb, StratVocabulary.Slots);
         }
 
         SelectLine(_lineSlot);
@@ -2108,7 +2097,7 @@ public sealed partial class StratLineRow : ObservableObject
 
     public bool IsExplicit => !IsImplicit;
 
-    /// <summary>The slots this line may take: its own and those with no line on the step.</summary>
+    /// <summary>The slots this line may take: all five; one another line holds swaps the two.</summary>
     public ObservableCollection<string> SlotOptions { get; } = [];
 
     /// <summary>What the verb calls the place: to, at or site.</summary>
