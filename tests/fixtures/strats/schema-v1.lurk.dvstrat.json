@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "id": "7e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b",
+  "owner": {
+    "kind": "team",
+    "teamId": "3f2a9c1e-5b7d-4e2f-8a61-0c9d4b3e2f10"
+  },
+  "name": "A exec",
+  "map": "de_mirage",
+  "side": "T",
+  "type": "execute",
+  "targetSite": "A",
+  "status": "Theory",
+  "revision": 0,
+  "createdUtc": "2026-09-23T14:02:11Z",
+  "modifiedUtc": "2026-09-23T14:02:11Z",
+  "tags": [],
+  "clock": {
+    "kind": "round",
+    "roundSeconds": 115
+  },
+  "slots": [
+    {
+      "slot": "A"
+    },
+    {
+      "slot": "B"
+    },
+    {
+      "slot": "C"
+    },
+    {
+      "slot": "D"
+    },
+    {
+      "slot": "E"
+    }
+  ],
+  "steps": [
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000001",
+      "atSeconds": 90,
+      "actor": "B",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000002",
+      "atSeconds": 82,
+      "actor": "C",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000003",
+      "atSeconds": 70,
+      "actor": "E",
+      "verb": "lurk",
+      "positions": [],
+      "strokes": [],
+      "lurk": {
+        "areas": [
+          "PalaceInterior",
+          "Connector"
+        ],
+        "rotate": {
+          "atSeconds": 40,
+          "when": "on the call",
+          "to": {
+            "place": "BombsiteB"
+          },
+          "futureRotate": true
+        }
+      }
+    }
+  ],
+  "branches": []
+}

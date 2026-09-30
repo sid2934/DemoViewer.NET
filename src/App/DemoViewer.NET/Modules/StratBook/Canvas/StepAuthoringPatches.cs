@@ -184,7 +184,8 @@ public static class StepAuthoringPatches
         ThrowOriginResolver? throwOrigins, PlaceCentreResolver? placeCentres = null)
     {
         PatchOp op = AddStep(document, afterIndex, atSeconds, id);
-        List<StepPosition> carried = StratStepCarry.PositionsAt(document, afterIndex, throwOrigins, placeCentres);
+        double at = op.Value?["atSeconds"]?.GetValue<double>() ?? atSeconds;
+        List<StepPosition> carried = StratStepCarry.PositionsAt(document, afterIndex, throwOrigins, placeCentres, at);
         if (carried.Count > 0 && op.Value is JsonObject node)
         {
             node["positions"] = new JsonArray(carried

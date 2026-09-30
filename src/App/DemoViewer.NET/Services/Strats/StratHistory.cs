@@ -486,6 +486,8 @@ public static class StratDiffPhrasing
             case ["steps", var index, "assignments", var lineIndex, .. var rest]:
                 string who = Text(StratHistory.ValueAt(tree, $"/steps/{index}/assignments/{lineIndex}/slot")) ?? "a player";
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + who + " " + LineChange(tree, rest, op, callouts);
+            case ["steps", var index, "lurk", .. var rest]:
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + LurkChange(tree, rest, op, callouts);
             case ["steps", var index, .. var rest]:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + FieldChange(rest, op, callouts);
             case ["branches", _]:
@@ -568,6 +570,61 @@ public static class StratDiffPhrasing
                 return op.Op == PatchOp.Remove || names.Length == 0 ? "watching cleared" : "watching set to " + string.Join(", ", names);
             default:
                 return FieldChange(rest, op, callouts);
+        }
+    }
+
+    // "lurk set: Palace; rotate on the call", "lurk area added: Connector", "rotate time 0:45 → 0:40", "rotate to set to B site".
+    private static string LurkChange(JsonNode? tree, string[] rest, PatchOp op, CalloutResolver? callouts)
+    {
+        switch (rest)
+        {
+            case []:
+                return op.Op == PatchOp.Remove || LurkOf(op.Value) is not { } lurk
+                    ? "lurk removed"
+                    : "lurk set: " + (StratStepPhrasing.LurkText(lurk, callouts) ?? "empty");
+            case ["areas"]:
+                string[] areas = op.Value is JsonArray list ? [.. list.Select(Text).OfType<string>().Select(p => Place(p, callouts))] : [];
+                return op.Op == PatchOp.Remove || areas.Length == 0 ? "lurk areas cleared" : "lurk areas set to " + string.Join(", ", areas);
+            case ["areas", _]:
+                string? area = Text(op.Op == PatchOp.Remove ? StratHistory.ValueAt(tree, op.Path) ?? op.From : op.Value);
+                string shown = area is null ? "a place" : Place(area, callouts);
+                return op.Op switch
+                {
+                    PatchOp.Add => "lurk area added: " + shown,
+                    PatchOp.Remove => "lurk area removed: " + shown,
+                    _ => Text(op.From) is { } before ? $"lurk area {Place(before, callouts)} → {shown}" : "lurk area set to " + shown
+                };
+            case ["rotate"]:
+                return op.Op == PatchOp.Remove || LurkOf(new JsonObject { ["rotate"] = op.Value?.DeepClone() })?.Rotate is not { } parsed
+                                               || StratStepPhrasing.RotateText(parsed, callouts) is not { } text
+                    ? "rotate removed"
+                    : text;
+            case ["rotate", "atSeconds"]:
+                return op.Op == PatchOp.Remove || Number(op.Value) is not { } at
+                    ? "rotate time cleared"
+                    : Number(op.From) is { } was
+                        ? $"rotate time {StratClock.Format(was)} → {StratClock.Format(at)}"
+                        : "rotate time set to " + StratClock.Format(at);
+            case ["rotate", "when"]:
+                return op.Op == PatchOp.Remove || Text(op.Value) is not { } when
+                    ? "rotate condition cleared"
+                    : "rotate condition set to " + when;
+            case ["rotate", .. var member]:
+                return "rotate " + FieldChange(member, op, callouts);
+            default:
+                return "lurk " + FieldChange(rest, op, callouts);
+        }
+    }
+
+    private static StepLurk? LurkOf(JsonNode? node)
+    {
+        try
+        {
+            return node is JsonObject obj ? obj.Deserialize(StratJsonContext.Default.StepLurk) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
@@ -657,6 +714,10 @@ public static class StratDiffPhrasing
         else if (lines && Text(obj["from"]?["place"]) is { } from)
         {
             sentence.Append(" from ").Append(Place(from, callouts));
+        }
+        else if (obj["lurk"]?["areas"] is JsonArray { Count: > 0 } areas)
+        {
+            sentence.Append(' ').Append(string.Join(", ", areas.Select(Text).OfType<string>().Select(p => Place(p, callouts))));
         }
 
         if (Number(obj["atSeconds"]) is { } at)
