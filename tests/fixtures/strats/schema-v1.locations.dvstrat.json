@@ -135,6 +135,34 @@
           "futureLine": 1
         }
       ]
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000004",
+      "atSeconds": 60,
+      "actor": "E",
+      "verb": "lurk",
+      "positions": [],
+      "strokes": [],
+      "lurk": {
+        "areas": [
+          "PalaceInterior"
+        ],
+        "areaPoints": [
+          {
+            "x": -500,
+            "y": -900,
+            "levelMinZ": -256
+          }
+        ],
+        "rotate": {
+          "atSeconds": 40,
+          "to": {
+            "x": -100,
+            "y": -200,
+            "levelMinZ": -256
+          }
+        }
+      }
     }
   ],
   "branches": []

@@ -64,6 +64,13 @@ public partial class StratLocationFieldTests
         StratStep lines = document.Steps[2];
         lines.Assignments![0].Watch!.Points = [Point(-900, -1500)];
         lines.Assignments[1].To = Point(-700, -1300);
+        StratStep lurk = Step(4, 60, "E", "lurk");
+        lurk.Lurk = new StepLurk
+        {
+            Areas = ["PalaceInterior"], AreaPoints = [Point(-500, -900)],
+            Rotate = new LurkRotate { AtSeconds = 40, To = Point(-100, -200) }
+        };
+        document.Steps.Add(lurk);
         return document;
     }
 
@@ -108,6 +115,8 @@ public partial class StratLocationFieldTests
             await Assert.That(StratStore.Serialize(LocationsSample()) + "\n").IsEqualTo(original);
             await Assert.That(loaded.Steps[2].Assignments![1].To!.Place).IsNull();
             await Assert.That(loaded.Steps[2].Assignments![0].Watch!.Points!.Single().X).IsEqualTo(-900);
+            await Assert.That(loaded.Steps[3].Lurk!.AreaPoints!.Single().X).IsEqualTo(-500);
+            await Assert.That(StratStepPhrasing.LurkText(loaded.Steps[3].Lurk!, Mirage)).IsEqualTo("palace, (-500, -900); rotate to (-100, -200) at 0:40");
             await Assert.That(StratValidator.Validate(loaded, Mirage).Where(i => i.Severity == StratIssueSeverity.Refusal)).IsEmpty();
         }
     }
@@ -116,6 +125,14 @@ public partial class StratLocationFieldTests
     private sealed class OldPlaceRef
     {
         public string? Place { get; set; }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    private sealed class OldLurk
+    {
+        public List<string> Areas { get; set; } = [];
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -150,8 +167,14 @@ public partial class StratLocationFieldTests
         OldWatch oldWatch = JsonSerializer.Deserialize<OldWatch>(watchJson, OldOptions)!;
         PlaceRef back = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldTo, OldOptions), StratJsonContext.Default.PlaceRef)!;
         StepWatch watchBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldWatch, OldOptions), StratJsonContext.Default.StepWatch)!;
+        StepLurk lurk = new() { Areas = ["Hut"], AreaPoints = [Point(7, 8)], Rotate = new LurkRotate { To = Point(1, 2) } };
+        OldLurk oldLurk = JsonSerializer.Deserialize<OldLurk>(JsonSerializer.Serialize(lurk, StratJsonContext.Default.StepLurk), OldOptions)!;
+        StepLurk lurkBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldLurk, OldOptions), StratJsonContext.Default.StepLurk)!;
         using (Assert.Multiple())
         {
+            await Assert.That(oldLurk.Areas).IsEquivalentTo(["Hut"]);
+            await Assert.That(lurkBack.AreaPoints!.Single().X).IsEqualTo(7);
+            await Assert.That(lurkBack.Rotate!.To!.Y).IsEqualTo(2);
             await Assert.That(oldTo.Place).IsEqualTo("Hut");
             await Assert.That(oldWatch.Places).IsEquivalentTo(["Hut"]);
             await Assert.That(StratLocations.Same(back, to)).IsTrue();
@@ -752,15 +775,31 @@ public partial class StratLocationFieldTests
 
                 BoxOf(field).Focus();
                 Dispatcher.UIThread.RunJobs();
+                window.KeyTextInput("b");
                 window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
                 Dispatcher.UIThread.RunJobs();
-                await Assert.That(canvas.ArmedField).IsEqualTo(target).Because("the first Esc closes the list");
+                await Assert.That(canvas.ArmedField).IsEqualTo(target).Because("after typing, the first Esc closes the list");
                 window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
                 Dispatcher.UIThread.RunJobs();
                 using (Assert.Multiple())
                 {
                     await Assert.That(canvas.ArmedField).IsNull().Because("Esc in the field cancels its pick");
                     await Assert.That(row.Escapes).IsEqualTo(1);
+                }
+
+                // A list that only opened on focus does not hold Esc: one press leaves the field and cancels the pick.
+                pick.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                row.Focusable = true;
+                row.Focus();
+                BoxOf(field).Focus();
+                Dispatcher.UIThread.RunJobs();
+                await Assert.That(field.IsDropDownOpen).IsTrue();
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                Dispatcher.UIThread.RunJobs();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(canvas.ArmedField).IsNull();
+                    await Assert.That(row.Escapes).IsEqualTo(2);
                 }
 
                 window.Close();
