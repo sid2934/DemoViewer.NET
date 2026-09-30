@@ -50,13 +50,13 @@ public class StratGoldenCaptureTests
     // 115 s clock the sample declares.
     private const int Smoke = 1600, Molly = 2496, Peek = 3200, All = 3520;
 
-    // Between the molotov step and the peek step, but before the smoke step's 18 s (1152-tick) area
-    // effect expires at tick 2752: A is mid-interpolation toward its peek keyframe, B/C/O1 are each held
+    // Between the molotov step and the peek step, while the smoke step's grenade is still up (it goes off
+    // after its flight from Smoke and lasts 18 s, 1152 ticks): A is mid-interpolation toward its peek keyframe, B/C/O1 are each held
     // at their one keyframe, the smoke disc is still up, the molotov step's arrow sits at full opacity
     // (its fade-out only begins after its window closes at Molly's neighbour, tick Peek-1) and the peek
     // step's text has not started fading in (that starts 8 ticks before Peek). The literal arithmetic
-    // midpoint of Molly and Peek, 2848, shows none of that: the smoke is already gone by then, and
-    // fades sit OUTSIDE a step's window (design §3.5), so nothing is ever seen mid-fade at a boundary
+    // midpoint of Molly and Peek, 2848, was not used: when the smoke went off at its step's tick it was
+    // gone by then, and the pinned frame stays where it was. Fades sit OUTSIDE a step's window (design §3.5), so nothing is ever seen mid-fade at a boundary
     // between two adjacent, non-overlapping windows.
     private const int Mid = 2750;
 
@@ -94,10 +94,11 @@ public class StratGoldenCaptureTests
             "fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can " +
             "verify it. Between the molotov and peek steps: A linearly interpolating toward its peek " +
             "keyframe (past the molotov step's 2.5 s hold, about a fifth of the way to the peek position), " +
-            "B, C and O1 each held at their one keyframe, the smoke step's area effect still up (it expires " +
-            "at tick 2752), the molotov step's added arrow at full opacity and the peek step's text not yet " +
+            "B, C and O1 each held at their one keyframe, the smoke step's area effect still up (18 s after " +
+            "it goes off, at the end of its flight), the molotov step's added arrow at full opacity and the peek " +
+            "step's text not yet " +
             "fading in. Not the literal midpoint of the two steps' ticks (2848): see the class remarks for " +
-            "why that tick shows neither the smoke disc nor A in motion.");
+            "why the entry stays at 2750.");
     }
 
     [Test]

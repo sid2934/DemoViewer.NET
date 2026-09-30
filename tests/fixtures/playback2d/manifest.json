@@ -486,7 +486,7 @@
         "playback2d.annotations",
         "hud.clock"
       ],
-      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. Between the molotov and peek steps: A linearly interpolating toward its peek keyframe (past the molotov step's 2.5 s hold, about a fifth of the way to the peek position), B, C and O1 each held at their one keyframe, the smoke step's area effect still up (it expires at tick 2752), the molotov step's added arrow at full opacity and the peek step's text not yet fading in. Not the literal midpoint of the two steps' ticks (2848): see the class remarks for why that tick shows neither the smoke disc nor A in motion."
+      "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. Between the molotov and peek steps: A linearly interpolating toward its peek keyframe (past the molotov step's 2.5 s hold, about a fifth of the way to the peek position), B, C and O1 each held at their one keyframe, the smoke step's area effect still up (18 s after it goes off, at the end of its flight), the molotov step's added arrow at full opacity and the peek step's text not yet fading in. Not the literal midpoint of the two steps' ticks (2848): see the class remarks for why the entry stays at 2750."
     }
   ]
 }
