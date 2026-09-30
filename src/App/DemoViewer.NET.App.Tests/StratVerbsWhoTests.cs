@@ -3,6 +3,11 @@
 using System.Text.Json;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Pipeline.Frames;
+using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.TestSupport;
@@ -303,6 +308,112 @@ public class StratVerbsWhoTests
     }
 
     [Test]
+    public async Task TheOpenFlyout_KeepsItsPicks_ThroughAReprojection()
+    {
+        (StratBookTabViewModel vm, StratStepRow row, int index) = Open(Plain(100, "B", "hold", "BombsiteA"));
+        using StratBookTabViewModel scope = vm;
+        row.BeginWho();
+        row.WhoOptions.Single(o => o.Slot == "C").IsChecked = true;
+
+        // An unrelated edit, and a reprojection like the one the zones landing runs.
+        vm.Editor.Name = "renamed while picking";
+        vm.Editor.Project();
+        await Assert.That(row.WhoOptions.Single(o => o.Slot == "C").IsChecked).IsTrue().Because("the staged pick survives");
+
+        int depth = vm.Session.UndoDepth;
+        row.CommitWho();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C"]);
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+            await Assert.That(vm.Session.Document!.Name).IsEqualTo("renamed while picking");
+        }
+    }
+
+    [Test]
+    public async Task TheFlyout_WritesNothing_WhenItsStepOrStratIsGone()
+    {
+        StratStep step = Plain(100, "B", "hold", "BombsiteA");
+        (StratBookTabViewModel vm, StratStepRow row, _) = Open(step);
+        using StratBookTabViewModel scope = vm;
+        row.BeginWho();
+        row.WhoOptions.Single(o => o.Slot == "C").IsChecked = true;
+        vm.Editor.RemoveStepCommand.Execute(row);
+        int depth = vm.Session.UndoDepth;
+        string bytes = Bytes(vm);
+        row.CommitWho();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth);
+            await Assert.That(Bytes(vm)).IsEqualTo(bytes);
+        }
+
+        StratStep other = Plain(90, "B", "hold", "BombsiteA");
+        StratStepEditingTests.Seed(vm, other);
+        StratStepRow otherRow = vm.Editor.Steps.Single(r => r.Id == other.Id);
+        otherRow.BeginWho();
+        otherRow.WhoOptions.Single(o => o.Slot == "D").IsChecked = true;
+        Guid first = vm.Session.Document!.Id;
+        vm.NewStratCommand.Execute(null);
+        await Assert.That(vm.Session.Document!.Id).IsNotEqualTo(first);
+        StratStepEditingTests.Seed(vm, other);
+        int switched = vm.Session.UndoDepth;
+        otherRow.CommitWho();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(switched).Because("the flyout opened on another strat");
+            await Assert.That(vm.Session.Document!.Steps.Single(s => s.Id == other.Id).Assignments).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task AConeDrag_OnAVerbWithoutWatching_WritesThePositionsYaw()
+    {
+        StratDocument document = StratCanvasTestData.FiveSteps();
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], post: a => a());
+
+        // Step 2 is A's move: no watching.
+        canvas.SelectStep(document.Steps[1].Id);
+        canvas.BeginDrag("A", TokenGrip.Heading);
+        canvas.MoveTo("A", new SkiaSharp.SKPoint(600, 100), 0);
+        canvas.EndDrag(null);
+        StratStep move = session.Document!.Steps[1];
+        using (Assert.Multiple())
+        {
+            await Assert.That(move.Assignments).IsNull();
+            await Assert.That(move.Positions.Single(p => p.Slot == "A").YawDegrees ?? double.NaN).IsEqualTo(90).Within(0.01);
+        }
+
+        // Step 3 is B's peek, which watches: the turn is the line's angle.
+        canvas.SelectStep(document.Steps[2].Id);
+        canvas.BeginDrag("B", TokenGrip.Heading);
+        canvas.MoveTo("B", new SkiaSharp.SKPoint(100, 1000), 0);
+        canvas.EndDrag(null);
+        await Assert.That(session.Document!.Steps[2].Assignments!.Single().Watch!.YawDegrees ?? double.NaN).IsEqualTo(90).Within(0.01);
+    }
+
+    [Test]
+    public async Task SetOnMap_OnASplitStepForEveryone_WritesOnlyTheSelectedLine()
+    {
+        StratDocument document = StratCanvasTestData.FiveSteps();
+        document.Steps[1].Actor = StratVocabulary.ActorAll;
+        document.Steps[1].Verb = "hold";
+        document.Steps[1].To = new PlaceRef { Place = "Hut" };
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
+        canvas.LinesShownApart = id => id == document.Steps[1].Id;
+        canvas.SelectStep(document.Steps[1].Id);
+        canvas.SelectLine("C");
+        await Assert.That(canvas.SetPlaceText).IsEqualTo("Set C's “at” on map");
+        await Assert.That(canvas.BeginSetPlace()).IsTrue();
+        canvas.TryTagPositionAt(StratMapFirstTests.Upper, 150, 50);
+        await Assert.That(session.Document!.Steps[1].Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
+            .IsEquivalentTo(["A>Hut", "B>Hut", "C>Ramp", "D>Hut", "E>Hut"]);
+    }
+
+    [Test]
     public async Task NoPlayerPicked_WritesNothing()
     {
         (StratBookTabViewModel vm, StratStepRow row, _) = Open(Plain(100, "B", "hold"));
@@ -526,23 +637,97 @@ public class StratVerbsWhoTests
             await Assert.That(e.Keyframes.Any(k => k.X == 430f)).IsFalse();
         }
 
-        // Rotating after the last step still moves the token; one at the step's own time does not.
+        // One at the step's own time does not move the token.
         TokenTrack notLater = Track(Rotating(100), "E");
         await Assert.That(notLater.Keyframes.Count).IsEqualTo(1);
-        TokenTrack afterLast = Track(Rotating(30), "E");
-        await Assert.That(At(afterLast, StepSchedule.TickFor(0, 115)).X).IsEqualTo(430f);
     }
 
     [Test]
-    public async Task ANewStepAfterARotate_DoesNotPullTheLurkerBack()
+    public async Task ARotateAfterTheLastStep_IsReachable_OnTheTransport_AndInTheExport()
     {
-        StratDocument document = Rotating();
-        List<StepPosition> carried = StratStepCarry.PositionsAt(document, 1, null, Centres);
+        // E at Hut's centre on the synthetic map's upper floor; the lurk rotates at 0:30 to Ramp, 100 units east,
+        // after the last step at 1:00.
+        StratDocument document = Rotating(30);
+        document.Map = "de_synthetic";
+        document.Steps[0].Positions = [new StepPosition { Slot = "E", X = 50, Y = 50, LevelMinZ = -512 }, StratCanvasTestData.Position("A", 150, 50)];
+        document.Steps[0].Positions[1].LevelMinZ = -512;
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
+        canvas.Transport.Seek(0);
+
+        StratSceneProjection projection = canvas.Projection!;
+        int rotate = StepSchedule.TickFor(30, 115);
+        int arrive = rotate + (int)Math.Ceiling(100 / StratSceneProjection.RotateUnitsPerSecond * 64);
         using (Assert.Multiple())
         {
-            await Assert.That(carried.Any(p => p.Slot == "E")).IsFalse();
-            await Assert.That(carried.Any(p => p.Slot == "A")).IsTrue();
+            await Assert.That(projection.LastTick).IsEqualTo(StepSchedule.TickFor(60, 115));
+            await Assert.That(projection.ContentEndTick).IsEqualTo(arrive);
+            await Assert.That(canvas.Transport.EndTick).IsEqualTo(arrive).Because("the playhead reaches the arrival");
         }
+
+        canvas.Transport.Seek(arrive);
+        await Assert.That(canvas.Transport.Tick).IsEqualTo(arrive);
+
+        StratExportCapture capture = canvas.CaptureForExport()!;
+        ExportRangeOption range = StratExportJob.Ranges(capture.Projection)[0];
+        StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.StartFrame, range.EndFrame, 64, 1.0));
+        int frame = Enumerable.Range(0, source.FrameCount).First(i => source.TickAt(i) == arrive);
+        PlayerMarker e = source.FrameAt(frame).Markers.Single(m => m.Slot == TokenSlots.OrderOf("E"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(range.EndFrame).IsEqualTo(arrive + StratExportJob.TailTicks);
+            await Assert.That(e.WorldX).IsEqualTo(150f).Within(0.01f).Because("the export shows the lurker at Ramp");
+        }
+    }
+
+    [Test]
+    public async Task ARotateToAPlaceOnAnotherFloor_ArrivesOnThatFloor()
+    {
+        // Ramp has areas on the lower floor only; E stands on the upper one.
+        ZoneSet zones = new("de_synthetic", "9f1c02aa", "075a27b3", null, 64,
+            [new ZoneFloor(-512, -528, 100_000), new ZoneFloor(-2048, -100_000, -528)],
+            [new ZonePlace(0, "Hut", PlaceOrigin.Baked), new ZonePlace(1, "Ramp", PlaceOrigin.Baked)],
+            [],
+            [
+                new ZoneArea(1, 0, -512, true, -400, [0, 0, 100, 0, 100, 100, 0, 100]),
+                new ZoneArea(2, 1, -2048, true, -1900, [100, 0, 300, 0, 300, 100, 100, 100])
+            ],
+            [(1, 2)], [(0, 1)], null);
+        StratPlaceCentres centres = StratPlaceCentres.From(zones);
+        await Assert.That(centres.Arrival("Ramp", -512)).IsEqualTo((200d, 50d, -2048d));
+        await Assert.That(centres.Arrival("Hut", -512)).IsEqualTo((50d, 50d, -512d));
+
+        StratDocument document = Rotating();
+        document.Steps[0].Positions[0].LevelMinZ = -512;
+        StratSceneProjection projection = StratSceneProjection.Build(document, StratPath.MainLine(document), null,
+            (place, level) => centres.Centre(place, level), (place, level) => centres.Arrival(place, level));
+        TokenTrack track = projection.Tracks.Single(t => t.Slot == "E");
+        using (Assert.Multiple())
+        {
+            await Assert.That(track.Keyframes[^1].LevelMinZ).IsEqualTo(-2048d);
+            await Assert.That(track.Keyframes[^1].X).IsEqualTo(200f);
+        }
+    }
+
+    [Test]
+    public async Task ANewStep_CarriesTheLurkerOnlyUntilItsRotate()
+    {
+        // The rotate is at 1:30; a new step after the lurk at 1:35 comes before it, one at 1:25 after it.
+        StratDocument document = Rotating();
+        List<StepPosition> before = StratStepCarry.PositionsAt(document, 1, null, Centres, 95);
+        List<StepPosition> after = StratStepCarry.PositionsAt(document, 1, null, Centres, 85);
+        List<StepPosition> nowhere = StratStepCarry.PositionsAt(document, 1, null, (_, _) => null, 85);
+        using (Assert.Multiple())
+        {
+            await Assert.That(before.Single(p => p.Slot == "E").X).IsEqualTo(0).Because("the lurker has not rotated yet");
+            await Assert.That(after.Any(p => p.Slot == "E")).IsFalse().Because("the rotate has moved it");
+            await Assert.That(after.Any(p => p.Slot == "A")).IsTrue();
+            await Assert.That(nowhere.Single(p => p.Slot == "E").X).IsEqualTo(0).Because("a place that does not resolve moves nothing");
+        }
+
+        PatchOp added = StepAuthoringPatches.AddCarriedStep(document, 1, 85, Guid.NewGuid(), null, Centres);
+        await Assert.That(added.Value!["positions"]!.AsArray().Any(p => p!["slot"]!.GetValue<string>() == "E")).IsFalse();
     }
 
     [Test]

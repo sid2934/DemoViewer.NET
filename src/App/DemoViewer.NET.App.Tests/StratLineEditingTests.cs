@@ -193,6 +193,7 @@ public class StratLineEditingTests
     public async Task ACone_IsHitAroundTheToken_ItsDragSetsTheAngle_AndClearAngleFacesThePlaceAgain()
     {
         StratDocument document = FiveSteps();
+        document.Steps[0].Verb = "hold";
         (StratStore _, StratSession session) = Opened(document);
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], post: a => a());
         canvas.SelectStep(document.Steps[0].Id);

@@ -40,7 +40,7 @@ public static class StratVocabulary
 
     /// <summary>The closed verb list (§3.3.2). Outside it is a refusal, because Role View phrases by verb.</summary>
     public static readonly IReadOnlyList<string> Verbs =
-        ["move", "hold", "throw", "plant", "defuse", "peek", "fake", "rotate", "wait", "call", "other", "push", "lurk"];
+        ["move", "push", "rotate", "hold", "peek", "lurk", "throw", "fake", "plant", "defuse", "wait", "call", "other"];
 
     /// <summary>The rotate conditions a lurk's row suggests. The file stores free text; these are not a vocabulary.</summary>
     public static readonly IReadOnlyList<string> RotateConditions = ["on the call", "on contact", "bomb planted", "after first kill"];

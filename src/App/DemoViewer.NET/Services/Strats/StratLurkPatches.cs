@@ -74,6 +74,22 @@ public static class StratLurkPatches
         return Write(step, stepPath, lurk);
     }
 
+    /// <summary>
+    ///     Whether a rotate at <paramref name="rotateAtSeconds" /> is later in the round than a step at
+    ///     <paramref name="stepAtSeconds" />, compared in strat ticks: the one rule the validator and the canvas share.
+    /// </summary>
+    /// <param name="rotateAtSeconds">The rotate's round clock time.</param>
+    /// <param name="stepAtSeconds">The step's round clock time.</param>
+    /// <param name="roundSeconds">The strat's round length.</param>
+    public static bool IsLater(double rotateAtSeconds, double stepAtSeconds, double roundSeconds) =>
+        double.IsFinite(rotateAtSeconds) && TickOf(rotateAtSeconds, roundSeconds) > TickOf(stepAtSeconds, roundSeconds);
+
+    /// <summary>A round clock time as a strat tick, never before the round's start.</summary>
+    /// <param name="atSeconds">Round clock remaining.</param>
+    /// <param name="roundSeconds">The strat's round length.</param>
+    public static int TickOf(double atSeconds, double roundSeconds) =>
+        Math.Max(0, Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, roundSeconds));
+
     /// <summary>A copy of a lurk, unknown fields included.</summary>
     /// <param name="lurk">The lurk.</param>
     public static StepLurk Clone(StepLurk lurk) =>

@@ -444,7 +444,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Who** (`Button.stratWho`, styled like the combo boxes beside it, with a `▾`): the step's players, `all` or
   `B, C`. Its flyout holds A to E as 30 px toggles and an `all` button; the toggles are staged and written when the
   flyout closes (`StratStepRow.CommitWho`, `StratLinePatches.SetWho`), so picking two players is one undo entry. None
-  checked writes nothing and the toggles show the step again. A flyout rather than a wider control: the 64 px column
+  checked writes nothing and the toggles show the step again. Opening takes a snapshot (`BeginWho`); a reprojection
+  while it is open (an edit elsewhere, the zones landing) leaves the toggles alone, and closing writes the players
+  added and removed since the snapshot onto the step as it then is, by the step's id. A step deleted, or a strat
+  switched, while it is open writes nothing. A flyout rather than a wider control: the 64 px column
   is all line one has at 1280.
 - **One place and watching for players who agree** (`ShowCompact`): while every line says the same apart from its
   slot (place, watch and angle), the row shows one `to` and one `watching` under line one, a `*,*,Auto` grid (a
@@ -606,14 +609,16 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Set on map on lines:** on a step with lines shown apart the toggle names the line (`Set C's “to” on map`) and the
   click writes that line's place, one entry, adding nothing else. On lines the row shows as one it says `Set “to” on
   map` and writes every line's place (`StratCanvasViewModel.LinesShownApart`, wired to the editor's
-  `ShowsLinesApart`). A lurk offers `Set “lurk area” on map`: the click adds the place to the lurk's areas.
+  `ShowsLinesApart`). A step for everyone shown split counts as lines: the click writes the selected player's place
+  and keeps the other four. A lurk offers `Set “lurk area” on map`: the click adds the place to the lurk's areas.
 - **View cones:** every live token on the strat canvas and the Detected preview draws a wedge along its yaw
   (`MarkerLayer.DrawViewCones`, from `ISceneFrameHost.ShowViewCones`): 30 degrees either side, 36 px past the disc,
   the team colour at alpha 56, behind the heading stub. Replays and exports draw none. On the editing canvas a press
   in the wedge is a turn (`TokenHitTest.Classify(..., cone: true)`); a press on a disc always wins over another
   token's wedge. Only the pan and token tools offer it, as for a token drag. Turning one of A to E writes that slot's
-  line `watch.yawDegrees` on the selected step, adding the line (a step for everyone is read as a line per slot
-  first, so the others stay in it); the drag shows the turned yaw, and one entry is written on release. Turning an
+  line `watch.yawDegrees` on the selected step when its verb watches or the line already does, adding the line (a step for everyone is read as a line per slot
+  first, so the others stay in it); on a verb without watching (move, rotate, throw and the rest) it writes the
+  position's yaw, as before lines. The drag shows the turned yaw, and one entry is written on release. Turning an
   opponent token writes its position's yaw as before. The line's angle button clears it.
 - **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
   (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as

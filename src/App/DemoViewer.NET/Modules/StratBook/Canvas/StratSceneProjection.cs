@@ -106,6 +106,14 @@ public delegate TokenPlacement? ThrowOriginResolver(string map, UtilityRef utili
 /// <param name="levelMinZ">The token's level key.</param>
 public delegate (double X, double Y)? PlaceCentreResolver(string place, double levelMinZ);
 
+/// <summary>
+///     Where a token arrives at a place: its centre on the token's floor when the place has areas there, else on the
+///     place's own floor, with that floor's level key; null for a place the map lacks. Answers from memory.
+/// </summary>
+/// <param name="place">A canonical place name.</param>
+/// <param name="levelMinZ">The token's level key.</param>
+public delegate (double X, double Y, double LevelMinZ)? PlaceArrivalResolver(string place, double levelMinZ);
+
 /// <summary>Where a projected stroke came from: the path step and its index in that step's <c>strokes[]</c>.</summary>
 /// <param name="PathIndex">The step's position on the path.</param>
 /// <param name="StrokeIndex">The stroke's index in the step's <c>strokes[]</c>.</param>
@@ -129,6 +137,7 @@ public sealed class StratSceneProjection
     /// </summary>
     public const double RotateUnitsPerSecond = 215;
 
+    private readonly PlaceArrivalResolver? _arrivals;
     private readonly PlaceCentreResolver? _centres;
     private readonly Dictionary<string, List<Rotation>> _rotations;
     private readonly Dictionary<Guid, StrokeRef> _strokes;
@@ -139,8 +148,9 @@ public sealed class StratSceneProjection
         TokenStep[] tokenSteps, ThrowOrigin?[] throwOrigins, IReadOnlyList<TokenTrack> tracks,
         IReadOnlyList<AnnotationElement> elements, Dictionary<Guid, StrokeRef> strokes, IReadOnlyList<TokenLabel> labels,
         IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped, PlaceCentreResolver? centres,
-        Dictionary<string, List<Rotation>> rotations)
+        Dictionary<string, List<Rotation>> rotations, PlaceArrivalResolver? arrivals)
     {
+        _arrivals = arrivals;
         _centres = centres;
         _rotations = rotations;
         _tokenSteps = tokenSteps;
@@ -195,6 +205,12 @@ public sealed class StratSceneProjection
     public int LastTick => Schedule.LastTick;
 
     /// <summary>
+    ///     The last tick anything moves: the last step's, or a lurk rotate's arrival after it. The transport and an
+    ///     export run to here, so a rotate after the last step still plays.
+    /// </summary>
+    public int ContentEndTick => Math.Max(LastTick, Tracks.Count == 0 ? 0 : Tracks.Max(t => t.Keyframes.Count == 0 ? 0 : t.Keyframes[^1].Tick));
+
+    /// <summary>
     ///     The projected document's clock header: <c>ClockIdentity("dv-strat-clock", 64, lastTick + 1, 0,
     ///     lastTick)</c> (§3.5, correction 7).
     /// </summary>
@@ -237,9 +253,14 @@ public sealed class StratSceneProjection
     /// <param name="path">The steps to play, from <see cref="StratPath" />.</param>
     /// <param name="throwOrigins">Resolves a throw's lineup to where it is thrown from; null projects no throw origins.</param>
     /// <param name="placeCentres">Where a watched place is, for a token's facing; null faces only an explicit view angle.</param>
+    /// <param name="placeArrivals">
+    ///     Where a rotating lurker arrives, on the place's own floor; null arrives at <paramref name="placeCentres" />'s
+    ///     centre on the token's floor.
+    /// </param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
-        ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null)
+        ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null)
     {
+        placeArrivals ??= ArrivalsFrom(placeCentres);
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(path);
 
@@ -288,7 +309,7 @@ public sealed class StratSceneProjection
             TokenPlacement?[] placements = Placements(path, origins, slot, placeCentres);
             if (placements.Any(p => p is not null))
             {
-                tracks.Add(Rotated(TokenTrackBuilder.Build(slot, tokenSteps, placements), rotations, placeCentres));
+                tracks.Add(Rotated(TokenTrackBuilder.Build(slot, tokenSteps, placements), rotations, placeArrivals));
             }
         }
 
@@ -313,8 +334,13 @@ public sealed class StratSceneProjection
         }
 
         return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, LabelsFor(document),
-            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped, placeCentres, rotations);
+            UtilityFor(path, ticks), (int)Math.Round(roundSeconds), canvas, clamped, placeCentres, rotations, placeArrivals);
     }
+
+    /// <summary>Arrivals at <paramref name="centres" />' centre on the token's own floor; null for null.</summary>
+    /// <param name="centres">Place centres, or null.</param>
+    public static PlaceArrivalResolver? ArrivalsFrom(PlaceCentreResolver? centres) =>
+        centres is null ? null : (place, level) => centres(place, level) is { } c ? (c.X, c.Y, level) : null;
 
     /// <summary>
     ///     Per slot, the lurk rotates that move its token: a step's rotate with a time later than the step and a
@@ -359,25 +385,26 @@ public sealed class StratSceneProjection
     /// <param name="roundSeconds">The strat's round length.</param>
     internal static int? RotateTickOf(StratStep step, int stepTick, double roundSeconds)
     {
-        if (step.Lurk?.Rotate is not { AtSeconds: { } at, To.Place: { Length: > 0 } } || !double.IsFinite(at))
+        if (step.Lurk?.Rotate is not { AtSeconds: { } at, To.Place: { Length: > 0 } } || !StratLurkPatches.IsLater(at, step.AtSeconds, roundSeconds))
         {
             return null;
         }
 
-        int tick = Math.Max(0, StepSchedule.TickFor(at, roundSeconds));
+        // The step's own tick may be held later than its time when the clock runs backwards.
+        int tick = StratLurkPatches.TickOf(at, roundSeconds);
         return tick > stepTick ? tick : null;
     }
 
-    private static TokenTrack Rotated(TokenTrack track, Dictionary<string, List<Rotation>> rotations, PlaceCentreResolver? centres)
+    private static TokenTrack Rotated(TokenTrack track, Dictionary<string, List<Rotation>> rotations, PlaceArrivalResolver? arrivals)
     {
-        if (centres is null || !rotations.TryGetValue(track.Slot, out List<Rotation>? list))
+        if (arrivals is null || !rotations.TryGetValue(track.Slot, out List<Rotation>? list))
         {
             return track;
         }
 
         foreach (Rotation rotation in list)
         {
-            track = Rotate(track, rotation, centres);
+            track = Rotate(track, rotation, arrivals);
         }
 
         return track;
@@ -385,9 +412,9 @@ public sealed class StratSceneProjection
 
     // From the rotate tick the token runs from where it stands to the place's centre on its own level. A later
     // keyframe it cannot reach first wins: the token heads there from the rotate tick instead.
-    private static TokenTrack Rotate(TokenTrack track, Rotation rotation, PlaceCentreResolver centres)
+    private static TokenTrack Rotate(TokenTrack track, Rotation rotation, PlaceArrivalResolver arrivals)
     {
-        if (!track.TrySample(rotation.Tick, out TokenKeyframe start) || centres(rotation.Place, start.LevelMinZ) is not { } centre)
+        if (!track.TrySample(rotation.Tick, out TokenKeyframe start) || arrivals(rotation.Place, start.LevelMinZ) is not { } centre)
         {
             return track;
         }
@@ -432,7 +459,7 @@ public sealed class StratSceneProjection
         segments.Add(TokenInterpolation.Linear);
         if (k >= old.Count || old[k].Tick > arrive)
         {
-            keyframes.Add(new TokenKeyframe(arrive, (float)centre.X, (float)centre.Y, start.LevelMinZ, yaw));
+            keyframes.Add(new TokenKeyframe(arrive, (float)centre.X, (float)centre.Y, centre.LevelMinZ, yaw));
             holds.Add(0);
             segments.Add(TokenInterpolation.Linear);
         }
@@ -459,7 +486,7 @@ public sealed class StratSceneProjection
     /// <param name="keepYaw">The placement's yaw is the drag's own (a turn), not to be replaced by the line's watch.</param>
     public TokenTrack TrackWith(string slot, int pathIndex, TokenPlacement placement, bool keepYaw = false) =>
         Rotated(TokenTrackBuilder.Build(slot, _tokenSteps, Placements(Path, _throwOrigins, slot, _centres, pathIndex, placement, keepYaw)),
-            _rotations, _centres);
+            _rotations, _arrivals);
 
     /// <summary>
     ///     Per path step, the entry <paramref name="slot" />'s track is built from (null for none). A throw's lineup
