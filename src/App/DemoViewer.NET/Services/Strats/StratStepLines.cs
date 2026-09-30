@@ -75,6 +75,22 @@ public static class StratStepLines
         return Involves(step, slot) ? step.To?.Place : null;
     }
 
+    /// <summary>
+    ///     Where <paramref name="slot" /> goes at the step, place and point: its line's <c>to</c>, or the step's own for a
+    ///     step without lines that names it. Null when it goes nowhere.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="slot">A slot letter.</param>
+    public static PlaceRef? LocationFor(StratStep step, string slot)
+    {
+        if (HasLines(step))
+        {
+            return LineFor(step, slot)?.To;
+        }
+
+        return Involves(step, slot) ? step.To : null;
+    }
+
     /// <summary>Every place a step sends someone: each line's, or the step's own <c>to</c>.</summary>
     /// <param name="step">The step.</param>
     public static IEnumerable<string> Destinations(StratStep step)

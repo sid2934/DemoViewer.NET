@@ -75,7 +75,7 @@ public sealed class StepTrack : ITimelineTrack
                 // A step sharing its tick with the next owns no tick of its own, so it has no band to draw.
                 if (!window.IsEmpty)
                 {
-                    int until = window.UntilTick ?? projection.LastTick;
+                    int until = window.UntilTick ?? projection.ContentEndTick;
                     bands.Add(new TimelineBand(TrackId, window.FromTick, Math.Max(window.FromTick, until), number,
                         tooltip.ToString(), 0u));
                 }

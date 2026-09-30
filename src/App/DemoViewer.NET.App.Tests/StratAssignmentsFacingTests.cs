@@ -144,8 +144,21 @@ public class StratAssignmentsFacingTests
         {
             await Assert.That(carried.Single(p => p.Slot == "B").YawDegrees).IsEqualTo(45);
             await Assert.That(without.Single(p => p.Slot == "B").YawDegrees).IsEqualTo(10);
-            await Assert.That(carried.Single(p => p.Slot == "C")).IsSameReferenceAs(document.Steps[0].Positions[1])
+            await Assert.That(StratStore.Serialize(Doc(carried.Single(p => p.Slot == "C"))))
+                .IsEqualTo(StratStore.Serialize(Doc(document.Steps[0].Positions[1])))
                 .Because("an entry the projection did not turn is carried as stored");
+            await Assert.That(carried.All(p => p.Carried == true)).IsTrue().Because("every carried entry is marked");
+            await Assert.That(document.Steps[0].Positions[1].Carried).IsNull().Because("the step it was copied from keeps its entry");
+        }
+
+        // One document around a position without its mark, so two entries compare by their bytes.
+        StratDocument Doc(StepPosition position)
+        {
+            StratDocument holder = StratDocument.Create(Guid.Empty, Team, "de_mirage", "T", "execute", "x", Created);
+            StepPosition copy = new() { Slot = position.Slot, X = position.X, Y = position.Y, LevelMinZ = position.LevelMinZ,
+                YawDegrees = position.YawDegrees, Extra = position.Extra };
+            holder.Steps = [new StratStep { Id = Guid.Empty, Positions = [copy] }];
+            return holder;
         }
     }
 

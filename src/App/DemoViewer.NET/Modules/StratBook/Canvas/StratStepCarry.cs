@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Services.Strats;
 
@@ -9,8 +10,9 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
 /// <summary>
 ///     The positions a new step starts with: every token where the projection has it at the step it follows,
-///     written out. A copy, not a reference: the stationary rule would already show the same places, but a later
-///     drag on the earlier step would then move the new step's tokens too.
+///     written out and marked <c>carried</c>. A copy, not a reference: the stationary rule would already show the same
+///     places, but a later drag on the earlier step would then move the new step's tokens too. The mark lets a
+///     destination set on the new step win over the copy.
 /// </summary>
 public static class StratStepCarry
 {
@@ -18,7 +20,8 @@ public static class StratStepCarry
     ///     Per token (A to E, O1 to O5), where <see cref="StratSceneProjection" /> places it at
     ///     <paramref name="stepIndex" />: a throw's resolved lineup origin for its actor, else the last authored entry
     ///     at or before that step. An unresolved lineup (not grouped yet, or a stale id) places nothing, as in the
-    ///     projection.
+    ///     projection. A token a destination has sent somewhere since its last authored entry is not carried: where it
+    ///     ends up is the destination's, and a copy of where it stood would pull it back.
     /// </summary>
     /// <param name="document">The strat.</param>
     /// <param name="stepIndex">The step the new one follows; -1 carries nothing.</param>
@@ -47,13 +50,19 @@ public static class StratStepCarry
         StratSceneProjection.ThrowOrigin?[] origins = throwOrigins is null
             ? new StratSceneProjection.ThrowOrigin?[path.Count]
             : [.. path.Select(p => StratSceneProjection.ThrowOriginOf(document.Map, p.Step, throwOrigins))];
+        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
+        int[] ticks = StratSceneProjection.TicksOf(path, roundSeconds, out _);
+        StratSceneProjection.PlaceSet places = new(placeCentres, StratSceneProjection.ArrivalsFrom(placeCentres), null,
+            document.Canvas?.DefaultLevelMinZ ?? 0, roundSeconds);
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
-            TokenPlacement?[] placements = StratSceneProjection.Placements(path, origins, slot, placeCentres);
-            if (atSeconds is { } at && placeCentres is not null && HasRotated(document, last, slot, at, placeCentres))
+            StratSceneProjection.SlotPlan plan = StratSceneProjection.PlanOf(path, ticks, origins, slot, places);
+            if (plan.Moved || (atSeconds is { } at && placeCentres is not null && HasRotated(document, last, slot, at, placeCentres)))
             {
                 continue;
             }
+
+            TokenPlacement?[] placements = plan.Placements;
 
             for (int k = last; k >= 0; k--)
             {
@@ -65,13 +74,15 @@ public static class StratStepCarry
                 // An authored entry the projection did not turn is carried as stored, unknown fields included.
                 StepPosition? stored = document.Steps[k].Positions.LastOrDefault(p => string.Equals(p.Slot, slot, StringComparison.Ordinal)
                                                                                      && double.IsFinite(p.X) && double.IsFinite(p.Y));
-                carried.Add(stored is not null && Same(stored, placement)
-                    ? stored
+                StepPosition copy = stored is not null && Same(stored, placement)
+                    ? Clone(stored)
                     : new StepPosition
                     {
                         Slot = slot, X = Round(placement.X), Y = Round(placement.Y), LevelMinZ = placement.LevelMinZ,
                         YawDegrees = placement.YawDegrees is { } yaw ? Round(yaw) : null
-                    });
+                    };
+                copy.Carried = true;
+                carried.Add(copy);
                 break;
             }
         }
@@ -106,6 +117,10 @@ public static class StratStepCarry
     private static bool Same(StepPosition stored, TokenPlacement placement) =>
         (float)stored.X == placement.X && (float)stored.Y == placement.Y
                                        && (stored.YawDegrees is { } yaw ? (float?)yaw : null) == placement.YawDegrees;
+
+    private static StepPosition Clone(StepPosition position) =>
+        JsonSerializer.Deserialize(JsonSerializer.Serialize(position, StratJsonContext.Default.StepPosition),
+            StratJsonContext.Default.StepPosition)!;
 
     // Two decimals, as a drag writes them.
     private static double Round(double value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);

@@ -306,7 +306,8 @@ public partial class StratLocationFieldTests
             session.Apply(PatchOp.ReplaceOp("/steps/1/assignments/0/watch/places", null, new JsonArray()));
             canvas.SelectStep(document.Steps[1].Id);
             StratSceneProjection projection = canvas.Projection!;
-            TokenPlacement? a = StratSceneProjection.Placements(projection.Path, null, "A", null)[1];
+            TokenPlacement? a = StratSceneProjection.PlanOf(projection.Path, projection.Ticks, null, "A",
+                new StratSceneProjection.PlaceSet(null, null, null, 0, 115)).Placements[1];
             await Assert.That(a!.Value.YawDegrees).IsEqualTo((float)Math.Round(Math.Atan2(-560 - 0, 900.4 - 600) * 180 / Math.PI + 360, 2));
         }
     }
