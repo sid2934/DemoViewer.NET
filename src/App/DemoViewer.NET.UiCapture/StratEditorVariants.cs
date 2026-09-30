@@ -94,7 +94,7 @@ public static partial class Variants
         return view;
     }
 
-    // A 1:05 move that sends B, C and D to three places, each watching something, D at a set angle: three lines
+    // A 1:05 push that sends B, C and D to three places, each watching something, D at a set angle: three lines
     // in the row, and three cones on the canvas facing what they watch. Selected once the view is up, C's line with it.
     // listCollapsed false is the narrowest editor, 315 px at 1280.
     private static StratBookHubView StratEditorLines(bool listCollapsed)
@@ -133,7 +133,7 @@ public static partial class Variants
             Id = Guid.NewGuid(),
             AtSeconds = document.Steps.Count > 0 ? Math.Min(65, document.Steps[^1].AtSeconds - 5) : 65,
             Actor = StratVocabulary.ActorAll,
-            Verb = "move",
+            Verb = "push",
             From = new PlaceRef { Place = "TRamp" },
             Assignments =
             [
@@ -154,6 +154,51 @@ public static partial class Variants
             ]
         };
         vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(step, StratJsonContext.Default.StratStep)));
+    }
+
+    // Two players holding one place and one watching, shown as one "who"; then a lurk with its areas and rotate.
+    // The editor at its narrowest (rail and list open), scrolled to the two rows.
+    private static StratBookHubView StratEditorWhoLurk()
+    {
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(false, false, configure: vm =>
+        {
+            strats = vm;
+            StratDocument document = vm.Session.Document!;
+            double at = document.Steps[^1].AtSeconds - 5;
+            StratStep pair = new()
+            {
+                Id = Guid.NewGuid(), AtSeconds = at, Actor = StratVocabulary.ActorAll, Verb = "hold",
+                Assignments =
+                [
+                    new StepAssignment { Slot = "B", To = new PlaceRef { Place = "BombsiteA" }, Watch = new StepWatch { Places = ["Stairs", "CTSpawn"] } },
+                    new StepAssignment { Slot = "C", To = new PlaceRef { Place = "BombsiteA" }, Watch = new StepWatch { Places = ["Stairs", "CTSpawn"] } }
+                ]
+            };
+            StratStep lurk = new()
+            {
+                Id = Guid.NewGuid(), AtSeconds = at - 5, Actor = "E", Verb = "lurk",
+                Lurk = new StepLurk
+                {
+                    Areas = ["PalaceInterior", "Connector"],
+                    Rotate = new LurkRotate { AtSeconds = 40, When = "on the call", To = new PlaceRef { Place = "BombsiteB" } }
+                }
+            };
+            vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(pair, StratJsonContext.Default.StratStep)));
+            vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(lurk, StratJsonContext.Default.StratStep)));
+        });
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            StratStepRow row = strats!.Editor.Steps[^1];
+            strats.StepSelection.Select(row.Id);
+            if (view.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault(c => c.Name == "StepRows") is { } rows
+                && rows.ContainerFromIndex(strats.Editor.Steps.Count - 2) is { } pairRow && rows.ContainerFromIndex(strats.Editor.Steps.Count - 1) is { } lurkRow)
+            {
+                lurkRow.BringIntoView();
+                pairRow.BringIntoView();
+            }
+        }, DispatcherPriority.Background);
+        return view;
     }
 
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare)

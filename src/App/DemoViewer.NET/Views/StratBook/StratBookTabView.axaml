@@ -74,6 +74,12 @@
         <Style Selector="Border.stratLine ComboBox">
             <Setter Property="Padding" Value="6 0 0 0" />
         </Style>
+        <!-- The Who button reads as the combo boxes beside it: it opens a picker too. -->
+        <Style Selector="Button.stratWho">
+            <Setter Property="Background" Value="{DynamicResource ComboBoxBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ComboBoxBorderBrush}" />
+            <Setter Property="BorderThickness" Value="{DynamicResource ComboBoxBorderThemeThickness}" />
+        </Style>
         <Style Selector="TextBlock.stratFieldLabel">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
@@ -714,7 +720,10 @@
                                                     <Button Grid.Column="2" Name="WhoButton" Classes="stratWho" FontSize="12" MinWidth="0"
                                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="6 4"
                                                             ToolTip.Tip="Who takes the step: pick one or several players, or all">
-                                                        <TextBlock Text="{Binding WhoText}" TextTrimming="CharacterEllipsis" />
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="2">
+                                                            <TextBlock Text="{Binding WhoText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="▾" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                                        </Grid>
                                                         <Button.Flyout>
                                                             <Flyout Placement="BottomEdgeAlignedLeft" Closed="OnWhoFlyoutClosed">
                                                                 <StackPanel Spacing="6">
