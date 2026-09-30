@@ -83,6 +83,11 @@ public static class StratStepLines
     /// <param name="slot">A slot letter.</param>
     public static PlaceRef? LocationFor(StratStep step, string slot)
     {
+        if (!StratVocabulary.Slots.Contains(slot))
+        {
+            return null;
+        }
+
         if (HasLines(step))
         {
             return LineFor(step, slot)?.To;
