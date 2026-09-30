@@ -201,8 +201,15 @@ public partial class PlaceField : UserControl
         }
     }
 
+    // Only a change is written: a pick of the stored callout leaves the bound value alone.
     private void Store(IReadOnlyList<PlaceRef> value)
     {
+        IReadOnlyList<PlaceRef> stored = Value ?? [];
+        if (stored.Count == value.Count && stored.Zip(value).All(p => StratLocations.Same(p.First, p.Second)))
+        {
+            return;
+        }
+
         _syncing = true;
         try
         {
@@ -234,7 +241,7 @@ public partial class PlaceField : UserControl
     // Esc handler runs first and marks the key handled, so this listens to handled keys too.
     private void OnBoxKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_model.IsOpen || e.KeyModifiers != KeyModifiers.None || ReferenceEquals(e, _listKey))
+        if (IsDropDownOpen || e.KeyModifiers != KeyModifiers.None || ReferenceEquals(e, _listKey))
         {
             return;
         }
@@ -254,7 +261,7 @@ public partial class PlaceField : UserControl
     // step on Enter and leaves the field on Esc, and neither may see a key meant for the list.
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!_model.IsOpen || !FieldBox.IsFocused || e.KeyModifiers != KeyModifiers.None)
+        if (!IsDropDownOpen || !FieldBox.IsFocused || e.KeyModifiers != KeyModifiers.None)
         {
             return;
         }
@@ -330,7 +337,7 @@ public partial class PlaceField : UserControl
 
             DropDown.IsOpen = open;
             IsDropDownOpen = open;
-            if (_model.IsOpen)
+            if (open)
             {
                 HookKeys();
             }

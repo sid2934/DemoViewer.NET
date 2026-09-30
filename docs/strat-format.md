@@ -203,7 +203,8 @@ follows the rule for `positions[].levelMinZ`: the level's quantized lower Z, nev
   the click sets the point and keeps whatever place was stored.
 * **Typing a place** keeps the stored point only when it names the same place; any other place drops it,
   so a token never faces a point under another place's name. A landing is the exception it always was:
-  typing "lands at" writes only `landing/place`, so a captured landing point survives.
+  typing "lands at" writes only `landing/place`, so a captured landing point survives. The step row's
+  per-line place field does not follow this rule yet: it still rewrites only the place.
 * **Printing.** Every reader (the call sheet, the role sheets and LAN print, the history, the Detected
   preview, the step track and the canvas's status line) prints the place's callout when there is a place.
   A point alone prints as its world coordinate rounded to whole units, `(1234, -561)`. Not "near

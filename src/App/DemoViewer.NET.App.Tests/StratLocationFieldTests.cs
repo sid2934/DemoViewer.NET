@@ -37,7 +37,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 [NotInParallel]
 [Category("Render")]
-public class StratLocationFieldTests
+public partial class StratLocationFieldTests
 {
     private const string FixtureName = "schema-v1.locations.dvstrat.json";
 
@@ -533,6 +533,70 @@ public class StratLocationFieldTests
             window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();
             await Assert.That(row.Enters).IsEqualTo(1);
+            window.Close();
+        });
+
+    private sealed partial class LineLike : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+    {
+        [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty]
+        private IReadOnlyList<PlaceRef>? _to;
+    }
+
+    [Test]
+    public async Task ABoundValue_IsWrittenBackOnAPick_AndEnterWithNoCalloutListed_GoesToTheRow() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Window window, RowLike row, PlaceField field) = ShowField(VerticalAlignment.Top);
+            LineLike line = new() { To = [Point(1234.4, -560.6)] };
+            int writes = 0;
+            line.PropertyChanged += (_, _) => writes++;
+            field.DataContext = line;
+            field.Bind(PlaceField.ValueProperty, new Avalonia.Data.Binding(nameof(LineLike.To)) { Mode = Avalonia.Data.BindingMode.TwoWay });
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(BoxOf(field).Text).IsEqualTo("(1234, -561)");
+
+            BoxOf(field).Focus();
+            BoxOf(field).SelectAll();
+            Dispatcher.UIThread.RunJobs();
+            window.KeyTextInput("jung");
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(line.To!.Single().Place).IsEqualTo("Jungle");
+                await Assert.That(line.To!.Single().X).IsNull();
+                await Assert.That(writes).IsEqualTo(1);
+                await Assert.That(row.Enters).IsEqualTo(0);
+            }
+
+            // Picking the stored callout again writes nothing.
+            window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(writes).IsEqualTo(1);
+
+            // Text no callout matches shows no list, so Enter is the row's again.
+            BoxOf(field).Text = "";
+            window.KeyTextInput("zzz");
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(field.IsDropDownOpen).IsFalse();
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(row.Enters).IsEqualTo(1);
+            window.Close();
+        });
+
+    [Test]
+    public async Task AtTheRowsFieldWidth_TheTextKeepsMostOfTheField() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Window window, RowLike _, PlaceField field) = ShowField(VerticalAlignment.Top);
+            field.Width = 95;
+            field.PickCommand = new RelayCommand(() => { });
+            field.Value = [Point(1234, -560)];
+            Dispatcher.UIThread.RunJobs();
+            double text = field.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Single().Bounds.Width;
+            await Assert.That(text).IsGreaterThanOrEqualTo(45).Because("both buttons showing still leave room for a callout");
             window.Close();
         });
 
