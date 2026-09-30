@@ -49,6 +49,9 @@ public static class StepAuthoringPatches
         position.X = Round(x);
         position.Y = Round(y);
         position.LevelMinZ = levelMinZ;
+
+        // Placed by hand now, so the step's destination no longer overrides it.
+        position.Carried = null;
         if (yawDegrees is { } yaw)
         {
             position.YawDegrees = Round(Normalize(yaw));

@@ -60,6 +60,41 @@ public static class StratLinePatches
     {
         ArgumentNullException.ThrowIfNull(step);
         ArgumentNullException.ThrowIfNull(lines);
+        List<PatchOp> ops = WriteLines(step, stepPath, lines);
+        if (ops.Count > 0)
+        {
+            PlaceRef? DestinationAfter(string slot) =>
+                lines.Count == 0 ? step.To : lines.FirstOrDefault(l => string.Equals(l.Slot, slot, StringComparison.Ordinal))?.To;
+            ops.AddRange(DropCarried(step, stepPath, StratVocabulary.Slots.Where(s =>
+                StratLocations.IsSet(DestinationAfter(s)) && !SamePlace(StratStepLines.LocationFor(step, s), DestinationAfter(s)))));
+        }
+
+        return ops;
+    }
+
+    /// <summary>
+    ///     The <c>remove</c> of each carried position (<see cref="StepPosition.Carried" />) the step holds for
+    ///     <paramref name="slots" />, highest index first: Add step copied where the token stood, and a destination set
+    ///     since says where it goes. A position a person placed is never removed.
+    /// </summary>
+    /// <param name="step">The step as it stands.</param>
+    /// <param name="stepPath">Its pointer.</param>
+    /// <param name="slots">The slots whose destination the edit sets.</param>
+    public static IEnumerable<PatchOp> DropCarried(StratStep step, string stepPath, IEnumerable<string> slots)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        HashSet<string> set = [.. slots];
+        for (int k = step.Positions.Count - 1; k >= 0; k--)
+        {
+            if (step.Positions[k].Carried == true && set.Contains(step.Positions[k].Slot))
+            {
+                yield return PatchOp.RemoveOp(Invariant($"{stepPath}/positions/{k}"), null);
+            }
+        }
+    }
+
+    private static List<PatchOp> WriteLines(StratStep step, string stepPath, IReadOnlyList<StepAssignment> lines)
+    {
         List<StepAssignment> target = [.. lines.Select(Clone)];
         foreach (StepAssignment line in target)
         {

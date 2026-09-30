@@ -1043,7 +1043,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
         StratSceneProjection projection = StratSceneProjection.Build(document, path,
             _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
-            PlaceCentres(document.Map), PlaceArrivals(document.Map));
+            PlaceCentres(document.Map), PlaceArrivals(document.Map), PlaceContains(document.Map));
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -1585,6 +1585,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private PlaceArrivalResolver? PlaceArrivals(string map) =>
         _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
             ? zones.PlaceArrival
+            : null;
+
+    private PlaceContainsResolver? PlaceContains(string map) =>
+        _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+            ? (place, x, y, level) => string.Equals(zones.ResolveOnFloor(x, y, level), place, StringComparison.Ordinal)
             : null;
 
     private PlaceCentreResolver? PlaceCentres(string map) =>
