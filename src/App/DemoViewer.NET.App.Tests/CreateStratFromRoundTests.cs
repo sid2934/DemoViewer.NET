@@ -210,6 +210,9 @@ public class CreateStratFromRoundTests
         using (Assert.Multiple())
         {
             await Assert.That(StratSceneProjection.IsLegacyCarry(document)).IsFalse().Because("a captured strat never had Add step's copies");
+            await Assert.That(document.Steps.SelectMany(s => s.Positions).All(p => p.Observed == true)).IsTrue()
+                .Because("every captured position is marked where it was seen");
+            await Assert.That(StratSceneProjection.IsLegacyObserved(document)).IsFalse();
             await Assert.That(track.TrySample(projection.Ticks[plant], out TokenKeyframe at)).IsTrue();
             await Assert.That((at.X, at.Y)).IsEqualTo(((float)captured.X, (float)captured.Y)).Because("the captured spot is where it planted");
         }

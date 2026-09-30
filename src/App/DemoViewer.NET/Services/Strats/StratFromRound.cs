@@ -438,7 +438,8 @@ public static class StratFromRound
             X = Round(pawn.X),
             Y = Round(pawn.Y),
             LevelMinZ = level,
-            YawDegrees = Round(NormalizeYaw(pawn.Yaw))
+            YawDegrees = Round(NormalizeYaw(pawn.Yaw)),
+            Observed = true
         });
         last[token] = new Keyed(pawn.X, pawn.Y, level);
     }
