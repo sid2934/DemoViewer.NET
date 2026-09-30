@@ -205,8 +205,8 @@ follows the rule for `positions[].levelMinZ`: the level's quantized lower Z, nev
   the click sets the point and keeps whatever place was stored.
 * **Typing a place** keeps the stored point only when it names the same place; any other place drops it,
   so a token never faces a point under another place's name. A landing is the exception it always was:
-  typing "lands at" writes only `landing/place`, so a captured landing point survives. The step row's
-  per-line place field does not follow this rule yet: it still rewrites only the place.
+  typing "lands at" writes only `landing/place`, so a captured landing point survives; clearing it drops the place
+  first and a second clear removes the point.
 * **Printing.** Every reader (the call sheet, the role sheets and LAN print, the history, the Detected
   preview, the step track and the canvas's status line) prints the place's callout when there is a place.
   A point alone prints as its world coordinate rounded to whole units, `(1234, -561)`. Not "near
@@ -314,11 +314,14 @@ A lurk says where the player works and when and where they rotate. It is optiona
 so a file without it loads and saves byte for byte as before. It lives on the step, not on a line: it is shared
 by every player the step names, like `from` and `utility`, and two lurkers who rotate differently are two steps.
 
-* **`areas`** are canonical places the lurk takes control of or works towards, first first.
+* **`areas`** are canonical places the lurk takes control of or works towards, first first. **`areaPoints`**
+  (optional, written only when there is one) holds areas picked on the map outside every place, `{ x, y, levelMinZ }`
+  each, after the places in reading order: a sibling of `areas` for the same reason `watch.points` is one.
 * **`rotate`** is when the lurk rotates and where to. `atSeconds` is round clock remaining (later in the round,
   so lower than the step's own); `when` is free text ("on the call", "on contact", "bomb planted", "after first
-  kill" are the editor's suggestions, not a vocabulary); `to` is a place. A rotate with a time and a condition
-  means whichever comes first.
+  kill" are the editor's suggestions, not a vocabulary); `to` is a location (a place, a point, or both). A rotate
+  with a time and a condition means whichever comes first. On the canvas a rotating token walks to the point when
+  `to` has one, else to the place.
 * `StratLurkPatches` is the one writer: it drops a `rotate` with no time, condition or place and a `lurk` with no
   area and no rotate, so a step never carries an empty object. The editor's verb change removes a lurk from a verb
   other than `lurk`, in the same entry.

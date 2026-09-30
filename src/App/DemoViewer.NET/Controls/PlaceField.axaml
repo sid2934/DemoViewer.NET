@@ -46,7 +46,7 @@
             </TextBox.InnerRightContent>
         </TextBox>
         <Popup x:Name="DropDown" PlacementTarget="{Binding #FieldBox}" Placement="BottomEdgeAlignedLeft"
-               IsLightDismissEnabled="False">
+               IsLightDismissEnabled="False" ShouldUseOverlayLayer="True">
             <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="1" CornerRadius="3" MaxWidth="260">
                 <ListBox x:Name="OptionList" Focusable="False" MaxHeight="{x:Static c:PlaceField.MaxListHeight}"

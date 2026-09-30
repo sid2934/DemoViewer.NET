@@ -601,6 +601,113 @@ public partial class StratLocationFieldTests
         });
 
     [Test]
+    public async Task InTheStepRow_AFocusedLocationListsCallouts_PicksByKeyboard_AndRotateToPicksOnTheMap() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using StratBookTabViewModel vm = new(new StratStore(null), null, null, false,
+                canvasPlaces: _ => Task.FromResult<IZonePlaceResolver?>(new EverywhereIs("BombsiteB")));
+            vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
+            vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
+            vm.SelectedMap = "de_mirage";
+            vm.NewStratCommand.Execute(null);
+            StratStep lurk = StratStepEditingTests.Step(100, "E", "lurk");
+            lurk.Lurk = new StepLurk { Rotate = new LurkRotate { AtSeconds = 60 } };
+            StratStepEditingTests.Seed(vm, lurk);
+            Views.StratBook.StratBookTabView view = new() { DataContext = vm };
+            Window window = new() { Width = 1280, Height = 800, Content = view };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            int index = vm.Editor.Steps.Count - 1;
+            int steps = vm.Session.Document!.Steps.Count;
+            int depth = vm.Session.UndoDepth;
+            Control row = (Control)view.FindControl<ItemsControl>("StepRows")!.ContainerFromIndex(index)!;
+            PlaceField areas = row.GetVisualDescendants().OfType<PlaceField>().Single(f => f.Name == "LurkAreasField");
+            BoxOf(areas).Focus();
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(areas.IsDropDownOpen).IsTrue().Because("a focused location field lists the map's callouts");
+
+            window.KeyTextInput("palace i");
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior"]);
+                await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(steps).Because("Enter picked from the list");
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+            }
+
+            PlaceField rotateTo = row.GetVisualDescendants().OfType<PlaceField>().Single(f => f.Name == "RotateToField");
+            rotateTo.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "PickButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Canvas.ArmedField).IsEqualTo(vm.Editor.Steps[index].RotateToTarget);
+                await Assert.That(rotateTo.IsPicking).IsTrue().Because("the field shows it is the map's target");
+            }
+
+            vm.Canvas.TryTagPositionAt(Upper, 700, 800);
+            Dispatcher.UIThread.RunJobs();
+            PlaceRef to = vm.Session.Document!.Steps[index].Lurk!.Rotate!.To!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(to.Place).IsEqualTo("BombsiteB");
+                await Assert.That(to.X).IsEqualTo(700);
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 2);
+                await Assert.That(rotateTo.IsPicking).IsFalse();
+                await Assert.That(BoxOf(rotateTo).Text).IsEqualTo("Bombsite B");
+            }
+
+            window.Close();
+        });
+
+    [Test]
+    public async Task InTheStepRow_APointOnlyValueReadsAsItsCoordinate_AndTypingAnotherPlaceDropsIt()
+    {
+        using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
+        StratStep move = StratStepEditingTests.Step(100, "all", "move");
+        move.To = Point(1234.4, -560.6);
+        move.From = new PlaceRef { Place = "TRamp", X = 5, Y = 6, LevelMinZ = 0 };
+        move.Assignments = null;
+        StratStep hold = StratStepEditingTests.Step(90, "all", "hold");
+        hold.Assignments =
+        [
+            new StepAssignment { Slot = "A", Watch = new StepWatch { Places = ["Stairs"], Points = [Point(-900, -1500)] } },
+            new StepAssignment { Slot = "B", To = Point(1, 2) }
+        ];
+        hold.Actor = StratVocabulary.ActorAll;
+        StratStepEditingTests.Seed(vm, move, hold);
+        int m = vm.Editor.Steps.Count - 2, h = m + 1;
+        StratStepRow moveRow = vm.Editor.Steps[m];
+        StratLineRow a = vm.Editor.Steps[h].Lines.Single(l => l.Slot == "A");
+        StratLineRow b = vm.Editor.Steps[h].Lines.Single(l => l.Slot == "B");
+        using (Assert.Multiple())
+        {
+            await Assert.That(moveRow.GroupPlaceText).IsEqualTo("(1234, -561)");
+            await Assert.That(moveRow.ShowGroupPlace).IsTrue();
+            await Assert.That(a.WatchText).IsEqualTo("Stairs, (-900, -1500)");
+            await Assert.That(b.PlaceText).IsEqualTo("(1, 2)");
+            await Assert.That(b.ShowPlace).IsTrue();
+        }
+
+        moveRow.FromText = "Connector";
+        a.WatchText = "Stairs, (-900, -1500), Jungle";
+        StratDocument document = vm.Session.Document!;
+        StepWatch watch = document.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(document.Steps[m].From!.Place).IsEqualTo("Connector");
+            await Assert.That(document.Steps[m].From!.X).IsNull().Because("another place drops the point");
+            await Assert.That(watch.Places).IsEquivalentTo(["Stairs", "Jungle"]);
+            await Assert.That(watch.Points!.Single().X).IsEqualTo(-900).Because("editing the watching keeps its points");
+        }
+
+        a.WatchText = "Jungle";
+        watch = vm.Session.Document!.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
+        await Assert.That(watch.Points).IsNull().Because("a point whose text is removed goes");
+    }
+
+    [Test]
     public async Task NearTheBottom_TheListOpensUp() =>
         await HeadlessSession.RunOnUi(async () =>
         {
