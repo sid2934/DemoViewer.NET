@@ -481,6 +481,8 @@ public static class StratDiffPhrasing
                 {
                     PatchOp.Add => slot + " added" + (lineTo is null ? "" : " → " + lineTo),
                     PatchOp.Remove => slot + " removed",
+                    // A commit merges a remove and an add at one index into this replace.
+                    _ when Text(op.Value?["slot"]) is { } next && next != slot => slot + " removed, " + next + " added",
                     _ => slot + "'s line replaced"
                 };
             case ["steps", var index, "assignments", var lineIndex, .. var rest]:
