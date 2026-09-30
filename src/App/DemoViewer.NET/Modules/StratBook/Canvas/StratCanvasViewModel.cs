@@ -484,9 +484,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         CancelSetPlace();
-        if (field.Slot is not null)
+        if (field.Slot is { } slot && !field.IsAllLines)
         {
-            SelectLine(field.Slot);
+            SelectLine(slot);
         }
 
         // Only a step that is not already active is selected: the toolbar's pick leaves the playhead inside its window.
@@ -504,12 +504,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         return true;
     }
 
-    // What the toolbar toggle sets on a step: its to (every line's when the row shows them as one, else the selected
-    // line's on a step it shows apart), a lurk area, or its landing.
+    // What the toolbar toggle sets on a step: its to (the selected line's on a row shown apart, else every line's, which
+    // is the step's own to without stored lines, as the compact field writes it), a lurk area, or its landing.
     private StratLocationField? ToolbarField(StratStep step) => PlaceTargetFor(step) switch
     {
         StratPlaceTarget.To => new StratLocationField(step.Id,
-            WritesAllLines(step) ? StratLocationField.AllLines : WritesOneLine(step) ? LineSlotOn(step, _selectedSlot) : null,
+            WritesOneLine(step) && !WritesAllLines(step) ? LineSlotOn(step, _selectedSlot) : StratLocationField.AllLines,
             StratLocationKind.To),
         StratPlaceTarget.LurkArea => new StratLocationField(step.Id, null, StratLocationKind.LurkArea),
         StratPlaceTarget.Landing => new StratLocationField(step.Id, null, StratLocationKind.Landing),

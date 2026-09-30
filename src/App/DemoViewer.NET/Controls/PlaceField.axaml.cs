@@ -287,7 +287,7 @@ public partial class PlaceField : UserControl
             case Key.Down:
                 _model.Move(1);
                 break;
-            // Enter is the list's only once the user has typed or moved in it; before that it is the host's.
+            // Enter and Esc are the list's only once the user has typed or moved in it; before that they are the host's.
             case Key.Enter when !_model.HasChoice:
                 _model.Dismiss();
                 return;
@@ -302,6 +302,9 @@ public partial class PlaceField : UserControl
                 }
 
                 break;
+            case Key.Escape when !_model.HasChoice:
+                _model.Dismiss();
+                return;
             case Key.Escape:
                 _model.Dismiss();
                 break;

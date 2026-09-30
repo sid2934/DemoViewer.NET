@@ -537,10 +537,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
   | Key | Where | Does |
   |---|---|---|
-  | Enter | a single-line field, or the row | commits the field, adds a step after the row |
+  | Enter | a single-line field, or the row | commits the field, adds a step after the row (a location field's list a user has typed in picks instead) |
   | Ctrl+D | anywhere in the row but an open combo | commits the field, duplicates the row |
   | Delete | the row itself, never inside a field | removes the row (and its branches); focus stays at that index |
-  | Escape | a field | leaves the field for its row, committing it |
+  | Escape | a field | leaves the field for its row, committing it (a location field's list a user has typed in closes first) |
   | Alt+Up / Alt+Down | a field or the row, not a combo (Alt+Down opens one) | moves the row |
   | Tab | | the visible fields left to right, then the next row's time |
 
@@ -596,15 +596,15 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   containing it, matching display name, canonical name and every alias). The stored callout is highlighted. The list
   opens below the field, or above when fewer than its rows (at most 200 px) fit below and more room is above
   (`PlaceField.ChooseUp`), chosen again once layout settles, since a field reached by Tab is scrolled into view
-  after it opened. The list is drawn in the window's overlay layer. A multi field filters and replaces the text after the last comma; commas inside a
-  coordinate's parentheses do not split it.
-- **Keys:** with the list open, Up and Down move, Esc closes the list, and Enter picks the highlighted callout once
-  the user has typed, moved the highlight or opened the list with Down. Before that (the list a focus opened) Enter
-  closes the list and is the row's, so Enter in a location field still adds a step. The control takes those four at the window with a tunnel handler while its list is showing, so a step
-  row's own tunnel handler (Enter adds a step, Esc leaves the field) never sees them. With no list showing (closed,
-  or no callout matches the text) the keys are the row's; Down opens the list, and Esc while the field is armed on
-  the map cancels the pick (after the row's Esc, which it listens to handled). Picking the stored callout writes
-  nothing.
+  after it opened. The list is drawn in the window's overlay layer. A multi field filters and replaces the text
+  after the last comma; commas inside a coordinate's parentheses do not split it.
+- **Keys:** the list a focus opens is only a view: Enter and Esc there close it and go on to the row (Enter adds a
+  step, Esc leaves the field), so the row's keys work as before. Once the user types, moves the highlight or opens the
+  list with Down, the list holds Up, Down, Enter (pick the highlighted callout, or commit the text) and Esc (close the
+  list), taking them at the window with a tunnel handler so the row's own tunnel handler never sees them. With no list
+  showing (closed, or no callout matches the text) the keys are the row's; Down opens the list, and Esc while the
+  field is armed on the map also cancels the pick (after the row's Esc, which it listens to handled). Picking the
+  stored callout writes nothing.
 - **Buttons:** inside the field's right edge, not tab stops: `⌖` pick on map (shown when `PickCommand` is set;
   `AccentInteractive` and bold while `IsPicking`), and `✕` clear, shown only while the value holds a point without
   a place. The buttons are 16 px wide with 2 px padding: at 95 px with both showing, the text keeps at least 45 px
