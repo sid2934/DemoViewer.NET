@@ -496,18 +496,89 @@ public class StratStepMotionTests
     }
 
     [Test]
-    public async Task ALurkOnTheSameTick_KeepsThePlaceAStepSentTheLurkerTo_AndWalksIt()
+    public async Task ALurkOnTheSameTick_WalksToItsFirstArea_NotThePlaceAnEarlierStepSentTheLurkerTo()
     {
         StratDocument document = Sent("move");
         StratStep lurk = Step(3, 100, "A", "lurk");
-        lurk.Lurk = new StepLurk { Areas = ["TSpawn"] };
+        lurk.Lurk = new StepLurk { Areas = ["BombsiteB"] };
         document.Steps.Add(lurk);
         TokenTrack a = Track(document, "A");
-        int arrive = Two + WalkTicks(1100, 100);
+        int arrive = Two + WalkTicks(100, 1100);
         using (Assert.Multiple())
         {
-            await Assert.That(At(a, arrive - 1).X).IsLessThan(1200f).Because("the lurker walks");
-            await Assert.That((At(a, arrive).X, At(a, arrive).Y)).IsEqualTo((1200f, 200f));
+            await Assert.That(At(a, arrive - 1).Y).IsLessThan(1200f).Because("the lurker walks");
+            await Assert.That((At(a, arrive).X, At(a, arrive).Y, At(a, arrive).LevelMinZ)).IsEqualTo((200f, 1200f, -2048d));
+            await Assert.That(a.Keyframes.Any(k => k.X == 1200f)).IsFalse().Because("the earlier move's place is overridden");
+        }
+    }
+
+    [Test]
+    public async Task OnOneTick_ALaterPositionVerb_BeatsAnEarlierDestination()
+    {
+        StratDocument document = Sent("move");
+        document.Steps.Add(Step(3, 100, "A", "hold", to: "BombsiteB"));
+        TokenTrack a = Track(document, "A");
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(a, Two).X, At(a, Two).Y, At(a, Two).LevelMinZ)).IsEqualTo((200f, 1200f, -2048d))
+                .Because("the hold is there at the step's time");
+            await Assert.That(a.Keyframes.Any(k => k.X == 1200f)).IsFalse().Because("A never heads for Bombsite A");
+        }
+    }
+
+    [Test]
+    public async Task OnOneTick_ALaterDestination_BeatsAnEarlierPositionVerbsSpot_AndLeavesFromIt()
+    {
+        StratDocument document = Sent("hold");
+        document.Steps[1].Positions = [Upper("A", 150, 150)];
+        document.Steps.Add(Step(3, 100, "A", "move", to: "BombsiteB"));
+        TokenTrack a = Track(document, "A");
+        int arrive = Two + RunTicks(50, 1050);
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(a, Two).X, At(a, Two).Y)).IsEqualTo((150f, 150f)).Because("the hold's spot is where A stands on the tick");
+            await Assert.That(At(a, arrive - 5).Y).IsLessThan(1200f);
+            await Assert.That((At(a, arrive).X, At(a, arrive).Y, At(a, arrive).LevelMinZ)).IsEqualTo((200f, 1200f, -2048d));
+            await Assert.That(a.Keyframes.Any(k => k.X == 1200f)).IsFalse();
+        }
+
+        // The later step's own departure beats the earlier spot too.
+        document.Steps[2].Positions = [Upper("A", 180, 60)];
+        TokenTrack from = Track(document, "A");
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(from, Two).X, At(from, Two).Y)).IsEqualTo((180f, 60f));
+            await Assert.That((from.Keyframes[^1].X, from.Keyframes[^1].Y)).IsEqualTo((200f, 1200f));
+        }
+    }
+
+    [Test]
+    public async Task OnOneTick_ALaterLineupOrigin_BeatsAnEarlierDestination_AndTheReverse()
+    {
+        ThrowOriginResolver lineup = (_, _) => new TokenPlacement(-300, -300, -512, 90);
+
+        // The move first, then A's lineup throw on the same tick: A is at the lineup and stays.
+        StratDocument thrown = Sent("move");
+        StratStep smoke = Step(3, 100, "A", "throw");
+        smoke.Utility = new UtilityRef { Kind = "smoke", LineupId = Guid.NewGuid() };
+        thrown.Steps.Add(smoke);
+        TokenTrack a = Track(thrown, "A", lineup);
+        using (Assert.Multiple())
+        {
+            await Assert.That(At(a, Two)).IsEqualTo(new TokenKeyframe(Two, -300, -300, -512, 90));
+            await Assert.That(a.Keyframes.Any(k => k.X == 1200f)).IsFalse();
+        }
+
+        // The throw first, then the move: A leaves the lineup for Bombsite A.
+        StratDocument moved = Sent("throw");
+        moved.Steps[1].Utility = new UtilityRef { Kind = "smoke", LineupId = Guid.NewGuid() };
+        moved.Steps.Add(Step(3, 100, "A", "move", to: "BombsiteA"));
+        TokenTrack b = Track(moved, "A", lineup);
+        int arrive = Two + RunTicks(1500, 500);
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(b, Two).X, At(b, Two).Y)).IsEqualTo((-300f, -300f)).Because("it leaves from the lineup");
+            await Assert.That((At(b, arrive).X, At(b, arrive).Y)).IsEqualTo((1200f, 200f));
         }
     }
 
