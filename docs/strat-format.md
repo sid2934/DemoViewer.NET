@@ -434,20 +434,24 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   step's departure position. Positions on a tick settle before its destinations.
   * A later step's destination replaces an earlier one's: the token leaves once, for the later target. A lurk's first
     area is a destination like any other, so a lurk after a move on its tick sends the lurker to its area, at a walk.
-  * A later exact spot (a lineup origin, or a position verb's entry for a slot it names) cancels the tick's earlier
-    destinations for the slot: the token is there and stays.
+  * A later exact spot cancels the tick's earlier destinations for the slot: the token is there and stays. An exact
+    spot is a lineup origin, or the entry (placed or observed) of a step that names the slot and does not travel: a
+    position verb, or a wait, call or throw.
   * A later destination beats an earlier exact spot: the token leaves for the later target from the later step's own
     position when it has one, else from where it stands on the tick, which is the earlier spot. So a setup's first step
     on the round-start seed leaves from spawn, and a move after a lineup throw on one tick leaves from the lineup (the
     grenade still flies from the lineup either way).
-  * A position on a later step that is not an exact spot is where the token leaves from. It does not cancel an earlier
-    destination, and a carried copy (marked, or legacy) is ignored as usual.
+  * A position on a later step that is not an exact spot (a travel verb's departure, or an entry for a slot the step
+    does not name) is where the token leaves from. It does not cancel an earlier destination, and a carried copy
+    (marked, or legacy) is ignored as usual.
 
   An observed entry keeps its meaning: it is the spot on its own step, and a later step on its tick moves the token
   from there rather than discarding it. Create Strat From Round puts two steps on one tick only when two stops share a
   demo tick (two throws, or a throw and the plant; a sweep is never within 3 seconds of another stop). Captures and
-  mining write only hold, throw, plant and move, never a lurk, and the rule changed only what a lurk does on its tick
-  (its first area no longer yields, and a later step's trip no longer walks), so those steps play exactly as before.
+  mining write only hold, throw, plant and move, never a lurk. One captured shape plays differently: a plant by a
+  player who is not ours reads as `all` sending our five to the planter's place, and a throw of ours at the same demo
+  tick after it now keeps the thrower at the spot the capture saw instead of running to that place. Every other
+  captured shape plays as before.
 
   This is what a round-start seed turned into a move, with a lurk on the same tick, needs: the lurk's copies of the
   spawn positions must not hold the five in spawn, whether or not the file still reads unmarked copies as carried.

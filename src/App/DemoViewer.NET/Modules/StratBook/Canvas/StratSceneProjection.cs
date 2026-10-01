@@ -525,9 +525,9 @@ public sealed class StratSceneProjection
             }
 
             // Positions on one tick settle before its destinations: after a same-tick send, an entry is where the token
-            // leaves from, unless it is the exact spot of a lineup or of a position verb naming the slot, which as the
-            // later step cancels the send. An earlier exact spot stays where a later send leaves from.
-            if (placement is not null && (departed != tick || fromOrigin || (motion == StepMotion.Position && names)))
+            // leaves from, unless it is an exact spot (a lineup, or the entry of a step naming the slot whose verb does not
+            // travel), which as the later step cancels the send. An earlier exact spot stays where a later send leaves from.
+            if (placement is not null && (departed != tick || fromOrigin || (names && motion is StepMotion.Position or StepMotion.None)))
             {
                 if (departed == tick)
                 {
