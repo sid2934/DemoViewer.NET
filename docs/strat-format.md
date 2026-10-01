@@ -396,8 +396,8 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   | throw, wait, call | none: a throw's landing is where the grenade goes, not the player |
 
   A run is at 215 units a second (`RunUnitsPerSecond`, a rifle's run). A lurker walks at 115 (`WalkUnitsPerSecond`, a
-  rifle's shift-walk): to its area, on its rotate, and on any trip a step sends it on at the lurk's own tick. Both go
-  through the same code, and the transport's end (`ContentEndTick`) covers the walk's arrival.
+  rifle's shift-walk): to its area and on its rotate. A later step on the lurk's tick that sends it elsewhere wins, at
+  that step's pace. Both go through the same code, and the transport's end (`ContentEndTick`) covers the walk's arrival.
   A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
   instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
   that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A
@@ -445,8 +445,9 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
 
   An observed entry keeps its meaning: it is the spot on its own step, and a later step on its tick moves the token
   from there rather than discarding it. Create Strat From Round puts two steps on one tick only when two stops share a
-  demo tick (two throws, or a throw and the plant; a sweep is never within 3 seconds of another stop). Those steps
-  carry observed entries for the players they name and send no one anywhere, so they play exactly as before.
+  demo tick (two throws, or a throw and the plant; a sweep is never within 3 seconds of another stop). Captures and
+  mining write only hold, throw, plant and move, never a lurk, and the rule changed only what a lurk does on its tick
+  (its first area no longer yields, and a later step's trip no longer walks), so those steps play exactly as before.
 
   This is what a round-start seed turned into a move, with a lurk on the same tick, needs: the lurk's copies of the
   spawn positions must not hold the five in spawn, whether or not the file still reads unmarked copies as carried.

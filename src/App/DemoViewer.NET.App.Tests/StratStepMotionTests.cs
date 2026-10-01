@@ -513,6 +513,23 @@ public class StratStepMotionTests
     }
 
     [Test]
+    public async Task AMoveAfterALurkOnItsTick_RunsToTheMovesPlace()
+    {
+        StratDocument document = Sent("lurk");
+        document.Steps[1].To = null;
+        document.Steps[1].Lurk = new StepLurk { Areas = ["BombsiteB"] };
+        document.Steps.Add(Step(3, 100, "A", "move", to: "BombsiteA"));
+        TokenTrack a = Track(document, "A");
+        int arrive = Two + RunTicks(1100, 100);
+        using (Assert.Multiple())
+        {
+            await Assert.That(At(a, arrive - 5).X).IsLessThan(1200f);
+            await Assert.That((At(a, arrive).X, At(a, arrive).Y)).IsEqualTo((1200f, 200f)).Because("the later move runs");
+            await Assert.That(a.Keyframes.All(k => k.LevelMinZ == -512d)).IsTrue().Because("it never heads for Bombsite B");
+        }
+    }
+
+    [Test]
     public async Task OnOneTick_ALaterPositionVerb_BeatsAnEarlierDestination()
     {
         StratDocument document = Sent("move");
