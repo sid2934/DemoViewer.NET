@@ -96,6 +96,13 @@ public class StratSeedMoveMotionTests
 
     private static int Tick(double seconds) => StepSchedule.TickFor(seconds, 115);
 
+    // The lurk's first area. The lurk is the later step on the seed's tick, so it beats the seed's OutsideLong line.
+    private static (float X, float Y) LongDoors(IZonePlaceResolver map)
+    {
+        (double x, double y, double _) = map.PlaceArrival("LongDoors", Level) ?? throw new SkipTestException("no LongDoors arrival");
+        return ((float)x, (float)y);
+    }
+
     // The same strat after this build has written one carried mark anywhere, which ends the legacy reading for the file.
     private static StratDocument Marked()
     {
@@ -157,19 +164,22 @@ public class StratSeedMoveMotionTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task TheLurker_WalksToItsLine_ThenWalksItsRotate_AndNeverRuns(bool marked)
+    public async Task TheLurker_WalksToItsFirstArea_ThenWalksItsRotate_AndNeverRuns(bool marked)
     {
         IZonePlaceResolver map = Dust2();
         StratSceneProjection projection = Project(marked ? Marked() : ExecuteB(), map);
         TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
-        int there = WalkTicks(650 - -610, 140 - -800);
+        (float lx, float ly) = LongDoors(map);
+        int there = WalkTicks(lx - -610, ly - -800);
         int rotate = Tick(39);
-        int back = rotate + WalkTicks(-580 - 650, 1435 - 140);
+        int back = rotate + WalkTicks(-580 - lx, 1435 - ly);
         using (Assert.Multiple())
         {
-            await Assert.That(Sample(e, there - 1).X).IsLessThan(650f);
-            await Assert.That((Sample(e, there).X, Sample(e, there).Y)).IsEqualTo((650f, 140f)).Because("the line's place, at a walk");
-            await Assert.That((Sample(e, rotate).X, Sample(e, rotate).Y)).IsEqualTo((650f, 140f)).Because("it lurks there until the rotate");
+            await Assert.That((Sample(e, there - 1).X, Sample(e, there - 1).Y)).IsNotEqualTo((lx, ly));
+            await Assert.That((Sample(e, there).X, Sample(e, there).Y)).IsEqualTo((lx, ly)).Because("the lurk's first area, at a walk");
+            await Assert.That(map.ResolveOnFloor(lx, ly, Level)).IsEqualTo("LongDoors");
+            await Assert.That(e.Keyframes.Any(k => k.X == 650f && k.Y == 140f)).IsFalse().Because("the seed's OutsideLong line is the earlier step");
+            await Assert.That((Sample(e, rotate).X, Sample(e, rotate).Y)).IsEqualTo((lx, ly)).Because("it lurks there until the rotate");
             await Assert.That(Sample(e, back - 1).X).IsGreaterThan(-580f);
             await Assert.That((Sample(e, back).X, Sample(e, back).Y)).IsEqualTo((-580f, 1435f));
             await Assert.That(projection.ContentEndTick).IsGreaterThanOrEqualTo(back).Because("the clock reaches the rotate's arrival");
@@ -191,11 +201,12 @@ public class StratSeedMoveMotionTests
         IZonePlaceResolver map = Dust2();
         StratSceneProjection projection = Project(ExecuteB(), map);
         TokenTrack a = projection.Tracks.Single(t => t.Slot == "A"), e = projection.Tracks.Single(t => t.Slot == "E");
+        (float lx, float ly) = LongDoors(map);
         int push = Tick(53), later = Tick(45);
         using (Assert.Multiple())
         {
             await Assert.That((Sample(a, later).X, Sample(a, later).Y)).IsEqualTo((-1090f, 1105f)).Because("A holds under, at Tunnel Stairs");
-            await Assert.That((Sample(e, later).X, Sample(e, later).Y)).IsEqualTo((650f, 140f)).Because("the lurker is not in the push");
+            await Assert.That((Sample(e, later).X, Sample(e, later).Y)).IsEqualTo((lx, ly)).Because("the lurker is not in the push");
             foreach (string slot in new[] { "B", "C", "D" })
             {
                 TokenTrack track = projection.Tracks.Single(t => t.Slot == slot);
@@ -206,6 +217,6 @@ public class StratSeedMoveMotionTests
         }
 
         // The regroup at 1:15 names A to D only: E keeps lurking.
-        await Assert.That((Sample(e, Tick(70)).X, Sample(e, Tick(70)).Y)).IsEqualTo((650f, 140f));
+        await Assert.That((Sample(e, Tick(70)).X, Sample(e, Tick(70)).Y)).IsEqualTo((lx, ly));
     }
 }

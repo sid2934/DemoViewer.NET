@@ -488,8 +488,8 @@ public sealed class StratSceneProjection
         // stale then, and where it stands is only known once the runs are laid out.
         bool moved = false;
 
-        // The tick the slot was last sent from by a step, and the tick of the last lurk naming it, for same-tick steps.
-        int departed = -1, lurking = -1;
+        // The tick the slot was last sent from by a step, for same-tick steps.
+        int departed = -1;
         for (int i = 0; i < path.Count; i++)
         {
             StratStep step = path[i].Step;
@@ -504,11 +504,6 @@ public sealed class StratSceneProjection
             bool carried = stored is { } s && (marked || (places.LegacyCarry && SameSpot(s, lastStored)));
             StepMotion motion = MotionOf(step.Verb);
             bool names = StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot);
-            if (motion == StepMotion.Lurk && names)
-            {
-                lurking = tick;
-            }
-
             PlaceRef? to = DestinationOf(step, slot) is { } d && places.Arrivals is { } arrivals
                                                     && ArrivalAt(d, (last ?? stored)?.LevelMinZ ?? places.DefaultLevelMinZ, arrivals) is not null
                 ? d
@@ -530,8 +525,9 @@ public sealed class StratSceneProjection
             }
 
             // Positions on one tick settle before its destinations: after a same-tick send, an entry is where the token
-            // leaves from, unless it is the exact spot of a lineup or of a position verb naming the slot.
-            if (placement is not null && (departed != tick || fromOrigin || (motion == StepMotion.Position && names)))
+            // leaves from, unless it is an exact spot (a lineup, or the entry of a step naming the slot whose verb does not
+            // travel), which as the later step cancels the send. An earlier exact spot stays where a later send leaves from.
+            if (placement is not null && (departed != tick || fromOrigin || (names && motion is StepMotion.Position or StepMotion.None)))
             {
                 if (departed == tick)
                 {
@@ -547,7 +543,7 @@ public sealed class StratSceneProjection
             bool seen = observed && placement is not null && i != overrideIndex;
             if (to is not null && !fromOrigin && (placement is null || (!seen && !places.Observed && motion is StepMotion.Travel or StepMotion.Lurk)))
             {
-                SendTo(events, tick, i, motion, to, watch, lurking == tick);
+                SendTo(events, tick, i, motion, to, watch);
                 departed = tick;
                 moved = true;
             }
@@ -588,27 +584,12 @@ public sealed class StratSceneProjection
     private static TokenPlacement Turned(TokenPlacement at, StepWatch? watch, PlaceCentreResolver? centres) =>
         watch is not null && FacingOf(watch, at, centres) is { } yaw ? at with { YawDegrees = yaw } : at;
 
-    /// <summary>
-    ///     Whether a lurk's first area gives way to a place a non-lurk step on the same tick sent the lurker to (the
-    ///     lurker walks there instead). False would let the lurk, as the later step, send it to its first area. The owner
-    ///     has not settled this; this is the one switch.
-    /// </summary>
-    internal const bool LurkAreaYieldsToSameTickPlace = true;
-
-    // On one tick a later step's destination replaces an earlier one's, a later lurk's included, except as
-    // LurkAreaYieldsToSameTickPlace says. A lurker walks every trip on the lurk's tick.
-    private static void SendTo(List<SlotEvent> events, int tick, int order, StepMotion motion, PlaceRef to, StepWatch? watch, bool lurking)
+    // On one tick a later step's destination replaces an earlier one's, whatever the verbs, and moves at its own pace.
+    private static void SendTo(List<SlotEvent> events, int tick, int order, StepMotion motion, PlaceRef to, StepWatch? watch)
     {
-        int earlier = events.FindIndex(e => e.Tick == tick && e.Shaped && e.To is not null);
-        if (LurkAreaYieldsToSameTickPlace && earlier >= 0 && motion == StepMotion.Lurk && !events[earlier].FromLurk)
-        {
-            events[earlier] = events[earlier] with { Walk = true };
-            return;
-        }
-
         events.RemoveAll(e => e.Tick == tick && e.Shaped && e.To is not null);
         events.Add(new SlotEvent(tick, order, motion == StepMotion.Position ? SlotEventKind.Arrive : SlotEventKind.Travel, to, watch, false, true,
-            lurking || motion == StepMotion.Lurk, motion == StepMotion.Lurk));
+            motion == StepMotion.Lurk));
     }
 
     /// <summary>
@@ -897,9 +878,8 @@ public sealed class StratSceneProjection
     /// <param name="Fan">Another token is at the same destination at the same time.</param>
     /// <param name="Shaped">At its step's tick, so the step's hold and interpolation shape it.</param>
     /// <param name="Walk">At <see cref="WalkUnitsPerSecond" />: a lurker's move.</param>
-    /// <param name="FromLurk">A lurk's first area sent it.</param>
     internal sealed record SlotEvent(int Tick, int Order, SlotEventKind Kind, PlaceRef? To, StepWatch? Watch, bool Fan, bool Shaped,
-        bool Walk = false, bool FromLurk = false);
+        bool Walk = false);
 
     /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
     internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved);

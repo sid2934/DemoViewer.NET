@@ -495,6 +495,10 @@ public static class StratDiffPhrasing
                                                           && removed["carried"] is JsonValue mark && mark.GetValueKind() == JsonValueKind.True:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + (Text(removed["slot"]) ?? "a token")
                        + "'s carried position dropped";
+            case ["steps", var index, "positions", _, "slot"] when op.Op == PatchOp.Replace
+                                                                && (Text(StratHistory.ValueAt(tree, op.Path)) ?? Text(op.From)) is { } fromSlot
+                                                                && Text(op.Value) is { } toSlot:
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + fromSlot + "'s position moved to " + toSlot;
             case ["steps", var index, "lurk", .. var rest]:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + LurkChange(tree, rest, op, callouts);
             case ["steps", var index, .. var rest]:
