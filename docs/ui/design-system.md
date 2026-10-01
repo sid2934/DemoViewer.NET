@@ -470,8 +470,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   no lines is a step for everyone, one line with no watch is a plain step (the actor rewritten, `assignments`
   removed), five bare lines to one place fold back into a step for everyone, anything else is `assignments` with the
   summary actor and no step-level `to`. A line's slot combo lists all five and is a burst field like the verb. The
-  whole line moves to the slot picked, watch and angle included; a slot another line holds swaps the two lines'
-  slots (`StratLinePatches.ChangeSlot`), so re-lettering players never needs a remove and `+ player`, which would
+  whole line moves to the slot picked, watch and angle included, and the player's position on that step moves with
+  it; a slot another line holds swaps the two lines' slots and positions (`StratLinePatches.ChangeSlot`), so re-lettering players never needs a remove and `+ player`, which would
   drop the removed player's line. Swap rather than refuse: refusing left remove and re-add as the only way to
   re-letter. A split step for everyone lists only the line's own slot, since any change folds back to the same
   step. A combo pick that writes nothing reprojects the row, so a combo never shows a value the file does not hold. A line's watching shows when the verb uses it or the line holds one. Every place and watching

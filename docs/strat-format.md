@@ -287,9 +287,12 @@ their slot are what the editor shows as one "who" with one place and one watchin
 end for each player added; the other lines keep their index and their bytes, unknown fields included, so no
 edit moves one player's `to` or `watch` onto another. Only removing a player drops their line. A line's slot
 change moves the whole line to the new slot, and a slot another line already holds swaps the two: both are
-`replace` ops on `slot`, and undo restores the exact bytes. `positions[]` stays keyed by slot through a slot
-change, because it places tokens (opponents included) rather than lines; a carried position whose slot's
-destination changes is dropped, as for any destination edit.
+`replace` ops on `slot`, and undo restores the exact bytes. The player's position on that step goes with the line:
+the step's `positions[]` entries for the old and the new slot swap slots (a `replace` on each entry's `slot`, so
+`observed`, yaw and unknown fields go with it), and their marked carried entries are dropped, since a carried copy
+says where a token stood rather than where its player was put. Other slots, opponents included, and other steps are
+not touched. A slot change that leaves the lines as they were writes nothing, positions included, so wheeling the
+slot combo through slots and back leaves no entry.
 
 `StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). Every consumer
 goes through it except the Create Strat From Round preview, which only ever shows captured one-actor steps.
