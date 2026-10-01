@@ -287,9 +287,12 @@ their slot are what the editor shows as one "who" with one place and one watchin
 end for each player added; the other lines keep their index and their bytes, unknown fields included, so no
 edit moves one player's `to` or `watch` onto another. Only removing a player drops their line. A line's slot
 change moves the whole line to the new slot, and a slot another line already holds swaps the two: both are
-`replace` ops on `slot`, and undo restores the exact bytes. `positions[]` stays keyed by slot through a slot
-change, because it places tokens (opponents included) rather than lines; a carried position whose slot's
-destination changes is dropped, as for any destination edit.
+`replace` ops on `slot`, and undo restores the exact bytes. The player's position on that step goes with the line:
+the step's `positions[]` entries for the old and the new slot swap slots (a `replace` on each entry's `slot`, so
+`observed`, yaw and unknown fields go with it), and their marked carried entries are dropped, since a carried copy
+says where a token stood rather than where its player was put. Other slots, opponents included, and other steps are
+not touched. A slot change that leaves the lines as they were writes nothing, positions included, so wheeling the
+slot combo through slots and back leaves no entry.
 
 `StratStepLines` is the one reader of both shapes (`Of`, `Involves`, `ToFor`, `ActorOf`). Every consumer
 goes through it except the Create Strat From Round preview, which only ever shows captured one-actor steps.
@@ -393,8 +396,8 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   | throw, wait, call | none: a throw's landing is where the grenade goes, not the player |
 
   A run is at 215 units a second (`RunUnitsPerSecond`, a rifle's run). A lurker walks at 115 (`WalkUnitsPerSecond`, a
-  rifle's shift-walk): to its area, on its rotate, and on any trip a step sends it on at the lurk's own tick. Both go
-  through the same code, and the transport's end (`ContentEndTick`) covers the walk's arrival.
+  rifle's shift-walk): to its area and on its rotate. A later step on the lurk's tick that sends it elsewhere wins, at
+  that step's pace. Both go through the same code, and the transport's end (`ContentEndTick`) covers the walk's arrival.
   A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
   instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
   that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A
@@ -426,15 +429,29 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   A captured or mined strat (`origin` set, or the mined tag) written before the mark has no `observed` key anywhere.
   In such a file only, every position reads as observed (`StratSceneProjection.IsLegacyObserved`), which is how it
   played before. Any capture made from now on is marked per position, so the whole-file rule never applies to it.
-* **Several steps on one tick.** Positions on a tick settle before its destinations, and steps apply in path order.
-  * A later step's destination for a slot replaces an earlier one's on that tick: the token leaves once, for the later
-    target. A lurk's first area is the exception. It does not replace a place a step other than a lurk sent the lurker
-    to on that tick; the lurker walks to that place instead and works its areas from there. A later lurk's first area
-    does replace an earlier lurk's. The switch is `StratSceneProjection.LurkAreaYieldsToSameTickPlace`.
-  * A position on a later step at that tick, for a slot a destination on the tick already sent, is where the token
-    leaves from. It does not pin the token, and a carried copy (marked, or legacy) is ignored as usual. The exception
-    is an exact spot: a lineup origin, or a position verb that names the slot. That spot wins and cancels the tick's
-    earlier destinations for the slot.
+* **Several steps on one tick.** When steps share a tick and tell one slot different things, the step later in path
+  order wins, whatever the kinds: a destination, a position verb's spot, a lurk's first area, a lineup origin or a travel
+  step's departure position. Positions on a tick settle before its destinations.
+  * A later step's destination replaces an earlier one's: the token leaves once, for the later target. A lurk's first
+    area is a destination like any other, so a lurk after a move on its tick sends the lurker to its area, at a walk.
+  * A later exact spot cancels the tick's earlier destinations for the slot: the token is there and stays. An exact
+    spot is a lineup origin, or the entry (placed or observed) of a step that names the slot and does not travel: a
+    position verb, or a wait, call or throw.
+  * A later destination beats an earlier exact spot: the token leaves for the later target from the later step's own
+    position when it has one, else from where it stands on the tick, which is the earlier spot. So a setup's first step
+    on the round-start seed leaves from spawn, and a move after a lineup throw on one tick leaves from the lineup (the
+    grenade still flies from the lineup either way).
+  * A position on a later step that is not an exact spot (a travel verb's departure, or an entry for a slot the step
+    does not name) is where the token leaves from. It does not cancel an earlier destination, and a carried copy
+    (marked, or legacy) is ignored as usual.
+
+  An observed entry keeps its meaning: it is the spot on its own step, and a later step on its tick moves the token
+  from there rather than discarding it. Create Strat From Round puts two steps on one tick only when two stops share a
+  demo tick (two throws, or a throw and the plant; a sweep is never within 3 seconds of another stop). Captures and
+  mining write only hold, throw, plant and move, never a lurk. One captured shape plays differently: a plant by a
+  player who is not ours reads as `all` sending our five to the planter's place, and a throw of ours at the same demo
+  tick after it now keeps the thrower at the spot the capture saw instead of running to that place. Every other
+  captured shape plays as before.
 
   This is what a round-start seed turned into a move, with a lurk on the same tick, needs: the lurk's copies of the
   spawn positions must not hold the five in spawn, whether or not the file still reads unmarked copies as carried.
