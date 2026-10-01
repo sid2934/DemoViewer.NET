@@ -293,7 +293,8 @@ public static class StratLinePatches
     /// <summary>
     ///     The line at <paramref name="line" /> moved whole to <paramref name="slot" />: place, watch, angle and
     ///     unknown fields go with it. When another line holds that slot the two swap, so re-lettering players never
-    ///     drops one. Positions stay with their slot: they are tokens, not lines.
+    ///     drops one. The step's positions for the two slots swap with it, marks included; their carried entries are
+    ///     dropped. Nothing when the lines come out unchanged.
     /// </summary>
     /// <param name="step">The step.</param>
     /// <param name="stepPath">Its pointer.</param>
@@ -310,13 +311,49 @@ public static class StratLinePatches
         }
 
         string old = lines[line].Slot;
+        if (string.Equals(old, slot, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
         foreach (StepAssignment other in lines.Where((l, j) => j != line && string.Equals(l.Slot, slot, StringComparison.Ordinal)))
         {
             other.Slot = old;
         }
 
         lines[line].Slot = slot;
-        return Write(step, stepPath, lines);
+        List<PatchOp> ops = WriteLines(step, stepPath, lines, false);
+        if (ops.Count == 0)
+        {
+            return ops;
+        }
+
+        // Slot replaces first, on the original indices; the removes after them, highest index first.
+        List<int> carried = [];
+        for (int k = 0; k < step.Positions.Count; k++)
+        {
+            StepPosition position = step.Positions[k];
+            string? other = string.Equals(position.Slot, old, StringComparison.Ordinal) ? slot
+                : string.Equals(position.Slot, slot, StringComparison.Ordinal) ? old
+                : null;
+            if (other is null)
+            {
+                continue;
+            }
+
+            if (position.Carried == true)
+            {
+                carried.Add(k);
+            }
+            else
+            {
+                ops.Add(PatchOp.ReplaceOp(Invariant($"{stepPath}/positions/{k}/slot"), null, JsonValue.Create(other)));
+            }
+        }
+
+        carried.Reverse();
+        ops.AddRange(carried.Select(k => PatchOp.RemoveOp(Invariant($"{stepPath}/positions/{k}"), null)));
+        return ops;
     }
 
     /// <summary>
