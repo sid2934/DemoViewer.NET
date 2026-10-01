@@ -376,6 +376,32 @@ public class StratLineSlotTests
     }
 
     [Test]
+    public async Task ASwap_WithTwoLegacyEntriesForOneSlot_MovesBoth_AndUndoRestoresTheBytes()
+    {
+        StratDocument document = FiveSteps();
+        StratStep step = document.Steps[0];
+        step.To = null;
+        step.Verb = "push";
+        step.Assignments = [Line("A", "BombsiteA"), Line("B", "Connector")];
+        step.Positions =
+        [
+            new StepPosition { Slot = "A", X = 10, Y = 20 }, new StepPosition { Slot = "B", X = 30, Y = 40 },
+            new StepPosition { Slot = "A", X = 11, Y = 21, Observed = true }
+        ];
+        (StratStore _, StratSession session) = Opened(document);
+        string before = StratStore.Serialize(session.Document!);
+
+        session.Apply(StratLinePatches.ChangeSlot(session.Document!.Steps[0], "/steps/0", 0, "B"));
+        string after = StratStore.Serialize(session.Document!);
+        await Assert.That(session.Document!.Steps[0].Positions.Select(p => p.Slot + p.X)).IsEquivalentTo(["B10", "A30", "B11"],
+            TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        session.Undo();
+        await Assert.That(StratStore.Serialize(session.Document!)).IsEqualTo(before);
+        session.Redo();
+        await Assert.That(StratStore.Serialize(session.Document!)).IsEqualTo(after);
+    }
+
+    [Test]
     public async Task OnAOnePlayerStep_ASlotChange_MovesThePlayersPosition()
     {
         StratStep step = ExecuteBStep8();

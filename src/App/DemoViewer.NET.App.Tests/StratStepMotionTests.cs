@@ -530,6 +530,60 @@ public class StratStepMotionTests
     }
 
     [Test]
+    [Arguments("wait")]
+    [Arguments("call")]
+    [Arguments("throw")]
+    public async Task OnOneTick_ALaterStillVerbNamingTheSlotWithASpot_BeatsAnEarlierDestination(string verb)
+    {
+        StratDocument document = Sent("move");
+        StratStep still = Step(3, 100, "A", verb);
+        still.Positions = [Upper("A", 150, 150)];
+        document.Steps.Add(still);
+        TokenTrack a = Track(document, "A");
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(a, Two + 640).X, At(a, Two + 640).Y)).IsEqualTo((150f, 150f)).Because($"the {verb}'s spot is where A stays");
+            await Assert.That(a.Keyframes.Any(k => k.X == 1200f)).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task OnOneTick_ASpotOnAStepThatDoesNotNameTheSlot_IsOnlyTheDeparture()
+    {
+        StratDocument document = Sent("move");
+        StratStep wait = Step(3, 100, "C", "wait");
+        wait.Positions = [Upper("A", 150, 150)];
+        document.Steps.Add(wait);
+        TokenTrack a = Track(document, "A");
+        int arrive = Two + RunTicks(1050, 50);
+        using (Assert.Multiple())
+        {
+            await Assert.That((At(a, Two).X, At(a, Two).Y)).IsEqualTo((150f, 150f));
+            await Assert.That((At(a, arrive).X, At(a, arrive).Y)).IsEqualTo((1200f, 200f)).Because("C's wait does not name A");
+        }
+    }
+
+    [Test]
+    public async Task MidDrag_ASameTickConflict_ReadsAsTheProjectionDoes()
+    {
+        // The move first, then A's hold with a spot on the same tick; and the other way round.
+        StratDocument held = Sent("move");
+        StratStep hold = Step(3, 100, "A", "hold");
+        hold.Positions = [Upper("A", 150, 150)];
+        held.Steps.Add(hold);
+        StratDocument moved = Sent("hold");
+        moved.Steps[1].Positions = [Upper("A", 150, 150)];
+        moved.Steps.Add(Step(3, 100, "A", "move", to: "BombsiteB"));
+        foreach ((StratDocument document, int index) in new[] { (held, 2), (moved, 1) })
+        {
+            StratSceneProjection projection = Project(document);
+            TokenTrack projected = projection.Tracks.Single(t => t.Slot == "A");
+            TokenTrack dragged = projection.TrackWith("A", index, new TokenPlacement(150, 150, -512, null));
+            await Assert.That(dragged.Keyframes).IsEquivalentTo(projected.Keyframes, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
     public async Task OnOneTick_ALaterPositionVerb_BeatsAnEarlierDestination()
     {
         StratDocument document = Sent("move");
