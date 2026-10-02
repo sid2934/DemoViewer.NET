@@ -298,6 +298,29 @@ public class StratRoutingTests
     }
 
     [Test]
+    [Arguments("move")]
+    [Arguments("lurk")]
+    public async Task AViaThatIsTheDestination_IsTheRunWithoutIt(string verb)
+    {
+        ZonePlaceResolverAdapter map = Map(Dust2);
+        StratDocument Doc(bool via)
+        {
+            StratDocument document = Sent("de_dust2", "TSpawn", verb, "LongDoors", -99968, map);
+            if (verb == "lurk")
+            {
+                document.Steps[1].To = null;
+                document.Steps[1].Lurk = new StepLurk { Areas = ["LongDoors"] };
+            }
+
+            document.Steps[1].Via = via ? ["LongDoors"] : null;
+            return document;
+        }
+
+        TokenTrack plain = Track(Project(Doc(false), map), "A"), through = Track(Project(Doc(true), map), "A");
+        await Assert.That(through.Keyframes).IsEquivalentTo(plain.Keyframes).Because("the run ends facing its last leg, not the straight line from spawn");
+    }
+
+    [Test]
     public async Task TheCanvas_RoutesWhenTheFeatureIsOn_AndDrawsTodaysTracksWhenOff()
     {
         ZonePlaceResolverAdapter map = Map(Dust2);

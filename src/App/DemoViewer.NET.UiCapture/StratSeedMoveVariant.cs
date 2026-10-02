@@ -40,6 +40,42 @@ public static partial class Variants
         return view;
     }
 
+    // The same execute as the owner later left it: no E line on the seed, and E's lurk a second later via Long Doors,
+    // working five areas. Dragged, E's entry on the lurk step sits a few units from Long Doors' centre, else it is the
+    // step's unmarked copy of spawn.
+    private static StratBookHubView StratEditorOwnersLurk(double atSeconds, bool dragged)
+    {
+        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(true, true, true, vm =>
+        {
+            strats = vm;
+            vm.SelectedMap = "de_dust2";
+            vm.NewStratCommand.Execute(null);
+            vm.Editor.Name = "Execute B";
+            List<StratStep> steps = SeedMoveSteps();
+            steps[0].Assignments!.RemoveAll(a => a.Slot == "E");
+            List<string> areas = ["LongDoors", "TopofMid", "Catwalk", "Middle", "MidDoors"];
+            StratStep lurk = steps[1];
+            lurk.AtSeconds = 114;
+            if (dragged && zones?.PlaceArrival("LongDoors", Dust2Level) is { } doors)
+            {
+                lurk.Positions[4] = new StepPosition { Slot = "E", X = Math.Round(doors.X - 7, 2), Y = Math.Round(doors.Y - 9, 2), LevelMinZ = Dust2Level };
+            }
+
+            lurk.Assignments = [new StepAssignment { Slot = "E", Via = ["LongDoors"], Watch = new StepWatch { Places = [.. areas] } }];
+            lurk.Lurk!.Areas = [.. areas];
+            JsonArray json = [.. steps.Select(s => JsonSerializer.SerializeToNode(s, StratJsonContext.Default.StratStep))];
+            vm.Session.Apply(PatchOp.ReplaceOp("/steps", null, json));
+        }, zones, null, "de_dust2");
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            strats!.Canvas.Transport.Pause();
+            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, 115));
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
     private static List<StratStep> SeedMoveSteps()
     {
         static PlaceRef Point(string place, double x, double y) => new() { Place = place, X = x, Y = y, LevelMinZ = Dust2Level };
