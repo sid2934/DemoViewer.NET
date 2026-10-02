@@ -145,6 +145,9 @@ public sealed class StratSession : IDisposable
     /// <summary>The open strat's file held uncommitted edits from an earlier session; they are pending again.</summary>
     public bool RecoveredPending { get; private set; }
 
+    /// <summary>What the store did to the working copy at open (moved onto a newer revision, or set aside); null for nothing.</summary>
+    public string? RecoveryNote { get; private set; }
+
     /// <summary>Working-copy writes completed, successful or not. Tests wait on it.</summary>
     public int SaveCount { get; private set; }
 
@@ -209,6 +212,7 @@ public sealed class StratSession : IDisposable
         _checkOut = _store.CheckOut(id, this);
         Document = document;
         RecoveredPending = recovered.Count > 0;
+        RecoveryNote = result.Note;
         _issuesVersion = -1;
         _commitFailure = null;
         _writeFailed = false;
@@ -253,6 +257,7 @@ public sealed class StratSession : IDisposable
         Document = null;
         Issues = [];
         RecoveredPending = false;
+        RecoveryNote = null;
         _commitFailure = null;
         Version++;
         StatusText = Describe();
@@ -400,6 +405,7 @@ public sealed class StratSession : IDisposable
                 document.Map = candidate.Map;
                 _lastSavedVersion = Version;
                 CommitCount++;
+                RecoveryNote = null;
                 _commitFailure = null;
                 _writeFailed = false;
             }
@@ -656,7 +662,8 @@ public sealed class StratSession : IDisposable
             return "strat could not be saved";
         }
 
-        string revision = "revision " + document.Revision.ToString(CultureInfo.InvariantCulture);
+        string revision = (RecoveryNote is null ? "" : RecoveryNote + " · ") + "revision "
+                          + document.Revision.ToString(CultureInfo.InvariantCulture);
         if (!HasPending)
         {
             return revision + " · saved";
