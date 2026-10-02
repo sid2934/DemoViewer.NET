@@ -292,8 +292,8 @@ public static partial class Variants
         return view;
     }
 
-    // Chips at the editor's narrowest: a two-player push whose lines watch and go via several callouts and a point,
-    // and a lurk with long areas. With open, the lurk's add field has "a" typed and its list showing.
+    // Chips at the editor's narrowest: a two-player push whose lines watch and go via callouts and a point, and a
+    // lurk row with watching, via and long areas. With open, the lurk areas add field has "a" typed, its list showing.
     private static StratBookHubView StratEditorChips(bool open)
     {
         StratBookTabViewModel? strats = null;
@@ -322,6 +322,13 @@ public static partial class Variants
             StratStep lurk = new()
             {
                 Id = Guid.NewGuid(), AtSeconds = at - 5, Actor = "E", Verb = "lurk",
+                Assignments =
+                [
+                    new StepAssignment
+                    {
+                        Slot = "E", Watch = new StepWatch { Places = ["Connector", "TopofMid"], Points = [point] }, Via = ["Catwalk", "Underpass"]
+                    }
+                ],
                 Lurk = new StepLurk
                 {
                     Areas = ["PalaceInterior", "Connector", "Underpass", "Apartments"], AreaPoints = [point],
@@ -340,23 +347,27 @@ public static partial class Variants
                 return;
             }
 
-            strats.StepSelection.Select(strats.Editor.Steps[^2].Id);
-            lurkRow.BringIntoView();
+            strats.StepSelection.Select(strats.Editor.Steps[^1].Id);
             pushRow.BringIntoView();
+            lurkRow.BringIntoView();
             if (!open)
             {
                 return;
             }
 
-            Dispatcher.UIThread.Post(() =>
+            // Scrolled first and focused once that has settled, so the list opens where the field ends up.
+            if (lurkRow.GetVisualDescendants().OfType<Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
+                    ?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is not { } box)
             {
-                if (lurkRow.GetVisualDescendants().OfType<Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
-                        ?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } box)
-                {
-                    box.Focus();
-                    box.Text = "a";
-                }
-            }, DispatcherPriority.Background);
+                return;
+            }
+
+            box.BringIntoView();
+            Dispatcher.UIThread.Post(() => Dispatcher.UIThread.Post(() =>
+            {
+                box.Focus();
+                box.Text = "a";
+            }, DispatcherPriority.Background), DispatcherPriority.Background);
         }, DispatcherPriority.Background);
         return view;
     }
