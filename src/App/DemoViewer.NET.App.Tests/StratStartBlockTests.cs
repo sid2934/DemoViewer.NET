@@ -408,6 +408,52 @@ public class StratStartBlockTests
     }
 
     [Test]
+    public async Task WritingAStartBackUnchanged_IsNoEdit_SoACaptureKeepsItsMarks()
+    {
+        StratDocument document = WithStart(Step(1, 110, "A", "move", to: "Ramp"));
+        document.Start!.Kind = StratStart.CapturedKind;
+        document.Start.Positions.ForEach(p =>
+        {
+            p.Observed = true;
+            p.YawDegrees = 90;
+        });
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        ViewModels.StratBook.StratEditorViewModel editor = new(session);
+        editor.Project();
+        string before = StratHistory.ToNode(session.Document!).ToJsonString();
+
+        foreach (ViewModels.StratBook.StratStartSlotRow row in editor.Start.Own)
+        {
+            row.Value = [.. row.Value.Select(StratLocations.Clone)];
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(session.UndoDepth).IsEqualTo(0);
+            await Assert.That(session.Document!.Start!.Kind).IsEqualTo(StratStart.CapturedKind);
+            await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(before);
+            await Assert.That(StratStartBlock.WriteLocation(session.Document!, "A", StratStartBlock.LocationOf(session.Document!, "A"))).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task TheZipCheck_MeasuresAFirstStepsDeparture_FromTheStart()
+    {
+        StratStep far = Step(1, 110, "A", "move", to: "Ramp");
+        far.Positions = [new StepPosition { Slot = "A", X = 3000, Y = 10, LevelMinZ = -512 }];
+        StratStep near = Step(1, 110, "A", "move", to: "Ramp");
+        near.Positions = [new StepPosition { Slot = "A", X = 200, Y = 10, LevelMinZ = -512 }];
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratDepartureCheck.Check(WithStart(far)).Select(i => i.Field)).IsEquivalentTo(["/steps/0/positions/0"])
+                .Because("3000 units from the start in 5 s is faster than a run");
+            await Assert.That(StratDepartureCheck.Check(WithStart(near))).IsEmpty();
+            await Assert.That(StratDepartureCheck.Check(Legacy()).Select(i => i.Field)).IsEquivalentTo(["/steps/1/positions/4"])
+                .Because("the seed's own entries are its start; E's dragged lurk departure was already too far for a run");
+        }
+    }
+
+    [Test]
     public async Task ACapturedStrat_HasNoImpliedStart()
     {
         StratDocument document = Legacy();
