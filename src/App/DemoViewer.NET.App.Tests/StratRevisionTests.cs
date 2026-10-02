@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Services.Strats;
 using TUnit.Core.Exceptions;
@@ -298,14 +299,34 @@ public class StratRevisionTests
         }
     }
 
-    [Test]
-    public async Task AConflictThatCannotBeSetAside_LeavesTheWorkingCopyInPlace()
+    private static void SkipWithoutFileModes()
     {
         if (OperatingSystem.IsWindows() || Environment.UserName == "root")
         {
             throw new SkipTestException("a read-only folder needs Unix file modes and a user they bind");
         }
+    }
 
+    private static void ReadOnly(string folder)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        }
+    }
+
+    private static void Writable(string folder)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Test]
+    public async Task AConflictThatCannotBeSetAside_OpensReadOnly_AndNothingIsCommittedOverTheHead()
+    {
+        SkipWithoutFileModes();
         string root = TempRoot();
         string folder = "";
         try
@@ -313,22 +334,160 @@ public class StratRevisionTests
             StratDocument document = KilledAfterTwoCommits(root);
             WriteConflictingWorkingCopy(root, document, 70);
             folder = Path.GetDirectoryName(StratFile(root, document))!;
-            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            ReadOnly(folder);
 
-            StratLoadResult loaded = new StratStore(root).Load(document.Id);
+            // The log file itself stays writable, so only the store's refusal keeps the stale edits out of it.
+            StratStore store = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratLoadResult loaded = store.Load(document.Id);
             using (Assert.Multiple())
             {
                 await Assert.That(loaded.Document!.Steps[0].AtSeconds).IsEqualTo(70);
                 await Assert.That(StratStore.IsPending(loaded.Document)).IsTrue();
                 await Assert.That(loaded.Note).Contains("could not be set aside");
-                await Assert.That(StepZero(StratFile(root, document))).IsEqualTo(70);
+                await Assert.That(store.IsUnresolved(document.Id)).IsTrue();
+                await Assert.That(store.PendingOps(loaded.Document)).IsEmpty();
+            }
+
+            StratSession session = Session(store);
+            session.Open(document.Id);
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.HasPending).IsFalse().Because("no recovered ops, so no idle commit");
+                await Assert.That(session.RecoveredPending).IsFalse();
+                await Assert.That(session.StatusText).Contains("read-only");
+            }
+
+            session.Apply(PatchOp.ReplaceOp("/name", null, JsonValue.Create("edited on the conflict")));
+            StratSaveResult refused = session.Commit()!;
+            await session.FlushAsync();
+            session.Close();
+            session.Dispose();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(refused.Saved).IsFalse();
+                await Assert.That(refused.Reason).IsEqualTo(StratStore.UnresolvedReason);
+                await Assert.That(Revisions(store, document.Id)).IsEquivalentTo(ThreeRevisions);
+                await Assert.That(StepZero(StratFile(root, document))).IsEqualTo(70).Because("the working copy is still on disk");
+                await Assert.That(StratStore.IsPending(store.Materialize(document.Id, 3)!)).IsFalse();
+                await Assert.That(store.Materialize(document.Id, 3)!.Steps[0].AtSeconds).IsEqualTo(88).Because("the head survives in the log");
+            }
+
+            // Writable again: the next open sets the copy aside, and a commit lands on the head.
+            Writable(folder);
+            using StratSession next = Session(store);
+            next.Open(document.Id);
+            next.Apply(PatchOp.ReplaceOp("/name", null, JsonValue.Create("on the head")));
+            StratSaveResult saved = next.Commit()!;
+            string[] kept = SetAsideFiles(root, document);
+            using (Assert.Multiple())
+            {
+                await Assert.That(saved.Revision).IsEqualTo(4);
+                await Assert.That(store.Materialize(document.Id, 4)!.Steps[0].AtSeconds).IsEqualTo(88);
+                await Assert.That(kept.Length).IsEqualTo(1);
+                await Assert.That(StepZero(kept[0])).IsEqualTo(70);
             }
         }
         finally
         {
             if (folder.Length > 0)
             {
-                File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                Writable(folder);
+            }
+
+            DeleteQuietly(root);
+        }
+    }
+
+    [Test]
+    public async Task AnUnresolvedConflict_IsSetAsideNormally_OnceALoadCanWrite()
+    {
+        SkipWithoutFileModes();
+        string root = TempRoot();
+        string folder = "";
+        try
+        {
+            StratDocument document = KilledAfterTwoCommits(root);
+            WriteConflictingWorkingCopy(root, document, 70);
+            folder = Path.GetDirectoryName(StratFile(root, document))!;
+            ReadOnly(folder);
+            StratStore store = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            await Assert.That(store.IsUnresolved(document.Id)).IsTrue();
+            Writable(folder);
+
+            using StratSession session = Session(store);
+            session.Open(document.Id);
+            string[] kept = SetAsideFiles(root, document);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.IsUnresolved(document.Id)).IsFalse();
+                await Assert.That(session.Document!.Steps[0].AtSeconds).IsEqualTo(88);
+                await Assert.That(session.StatusText).Contains("are kept in");
+                await Assert.That(kept.Length).IsEqualTo(1);
+                await Assert.That(StepZero(kept[0])).IsEqualTo(70);
+            }
+
+            session.Apply(PatchOp.ReplaceOp("/name", null, JsonValue.Create("after the set-aside")));
+            await Assert.That(session.Commit()!.Revision).IsEqualTo(4);
+            await Assert.That(store.Materialize(document.Id, 4)!.Steps[0].AtSeconds).IsEqualTo(88);
+        }
+        finally
+        {
+            if (folder.Length > 0)
+            {
+                Writable(folder);
+            }
+
+            DeleteQuietly(root);
+        }
+    }
+
+    [Test]
+    public async Task ACommitWhoseStratWriteFails_IsSavedOnce_AndAnArrayAddIsNotAppendedTwice()
+    {
+        SkipWithoutFileModes();
+        string root = TempRoot();
+        string folder = "";
+        try
+        {
+            StratStore store = new(root, utcNow: SteppingClock(Past));
+            StratDocument document = Minimal();
+            store.Save(document, [], "created");
+            folder = Path.GetDirectoryName(StratFile(root, document))!;
+
+            using StratSession session = Session(store);
+            session.Open(document.Id);
+            ReadOnly(folder);
+            JsonNode step = JsonSerializer.SerializeToNode(Step(3, 70, "A", "peek"), StratJsonContext.Default.StratStep)!;
+            session.Apply(PatchOp.AddOp("/steps/-", step));
+            StratSaveResult result = session.Commit()!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Saved).IsTrue();
+                await Assert.That(result.Revision).IsEqualTo(2);
+                await Assert.That(result.Reason).Contains("could not be written");
+                await Assert.That(session.HasPending).IsFalse();
+                await Assert.That(session.Commit()).IsNull().Because("nothing is left to append again");
+                await Assert.That(session.StatusText).Contains("could not be written");
+            }
+
+            session.Close();
+            Writable(folder);
+            StratDocument reloaded = new StratStore(root).TryLoad(document.Id)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(File.ReadAllLines(LogFile(root, document)).Length).IsEqualTo(2);
+                await Assert.That(reloaded.Revision).IsEqualTo(2);
+                await Assert.That(reloaded.Steps.Count).IsEqualTo(3);
+                await Assert.That(reloaded.Steps.Select(s => s.Id).Distinct().Count()).IsEqualTo(3);
+            }
+        }
+        finally
+        {
+            if (folder.Length > 0)
+            {
+                Writable(folder);
             }
 
             DeleteQuietly(root);

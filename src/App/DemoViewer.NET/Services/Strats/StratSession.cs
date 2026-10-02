@@ -58,6 +58,10 @@ public sealed class StratSession : IDisposable
     private int _lastSavedVersion;
     private bool _writeFailed;
 
+    // The file is a conflicting working copy the store could not set aside: nothing is written or committed
+    // from this session, so the copy stays on disk for the next open to set aside.
+    private bool _readOnly;
+
     /// <param name="store">The store the strat is checked out of.</param>
     /// <param name="post">Marshals the timers and the write completions onto the UI thread; defaults to synchronous.</param>
     public StratSession(StratStore store, Action<Action>? post = null)
@@ -201,7 +205,8 @@ public sealed class StratSession : IDisposable
             return result;
         }
 
-        IReadOnlyList<PatchOp> recovered = _store.PendingOps(loaded);
+        _readOnly = _store.IsUnresolved(id);
+        IReadOnlyList<PatchOp> recovered = _readOnly ? [] : _store.PendingOps(loaded);
         StratDocument document = StratStore.WithPending(loaded, false);
         DateTime now = _utcNow();
         foreach (PatchOp op in recovered)
@@ -251,6 +256,7 @@ public sealed class StratSession : IDisposable
         Cancel(ref _idle);
         _checkOut?.Dispose();
         _checkOut = null;
+        _readOnly = false;
         _buffer.Drain();
         _undo.Clear();
         _redo.Clear();
@@ -382,6 +388,14 @@ public sealed class StratSession : IDisposable
         }
 
         Cancel(ref _idle);
+        if (_readOnly)
+        {
+            _commitFailure = StratStore.UnresolvedReason;
+            StatusText = Describe();
+            Changed?.Invoke();
+            return StratSaveResult.Failed(StratStore.UnresolvedReason, []);
+        }
+
         IReadOnlyList<PatchOp> ops = _buffer.Drain();
         StratDocument candidate = StratStore.WithPending(document, false);
         StratSaveResult result;
@@ -405,7 +419,7 @@ public sealed class StratSession : IDisposable
                 document.Map = candidate.Map;
                 _lastSavedVersion = Version;
                 CommitCount++;
-                RecoveryNote = null;
+                RecoveryNote = result.Reason;
                 _commitFailure = null;
                 _writeFailed = false;
             }
@@ -567,7 +581,7 @@ public sealed class StratSession : IDisposable
 
     private async Task WriteWorkingCopyAsync()
     {
-        if (_disposed || Document is null)
+        if (_disposed || Document is null || _readOnly)
         {
             return;
         }
