@@ -4,6 +4,7 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
@@ -218,5 +219,104 @@ public class StratSeedMoveMotionTests
 
         // The regroup at 1:15 names A to D only: E keeps lurking.
         await Assert.That((Sample(e, Tick(70)).X, Sample(e, Tick(70)).Y)).IsEqualTo((lx, ly));
+    }
+
+    private static readonly string[] LurkWatch = ["LongDoors", "TopofMid", "Catwalk", "Middle", "MidDoors"];
+
+    /// <summary>
+    ///     The same execute as the owner later left it: the seed's move has no line for E, and E lurks a second later
+    ///     on its own step, via Long Doors, watching and working five areas. The lurk step holds unmarked copies of the
+    ///     ten seed positions; <paramref name="dragged" /> replaces E's with a drag a few units from Long Doors' centre.
+    /// </summary>
+    internal static StratDocument OwnersLurk(IZonePlaceResolver map, bool dragged)
+    {
+        StratDocument document = ExecuteB();
+        StratStep seed = document.Steps[0];
+        seed.Assignments!.RemoveAll(a => a.Slot == "E");
+
+        StratStep lurk = document.Steps[1];
+        lurk.AtSeconds = 114;
+        lurk.Positions = Seeded();
+        if (dragged)
+        {
+            (double x, double y, double _) = map.PlaceArrival("LongDoors", Level) ?? throw new SkipTestException("no LongDoors arrival");
+            lurk.Positions[4] = At("E", Math.Round(x - 7, 2), Math.Round(y - 9, 2));
+        }
+
+        lurk.Assignments = [new StepAssignment { Slot = "E", Via = ["LongDoors"], Watch = new StepWatch { Places = [.. LurkWatch] } }];
+        lurk.Lurk = new StepLurk { Areas = [.. LurkWatch], Rotate = new LurkRotate { AtSeconds = 39, To = Point("LowerTunnel", -580, 1435) } };
+        return document;
+    }
+
+    private static float YawTowards(IZonePlaceResolver map, string place, TokenKeyframe from)
+    {
+        (double x, double y) = map.PlaceCentre(place, from.LevelMinZ) ?? throw new SkipTestException($"no {place} centre");
+        return (float)StratFromRound.NormalizeYaw(Math.Atan2(y - from.Y, x - from.X) * 180 / Math.PI);
+    }
+
+    // Over a quarter second: a route's corners sit on whole ticks, so one tick alone can read a little fast.
+    private static double Fastest(TokenTrack track, int from, int until)
+    {
+        const int Window = 16;
+        double fastest = 0;
+        for (int t = from + Window; t <= until; t++)
+        {
+            double along = 0;
+            for (int k = t - Window + 1; k <= t; k++)
+            {
+                TokenKeyframe p = Sample(track, k - 1), q = Sample(track, k);
+                along += Math.Sqrt((q.X - p.X) * (double)(q.X - p.X) + (q.Y - p.Y) * (double)(q.Y - p.Y));
+            }
+
+            fastest = Math.Max(fastest, along * 64 / Window);
+        }
+
+        return fastest;
+    }
+
+    [Test]
+    public async Task TheOwnersLurk_FromItsSpawnCopy_WalksOutViaLongDoors_HoldsFacingTopOfMid_ThenRotates()
+    {
+        IZonePlaceResolver map = Dust2();
+        StratDocument document = OwnersLurk(map, false);
+        await Assert.That(StratSceneProjection.IsLegacyCarry(document)).IsTrue();
+        StratSceneProjection projection = StratRoutingTests.Project(document, map);
+        TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
+        (float lx, float ly) = LongDoors(map);
+        (string _, double sx, double sy) = Spawn.Single(s => s.Slot == "E");
+        double walk = NavPathfinder.Length(map.Paths!.Route(sx, sy, Level, lx, ly, Level, "LongDoors")!);
+        int lurk = Tick(114), there = lurk + (int)Math.Ceiling(walk / StratSceneProjection.WalkUnitsPerSecond * 64);
+        int rotate = Tick(39);
+        using (Assert.Multiple())
+        {
+            await Assert.That((Sample(e, lurk).X, Sample(e, lurk).Y)).IsEqualTo(((float)sx, (float)sy))
+                .Because("the seed does not send E, and the lurk step's copy of spawn is carried, not a place to jump back to");
+            await Assert.That((Sample(e, there - 1).X, Sample(e, there - 1).Y)).IsNotEqualTo((lx, ly));
+            await Assert.That((Sample(e, there).X, Sample(e, there).Y)).IsEqualTo((lx, ly)).Because("the routed walk to the first area");
+            await Assert.That(Fastest(e, 0, projection.ContentEndTick)).IsLessThanOrEqualTo(StratSceneProjection.WalkUnitsPerSecond * 1.1).Because("a lurker walks every leg");
+            await Assert.That((Sample(e, rotate).X, Sample(e, rotate).Y)).IsEqualTo((lx, ly));
+            await Assert.That((double)Sample(e, Tick(60)).YawDegrees).IsEqualTo(YawTowards(map, "TopofMid", Sample(e, Tick(60)))).Within(0.05)
+                .Because("E stands on Long Doors, the first place it watches, so it faces the next");
+            await Assert.That((e.Keyframes[^1].X, e.Keyframes[^1].Y)).IsEqualTo((-580f, 1435f)).Because("the rotate to Lower Tunnel");
+            await Assert.That(e.Keyframes[^1].Tick).IsGreaterThan(rotate);
+        }
+    }
+
+    [Test]
+    public async Task TheOwnersLurk_DraggedToLongDoors_LeavesFromTheDrag_AndHoldsFacingTopOfMid()
+    {
+        IZonePlaceResolver map = Dust2();
+        StratDocument document = OwnersLurk(map, true);
+        StratSceneProjection projection = StratRoutingTests.Project(document, map);
+        TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
+        StepPosition drag = document.Steps[1].Positions[4];
+        TokenKeyframe held = Sample(e, Tick(60));
+        using (Assert.Multiple())
+        {
+            await Assert.That((Sample(e, Tick(114)).X, Sample(e, Tick(114)).Y)).IsEqualTo(((float)drag.X, (float)drag.Y))
+                .Because("on a travel verb a drag is where the token is at the step's time");
+            await Assert.That((held.X, held.Y)).IsEqualTo(((float)drag.X, (float)drag.Y)).Because("Long Doors is under 16 units away");
+            await Assert.That((double)held.YawDegrees).IsEqualTo(YawTowards(map, "TopofMid", held)).Within(0.5).Because("faced from Long Doors, where it is already");
+        }
     }
 }
