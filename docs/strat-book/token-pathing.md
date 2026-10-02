@@ -286,3 +286,8 @@ Items 1 to 3 give routed tokens. Item 5 can come later without blocking anything
   build on the owner's Mac: a full projection build is 0.17 ms straight and 1.7 ms routed with a warm memo (3.1 ms
   on a fresh graph), and 1.7 ms after a one-token edit; the drag preview (`TrackWith`) is 0.14 ms per pointer move.
   Under a frame, so no per-slot cache was added. Keyframes go from 63 straight to 313 routed.
+- UiCapture at 1280x800 (`strat-routing-execute-b`, `strat-routing-execute-b-push`, `strat-routing-via`):
+  `docs/strat-book/token-pathing/routing-execute-b.png` (1:44, the split out of spawn: A, B and C on their way to the
+  tunnels, D to top of mid, E walking to Middle, each with its faint line ahead),
+  `routing-execute-b-push.png` (1:23, the push onto B through upper tunnel and the doors) and `routing-via.png` (C to B
+  the shortest way, through the tunnels; B to B via Middle, with the via field in its step row).
