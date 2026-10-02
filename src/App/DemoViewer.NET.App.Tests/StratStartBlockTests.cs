@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
@@ -11,6 +12,7 @@ using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.TestSupport;
+using SkiaSharp;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratStepMotionTests;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -249,6 +251,159 @@ public class StratStartBlockTests
                     await Assert.That((b.X, b.Y, b.YawDegrees)).IsEqualTo((a.X, a.Y, a.YawDegrees)).Because($"{track.Slot} at {tick}");
                 }
             }
+        }
+    }
+
+    private static readonly StratSpawns FixedSpawns = new(
+        [.. Enumerable.Range(0, 5).Select(i => new SpawnSpot(1000 + 100 * i, 0, 0, "TSpawn"))],
+        [.. Enumerable.Range(0, 5).Select(i => new SpawnSpot(-1000 - 100 * i, 0, 0, "CTSpawn"))]);
+
+    // Rush A as the owner left it: the seed turned into a throw at 1:55 holding only the opponents, our five gone from it.
+    private static StratDocument SeedWithoutOurFive()
+    {
+        StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_mirage", "T", "rush", "Rush A", Created);
+        StratStep smoke = Step(1, 115, "C", "throw");
+        smoke.Utility = new UtilityRef { Kind = "smoke" };
+        smoke.Positions = [.. StratVocabulary.OpponentSlots.Select((s, i) => new StepPosition { Slot = s, X = -1000 - 100 * i, Y = 50 })];
+        document.Steps = [smoke, Step(2, 106, StratVocabulary.ActorAll, "move", to: "BombsiteA")];
+        return document;
+    }
+
+    [Test]
+    public async Task AnOlderSeedWithoutOurFive_StartsThemAtTheSpawns_OnceTheSpawnsAreRead()
+    {
+        StratDocument document = SeedWithoutOurFive();
+        PlaceCentreResolver centres = (place, _) => place == "BombsiteA" ? (1000, 2150) : null;
+        StratSceneProjection without = StratSceneProjection.Build(document, StratPath.MainLine(document), null, centres);
+        StratSceneProjection with = StratSceneProjection.Build(document, StratPath.MainLine(document), null, centres, spawns: FixedSpawns);
+        int move = StepSchedule.TickFor(106, 115);
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratStartBlock.Effective(document)!.Positions.Select(p => p.Slot)).IsEquivalentTo(StratVocabulary.OpponentSlots);
+            await Assert.That(StratStartBlock.Effective(document, FixedSpawns)!.Positions.Count).IsEqualTo(10);
+            await Assert.That(without.Tracks.Single(t => t.Slot == "A").TrySample(0, out _)).IsFalse().Because("no spawns, no start for A");
+            await Assert.That(Sample(with, "A", 0).X).IsEqualTo(1000f);
+            await Assert.That(Sample(with, "A", move + 64).Y).IsGreaterThan(100f).Because("A runs from spawn at 1:46");
+            await Assert.That(Sample(with, "A", move + 64).Y).IsLessThan(2150f);
+            await Assert.That(StratStore.Serialize(document)).DoesNotContain("\"start\"").Because("reading the spawns writes nothing");
+        }
+    }
+
+    private static StratCanvasViewModel Canvas(StratSession session) =>
+        new(session, _ => null, new ManualTicker(), null, () => [],
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a())
+        {
+            Timeline = { PixelWidth = 6000 }
+        };
+
+    private static void Drag(StratCanvasViewModel canvas, string slot, double x, double y, TokenGrip grip = TokenGrip.Body)
+    {
+        canvas.BeginDrag(slot, grip);
+        canvas.MoveTo(slot, new SKPoint((float)x - 5, (float)y - 5), -512);
+        canvas.MoveTo(slot, new SKPoint((float)x, (float)y), -512);
+        canvas.EndDrag();
+    }
+
+    private static StratDocument WithStart(params StratStep[] steps)
+    {
+        StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_synthetic", "T", "execute", "start", Created);
+        document.Canvas = new StratCanvas { DefaultLevelMinZ = -512 };
+        document.Start = new StratStart
+        {
+            Positions = [.. StratVocabulary.Slots.Select((s, i) => new StartPosition { Slot = s, X = 10 + 10 * i, Y = 10, LevelMinZ = -512 })]
+        };
+        document.Steps = [.. steps];
+        return document;
+    }
+
+    [Test]
+    public async Task WithTheStartSelected_ADragEditsTheStart_InOneEntry()
+    {
+        StratDocument document = WithStart(Step(1, 115, "A", "move", to: "Ramp"));
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.SelectStart();
+        string before = StratHistory.ToNode(session.Document!).ToJsonString();
+
+        canvas.BeginDrag("A", TokenGrip.Body);
+        await Assert.That(canvas.DragTarget!.Action).IsEqualTo(StratDragAction.Start);
+        canvas.MoveTo("A", new SKPoint(25, 75), -512);
+        await Assert.That(canvas.DragLabel).IsEqualTo("A · start: Hut");
+        canvas.EndDrag();
+
+        StartPosition a = StratStartBlock.For(session.Document!.Start, "A")!;
+        using (Assert.Multiple())
+        {
+            await Assert.That((a.Place, a.X, a.Y)).IsEqualTo(("Hut", (double?)25, (double?)75));
+            await Assert.That(session.Document!.Start!.Kind).IsEqualTo(StratStart.CustomKind);
+            await Assert.That(session.Document!.Steps[0].To!.Place).IsEqualTo("Ramp").Because("the step is not touched");
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
+            await Assert.That(canvas.IsStartSelected).IsTrue();
+            await Assert.That(canvas.StatusLine).Contains("A now starts at Hut");
+        }
+
+        session.Undo();
+        await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(before);
+    }
+
+    [Test]
+    public async Task WithTheStepSelected_ADragAtTheStartEditsTheStep_AndAStandingTokenEditsItsStart()
+    {
+        StratDocument document = WithStart(Step(1, 115, "A", "move", to: "Ramp"), Step(2, 100, "A", "wait"));
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.SelectStep(document.Steps[0].Id);
+
+        Drag(canvas, "A", 25, 75);
+        await Assert.That(session.Document!.Steps[0].To!.Place).IsEqualTo("Hut").Because("a move at the start time takes the drop as its to");
+        await Assert.That(StratStartBlock.For(session.Document!.Start, "A")!.X).IsEqualTo(10);
+
+        // At a wait no one moves, and nothing has placed B since it started: the drag moves its start.
+        canvas.SelectStep(document.Steps[1].Id);
+        canvas.BeginDrag("B", TokenGrip.Body);
+        await Assert.That(canvas.DragTarget!.Action).IsEqualTo(StratDragAction.Start);
+        canvas.CancelDrag();
+    }
+
+    [Test]
+    public async Task AStartPick_OnTheMap_WritesTheStart()
+    {
+        StratDocument document = WithStart(Step(1, 110, "A", "move", to: "Ramp"));
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+
+        await Assert.That(canvas.BeginSetPlace(StratStartBlock.FieldFor("C"))).IsTrue();
+        await Assert.That(canvas.IsStartSelected).IsTrue();
+        await Assert.That(canvas.Transport.Tick).IsEqualTo(0);
+        canvas.TryTagPositionAt(StratMapFirstTests.Upper, 30, 60);
+
+        StartPosition c = StratStartBlock.For(session.Document!.Start, "C")!;
+        await Assert.That((c.Place, c.X, c.Y)).IsEqualTo(("Hut", (double?)30, (double?)60));
+    }
+
+    [Test]
+    public async Task TheStartRow_SaysWhereTheTokensBegin_AndWritesASlotsStart()
+    {
+        StratDocument document = WithStart(Step(1, 110, "A", "move", to: "Ramp"));
+        document.Trigger = new StratTrigger { Text = "on call" };
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        ViewModels.StratBook.StratEditorViewModel editor = new(session);
+        editor.Project();
+        using (Assert.Multiple())
+        {
+            await Assert.That(editor.Start.Line).IsEqualTo("spawn · on call");
+            await Assert.That(editor.Start.IsExpanded).IsFalse();
+            await Assert.That(editor.Start.Own.Single(r => r.Slot == "B").Value.Single().X).IsEqualTo(20);
+        }
+
+        editor.Start.Own.Single(r => r.Slot == "B").Value = [new PlaceRef { Place = "Ramp" }];
+        editor.Project();
+        using (Assert.Multiple())
+        {
+            await Assert.That(StratStartBlock.For(session.Document!.Start, "B")!.Place).IsEqualTo("Ramp");
+            await Assert.That(StratStartBlock.For(session.Document!.Start, "B")!.X).IsNull();
+            await Assert.That(editor.Start.Summary).Contains("B Ramp");
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
         }
     }
 

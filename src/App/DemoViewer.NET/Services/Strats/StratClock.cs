@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Text.Json.Nodes;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -80,6 +81,39 @@ public static class StratClock
     /// <param name="roundSeconds">The strat's round length.</param>
     public static double Convert(double atSeconds, double roundSeconds) =>
         Math.Round(roundSeconds - atSeconds, 3, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    ///     The ops that put a strat on the other clock, one undo entry: <c>clock.kind</c>, then every step's
+    ///     <c>atSeconds</c> and every lurk rotate's, each through <see cref="Convert" />. A time after the plant
+    ///     (negative on the round clock) becomes one past the round length from the trigger, and back. <c>holdSeconds</c>
+    ///     is a duration and <c>trigger.atSeconds</c> is a round time, so neither moves. Empty when it is on that clock.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="kind"><see cref="RoundKind" /> or <see cref="TriggerKind" />.</param>
+    public static List<PatchOp> SwitchOps(StratDocument document, string kind)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        bool toTrigger = string.Equals(kind, TriggerKind, StringComparison.Ordinal);
+        if (toTrigger == IsTrigger(document.Clock) || (!toTrigger && !string.Equals(kind, RoundKind, StringComparison.Ordinal)))
+        {
+            return [];
+        }
+
+        double length = LengthOf(document.Clock);
+        List<PatchOp> ops = [PatchOp.ReplaceOp("/clock/kind", JsonValue.Create(document.Clock.Kind), JsonValue.Create(kind))];
+        for (int i = 0; i < document.Steps.Count; i++)
+        {
+            StratStep step = document.Steps[i];
+            string path = string.Create(CultureInfo.InvariantCulture, $"/steps/{i}");
+            ops.Add(PatchOp.ReplaceOp(path + "/atSeconds", JsonValue.Create(step.AtSeconds), JsonValue.Create(Convert(step.AtSeconds, length))));
+            if (step.Lurk?.Rotate?.AtSeconds is { } rotate)
+            {
+                ops.Add(PatchOp.ReplaceOp(path + "/lurk/rotate/atSeconds", JsonValue.Create(rotate), JsonValue.Create(Convert(rotate, length))));
+            }
+        }
+
+        return ops;
+    }
 
     /// <summary>A stored time as the strat's clock shows it: <c>1:15</c> on the round clock, <c>+0:08</c> from a trigger.</summary>
     /// <param name="clock">The strat's clock block.</param>

@@ -304,9 +304,11 @@ public sealed class StratSceneProjection
     /// <param name="placeContains">Whether a point is in a place, to keep fanned-out tokens inside it; null keeps to a ring.</param>
     /// <param name="throwFlights">Resolves a throw's lineup to its flight and landing; null flies only authored landings.</param>
     /// <param name="paths">Routes tokens round walls; null moves them in straight lines.</param>
+    /// <param name="spawns">The map's spawns, for an older file's start (<see cref="StratStartBlock.Effective" />); null for none.</param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
         ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null,
-        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null, PathResolver? paths = null)
+        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null, PathResolver? paths = null,
+        StratSpawns? spawns = null)
     {
         placeArrivals ??= ArrivalsFrom(placeCentres);
         ArgumentNullException.ThrowIfNull(document);
@@ -335,7 +337,7 @@ public sealed class StratSceneProjection
             }
         }
 
-        PlaceSet places = PlacesOf(document, placeCentres, placeArrivals, placeContains, paths);
+        PlaceSet places = PlacesOf(document, placeCentres, placeArrivals, placeContains, paths, spawns);
         Dictionary<string, SlotPlan> planned = TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
             StringComparer.Ordinal);
         Dictionary<string, SlotPlan> plans = Fanned(planned);
@@ -453,12 +455,12 @@ public sealed class StratSceneProjection
     ///     (<see cref="StartsOf" />). The carry and the zip check build the same set the canvas does.
     /// </summary>
     internal static PlaceSet PlacesOf(StratDocument document, PlaceCentreResolver? centres, PlaceArrivalResolver? arrivals,
-        PlaceContainsResolver? contains, PathResolver? paths)
+        PlaceContainsResolver? contains, PathResolver? paths, StratSpawns? spawns = null)
     {
         StratCanvas canvas = document.Canvas ?? new StratCanvas();
         PlaceSet places = new(centres, arrivals ?? ArrivalsFrom(centres), contains, canvas.DefaultLevelMinZ ?? 0, StratClock.LengthOf(document.Clock),
             IsLegacyCarry(document), IsLegacyObserved(document), paths, Clock: ClockOf(document));
-        return places with { Starts = StartsOf(StratStartBlock.Effective(document), places) };
+        return places with { Starts = StartsOf(StratStartBlock.Effective(document, spawns), places) };
     }
 
     /// <summary>
@@ -1652,6 +1654,14 @@ public sealed class StratSceneProjection
         public StratClockInfo ClockOrRound => Clock ?? new StratClockInfo { RoundSeconds = RoundSeconds };
     }
 
+    /// <summary>Whether Create Strat From Round or Strat Mining made the strat: it has an origin or the mined tag.</summary>
+    /// <param name="document">The strat.</param>
+    public static bool IsCaptured(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal);
+    }
+
     /// <summary>
     ///     Whether every position in the strat reads as observed: a captured or mined strat written before positions
     ///     carried the <c>observed</c> mark. A capture made since marks each entry it writes, and only those.
@@ -1685,7 +1695,9 @@ public sealed class StratSceneProjection
     /// </summary>
     /// <param name="document">The strat.</param>
     /// <param name="throwOrigins">The canvas's lineup resolver, since a lineup origin is a placement copies match; null for none.</param>
-    public static IReadOnlyList<StartSource> LegacyCarriedEntries(StratDocument document, ThrowOriginResolver? throwOrigins = null)
+    /// <param name="spawns">The map's spawns, as the projection reads the start; null for none.</param>
+    public static IReadOnlyList<StartSource> LegacyCarriedEntries(StratDocument document, ThrowOriginResolver? throwOrigins = null,
+        StratSpawns? spawns = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         if (!IsLegacyCarry(document))
@@ -1693,7 +1705,7 @@ public sealed class StratSceneProjection
             return [];
         }
 
-        PlaceSet places = PlacesOf(document, null, null, null, null);
+        PlaceSet places = PlacesOf(document, null, null, null, null, spawns);
         List<StartSource> found = [];
         foreach (string slot in TokenSlots.All)
         {
