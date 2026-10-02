@@ -27,7 +27,13 @@ public static class StratLinePatches
         ArgumentNullException.ThrowIfNull(step);
         if (expandAll && !StratStepLines.HasLines(step) && string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal))
         {
-            return [.. StratVocabulary.Slots.Select(s => new StepAssignment { Slot = s, To = step.To is { } to ? Clone(to) : null })];
+            return [.. StratVocabulary.Slots.Select(s => new StepAssignment
+            {
+                Slot = s,
+                To = step.To is { } to ? Clone(to) : null,
+                Via = step.Via is { } via ? [.. via] : null,
+                ViaPoints = step.ViaPoints is { } points ? [.. points.Select(Clone)] : null
+            })];
         }
 
         return [.. StratStepLines.Of(step).Select(Clone)];
@@ -109,14 +115,16 @@ public static class StratLinePatches
         // Five bare lines to one place are a step for all, which is how an expanded step for all folds back.
         if (target.Count == StratVocabulary.Slots.Count && target.All(IsBare)
                                                         && StratVocabulary.Slots.All(s => target.Exists(l => l.Slot == s))
-                                                        && target.All(l => SamePlace(l.To, target[0].To)))
+                                                        && target.All(l => SamePlace(l.To, target[0].To) && SameVia(l, target[0])))
         {
-            PlaceRef? shared = target[0].To;
+            StepAssignment shared = target[0];
             target = [];
-            if (!SamePlace(step.To, shared))
+            if (!SamePlace(step.To, shared.To))
             {
-                ops.Add(shared is null ? PatchOp.RemoveOp(stepPath + "/to", null) : PatchOp.ReplaceOp(stepPath + "/to", null, Node(shared)));
+                ops.Add(shared.To is null ? PatchOp.RemoveOp(stepPath + "/to", null) : PatchOp.ReplaceOp(stepPath + "/to", null, Node(shared.To)));
             }
+
+            StepViaOps(ops, stepPath, step, shared.Via, shared.ViaPoints);
         }
 
         if (target.Count == 0 || (target.Count == 1 && IsBare(target[0])))
@@ -132,12 +140,17 @@ public static class StratLinePatches
                 ops.Add(PatchOp.ReplaceOp(stepPath + "/actor", null, JsonValue.Create(actor)));
             }
 
-            // No lines keeps the step's own to: it is where everyone goes.
+            // No lines keeps the step's own to and via: it is where everyone goes.
             if (target.Count == 1 && !SamePlace(step.To, target[0].To))
             {
                 ops.Add(target[0].To is { } to
                     ? PatchOp.ReplaceOp(stepPath + "/to", null, Node(to))
                     : PatchOp.RemoveOp(stepPath + "/to", null));
+            }
+
+            if (target.Count == 1)
+            {
+                StepViaOps(ops, stepPath, step, target[0].Via, target[0].ViaPoints);
             }
 
             return ops;
@@ -154,6 +167,7 @@ public static class StratLinePatches
             ops.Add(PatchOp.RemoveOp(stepPath + "/to", null));
         }
 
+        StepViaOps(ops, stepPath, step, null, null);
         if (!stored)
         {
             ops.Add(PatchOp.AddOp(stepPath + "/assignments", new JsonArray(target.Select(l => (JsonNode?)Node(l)).ToArray())));
@@ -386,6 +400,8 @@ public static class StratLinePatches
             ops.Add(after.To is { } to ? PatchOp.ReplaceOp(path + "/to", null, Node(to)) : PatchOp.RemoveOp(path + "/to", null));
         }
 
+        ViaOps(ops, path, before.Via, before.ViaPoints, after.Via, after.ViaPoints);
+
         string? beforeWatch = before.Watch is null ? null : JsonSerializer.Serialize(before.Watch, StratJsonContext.Default.StepWatch);
         string? afterWatch = after.Watch is null ? null : JsonSerializer.Serialize(after.Watch, StratJsonContext.Default.StepWatch);
         if (string.Equals(beforeWatch, afterWatch, StringComparison.Ordinal))
@@ -425,9 +441,48 @@ public static class StratLinePatches
     private static string WithoutYaw(StepWatch watch) =>
         JsonSerializer.Serialize(new StepWatch { Places = watch.Places, Points = watch.Points, Extra = watch.Extra }, StratJsonContext.Default.StepWatch);
 
-    // The stored form: no empty watch, no empty points.
+    // The step's own via made to say what the lines leave on it; nothing when it already does.
+    private static void StepViaOps(List<PatchOp> ops, string stepPath, StratStep step, List<string>? via, List<PlaceRef>? points) =>
+        ViaOps(ops, stepPath, step.Via, step.ViaPoints, via is { Count: > 0 } ? via : null, points is { Count: > 0 } ? points : null);
+
+    private static void ViaOps(List<PatchOp> ops, string path, List<string>? beforeVia, List<PlaceRef>? beforePoints, List<string>? afterVia,
+        List<PlaceRef>? afterPoints)
+    {
+        Member(ops, path + "/via", beforeVia is null ? null : JsonSerializer.SerializeToNode(beforeVia, StratJsonContext.Default.ListString),
+            afterVia is null ? null : JsonSerializer.SerializeToNode(afterVia, StratJsonContext.Default.ListString));
+        Member(ops, path + "/viaPoints", beforePoints is null ? null : JsonSerializer.SerializeToNode(beforePoints, StratJsonContext.Default.ListPlaceRef),
+            afterPoints is null ? null : JsonSerializer.SerializeToNode(afterPoints, StratJsonContext.Default.ListPlaceRef));
+    }
+
+    private static void Member(List<PatchOp> ops, string path, JsonNode? before, JsonNode? after)
+    {
+        if (JsonNode.DeepEquals(before, after))
+        {
+            return;
+        }
+
+        ops.Add(after is null ? PatchOp.RemoveOp(path, null) : before is null ? PatchOp.AddOp(path, after) : PatchOp.ReplaceOp(path, null, after));
+    }
+
+    private static bool SameVia(StepAssignment a, StepAssignment b) =>
+        JsonNode.DeepEquals(JsonSerializer.SerializeToNode(a.Via, StratJsonContext.Default.ListString),
+            JsonSerializer.SerializeToNode(b.Via, StratJsonContext.Default.ListString))
+        && JsonNode.DeepEquals(JsonSerializer.SerializeToNode(a.ViaPoints, StratJsonContext.Default.ListPlaceRef),
+            JsonSerializer.SerializeToNode(b.ViaPoints, StratJsonContext.Default.ListPlaceRef));
+
+    // The stored form: no empty watch, no empty points, no empty via.
     private static void Normalize(StepAssignment line)
     {
+        if (line.Via is { Count: 0 })
+        {
+            line.Via = null;
+        }
+
+        if (line.ViaPoints is { Count: 0 })
+        {
+            line.ViaPoints = null;
+        }
+
         if (line.Watch is { } watch && IsEmpty(watch))
         {
             line.Watch = null;
