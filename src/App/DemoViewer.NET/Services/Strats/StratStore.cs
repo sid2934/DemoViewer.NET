@@ -56,6 +56,18 @@ public sealed class StratStore
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, StratIndexEntry> _index = [];
 
+    private static readonly TimeSpan RowSlack = TimeSpan.FromSeconds(5);
+
+    // What a reconcile did to a strat, held until a session opens it (TakeNote). Under _gate.
+    private readonly Dictionary<Guid, string> _notes = [];
+
+    // The last and the highest revision in each log: filled on first use, kept by AppendHistory. Under _gate.
+    private readonly Dictionary<Guid, (int Last, int Max)> _logHeads = [];
+
+    // Working copies whose conflict could not be set aside. Their stamp is kept so the next load finds the
+    // conflict again instead of reading them as edits on the head. Under _gate.
+    private readonly HashSet<Guid> _unresolved = [];
+
     // Where each strat's file is on disk, from the listing. Under _gate.
     private readonly Dictionary<Guid, string> _paths = [];
 
@@ -150,7 +162,14 @@ public sealed class StratStore
             }
 
             document = Reconcile(document, path);
-            return new StratLoadResult(document, path, false, StratValidator.Validate(document, index: Index));
+            string? note;
+            lock (_gate)
+            {
+                _index[id] = StratIndexEntry.From(document);
+                note = _notes.GetValueOrDefault(id);
+            }
+
+            return new StratLoadResult(document, path, false, StratValidator.Validate(document, index: Index)) { Note = note };
         }
     }
 
@@ -219,6 +238,11 @@ public sealed class StratStore
                 return StratSaveResult.Failed("an unreadable strat file already has this id", issues);
             }
 
+            if (IsUnresolved(document.Id))
+            {
+                return StratSaveResult.Failed(UnresolvedReason, issues);
+            }
+
             if (known is not null && ops.Count == 0)
             {
                 return new StratSaveResult(true, null, known.Revision, issues);
@@ -227,7 +251,12 @@ public sealed class StratStore
             DateTime now = _utcNow();
             // A committed file never carries the working-copy marker, whoever saved it.
             StratDocument committed = WithPending(document, false);
-            committed.Revision = (known?.Revision ?? 0) + 1;
+
+            // The log is the authority. index.json is written only at shutdown, so after a kill its row can be
+            // revisions behind the log.
+            committed.Revision = known is null
+                ? 1
+                : Math.Max(Math.Max(known.Revision, document.Revision), LogHead(document.Id, oldPath).Max) + 1;
             committed.ModifiedUtc = now;
             committed.Owner = committed.Owner.Clone();
             committed.Map = committed.Map.ToLowerInvariant();
@@ -256,19 +285,36 @@ public sealed class StratStore
                 return StratSaveResult.Failed("the history line could not be written", issues);
             }
 
-            // The log now has the commit, so a failure below is recovered on the next load.
+            lock (_gate)
+            {
+                if (_logHeads.TryGetValue(document.Id, out (int Last, int Max) head))
+                {
+                    _logHeads[document.Id] = (entry.Revision, Math.Max(head.Max, entry.Revision));
+                }
+            }
+
+            // The log now has the commit, so it is saved whatever happens below: reporting a failure would have
+            // the caller retry and append the same ops again. The next load rebuilds the file from the log.
+            string? warning = null;
             if (!WriteStrat(committed, newPath))
             {
-                return StratSaveResult.Failed("the strat file could not be written; the next load recovers it from history", issues);
+                warning = "the strat file could not be written; the commit is in the history and the next load rebuilds the file";
+                lock (_gate)
+                {
+                    _index[document.Id] = StratIndexEntry.From(committed);
+                    if (newPath is not null)
+                    {
+                        _paths[document.Id] = newPath;
+                    }
+                }
             }
 
             document.Revision = committed.Revision;
             document.ModifiedUtc = now;
             document.Map = committed.Map;
+            RaiseChanged(document.Id);
+            return new StratSaveResult(true, warning, document.Revision, issues);
         }
-
-        RaiseChanged(document.Id);
-        return new StratSaveResult(true, null, document.Revision, issues);
     }
 
     // The owner's callouts over the embedded list: display needs only the primary aliases, and the store has no
@@ -338,6 +384,9 @@ public sealed class StratStore
             {
                 removed = _index.Remove(id) | _memoryStrats.Remove(id) | _memoryHistory.Remove(id);
                 path = _paths.GetValueOrDefault(id);
+                _logHeads.Remove(id);
+                _notes.Remove(id);
+                _unresolved.Remove(id);
             }
 
             if (path is not null)
@@ -348,7 +397,7 @@ public sealed class StratStore
                 try
                 {
                     Directory.CreateDirectory(trash);
-                    foreach (string file in new[] { path, HistoryPathBeside(path) }.Where(File.Exists))
+                    foreach (string file in new[] { path, HistoryPathBeside(path) }.Where(File.Exists).Concat(SetAsideBeside(path)))
                     {
                         string target = Path.Combine(trash, Path.GetFileName(file));
 
@@ -417,8 +466,23 @@ public sealed class StratStore
             }
 
             // The committed file's own place: an owner or map edit moves the strat at commit, with its log.
+            // Stamped with the log's last line, the state the session opened on. Reused numbers make the highest
+            // the wrong base. An unresolved conflict keeps its own stamp.
             StratDocument copy = WithPending(document, pending);
-            copy.Revision = known.Revision;
+            bool unresolved;
+            lock (_gate)
+            {
+                unresolved = _unresolved.Contains(document.Id);
+            }
+
+            // Dropping the marker would turn the unresolved copy into a committed file at a stale stamp.
+            if (unresolved)
+            {
+                copy = WithPending(document, true);
+            }
+
+            int last = LogHead(document.Id, path).Last;
+            copy.Revision = unresolved ? document.Revision : last > 0 ? last : known.Revision;
             if (!WriteStrat(copy, _root is null ? null : path ?? StratPath(copy)))
             {
                 return false;
@@ -427,6 +491,37 @@ public sealed class StratStore
 
         RaiseChanged(document.Id);
         return true;
+    }
+
+    /// <summary>
+    ///     What a reconcile did to a strat (a working copy moved or set aside, a crashed commit re-applied), and
+    ///     forgets it. Held from the first load until a session opens the strat, so a load by anyone else does
+    ///     not swallow it. Null for nothing.
+    /// </summary>
+    /// <param name="id">The strat's id.</param>
+    public string? TakeNote(Guid id)
+    {
+        lock (_gate)
+        {
+            return _notes.Remove(id, out string? note) ? note : null;
+        }
+    }
+
+    /// <summary>What a refused commit on an unresolved working copy says.</summary>
+    public const string UnresolvedReason =
+        "the working copy conflicts with the history and could not be set aside; it is read-only until it can be, on the next open";
+
+    /// <summary>
+    ///     Whether the strat's file is a conflicting working copy that could not be set aside. It opens read-only:
+    ///     no recovered edits, and <see cref="Save" /> refuses, until a later load sets it aside or rebases it.
+    /// </summary>
+    /// <param name="id">The strat's id.</param>
+    public bool IsUnresolved(Guid id)
+    {
+        lock (_gate)
+        {
+            return _unresolved.Contains(id);
+        }
     }
 
     /// <summary>Whether a strat file is an autosaved working copy with uncommitted edits.</summary>
@@ -446,7 +541,7 @@ public sealed class StratStore
     public IReadOnlyList<PatchOp> PendingOps(StratDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        if (!IsPending(document))
+        if (!IsPending(document) || IsUnresolved(document.Id))
         {
             return [];
         }
@@ -455,7 +550,10 @@ public sealed class StratStore
         StratDocument? committed;
         try
         {
-            committed = Materialize(document.Id, document.Revision);
+            // By position: a revision the log holds twice names no single state.
+            IReadOnlyList<HistoryEntry> log = History(document.Id);
+            int[] at = PositionsOf(log, document.Revision);
+            committed = at.Length == 1 ? StateAt(log, at[0]) : null;
         }
         catch (Exception e) when (e is InvalidOperationException or JsonException)
         {
@@ -686,83 +784,400 @@ public sealed class StratStore
             return;
         }
 
-        lock (_gate)
+        lock (_rmwGate)
         {
-            _index.Clear();
-            _paths.Clear();
+            lock (_gate)
+            {
+                _index.Clear();
+                _paths.Clear();
+                _logHeads.Clear();
+            }
+
+            if (!Directory.Exists(_root))
+            {
+                return;
+            }
+
+            foreach ((Guid id, string path) in EnumerateStrats())
+            {
+                IndexFile(id, path);
+            }
+
+            RecoverOrphanedLogs();
+            SaveIndex();
         }
 
-        if (!Directory.Exists(_root))
-        {
-            return;
-        }
-
-        foreach ((Guid id, string path) in EnumerateStrats())
-        {
-            IndexFile(id, path);
-        }
-
-        RecoverOrphanedLogs();
-        SaveIndex();
         RaiseChanged(null);
     }
 
-    // The log is ahead of the file after a crash between the two writes of a commit: apply the missing entries
-    // and rewrite the file. A log that cannot be applied leaves the file as it is; the file still opens.
+    // Recovery is anchored by position, never by number: a log can hold a revision twice. The file is matched
+    // to the last line whose revision and replayed state it equals, and only the lines after it are applied.
+    // Every change made here leaves a note.
     private StratDocument Reconcile(StratDocument document, string? path)
     {
+        // Every load decides afresh; the set-aside branch marks it again if it still cannot write.
+        lock (_gate)
+        {
+            _unresolved.Remove(document.Id);
+        }
+
         IReadOnlyList<HistoryEntry> log = History(document.Id);
-        if (log.Count == 0 || log[^1].Revision <= document.Revision)
+        if (log.Count == 0)
         {
             return document;
         }
 
-        // A working copy behind its log: a commit's line landed and its strat write did not, after an autosave
-        // had put uncommitted edits in the file. Those edits are the commit's, so the log's state wins; replaying
-        // its ops over the working copy could apply an array insert twice.
+        int[] at = PositionsOf(log, document.Revision);
+        if (at.Length == 1 && at[0] == log.Count - 1)
+        {
+            return document;
+        }
+
         if (IsPending(document))
         {
-            try
-            {
-                if (StratHistory.Materialize(log, log[^1].Revision) is { } committed)
-                {
-                    WriteStrat(committed, path);
-                    return committed;
-                }
-            }
-            catch (Exception e) when (e is InvalidOperationException or JsonException)
-            {
-                // The file as it is; it still opens.
-            }
+            return RebaseWorkingCopy(document, path, log, at);
+        }
 
+        // A file ahead of every line it could be anchored to: nothing in the log is newer.
+        if (at.Length == 0 && log.All(e => e.Revision < document.Revision))
+        {
+            return document;
+        }
+
+        int? anchor;
+        try
+        {
+            anchor = Anchor(log, document);
+        }
+        catch (Exception e) when (e is InvalidOperationException or JsonException)
+        {
+            anchor = null;
+        }
+
+        if (anchor is null)
+        {
+            Note(document.Id, $"the strat file at revision {document.Revision} matches no line of its history and was left as it is");
+            return document;
+        }
+
+        if (anchor == log.Count - 1)
+        {
             return document;
         }
 
         try
         {
             JsonNode? root = StratHistory.ToNode(document);
-            HistoryEntry? last = null;
-            foreach (HistoryEntry entry in log.Where(e => e.Revision > document.Revision))
+            for (int i = anchor.Value + 1; i < log.Count; i++)
             {
-                root = StratHistory.ApplyAll(root, entry.Ops);
-                last = entry;
+                root = StratHistory.ApplyAll(root, log[i].Ops);
             }
 
-            StratDocument? recovered = root?.Deserialize(StratJsonContext.Default.StratDocument);
-            if (recovered is null || last is null)
+            if (root?.Deserialize(StratJsonContext.Default.StratDocument) is not { } recovered)
             {
+                Note(document.Id, "the strat file is behind its history, which could not be applied; it was left as it is");
                 return document;
             }
 
-            recovered.Revision = last.Revision;
-            recovered.ModifiedUtc = last.AtUtc;
+            recovered.Revision = log[^1].Revision;
+            recovered.ModifiedUtc = log[^1].AtUtc;
             WriteStrat(recovered, path);
+            Note(document.Id, $"the strat file was behind its history; {log.Count - 1 - anchor.Value} committed change(s) were re-applied");
             return recovered;
         }
         catch (Exception e) when (e is InvalidOperationException or JsonException)
         {
+            Note(document.Id, "the strat file is behind its history, which could not be applied; it was left as it is");
             return document;
         }
+    }
+
+    private static int[] PositionsOf(IReadOnlyList<HistoryEntry> log, int revision) =>
+        [.. Enumerable.Range(0, log.Count).Where(i => log[i].Revision == revision)];
+
+    // The state after line <position>, replayed from the start in file order and stamped by that line.
+    private static StratDocument? StateAt(IReadOnlyList<HistoryEntry> log, int position)
+    {
+        JsonNode? root = null;
+        for (int i = 0; i <= position; i++)
+        {
+            root = StratHistory.ApplyAll(root, log[i].Ops);
+        }
+
+        if (root is not JsonObject || root.Deserialize(StratJsonContext.Default.StratDocument) is not { } document)
+        {
+            return null;
+        }
+
+        document.Revision = log[position].Revision;
+        document.ModifiedUtc = log[position].AtUtc;
+        return document;
+    }
+
+    // The last line carrying the document's revision whose replayed state is the document; null for none.
+    private static int? Anchor(IReadOnlyList<HistoryEntry> log, StratDocument document)
+    {
+        JsonObject target = Comparable(document);
+        JsonNode? root = null;
+        int? found = null;
+        for (int i = 0; i < log.Count; i++)
+        {
+            root = StratHistory.ApplyAll(root, log[i].Ops);
+            if (log[i].Revision == document.Revision && root is JsonObject
+                && root.Deserialize(StratJsonContext.Default.StratDocument) is { } state
+                && JsonNode.DeepEquals(Comparable(state), target))
+            {
+                found = i;
+            }
+        }
+
+        return found;
+    }
+
+    // Revision and modifiedUtc are the entry's and the marker is the file's, so none of them decides a match.
+    private static JsonObject Comparable(StratDocument document)
+    {
+        JsonObject node = (JsonObject)StratHistory.ToNode(WithPending(document, false));
+        node.Remove("revision");
+        node.Remove("modifiedUtc");
+        return node;
+    }
+
+    // A working copy stamped behind its log. Its edits go onto the head, the whole log replayed, only where the
+    // head still holds what each edit replaced. Anything else, a base the log holds twice or not at all
+    // included, is a conflict: the copy is set aside and replaced only once that copy is written.
+    private StratDocument RebaseWorkingCopy(StratDocument document, string? path, IReadOnlyList<HistoryEntry> log, int[] at)
+    {
+        int stamped = document.Revision;
+        StratDocument working = WithPending(document, false);
+        StratDocument? head;
+        StratDocument? based = null;
+        try
+        {
+            head = StateAt(log, log.Count - 1);
+            if (at.Length == 1)
+            {
+                based = StateAt(log, at[0]);
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or JsonException)
+        {
+            head = null;
+        }
+
+        if (head is null)
+        {
+            Note(document.Id, $"recovered edits from revision {stamped} could not be checked: the history does not replay; the file opens as it is");
+            return document;
+        }
+
+        if (based is null)
+        {
+            string why = at.Length == 0 ? "a revision the history does not hold" : "a revision the history holds more than once";
+            return SetAsideConflict(document, path, head, $"recovered edits are based on {why} ({stamped})");
+        }
+
+        List<PatchOp>? onHead = EditsOntoHead(based, working, head);
+        if (onHead is null)
+        {
+            return SetAsideConflict(document, path, head, $"recovered edits from revision {stamped} conflict with revision {head.Revision}");
+        }
+
+        try
+        {
+            JsonNode headNode = StratHistory.ToNode(head);
+            headNode["modifiedUtc"] = JsonValue.Create(working.ModifiedUtc);
+            if (StratHistory.ApplyAll(headNode, onHead)?.Deserialize(StratJsonContext.Default.StratDocument) is { } rebased)
+            {
+                rebased.Revision = head.Revision;
+                StratDocument copy = onHead.Count == 0 ? head : WithPending(rebased, true);
+                WriteStrat(copy, path);
+                lock (_gate)
+                {
+                    _unresolved.Remove(document.Id);
+                }
+
+                Note(document.Id, onHead.Count == 0
+                    ? $"the working copy at revision {stamped} held no edits; revision {head.Revision} opened"
+                    : $"recovered edits from revision {stamped} were moved onto revision {head.Revision}");
+                return copy;
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or JsonException)
+        {
+            // A conflict after all.
+        }
+
+        return SetAsideConflict(document, path, head, $"recovered edits from revision {stamped} do not apply to revision {head.Revision}");
+    }
+
+    private StratDocument SetAsideConflict(StratDocument document, string? path, StratDocument head, string conflict)
+    {
+        if (SetAside(document, path, document.Revision) is not { } kept)
+        {
+            lock (_gate)
+            {
+                _unresolved.Add(document.Id);
+            }
+
+            Note(document.Id, conflict + "; the working copy could not be set aside, so it opens read-only until it can be");
+            return document;
+        }
+
+        WriteStrat(head, path);
+        lock (_gate)
+        {
+            _unresolved.Remove(document.Id);
+        }
+
+        Note(document.Id, conflict + " and were not applied; they are kept in " + kept);
+        return head;
+    }
+
+    // Null on a conflict: every edit must find on the head exactly what it replaced. A head that already
+    // holds the edit's value is a conflict too, since the value may have arrived at a shifted index.
+    private static List<PatchOp>? EditsOntoHead(StratDocument based, StratDocument working, StratDocument head)
+    {
+        JsonNode before = StratHistory.ToNode(based);
+        before["revision"] = JsonValue.Create(working.Revision);
+        before["modifiedUtc"] = JsonValue.Create(working.ModifiedUtc);
+        JsonNode headNode = StratHistory.ToNode(head);
+        List<PatchOp> onHead = [];
+        foreach (PatchOp op in StratHistory.Diff(before, StratHistory.ToNode(working)))
+        {
+            if (!JsonNode.DeepEquals(StratHistory.ValueAt(headNode, op.Path), op.From))
+            {
+                return null;
+            }
+
+            onHead.Add(op);
+        }
+
+        return onHead;
+    }
+
+    private static string SetAsidePrefix(string stratPath) => stratPath[..^StratExtension.Length] + ".working-r";
+
+    private static string[] SetAsideBeside(string stratPath)
+    {
+        string folder = Path.GetDirectoryName(stratPath)!;
+        string prefix = Path.GetFileName(SetAsidePrefix(stratPath));
+        return Directory.Exists(folder) ? Directory.GetFiles(folder, prefix + "*.json") : [];
+    }
+
+    // Beside the strat, under a name the listing never matches and no earlier copy holds. Null with no disk
+    // or a failed write.
+    private string? SetAside(StratDocument document, string? path, int revision)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        string stem = SetAsidePrefix(path) + revision.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-"
+                      + _utcNow().ToString("yyyyMMddTHHmmssZ", System.Globalization.CultureInfo.InvariantCulture);
+        try
+        {
+            string target = stem + ".json";
+            for (int n = 2; File.Exists(target); n++)
+            {
+                target = stem + "-" + n.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json";
+            }
+
+            WriteAtomic(target, Serialize(document));
+            return Path.GetFileName(target);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private void Note(Guid id, string note)
+    {
+        lock (_gate)
+        {
+            _notes[id] = note;
+        }
+    }
+
+    // The revision on a log's last line and the highest anywhere in it; 0 for none.
+    private (int Last, int Max) LogHead(Guid id, string? stratPath)
+    {
+        string[] lines;
+        lock (_gate)
+        {
+            if (_logHeads.TryGetValue(id, out (int Last, int Max) cached))
+            {
+                return cached;
+            }
+
+            lines = _root is null && _memoryHistory.TryGetValue(id, out List<string>? memory) ? [.. memory] : [];
+        }
+
+        if (_root is not null)
+        {
+            string? log = stratPath is null ? null : HistoryPathBeside(stratPath);
+            try
+            {
+                lines = log is not null && File.Exists(log) ? File.ReadAllLines(log) : [];
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return (0, 0);
+            }
+        }
+
+        (int Last, int Max) head = (0, 0);
+        foreach (string line in lines)
+        {
+            int revision = RevisionOf(line);
+            if (revision > 0)
+            {
+                head = (revision, Math.Max(head.Max, revision));
+            }
+        }
+
+        lock (_gate)
+        {
+            _logHeads[id] = head;
+        }
+
+        return head;
+    }
+
+    private static int RevisionOf(string line)
+    {
+        try
+        {
+            Utf8JsonReader reader = new(Encoding.UTF8.GetBytes(line));
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+            {
+                return 0;
+            }
+
+            // The whole line must read: a torn line names a revision whose commit never happened.
+            int revision = 0;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                bool isRevision = reader.ValueTextEquals("revision"u8);
+                reader.Read();
+                if (isRevision && reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                {
+                    revision = value;
+                }
+
+                reader.Skip();
+            }
+
+            return reader.TokenType == JsonTokenType.EndObject && reader.CurrentDepth == 0 ? revision : 0;
+        }
+        catch (JsonException)
+        {
+            // A torn line.
+        }
+
+        return 0;
     }
 
     // A first commit whose log line landed and whose strat file did not: the listing finds only the log.
@@ -820,7 +1235,26 @@ public sealed class StratStore
         // An owner or map change moves the log with the strat, before the append, so the log stays whole.
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+            string newFolder = Path.GetDirectoryName(newPath)!;
+            Directory.CreateDirectory(newFolder);
+
+            // Best-effort and first: a set-aside copy left behind is still on disk, and must never stop the log.
+            foreach (string kept in SetAsideBeside(oldPath))
+            {
+                try
+                {
+                    string target = Path.Combine(newFolder, Path.GetFileName(kept));
+                    if (!File.Exists(target))
+                    {
+                        File.Move(kept, target);
+                    }
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // Stays in the old folder.
+                }
+            }
+
             string oldLog = HistoryPathBeside(oldPath);
             if (File.Exists(oldLog))
             {
@@ -1098,31 +1532,34 @@ public sealed class StratStore
 
     private void IndexFile(Guid id, string path)
     {
-        lock (_gate)
+        lock (_rmwGate)
         {
-            _paths[id] = path;
-        }
+            lock (_gate)
+            {
+                _paths[id] = path;
+            }
 
-        StratDocument? document;
-        try
-        {
-            document = Parse(File.ReadAllText(path));
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            document = null;
-        }
+            StratDocument? document;
+            try
+            {
+                document = Parse(File.ReadAllText(path));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                document = null;
+            }
 
-        if (document is null || document.Id != id)
-        {
-            // Listed (so Load can report it unreadable and Save declines to overwrite it) but not indexed.
-            return;
-        }
+            if (document is null || document.Id != id)
+            {
+                // Listed (so Load can report it unreadable and Save declines to overwrite it) but not indexed.
+                return;
+            }
 
-        document = Reconcile(document, path);
-        lock (_gate)
-        {
-            _index[id] = StratIndexEntry.From(document);
+            document = Reconcile(document, path);
+            lock (_gate)
+            {
+                _index[id] = StratIndexEntry.From(document);
+            }
         }
     }
 
@@ -1158,7 +1595,8 @@ public sealed class StratStore
             .ToDictionary(g => g.Key, g => g.First());
 
         // Reconcile against the listing, which costs no reads for a known strat: a file the index does not
-        // name, or names at an older revision than its log, is read; a row whose file is gone is dropped.
+        // name, names at an older revision than its log, or that was written after its row's commit, is read;
+        // a row whose file is gone is dropped.
         bool changed = false;
         foreach ((Guid id, string path) in EnumerateStrats())
         {
@@ -1167,7 +1605,7 @@ public sealed class StratStore
                 _paths[id] = path;
             }
 
-            if (rows.Remove(id, out StratIndexEntry? row) && !LogIsAhead(path, row.Revision))
+            if (rows.Remove(id, out StratIndexEntry? row) && !LogIsAhead(path, row.Revision) && !WrittenAfter(path, row))
             {
                 lock (_gate)
                 {
@@ -1188,6 +1626,20 @@ public sealed class StratStore
         if (changed)
         {
             SaveIndex();
+        }
+    }
+
+    // index.json is written at shutdown only, so a killed process leaves rows behind their files. A commit
+    // writes its file milliseconds after stamping modifiedUtc; a file much newer than that was written since.
+    private static bool WrittenAfter(string stratPath, StratIndexEntry row)
+    {
+        try
+        {
+            return File.GetLastWriteTimeUtc(stratPath) > row.ModifiedUtc.ToUniversalTime() + RowSlack;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return true;
         }
     }
 
@@ -1287,6 +1739,9 @@ public sealed class StratStore
 /// <param name="Issues">The validator's findings on load; the strat opens whatever they say.</param>
 public sealed record StratLoadResult(StratDocument? Document, string? Path, bool IsUnreadable, IReadOnlyList<StratIssue> Issues)
 {
+    /// <summary>What the load did to a recovered working copy (rebased or set aside), for the status line; null for nothing.</summary>
+    public string? Note { get; init; }
+
     public static StratLoadResult Unreadable(Guid id, string? path) =>
         new(null, path, true, [new StratIssue(StratIssueSeverity.Refusal, "", $"strat {id} could not be read")]);
 }
