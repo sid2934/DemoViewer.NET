@@ -721,15 +721,6 @@
                                         Click="OnAddStepClick"
                                         ToolTip.Tip="After the row last focused, or at the end; Enter in a row's field does the same" />
                             </Grid>
-                            <!-- One step: number, time, actor and verb on the first line with the row's
-                                 buttons, then only the fields the verb uses (StratStepFields; a field holding a
-                                 value shows whatever the verb), wrapping to the editor's width. -->
-                            <Grid ColumnDefinitions="20,56,64,84,*" ColumnSpacing="4">
-                                <TextBlock Grid.Column="0" Text="#" Classes="stratFieldLabel" />
-                                <TextBlock Grid.Column="1" Text="at" Classes="stratFieldLabel" />
-                                <TextBlock Grid.Column="2" Text="who" Classes="stratFieldLabel" />
-                                <TextBlock Grid.Column="3" Text="verb" Classes="stratFieldLabel" />
-                            </Grid>
                             <!-- The start: where every token stands before step 1, and what starts the strat. Not a step:
                                  one line, opened to a location field per token. -->
                             <Border x:Name="StartRow" DataContext="{Binding Start}" x:DataType="vm:StratStartRow"
@@ -745,7 +736,7 @@
                                                 <TextBlock Grid.Column="1" x:Name="StartSummary" FontSize="12" VerticalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextValue}"
                                                            Text="{Binding Line}" ToolTip.Tip="{Binding Line}" />
-                                                <Button Grid.Column="2" x:Name="StartExpand" Content="{Binding ExpandGlyph}" Classes="icon-btn"
+                                                <Button Grid.Column="2" x:Name="StartExpand" Content="{Binding ExpandGlyph}" Classes="ghost" FontSize="12" Padding="8 2"
                                                         Command="{Binding ToggleExpandedCommand}"
                                                         ToolTip.Tip="Each player's start, and what starts the strat" />
                                             </Grid>
@@ -799,6 +790,15 @@
                                     </Panel>
                                 </Border>
                             </Border>
+                            <!-- One step: number, time, actor and verb on the first line with the row's
+                                 buttons, then only the fields the verb uses (StratStepFields; a field holding a
+                                 value shows whatever the verb), wrapping to the editor's width. -->
+                            <Grid ColumnDefinitions="20,56,64,84,*" ColumnSpacing="4">
+                                <TextBlock Grid.Column="0" Text="#" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="1" Text="at" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="2" Text="who" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="3" Text="verb" Classes="stratFieldLabel" />
+                            </Grid>
                             <ItemsControl x:Name="StepRows" ItemsSource="{Binding Steps}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:StratStepRow">

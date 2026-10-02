@@ -243,6 +243,8 @@ public static partial class Variants
             ["strat-editor-chips-open"] = () => StratEditorChips(true),
             ["strat-editor-execute-motion"] = () => StratEditorExecuteMotion(),
             ["strat-editor-execute-arrived"] = () => StratEditorExecuteMotion(41),
+            ["strat-start-row"] = StratStartRow,
+            ["strat-trigger-clock"] = StratTriggerClock,
             ["strat-editor-seed-move"] = () => StratEditorSeedMove(108),
             ["strat-editor-seed-move-regroup"] = () => StratEditorSeedMove(68),
             ["strat-editor-seed-move-rotate"] = () => StratEditorSeedMove(32),
