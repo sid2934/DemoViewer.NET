@@ -1191,11 +1191,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         return value.Count == 0 ? "" : StratLocations.Text(value[0], _callouts) ?? "";
     }
 
-    // The drag's guides: the hollow start, the dashed route the drop stores, the place under the pointer, and the pins
-    // of the step it writes.
+    // While dragging: the hollow start, the dashed route the drop stores, the place under the pointer and the step's vias.
+    // Paused otherwise: the selected step's destination pins.
     private SceneGuides GuidesFor(int tick)
     {
-        if (_projection is not { } projection || Transport.IsPlaying)
+        if (_projection is not { } projection || Transport.IsPlaying || IsReadOnly)
         {
             return SceneGuides.None;
         }
@@ -1230,7 +1230,6 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             GhostTeam = slotTeam,
             DropOutline = drag.Outline ?? [],
             DropOutlineZ = (float)(drag.LevelMinZ + MapSpace.LevelQuantum / 2),
-            Pins = pins.Pins,
             ViaMarks = pins.ViaMarks
         };
     }
