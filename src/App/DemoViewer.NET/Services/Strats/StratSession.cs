@@ -212,7 +212,7 @@ public sealed class StratSession : IDisposable
         _checkOut = _store.CheckOut(id, this);
         Document = document;
         RecoveredPending = recovered.Count > 0;
-        RecoveryNote = result.Note;
+        RecoveryNote = _store.TakeNote(id);
         _issuesVersion = -1;
         _commitFailure = null;
         _writeFailed = false;

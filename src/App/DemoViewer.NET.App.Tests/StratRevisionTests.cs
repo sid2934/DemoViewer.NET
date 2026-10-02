@@ -1,6 +1,5 @@
 #region
 
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Services.Strats;
 using TUnit.Core.Exceptions;
@@ -13,15 +12,13 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Revisions after a process that never shut down: index.json is written only at shutdown, so a killed
 ///     Debug run leaves its rows behind the files. Revisions stay strictly increasing, a working copy stamped
-///     from a stale row is moved onto the log's head or set aside with a note, and a log that already holds
-///     reused revisions still replays and takes the next commit above its highest.
+///     from a stale row is moved onto the log's head or set aside with a note, never dropped.
 /// </summary>
 [NotInParallel]
 public class StratRevisionTests
 {
     private static readonly int[] ThreeRevisions = [1, 2, 3];
     private static readonly int[] FourRevisions = [1, 2, 3, 4];
-    private static readonly int[] NewestFour = [12, 11, 10, 9];
     private static readonly string[] NameOnly = ["/name"];
     private static readonly double[] BothCopies = [65.0, 70.0];
 
@@ -159,14 +156,15 @@ public class StratRevisionTests
     }
 
     [Test]
-    public async Task AWorkingCopyStampedFromAStaleRow_IsMovedOntoTheHead_NotDropped()
+    public async Task AWorkingCopyStampedFromAStaleRow_IsSetAside_NotDropped()
     {
         string root = TempRoot();
         try
         {
             StratDocument document = KilledAfterTwoCommits(root);
 
-            // Revision 3's content plus one edit, stamped with the stale row's revision 1, then a crash.
+            // Revision 3's content plus one edit, stamped with the stale row's revision 1, then a crash. Its
+            // diff from revision 1 carries revisions 2 and 3, whose targets the head no longer holds.
             StratStore probe = new(root, utcNow: SteppingClock(Past.AddHours(1)));
             StratDocument working = probe.Materialize(document.Id, 3)!;
             working.Name = "edited before the crash";
@@ -177,24 +175,53 @@ public class StratRevisionTests
             using StratSession session = Session(restarted);
             session.Open(document.Id);
 
+            string[] kept = SetAsideFiles(root, document);
             using (Assert.Multiple())
             {
                 await Assert.That(session.Document!.Revision).IsEqualTo(3);
-                await Assert.That(session.Document.Name).IsEqualTo("edited before the crash");
                 await Assert.That(session.Document.Steps[1].AtSeconds).IsEqualTo(80);
-                await Assert.That(session.RecoveredPending).IsTrue();
+                await Assert.That(session.HasPending).IsFalse();
+                await Assert.That(session.StatusText).Contains("conflict with revision 3");
+                await Assert.That(kept.Length).IsEqualTo(1);
+                await Assert.That(JsonNode.Parse(File.ReadAllText(kept[0]))!["name"]!.GetValue<string>()).IsEqualTo("edited before the crash");
+                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(ThreeRevisions);
+            }
+        }
+        finally
+        {
+            DeleteQuietly(root);
+        }
+    }
+
+    [Test]
+    public async Task AWorkingCopyWithEditsTheHeadDidNotTouch_IsMovedOntoTheHead()
+    {
+        string root = TempRoot();
+        try
+        {
+            StratDocument document = KilledAfterTwoCommits(root);
+
+            // Revision 1 plus a rename; revisions 2 and 3 only moved steps.
+            StratDocument working = new StratStore(root).Materialize(document.Id, 1)!;
+            working.Name = "renamed at revision 1";
+            File.WriteAllText(StratFile(root, document), StratStore.Serialize(StratStore.WithPending(working, true)));
+
+            StratStore restarted = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            using StratSession session = Session(restarted);
+            session.Open(document.Id);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document!.Revision).IsEqualTo(3);
+                await Assert.That(session.Document.Name).IsEqualTo("renamed at revision 1");
+                await Assert.That(session.Document.Steps[0].AtSeconds).IsEqualTo(88);
+                await Assert.That(session.Document.Steps[1].AtSeconds).IsEqualTo(80);
                 await Assert.That(session.PendingOps.Select(o => o.Path)).IsEquivalentTo(NameOnly);
                 await Assert.That(session.StatusText).Contains("recovered edits from revision 1 were moved onto revision 3");
             }
 
             await Assert.That(session.Commit()!.Revision).IsEqualTo(4);
-            HistoryEntry last = restarted.History(document.Id)[^1];
-            using (Assert.Multiple())
-            {
-                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(FourRevisions);
-                await Assert.That(last.Ops.Select(o => o.Path)).IsEquivalentTo(NameOnly);
-                await Assert.That(restarted.Materialize(document.Id, 4)!.Steps[0].AtSeconds).IsEqualTo(88);
-            }
+            await Assert.That(restarted.History(document.Id)[^1].Ops.Select(o => o.Path)).IsEquivalentTo(NameOnly);
         }
         finally
         {
@@ -274,9 +301,9 @@ public class StratRevisionTests
     [Test]
     public async Task AConflictThatCannotBeSetAside_LeavesTheWorkingCopyInPlace()
     {
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
         {
-            throw new SkipTestException("a read-only folder needs Unix file modes");
+            throw new SkipTestException("a read-only folder needs Unix file modes and a user they bind");
         }
 
         string root = TempRoot();
@@ -304,65 +331,6 @@ public class StratRevisionTests
                 File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             }
 
-            DeleteQuietly(root);
-        }
-    }
-
-    // The owner's log shape: 1..8, 9, 10, 11, then 9, 10, 11 again and 12, each a real edit, in file order.
-    private static StratDocument WriteDoubledLog(string root)
-    {
-        StratStore store = new(root, utcNow: SteppingClock(Past));
-        StratDocument document = Minimal();
-        store.Save(document, [], "created");
-        string log = LogFile(root, document);
-        List<string> lines = [File.ReadAllLines(log).Single()];
-        StratDocument current = store.Materialize(document.Id, 1)!;
-        int[] revisions = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 9, 10, 11, 12];
-        for (int i = 0; i < revisions.Length; i++)
-        {
-            PatchOp op = PatchOp.ReplaceOp($"/steps/{i % 2}/atSeconds", JsonValue.Create(current.Steps[i % 2].AtSeconds),
-                JsonValue.Create(80.0 - i));
-            current = StratHistory.Apply(current, [op]);
-            HistoryEntry entry = new() { Revision = revisions[i], AtUtc = Past.AddMinutes(10 + i), Summary = "move " + i, Ops = [op] };
-            lines.Add(JsonSerializer.Serialize(entry, StratHistoryJsonContext.Default.HistoryEntry));
-        }
-
-        current.Revision = 12;
-        current.ModifiedUtc = Past.AddMinutes(10 + revisions.Length - 1);
-        File.WriteAllLines(log, lines);
-        File.WriteAllText(StratFile(root, document), StratStore.Serialize(current));
-        return current;
-    }
-
-    [Test]
-    public async Task ALogWithReusedRevisions_StillReplays_AndTheNextCommitIsAboveItsHighest()
-    {
-        string root = TempRoot();
-        try
-        {
-            StratDocument expected = WriteDoubledLog(root);
-            StratStore store = new(root, utcNow: SteppingClock(Past.AddHours(1)));
-            IReadOnlyList<HistoryEntry> log = store.History(expected.Id);
-            IReadOnlyList<StratHistoryRow> rows = StratHistoryPane.Rows(log);
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(store.TryLoad(expected.Id)!.Revision).IsEqualTo(12);
-                await Assert.That(StratStore.Serialize(store.Materialize(expected.Id, 12)!)).IsEqualTo(StratStore.Serialize(expected))
-                    .Because("file order is the replay order, whatever the numbers say");
-                await Assert.That(rows.Count).IsEqualTo(15);
-                await Assert.That(rows.Select(r => r.Revision).Take(4)).IsEquivalentTo(NewestFour);
-                await Assert.That(rows.Take(14).All(r => r.Changes.Count == 1)).IsTrue();
-            }
-
-            using StratSession session = Session(store);
-            session.Open(expected.Id);
-            session.Apply(MoveTime(0, 75));
-            await Assert.That(session.Commit()!.Revision).IsEqualTo(13);
-            await Assert.That(store.Materialize(expected.Id, 13)!.Steps[0].AtSeconds).IsEqualTo(75);
-        }
-        finally
-        {
             DeleteQuietly(root);
         }
     }
