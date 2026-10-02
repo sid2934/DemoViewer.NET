@@ -12,7 +12,8 @@ namespace DemoViewer.NET.Services.Strats;
 ///     The mapping between a strat's round clock and a demo's frame clock (strat-model.md §3.4). Pure, both
 ///     directions, on the frame clock only: a round starts at its freeze-end <c>GameTick</c>, which is
 ///     <c>CachedRound.StartTickFrameClock</c> (measured equal on 43 of 43 rounds), and a step's
-///     <c>atSeconds</c> counts DOWN from the round length.
+///     <c>atSeconds</c> counts DOWN from the round length. Also the strat clock's own rules: a strat timed from its
+///     trigger counts UP from 0, and both clocks run from strat tick 0 at the start.
 /// </summary>
 public static class StratClock
 {

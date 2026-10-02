@@ -1,7 +1,7 @@
 # The Strat Book files: `.dvstrat.json`, `book.json`, `callouts.json` and `.history.jsonl` (schema v1)
 
 The Strat Book stores a **strat**: a diagram plus the set of tagged rounds in which it was run. A strat
-is authored on the round clock ("at 1:15"), names **slots** rather than players, belongs to a **team**
+is authored on the round clock ("at 1:15") or counted from its trigger ("+0:08"), names **slots** rather than players, belongs to a **team**
 rather than a demo, and carries no demo tick anchor of its own; everything that touches a demo goes
 through a Tag Store instance or `StratClock`. This document is for anyone who wants to read or write the
 files a book is made of, plus the two text exports (the call sheet and the LAN Print role sheets) that
@@ -64,6 +64,7 @@ files to `<owner>/<map>/.trash/` rather than removing them.
   "clock": { "kind": "round", "roundSeconds": 115 },
   "canvas": { "fadeInTicks": 8, "fadeOutTicks": 16, "showOpponents": true, "defaultLevelMinZ": null },
   "slots": [ /* five, A to E, in order */ ],
+  "start": { /* where the tokens stand before step 1; see "The start" */ },
   "steps": [ /* … */ ],
   "branches": [ /* … */ ]
 }
@@ -81,7 +82,9 @@ files to `<owner>/<map>/.trash/` rather than removing them.
 * **`economy`** is one of Round Facts' buy types, lower case, plus `any`: `pistol | eco | semi | force |
   full | unknown | any`. **`tempo`** is `slow | mid | fast`.
 * **`trigger`** is the human call that starts the strat: `text` always, `kind` one of `time | contact |
-  utility | call` or null, `atSeconds` (round clock remaining) only meaningful for `kind: "time"`.
+  utility | call` or null, `atSeconds` (round clock remaining) only meaningful for `kind: "time"`. The editor
+  shows and edits `text` in the Start row; it stays here, so a file that has one is not rewritten for it. On a trigger
+  clock (below) the steps count from this call, and `atSeconds` is still a round time: a clock switch leaves it.
 * **`status`** is one of `Theory | InProgress | Active | Archived`. **`revision`** moves only on a
   commit (see "The history log" below), together with `modifiedUtc`.
 * **`origin`** is set when Create Strat From Round made the strat, or when a mined pattern was added to
@@ -92,15 +95,29 @@ files to `<owner>/<map>/.trash/` rather than removing them.
   distance between two of them), `UtilityCompared` (false when some of its demos had no grenade rows) and
   `Members` (each round's `Sha256`, `FileName`, `Round` and `Won`). Each member round with a hash also gets
   a tag instance with source `suggested` and the label `strat: <id>`, so it counts as a run.
-* **`clock`**: the STRAT clock, not a demo clock. `kind` is `round` in schema v1 (`plant`, for a
+* **`clock`**: the STRAT clock, not a demo clock. `kind` is `round` or `trigger` (`plant`, for a
   post-plant strat counted from the bomb going down, is reserved and not defined yet). `roundSeconds` is
   the authored round length, defaulting to 115 (the competitive round length, measured on 43 of 43
-  rounds across two Valve matchmaking replays). A step's `atSeconds` is round clock **remaining**, so it counts down along
-  `steps[]`; a negative value means "after the round timer stopped for a plant". Mapping a step to a real
-  demo tick, in either direction, is `StratClock.TickFor`/`AtSecondsFor`, and always uses
-  `CachedRound.StartTickFrameClock` (the round's freeze-end tick, which the frame clock's `GameTick`
-  already is) plus Round Facts' `roundTime` fact when the demo round has one, else this block's own
-  `roundSeconds`.
+  rounds across two Valve matchmaking replays).
+  * **`round`:** a step's `atSeconds` is round clock **remaining**, so it never increases along `steps[]`; a negative
+    value means "after the round timer stopped for a plant". The strat's start is `roundSeconds` (1:55 at 115). Mapping
+    a step to a real demo tick, in either direction, is `StratClock.TickFor`/`AtSecondsFor`, and always uses
+    `CachedRound.StartTickFrameClock` (the round's freeze-end tick, which the frame clock's `GameTick` already is) plus
+    Round Facts' `roundTime` fact when the demo round has one, else this block's own `roundSeconds`.
+  * **`trigger`:** a step's `atSeconds` is seconds **after** what starts the strat (the trigger), so it never
+    decreases along `steps[]`; the start is 0. It prints as `+0:08`, and the editor reads `+0:08`, `0:08` and `8` the
+    same. There is no "after the plant" on this clock: a time past `roundSeconds` is just later. A negative time is
+    before the trigger: the validator warns and the step plays at the start. A lurk's `rotate.atSeconds` follows the
+    same clock. Such a strat has no fixed demo tick, so nothing maps it to a demo round.
+  * **On the canvas** both clocks run from tick 0 at the start, `round((elapsed) × 64)` where elapsed is
+    `roundSeconds - atSeconds` on the round clock and `atSeconds` from a trigger (`StratClock.StratTickOf`), so a round
+    strat lands on exactly the ticks it always did.
+  * **Switching** (the editor's clock switch, `StratClock.SwitchOps`) writes `clock.kind` and every step's `atSeconds`
+    and every lurk `rotate.atSeconds` as `roundSeconds - t`, rounded to a thousandth, in one undo entry. It is its own
+    inverse, keeps the order, and moves no tick. An after-plant time (`-12.5`) becomes one past the round length
+    (`127.5`, `+2:07.5`), and back. `holdSeconds` is a duration and `trigger.atSeconds` a round time, so neither moves.
+  * **An older build** does not know `trigger`: it warns that the clock is read as the round clock, and refuses the
+    file on its increasing times. Switch back to the round clock before sharing such a strat with one.
 * **`canvas`** is Step Authoring's per-strat defaults for the token canvas: fade-in/out in ticks,
   whether opponent tokens show, and a default level. Present from schema v1 even though nothing writes a
   non-default value until Step Authoring does.
@@ -116,6 +133,62 @@ free text ("entry", "awp", "igl"). `steamId` pins one player to the slot for thi
 null, a display resolves the slot through the owner's `book.json` default for the demo's Team Identity
 epoch, and falls back to just the letter when neither is set. Names are never stored on a strat or a
 book: a display name is looked up at render time and a roster rename never touches either file.
+
+### The start (`start`)
+
+```jsonc
+"start": {
+  "kind": "spawn",
+  "positions": [
+    { "slot": "A", "place": "TSpawn", "x": -750, "y": -791, "levelMinZ": -99968 },
+    { "slot": "B", "place": "LongDoors" },
+    { "slot": "O1", "x": 195, "y": 2300, "levelMinZ": -99968, "yawDegrees": 270 }
+  ]
+}
+```
+
+Where every token stands before step 1. It is not a step: it has no time, verb or lines, and plays at tick 0 on either
+clock. Optional and not written when absent, so a file without it loads and saves byte for byte as before.
+
+* **`kind`** is `spawn` (a new strat's spawn spots), `custom` (a person set one) or `captured` (a captured or mined
+  round's freeze end). Anything else reads as custom and warns. Any edit makes it `custom`; the Start row's Spawns
+  button writes `spawn` again.
+* **`positions`** holds at most one entry per token, `A` to `E` and `O1` to `O5`, in that order: a location in the
+  shape every location has (see "Locations": a place, a point, or both), plus an optional `yawDegrees` and, on a
+  captured start, `"observed": true`. A point is where the token stands; a place alone is the place's arrival, and
+  several tokens starting at one place fan out as destinations do. A token with no entry, or a place the map lacks, has
+  no start and appears at its first placement, as before.
+* **The projection** puts each start at tick 0 as the earliest placement: before any step's entry on that tick, which
+  replaces it. A step at the start time travels from it, so a move at 1:55 (or +0:00) walks, and a position verb there
+  runs from it (the "no time to walk" rule). The legacy carried rule reads the start as the entry before a step's copy;
+  the zip check reads it as where the token last stood; the drag treats a token nothing has placed since as standing on
+  its start. Add step does not copy a start into a new step: a token at its start stays there by the stationary rule,
+  and a later start edit still moves it.
+* **New Strat** writes a `spawn` start (`StratSpawns.PlaceStart`): A to E on their side's spawn spots and O1 to O5 on
+  the other side's, each with the place the spot is in. A map with no zones gets no start.
+* **Create Strat From Round and Strat Mining** write the freeze end as a `captured` start, every entry observed and
+  holding the pawn's place. The freeze-end step stays as it was: it holds the same entries on tick 0, so a capture plays
+  exactly as before, and its move threshold is still measured from it.
+* **Older files** (no `start`, no `origin`, no mined tag) are never rewritten on open. When the first step is at the
+  start time, its entries (a carried copy excluded) are read as the start: New Strat's round-start seed, or a seed
+  later turned into a move or a throw. When that step still places someone, one of A to E it no longer places starts
+  at its first entry on a later step if that entry is a carried copy (marked, or in a file from before the mark an
+  unmarked entry on a step that does not name it): Add step copied every token, so a copy of one nothing placed before
+  can only be of a seed entry since removed. With the map's spawns read, one of A to E with still no start starts at
+  its spawn, as a new strat's would. Opponents are not filled in: one missing from a seed was taken out by hand.
+  `StratStartBlock.Legacy` is the reader; the call sheet and the role sheets read it without spawns.
+* **The first start edit** in such a file writes the block, in one undo entry with the history line `start read from
+  the round-start step`: the start as read plus the edit, the step entries it was read from removed (so they no longer
+  stand in for it), and, in a file from before the carried mark, a `"carried": true` on every unmarked entry the
+  legacy rule reads as carried, so writing the file's first mark changes nothing it plays.
+
+| Rule | Severity | Pointer |
+|---|---|---|
+| a slot not `A` to `E` or `O1` to `O5` | warning | `/start/positions/j/slot` |
+| a second entry for a slot (the last is used) | warning | `/start/positions/j/slot` |
+| `x` without `y`, or the reverse; no place and no point | warning | `/start/positions/j` |
+| a place the map lacks | warning | `/start/positions/j/place` |
+| a kind outside `spawn`, `custom`, `captured` | warning | `/start/kind` |
 
 ### A step
 
@@ -183,11 +256,11 @@ book: a display name is looked up at render time and a roster rename never touch
   warns and treats it as `linear` rather than refusing the document. `positions[].slot` additionally
   admits the opponent tokens `O1`..`O5`, which a strat's own `slots[]` never does.
 
-  **A new blank strat** (the tab's New Strat, not one created from a round or mined) is written with one
-  round-start step: `atSeconds` equal to `clock.roundSeconds`, actor `all`, verb `hold`, and a position for
-  each of `A`..`E` in its own side's spawn and `O1`..`O5` in the other side's. The spawn is the team's
-  largest buy zone in the map's baked `zones.json`; the five tokens take five of its nav areas, spread
-  apart, at the level of the area they stand on. A map with no zones gets the strat without the step.
+  **A new blank strat** (the tab's New Strat, not one created from a round or mined) is written with no steps and a
+  `spawn` start (see "The start"): `A`..`E` in its own side's spawn and `O1`..`O5` in the other side's. The spawn is
+  the team's largest buy zone in the map's baked `zones.json`; the five tokens take five of its nav areas, spread
+  apart, at the level of the area they stand on. A map with no zones gets the strat without a start. Older builds
+  wrote a round-start `all hold` step instead, which this build reads as the start.
 
 ### Locations
 
@@ -373,8 +446,8 @@ by every player the step names, like `from` and `utility`, and two lurkers who r
 * **`areas`** are canonical places the lurk takes control of or works towards, first first. **`areaPoints`**
   (optional, written only when there is one) holds areas picked on the map outside every place, `{ x, y, levelMinZ }`
   each, after the places in reading order: a sibling of `areas` for the same reason `watch.points` is one.
-* **`rotate`** is when the lurk rotates and where to. `atSeconds` is round clock remaining (later in the round,
-  so lower than the step's own); `when` is free text ("on the call", "on contact", "bomb planted", "after first
+* **`rotate`** is when the lurk rotates and where to. `atSeconds` is on the strat's clock (later than the step: lower
+  on the round clock, higher from a trigger); `when` is free text ("on the call", "on contact", "bomb planted", "after first
   kill" are the editor's suggestions, not a vocabulary); `to` is a location (a place, a point, or both). A rotate
   with a time and a condition means whichever comes first. On the canvas a rotating token walks to the point when
   `to` has one, else to the place.
@@ -477,7 +550,7 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
   that moment, and a position verb heads for its place from the cut run's start, as an authored entry would. A
   position verb with no time to walk, because the slot's last keyframe is at the same tick (a setup's first step on
-  the round-start seed), runs instead, so the move still plays. A token with no keyframe before the step starts at
+  the start), runs instead, so the move still plays. A token with no start and no keyframe before the step starts at
   its destination at the step's time.
 
   The step's `holdSeconds` and `interpolation` shape a destination as they shape an authored entry: a hold delays
@@ -514,7 +587,7 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
     position verb, or a wait, call or throw.
   * A later destination beats an earlier exact spot: the token leaves for the later target from the later step's own
     position when it has one, else from where it stands on the tick, which is the earlier spot. So a setup's first step
-    on the round-start seed leaves from spawn, and a move after a lineup throw on one tick leaves from the lineup (the
+    at the start leaves from spawn, and a move after a lineup throw on one tick leaves from the lineup (the
     grenade still flies from the lineup either way).
   * A position on a later step that is not an exact spot (a travel verb's departure, or an entry for a slot the step
     does not name) is where the token leaves from. It does not cancel an earlier destination, and a carried copy
@@ -578,6 +651,8 @@ A to E unless Alt is held. Nothing seeks: a press while playing pauses where it 
   | throw with a lineup | nothing: refused |
   | a step that does not name the player | a verb with a `to` adds the player's line with the drop as its `to`; a lurk, throw, wait or call edits the step that placed the player |
   | opponents `O1`..`O5` | `positions[Ox]` on the selected step, as before |
+  | the Start row selected (tick 0) | the token's start, opponents included: a body drag its location, a cone drag its `yawDegrees` |
+  | a token nothing has placed since its start | its start, rather than refusing |
 
 * **Mid-run.** A place goes into the run's `via` before the via the token was heading for (the leg it is on, from the
   route's via ticks; with routing off, after the last place). A point goes last in `viaPoints`, since points read after
@@ -634,8 +709,9 @@ draw it from the same projection.
   landing, the air and detonation times, and the stored flight. A lineup not grouped yet draws as if it had none
   until the map is ready.
 
-`steps[]` is authoring order, which is also Role View's print order, and `atSeconds` must never increase
-along it; two steps may share a time.
+`steps[]` is authoring order, which is also Role View's print order. On the round clock `atSeconds` must never
+increase along it, and from a trigger it must never decrease; either way two steps may share a time. The validator
+refuses a step out of order.
 
 ### A branch
 
@@ -709,7 +785,9 @@ the op displaced, so a line can be phrased and inverted without replaying the wh
 always a single `add` at `""` (the whole document). `StratHistory.Materialize(log, revision)` rebuilds
 the document as of any revision from the log alone; `StratDiffPhrasing` turns an entry's ops into the
 words a person reads ("molotov moved from 1:22 to 1:16", "step added: A peeks Connector at 1:05", "E's lurk:
-rotate time 0:40 → 0:35", "E's lurk: lurk areas set to Palace, Connector").
+rotate time 0:40 → 0:35", "E's lurk: lurk areas set to Palace, Connector"). Times print on the clock the strat was on
+at that revision. A clock switch reads as one line, `clock: round clock → from the trigger`; a start edit as `start:
+A at Long Doors`, and the first write in an older file adds `start read from the round-start step`.
 
 A commit happens at an explicit Save, a tab deactivate, a demo swap, shutdown, or 30 seconds of no
 further edit; consecutive ops on the same path inside one commit merge into one, so a canvas drag that
@@ -727,8 +805,10 @@ label groups, never stored on the strat itself.
 ## Templates
 
 New Strat can start a strat from a template in `Services/Strats/StratTemplates.cs`, and Apply template
-fills an open strat that has no steps beyond the spawn seed. A template writes nothing a hand-written strat
-cannot: `type`, `targetSite`, the `role` of any slot that has none, and ordinary steps after the seed.
+fills an open strat that has no steps (`StratTemplates.HasNoSteps`; an older file's lone round-start seed counts as
+none, since it reads as the start). A template writes nothing a hand-written strat cannot: `type`, `targetSite`, the
+`role` of any slot that has none, and ordinary steps. Templates are written on the round clock; on a strat timed from
+its trigger each time becomes seconds after the start (`roundSeconds - t`).
 The file does not record that a template was used, and revision 1 (or the one undo entry of Apply template)
 already holds the steps.
 
@@ -749,7 +829,7 @@ The rules the templates keep, pinned by `StratTemplatesTests`:
 - The only places they name are `BombsiteA` and `BombsiteB`, the two on every shipped map. Any other place is
   left empty and described in the note, and a step that needs a place it cannot name is a `hold` or `wait`.
 - A step carries only the members its verb uses (`StratStepFields`). A throw names a slot and a kind, never a
-  lineup. No step carries positions: the tokens carry forward from the seed.
+  lineup. No step carries positions: the tokens start at the start.
 - A step where players take different places uses lines; it names no step-level `to` and no watch.
   Apply template is not offered on a strat whose seed step has lines.
 
@@ -761,8 +841,10 @@ Two text shapes are built from a strat and read no file of their own; both are p
 ### The call sheet (Markdown)
 
 `StratTextExporter.CallSheet` renders one strat as Markdown for Discord or a text diff: a title and
-metadata line, one bullet per step with its round-clock time bolded, and a branch as an indented
-`if … → …` line under the step it follows:
+metadata line, the trigger (`Trigger: on call at 1:15`) and the start (`Start: spawn`, `Start: as captured`, or each
+player's place, `Start: A Long Doors, B (1234, -561)`) when the strat has them, one bullet per step with its time bolded
+on the strat's clock (`**1:30**`, or `**+0:08**` from a trigger), and a branch as an indented `if … → …` line under the
+step it follows:
 
 ```markdown
 - **1:30** B throws smoke A ramp → A site (Stairs)
@@ -786,13 +868,14 @@ the same way a history summary leaves prose out; the strat's own `notes` field p
 `RoleSheet.Derive(doc, slot, callouts, roster, lookup)` builds one slot's sheet: the strat's masthead,
 every step the slot owns (it has a line, or with no lines `actor` is the slot or `all`) plus, greyed,
 another slot's step that feeds one of the slot's own moves (a `to` place of it, a line's included, matches
-the slot's `from` or `to`, at the same or earlier real time, which is a **larger** `atSeconds` since the
-round clock counts down), the branches that follow one of the slot's own steps, and the slot's tracked positions as an ordered polyline once Step
+the slot's `from` or `to`, at the same or earlier real time, which is a **larger** `atSeconds` on the round clock,
+which counts down, and a smaller one from a trigger), the branches that follow one of the slot's own steps, and the slot's tracked positions as an ordered polyline once Step
 Authoring has written any. On a step with lines the slot's own entry is only its line, phrased as a
 single-slot step with `, watching …` appended. `RoleSheetHtmlWriter.Html` renders a list of sheets as one self-contained HTML
 page, one `<section>` per sheet with a print page break between them and no external reference of any
 kind (font, stylesheet, image): the mini-map is drawn as a bare SVG polyline rather than an overlay on
-the baked radar art, precisely so the file stays self-contained. `LanPrint.WriteAndOpen` writes that page
+the baked radar art, precisely so the file stays self-contained. The masthead prints the trigger and, under it, the
+slot's start (`Start: spawn`, or its place); each line's time is on the strat's clock. `LanPrint.WriteAndOpen` writes that page
 to a temp file and hands it to the OS's default `.html` handler, the system browser on every desktop
 this app ships to, which is also how a coach prints or emails it (Avalonia has no printing API of its
 own). On the browser build the write still lands in the runtime's ephemeral filesystem, but the open
