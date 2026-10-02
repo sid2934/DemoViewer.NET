@@ -30,7 +30,7 @@ The user-facing word is question 4.
   later move to a separate assembly (b) is mechanical.** Option (c), runtime-loaded plugins, is ruled out
   for the Strat Book by the add-on design's own rule: 33 Strat Book files reference CS2DemoKit, and add-ons
   must never do so.
-- **Effort:** about 20 agent-sized items for (a) across five phases, the first of which (real "off") is 4
+- **Effort:** about 20 agent-sized items for (a) across four phases, the first of which (real "off") is 4
   items and ships value on its own. Splitting into an assembly (b) is about 8 more items after that.
   Details in section 6.
 
@@ -347,11 +347,13 @@ anything else.
 3. **Gate startup and shutdown work.** The explicit list at `App.axaml.cs:1373-1402`: skip `SituationIndex`
    and `GrenadeIndex` loads, `LineupClipService`, `TagFactsRefresher`, the grenade migration and, if Teams
    is in the pack, `TeamIdentityService.StartAsync`. Stop `BuildRegistry` resolving `WatchedSituationsService`
-   and `ReviewQueue` eagerly. Make shutdown flushes no-ops when the store was never built
-   (`GetService` on a lazily built singleton already does this only if nothing resolved it; verify).
+   and `ReviewQueue` eagerly. Shutdown currently constructs unbuilt stores: `GetService<TagStore>()` and
+   `GetService<ReviewQueue>()` at :314-315 build the singleton if nothing has. Move the flushes into the
+   pack lifecycle with a "was built" check.
 4. **Turning on mid-session.** On `Changed` to on: run the deferred startup loads once and nudge the
    coordinator (`CapacityAvailable`) so pending paths are reconsidered. On `Changed` to off: evaluators
-   stop by predicate; queued pack jobs are cancelled by owner tag; resident indexes are released if they
+   stop by predicate; queued pack jobs are cancelled by owner tag (the queue has `CancelOwned(ownerTag,
+   path)` per path; a cancel-all-for-owner is a small addition); resident indexes are released if they
    implement `IDisposable` cleanly, otherwise on restart (item 15). Test: composition root with the pack
    off resolves no pack store and registers no startup loads.
 
@@ -585,7 +587,8 @@ before the switch stay as they were.
 **Re-enabling.** The pack's evaluators report every demo whose pack fingerprint is missing or stale through
 `PendingPaths()`, which is the existing mechanism, so re-enabling backfills automatically. The cost is a
 re-index of everything indexed while off, which on a large library is the same order as a first index.
-The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
+If Round Facts is in the pack, the highlights fingerprint must be split first (section 9), or each toggle also
+re-scans every demo's highlights. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
 be visible and pausable in the queue, per the standing rule that all background work goes through it.
 
 **Live toggle versus restart.** Recommend live for UI and work in both directions, and accept that memory
@@ -609,12 +612,17 @@ data for the session only.
 - **Boundary drift.** Under (a) nothing stops a new core-to-pack reference. Mitigate with a test that scans
   the core namespaces' `using`s for pack namespaces (cheap), until (b) makes it a compile error.
 - **Round Facts placement.** If it moves into the pack, `MergedRulesBuild` must accept ruleset contributions
-  and `RoundTrack` must tolerate no tints; Library and Highlights forward passes change shape and need a
+  and `RoundTrack` must tolerate no tints. The highlights fingerprint is computed over every effective
+  ruleset, `round_facts` included (`MergedRulesBuild.Fingerprint`, :72-84), so dropping the ruleset from the
+  merged set on toggle would mark every demo's highlights stale and force a library-wide Reels re-scan in
+  both directions. Either exclude `round_facts` from that fingerprint first (it already has its own,
+  `RoundFactsIdentity`) or keep the ruleset in the merged set and gate only the evaluator's writes; Library and Highlights forward passes change shape and need a
   bench A/B (`AnalysisBench` with `--retained`, interleaved per the bench-variance note). If it stays core,
   the pack is not fully "no indexing" when off. Q1 decides.
-- **Team Identity is load-bearing for the Library.** Its filter and provenance chip ship on main's Library.
-  Putting Teams in the pack removes a Library feature for users who turn the pack off; keeping it core
-  means its factory must stop constructing pack stores.
+- **Team Identity in the Library.** `Services/Teams`, the Library team filter and the provenance chip are
+  all new on this branch (nothing under `Services/Teams` at the merge base), so putting Teams in the pack
+  takes away nothing main's users have today. Keeping it core instead means its factory must stop
+  constructing pack stores.
 - **2D Playback regressions.** Phase 3 rewires the busiest tab VM (3,560 lines). The follow-card render
   test locates cards by list position and will break on any panel reordering. Land Phase 3 one item at a
   time with UiCapture before and after.
@@ -636,8 +644,9 @@ data for the session only.
    Playback tagging and review mode, Suggested, Utility, Review, Dossier, Teams), or a smaller core set?
    And for the three shared pieces, which way: Round Facts (runs inside every library index), Teams and
    Provenance (power the Library's team filter and source chip), the Review Queue (Reels stages clips into
-   it). Recommendation: whole Strat Room in the pack; Round Facts, Teams and Provenance in the pack too, so
-   "off" really removes indexing cost; Review Queue core, since Reels uses it.
+   it). Recommendation: whole Strat Room in the pack; Round Facts, Teams and Provenance in the pack too (all
+   three are new on this branch, so main's users lose nothing), so "off" really removes indexing cost;
+   Review Queue core, since Reels uses it.
 2. **Default for each category?** Today every Strat Book id defaults on for consumer, power and developer.
    Should a fresh consumer install start with the pack off, and should the first-run setup ask?
 3. **Is live toggle with memory reclaimed on restart acceptable for v1.0.0?** Or should turning it off
