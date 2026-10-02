@@ -199,7 +199,7 @@ public sealed class StratFrameSource : ISceneFrameSource
             AddRoutes(tick, slot);
         }
 
-        double remaining = RoundSecondsAt(_spec.RoundSeconds, tick);
+        double remaining = _spec.CountsUp ? ElapsedAt(tick) : RoundSecondsAt(_spec.RoundSeconds, tick);
         Scene2DFrame frame = slot.Frame;
         frame.TimeField = time;
         frame.MapField = _map;
@@ -207,7 +207,7 @@ public sealed class StratFrameSource : ISceneFrameSource
         {
             Phase = "Live",
             RoundSeconds = remaining,
-            RoundTime = remaining > 0 ? FormatClock(remaining) : "0:00",
+            RoundTime = _spec.CountsUp || remaining > 0 ? FormatClock(remaining) : "0:00",
             TScore = 0,
             CtScore = 0
         };
@@ -219,6 +219,10 @@ public sealed class StratFrameSource : ISceneFrameSource
     /// <param name="tick">A strat frame-clock tick.</param>
     public static double RoundSecondsAt(int roundSeconds, int tick) =>
         roundSeconds - tick / (double)StepSchedule.TicksPerSecond;
+
+    /// <summary>Seconds since the strat's start at a strat tick: the clock of a strat timed from its trigger.</summary>
+    /// <param name="tick">A strat frame-clock tick.</param>
+    public static double ElapsedAt(int tick) => tick / (double)StepSchedule.TicksPerSecond;
 
     /// <summary>How many ticks a kind's effect shows from the moment it goes off.</summary>
     /// <param name="kind">The grenade.</param>

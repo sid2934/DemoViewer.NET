@@ -29,7 +29,8 @@ public static class StratStepPhrasing
     ///     null, or an id it cannot resolve, prints the raw id, the same fallback
     ///     <see cref="StratBranchPhrasing.TargetText" /> uses for an unresolved branch target.
     /// </param>
-    public static string Phrase(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null)
+    /// <param name="clock">The strat's clock, for a rotate time; null is the round clock.</param>
+    public static string Phrase(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null, StratClockInfo? clock = null)
     {
         ArgumentNullException.ThrowIfNull(step);
 
@@ -74,7 +75,7 @@ public static class StratStepPhrasing
             sentence.Append(" via ").Append(via);
         }
 
-        if (step.Lurk is { } lurk && LurkText(lurk, callouts) is { } lurkText)
+        if (step.Lurk is { } lurk && LurkText(lurk, callouts, clock) is { } lurkText)
         {
             sentence.Append(StratLocations.LurkAreas(lurk).Count > 0 ? " " : "; ").Append(lurkText);
         }
@@ -138,11 +139,12 @@ public static class StratStepPhrasing
     /// </summary>
     /// <param name="lurk">The step's lurk.</param>
     /// <param name="callouts">Place names; null for canonical ones.</param>
-    public static string? LurkText(StepLurk lurk, CalloutResolver? callouts)
+    /// <param name="clock">The strat's clock, for the rotate time; null is the round clock.</param>
+    public static string? LurkText(StepLurk lurk, CalloutResolver? callouts, StratClockInfo? clock = null)
     {
         ArgumentNullException.ThrowIfNull(lurk);
         string areas = string.Join(", ", StratLocations.LurkAreas(lurk).Select(a => StratLocations.Text(a, callouts)));
-        string? rotate = lurk.Rotate is { } r ? RotateText(r, callouts) : null;
+        string? rotate = lurk.Rotate is { } r ? RotateText(r, callouts, clock) : null;
         return (areas.Length, rotate) switch
         {
             (0, null) => null,
@@ -155,7 +157,8 @@ public static class StratStepPhrasing
     /// <summary><c>rotate to B site at 0:40 or on the call</c>; null for a rotate that says nothing.</summary>
     /// <param name="rotate">The rotate.</param>
     /// <param name="callouts">Place names; null for canonical ones.</param>
-    public static string? RotateText(LurkRotate rotate, CalloutResolver? callouts)
+    /// <param name="clock">The strat's clock; null is the round clock.</param>
+    public static string? RotateText(LurkRotate rotate, CalloutResolver? callouts, StratClockInfo? clock = null)
     {
         ArgumentNullException.ThrowIfNull(rotate);
         StringBuilder text = new("rotate");
@@ -166,7 +169,7 @@ public static class StratStepPhrasing
 
         if (rotate.AtSeconds is { } at)
         {
-            text.Append(" at ").Append(StratClock.Format(at));
+            text.Append(" at ").Append(StratClock.Format(clock, at));
         }
 
         if (rotate.When is { Length: > 0 } when)
@@ -193,9 +196,11 @@ public static class StratStepPhrasing
     /// <param name="step">The step.</param>
     /// <param name="callouts">Place names; null for canonical ones.</param>
     /// <param name="lineupTitle">Resolves a lineup id to its title.</param>
-    public static string PhraseWithLines(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null)
+    /// <param name="clock">The strat's clock; null is the round clock.</param>
+    public static string PhraseWithLines(StratStep step, CalloutResolver? callouts, Func<Guid, string?>? lineupTitle = null,
+        StratClockInfo? clock = null)
     {
-        string head = Phrase(step, callouts, lineupTitle);
+        string head = Phrase(step, callouts, lineupTitle, clock);
         return StratStepLines.HasLines(step)
             ? head + ": " + string.Join("; ", step.Assignments!.Select(l => PhraseLine(l, step.Verb, callouts)))
             : head;
@@ -251,6 +256,8 @@ public static class StratBranchPhrasing
 /// <param name="Slot">The slot letter this sheet is for.</param>
 /// <param name="SlotName">The resolved player name; null prints a blank line to write on (§3.14).</param>
 /// <param name="Role">The slot's role, or null.</param>
+/// <param name="StartText">Where the slot starts (<c>spawn</c>, or its place), or null when the strat gives it no start.</param>
+/// <param name="Clock">The strat's clock, so a line's time prints as the strat counts it; null is the round clock.</param>
 public sealed record RoleSheetHeader(
     string StratName,
     string Map,
@@ -264,7 +271,9 @@ public sealed record RoleSheetHeader(
     int Revision,
     string Slot,
     string? SlotName,
-    string? Role);
+    string? Role,
+    string? StartText = null,
+    StratClockInfo? Clock = null);
 
 /// <summary>
 ///     One printed line: this slot's own step, or another slot's step kept as context (§3.14's dependency
@@ -325,13 +334,14 @@ public sealed record RoleSheet(
 
         StratSlot? slotModel = doc.Slots.Find(s => string.Equals(s.Slot, slot, StringComparison.Ordinal));
         RoleSheetHeader header = new(doc.Name, doc.Map, doc.Side, doc.Type, doc.TargetSite, doc.Economy, doc.Tempo,
-            doc.Trigger?.Text, doc.Status, doc.Revision, slot, roster?.GetValueOrDefault(slot), slotModel?.Role);
+            doc.Trigger?.Text, doc.Status, doc.Revision, slot, roster?.GetValueOrDefault(slot), slotModel?.Role,
+            StratStartPhrasing.SlotText(doc, slot, callouts), doc.Clock);
 
         HashSet<Guid> ownStepIds = [.. doc.Steps.Where(s => StratStepLines.Involves(s, slot)).Select(s => s.Id)];
 
         // Another slot's step earns a grey context line when it feeds one of this slot's own moves: its
         // `to` (a line's, on a step with lines) lands where this slot starts or ends, at the same or earlier
-        // real time. The clock counts DOWN, so "earlier" is a larger `atSeconds`.
+        // real time: a larger `atSeconds` on the round clock, which counts down, a smaller one from a trigger.
         HashSet<Guid> contextStepIds = [];
         foreach (StratStep mine in doc.Steps.Where(s => ownStepIds.Contains(s.Id)))
         {
@@ -339,7 +349,7 @@ public sealed record RoleSheet(
             string? myTo = StratStepLines.ToFor(mine, slot);
             foreach (StratStep other in doc.Steps)
             {
-                if (ownStepIds.Contains(other.Id) || other.AtSeconds < mine.AtSeconds)
+                if (ownStepIds.Contains(other.Id) || StratClock.IsAfter(doc.Clock, other.AtSeconds, mine.AtSeconds))
                 {
                     continue;
                 }
@@ -365,7 +375,7 @@ public sealed record RoleSheet(
             if (mine && StratStepLines.HasLines(step) && StratStepLines.LineFor(step, slot) is { } line)
             {
                 // Only this slot's line: its place and what it watches, not the other players'.
-                text = StratStepPhrasing.Phrase(StratStepLines.AsSingle(step, line), callouts, lineupTitle);
+                text = StratStepPhrasing.Phrase(StratStepLines.AsSingle(step, line), callouts, lineupTitle, doc.Clock);
                 if (StratStepPhrasing.Watching(line, callouts) is { } watching)
                 {
                     text += ", " + watching;
@@ -373,7 +383,7 @@ public sealed record RoleSheet(
             }
             else
             {
-                text = StratStepPhrasing.PhraseWithLines(step, callouts, lineupTitle);
+                text = StratStepPhrasing.PhraseWithLines(step, callouts, lineupTitle, doc.Clock);
             }
 
             if (mine && step.Note is { Length: > 0 } note)

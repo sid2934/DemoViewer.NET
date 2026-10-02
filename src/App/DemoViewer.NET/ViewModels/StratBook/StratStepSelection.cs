@@ -57,6 +57,13 @@ public sealed class StratStepSelection : IDisposable
         Sync();
     }
 
+    /// <summary>Selects the Start row: the playhead goes to tick 0, where a drag or a map pick writes a token's start.</summary>
+    public void SelectStart()
+    {
+        _canvas.SelectStart();
+        Sync();
+    }
+
     /// <summary>Selects a step and one of its lines: Set On Map then writes that line's place.</summary>
     /// <param name="stepId">The row's step.</param>
     /// <param name="slot">The line's slot.</param>
@@ -91,7 +98,8 @@ public sealed class StratStepSelection : IDisposable
 
     private void OnCanvasChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(StratCanvasViewModel.ActiveStep) or nameof(StratCanvasViewModel.SelectedLineSlot))
+        if (e.PropertyName is nameof(StratCanvasViewModel.ActiveStep) or nameof(StratCanvasViewModel.SelectedLineSlot)
+            or nameof(StratCanvasViewModel.IsStartSelected))
         {
             Sync();
         }
@@ -102,7 +110,9 @@ public sealed class StratStepSelection : IDisposable
 
     private void Sync()
     {
-        Guid? selected = SelectedStepId;
+        bool start = _canvas.IsStartSelected;
+        _editor.Start.IsSelected = start;
+        Guid? selected = start ? null : SelectedStepId;
         string? slot = _canvas.SelectedLineSlot;
         foreach (StratStepRow row in _editor.Steps)
         {

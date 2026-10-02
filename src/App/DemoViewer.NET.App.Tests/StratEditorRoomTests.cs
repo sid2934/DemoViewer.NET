@@ -198,6 +198,14 @@ public class StratEditorRoomTests
         vm.Editor.Name = "A split through palace with a long name that has to wrap or trim";
         vm.Editor.Notes = "a note";
 
+        // A start with a place and a point per token, the row open: its ten fields are measured with the rest.
+        vm.Session.Apply(StratStartBlock.Write(vm.Session.Document!, new StratStart
+        {
+            Kind = StratStart.CustomKind,
+            Positions = [.. StratStartBlock.Tokens.Select((t, i) => new StartPosition { Slot = t, Place = "TSpawn", X = -1234.4 - i, Y = -2560.6, LevelMinZ = -256 })]
+        }));
+        vm.Editor.Start.IsExpanded = true;
+
         StratEditorViewModel editor = vm.Editor;
         foreach (string verb in StratVocabulary.Verbs)
         {
