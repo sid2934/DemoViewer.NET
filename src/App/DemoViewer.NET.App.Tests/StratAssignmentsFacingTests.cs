@@ -68,6 +68,20 @@ public class StratAssignmentsFacingTests
     }
 
     [Test]
+    public async Task AWatchedPlaceTheTokenStandsOn_IsPassedOver_ForTheNextOne()
+    {
+        PlaceCentreResolver centres = (place, _) => place switch
+        {
+            "Hut" => (6, -8),
+            "Ramp" => (100, 100),
+            _ => null
+        };
+        TokenTrack b = Track(Watching(new StepWatch { Places = ["Hut", "Ramp"] }), "B", centres);
+
+        await Assert.That(YawAt(b, Two)).IsEqualTo(45f).Because("B stands on Hut, so it faces Ramp");
+    }
+
+    [Test]
     public async Task AnExplicitAngle_OverridesTheWatchedPlace_AndAnAuthoredYaw()
     {
         TokenTrack b = Track(Watching(new StepWatch { Places = ["Ramp"], YawDegrees = -90 }, true), "B", Centres);

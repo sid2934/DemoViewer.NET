@@ -803,7 +803,16 @@ public sealed class StratSceneProjection
     {
         IReadOnlyList<NavWaypoint>? leg = paths.Route(from.X, from.Y, from.Level, to.X, to.Y, to.Level, place);
         IReadOnlyList<NavWaypoint> points = leg ?? [new NavWaypoint(from.X, from.Y, from.Level), new NavWaypoint(to.X, to.Y, to.Level)];
-        route.AddRange(route.Count == 0 ? points : points.Skip(1));
+
+        // No repeated point: a via that is also the destination would end the route on a leg with no heading.
+        foreach (NavWaypoint point in route.Count == 0 ? points : points.Skip(1))
+        {
+            if (route.Count == 0 || Distance(route[^1], point) > 1e-3 || route[^1].FloorKey != point.FloorKey)
+            {
+                route.Add(point);
+            }
+        }
+
         return leg is not null;
     }
 
@@ -1237,8 +1246,8 @@ public sealed class StratSceneProjection
 
     /// <summary>
     ///     The yaw a watch turns a token standing at <paramref name="at" /> to: the explicit angle, else towards
-    ///     the first watched entry (places, then points). Null when neither applies (no angle, the place is unknown,
-    ///     or the token stands on it).
+    ///     the first watched entry (places, then points), passing over any the token stands on. Null when neither
+    ///     applies (no angle, an entry the map lacks, or the token stands on every one).
     /// </summary>
     /// <param name="watch">The line's watch.</param>
     /// <param name="at">Where the token stands.</param>
@@ -1251,19 +1260,22 @@ public sealed class StratSceneProjection
             return (float)StratFromRound.NormalizeYaw(explicitYaw);
         }
 
-        IReadOnlyList<PlaceRef> watched = StratLocations.Watched(watch);
-        if (watched.Count == 0 || Where(watched[0], at.LevelMinZ, centres) is not { } centre)
+        // An unknown entry stops the search, so a watch does not face its second entry until the zones load.
+        foreach (PlaceRef watched in StratLocations.Watched(watch))
         {
-            return null;
+            if (Where(watched, at.LevelMinZ, centres) is not { } centre)
+            {
+                return null;
+            }
+
+            double dx = centre.X - at.X, dy = centre.Y - at.Y;
+            if (dx * dx + dy * dy >= MinFacingDistance * MinFacingDistance)
+            {
+                return (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2);
+            }
         }
 
-        double dx = centre.X - at.X, dy = centre.Y - at.Y;
-        if (dx * dx + dy * dy < MinFacingDistance * MinFacingDistance)
-        {
-            return null;
-        }
-
-        return (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2);
+        return null;
     }
 
     /// <summary>Where a location is for a token on <paramref name="levelMinZ" />: its point when it has one, else its place's centre.</summary>

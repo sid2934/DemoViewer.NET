@@ -345,8 +345,10 @@ before.
   `B moves to Long Doors via Outside Long at 1:45` in the history, whose edits read `via set to Outside Long, Middle`
   and `via cleared`.
 * **On the canvas** a run goes through each via in order, routing each leg from the last stop (a via place is its
-  arrival on the floor the token is on, a via point is itself), and arrives after the whole length at its speed. With
-  routing off, or no zones for the map, a via is ignored and the run is the straight line it always was.
+  arrival on the floor the token is on, a via point is itself), and arrives after the whole length at its speed. A via
+  that is the destination itself (a lurk via Long Doors to Long Doors) adds no leg, so the run arrives facing along its
+  last real leg. With routing off, or no zones for the map, a via is ignored and the run is the straight line it always
+  was.
 
 | Rule | Severity | Pointer |
 |---|---|---|
@@ -406,7 +408,9 @@ undone by the next step; one added before the rotate carries the lurker where it
 **Facing on the canvas.** A token's yaw at a step, in order: a throw's lineup origin (position and yaw; a
 throw with a lineup and one named slot still pins that slot); else the slot's line `watch.yawDegrees`;
 else towards the first watched entry: a place's centre, on the token's level when the place has nav areas
-there, else over all its floors, or a watched point itself; else `positions[].yawDegrees`; else, for a token a
+there, else over all its floors, or a watched point itself. An entry within 16 units of the token gives no direction
+and the next one is faced, so a lurker holding Long Doors while it watches Long Doors and Top of Mid faces Top of Mid;
+an entry the map lacks (or one whose zones are not in yet) ends the search. Else `positions[].yawDegrees`; else, for a token a
 destination moves, the direction it travels; else the yaw it had. A token running to a destination faces the way
 it runs and turns to its watch on arrival, faced from the arrival point; one already there turns at the step's
 time. A watching line on a
