@@ -102,4 +102,60 @@ public class StratStartRowWindowTests
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "strat-start-row-window.png"), new PngBitmapEncoderOptions());
             window.Close();
         });
+
+    // The owner's B execute as an older build left it, and a captured strat.
+    private static IEnumerable<StratDocument> Opened()
+    {
+        yield return StratStartBlockTests.Legacy();
+        StratDocument captured = StratStartBlockTests.Legacy();
+        captured.Id = Guid.NewGuid();
+        captured.Origin = new StratOrigin { DemoSha256 = "ab", Round = 4 };
+        captured.Start = new StratStart
+        {
+            Kind = StratStart.CapturedKind,
+            Positions = [.. StratVocabulary.Slots.Select((s, i) => new StartPosition { Slot = s, Place = "TSpawn", X = -750 + i, Y = -791, LevelMinZ = -99968, YawDegrees = 45, Observed = true })]
+        };
+        yield return captured;
+    }
+
+    [Test]
+    public async Task TabbingThroughTheOpenStartRow_WritesNothing_ToAnOlderOrACapturedStrat() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            foreach (StratDocument document in Opened())
+            {
+                document.Owner = StratOwner.Me();
+                StratStore store = new(null);
+                store.Save(document, [], "created");
+                using StratBookTabViewModel vm = new(store, null, a => Dispatcher.UIThread.Post(a), false);
+                vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
+                vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
+                vm.OpenStrat(document.Id);
+                await Assert.That(vm.Session.Document?.Id).IsEqualTo(document.Id);
+                string before = StratStore.Serialize(vm.Session.Document!);
+
+                StratBookTabView view = new() { DataContext = vm };
+                Window window = new() { Width = 1280, Height = 800, Content = view };
+                window.Show();
+                Dispatcher.UIThread.RunJobs();
+                view.FindControl<Button>("StartExpand")!.Command!.Execute(null);
+                Dispatcher.UIThread.RunJobs();
+
+                foreach (TextBox box in view.FindControl<Border>("StartRow")!.GetVisualDescendants().OfType<TextBox>().Where(t => t.IsEffectivelyVisible).ToList())
+                {
+                    box.Focus();
+                    Dispatcher.UIThread.RunJobs();
+                }
+
+                view.FindControl<TextBox>("StartTrigger")!.Focus();
+                Dispatcher.UIThread.RunJobs();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.Session.UndoDepth).IsEqualTo(0).Because(document.Name);
+                    await Assert.That(StratStore.Serialize(vm.Session.Document!)).IsEqualTo(before).Because(document.Name);
+                }
+
+                window.Close();
+            }
+        });
 }

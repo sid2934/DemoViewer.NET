@@ -19,11 +19,11 @@ public static partial class Variants
 {
     // A new de_dust2 strat with its spawn start and a move at 1:55, the Start row opened and selected: the tokens stand
     // in spawn at tick 0 and the move's routes run from there.
-    private static StratBookHubView StratStartRow()
+    private static StratBookHubView StratStartRow(bool panesCollapsed)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        StratBookHubView view = StratEditor(panesCollapsed, panesCollapsed, true, vm =>
         {
             strats = vm;
             vm.Editor.Name = "Execute B";

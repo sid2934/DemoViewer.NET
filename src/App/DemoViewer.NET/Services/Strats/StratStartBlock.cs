@@ -288,6 +288,15 @@ public static class StratStartBlock
     {
         ArgumentNullException.ThrowIfNull(document);
         StartPosition? current = For(Effective(document, spawns), slot);
+
+        // The same spot written back (a field losing focus, the same pick) is no edit: it would drop a capture's mark.
+        if (current is not null && location is not null && StratLocations.IsSet(location)
+            && string.Equals(current.Place, location.Place, StringComparison.Ordinal) && current.X == location.X && current.Y == location.Y
+            && current.LevelMinZ == location.LevelMinZ && (yawDegrees is null || current.YawDegrees == yawDegrees))
+        {
+            return [];
+        }
+
         StartPosition? next = location is null || !StratLocations.IsSet(location)
             ? null
             : new StartPosition
