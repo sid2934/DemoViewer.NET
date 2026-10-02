@@ -115,6 +115,11 @@ public partial class StratCanvasView : UserControl
             return;
         }
 
+        if (_dragLabel.DesiredSize.Width <= 0)
+        {
+            _dragLabel.Measure(Size.Infinity);
+        }
+
         Size size = _dragLabel.DesiredSize;
         Rect bounds = _dragLabelLayer.Bounds;
         double x = at.X + 18 + size.Width > bounds.Width ? at.X - 18 - size.Width : at.X + 18;
