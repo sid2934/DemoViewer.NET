@@ -99,6 +99,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     private VisionLayer _visionLayer;
     private ISceneFrameHost? _vm;
     private ZoneOutlineLayer? _zoneLayer;
+    private GuideLayer? _guideLayer;
 
     /// <summary>Creates the host and registers the seven scene layers.</summary>
     public Scene2DHost()
@@ -446,6 +447,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         AnnotationLayerForTest = null;
         _boundSession = null;
         _zoneLayer = null;
+        _guideLayer = null;
         _released = false;
     }
 
@@ -1086,6 +1088,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         BindAnnotations(vm.AnnotationSession);
         _compositor.SetEnabled(SceneLayerIds.Annotations, vm.IsAnnotationsEnabled);
+        BindGuides(vm.TokenEditor is not null);
 
         // Only asked for when shown: vm.Zones is the lazy read that parses the file, and a map whose
         // outlines nobody turned on must not pay for them on every sync.
@@ -1139,6 +1142,30 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         _toolServices.Session = session;
         Router.SetActive(session.ActiveTool);
+    }
+
+    // The drag guides belong to a host with tokens to drag; the 2D tab and the read-only previews never mount them.
+    // Under the render gate, as BindZones.
+    private void BindGuides(bool wanted)
+    {
+        if (wanted == _guideLayer is not null)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            if (_guideLayer is not null)
+            {
+                _compositor.Remove(SceneLayerIds.Guides);
+                _guideLayer = null;
+            }
+            else
+            {
+                _guideLayer = new GuideLayer();
+                _compositor.Add(_guideLayer);
+            }
+        }
     }
 
     // Mounts, re-points or drops the zone outline layer. Under the render gate for the same reason
