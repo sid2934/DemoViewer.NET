@@ -342,6 +342,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <inheritdoc />
     public LoadedMapAsset? MapAsset { get; private set; }
 
+    /// <inheritdoc />
+    /// <remarks>Replaced whole on each publish, never changed in place: the render thread reads it.</remarks>
+    public SceneGuides Guides { get; private set; } = SceneGuides.None;
+
     /// <summary>No cones: a strat has no collision solve to run and no players to see from.</summary>
     public VisibilityEngine? VisionEngine => null;
 
@@ -812,7 +816,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         // A destination pin drags as its token does.
         if (best == double.MaxValue)
         {
-            foreach (GuidePin pin in CurrentFrame.Guides.Pins)
+            foreach (GuidePin pin in Guides.Pins)
             {
                 double dx = world.X - pin.At.X, dy = world.Y - pin.At.Y;
                 if (pane.Level.Contains(pin.At.Z) && dx * dx + dy * dy <= worldRadius * worldRadius * 2 && dx * dx + dy * dy < best)
@@ -1897,7 +1901,6 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 Time = new SceneTime(tick, tick, tick / (double)StepSchedule.TicksPerSecond, Transport.LastDeltaSeconds,
                     discontinuity),
                 Markers = DraggedMarkers(pooled.Markers),
-                Guides = GuidesFor(tick),
                 AreaEffects = [.. pooled.AreaEffects],
                 Trails = CopyTrails(pooled.Trails),
                 Routes = CopyRoutes(pooled.Routes),
@@ -1910,6 +1913,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             CurrentFrame = Scene2DFrame.Empty;
         }
 
+        Guides = GuidesFor(tick);
         Timeline.UpdatePlayhead(tick, tick);
         RaiseState();
         FrameUpdated?.Invoke();
