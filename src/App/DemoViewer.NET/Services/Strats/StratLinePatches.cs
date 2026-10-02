@@ -441,6 +441,19 @@ public static class StratLinePatches
     private static string WithoutYaw(StepWatch watch) =>
         JsonSerializer.Serialize(new StepWatch { Places = watch.Places, Points = watch.Points, Extra = watch.Extra }, StratJsonContext.Default.StepWatch);
 
+    /// <summary>The ops that make a step's own <c>via</c> and <c>viaPoints</c> hold these; nothing when they already do.</summary>
+    /// <param name="step">The step.</param>
+    /// <param name="stepPath">Its pointer.</param>
+    /// <param name="via">The places, or null for none.</param>
+    /// <param name="points">The points, or null for none.</param>
+    public static List<PatchOp> StepVia(StratStep step, string stepPath, List<string>? via, List<PlaceRef>? points)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        List<PatchOp> ops = [];
+        StepViaOps(ops, stepPath, step, via, points);
+        return ops;
+    }
+
     // The step's own via made to say what the lines leave on it; nothing when it already does.
     private static void StepViaOps(List<PatchOp> ops, string stepPath, StratStep step, List<string>? via, List<PlaceRef>? points) =>
         ViaOps(ops, stepPath, step.Via, step.ViaPoints, via is { Count: > 0 } ? via : null, points is { Count: > 0 } ? points : null);

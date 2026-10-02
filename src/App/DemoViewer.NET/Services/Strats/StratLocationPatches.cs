@@ -27,7 +27,10 @@ public enum StratLocationKind
     LurkArea,
 
     /// <summary>Where the step's lurk rotates to.</summary>
-    RotateTo
+    RotateTo,
+
+    /// <summary>What a travel goes through, the step's or a line's when the field names a slot: places, then points.</summary>
+    Via
 }
 
 /// <summary>
@@ -46,7 +49,7 @@ public sealed record StratLocationField(Guid StepId, string? Slot, StratLocation
     public const string AllLines = StratVocabulary.ActorAll;
 
     /// <summary>Whether the field holds a list (watching, lurk areas) rather than one location.</summary>
-    public bool IsMulti => Kind is StratLocationKind.Watch or StratLocationKind.LurkArea;
+    public bool IsMulti => Kind is StratLocationKind.Watch or StratLocationKind.LurkArea or StratLocationKind.Via;
 
     /// <summary>Whether it writes every line rather than one.</summary>
     public bool IsAllLines => string.Equals(Slot, AllLines, StringComparison.Ordinal);
@@ -86,6 +89,13 @@ public static class StratLocationPatches
             return StratLocations.LurkAreas(step.Lurk);
         }
 
+        if (field.Kind == StratLocationKind.Via)
+        {
+            return field.Slot is null
+                ? StratLocations.Via(step.Via, step.ViaPoints)
+                : LineOf(step, field) is { } line ? StratLocations.Via(line.Via, line.ViaPoints) : [];
+        }
+
         return single is null ? [] : [single];
     }
 
@@ -110,6 +120,11 @@ public static class StratLocationPatches
             StratLocationKind.Watch => IsInvolved(step, field)
                                        && (StratStepFields.Uses(step.Verb, StratStepField.Watch) || LineOf(step, field)?.Watch is not null),
             StratLocationKind.LurkArea or StratLocationKind.RotateTo => StratStepFields.Uses(step.Verb, StratStepField.Lurk) || step.Lurk is not null,
+            StratLocationKind.Via when field.Slot is null => !StratStepLines.HasLines(step)
+                                                             && (StratStepFields.Uses(step.Verb, StratStepField.Via) || step.Via is not null
+                                                                 || step.ViaPoints is not null),
+            StratLocationKind.Via => IsInvolved(step, field)
+                                     && (StratStepFields.Uses(step.Verb, StratStepField.Via) || LineOf(step, field) is { Via: not null } or { ViaPoints: not null }),
             _ => false
         };
     }
@@ -198,6 +213,22 @@ public static class StratLocationPatches
 
                 JsonNode? value = JsonSerializer.SerializeToNode(StratLocations.ToLanding(next), StratJsonContext.Default.UtilityLanding);
                 return [stored is null ? PatchOp.AddOp(path, value) : PatchOp.ReplaceOp(path, null, value)];
+            case StratLocationKind.Via:
+                List<string>? viaPlaces = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!).Distinct(StringComparer.Ordinal)];
+                List<PlaceRef>? viaPoints = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e)).Select(StratLocations.Clone)];
+                viaPlaces = viaPlaces.Count == 0 ? null : viaPlaces;
+                viaPoints = viaPoints.Count == 0 ? null : viaPoints;
+                void SetVia(StepAssignment line)
+                {
+                    line.Via = viaPlaces is null ? null : [.. viaPlaces];
+                    line.ViaPoints = viaPoints?.Select(StratLocations.Clone).ToList();
+                }
+
+                return field.Slot is null
+                    ? StratLinePatches.StepVia(step, stepPath, viaPlaces, viaPoints)
+                    : field.IsAllLines
+                        ? StratLinePatches.EditAll(step, stepPath, SetVia)
+                        : StratLinePatches.EditLine(step, stepPath, field.Slot, SetVia);
             case StratLocationKind.Watch when field.Slot is not null:
                 List<string> places = [.. entries.Where(StratLocations.HasPlace).Select(e => e.Place!).Distinct(StringComparer.Ordinal)];
                 List<PlaceRef> points = [.. entries.Where(e => !StratLocations.HasPlace(e) && StratLocations.HasPoint(e)).Select(StratLocations.Clone)];

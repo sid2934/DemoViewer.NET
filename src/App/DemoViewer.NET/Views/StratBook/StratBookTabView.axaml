@@ -795,7 +795,8 @@
                                                 <!-- Who goes where. Compact: the players share one place and one watching, and an
                                                      edit writes every line. Apart: one line per player. -->
                                                 <StackPanel Margin="24 0 0 0" Spacing="3">
-                                                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="4" IsVisible="{Binding ShowCompact}">
+                                                    <Grid ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="3"
+                                                          IsVisible="{Binding ShowCompact}">
                                                         <StackPanel Grid.Column="0" Grid.ColumnSpan="{Binding GroupPlaceSpan}"
                                                                     IsVisible="{Binding ShowGroupPlace}">
                                                             <StackPanel Orientation="Horizontal" Spacing="3">
@@ -824,6 +825,20 @@
                                                                           ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
                                                                           ToolTip.Tip="Callouts, comma separated; each cone faces the first unless an angle is set" />
                                                         </StackPanel>
+                                                        <!-- Via: where a travel goes on its way, in order; the route goes through each. -->
+                                                        <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" IsVisible="{Binding ShowGroupVia}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="via" Classes="stratFieldLabel" />
+                                                                <TextBlock Classes="stratIssue" Classes.refusal="{Binding GroupViaIssue.IsRefusal, FallbackValue=False}"
+                                                                           IsVisible="{Binding GroupViaIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                           Text="{Binding GroupViaIssue.Glyph}" ToolTip.Tip="{Binding GroupViaIssue.Message}" />
+                                                            </StackPanel>
+                                                            <c:PlaceField Name="GroupViaField" IsMulti="True" PlaceholderText="callouts on the way"
+                                                                          Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding GroupViaValue}"
+                                                                          PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding GroupViaTarget}"
+                                                                          ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                          ToolTip.Tip="Callouts to go through on the way, in order; empty takes the shortest route" />
+                                                        </StackPanel>
                                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Bottom">
                                                             <Button Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding HasGroupAngle}" IsTabStop="False"
                                                                     Content="{Binding GroupAngleText}" Command="{Binding ClearGroupAngleCommand}"
@@ -844,7 +859,7 @@
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:StratLineRow">
                                                                 <Border Classes="stratLine" Classes.lineSelected="{Binding IsSelected}" Padding="0 1">
-                                                                    <Grid ColumnDefinitions="48,*,*,Auto" ColumnSpacing="4">
+                                                                    <Grid ColumnDefinitions="48,*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="2">
                                                                         <ComboBox Grid.Column="0" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
                                                                                   IsVisible="{Binding IsExplicit}"
                                                                                   ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding Slot}"
@@ -862,6 +877,18 @@
                                                                                       PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding WatchTarget}"
                                                                                       ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
                                                                                       ToolTip.Tip="Callouts, comma separated; the cone faces the first unless an angle is set" />
+                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="via" Classes="stratFieldLabel" IsVisible="{Binding ShowVia}"
+                                                                                   VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                                                        <c:PlaceField Name="LineViaField" IsMulti="True" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                                                                      IsVisible="{Binding ShowVia}" PlaceholderText="callouts on the way"
+                                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding ViaValue}"
+                                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding ViaTarget}"
+                                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                                      ToolTip.Tip="Callouts this player goes through on the way, in order" />
+                                                                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                                   Margin="0 -6 -5 0" Classes.refusal="{Binding ViaIssue.IsRefusal, FallbackValue=False}"
+                                                                                   IsVisible="{Binding ViaIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                                   Text="{Binding ViaIssue.Glyph}" ToolTip.Tip="{Binding ViaIssue.Message}" />
                                                                         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
                                                                             <Button Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding HasAngle}" IsTabStop="False"
                                                                                     Content="{Binding AngleText}" Command="{Binding ClearAngleCommand}"

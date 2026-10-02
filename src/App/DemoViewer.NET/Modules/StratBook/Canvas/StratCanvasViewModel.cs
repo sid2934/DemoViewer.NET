@@ -1622,7 +1622,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private static string FieldLabel(StratLocationField field, StratStep step)
     {
         string who = field.Slot is { } slot && slot != StratLocationField.AllLines
-                                            && (field.Kind == StratLocationKind.Watch || StratStepLines.HasLines(step))
+                                            && (field.Kind is StratLocationKind.Watch or StratLocationKind.Via || StratStepLines.HasLines(step))
             ? slot + "'s "
             : "";
         return who + field.Kind switch
@@ -1632,6 +1632,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             StratLocationKind.Watch => "watching",
             StratLocationKind.LurkArea => "“lurk area”",
             StratLocationKind.RotateTo => "“rotate to”",
+            StratLocationKind.Via => "“via”",
             _ => "“" + StratStepFields.ToLabel(step.Verb) + "”"
         };
     }

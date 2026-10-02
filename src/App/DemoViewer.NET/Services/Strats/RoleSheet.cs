@@ -69,6 +69,11 @@ public static class StratStepPhrasing
             }
         }
 
+        if (!lines && ViaText(step.Via, step.ViaPoints, callouts) is { } via)
+        {
+            sentence.Append(" via ").Append(via);
+        }
+
         if (step.Lurk is { } lurk && LurkText(lurk, callouts) is { } lurkText)
         {
             sentence.Append(StratLocations.LurkAreas(lurk).Count > 0 ? " " : "; ").Append(lurkText);
@@ -104,12 +109,27 @@ public static class StratStepPhrasing
             text.Append(StratStepFields.ToLabel(verb) == "to" ? " → " : " at ").Append(to);
         }
 
+        if (ViaText(line.Via, line.ViaPoints, callouts) is { } via)
+        {
+            text.Append(" via ").Append(via);
+        }
+
         if (Watching(line, callouts) is { } watching)
         {
             text.Append(", ").Append(watching);
         }
 
         return text.ToString();
+    }
+
+    /// <summary>What a travel goes through, in order: <c>Outside Long, Long Doors</c>; null with nothing.</summary>
+    /// <param name="via">The <c>via</c> places.</param>
+    /// <param name="points">The <c>viaPoints</c>.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string? ViaText(IReadOnlyList<string>? via, IReadOnlyList<PlaceRef>? points, CalloutResolver? callouts)
+    {
+        IReadOnlyList<PlaceRef> entries = StratLocations.Via(via, points);
+        return entries.Count == 0 ? null : string.Join(", ", entries.Select(e => StratLocations.Text(e, callouts)));
     }
 
     /// <summary>
