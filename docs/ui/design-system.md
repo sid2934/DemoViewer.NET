@@ -575,11 +575,14 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   and a `▸` button on the right that opens it. A strat with no start reads `no one placed: tokens appear at their first
   step`.
 - **Open:** `what starts it`, the strat's `trigger.text` (it moved here from the metadata; the trigger stays where the
-  file always had it); `players · spawn|custom|captured` with a `Spawns` button (shown once the map's spawns are read,
+  file always had it); `players · spawn|custom|captured|from step 1` with a `Spawns` button (shown once the map's spawns are read,
   puts every token back, a `spawn` start, one entry); a `24,*` grid per token of A to E, then `opponents` and O1 to O5,
   each a single location field (`spawn, a callout or (x, y)`) with its map pick. At 1280 with the rail and list open the
   fields are about 250 px, so a coordinate reads whole. A field edit or pick writes that token's start, one entry, and
-  makes the start `custom`; clearing a field takes the token's start away.
+  makes the start `custom`; clearing a field takes the token's start away. An edit the canvas would not show (a step on
+  the start's tick places the token, as a capture's freeze-end step does) or one that must wait for the map's spawns is
+  not written: a one-line `AccentCaution` note under the row's first line says why (`StartNote`), and the field shows
+  the stored value again. The `players ·` label says `from step 1` for an older file's start that is not the spawns.
 - **Selection:** a press or focus anywhere in the row selects the start (`StratStepSelection.SelectStart`,
   `StratCanvasViewModel.SelectStart`): the transport pauses at tick 0, no step row is selected, and the row takes the
   step row's selected look (`PanelHeaderHoverDeep` fill, the 3 px `AccentInteractive` bar, a bold number). A token
@@ -594,7 +597,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **What:** a 132 px `clock` pair like the others: `Round` (1:55 counting down) or `From trigger` (+0:00 counting up
   from what starts the strat). A choice rewrites every step time and lurk rotate time in one undo entry and moves no
   tick; the step rows, the step track's tooltips, the transport's clock and an export's range labels and burnt-in
-  clock follow. A combo, not a toggle pair: it reads as the fields beside it and fits their 132 px.
+  clock follow. After a switch a `TextMid` line under the metadata (`ClockNote`) says times written in notes, branch
+  conditions and the trigger were not converted; it goes when another strat opens. A combo, not a toggle pair: it reads as the fields beside it and fits their 132 px.
 
 ### Lineup picker (the Strats editor)
 - **Files:** `ViewModels/StratBook/LineupPickerViewModel.cs`, `Views/StratBook/LineupPickerView.axaml`, the
