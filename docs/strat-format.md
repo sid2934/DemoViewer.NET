@@ -679,9 +679,9 @@ A to E unless Alt is held. Nothing seeks: a press while playing pauses where it 
 * **The zip check** (`StratDepartureCheck`, run with the checks once the canvas has the map) warns at
   `/steps/i/positions/j` on an authored departure on a travel or lurk step that the token cannot reach at a run (215
   units a second). The leg is read from the projection with that entry taken out: from where the token last stood or
-  arrived before the step's tick (a run's arrival, a run's start when it is still running then, or a placed entry) to
-  the departure, along the route when routing is on, else straight, over the ticks between. Carried and observed
-  entries, and every entry of a legacy capture, are not checked.
+  arrived before the step's tick (a run's arrival, a run's start when it is still running then, a placed entry, or its
+  start, so a first step is checked too) to the departure, along the route when routing is on, else straight, over the
+  ticks between. Carried and observed entries, and every entry of a legacy capture, are not checked.
 
 ### Utility on the canvas
 
