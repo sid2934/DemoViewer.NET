@@ -78,11 +78,15 @@ public static class StratLurkPatches
     ///     Whether a rotate at <paramref name="rotateAtSeconds" /> is later in the round than a step at
     ///     <paramref name="stepAtSeconds" />, compared in strat ticks: the one rule the validator and the canvas share.
     /// </summary>
-    /// <param name="rotateAtSeconds">The rotate's round clock time.</param>
-    /// <param name="stepAtSeconds">The step's round clock time.</param>
-    /// <param name="roundSeconds">The strat's round length.</param>
+    /// <param name="rotateAtSeconds">The rotate's time on the strat's clock.</param>
+    /// <param name="stepAtSeconds">The step's time.</param>
+    /// <param name="clock">The strat's clock.</param>
+    public static bool IsLater(double rotateAtSeconds, double stepAtSeconds, StratClockInfo? clock) =>
+        double.IsFinite(rotateAtSeconds) && StratClock.StratTickOf(clock, rotateAtSeconds) > StratClock.StratTickOf(clock, stepAtSeconds);
+
+    /// <summary><see cref="IsLater(double, double, StratClockInfo)" /> on a round clock of <paramref name="roundSeconds" />.</summary>
     public static bool IsLater(double rotateAtSeconds, double stepAtSeconds, double roundSeconds) =>
-        double.IsFinite(rotateAtSeconds) && TickOf(rotateAtSeconds, roundSeconds) > TickOf(stepAtSeconds, roundSeconds);
+        IsLater(rotateAtSeconds, stepAtSeconds, new StratClockInfo { RoundSeconds = roundSeconds });
 
     /// <summary>A round clock time as a strat tick, never before the round's start.</summary>
     /// <param name="atSeconds">Round clock remaining.</param>

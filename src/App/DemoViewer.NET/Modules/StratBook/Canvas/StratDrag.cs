@@ -198,7 +198,7 @@ public sealed record StratDragTarget(
 
         if (motion == StepMotion.Lurk)
         {
-            bool rotating = StratSceneProjection.RotateTickOf(step, projection.Ticks[pathIndex], projection.RoundSeconds) is { } rotate && rotate <= tick;
+            bool rotating = StratSceneProjection.RotateTickOf(step, projection.Ticks[pathIndex], projection.ClockInfo) is { } rotate && rotate <= tick;
             return FieldOn(projection, pathIndex, slot, rotating ? StratLocationKind.RotateTo : StratLocationKind.LurkArea, null);
         }
 

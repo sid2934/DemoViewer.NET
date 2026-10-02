@@ -70,6 +70,7 @@ public static class StratValidator
 
         ValidateHeader(document, issues);
         ValidateSlots(document, issues);
+        ValidateStart(document, places, issues);
         HashSet<Guid> stepIds = ValidateSteps(document, places, lineupExists, issues);
         ValidateBranches(document, stepIds, index, issues);
 
@@ -184,7 +185,7 @@ public static class StratValidator
             issues.Add(Warn("/economy", $"economy '{economy}' is not one of {string.Join(", ", StratVocabulary.Economies)}"));
         }
 
-        if (!string.Equals(document.Clock.Kind, StratClock.RoundKind, StringComparison.Ordinal))
+        if (!string.Equals(document.Clock.Kind, StratClock.RoundKind, StringComparison.Ordinal) && !StratClock.IsTrigger(document.Clock))
         {
             // The plant clock is reserved, not defined: the steps are read as round clock regardless.
             issues.Add(Warn("/clock/kind", $"clock '{document.Clock.Kind}' is not defined in this version; read as the round clock"));
@@ -200,11 +201,52 @@ public static class StratValidator
         }
     }
 
+    // A start only warns: a token with a bad entry has no start, which plays as a strat without one did.
+    private static void ValidateStart(StratDocument document, CalloutResolver? places, List<StratIssue> issues)
+    {
+        if (document.Start is not { } start)
+        {
+            return;
+        }
+
+        if (start.Kind is not (StratStart.SpawnKind or StratStart.CustomKind or StratStart.CapturedKind))
+        {
+            issues.Add(Warn("/start/kind", $"start '{start.Kind}' is not spawn, custom or captured; read as custom"));
+        }
+
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        for (int p = 0; p < start.Positions.Count; p++)
+        {
+            StartPosition position = start.Positions[p];
+            string pointer = $"/start/positions/{p}";
+            if (!StratStartBlock.Tokens.Contains(position.Slot))
+            {
+                issues.Add(Warn(pointer + "/slot", $"start slot '{position.Slot}' is not A to E or O1 to O5"));
+            }
+            else if (!seen.Add(position.Slot))
+            {
+                issues.Add(Warn(pointer + "/slot", $"{position.Slot} has a second start; the last one is used"));
+            }
+
+            if (position.X is null != position.Y is null)
+            {
+                issues.Add(Warn(pointer, "a start point needs both x and y"));
+            }
+            else if (position.X is null && string.IsNullOrEmpty(position.Place))
+            {
+                issues.Add(Warn(pointer, $"{position.Slot}'s start has no place and no point"));
+            }
+
+            CheckPlace(places, position.Place, pointer + "/place", document.Map, issues);
+        }
+    }
+
     private static HashSet<Guid> ValidateSteps(StratDocument document, CalloutResolver? places,
         Func<string, Guid, bool>? lineupExists, List<StratIssue> issues)
     {
         HashSet<Guid> ids = [];
         double roundSeconds = document.Clock.RoundSeconds;
+        bool trigger = StratClock.IsTrigger(document.Clock);
         for (int i = 0; i < document.Steps.Count; i++)
         {
             StratStep step = document.Steps[i];
@@ -215,13 +257,19 @@ public static class StratValidator
                 issues.Add(Refuse(pointer + "/id", $"step id {step.Id} is duplicated"));
             }
 
-            if (i > 0 && step.AtSeconds > document.Steps[i - 1].AtSeconds)
+            if (i > 0 && StratClock.IsAfter(document.Clock, document.Steps[i - 1].AtSeconds, step.AtSeconds))
             {
-                issues.Add(Refuse(pointer + "/atSeconds",
-                    $"{StratClock.Format(step.AtSeconds)} comes after {StratClock.Format(document.Steps[i - 1].AtSeconds)}; the clock counts down"));
+                issues.Add(Refuse(pointer + "/atSeconds", trigger
+                    ? $"{StratClock.Format(document.Clock, step.AtSeconds)} comes before {StratClock.Format(document.Clock, document.Steps[i - 1].AtSeconds)}; the clock counts up from the trigger"
+                    : $"{StratClock.Format(step.AtSeconds)} comes after {StratClock.Format(document.Steps[i - 1].AtSeconds)}; the clock counts down"));
             }
 
-            if (step.AtSeconds > roundSeconds || step.AtSeconds < EarliestAfterTimerSeconds)
+            if (trigger && step.AtSeconds < 0)
+            {
+                issues.Add(Warn(pointer + "/atSeconds",
+                    $"{StratClock.Format(document.Clock, step.AtSeconds)} is before the trigger; it plays at the start"));
+            }
+            else if (!trigger && (step.AtSeconds > roundSeconds || step.AtSeconds < EarliestAfterTimerSeconds))
             {
                 issues.Add(Warn(pointer + "/atSeconds",
                     string.Create(CultureInfo.InvariantCulture, $"{step.AtSeconds} s is outside the round clock ({roundSeconds} to {EarliestAfterTimerSeconds})")));
@@ -297,10 +345,10 @@ public static class StratValidator
                 if (lurk.Rotate is { } rotate)
                 {
                     CheckPlace(places, rotate.To?.Place, pointer + "/lurk/rotate/to/place", document.Map, issues);
-                    if (rotate.AtSeconds is { } rotateAt && !StratLurkPatches.IsLater(rotateAt, step.AtSeconds, document.Clock.RoundSeconds))
+                    if (rotate.AtSeconds is { } rotateAt && !StratLurkPatches.IsLater(rotateAt, step.AtSeconds, document.Clock))
                     {
                         issues.Add(Warn(pointer + "/lurk/rotate/atSeconds",
-                            $"the rotate at {StratClock.Format(rotateAt)} is not later in the round than the step at {StratClock.Format(step.AtSeconds)}"));
+                            $"the rotate at {StratClock.Format(document.Clock, rotateAt)} is not later in the round than the step at {StratClock.Format(document.Clock, step.AtSeconds)}"));
                     }
                 }
             }
