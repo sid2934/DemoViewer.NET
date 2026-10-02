@@ -214,7 +214,7 @@ public class StratCanvasViewTests
     }
 
     /// <summary>
-    ///     Under the default pan tool a press on a token drags it and writes the selected step as one entry, and a
+    ///     Under the default pan tool a press on a token drags it and writes the selected step's to as one entry, and a
     ///     press on empty map pans; under the pen, a press on a token draws.
     /// </summary>
     [Test]
@@ -247,11 +247,13 @@ public class StratCanvasViewTests
             window.MouseUp(new Point(a.X + 40, a.Y), MouseButton.Left);
             Playback2DTimelineHarness.Pump();
 
-            StepPosition moved = session.Document!.Steps[1].Positions.Single(p => p.Slot == "A");
+            // The drop is step 2's to; A still leaves from its spot at the step's time.
+            PlaceRef moved = session.Document!.Steps[1].To!;
             using (Assert.Multiple())
             {
                 await Assert.That(session.UndoDepth).IsEqualTo(1);
-                await Assert.That(moved.X).IsGreaterThan(600);
+                await Assert.That(moved.X!.Value).IsGreaterThan(600);
+                await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "A").X).IsEqualTo(600);
                 await Assert.That(canvas.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
             }
 
@@ -271,7 +273,7 @@ public class StratCanvasViewTests
             // The pen keeps its own press: a stroke from the token, which stays put.
             canvas.Annotations.SelectTool(ToolKind.Draw);
             Playback2DTimelineHarness.Pump();
-            Point a2 = Screen(moved.X, moved.Y);
+            Point a2 = Screen(600, 0);
             window.MouseDown(a2, MouseButton.Left);
             window.MouseMove(new Point(a2.X + 20, a2.Y + 20));
             window.MouseMove(new Point(a2.X + 40, a2.Y + 40));
@@ -279,7 +281,7 @@ public class StratCanvasViewTests
             Playback2DTimelineHarness.Pump();
             using (Assert.Multiple())
             {
-                await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "A").X).IsEqualTo(moved.X);
+                await Assert.That(session.Document!.Steps[1].To!.X).IsEqualTo(moved.X);
                 await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(1);
             }
 

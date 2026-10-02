@@ -25,6 +25,10 @@
             <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
             <Setter Property="FontWeight" Value="Bold" />
         </Style>
+        <!-- The field a map click or a token drag will write: outlined while armed. -->
+        <Style Selector="c|PlaceField:picking TextBox#FieldBox">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
         <Style Selector="ListBox#OptionList ListBoxItem">
             <Setter Property="Padding" Value="6 2" />
             <Setter Property="MinHeight" Value="22" />

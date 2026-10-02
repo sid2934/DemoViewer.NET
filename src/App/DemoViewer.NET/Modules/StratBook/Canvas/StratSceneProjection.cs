@@ -156,6 +156,7 @@ public sealed class StratSceneProjection
 
     private readonly PlaceSet _places;
     private readonly Dictionary<string, SlotPlan> _plans;
+    private readonly Dictionary<string, List<RunSpan>> _runs;
     private readonly Dictionary<Guid, StrokeRef> _strokes;
     private readonly ThrowOrigin?[] _throwOrigins;
     private readonly TokenStep[] _tokenSteps;
@@ -164,10 +165,11 @@ public sealed class StratSceneProjection
         TokenStep[] tokenSteps, ThrowOrigin?[] throwOrigins, IReadOnlyList<TokenTrack> tracks,
         IReadOnlyList<AnnotationElement> elements, Dictionary<Guid, StrokeRef> strokes, IReadOnlyList<TokenLabel> labels,
         IReadOnlyList<UtilityCue> utility, int roundSeconds, StratCanvas canvas, bool clockClamped, PlaceSet places,
-        Dictionary<string, SlotPlan> plans)
+        Dictionary<string, SlotPlan> plans, Dictionary<string, List<RunSpan>> runs)
     {
         _places = places;
         _plans = plans;
+        _runs = runs;
         _tokenSteps = tokenSteps;
         _throwOrigins = throwOrigins;
         Path = path;
@@ -323,10 +325,12 @@ public sealed class StratSceneProjection
         // first pass says when each lurker is at each area, the second fans the areas two lurkers share.
         Dictionary<string, List<ChainStay>> chained = new(StringComparer.Ordinal);
         Dictionary<string, TokenTrack> built = new(StringComparer.Ordinal);
+        Dictionary<string, List<RunSpan>> runs = new(StringComparer.Ordinal);
         foreach (string slot in TokenSlots.All)
         {
             List<ChainStay> stays = [];
-            built[slot] = TrackOf(plans[slot], slot, tokenSteps, places, stays);
+            runs[slot] = [];
+            built[slot] = TrackOf(plans[slot], slot, tokenSteps, places, stays, runs[slot]);
             if (stays.Count > 0)
             {
                 chained[slot] = stays;
@@ -338,7 +342,8 @@ public sealed class StratSceneProjection
             plans = Fanned(planned, chained);
             foreach (string slot in TokenSlots.All)
             {
-                built[slot] = TrackOf(plans[slot], slot, tokenSteps, places);
+                runs[slot] = [];
+                built[slot] = TrackOf(plans[slot], slot, tokenSteps, places, null, runs[slot]);
             }
         }
 
@@ -368,7 +373,7 @@ public sealed class StratSceneProjection
         List<UtilityCue> utility = StratThrows.Cues(document.Map, path, ticks, tracks, labels, throwFlights, placeArrivals,
             canvas.DefaultLevelMinZ ?? 0);
         return new StratSceneProjection(path, schedule, ticks, tokenSteps, origins, tracks, elements, strokes, labels,
-            utility, (int)Math.Round(roundSeconds), canvas, clamped, places, plans);
+            utility, (int)Math.Round(roundSeconds), canvas, clamped, places, plans, runs);
     }
 
     /// <summary>
@@ -727,8 +732,9 @@ public sealed class StratSceneProjection
     /// <param name="steps">Each path step's tick, hold and interpolation.</param>
     /// <param name="places">Where places are, and the routes.</param>
     /// <param name="stays">Filled with when each lurk walk stands at each area, for fanning; null for none.</param>
+    /// <param name="runs">Filled with the track's runs; null for none.</param>
     internal static TokenTrack TrackOf(SlotPlan plan, string slot, IReadOnlyList<TokenStep> steps, PlaceSet places,
-        List<ChainStay>? stays = null)
+        List<ChainStay>? stays = null, List<RunSpan>? runs = null)
     {
         List<TrackEntry> entries = [.. steps.Select((s, i) => new TrackEntry(s, plan.Placements[i], false, i))];
 
@@ -792,7 +798,7 @@ public sealed class StratSceneProjection
                 continue;
             }
 
-            if (Run(entries, track, e, shape, at, target, runYaw, watched, places) is { } arrived)
+            if (Run(entries, track, e, shape, at, target, runYaw, watched, places, runs) is { } arrived)
             {
                 ChainAreas(plan, queue, i, slot, target, arrived, entries, places, stays);
             }
@@ -805,10 +811,11 @@ public sealed class StratSceneProjection
     // watches on arrival. The step's hold delays the start. A later entry it cannot reach first wins. With a route the
     // run takes its length and leaves an entry at each bend, timed along it at the run's one speed.
     private static int? Run(List<TrackEntry> entries, TokenTrack track, SlotEvent e, TokenStep shape, TokenKeyframe start,
-        TokenPlacement target, float runYaw, float? watched, PlaceSet places)
+        TokenPlacement target, float runYaw, float? watched, PlaceSet places, List<RunSpan>? runs = null)
     {
         int tick = e.Tick;
-        List<NavWaypoint>? route = places.Paths is { } paths ? RouteOf(paths, start, target, e, places) : null;
+        int[]? stops = e.Via is { Count: > 0 } ? new int[e.Via.Count] : null;
+        List<NavWaypoint>? route = places.Paths is { } paths ? RouteOf(paths, start, target, e, places, stops) : null;
         double distance = route is not null
             ? NavPathfinder.Length(route)
             : Math.Sqrt((target.X - start.X) * (double)(target.X - start.X) + (target.Y - start.Y) * (double)(target.Y - start.Y));
@@ -830,6 +837,8 @@ public sealed class StratSceneProjection
 
         // A step with no entry inside the run would pin the token where it started.
         entries.RemoveAll(x => x.Placement is null && x.Step.Tick > tick && x.Step.Tick < until);
+        runs?.Add(new RunSpan(e.Order, IsRotate(e), tick + shape.HoldTicks, until,
+            blocked ? null : ViaTicks(route, stops, tick + shape.HoldTicks, arrive)));
         if (blocked)
         {
             return null;
@@ -909,20 +918,31 @@ public sealed class StratSceneProjection
 
     // The run's route from where the token stands through each via in order to the target. A leg with no route is
     // straight; null when no leg routes and there is no via to go through.
-    private static List<NavWaypoint>? RouteOf(PathResolver paths, TokenKeyframe start, TokenPlacement target, SlotEvent e, PlaceSet places)
+    private static List<NavWaypoint>? RouteOf(PathResolver paths, TokenKeyframe start, TokenPlacement target, SlotEvent e, PlaceSet places,
+        int[]? stops = null)
     {
         List<NavWaypoint> route = [];
         bool routed = false;
         (double X, double Y, double Level) from = (start.X, start.Y, start.LevelMinZ);
-        foreach (PlaceRef via in e.Via ?? [])
+        IReadOnlyList<PlaceRef> vias = e.Via ?? [];
+        for (int v = 0; v < vias.Count; v++)
         {
-            if (ViaAt(via, from.Level, places) is not { } stop)
+            if (stops is not null)
+            {
+                stops[v] = -1;
+            }
+
+            if (ViaAt(vias[v], from.Level, places) is not { } stop)
             {
                 continue;
             }
 
-            routed |= Leg(route, paths, from, stop, via.Place);
+            routed |= Leg(route, paths, from, stop, vias[v].Place);
             from = stop;
+            if (stops is not null)
+            {
+                stops[v] = route.Count - 1;
+            }
         }
 
         routed |= Leg(route, paths, from, (target.X, target.Y, target.LevelMinZ), e.To?.Place);
@@ -959,6 +979,188 @@ public sealed class StratSceneProjection
             ? (arrival.X, arrival.Y, arrival.LevelMinZ)
             : null;
     }
+
+    // When the run passes each via stop, by its share of the route's length; null for a stop that did not resolve.
+    private static int?[]? ViaTicks(List<NavWaypoint>? route, int[]? stops, int fromTick, int untilTick)
+    {
+        if (route is null || stops is null)
+        {
+            return null;
+        }
+
+        double[] along = new double[route.Count];
+        for (int i = 1; i < route.Count; i++)
+        {
+            along[i] = along[i - 1] + Distance(route[i - 1], route[i]);
+        }
+
+        double total = along[^1];
+        int?[] ticks = new int?[stops.Length];
+        for (int v = 0; v < stops.Length; v++)
+        {
+            if (stops[v] >= 0 && stops[v] < route.Count)
+            {
+                ticks[v] = total < 1e-6
+                    ? fromTick
+                    : fromTick + (int)Math.Round((untilTick - fromTick) * along[stops[v]] / total, MidpointRounding.AwayFromZero);
+            }
+        }
+
+        return ticks;
+    }
+
+    /// <summary>
+    ///     One run on a track: the path step that sent it, whether it is a lurk's rotate walk, when it leaves (after the
+    ///     step's hold) and arrives, and when it passes each via in reading order. <see cref="ViaTicks" /> is null for a
+    ///     straight run, which goes through no via.
+    /// </summary>
+    public sealed record RunSpan(int PathIndex, bool Rotate, int StartTick, int ArriveTick, int?[]? ViaTicks)
+    {
+        /// <summary>How many vias the run has passed at a tick: the leg it is on. <see cref="int.MaxValue" /> for a straight run.</summary>
+        /// <param name="tick">A tick inside the run.</param>
+        public int LegAt(int tick)
+        {
+            if (ViaTicks is null)
+            {
+                return int.MaxValue;
+            }
+
+            int leg = 0;
+            for (int v = 0; v < ViaTicks.Length; v++)
+            {
+                if (ViaTicks[v] is { } at && at <= tick)
+                {
+                    leg = v + 1;
+                }
+            }
+
+            return leg;
+        }
+    }
+
+    /// <summary>The run a slot is on at a tick, after it leaves and before it arrives; the latest to leave wins. Null when it stands.</summary>
+    /// <param name="slot">The token.</param>
+    /// <param name="tick">The playhead.</param>
+    public RunSpan? RunAt(string slot, int tick)
+    {
+        RunSpan? found = null;
+        if (_runs.TryGetValue(slot, out List<RunSpan>? runs))
+        {
+            foreach (RunSpan run in runs)
+            {
+                if (run.StartTick < tick && tick < run.ArriveTick && (found is null || run.StartTick >= found.StartTick))
+                {
+                    found = run;
+                }
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>The route resolver the tracks were built with; null when they are straight.</summary>
+    internal PathResolver? Paths => _places.Paths;
+
+    /// <summary>
+    ///     Where a slot last stood or arrived before a tick, and when: a run's arrival, a run's start while it still runs
+    ///     at the tick, or a placed entry, whichever is latest. Null when nothing placed it.
+    /// </summary>
+    /// <param name="slot">The token.</param>
+    /// <param name="beforeTick">The tick.</param>
+    internal (int Tick, TokenKeyframe At)? LastStand(string slot, int beforeTick)
+    {
+        int best = int.MinValue;
+        foreach (RunSpan run in _runs.TryGetValue(slot, out List<RunSpan>? runs) ? runs : [])
+        {
+            if (run.StartTick < beforeTick)
+            {
+                best = Math.Max(best, run.ArriveTick <= beforeTick ? run.ArriveTick : run.StartTick);
+            }
+        }
+
+        if (_plans.TryGetValue(slot, out SlotPlan? plan))
+        {
+            for (int i = 0; i < plan.Placements.Length; i++)
+            {
+                if (plan.Placements[i] is not null && plan.Ticks[i] < beforeTick)
+                {
+                    best = Math.Max(best, plan.Ticks[i]);
+                }
+            }
+        }
+
+        return best > int.MinValue && Tracks.FirstOrDefault(t => t.Slot == slot) is { } track && track.TrySample(best, out TokenKeyframe at)
+            ? (best, at)
+            : null;
+    }
+
+    /// <summary>The runs one path step sends: its destinations', or its lurk's rotate walks.</summary>
+    /// <param name="pathIndex">The step's position on the path.</param>
+    /// <param name="rotate">The rotate walks instead of the destinations.</param>
+    public IEnumerable<(string Slot, RunSpan Run)> RunsOf(int pathIndex, bool rotate = false)
+    {
+        foreach (string slot in TokenSlots.All)
+        {
+            if (!_runs.TryGetValue(slot, out List<RunSpan>? runs))
+            {
+                continue;
+            }
+
+            foreach (RunSpan run in runs)
+            {
+                if (run.PathIndex == pathIndex && run.Rotate == rotate)
+                {
+                    yield return (slot, run);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The step that last put a slot where it stands at a tick: its entry, its destination or its lurk's rotate,
+    ///     whichever came latest at or before the tick, the later step on a shared tick. Null when nothing has.
+    /// </summary>
+    /// <param name="slot">The token.</param>
+    /// <param name="tick">The playhead.</param>
+    /// <param name="accept">Which path indices may answer; null takes any.</param>
+    public (int PathIndex, bool Rotate)? PlacedBy(string slot, int tick, Func<int, bool>? accept = null)
+    {
+        if (!_plans.TryGetValue(slot, out SlotPlan? plan))
+        {
+            return null;
+        }
+
+        (int Tick, int Order, bool Rotate)? best = null;
+        void Offer(int at, int order, bool rotate)
+        {
+            if (at <= tick && (accept is null || accept(order))
+                           && (best is not { } b || at > b.Tick || (at == b.Tick && order >= b.Order)))
+            {
+                best = (at, order, rotate);
+            }
+        }
+
+        for (int i = 0; i < plan.Placements.Length; i++)
+        {
+            if (plan.Placements[i] is not null)
+            {
+                Offer(plan.Ticks[i], i, false);
+            }
+        }
+
+        foreach (SlotEvent e in plan.Events)
+        {
+            if (e.To is not null)
+            {
+                Offer(e.Tick, e.Order, IsRotate(e));
+            }
+        }
+
+        return best is { } found ? (found.Order, found.Rotate) : null;
+    }
+
+    // A lurk's rotate walk: off its step's tick, and not one of the lurk's later area legs.
+    private static bool IsRotate(SlotEvent e) => !e.Shaped && !e.Leg;
 
     /// <summary>One bend of a route as a keyframe: when the token is there, where, on which level, facing the next leg.</summary>
     internal readonly record struct Corner(int Tick, float X, float Y, double LevelMinZ, float YawDegrees)

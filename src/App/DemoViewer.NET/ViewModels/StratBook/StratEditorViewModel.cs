@@ -522,6 +522,57 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
     }
 
+    /// <summary>The place under a point on a floor, from the canvas's loaded zones; null until they are in memory.</summary>
+    public Func<double, double, double, string?>? PlaceAt { get; set; }
+
+    /// <summary>Whether <see cref="PlaceAt" /> has the map's zones to answer from; a null answer is "no place" only then.</summary>
+    public Func<bool>? PlacesKnown { get; set; }
+
+    private Func<double, double, double, string?>? KnownPlaceAt => PlacesKnown?.Invoke() == true ? PlaceAt : null;
+
+    internal Func<double, double, double, string?>? KnownPlaceAtForRows => KnownPlaceAt;
+
+    // A capture written before the observed mark: every position reads as seen (StratSceneProjection.IsLegacyObserved).
+    internal bool LegacySeen => _session.Document is { } document && StratSceneProjection.IsLegacyObserved(document);
+
+    /// <summary>Removes position entries of a step, a placed chip's ✕: one undo entry.</summary>
+    /// <param name="stepId">The step.</param>
+    /// <param name="positions">The entries' indices.</param>
+    internal void ClearPlaced(Guid stepId, IReadOnlyList<int> positions)
+    {
+        if (_session.Document is not { } document || document.Steps.FindIndex(s => s.Id == stepId) is not (>= 0 and var index))
+        {
+            return;
+        }
+
+        EndEditBurst();
+        List<PatchOp> ops = [.. positions.Where(k => k >= 0 && k < document.Steps[index].Positions.Count).Distinct().OrderDescending()
+            .Select(k => StratDragPatches.Clear(index, k))];
+        if (ops.Count > 0)
+        {
+            _session.Apply(ops);
+        }
+    }
+
+    /// <summary>Moves a position entry's point into the field the step's verb names and removes the entry: one undo entry.</summary>
+    /// <param name="stepId">The step.</param>
+    /// <param name="position">The entry's index.</param>
+    internal void ConvertPlaced(Guid stepId, int position)
+    {
+        if (_session.Document is not { } document || document.Steps.FindIndex(s => s.Id == stepId) is not (>= 0 and var index)
+                                                   || position < 0 || position >= document.Steps[index].Positions.Count)
+        {
+            return;
+        }
+
+        EndEditBurst();
+        List<PatchOp> ops = StratDragPatches.Convert(document, index, position, KnownPlaceAt);
+        if (ops.Count > 0)
+        {
+            _session.Apply(ops);
+        }
+    }
+
     /// <summary>Whether the step's row shows its lines one per player; false for a row that shows them as one, or no row.</summary>
     /// <param name="stepId">The step.</param>
     public bool ShowsLinesApart(Guid stepId) => Steps.FirstOrDefault(r => r.Id == stepId) is { ShowCompact: false, HasLines: true };
@@ -980,9 +1031,18 @@ public sealed partial class StratEditorViewModel : ObservableObject
             }
         }
 
+        Dictionary<int, Dictionary<int, string>> zips = [];
+        foreach (StratIssue issue in _session.Issues)
+        {
+            if (issue.Severity == StratIssueSeverity.Warning && StratDepartureCheck.PositionOf(issue.Field) is { } at)
+            {
+                (zips.TryGetValue(at.Step, out Dictionary<int, string>? byPosition) ? byPosition : zips[at.Step] = [])[at.Position] = issue.Message;
+            }
+        }
+
         for (int i = 0; i < document.Steps.Count; i++)
         {
-            Steps[i].Load(i, document.Steps[i]);
+            Steps[i].Load(i, document.Steps[i], zips.GetValueOrDefault(i));
         }
 
         if (!Branches.Select(r => r.Id).SequenceEqual(document.Branches.Select(b => b.Id)))
@@ -1712,9 +1772,18 @@ public sealed partial class StratStepRow : ObservableObject
         _ => "step"
     };
 
-    internal void Load(int index, StratStep step)
+    /// <summary>
+    ///     The step's position entries as chips: what a drag used to write and a capture still does, shown so nothing
+    ///     moves a token unseen (drag-semantics.md §6).
+    /// </summary>
+    public ObservableCollection<StratPlacedChip> Placed { get; } = [];
+
+    public bool HasPlaced => Placed.Count > 0;
+
+    internal void Load(int index, StratStep step, IReadOnlyDictionary<int, string>? departureWarnings = null)
     {
         _index = index;
+        LoadPlaced(step, departureWarnings);
         TimeText = StratClock.Format(step.AtSeconds);
         Actor = step.Actor;
         Verb = step.Verb;
@@ -1755,6 +1824,27 @@ public sealed partial class StratStepRow : ObservableObject
 
         OnPropertyChanged(nameof(Number));
         RaiseShown();
+    }
+
+    // Rebuilt only when what they say changes, so a focused chip keeps focus across an unrelated edit.
+    private void LoadPlaced(StratStep step, IReadOnlyDictionary<int, string>? warnings)
+    {
+        List<StratPlacedChip> chips = StratPlacedChip.For(this, step, _owner.KnownPlaceAtForRows, warnings, _owner.LegacySeen);
+        if (Placed.Select(Key).SequenceEqual(chips.Select(Key)))
+        {
+            return;
+        }
+
+        Placed.Clear();
+        foreach (StratPlacedChip chip in chips)
+        {
+            Placed.Add(chip);
+        }
+
+        OnPropertyChanged(nameof(HasPlaced));
+
+        static string Key(StratPlacedChip chip) =>
+            chip.Text + "|" + chip.ToolTip + "|" + string.Join(",", chip.Entries.Select(e => e.PositionIndex + ":" + e.Text + ":" + e.ConvertLabel));
     }
 
     // Rebuilt only when the number of lines or their kind changes, so a field keeps focus across its own edit.

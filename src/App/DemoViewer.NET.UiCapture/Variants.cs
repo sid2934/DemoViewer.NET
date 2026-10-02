@@ -256,6 +256,9 @@ public static partial class Variants
             ["strat-routing-execute-b"] = () => StratRoutingExecuteB(104),
             ["strat-routing-execute-b-push"] = () => StratRoutingExecuteB(83),
             ["strat-routing-via"] = StratRoutingVia,
+            ["strat-drag-ghost"] = () => StratDrag(false),
+            ["strat-drag-released"] = () => StratDrag(true),
+            ["strat-drag-placed"] = StratDragPlaced,
             ["strat-lineup-picker"] = StratLineupPicker
         };
 

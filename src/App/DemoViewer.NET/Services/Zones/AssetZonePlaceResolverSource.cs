@@ -175,6 +175,10 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
     /// <inheritdoc />
     public IReadOnlyList<string> PlaceNames => [.. Resolver.Zones.Places.Select(p => p.Name)];
 
+    /// <inheritdoc />
+    public IReadOnlyList<(Vector2 A, Vector2 B)>? OutlineOf(string place, double floorKey) =>
+        Resolver.OutlinesFor(floorKey).FirstOrDefault(o => string.Equals(o.Name, place, StringComparison.Ordinal))?.Edges;
+
     /// <summary>
     ///     The nav graph over the effective zones, built with this adapter inside the queued zones read. A new overlay
     ///     makes a new adapter, so the graph always matches <see cref="ZonesVersion" />.

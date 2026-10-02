@@ -212,7 +212,7 @@ public class StratLineEditingTests
 
         canvas.BeginDrag("B", TokenGrip.Heading);
         canvas.MoveTo("B", new SKPoint(100, 100), 0);
-        canvas.EndDrag(null);
+        canvas.EndDrag();
         StratStep step = session.Document!.Steps[0];
         using (Assert.Multiple())
         {

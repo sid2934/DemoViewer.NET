@@ -224,7 +224,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     Whether a tool other than pan is selected, or Set On Map is waiting for a click: what makes the keymap's
     ///     tool scope shadow Space and Esc.
     /// </summary>
-    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace;
+    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace || _drag is not null;
 
     /// <summary>
     ///     The slot whose line is selected on the active step: the chosen one when the step has a line for it, else its
@@ -271,7 +271,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public bool IsSettingPlace => _armed is not null;
 
     /// <summary>The location field a map click will write, or null when Set On Map is off.</summary>
-    public StratLocationField? ArmedField => _armed?.Field;
+    public StratLocationField? ArmedField => _armed?.Field ?? _drag?.ShownField;
 
     /// <summary>The Set On Map button's words, naming the field the way the step row does.</summary>
     public string SetPlaceText => _armed is { } armed && ActiveStep is { } armedStep && !IsToolbarField(armed.Field, armedStep)
@@ -341,6 +341,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     /// <inheritdoc />
     public LoadedMapAsset? MapAsset { get; private set; }
+
+    /// <inheritdoc />
+    /// <remarks>Replaced whole on each publish, never changed in place: the render thread reads it.</remarks>
+    public SceneGuides Guides { get; private set; } = SceneGuides.None;
 
     /// <summary>No cones: a strat has no collision solve to run and no players to see from.</summary>
     public VisibilityEngine? VisionEngine => null;
@@ -675,10 +679,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             case Playback2DAction.ClearAnnotations:
                 return ClearActiveStepStrokes();
             case Playback2DAction.AddStep:
+                CancelOpenDrag();
                 return InsertStep();
             case Playback2DAction.DuplicateStep:
+                CancelOpenDrag();
                 return DuplicateActiveStep();
             case Playback2DAction.DeleteStep:
+                CancelOpenDrag();
                 return DeleteActiveStep();
             case Playback2DAction.PrevStep:
                 return SeekStep(-1);
@@ -809,6 +816,21 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             }
         }
 
+        // A destination pin drags as its token does.
+        if (best == double.MaxValue)
+        {
+            foreach (GuidePin pin in Guides.Pins)
+            {
+                double dx = world.X - pin.At.X, dy = world.Y - pin.At.Y;
+                if (pane.Level.Contains(pin.At.Z) && dx * dx + dy * dy <= worldRadius * worldRadius * 2 && dx * dx + dy * dy < best)
+                {
+                    best = dx * dx + dy * dy;
+                    slot = pin.At.Label;
+                    grip = TokenGrip.Body;
+                }
+            }
+        }
+
         return best < double.MaxValue;
     }
 
@@ -816,51 +838,64 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public void BeginDrag(string slot, TokenGrip grip)
     {
         _drag = null;
-        if (_projection is not { } projection || EditableActiveStep() is null)
+        if (_projection is not { } projection || _session.Document is null)
         {
-            StatusLine = ActiveStep is null ? "add a step first: a token is placed at a step" : ReadOnlyNote;
+            StatusLine = StratDragTarget.NoStepNote;
             return;
         }
 
-        if (projection.ThrowOriginAt(_activeIndex, slot) is not null)
+        // A press while playing stops where it is: the moment grabbed is the moment edited.
+        if (Transport.IsPlaying)
         {
-            StatusLine = LineupPlacedNote;
-            return;
+            Transport.Pause();
         }
 
-        // The drag writes the active step's keyframe, so the canvas shows that step's moment while it does:
-        // what is dragged is what is placed. Taken before the seek, which on a shared tick would pick the next step.
-        int pathIndex = _activeIndex;
         if (StratVocabulary.Slots.Contains(slot))
         {
             SelectLine(slot);
         }
 
-        Transport.Pause();
-        _pinnedStep = projection.Path[pathIndex].Step.Id;
-        int tick = projection.Ticks[pathIndex];
-        if (Transport.Tick != tick)
-        {
-            Transport.Seek(tick);
-        }
-
+        int tick = Transport.Tick;
         TokenKeyframe start = Tracks.Get(slot) is { } track && track.TrySample(tick, out TokenKeyframe at)
             ? at
             : new TokenKeyframe(tick, 0, 0, projection.Canvas.DefaultLevelMinZ ?? 0, 0);
-        _drag = new DragState(slot, grip, pathIndex, start.X, start.Y, start.LevelMinZ, start.YawDegrees);
+        DragState drag = new(slot, grip, tick, start.X, start.Y, start.LevelMinZ, start.YawDegrees) { Pin = PinNextDrag };
+        _drag = drag;
+        Retarget(drag, projection);
+        if (drag.Target.IsRefused)
+        {
+            StatusLine = drag.Target.Refusal ?? "";
+        }
+
+        Publish(false);
     }
 
     /// <inheritdoc />
-    public void MoveTo(string slot, SKPoint world, double levelMinZ)
+    public void MoveTo(string slot, SKPoint world, double levelMinZ, ToolModifiers modifiers = ToolModifiers.None, double worldUnitsPerPixel = 0)
     {
         if (_drag is not { } drag || _projection is not { } projection || drag.Slot != slot)
         {
             return;
         }
 
+        bool pin = PinNextDrag || (modifiers & ToolModifiers.Alt) != 0;
+        if (pin != drag.Pin)
+        {
+            drag.Pin = pin;
+            Retarget(drag, projection);
+        }
+
+        // A step edit while the drag is open moves the indices it writes by.
+        if (!drag.Target.IsRefused && _session.Document is { } document && !StratDragPatches.Holds(document, drag.Target))
+        {
+            drag.Target = drag.Target with { Action = StratDragAction.Refused, Refusal = StepsChangedNote };
+        }
+
+        drag.Modifiers = modifiers;
+        drag.WorldUnitsPerPixel = worldUnitsPerPixel;
         if (drag.Grip == TokenGrip.Heading)
         {
-            drag.Yaw = (float)(Math.Atan2(world.Y - drag.Y, world.X - drag.X) * 180 / Math.PI);
+            drag.Yaw = (float)(Math.Atan2(world.Y - drag.StartY, world.X - drag.StartX) * 180 / Math.PI);
             drag.Turned = true;
         }
         else
@@ -871,66 +906,473 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             {
                 drag.LevelMinZ = levelMinZ;
             }
+
+            drag.Moved = true;
         }
 
-        drag.Moved = true;
-        Tracks.Replace(projection.TrackWith(slot, drag.PathIndex,
-            new TokenPlacement(drag.X, drag.Y, drag.LevelMinZ, drag.Yaw), drag.Turned));
+        if (drag.Target.IsRefused)
+        {
+            StatusLine = drag.Target.Refusal ?? "";
+            DragLabel = drag.Target.Refusal ?? "";
+            DragHint = "";
+            Publish(false);
+            return;
+        }
+
+        Preview(drag);
         Publish(false);
     }
 
     /// <inheritdoc />
-    public void EndDrag(float? yawDegrees)
+    public void EndDrag(ToolModifiers modifiers = ToolModifiers.None)
     {
         if (_drag is not { } drag || _projection is not { } projection || _session.Document is not { } document)
         {
-            _drag = null;
+            EndDragState();
             return;
         }
 
-        _drag = null;
-        if (!drag.Moved && yawDegrees is null)
+        bool pin = PinNextDrag || (modifiers & ToolModifiers.Alt) != 0;
+        if (pin != drag.Pin)
         {
+            drag.Pin = pin;
+            Retarget(drag, projection);
+        }
+
+        drag.Modifiers = modifiers;
+        EndDragState();
+        if ((!drag.Moved && !drag.Turned) || drag.Target.IsRefused)
+        {
+            if (drag.Target.IsRefused && (drag.Moved || drag.Turned))
+            {
+                StatusLine = drag.Target.Refusal ?? "";
+            }
+
             RestoreTracks();
             ReprojectIfOriginsMoved();
             return;
         }
 
-        int stepIndex = projection.Path[drag.PathIndex].StepIndex;
-
-        // A turn of one of the strat's own tokens is its line's view angle, which beats the watched place, on a verb
-        // that watches or a line that already does. Otherwise it is the position's yaw, as before lines.
-        StratStep turned = document.Steps[stepIndex];
-        if (drag.Grip == TokenGrip.Heading && StratVocabulary.Slots.Contains(drag.Slot)
-                                           && (StratStepFields.Uses(turned.Verb, StratStepField.Watch)
-                                               || StratStepLines.LineFor(turned, drag.Slot)?.Watch is not null))
+        StratDragTarget target = drag.Target;
+        StratDrop drop = DropOf(drag);
+        PinNextDrag = false;
+        if (!StratDragPatches.Holds(document, target))
         {
-            if (drag.Turned)
-            {
-                Apply(StratLinePatches.WatchYaw(document.Steps[stepIndex], string.Create(CultureInfo.InvariantCulture, $"/steps/{stepIndex}"),
-                    drag.Slot, drag.Yaw));
-            }
-
+            StatusLine = StepsChangedNote;
+            RestoreTracks();
             ReprojectIfOriginsMoved();
             return;
         }
 
-        // A body move keeps the entry's own facing (absent: the previous keyframe's); a heading drag or a
-        // Shift snap writes one.
-        double? yaw = yawDegrees ?? (drag.Turned ? drag.Yaw : null);
-        Apply([
-            StepAuthoringPatches.TokenPosition(document, stepIndex, drag.Slot,
-                drag.X, drag.Y, drag.LevelMinZ, yaw)
-        ]);
+        string before = FieldText(document, target, drop);
+        bool seen = StratDragPatches.ReplacesSeen(document, target);
+        List<PatchOp> ops = StratDragPatches.Ops(document, target, drop);
+        if (ops.Count == 0)
+        {
+            StatusLine = target.Action == StratDragAction.Field || target.Action == StratDragAction.Via
+                ? $"{StepName(target)}{target.Slot}'s {FieldWord(document, target)} is already {before}"
+                : "";
+            RestoreTracks();
+            ReprojectIfOriginsMoved();
+            return;
+        }
+
+        Apply(ops);
+        if (_session.Document is { } after && target.StepIndex < after.Steps.Count)
+        {
+            string now = FieldText(after, target, drop);
+            StatusLine = target.Action switch
+            {
+                StratDragAction.Turn => $"{StepName(target)}{target.Slot}'s view angle is set. Ctrl+Z undoes",
+                StratDragAction.Pin => $"{StepName(target)}{target.Slot} is pinned at {now}. Ctrl+Z undoes",
+                StratDragAction.Opponent => $"{StepName(target)}{target.Slot} is at {now}. Ctrl+Z undoes",
+                _ => $"{StepName(target)}{target.Slot}'s {FieldWord(after, target)} is now {now}"
+                     + (before.Length > 0 && before != now ? $" (was {before})" : "")
+                     + (seen ? "; replaced the seen position" : "") + ". Ctrl+Z undoes"
+            };
+            MarkEarlier(target);
+        }
+
         ReprojectIfOriginsMoved();
     }
+
+    private const string StepsChangedNote = "the steps changed during the drag: nothing written";
+
+    // A step key during a drag moves the indices the drag writes by: the drag ends unwritten first.
+    private void CancelOpenDrag()
+    {
+        if (_drag is not null)
+        {
+            CancelDrag();
+            StatusLine = "drag cancelled: the steps changed";
+        }
+    }
+
+    // A drop whose run the playhead has already passed changes nothing on screen at this tick: a faint ring at where the
+    // step now sends the token says the edit landed. Gone when the playhead moves.
+    private void MarkEarlier(StratDragTarget target)
+    {
+        _earlier = null;
+        if (_projection is not { } projection || target.PathIndex < 0 || target.PathIndex >= projection.Path.Count
+            || projection.Tracks.FirstOrDefault(t => t.Slot == target.Slot) is not { } track)
+        {
+            return;
+        }
+
+        bool rotate = target.Field?.Kind == StratLocationKind.RotateTo;
+        StratSceneProjection.RunSpan? first = projection.RunsOf(target.PathIndex, rotate)
+            .Where(r => r.Slot == target.Slot).Select(r => r.Run).OrderBy(r => r.StartTick).FirstOrDefault();
+        if (first is null || first.ArriveTick > Transport.Tick || !track.TrySample(first.ArriveTick, out TokenKeyframe at))
+        {
+            return;
+        }
+
+        _earlier = (Transport.Tick, new GuidePin(new GuideToken(at.X, at.Y, (float)at.MarkerZ, StratSceneProjection.TeamOf(_session.Document?.Side),
+            target.Slot), [], true));
+        Publish(false);
+    }
+
+    private (int Tick, GuidePin Pin)? _earlier;
 
     /// <inheritdoc />
     public void CancelDrag()
     {
-        _drag = null;
+        EndDragState();
         RestoreTracks();
         ReprojectIfOriginsMoved();
+    }
+
+    /// <summary>The words beside the pointer while a token is dragged: who, which field and what it becomes.</summary>
+    [ObservableProperty]
+    private string _dragLabel = "";
+
+    /// <summary>The modifier keys under <see cref="DragLabel" />.</summary>
+    [ObservableProperty]
+    private string _dragHint = "";
+
+    /// <summary>The toolbar's Pin: the next drag pins its token as Alt does, for a window manager that takes Alt+drag.</summary>
+    [ObservableProperty]
+    private bool _pinNextDrag;
+
+    /// <summary>Whether a drag is open, for the label beside the pointer.</summary>
+    public bool IsDragging => _drag is not null;
+
+    /// <summary>The target a drag would write now, for tests and the label; null with no drag.</summary>
+    public StratDragTarget? DragTarget => _drag?.Target;
+
+    partial void OnPinNextDragChanged(bool value)
+    {
+        if (_drag is { } drag && _projection is { } projection && drag.Pin != value)
+        {
+            drag.Pin = value;
+            Retarget(drag, projection);
+            Preview(drag);
+            Publish(false);
+        }
+    }
+
+    private void EndDragState()
+    {
+        _drag = null;
+        DragLabel = "";
+        DragHint = "";
+        OnPropertyChanged(nameof(IsDragging));
+        OnPropertyChanged(nameof(DragTarget));
+        RaiseSetPlace();
+        OnPropertyChanged(nameof(IsToolActive));
+    }
+
+    // Who the drag writes, read once at the press and again when Alt or Pin flips. The step it writes becomes the
+    // selection only when it owns the playhead's tick: selecting another would move the playhead.
+    private void Retarget(DragState drag, StratSceneProjection projection)
+    {
+        drag.Target = StratDragTarget.Resolve(projection, drag.Tick, _activeIndex, drag.Slot, drag.Grip, drag.Pin);
+        if (drag.Target is { IsRefused: false, PathIndex: var index } && index != _activeIndex && projection.Ticks[index] == Transport.Tick)
+        {
+            _pinnedStep = projection.Path[index].Step.Id;
+            UpdateActiveStep();
+        }
+
+        drag.ShownField = ShownField(drag.Target);
+        OnPropertyChanged(nameof(IsDragging));
+        OnPropertyChanged(nameof(IsToolActive));
+        OnPropertyChanged(nameof(DragTarget));
+        RaiseSetPlace();
+    }
+
+    // The field as the row shows it, so the row lights the field the drop will change: a compact row's one field
+    // stands for every line.
+    private StratLocationField? ShownField(StratDragTarget target)
+    {
+        if (target.Field is not { } field || _session.Document is not { } document || target.StepIndex >= document.Steps.Count)
+        {
+            return null;
+        }
+
+        if (field.Slot is null || field.IsAllLines)
+        {
+            return field;
+        }
+
+        StratStep step = document.Steps[target.StepIndex];
+        List<StepAssignment> lines = StratLinePatches.Copy(step, true);
+        bool apart = LinesShownApart?.Invoke(step.Id) == true || (lines.Count > 1 && !StratLinePatches.Agree(lines));
+        return apart && !target.Joins ? field : field with { Slot = StratLocationField.AllLines };
+    }
+
+    // The drop as the field writers take it: the place under it, snapped to the place alone near its centre, or the
+    // point alone with Shift.
+    private StratDrop DropOf(DragState drag)
+    {
+        string? map = _session.Document?.Map;
+        IZonePlaceResolver? zones = map is not null && _places is { IsCompletedSuccessfully: true, Result: { } loaded }
+                                                    && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+            ? loaded
+            : null;
+        bool pointOnly = (drag.Modifiers & ToolModifiers.Shift) != 0;
+        string? place = zones?.ResolveOnFloor(drag.X, drag.Y, drag.LevelMinZ);
+        bool snapped = false;
+        if (place is not null && !pointOnly && zones?.PlaceArrival(place, drag.LevelMinZ) is { } centre)
+        {
+            double reach = SnapPixels * (drag.WorldUnitsPerPixel > 0 ? drag.WorldUnitsPerPixel : 1);
+            double dx = centre.X - drag.X, dy = centre.Y - drag.Y;
+            snapped = dx * dx + dy * dy <= reach * reach;
+        }
+
+        double? yaw = drag.Target.Action switch
+        {
+            StratDragAction.Turn => drag.Yaw,
+            StratDragAction.Opponent when drag.Turned => drag.Yaw,
+            _ => null
+        };
+        return drag.Grip == TokenGrip.Heading
+            ? new StratDrop(null, drag.StartX, drag.StartY, drag.StartLevelMinZ, zones is not null, YawDegrees: yaw)
+            : new StratDrop(place, drag.X, drag.Y, drag.LevelMinZ, zones is not null, snapped, pointOnly, yaw);
+    }
+
+    /// <summary>On screen, how near a place's arrival centre a drop stores the place alone.</summary>
+    public const double SnapPixels = 12;
+
+    // The ops the drop would write, applied to a copy and projected, so the ghost route and the label show what the
+    // release stores, not the pointer.
+    private void Preview(DragState drag)
+    {
+        if (_session.Document is not { } document || _projection is not { } projection)
+        {
+            return;
+        }
+
+        StratDrop drop = DropOf(drag);
+        List<PatchOp> ops = StratDragPatches.Ops(document, drag.Target, drop);
+        StratSceneProjection preview = projection;
+        StratDocument shown = document;
+        if (ops.Count > 0)
+        {
+            try
+            {
+                shown = StratHistory.Apply(document, ops);
+                preview = Project(shown, _projectedRouting);
+            }
+            catch (InvalidOperationException)
+            {
+                // The ghost shows nothing new; the release reports what did not apply.
+            }
+        }
+
+        drag.Preview = preview;
+        drag.Drop = drop;
+        drag.Outline = drop is { Place: { } place, PointOnly: false } && _places is { IsCompletedSuccessfully: true, Result: { } zones }
+            ? zones.OutlineOf(place, drag.LevelMinZ)
+            : null;
+        string value = FieldText(shown, drag.Target, drop);
+        DragLabel = drag.Target.Action switch
+        {
+            StratDragAction.Turn => $"{StepName(drag.Target)}{drag.Target.Slot} · view angle",
+            StratDragAction.Pin => $"{StepName(drag.Target)}{drag.Target.Slot} · pinned: {value}",
+            StratDragAction.Opponent => $"{StepName(drag.Target)}{drag.Target.Slot} · at: {value}",
+            _ => $"{StepName(drag.Target)}{Who(document, drag.Target)} · {FieldWord(shown, drag.Target)}: {value}"
+        };
+        DragHint = drag.Grip == TokenGrip.Heading
+            ? "Esc: cancel"
+            : drag.Target.Action == StratDragAction.Opponent
+                ? "Esc: cancel"
+                : drag.Pin
+                    ? "pinning: release to pin   Esc: cancel"
+                    : $"Shift: point only   Alt: pin {drag.Slot} here   Esc: cancel";
+    }
+
+    // "step 3 · " when the drag writes a step other than the selected one.
+    private string StepName(StratDragTarget target) =>
+        target.PathIndex >= 0 && target.PathIndex != _activeIndex
+            ? string.Create(CultureInfo.InvariantCulture, $"step {target.PathIndex + 1} · ")
+            : "";
+
+    // Who the field moves: every lurker of the step for a lurk area, else the dragged token.
+    private static string Who(StratDocument document, StratDragTarget target) =>
+        target.Field is { Kind: StratLocationKind.LurkArea } && target.StepIndex < document.Steps.Count
+            ? string.Join(", ", StratLinePatches.Copy(document.Steps[target.StepIndex], true).Select(l => l.Slot).DefaultIfEmpty(target.Slot))
+            : target.Slot;
+
+    // The field in the row's own words: to, at, site, via +, lurk area 2, rotate to.
+    private static string FieldWord(StratDocument document, StratDragTarget target)
+    {
+        StratStep? step = target.StepIndex < document.Steps.Count ? document.Steps[target.StepIndex] : null;
+        return target.Field?.Kind switch
+        {
+            StratLocationKind.Via => "via +",
+            StratLocationKind.RotateTo => "rotate to",
+            StratLocationKind.LurkArea => "lurk area 1",
+            _ => StratStepFields.ToLabel(step?.Verb)
+        };
+    }
+
+    // What the target's field reads in the document: the entry the drop put first for a list, the slot's position for a pin.
+    private string FieldText(StratDocument document, StratDragTarget target, StratDrop? drop)
+    {
+        if (target.StepIndex < 0 || target.StepIndex >= document.Steps.Count)
+        {
+            return "";
+        }
+
+        StratStep step = document.Steps[target.StepIndex];
+        if (target.Action is StratDragAction.Pin or StratDragAction.Opponent)
+        {
+            return step.Positions.LastOrDefault(p => p.Slot == target.Slot) is { } position ? StratLocations.PointText(position.X, position.Y) : "";
+        }
+
+        if (target.Field is not { } field)
+        {
+            return "";
+        }
+
+        IReadOnlyList<PlaceRef> value = StratLocationPatches.Read(step, field);
+        if (field.Kind == StratLocationKind.Via && drop is not null)
+        {
+            PlaceRef entry = StratDragPatches.Entry(null, drop, true);
+            value = [.. value.Where(e => StratLocationPatches.SameEntry(e, entry))];
+        }
+
+        return value.Count == 0 ? "" : StratLocations.Text(value[0], _callouts) ?? "";
+    }
+
+    // While dragging: the hollow start, the dashed route the drop stores, the place under the pointer and the step's vias.
+    // Paused otherwise: the selected step's destination pins.
+    private SceneGuides GuidesFor(int tick)
+    {
+        if (_projection is not { } projection || Transport.IsPlaying || IsReadOnly)
+        {
+            return SceneGuides.None;
+        }
+
+        int team = StratSceneProjection.TeamOf(_session.Document?.Side);
+        if (_drag is not { } drag)
+        {
+            SceneGuides selected = _activeIndex >= 0 ? PinsGuides(projection, _activeIndex, tick, team, null) : SceneGuides.None;
+            if (_earlier is { } earlier && earlier.Tick == tick)
+            {
+                return new SceneGuides { Pins = [.. selected.Pins, earlier.Pin], ViaMarks = selected.ViaMarks };
+            }
+
+            _earlier = null;
+            return selected;
+        }
+
+        int slotTeam = TokenSlots.IsOpponent(drag.Slot) ? (team == 2 ? 3 : 2) : team;
+        GuideToken ghost = new(drag.StartX, drag.StartY, (float)(drag.StartLevelMinZ + MapSpace.LevelQuantum / 2), slotTeam, drag.Slot);
+        if (drag.Target.IsRefused || !drag.Moved || drag.Grip == TokenGrip.Heading)
+        {
+            return new SceneGuides { Ghost = drag.Moved ? ghost : null };
+        }
+
+        StratSceneProjection preview = drag.Preview ?? projection;
+        SceneGuides pins = drag.Target.PathIndex >= 0 && drag.Target.PathIndex < preview.Path.Count
+            ? PinsGuides(preview, drag.Target.PathIndex, tick, team, drag.Slot)
+            : SceneGuides.None;
+        List<GrenadeTrailPoint> route = RouteOf(preview, drag.Target, drag.Slot) ?? [];
+        if (route.Count < 2)
+        {
+            route = [new GrenadeTrailPoint(drag.StartX, drag.StartY, ghost.Z), new GrenadeTrailPoint(drag.X, drag.Y, (float)(drag.LevelMinZ + MapSpace.LevelQuantum / 2))];
+        }
+
+        return new SceneGuides
+        {
+            Ghost = ghost,
+            GhostRoute = route,
+            GhostTeam = slotTeam,
+            DropOutline = drag.Outline ?? [],
+            DropOutlineZ = (float)(drag.LevelMinZ + MapSpace.LevelQuantum / 2),
+            ViaMarks = pins.ViaMarks
+        };
+    }
+
+    // The way the token goes for the step the drag writes, in the preview: its run from where it leaves to its arrival.
+    private static List<GrenadeTrailPoint>? RouteOf(StratSceneProjection preview, StratDragTarget target, string slot)
+    {
+        bool rotate = target.Field?.Kind == StratLocationKind.RotateTo;
+        foreach ((string runSlot, StratSceneProjection.RunSpan run) in preview.RunsOf(target.PathIndex, rotate))
+        {
+            if (runSlot == slot && preview.Tracks.FirstOrDefault(t => t.Slot == slot) is { } track)
+            {
+                return Polyline(track, run.StartTick, run.ArriveTick);
+            }
+        }
+
+        return null;
+    }
+
+    private static List<GrenadeTrailPoint> Polyline(TokenTrack track, int from, int until)
+    {
+        List<GrenadeTrailPoint> points = [];
+        if (track.TrySample(from, out TokenKeyframe start))
+        {
+            points.Add(new GrenadeTrailPoint(start.X, start.Y, (float)start.MarkerZ));
+        }
+
+        foreach (TokenKeyframe key in track.Keyframes)
+        {
+            if (key.Tick > from && key.Tick <= until)
+            {
+                points.Add(new GrenadeTrailPoint(key.X, key.Y, (float)key.MarkerZ));
+            }
+        }
+
+        return points;
+    }
+
+    // Where a step sends each token it moves, while the token has not arrived: a hollow ring at the arrival and the
+    // way there; and its vias as marks. Only the dragged token's pin while it is dragged.
+    private SceneGuides PinsGuides(StratSceneProjection projection, int pathIndex, int tick, int team, string? only)
+    {
+        List<GuidePin> pins = [];
+        List<GrenadeTrailPoint> vias = [];
+        StratStep step = projection.Path[pathIndex].Step;
+        foreach ((string slot, StratSceneProjection.RunSpan run) in projection.RunsOf(pathIndex))
+        {
+            if ((only is not null && slot != only) || run.ArriveTick <= tick
+                                                   || projection.Tracks.FirstOrDefault(t => t.Slot == slot) is not { } track
+                                                   || !track.TrySample(run.ArriveTick, out TokenKeyframe arrive))
+            {
+                continue;
+            }
+
+            pins.Add(new GuidePin(new GuideToken(arrive.X, arrive.Y, (float)arrive.MarkerZ, team, slot),
+                Polyline(track, Math.Max(tick, run.StartTick), run.ArriveTick)));
+            if (CurrentPlaceArrivals is { } arrivals)
+            {
+                foreach (PlaceRef via in StratStepLines.ViaFor(step, slot))
+                {
+                    (double X, double Y, double Level)? at = StratLocations.HasPoint(via)
+                        ? (via.X!.Value, via.Y!.Value, via.LevelMinZ ?? arrive.LevelMinZ)
+                        : StratLocations.HasPlace(via) && arrivals(via.Place!, arrive.LevelMinZ) is { } a ? (a.X, a.Y, a.LevelMinZ) : null;
+                    if (at is { } p)
+                    {
+                        vias.Add(new GrenadeTrailPoint((float)p.X, (float)p.Y, (float)(p.Level + MapSpace.LevelQuantum / 2)));
+                    }
+                }
+            }
+        }
+
+        return pins.Count == 0 && vias.Count == 0 ? SceneGuides.None : new SceneGuides { Pins = pins, ViaMarks = vias };
     }
 
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
@@ -945,9 +1387,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     private bool IsGestureOpen => _drag is not null || _ink.Document.IsGestureOpen;
 
-    private const string ReadOnlyNote = "this step belongs to another strat: open that strat to edit it";
-
-    private const string LineupPlacedNote = "placed by its lineup: clear the lineup to move it";
+    private const string ReadOnlyNote = StratDragTarget.ReadOnlyNote;
 
     // Lineup origins or place centres moved. A gesture keeps the projection it started on; its end picks the change up.
     private void OnProjectionInputChanged()
@@ -1079,17 +1519,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         Guid? pinned = _pinnedStep;
 
         RefreshPathOptions(document);
-        IReadOnlyList<StratPathStep> path = SelectedPath?.BranchId is { } branch
-            ? StratPath.Through(document, branch, _lookup) ?? StratPath.MainLine(document)
-            : StratPath.MainLine(document);
-
-        Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
         _projectedRouting = _routing();
-        StratSceneProjection projection = StratSceneProjection.Build(document, path,
-            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
-            PlaceCentres(document.Map), PlaceArrivals(document.Map), PlaceContains(document.Map),
-            _lineupOrigins is { } flights ? (map, utility) => flights.ResolveFlight(map, utility, levelFor) : null,
-            _projectedRouting ? Paths(document.Map) : null);
+        StratSceneProjection projection = Project(document, _projectedRouting);
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -1151,6 +1582,21 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         RaiseSetPlace();
         Publish(true);
+    }
+
+    // The selected path of a document, projected with this canvas's resolvers: the live one, and a drag's preview.
+    private StratSceneProjection Project(StratDocument document, bool routing, bool mainLine = false)
+    {
+        IReadOnlyList<StratPathStep> path = !mainLine && SelectedPath?.BranchId is { } branch
+            ? StratPath.Through(document, branch, _lookup) ?? StratPath.MainLine(document)
+            : StratPath.MainLine(document);
+
+        Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
+        return StratSceneProjection.Build(document, path,
+            _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
+            PlaceCentres(document.Map), PlaceArrivals(document.Map), PlaceContains(document.Map),
+            _lineupOrigins is { } flights ? (map, utility) => flights.ResolveFlight(map, utility, levelFor) : null,
+            routing ? Paths(document.Map) : null);
     }
 
     private void RefreshPathOptions(StratDocument document)
@@ -1521,7 +1967,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             {
                 Time = new SceneTime(tick, tick, tick / (double)StepSchedule.TicksPerSecond, Transport.LastDeltaSeconds,
                     discontinuity),
-                Markers = [.. pooled.Markers],
+                Markers = DraggedMarkers(pooled.Markers),
                 AreaEffects = [.. pooled.AreaEffects],
                 Trails = CopyTrails(pooled.Trails),
                 Routes = CopyRoutes(pooled.Routes),
@@ -1534,9 +1980,36 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             CurrentFrame = Scene2DFrame.Empty;
         }
 
+        Guides = GuidesFor(tick);
         Timeline.UpdatePlayhead(tick, tick);
         RaiseState();
         FrameUpdated?.Invoke();
+    }
+
+    // The dragged token follows the pointer, or turns with it; the track is not touched until the drop.
+    private List<PlayerMarker> DraggedMarkers(IReadOnlyList<PlayerMarker> pooled)
+    {
+        List<PlayerMarker> markers = [.. pooled];
+        if (_drag is not { } drag || drag.Target is null || drag.Target.IsRefused || (!drag.Moved && !drag.Turned))
+        {
+            return markers;
+        }
+
+        int order = TokenSlots.OrderOf(drag.Slot);
+        for (int i = 0; i < markers.Count; i++)
+        {
+            if (markers[i].Slot == order)
+            {
+                markers[i] = drag.Grip == TokenGrip.Heading
+                    ? markers[i] with { YawDegrees = drag.Yaw }
+                    : markers[i] with
+                    {
+                        WorldX = drag.X, WorldY = drag.Y, WorldZ = (float)(drag.LevelMinZ + MapSpace.LevelQuantum / 2)
+                    };
+            }
+        }
+
+        return markers;
     }
 
     // A pooled trail is refilled two frames on while the render thread may still hold this one.
@@ -1648,6 +2121,27 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private bool WritesOneLine(StratStep step) =>
         StratStepLines.HasLines(step)
         || (string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal) && LinesShownApart?.Invoke(step.Id) == true);
+
+    /// <summary>The place under a point on a floor, from the open map's zones; null in no place or before they load.</summary>
+    /// <param name="x">World X.</param>
+    /// <param name="y">World Y.</param>
+    /// <param name="levelMinZ">The floor's level key.</param>
+    public string? PlaceAt(double x, double y, double levelMinZ) =>
+        LoadedZones() is { } zones ? zones.ResolveOnFloor(x, y, levelMinZ) : null;
+
+    /// <summary>The zip check against this canvas's places and routes (<see cref="StratDepartureCheck" />).</summary>
+    /// <param name="document">The strat.</param>
+    public IReadOnlyList<StratIssue> DepartureChecks(StratDocument document) =>
+        StratDepartureCheck.Check(document, d => Project(d, _routing(), true));
+
+    /// <summary>Whether the open map's zones are in memory, so <see cref="PlaceAt" />'s null means no place.</summary>
+    public bool HasPlaces => LoadedZones() is not null;
+
+    private IZonePlaceResolver? LoadedZones() =>
+        _session.Document is { } document && _places is { IsCompletedSuccessfully: true, Result: { } zones }
+                                          && string.Equals(_placesMap, document.Map, StringComparison.OrdinalIgnoreCase)
+            ? zones
+            : null;
 
     /// <summary>Whether the editor shows a step's lines one per player; the tab wires it to the editor.</summary>
     public Func<Guid, bool>? LinesShownApart { get; set; }
@@ -1853,17 +2347,28 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     // A drag's working state. A class, not a struct: MoveTo updates it in place across forty samples.
-    private sealed class DragState(string slot, TokenGrip grip, int pathIndex, float x, float y, double levelMinZ, float yaw)
+    private sealed class DragState(string slot, TokenGrip grip, int tick, float x, float y, double levelMinZ, float yaw)
     {
         public string Slot { get; } = slot;
         public TokenGrip Grip { get; } = grip;
-        public int PathIndex { get; } = pathIndex;
+        public int Tick { get; } = tick;
+        public float StartX { get; } = x;
+        public float StartY { get; } = y;
+        public double StartLevelMinZ { get; } = levelMinZ;
         public float X { get; set; } = x;
         public float Y { get; set; } = y;
         public double LevelMinZ { get; set; } = levelMinZ;
         public float Yaw { get; set; } = yaw;
         public bool Moved { get; set; }
         public bool Turned { get; set; }
+        public bool Pin { get; set; }
+        public ToolModifiers Modifiers { get; set; }
+        public double WorldUnitsPerPixel { get; set; }
+        public StratDragTarget Target { get; set; } = null!;
+        public StratLocationField? ShownField { get; set; }
+        public StratSceneProjection? Preview { get; set; }
+        public StratDrop? Drop { get; set; }
+        public IReadOnlyList<(System.Numerics.Vector2 A, System.Numerics.Vector2 B)>? Outline { get; set; }
     }
 }
 

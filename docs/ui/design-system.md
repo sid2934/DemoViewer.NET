@@ -702,28 +702,88 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   the team colour at alpha 56, behind the heading stub. Replays and exports draw none. On the editing canvas a press
   in the wedge is a turn (`TokenHitTest.Classify(..., cone: true)`); a press on a disc always wins over another
   token's wedge. Only the pan and token tools offer it, as for a token drag. Turning one of A to E writes that slot's
-  line `watch.yawDegrees` on the selected step when its verb watches or the line already does, adding the line (a step for everyone is read as a line per slot
-  first, so the others stay in it); on a verb without watching (move, rotate, throw and the rest) it writes the
-  position's yaw, as before lines. The drag shows the turned yaw, and one entry is written on release. Turning an
-  opponent token writes its position's yaw as before. The line's angle button clears it.
+  line `watch.yawDegrees` on the selected step when its verb watches (push, hold, peek, fake, lurk and `other`) or the
+  line already does, adding the line (a step for everyone is read as a line per slot first, so the others stay in it).
+  On a verb without watching (move, rotate, throw, plant, defuse, wait, call), and paused mid-run, the turn is refused
+  with "a runner faces its run; turn it on the hold or push after". The drag shows the turned yaw, and one entry is
+  written on release. Turning an opponent token writes its position's yaw as before, which its `placed` chip shows.
+  The line's angle button clears it.
 - **Motion from destinations:** a step's `to` (the step's, a line's or the compact who's) and a lurk's areas, in
   order, move the tokens it names. Move, push, rotate and other run there from the step's time at 215 u/s; hold, peek,
   fake, plant and defuse are there at the step's time; throw, wait and call do not move. Tokens at one place at the
   same time fan out inside it, each slot on its own spot, whichever steps sent them. A runner faces its run and
-  turns to what it watches on arrival. A drag on that step wins over the destination; setting a `to`
-  drops the slot's carried entry in the same undo entry. docs/strat-format.md, "Motion on the canvas", has the rules.
+  turns to what it watches on arrival. An authored position on that step (an Alt-drag pin, or an old drag) wins over
+  the destination and shows as a `placed` chip; setting a `to` drops the slot's carried entry in the same undo entry. docs/strat-format.md, "Motion on the canvas", has the rules.
 - **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
   (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as
-  on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. One op per drag, the
-  lineup refusal kept; it writes the selected step, taken before the drag seeks, so a step on a shared tick is
-  written, not the one after it. The entry it writes is authored (no `carried` mark), so it beats the step's
-  destination.
+  on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. A drag is a Set on map pick
+  on the field the row shows, with the drop as the click (docs/strat-book/drag-semantics.md, option A;
+  `StratDragTarget.Resolve`, `StratDragPatches.Ops`): move, push, rotate and `other` take the slot's `to`; hold,
+  peek, fake, plant and defuse their `at` or `site`, and the slot's own position entry on the step goes with it; a lurk
+  takes the drop as lurk area 1, or `rotate to` once its rotate has started at the playhead; throw, wait and call edit
+  the step that placed the player; a player the step does not name joins it as a line; a lineup thrower is refused.
+  Opponents still write their position entry. One undo entry, through the field writers; docs/strat-format.md, "What a
+  token drag writes", has the table.
+  - **No seek.** A press while playing pauses where it is. Paused on the selected step's tick, the drag aims at the
+    step that wins that tick for the slot (the later one naming it). Paused between steps, a token mid-run gets a via
+    on its run, inserted before the via it was heading for; a standing token edits the step that put it there. The
+    step written becomes the selection only when it owns the playhead's tick, since selecting another would move the
+    playhead; the label and the status line name it (`step 2 · A · to: Hut`).
+  - **Snaps and keys.** Within 12 screen pixels of a place's arrival the drop stores the place alone, so tokens sent
+    there fan out; elsewhere in a place the place and the point; outside every place the point. Shift stores the
+    point alone. Alt pins: `positions[slot]` on the selected step, shown as a `placed` chip. A `Pin` toggle in the
+    canvas toolbar does what Alt does for the next drag, for window managers that take Alt+drag (GNOME, KDE). Esc
+    cancels and writes nothing. Shift no longer snaps a facing: the cone drag on a watching verb is the one way to set
+    one.
+  - **While dragging** (`SceneGuides`, drawn by `GuideLayer`, which only a host with a token editor mounts): a hollow
+    dashed ring where the token stood; a dashed ghost route through what the release would store, from a projection
+    of the ops applied to a copy, so it bends through a place's arrival, not the pointer, and follows the routes when
+    routing is on; the place under the pointer outlined dashed; the token under the pointer. A label beside the
+    pointer (`StratCanvasView`'s `DragLabel`, a `CardBg` plate with a `Pb2dCanvasDropTarget` border, `TextValue`
+    over `TextMid`) reads `E · lurk area 1: Long Doors` with `Shift: point only   Alt: pin E here   Esc: cancel`
+    under it, and the row field the drop writes is lit through `ArmedField`, the highlight Set on map gives it: an
+    armed `PlaceField` outlines its box in `AccentInteractive` and bolds its pick glyph. A compact row's field stands
+    for every line, so the highlight names the field the row shows even when the write goes to one line.
+  - **A seen position** on a travel or lurk step goes with the drop, in the same undo entry; the status line ends
+    "replaced the seen position". Add step, Duplicate and Delete step cancel an open drag.
+  - **After the release** the token is drawn where it stands at the playhead, and the selected step's destination
+    pins show where it sends each token it moves: a hollow ring in the side colour at the arrival and a solid route
+    there in the ghost colour, with a small `Pb2dCanvasDropTarget` diamond at each via. Pins show while paused, until
+    the token arrives; dragging a pin is the same edit as dragging its token. The status line says what changed:
+    `E's lurk area 1 is now Long Doors (was Middle). Ctrl+Z undoes`. When the playhead is past the step's run for that
+    token (a lurker at its last area), a faint ring at the run's arrival (the pin colour at 40%, no route) marks where the
+    drop went, until the playhead moves.
+  - **Tokens:** `Pb2dCanvasRouteGhostT` (`#B3E0A030` dark, `#B3A66A15` light) and `Pb2dCanvasRouteGhostCt`
+    (`#B34A90D9`, `#B3285F9E`), the side colours at about 70%; `Pb2dCanvasDropTarget` (`#A99CF0` dark, `#5B4BC4`
+    light, `#00E5FF` high contrast; high contrast also sets the ghost routes to its team colours at 90%), a violet light enough to read over the radar, where `AccentInteractive` is too
+    dark. `ScenePalette.Dark` and `Light` carry the same values for headless renders.
 - **Utility in flight:** the strat canvas and the Detected preview turn trails on
   (`StratCanvasViewModel.ShowTrails`), and an export names the trail layer (`StratExportJob.LayerIds`). A throw draws as a demo grenade does, through `TrailLayer` and
   `AreaEffectLayer`: the flight line and head dot in the thrower's side colour (`TeamT` / `TeamCt`), fading 2 s
   after it stops; then a smoke disc that blooms over 1 s, the fire cells, or a pop. A flash pops in `TrailFlash`,
   an HE bursts in `TrailHe`, both growing and fading over about half a second; a decoy is a `TrailDecoy` ring of at
   least 5 px. No new colour tokens. docs/strat-format.md, "Utility on the canvas", has the timings.
+
+### Placed chips (the Strats editor's step row)
+- **Files:** `ViewModels/StratBook/StratPlacedChips.cs` (`StratPlacedChip.For`, `StratPlacedEntry`), `StratStepRow.Placed`,
+  the `placed` strip in `StratBookTabView.axaml`, `StratDragPatches.Convert` and `Clear`, `StratDepartureCheck`.
+- **What:** a step's `positions[]` entries, which beat or stand in for its fields, so nothing moves a token unseen. A
+  `placed` label over a `WrapPanel` of chips (max 280 px, so it wraps inside the 315 px editor that
+  `StratEditorRoomTests` guards), above `note`, shown only when it has a chip.
+- **One chip per entry** that overrides a field the row shows: `E leaves from (1374, 412)` for an authored entry on a
+  travel step that names the slot (border `AccentCaution`: it re-times the leg before, and its tooltip carries the zip
+  warning when there is one); `A pinned at (50, 50)` beside a position verb's non-empty place; `E seen at (x, y)` for a
+  captured spot that disagrees with the step's place (a point elsewhere, or a place the map's zones say it is not in).
+- **Grouped**, one chip per kind: `spots (n)` (authored spots with no field beside them, the round-start seed among
+  them), `seen (n)` and `opponents (n)`, whose flyout lists each entry with its own "make it …" and ✕ (`O2 at (2060, 0)
+  135°`, an opponent's angle on its entry). A group of one reads as its entry. Carried entries never show.
+- **Actions:** clicking a chip selects its step and player at the step's time; its ✕, or Delete or Backspace while it
+  has focus, clears it (a group's ✕ clears every entry it lists); the context menu has `Make it the to` (`the at`,
+  `the site`, `lurk area 1`) and `Clear`. Make it moves the point into the field the drag table names, with the place
+  under it when the map's zones are loaded, and removes the entry. Each is one undo entry. Old files are shown as they
+  are; nothing is rewritten on open.
+- **Look:** `Border.placedChip` (`PanelHeaderHover` fill, `BorderSubtle` border, 3 px corners, 11 px `TextValue` text,
+  a `TextMid` ✕), `.caution` swaps the border for `AccentCaution`. The zip warning also lands in the row's issue text.
 
 ### Strat routes on the canvas (the Strats canvas, the Detected preview, a strat export)
 - **Files:** `AddRoutes` in `Playback2D.Pipeline/Frames/StratFrameSource.cs`, `DrawRoute` in
