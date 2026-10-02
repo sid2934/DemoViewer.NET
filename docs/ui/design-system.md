@@ -514,8 +514,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   that effective value, so wheeling back to the most thrown leaves no explicit copy. "Pick on map" sits last in the
   wrap and opens the lineup picker.
 - **New step and duplicate:** Add step, and Enter, insert after the row focus was last in, or at the end, 5 s later
-  on the round clock than the step before, held between its neighbours and no earlier than -1:00 unless that step
-  already is, so it is never refused. The new step is a move by `all` that starts with every token written where
+  on the strat's clock than the step before (a lower time on the round clock, a higher one from a trigger), held
+  between its neighbours and, on the round clock, no earlier than -1:00 unless that step already is, so it is never
+  refused. The first step goes at the start: 1:55, or +0:00 from a trigger. The new step is a move by `all` that starts with every token written where
   the projection has it at the step before, and no strokes (`StepAuthoringPatches.AddCarriedStep`, which the
   canvas's Add step uses too), each marked `carried`. A copy, not a reference: the stationary rule would show the same
   places without one, but then a later drag on the earlier step would move the new step's tokens too. The mark lets
@@ -524,8 +525,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
   the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
   ids), a fresh step id, 5 s later held before the next step. Each is one undo entry and focuses the new row's time.
+- **Times** follow the strat's clock (`StratClock.Format` and `TryParse` with the clock block): `1:15` and `+0:05`
+  after the plant on the round clock, `+0:08` from a trigger, where `0:08` and `8` read the same and `-0:02` is before
+  the trigger. The steps heading says which: `Steps (round clock remaining, m:ss; +m:ss after the timer stopped)` or
+  `Steps (from the trigger, +m:ss)`.
 - **Lurk fields** (`ShowLurk`): lurk areas (a multi location field like watching, 200 px), rotate at
-  (56 px, a round clock time; text that is not one shows the stored time again), or when (an `AutoCompleteBox`
+  (56 px, a time on the strat's clock; text that is not one shows the stored time again), or when (an `AutoCompleteBox`
   suggesting `StratVocabulary.RotateConditions`, free text stored), rotate to (128 px, like `to`). All written
   through `StratLurkPatches` on focus loss, one entry each. The place fields are the plain ones the row uses for
   `to` and watching, named `LurkAreasField` and `RotateToField` (and `GroupPlaceField`, `GroupWatchField` on the
@@ -559,6 +564,37 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
   The row is the item container: focusable, not a Tab stop, bordered `AccentInteractive` while it has focus. The row
   buttons are not Tab stops either (the keys above do their jobs), so Tab never stops between two rows' fields.
+
+### Start row (the Strats editor)
+- **Files:** the `StartRow` border in `Views/StratBook/StratBookTabView.axaml`, `ViewModels/StratBook/StratStartRow.cs`,
+  `Services/Strats/StratStartBlock.cs` (reading, the first write and every later one), `StratStartPhrasing`.
+- **What:** where every token stands before step 1, and what starts the strat. Not a step: no number, time, who or
+  verb. It sits under the steps heading and above the step columns, so the column labels stay with the steps.
+- **Collapsed** (the default): one line, `Start` in the number's style, then the start and the trigger joined by `·`
+  (`spawn · on the call`, `as captured`, `A Long Doors, B (1234, -561)`), trimmed with the whole line in the tooltip,
+  and a `▸` button on the right that opens it. A strat with no start reads `no one placed: tokens appear at their first
+  step`.
+- **Open:** `what starts it`, the strat's `trigger.text` (it moved here from the metadata; the trigger stays where the
+  file always had it); `players · spawn|custom|captured` with a `Spawns` button (shown once the map's spawns are read,
+  puts every token back, a `spawn` start, one entry); a `24,*` grid per token of A to E, then `opponents` and O1 to O5,
+  each a single location field (`spawn, a callout or (x, y)`) with its map pick. At 1280 with the rail and list open the
+  fields are about 250 px, so a coordinate reads whole. A field edit or pick writes that token's start, one entry, and
+  makes the start `custom`; clearing a field takes the token's start away.
+- **Selection:** a press or focus anywhere in the row selects the start (`StratStepSelection.SelectStart`,
+  `StratCanvasViewModel.SelectStart`): the transport pauses at tick 0, no step row is selected, and the row takes the
+  step row's selected look (`PanelHeaderHoverDeep` fill, the 3 px `AccentInteractive` bar, a bold number). A token
+  drag there writes the start (see "Map-first editing"). Leaving tick 0 or selecting a step ends it.
+- **Older files:** the row shows the start the file implies (docs/strat-format.md, "The start") and writes nothing
+  on open; the step entries it was read from leave their step's placed chips, since the row says the same. The first
+  edit writes the block in one entry, the history line `start read from the round-start step`.
+
+### Clock switch (the Strats editor's header)
+- **Files:** the `ClockSwitch` combo in the metadata `WrapPanel`, `StratEditorViewModel.ClockChoice`,
+  `StratClock.SwitchOps`.
+- **What:** a 132 px `clock` pair like the others: `Round` (1:55 counting down) or `From trigger` (+0:00 counting up
+  from what starts the strat). A choice rewrites every step time and lurk rotate time in one undo entry and moves no
+  tick; the step rows, the step track's tooltips, the transport's clock and an export's range labels and burnt-in
+  clock follow. A combo, not a toggle pair: it reads as the fields beside it and fits their 132 px.
 
 ### Lineup picker (the Strats editor)
 - **Files:** `ViewModels/StratBook/LineupPickerViewModel.cs`, `Views/StratBook/LineupPickerView.axaml`, the
@@ -594,6 +630,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   `Services/Strats/StratLocations.cs` (reading and printing a location).
 - **Purpose:** one control for every location a step holds (from, to, lands at, watching, and the lurk and rotate
   fields), so each can be typed, picked from the map's callouts, or picked on the map.
+- **In the Start row:** one per token, aimed at `StratStartBlock.FieldFor(slot)` (`StratLocationKind.Start`, no step).
 - **In the step row:** `GroupPlaceField`, `GroupWatchField` and `GroupViaField` (the compact who's place, watching and
   via; they write every line, `StratLocationField.AllLines`), `LinePlaceField`, `LineWatchField` and `LineViaField`
   (one line's, by slot), `FromField`,
@@ -664,6 +701,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   `TextCardHeader` number; the bar overlays rather than takes width, because the row's fixed columns fill the
   315 px editor. A selection that moves within the open strat (the canvas, the step keys, playback) scrolls its row
   into view; opening or switching a strat, or deleting the selected step, does not scroll the editor.
+- **Selected start:** the Start row selects tick 0 and no step (`StratCanvasViewModel.IsStartSelected`). A token drag
+  there writes its start (`StratDragAction.Start`): a body drag its place and point as a single field stores them, a
+  cone drag its facing, opponents included. A start pick (a Start row field's pick button) selects the start and the
+  next click writes that token's start. With a step selected, a drag at tick 0 still writes the step, so a move at the
+  start time takes the drop as its `to`; and a token nothing has placed since its start, at a wait or between steps,
+  drags its start rather than refusing.
 - **Selected line:** `StratCanvasViewModel.SelectedLineSlot`, the chosen slot when the active step has a line for it,
   else its first line; none on a step for everyone. The rows set it (`StratStepSelection.SelectLine`), and so does a
   press on one of the strat's own tokens. It is kept across steps.
@@ -774,8 +817,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   travel step that names the slot (border `AccentCaution`: it re-times the leg before, and its tooltip carries the zip
   warning when there is one); `A pinned at (50, 50)` beside a position verb's non-empty place; `E seen at (x, y)` for a
   captured spot that disagrees with the step's place (a point elsewhere, or a place the map's zones say it is not in).
-- **Grouped**, one chip per kind: `spots (n)` (authored spots with no field beside them, the round-start seed among
-  them), `seen (n)` and `opponents (n)`, whose flyout lists each entry with its own "make it …" and ✕ (`O2 at (2060, 0)
+- **Grouped**, one chip per kind: `spots (n)` (authored spots with no field beside them), `seen (n)` and `opponents (n)`
+  (an older file's round-start entries are its start and show in the Start row instead), whose flyout lists each entry with its own "make it …" and ✕ (`O2 at (2060, 0)
   135°`, an opponent's angle on its entry). A group of one reads as its entry. Carried entries never show.
 - **Actions:** clicking a chip selects its step and player at the step's time; its ✕, or Delete or Backspace while it
   has focus, clears it (a group's ✕ clears every entry it lists); the context menu has `Make it the to` (`the at`,
@@ -2159,6 +2202,15 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
 ---
 
 ## 6. Decisions log + open questions
+
+### Decisions (Strat start and trigger clock, feature/strat-book-start-block, 2026-10-02)
+- **A Start row, not a step 0.** A step needs a time, a verb and a who that mean nothing for where tokens begin; the
+  row has none of them and collapses to one line, so it costs the 1280 editor one line until opened.
+- **The trigger text moved into the Start row** in the editor only; the file keeps `trigger` at the top level, so no
+  older file is rewritten for it.
+- **The clock switch is a combo in the metadata wrap.** A segmented toggle would have needed its own row at 315 px.
+- **Opened, the row lists all ten tokens** rather than our five with opponents behind another toggle: the opponents
+  are as often where a setup begins, and the list scrolls with the editor.
 
 ### Decisions (Strat editor room and steps, feature/strat-book-editor-room, 2026-09-29)
 - **The step row was the overflow, not the panes.** Its fixed columns summed to about 1100 px, and the metadata
