@@ -465,7 +465,7 @@ public sealed class PlaceFieldModel
 
     private List<PlaceRef> Parse(string text) => Parse(text, _value, Options?.Resolver, CurrentLevelMinZ);
 
-    // A duplicate is refused quietly.
+    // A duplicate is refused quietly. The new list is only the model's until the field stores it through Value.
     private bool Append(PlaceRef entry)
     {
         if (_value.Any(e => StratLocationPatches.SameEntry(e, entry)))
