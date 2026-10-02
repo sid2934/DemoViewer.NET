@@ -67,6 +67,15 @@ public sealed record StratDragTarget(
     public const string RunnerTurnNote = "a runner faces its run; turn it on the hold or push after";
     public static string NothingPlacesNote(string slot) => $"no step places {slot} here to edit: hold Alt to pin it";
 
+    /// <summary>Why a token's start is not edited: a step on the start's tick places it, and that entry wins.</summary>
+    /// <param name="slot">The token.</param>
+    /// <param name="stepIndex">The step's index.</param>
+    public static string ShadowedNote(string slot, int stepIndex) =>
+        string.Create(CultureInfo.InvariantCulture, $"step {stepIndex + 1} places {slot} at the start: edit it there");
+
+    /// <summary>Why a start edit waits: an older strat's start takes the map's spawns, which are still being read.</summary>
+    public const string SpawnsPendingNote = "reading this map's spawns: try again in a moment";
+
     /// <summary>Whether a drop writes anything.</summary>
     public bool IsRefused => Action == StratDragAction.Refused;
 
@@ -90,7 +99,7 @@ public sealed record StratDragTarget(
         ArgumentNullException.ThrowIfNull(projection);
         if (start && tick == 0)
         {
-            return StartOf(slot);
+            return projection.StartShadowedBy(slot) is { } step ? Refuse(slot, ShadowedNote(slot, step)) : StartOf(slot);
         }
 
         if (projection.Path.Count == 0 || activeIndex < 0 || activeIndex >= projection.Path.Count)

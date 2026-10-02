@@ -95,6 +95,12 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// </summary>
     public Func<StratSpawns?>? Spawns { get; set; }
 
+    /// <summary>Said once after a clock switch: the times written in prose are left as they were.</summary>
+    [ObservableProperty]
+    private string _clockNote = "";
+
+    private Guid? _clockNoteFor;
+
     /// <summary>The step table's heading: which clock its times are on.</summary>
     public string StepsHeader { get; private set; } = "Steps (round clock remaining, m:ss; +m:ss after the timer stopped)";
 
@@ -238,7 +244,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
                 && StratStartBlock.WriteLocation(document, slot, entries.FirstOrDefault(StratLocations.IsSet), LegacyCarried(document),
                     spawns: Spawns?.Invoke()) is { Count: > 0 } start)
             {
-                _session.Apply(start);
+                ApplyStart(start, [slot]);
             }
 
             return;
@@ -267,7 +273,19 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <summary>The entries an older file reads as carried copies, marked when the start block is first written.</summary>
     /// <param name="document">The strat.</param>
     internal IReadOnlyList<StartSource> LegacyCarried(StratDocument document) =>
-        StratSceneProjection.LegacyCarriedEntries(document, _throwOrigins, Spawns?.Invoke());
+        LegacyCarriedFor?.Invoke(document) ?? StratSceneProjection.LegacyCarriedEntries(document, _throwOrigins, Spawns?.Invoke());
+
+    /// <summary>
+    ///     The canvas's reading of the entries an older file reads as copies, so the editor and a drag mark the same ones
+    ///     on a first start write; set by the tab. Null reads them with this editor's own lineup resolver.
+    /// </summary>
+    public Func<StratDocument, IReadOnlyList<StartSource>>? LegacyCarriedFor { get; set; }
+
+    /// <summary>
+    ///     Why a token's start cannot be edited now, or null: the canvas's rule (the spawns still being read, a step on the
+    ///     start's tick placing it); set by the tab.
+    /// </summary>
+    public Func<string, string?>? StartRefusal { get; set; }
 
     /// <summary>Every token back at the spawns, a <c>spawn</c> start, one undo entry. Nothing until the spawns are read.</summary>
     internal void UseSpawnStart()
@@ -275,8 +293,26 @@ public sealed partial class StratEditorViewModel : ObservableObject
         if (_session.Document is { } document && Spawns?.Invoke()?.StartFor(document) is { } spawns)
         {
             EndEditBurst();
-            Apply(StratStartBlock.Write(document, spawns, LegacyCarried(document)));
+            if (StratStartBlock.Write(document, spawns, LegacyCarried(document)) is { Count: > 0 } ops)
+            {
+                ApplyStart(ops, [.. spawns.Positions.Select(p => p.Slot)]);
+            }
         }
+    }
+
+    // A start write that would change nothing on screen, or bake in spawns not yet read, is not made: the row says why.
+    private void ApplyStart(IReadOnlyList<PatchOp> ops, IReadOnlyList<string> slots)
+    {
+        List<string> refusals = [.. slots.Select(s => StartRefusal?.Invoke(s)).OfType<string>().Distinct(StringComparer.Ordinal)];
+        if (refusals.Count > 0)
+        {
+            Project();
+            Start.Note = refusals.Count == 1 ? refusals[0] : string.Join("; ", refusals.Take(2)) + (refusals.Count > 2 ? "; …" : "");
+            return;
+        }
+
+        Start.Note = "";
+        Apply(ops);
     }
 
     // The step entries an older file's start was read from: their chips would say again what the Start row says.
@@ -292,7 +328,13 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
 
         EndEditBurst();
-        Apply(StratClock.SwitchOps(document, value == TriggerClockChoice ? StratClock.TriggerKind : StratClock.RoundKind));
+        List<PatchOp> ops = StratClock.SwitchOps(document, value == TriggerClockChoice ? StratClock.TriggerKind : StratClock.RoundKind);
+        if (ops.Count > 0)
+        {
+            Apply(ops);
+            _clockNoteFor = document.Id;
+            ClockNote = "step and rotate times moved to the new clock; times written in notes, branch conditions and the trigger are not";
+        }
     }
 
     /// <summary>The open strat's clock, which the times in the table are read and written on.</summary>
@@ -1062,6 +1104,11 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
 
         Map = document.Map;
+        if (_clockNoteFor != document.Id)
+        {
+            ClockNote = "";
+        }
+
         ClockChoice = StratClock.IsTrigger(document.Clock) ? TriggerClockChoice : RoundClockChoice;
         StepsHeader = StratClock.IsTrigger(document.Clock)
             ? "Steps (from the trigger, +m:ss)"

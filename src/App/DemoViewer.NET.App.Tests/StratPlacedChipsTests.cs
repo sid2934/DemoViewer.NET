@@ -58,7 +58,7 @@ public class StratPlacedChipsTests
         using (Assert.Multiple())
         {
             await Assert.That(Texts(editor.Steps[0])).IsEqualTo("").Because("an older file's seed is its start, shown by the Start row");
-            await Assert.That(editor.Start.Summary).IsEqualTo("spawn");
+            await Assert.That(editor.Start.Summary).IsEqualTo("from step 1");
             await Assert.That(Texts(row)).IsEqualTo("spots (5) | opponents (5)");
             await Assert.That(row.HasPlaced).IsTrue();
             await Assert.That(row.Placed[1].Entries.Select(e => e.Text)).Contains("O2 at (2060, 0) 135°")

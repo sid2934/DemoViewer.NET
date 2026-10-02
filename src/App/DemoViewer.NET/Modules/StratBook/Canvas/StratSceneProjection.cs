@@ -199,6 +199,31 @@ public sealed class StratSceneProjection
     /// <summary>Whether any token has a start: then the clock runs from tick 0, where the tokens stand before step 1.</summary>
     public bool HasStart => _places.Starts is { Count: > 0 };
 
+    /// <summary>
+    ///     The step index of a step on the start's tick whose own entry for the token wins over the start, or null: a start
+    ///     edit would change nothing on screen while it is there (a capture's freeze-end step, an entry a person put on a
+    ///     step at the start). An older file's round-start entries its start was read from do not count.
+    /// </summary>
+    /// <param name="slot">The token.</param>
+    public int? StartShadowedBy(string slot)
+    {
+        if (!_plans.TryGetValue(slot, out SlotPlan? plan) || plan.Authored is not { } authored)
+        {
+            return null;
+        }
+
+        int? found = null;
+        for (int i = 0; i < Path.Count && Ticks[i] == 0; i++)
+        {
+            if (authored[i] && Path[i].Editable)
+            {
+                found = Path[i].StepIndex;
+            }
+        }
+
+        return found;
+    }
+
     /// <summary>Where a token stands at the start, or null when the strat gives it none.</summary>
     /// <param name="slot">The token.</param>
     public TokenPlacement? StartOf(string slot) =>
@@ -460,7 +485,17 @@ public sealed class StratSceneProjection
         StratCanvas canvas = document.Canvas ?? new StratCanvas();
         PlaceSet places = new(centres, arrivals ?? ArrivalsFrom(centres), contains, canvas.DefaultLevelMinZ ?? 0, StratClock.LengthOf(document.Clock),
             IsLegacyCarry(document), IsLegacyObserved(document), paths, Clock: ClockOf(document));
-        return places with { Starts = StartsOf(StratStartBlock.Effective(document, spawns), places) };
+        IReadOnlyList<StartSource> sources = [];
+        StratStart? start = document.Start ?? StratStartBlock.Legacy(document, out sources, spawns);
+        return places with { Starts = StartsOf(start, places), SeedEntries = SeedEntriesOf(document, sources) };
+    }
+
+    // The round-start step's own entries an older file's start was read from: authored, so never a copy of that start.
+    // A start recovered from a later step's copy is left out: that entry is a copy, and reads as one.
+    private static HashSet<(int Step, string Slot)>? SeedEntriesOf(StratDocument document, IReadOnlyList<StartSource> sources)
+    {
+        HashSet<(int, string)> seed = [.. sources.Where(s => s.Step == 0).Select(s => (s.Step, document.Steps[s.Step].Positions[s.Position].Slot))];
+        return seed.Count > 0 ? seed : null;
     }
 
     /// <summary>
@@ -585,6 +620,7 @@ public sealed class StratSceneProjection
         PlaceSet places, int overrideIndex = -1, TokenPlacement? overridePlacement = null, bool keepOverrideYaw = false)
     {
         TokenPlacement?[] placements = new TokenPlacement?[path.Count];
+        bool[] authored = new bool[path.Count];
         List<SlotEvent> events = [];
         List<int> rotates = [];
 
@@ -609,7 +645,8 @@ public sealed class StratSceneProjection
 
             StepWatch? watch = StratStepLines.HasLines(step) ? StratStepLines.LineFor(step, slot)?.Watch : null;
             TokenPlacement? stored = PlacementOf(step, slot, out bool marked, out bool observed);
-            bool carried = stored is { } s && (marked || (places.LegacyCarry && SameSpot(s, lastStored)));
+            bool seed = path[i].Editable && places.SeedEntries?.Contains((path[i].StepIndex, slot)) == true;
+            bool carried = stored is { } s && (marked || (places.LegacyCarry && !seed && SameSpot(s, lastStored)));
             StepMotion motion = MotionOf(step.Verb);
             bool names = StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot);
             double level = (last ?? stored)?.LevelMinZ ?? places.DefaultLevelMinZ;
@@ -627,15 +664,18 @@ public sealed class StratSceneProjection
             if (i != overrideIndex && origins is not null && origins[i] is { } origin && string.Equals(origin.Slot, slot, StringComparison.Ordinal))
             {
                 placement = origin.Placement;
+                authored[i] = true;
                 fromOrigin = true;
             }
             else if (i == overrideIndex && overridePlacement is { } dragged)
             {
                 placement = keepOverrideYaw ? dragged : Turned(dragged, watch, places.Centres);
+                authored[i] = true;
             }
             else if (stored is { } own && !carried)
             {
                 placement = Turned(own, watch, places.Centres);
+                authored[i] = !(path[i].Editable && places.SeedEntries?.Contains((path[i].StepIndex, slot)) == true);
             }
 
             // Positions on one tick settle before its destinations: after a same-tick send, an entry is where the token
@@ -698,7 +738,7 @@ public sealed class StratSceneProjection
         }
 
         events.Sort((a, b) => a.Tick != b.Tick ? a.Tick.CompareTo(b.Tick) : a.Order.CompareTo(b.Order));
-        return new SlotPlan(placements, [.. ticks], events, moved, start);
+        return new SlotPlan(placements, [.. ticks], events, moved, start, authored);
     }
 
     // A watching line turns the entry: its angle, else towards the first watched entry.
@@ -1629,8 +1669,13 @@ public sealed class StratSceneProjection
         bool Walk = false, IReadOnlyList<PlaceRef>? Via = null, IReadOnlyList<PlaceRef>? Areas = null, IReadOnlySet<int>? FanAreas = null,
         bool Leg = false);
 
-    /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
-    internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved, TokenPlacement? Start = null);
+    /// <summary>
+    ///     A slot's entries per step, the steps' ticks, its events, whether it has moved since its last authored entry, its
+    ///     start, and per step whether the entry is the step's own (a lineup, a drag, a stored entry not read as a copy or as
+    ///     the start).
+    /// </summary>
+    internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved, TokenPlacement? Start = null,
+        bool[]? Authored = null);
 
     /// <summary>What the projection knows about the map's places, and the clock the rotates run on.</summary>
     /// <param name="Centres">Where places are, for facing.</param>
@@ -1646,9 +1691,11 @@ public sealed class StratSceneProjection
     /// <param name="Paths">Routes round walls; null keeps every move straight.</param>
     /// <param name="Starts">Each token's start at tick 0 (<see cref="StartsOf" />); null for none.</param>
     /// <param name="Clock">The strat's clock; null is the round clock of <paramref name="RoundSeconds" />.</param>
+    /// <param name="SeedEntries">An older file's round-start entries its start was read from, as (step, slot): never read as copies.</param>
     internal sealed record PlaceSet(PlaceCentreResolver? Centres, PlaceArrivalResolver? Arrivals, PlaceContainsResolver? Contains,
         double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false, bool Observed = false, PathResolver? Paths = null,
-        IReadOnlyDictionary<string, TokenPlacement>? Starts = null, StratClockInfo? Clock = null)
+        IReadOnlyDictionary<string, TokenPlacement>? Starts = null, StratClockInfo? Clock = null,
+        IReadOnlySet<(int Step, string Slot)>? SeedEntries = null)
     {
         /// <summary>The clock, its round length filled.</summary>
         public StratClockInfo ClockOrRound => Clock ?? new StratClockInfo { RoundSeconds = RoundSeconds };
@@ -1715,7 +1762,7 @@ public sealed class StratSceneProjection
                 StratStep step = document.Steps[i];
                 ThrowOrigin? origin = throwOrigins is null ? null : ThrowOriginOf(document.Map, step, throwOrigins);
                 TokenPlacement? stored = PlacementOf(step, slot, out bool marked, out _);
-                if (stored is { } s && !marked && SameSpot(s, lastStored))
+                if (stored is { } s && !marked && places.SeedEntries?.Contains((i, slot)) != true && SameSpot(s, lastStored))
                 {
                     found.Add(new StartSource(i, step.Positions.FindLastIndex(p => string.Equals(p.Slot, slot, StringComparison.Ordinal)
                                                                                    && double.IsFinite(p.X) && double.IsFinite(p.Y))));

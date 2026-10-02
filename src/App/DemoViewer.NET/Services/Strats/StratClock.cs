@@ -75,8 +75,9 @@ public static class StratClock
     public static bool IsAfter(StratClockInfo? clock, double a, double b) => IsTrigger(clock) ? a > b : a < b;
 
     /// <summary>
-    ///     A stored time moved from one clock to the other: <c>roundSeconds − t</c> both ways, so it is its own inverse
-    ///     and every tick stays where it was. Rounded to a thousandth so 115 − 57.8 is stored as 57.2.
+    ///     A stored time moved from one clock to the other: <c>roundSeconds − t</c> both ways, so every tick stays where it
+    ///     was, and converting back gives any time stored to a thousandth exactly. Rounded to a thousandth so 115 − 57.8 is
+    ///     stored as 57.2.
     /// </summary>
     /// <param name="atSeconds">The time on the clock it leaves.</param>
     /// <param name="roundSeconds">The strat's round length.</param>
