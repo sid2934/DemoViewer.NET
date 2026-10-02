@@ -139,8 +139,9 @@ public sealed partial class StratPlacedChip
     /// <param name="step">The step.</param>
     /// <param name="placeAt">The place under a point, or null while the map's places are not loaded.</param>
     /// <param name="warnings">Validator warnings by position index.</param>
+    /// <param name="legacySeen">A capture written before the mark: every entry reads as seen.</param>
     internal static List<StratPlacedChip> For(StratStepRow row, StratStep step, Func<double, double, double, string?>? placeAt,
-        IReadOnlyDictionary<int, string>? warnings = null)
+        IReadOnlyDictionary<int, string>? warnings = null, bool legacySeen = false)
     {
         List<StratPlacedChip> chips = [];
         List<StratPlacedEntry> spots = [], seen = [], opponents = [];
@@ -166,7 +167,7 @@ public sealed partial class StratPlacedChip
 
             bool names = StratStepLines.Involves(step, slot);
             PlaceRef? field = names ? StratStepLines.LocationFor(step, slot) : null;
-            if (position.Observed == true)
+            if (position.Observed == true || legacySeen)
             {
                 StratPlacedEntry entry = new(row, k, slot, StratPlacedKind.Seen, $"{slot} seen at {point}", convertTo, null);
                 if (Disagrees(field, position, placeAt))

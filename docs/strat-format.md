@@ -596,10 +596,17 @@ A to E unless Alt is held. Nothing seeks: a press while playing pauses where it 
   place, an observed spot that disagrees with the step's place), the rest grouped as `spots (n)`, `seen (n)` and
   `opponents (n)`. A chip's ✕ removes its entries; "make it the …" moves the point into the field the table names and
   removes the entry. Each is one undo entry. Carried entries are not shown.
-* **The zip check.** The validator warns at `/steps/i/positions/j` on an authored departure on a travel step that the
-  token could not reach at a run (215 units a second) from where it last stood: the straight distance over the time
-  since that earlier step, so a warning is never a false alarm. A last spot that is a place, which has no point
-  without the map's zones, is not checked.
+* **Seen positions.** On a travel or lurk step, a drop that writes the slot's `to` or lurk area also removes the slot's
+  observed entry on that step (or, in a legacy capture, its entry), which would otherwise beat the new field. The status
+  line says "replaced the seen position". Undo puts the entry back.
+* **Step edits during a drag.** Add step, Duplicate and Delete step cancel an open drag first. A drag whose step is no
+  longer at its index when it ends (the steps were edited another way) writes nothing.
+* **The zip check** (`StratDepartureCheck`, run with the checks once the canvas has the map) warns at
+  `/steps/i/positions/j` on an authored departure on a travel or lurk step that the token cannot reach at a run (215
+  units a second). The leg is read from the projection with that entry taken out: from where the token last stood or
+  arrived before the step's tick (a run's arrival, a run's start when it is still running then, or a placed entry) to
+  the departure, along the route when routing is on, else straight, over the ticks between. Carried and observed
+  entries, and every entry of a legacy capture, are not checked.
 
 ### Utility on the canvas
 

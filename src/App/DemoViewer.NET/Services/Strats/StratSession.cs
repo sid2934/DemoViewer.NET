@@ -97,6 +97,10 @@ public sealed class StratSession : IDisposable
             {
                 _issues = StratValidator.Validate(document, PlaceLookup?.Invoke(document.Map), _store.Index,
                     LineupLookup?.Invoke(document.Map));
+                if (GeometryChecks?.Invoke(document) is { } more)
+                {
+                    _issues = [.. _issues, .. more];
+                }
                 _issuesVersion = Version;
             }
 
@@ -120,6 +124,12 @@ public sealed class StratSession : IDisposable
     ///     then). Must answer from memory: it runs on the UI thread.
     /// </summary>
     public Func<string, CalloutResolver?>? PlaceLookup { get; set; }
+
+    /// <summary>
+    ///     The checks that need the map and the motion (the canvas's projection), added to the validator's; null adds
+    ///     none. Warnings only: they never refuse a save.
+    /// </summary>
+    public Func<StratDocument, IReadOnlyList<StratIssue>>? GeometryChecks { get; set; }
 
     /// <summary>Validates again on the next read: what <see cref="LineupLookup" /> answers has changed.</summary>
     public void InvalidateIssues() => _issuesVersion = -1;

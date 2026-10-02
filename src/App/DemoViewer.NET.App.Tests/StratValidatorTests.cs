@@ -1,6 +1,8 @@
 #region
 
 using System.Text.Json;
+using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -302,5 +304,64 @@ public class StratValidatorTests
         document.Steps[0].Verb = "move";
         document.Steps[0].To = new PlaceRef { Place = "" };
         await Expect(document, StratIssueSeverity.Warning, "/steps/0/to");
+    }
+
+    // The zip check reads the leg from the projection, on the synthetic map's places with straight runs.
+    private static IReadOnlyList<StratIssue> Zips(params StratStep[] steps)
+    {
+        StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_synthetic", "T", "execute", "zip", Created);
+        document.Steps = [.. steps];
+        IZonePlaceResolver zones = StratMapFirstTests.SyntheticZones();
+        return StratDepartureCheck.Check(document, d => StratSceneProjection.Build(d, StratPath.MainLine(d), null, zones.PlaceCentre,
+            zones.PlaceArrival));
+    }
+
+    private static StepPosition ZipAt(string slot, double x) => new() { Slot = slot, X = x, Y = 0, LevelMinZ = -512 };
+
+    private static StratStep ZipStep(double at, string actor, string verb, PlaceRef? to = null, params StepPosition[] positions) =>
+        new() { Id = Guid.NewGuid(), AtSeconds = at, Actor = actor, Verb = verb, To = to, Positions = [.. positions] };
+
+    [Test]
+    public async Task TheZipCheck_LeavesFromATravelsDestination_NotItsDeparture()
+    {
+        // A runs from 0 to 1500 from 1:54 and arrives about 7 s later: a departure next to 1500 after that is a walk.
+        StratStep seed = ZipStep(115, "A", "hold", null, ZipAt("A", 0));
+        StratStep run = ZipStep(114, "A", "move", new PlaceRef { X = 1500, Y = 0, LevelMinZ = -512 }, ZipAt("A", 0));
+        IReadOnlyList<StratIssue> after = Zips(seed, run, ZipStep(105, "A", "move", null, ZipAt("A", 1510)));
+        IReadOnlyList<StratIssue> during = Zips(seed, run, ZipStep(110, "A", "move", null, ZipAt("A", 1510)));
+        using (Assert.Multiple())
+        {
+            await Assert.That(after).IsEmpty();
+            await Assert.That(during.Single().Field).IsEqualTo("/steps/2/positions/0");
+            await Assert.That(during.Single().Message).StartsWith("A would cross 1510 u in 4.0 s")
+                .Because("still running at 1:50, the leg starts where the run left");
+        }
+    }
+
+    [Test]
+    public async Task TheZipCheck_LeavesFromALurksRotate_OnceItHasRotated()
+    {
+        // E lurks at 100 and rotates at 1:50 to 1000, a 7.8 s walk: at 1:40 it has arrived, and 1010 is a step away.
+        StratStep seed = ZipStep(115, "E", "hold", null, ZipAt("E", 100));
+        StratStep lurk = ZipStep(114, "E", "lurk");
+        lurk.Lurk = new StepLurk
+        {
+            AreaPoints = [new PlaceRef { X = 100, Y = 0, LevelMinZ = -512 }],
+            Rotate = new LurkRotate { AtSeconds = 110, To = new PlaceRef { X = 1000, Y = 0, LevelMinZ = -512 } }
+        };
+        IReadOnlyList<StratIssue> issues = Zips(seed, lurk, ZipStep(100, "E", "move", null, ZipAt("E", 1010)));
+        await Assert.That(issues).IsEmpty();
+    }
+
+    [Test]
+    public async Task TheZipCheck_SkipsCarriedAndObservedEntries()
+    {
+        StratStep seed = ZipStep(115, "A", "hold", null, ZipAt("A", 0));
+        StepPosition carried = ZipAt("A", 3000);
+        carried.Carried = true;
+        StepPosition seen = ZipAt("B", 3000);
+        seen.Observed = true;
+        StratStep far = ZipStep(114, StratVocabulary.ActorAll, "move", null, carried, seen);
+        await Assert.That(Zips(seed, ZipStep(115, "B", "hold", null, ZipAt("B", 0)), far)).IsEmpty();
     }
 }
