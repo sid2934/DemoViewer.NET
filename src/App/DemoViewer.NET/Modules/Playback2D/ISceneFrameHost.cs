@@ -84,6 +84,9 @@ internal interface ISceneFrameHost
     /// </summary>
     ITokenEditor? TokenEditor { get; }
 
+    /// <summary>The editing guides drawn over the scene; none on a host without a token editor.</summary>
+    SceneGuides Guides => SceneGuides.None;
+
     /// <summary>
     ///     Raised on every push AND every toggle change, on the UI thread. The host re-reads every member
     ///     above only from here and from a bind, so a toggle that does not raise it never reaches the

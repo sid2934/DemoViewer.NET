@@ -35,6 +35,11 @@
                           IsChecked="{Binding IsTokenToolSelected, Mode=OneWay}"
                           Command="{Binding SelectTokenToolCommand}"
                           ToolTip.Tip="{Binding TokenToolTip}" />
+            <!-- Alt+drag's twin, for a window manager that takes Alt+drag: the next drag pins its token. -->
+            <ToggleButton x:Name="PinToggle" Padding="8,2" Content="Pin" FontSize="11"
+                          IsVisible="{Binding !IsReadOnly}"
+                          IsChecked="{Binding PinNextDrag}"
+                          ToolTip.Tip="Pin the next token drag to an exact spot, as Alt+drag does: a placed chip on the step, cleared with its ✕" />
             <ToggleButton Padding="8,2" Content="✎"
                           IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding Annotations.IsDrawSelected, Mode=OneWay}"
@@ -117,6 +122,18 @@
         <Border Grid.Row="2" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" ClipToBounds="True">
             <Panel>
                 <pb:Scene2DHost x:Name="Host" />
+
+                <!-- A token drag's label beside the pointer: who, the field it writes and what it becomes, then the keys. -->
+                <Canvas x:Name="DragLabelLayer" IsHitTestVisible="False">
+                    <Border x:Name="DragLabel" IsVisible="{Binding DragLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Padding="8 4" CornerRadius="3"
+                            Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource Pb2dCanvasDropTarget}" BorderThickness="1">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding DragLabel}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding DragHint}" FontSize="10" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding DragHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+                </Canvas>
 
                 <!-- The text tool's editor, as on the 2D tab: shown over the label being placed, Enter
                      commits, Esc cancels, losing focus commits. -->

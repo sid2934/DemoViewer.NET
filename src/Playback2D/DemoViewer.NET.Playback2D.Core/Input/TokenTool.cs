@@ -13,8 +13,8 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///     rolls it back. The tool never sees a strat; <see cref="ITokenEditor" /> is the whole contract.
 ///     <para>
 ///         <b>One tool, two grips.</b> A press on the disc moves the token; a press on its heading stub
-///         turns it toward the pointer instead. Shift held on release snaps a move's yaw to the drag
-///         direction; a plain move keeps the keyframe's yaw.
+///         turns it toward the pointer instead. Every sample carries the keys held, which the editor reads
+///         (Shift stores a point, Alt pins); facing is the cone drag's alone.
 ///     </para>
 ///     <para>
 ///         <b>A miss is not a gesture.</b> No editor (the 2D Playback tab has none), no pane or no token
@@ -29,8 +29,6 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 public sealed class TokenTool : IPointerTool
 {
     private ITokenEditor? _editor;
-    private TokenGrip _grip;
-    private SKPoint _pressWorld;
     private string? _slot;
 
     /// <inheritdoc />
@@ -58,8 +56,6 @@ public sealed class TokenTool : IPointerTool
         // The editor is captured at press: a host that swaps it mid-drag must not receive half a gesture.
         _editor = editor;
         _slot = slot;
-        _grip = grip;
-        _pressWorld = e.World;
         editor.BeginDrag(slot, grip);
         s.RequestRender();
         return true;
@@ -75,7 +71,7 @@ public sealed class TokenTool : IPointerTool
             return;
         }
 
-        editor.MoveTo(slot, e.World, MapSpace.QuantizeZ(pane.Level.ZMin));
+        editor.MoveTo(slot, e.World, MapSpace.QuantizeZ(pane.Level.ZMin), e.Modifiers, s.WorldUnitsPerPixel(pane));
         s.RequestRender();
     }
 
@@ -94,22 +90,11 @@ public sealed class TokenTool : IPointerTool
         // where the pointer let go.
         if (e.Pane is { } pane)
         {
-            editor.MoveTo(slot, e.World, MapSpace.QuantizeZ(pane.Level.ZMin));
-        }
-
-        float? yaw = null;
-        if (_grip == TokenGrip.Body && (e.Modifiers & ToolModifiers.Shift) != 0)
-        {
-            float dx = e.World.X - _pressWorld.X;
-            float dy = e.World.Y - _pressWorld.Y;
-            if (dx != 0 || dy != 0)
-            {
-                yaw = (float)(Math.Atan2(dy, dx) * 180.0 / Math.PI);
-            }
+            editor.MoveTo(slot, e.World, MapSpace.QuantizeZ(pane.Level.ZMin), e.Modifiers, s.WorldUnitsPerPixel(pane));
         }
 
         Clear();
-        editor.EndDrag(yaw);
+        editor.EndDrag(e.Modifiers);
         s.RequestRender();
     }
 

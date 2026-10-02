@@ -51,7 +51,7 @@ public class TokenToolTests
         h.Release(120, 30);
 
         await Assert.That(string.Join("|", h.Editor.Calls))
-            .IsEqualTo("begin B Body|move B 40,10 @-448|move B 80,20 @-448|move B 120,30 @-448|end B keep");
+            .IsEqualTo("begin B Body|move B 40,10 @-448|move B 80,20 @-448|move B 120,30 @-448|end B None");
         await Assert.That(h.Tool.IsDragging).IsFalse();
         await Assert.That(h.Services.RenderRequests).IsGreaterThan(0);
     }
@@ -90,25 +90,22 @@ public class TokenToolTests
     }
 
     [Test]
-    public async Task ShiftOnRelease_SnapsYawToTheDragDirection_APlainDragKeepsIt()
+    public async Task EverySample_CarriesTheKeysHeld_AndTheRelease_ClosesWithThem()
     {
         Harness h = new();
         h.Editor.Tokens["A"] = (0, 0, 0);
 
         h.Press(0, 0);
+        h.Tool.OnMoved(Harness.Event(h.Pane, h.Services, 0, 50, ToolModifiers.Alt), h.Services);
         h.Release(0, 100, ToolModifiers.Shift);
 
-        await Assert.That(h.Editor.Calls[^1]).IsEqualTo("end A 90");
-
-        h.Editor.Calls.Clear();
-        h.Press(0, 0);
-        h.Release(0, 0, ToolModifiers.Shift);
-        await Assert.That(h.Editor.Calls[^1]).IsEqualTo("end A keep")
-            .Because("a drag that went nowhere has no direction to snap to");
+        await Assert.That(string.Join("|", h.Editor.Calls))
+            .IsEqualTo("begin A Body|move A 0,50 @0 Alt|move A 0,100 @0 Shift|end A Shift")
+            .Because("Shift stores a point and Alt pins; no key snaps a facing any more");
     }
 
     [Test]
-    public async Task HeadingGrip_Rotates_AndShiftDoesNotOverrideIt()
+    public async Task HeadingGrip_Rotates_AndTheReleaseOnlyCloses()
     {
         Harness h = new();
         h.Editor.Tokens["E"] = (0, 0, 0);
@@ -116,11 +113,10 @@ public class TokenToolTests
 
         h.Press(0, 0);
         h.Move(0, 200);
-        h.Release(0, 300, ToolModifiers.Shift);
+        h.Release(0, 300);
 
         await Assert.That(h.Editor.Calls[0]).IsEqualTo("begin E Heading");
-        await Assert.That(h.Editor.Calls[^1]).IsEqualTo("end E keep")
-            .Because("a heading drag has already set the yaw; release keeps what it turned to");
+        await Assert.That(h.Editor.Calls[^1]).IsEqualTo("end E None");
     }
 
     /// <summary>The disc moves, the stub beyond it turns, and a point off both misses.</summary>
@@ -263,11 +259,10 @@ public class TokenToolTests
 
         public void BeginDrag(string slot, TokenGrip grip) => Calls.Add($"begin {slot} {grip}");
 
-        public void MoveTo(string slot, SKPoint world, double levelMinZ) =>
-            Calls.Add(FormattableString.Invariant($"move {slot} {world.X},{world.Y} @{levelMinZ}"));
+        public void MoveTo(string slot, SKPoint world, double levelMinZ, ToolModifiers modifiers = ToolModifiers.None, double worldUnitsPerPixel = 0) =>
+            Calls.Add(FormattableString.Invariant($"move {slot} {world.X},{world.Y} @{levelMinZ}") + (modifiers == ToolModifiers.None ? "" : " " + modifiers));
 
-        public void EndDrag(float? yawDegrees) =>
-            Calls.Add(FormattableString.Invariant($"end {Active} {(yawDegrees is { } y ? Math.Round(y, 3).ToString(System.Globalization.CultureInfo.InvariantCulture) : "keep")}"));
+        public void EndDrag(ToolModifiers modifiers = ToolModifiers.None) => Calls.Add($"end {Active} {modifiers}");
 
         public void CancelDrag() => Calls.Add($"cancel {Active}");
 

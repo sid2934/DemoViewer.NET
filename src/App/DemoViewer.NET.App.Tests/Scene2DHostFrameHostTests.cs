@@ -546,10 +546,10 @@ public class Scene2DHostFrameHostTests
 
         public void BeginDrag(string slot, TokenGrip grip) => Calls.Add($"Begin {slot} {grip}");
 
-        public void MoveTo(string slot, SKPoint world, double levelMinZ) =>
+        public void MoveTo(string slot, SKPoint world, double levelMinZ, ToolModifiers modifiers = ToolModifiers.None, double worldUnitsPerPixel = 0) =>
             Calls.Add($"Move {slot} {world.X:F0},{world.Y:F0} z={levelMinZ}");
 
-        public void EndDrag(float? yawDegrees) => Calls.Add($"End {yawDegrees}");
+        public void EndDrag(ToolModifiers modifiers = ToolModifiers.None) => Calls.Add("End ");
 
         public void CancelDrag() => Calls.Add("Cancel");
     }

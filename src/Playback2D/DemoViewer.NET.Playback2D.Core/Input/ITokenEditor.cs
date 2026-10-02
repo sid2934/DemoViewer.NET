@@ -59,14 +59,13 @@ public interface ITokenEditor
     ///     <c>MapSpace.QuantizeZ(pane.Level.ZMin)</c> of the pane under the pointer, which is how a token
     ///     is dragged onto another floor of a stacked map.
     /// </param>
-    void MoveTo(string slot, SKPoint world, double levelMinZ);
+    /// <param name="modifiers">The keys held at this sample: Shift and Alt change what the drop stores.</param>
+    /// <param name="worldUnitsPerPixel">The pane's scale, for screen-sized snaps; 0 when unknown.</param>
+    void MoveTo(string slot, SKPoint world, double levelMinZ, ToolModifiers modifiers = ToolModifiers.None, double worldUnitsPerPixel = 0);
 
     /// <summary>Closes the drag as one edit.</summary>
-    /// <param name="yawDegrees">
-    ///     A yaw to set on the keyframe, or null to keep the one it has: the keyframe's own after a move,
-    ///     the one the drag turned it to after a heading drag.
-    /// </param>
-    void EndDrag(float? yawDegrees);
+    /// <param name="modifiers">The keys held at the release.</param>
+    void EndDrag(ToolModifiers modifiers = ToolModifiers.None);
 
     /// <summary>Abandons the drag, restoring what <see cref="BeginDrag" /> found.</summary>
     void CancelDrag();
