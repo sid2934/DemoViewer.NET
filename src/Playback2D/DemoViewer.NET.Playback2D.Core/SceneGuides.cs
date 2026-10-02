@@ -17,7 +17,8 @@ public readonly record struct GuideToken(float X, float Y, float Z, int Team, st
 /// <summary>Where a step sends one token, and the way there.</summary>
 /// <param name="At">The arrival.</param>
 /// <param name="Route">From where the token leaves to the arrival, world space.</param>
-public sealed record GuidePin(GuideToken At, IReadOnlyList<GrenadeTrailPoint> Route);
+/// <param name="Earlier">An arrival the playhead has passed: drawn faint, with no route.</param>
+public sealed record GuidePin(GuideToken At, IReadOnlyList<GrenadeTrailPoint> Route, bool Earlier = false);
 
 /// <summary>
 ///     The strat canvas's editing guides over a frame: a drag's ghost (where the token stood, the dashed route it would

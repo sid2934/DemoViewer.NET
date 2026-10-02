@@ -94,7 +94,7 @@ public sealed class GuideLayer : ISceneLayer
             if (ctx.BelongsHere(pin.At.Z))
             {
                 (double x, double y) = ctx.Transform.WorldToScreen(pin.At.X, pin.At.Y);
-                _solid.Color = colour;
+                _solid.Color = pin.Earlier ? colour.WithAlpha(0x66) : colour;
                 canvas.DrawCircle((float)x, (float)y, PinRadius, _solid);
             }
         }

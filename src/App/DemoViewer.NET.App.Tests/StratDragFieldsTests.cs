@@ -351,6 +351,147 @@ public class StratDragFieldsTests
     }
 
     [Test]
+    public async Task ASecondViaDrop_NamesTheNewVia_InTheStatus()
+    {
+        StratDocument document = Strat(Step(110, "A", "move", Place("Ramp")));
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.Timeline.RequestSeekToFrame(S1 + 20);
+        Drag(canvas, "A", 60, 90);
+        Drag(canvas, "A", 300, 300);
+        using (Assert.Multiple())
+        {
+            await Assert.That(session.Document!.Steps[1].ViaPoints!.Single().X).IsEqualTo(300);
+            await Assert.That(canvas.StatusLine).StartsWith("A's via + is now (300, 300)");
+        }
+    }
+
+    [Test]
+    public async Task AStepKeyDuringADrag_CancelsIt_AndAStepGoneFromUnderIt_WritesNothing()
+    {
+        StratDocument document = Strat(Step(110, "B", "move", Place("Ramp")), Step(100, "A", "move", Place("Ramp")));
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.SelectStep(document.Steps[2].Id);
+
+        // Ctrl+Delete mid-drag: the drag ends unwritten, then the step goes.
+        canvas.BeginDrag("A", TokenGrip.Body);
+        canvas.MoveTo("A", new SKPoint(20, 80), Floor);
+        await Assert.That(canvas.ExecuteAction(Playback2DAction.DeleteStep)).IsTrue();
+        canvas.MoveTo("A", new SKPoint(30, 80), Floor);
+        canvas.EndDrag();
+        using (Assert.Multiple())
+        {
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
+            await Assert.That(session.Document!.Steps.Count).IsEqualTo(2);
+            await Assert.That(session.Document!.Steps[1].To!.Place).IsEqualTo("Ramp");
+            await Assert.That(canvas.IsDragging).IsFalse();
+        }
+
+        session.Undo();
+
+        // An earlier step deleted another way while the drag is open: index 2 now names nothing, index 1 is A's step.
+        canvas.SelectStep(document.Steps[2].Id);
+        canvas.BeginDrag("A", TokenGrip.Body);
+        canvas.MoveTo("A", new SKPoint(20, 80), Floor);
+        session.Apply(PatchOp.RemoveOp("/steps/1", null));
+        string before = Json(session);
+        canvas.MoveTo("A", new SKPoint(25, 80), Floor);
+        canvas.EndDrag();
+        using (Assert.Multiple())
+        {
+            await Assert.That(Json(session)).IsEqualTo(before);
+            await Assert.That(canvas.StatusLine).Contains("nothing written");
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ADragOnACapturedMove_ReplacesTheSeenPosition_AndTheCanvasFollows(bool legacy)
+    {
+        StratStep move = Step(110, "A", "move", Place("Ramp"));
+        move.Positions = [At("A", 160, 40)];
+        if (!legacy)
+        {
+            move.Positions[0].Observed = true;
+        }
+
+        StratDocument document = Strat(move);
+        document.Origin = new StratOrigin { DemoSha256 = "ab", Round = 4 };
+        if (!legacy)
+        {
+            document.Steps[0].Positions.ForEach(p => p.Observed = true);
+        }
+
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.SelectStep(move.Id);
+        await Assert.That(canvas.Projection!.RunsOf(1).Any(r => r.Slot == "A")).IsFalse().Because("the seen spot beats the to");
+        string before = Json(session);
+
+        Drag(canvas, "A", 20, 80);
+        StratStep written = session.Document!.Steps[1];
+        using (Assert.Multiple())
+        {
+            await Assert.That(written.To!.Place).IsEqualTo("Hut");
+            await Assert.That(written.Positions).IsEmpty();
+            await Assert.That(canvas.StatusLine).Contains("replaced the seen position");
+            await Assert.That(canvas.Projection!.RunsOf(1).Any(r => r.Slot == "A")).IsTrue().Because("A now runs to the new to");
+        }
+
+        await OneEntryByteExact(canvas, session, before, 0);
+    }
+
+    [Test]
+    public async Task ADragOnACapturedLurk_ReplacesTheSeenPosition()
+    {
+        StratStep lurk = Step(110, "E", "lurk");
+        lurk.Lurk = new StepLurk { Areas = ["Ramp"] };
+        lurk.Positions = [new StepPosition { Slot = "E", X = 160, Y = 40, LevelMinZ = Floor, Observed = true }];
+        StratDocument document = Strat(lurk);
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.SelectStep(lurk.Id);
+        string before = Json(session);
+
+        Drag(canvas, "E", 50, 50);
+        using (Assert.Multiple())
+        {
+            await Assert.That(session.Document!.Steps[1].Lurk!.Areas[0]).IsEqualTo("Hut");
+            await Assert.That(session.Document!.Steps[1].Positions).IsEmpty();
+            await Assert.That(canvas.StatusLine).Contains("replaced the seen position");
+        }
+
+        await OneEntryByteExact(canvas, session, before, 0);
+    }
+
+    [Test]
+    public async Task ADropWhoseRunHasAlreadyArrived_LeavesAFaintPinAtTheNewPlace()
+    {
+        StratStep lurk = Step(110, "E", "lurk");
+        lurk.Lurk = new StepLurk { Areas = ["Ramp"] };
+        StratDocument document = Strat(lurk);
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        int end = canvas.Projection!.ContentEndTick;
+        canvas.Timeline.RequestSeekToFrame(end);
+
+        // E stands on Ramp, its last area: the drop is lurk area 1, already walked past at this playhead.
+        Drag(canvas, "E", 20, 20);
+        GuidePin earlier = canvas.Guides.Pins.Single(p => p.Earlier);
+        using (Assert.Multiple())
+        {
+            await Assert.That(session.Document!.Steps[1].Lurk!.Areas).IsEquivalentTo(["Hut", "Ramp"]);
+            await Assert.That(earlier.At.Label).IsEqualTo("E");
+            await Assert.That(earlier.At.X).IsLessThan(100f).Because("the ring is at Hut, the new first area");
+        }
+
+        canvas.Timeline.RequestSeekToFrame(end - 1);
+        await Assert.That(canvas.Guides.Pins.Any(p => p.Earlier)).IsFalse().Because("it goes when the playhead moves");
+    }
+
+    [Test]
     public async Task PausedMidRun_OnAStepForEveryone_TheViaKeepsTheStepsOthers()
     {
         StratStep all = Step(110, StratVocabulary.ActorAll, "move", Place("Ramp"));
