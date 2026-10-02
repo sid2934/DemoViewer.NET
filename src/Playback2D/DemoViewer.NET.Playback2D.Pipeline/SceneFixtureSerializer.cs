@@ -116,6 +116,7 @@ public static class SceneFixtureSerializer
             Markers = MapList(dto.Markers, FromDto),
             AreaEffects = MapList(dto.AreaEffects, FromDto),
             Trails = MapList(dto.Trails, FromDto),
+            Routes = MapList(dto.Routes, FromDto),
             Bomb = dto.Bomb is { } b
                 ? new BombMarker(b.WorldX, b.WorldY, b.WorldZ, b.DetonationFraction, b.BeingDefused,
                     b.DefuseFraction)
@@ -163,6 +164,17 @@ public static class SceneFixtureSerializer
         }
 
         return trail;
+    }
+
+    private static TokenRouteLine FromDto(TokenRouteDto dto)
+    {
+        TokenRouteLine route = new() { Team = dto.Team };
+        foreach (TrailPointDto p in dto.Points ?? [])
+        {
+            route.Points.Add(new GrenadeTrailPoint(p.X, p.Y, p.Z));
+        }
+
+        return route;
     }
 
     private static KillFeedRow FromDto(KillFeedRowDto dto) => new(
@@ -259,6 +271,13 @@ public static class SceneFixtureSerializer
         Markers = MapList(frame.Markers, ToDto),
         AreaEffects = MapList(frame.AreaEffects, ToDto),
         Trails = MapList(frame.Trails, ToDto),
+        Routes = frame.Routes.Count == 0
+            ? null
+            : MapList(frame.Routes, static r => new TokenRouteDto
+            {
+                Team = r.Team,
+                Points = MapList(r.Points, static p => new TrailPointDto { X = p.X, Y = p.Y, Z = p.Z })
+            }),
         Bomb = frame.Bomb is { } b
             ? new BombMarkerDto
             {

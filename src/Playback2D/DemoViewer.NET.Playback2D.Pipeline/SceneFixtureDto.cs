@@ -37,6 +37,9 @@ internal sealed class Scene2DFrameDto
     public List<PlayerMarkerDto>? Markers { get; set; }
     public List<AreaEffectDto>? AreaEffects { get; set; }
     public List<GrenadeTrailDto>? Trails { get; set; }
+
+    // Null, not written, on a frame with none, so every fixture saved before strat routes keeps its bytes.
+    public List<TokenRouteDto>? Routes { get; set; }
     public BombMarkerDto? Bomb { get; set; }
     public List<KillFeedRowDto>? KillFeed { get; set; }
     public SceneGameInfoDto? GameInfo { get; set; }
@@ -116,6 +119,12 @@ internal sealed class GrenadeTrailDto
     public List<TrailPointDto>? Points { get; set; }
     public int LastTick { get; set; }
     public double Alpha { get; set; }
+}
+
+internal sealed class TokenRouteDto
+{
+    public int Team { get; set; }
+    public List<TrailPointDto>? Points { get; set; }
 }
 
 internal sealed class TrailPointDto

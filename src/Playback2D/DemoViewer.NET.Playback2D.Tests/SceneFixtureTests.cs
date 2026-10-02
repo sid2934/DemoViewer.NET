@@ -201,6 +201,18 @@ public class SceneFixtureTests
                 }
             }
         ],
+        Routes =
+        [
+            new TokenRouteLine
+            {
+                Team = 2,
+                Points =
+                {
+                    new GrenadeTrailPoint(10f, 20f, 30f),
+                    new GrenadeTrailPoint(40f, 50f, 30f)
+                }
+            }
+        ],
         Bomb = new BombMarker(7f, 8f, 9f, 0.42, true, 0.6),
         KillFeed =
         [
@@ -292,6 +304,7 @@ public class SceneFixtureTests
             yield return item switch
             {
                 GrenadeTrail t => $"Trail({t.Kind},{t.LastTick},{t.Alpha},{Describe(t.Points)})",
+                TokenRouteLine r => $"Route({r.Team},{Describe(r.Points)})",
                 MapRadarImage r => $"Radar({r.Name},{r.Bounds},{r.MinZ},{r.MaxZ})",
                 VisionCone c => $"Cone({c.Slot},{c.Team},{c.ApexX},{c.ApexY},{c.ApexZ},{Describe(c.Fan)})",
                 _ => Describe(item)
