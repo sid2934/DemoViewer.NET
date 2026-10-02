@@ -85,7 +85,7 @@ public class StratLineEditingTests
         string plain = Shape(Doc(vm, step));
 
         StratLineRow line = vm.Editor.Steps[step].Lines.Single();
-        line.WatchText = "Bombsite A, ct spawn, Nowhere";
+        line.WatchValue = [new PlaceRef { Place = "BombsiteA" }, new PlaceRef { Place = "CTSpawn" }, new PlaceRef { Place = "Nowhere" }];
         StratStep watching = Doc(vm, step);
         using (Assert.Multiple())
         {
@@ -97,7 +97,7 @@ public class StratLineEditingTests
             await Assert.That(vm.Editor.Steps[step].Lines.Single().IsExplicit).IsTrue();
         }
 
-        vm.Editor.Steps[step].Lines.Single().WatchText = "";
+        vm.Editor.Steps[step].Lines.Single().WatchValue = [];
         await Assert.That(Shape(Doc(vm, step))).IsEqualTo(plain).Because("one player, no watch: the plain shape again");
     }
 

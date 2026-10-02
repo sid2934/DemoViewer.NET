@@ -492,15 +492,14 @@ public partial class StratLocationFieldTests
 
         PlaceFieldModel multi = new(true) { Options = PlaceFieldOptions.For(Mirage) };
         multi.Load([new PlaceRef { Place = "Stairs" }, Point(-900, -1500)]);
-        multi.Type(multi.Text + ", jun");
+        multi.Type("jun");
         await Assert.That(multi.Items[0].Place).IsEqualTo("Jungle");
         IReadOnlyList<PlaceRef> watched = multi.Accept()!;
         using (Assert.Multiple())
         {
-            await Assert.That(multi.Text).IsEqualTo("Stairs, (-900, -1500), Jungle");
+            await Assert.That(multi.Text).IsEmpty().Because("a pick appends a chip and clears the add field");
             await Assert.That(watched.Select(w => w.Place)).IsEquivalentTo(["Stairs", null, "Jungle"]);
-            await Assert.That(watched[1].X).IsEqualTo(-900).Because("the coordinate's text keeps its point");
-            await Assert.That(PlaceFieldModel.Split("a, (1, 2), b")).IsEquivalentTo(["a", "(1, 2)", "b"]);
+            await Assert.That(watched[1].X).IsEqualTo(-900).Because("the point chip is kept as stored");
             await Assert.That(PlaceField.ChooseUp(500, 60, 200)).IsTrue();
             await Assert.That(PlaceField.ChooseUp(50, 60, 200)).IsFalse();
             await Assert.That(PlaceField.ChooseUp(500, 300, 200)).IsFalse();
@@ -554,10 +553,13 @@ public partial class StratLocationFieldTests
             await Assert.That((bare.X, bare.Y, bare.LevelMinZ)).IsEqualTo(((double?)-30, (double?)40, (double?)-512));
             await Assert.That((noLevel.Place, noLevel.X, noLevel.LevelMinZ)).IsEqualTo(((string?)null, (double?)12, (double?)null));
             await Assert.That(number.Commit()).IsNull().Because("a lone number is neither a point nor a place");
-            await Assert.That(PlaceFieldModel.Parse("Stairs, (1, 2), 5", [], Mirage, true).Select(e => e.Place ?? $"{e.X},{e.Y}"))
-                .IsEquivalentTo(["Stairs", "1,2"]);
-            await Assert.That(PlaceFieldModel.Parse("(1, 2), (1, 2)", [Point(1.2, 2), Point(1.4, 2)], Mirage, true).Select(e => e.X))
-                .IsEquivalentTo([(double?)1.2, 1.4]).Because("two points that print alike stay two points");
+            await Assert.That(PlaceFieldModel.ParseEntry("stairs", [], Mirage)!.Place).IsEqualTo("Stairs");
+            await Assert.That(PlaceFieldModel.ParseEntry("(1, 2)", [Point(9, 9, -512)], Mirage, -256)!.LevelMinZ)
+                .IsEqualTo(-512).Because("a typed point joins at the list's level");
+            await Assert.That(PlaceFieldModel.ParseEntry("5", [], Mirage)).IsNull();
+            await Assert.That(PlaceFieldModel.Parse("stairs, jungle", [], Mirage).Single().Place).IsEqualTo("Stairs")
+                .Because("a single field keeps what comes before a comma");
+            await Assert.That(PlaceFieldModel.Parse("(1, 2), jungle", [], Mirage).Single().X).IsEqualTo(1);
         }
     }
 
@@ -816,7 +818,7 @@ public partial class StratLocationFieldTests
         }
 
         moveRow.FromText = "Connector";
-        a.WatchText = "Stairs, (-900, -1500), Jungle";
+        a.WatchValue = [.. a.WatchValue, new PlaceRef { Place = "Jungle" }];
         StratDocument document = vm.Session.Document!;
         StepWatch watch = document.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
         using (Assert.Multiple())
@@ -827,9 +829,9 @@ public partial class StratLocationFieldTests
             await Assert.That(watch.Points!.Single().X).IsEqualTo(-900).Because("editing the watching keeps its points");
         }
 
-        a.WatchText = "Jungle";
+        a.WatchValue = [new PlaceRef { Place = "Jungle" }];
         watch = vm.Session.Document!.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
-        await Assert.That(watch.Points).IsNull().Because("a point whose text is removed goes");
+        await Assert.That(watch.Points).IsNull().Because("a removed point chip goes");
     }
 
     [Test]

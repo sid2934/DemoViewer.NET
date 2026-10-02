@@ -245,7 +245,8 @@ optional and is not written when absent, so a file without it loads and saves by
 
 * **A line** is `slot` (`A` to `E`), `to` (a place, the same shape as the step's) and `watch`. A slot has
   at most one line per step; an unknown or repeated slot is refused.
-* **`watch`** is `places` (canonical place names, never callouts, first one first), an optional
+* **`watch`** is `places` (canonical place names, never callouts, first one first; written only when there
+  is one, so a watch kept for its angle or points has no `places`, and a missing one reads as none), an optional
   `points` (watched map points outside every place, `{ x, y, levelMinZ }` each, written only when there is
   one) and an optional `yawDegrees` (world yaw, 0 = +X and 90 = +Y, as `positions[].yawDegrees`) that
   overrides facing. The watched entries read places first, then points, and the token faces the first

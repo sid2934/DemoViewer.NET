@@ -96,6 +96,7 @@ public class StratEditorRoomTests
                 await Assert.That(overflow).IsEmpty()
                     .Because($"the editor is {viewport:F0} wide: {string.Join("; ", overflow.Take(8))}");
                 await Assert.That(fields.Count).IsGreaterThan(10).Because("the seeded rows show their location fields");
+                await Assert.That(fields.Max(f => f.Chips.Count)).IsGreaterThanOrEqualTo(6).Because("the long lists show as chips the scan measures");
                 await Assert.That(narrow).IsEmpty().Because(string.Join("; ", narrow.Take(8)));
             }
         });
@@ -211,6 +212,12 @@ public class StratEditorRoomTests
             ["kind"] = "smoke", ["lineupId"] = Guid.NewGuid().ToString(), ["landing"] = new JsonObject { ["place"] = "Connector" }
         }));
         vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{other}/note", null, JsonValue.Create("a long note")));
+
+        // A long via on a travelling step: the chips wrap inside the field.
+        int moving = StratVocabulary.Verbs.ToList().IndexOf("move");
+        vm.Session.Apply(PatchOp.AddOp($"/steps/{moving}/via", new JsonArray("TopofMid", "Connector", "Underpass", "Apartments", "PalaceAlley")));
+        vm.Session.Apply(PatchOp.AddOp($"/steps/{moving}/viaPoints",
+            new JsonArray(new JsonObject { ["x"] = -1234.4, ["y"] = -2560.6, ["levelMinZ"] = -256 })));
         int thrown = StratVocabulary.Verbs.ToList().IndexOf("throw");
         vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{thrown}/utility", null,
             new JsonObject { ["kind"] = "smoke", ["lineupId"] = lineup.Id.ToString() }));
@@ -222,7 +229,11 @@ public class StratEditorRoomTests
             Id = Guid.NewGuid(), AtSeconds = -50, Actor = StratVocabulary.ActorAll, Verb = "move",
             Assignments =
             [
-                new StepAssignment { Slot = "B", To = new PlaceRef { Place = "PalaceInterior" }, Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn"] } },
+                new StepAssignment
+                {
+                    Slot = "B", To = new PlaceRef { Place = "PalaceInterior" }, Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn", "TopofMid", "PalaceAlley"] },
+                    Via = ["TopofMid", "Connector", "Underpass", "Apartments"], ViaPoints = [new PlaceRef { X = -1234.4, Y = -2560.6, LevelMinZ = -256 }]
+                },
                 new StepAssignment { Slot = "C", To = new PlaceRef { Place = "Connector" }, Watch = new StepWatch { Places = ["Stairs", "Jungle"] } },
                 new StepAssignment
                 {
@@ -241,7 +252,7 @@ public class StratEditorRoomTests
             [
                 .. StratVocabulary.Slots.Skip(1).Take(2).Select(s => new StepAssignment
                 {
-                    Slot = s, To = new PlaceRef { Place = "PalaceInterior" }, Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn", "Jungle"], YawDegrees = 135 }
+                    Slot = s, To = new PlaceRef { Place = "PalaceInterior" }, Watch = new StepWatch { Places = ["BombsiteA", "CTSpawn", "Jungle", "TopofMid", "PalaceAlley", "Underpass"], YawDegrees = 135 }
                 })
             ]
         };
@@ -249,7 +260,7 @@ public class StratEditorRoomTests
         int lurk = StratVocabulary.Verbs.ToList().IndexOf("lurk");
         vm.Session.Apply(PatchOp.AddOp($"/steps/{lurk}/lurk", new JsonObject
         {
-            ["areas"] = new JsonArray("PalaceInterior", "Connector", "Jungle"),
+            ["areas"] = new JsonArray("PalaceInterior", "Connector", "Jungle", "TopofMid", "Underpass", "Apartments"),
             ["areaPoints"] = new JsonArray(new JsonObject { ["x"] = -900, ["y"] = -1500, ["levelMinZ"] = -256 }),
             ["rotate"] = new JsonObject
             {
