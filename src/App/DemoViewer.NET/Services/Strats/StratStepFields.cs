@@ -34,7 +34,7 @@ public enum StepMotion
     /// <summary>The token is there at the step's time.</summary>
     Position,
 
-    /// <summary>The token walks to the lurk's first area from the step's time.</summary>
+    /// <summary>The token walks through the lurk's areas in order from the step's time and holds at the last.</summary>
     Lurk
 }
 
@@ -69,7 +69,7 @@ public static class StratStepFields
     /// <summary>
     ///     What <paramref name="verb" /> does with its destination: move, push, rotate, <c>other</c> and any verb outside
     ///     the vocabulary travel there; hold, peek, fake, plant and defuse are there at the step's time; a lurk walks to
-    ///     its first area and never moves for a <c>to</c>; throw, wait and call do not move.
+    ///     its areas in order and never moves for a <c>to</c>; throw, wait and call do not move.
     /// </summary>
     /// <param name="verb">A step verb.</param>
     public static StepMotion MotionOf(string? verb) => verb switch
