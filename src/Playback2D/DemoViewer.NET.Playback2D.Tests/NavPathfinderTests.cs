@@ -168,6 +168,7 @@ public class NavPathfinderTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task RepeatedQuery_IsAnsweredFromMemory_WithoutAllocating()
     {
         if (Zones("de_dust2") is not { } zones)

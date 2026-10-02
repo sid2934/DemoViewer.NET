@@ -21,7 +21,7 @@ public static partial class Variants
 {
     private const double Dust2Floor = -99968;
 
-    // The owner's Execute B on dust2, paused at a round clock time: tokens on their routes, each with its way ahead.
+    // Execute B on dust2, paused at a round clock time: tokens on their routes, each with its way ahead.
     private static StratBookHubView StratRoutingExecuteB(double atSeconds)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");

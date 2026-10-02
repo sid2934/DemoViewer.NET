@@ -334,7 +334,7 @@ public class StratRoutingTests
     }
 
     /// <summary>
-    ///     The owner's Execute B on dust2: eight steps, ten tokens, a lurk, two throws, and opponents dragged at three
+    ///     Execute B on dust2: eight steps, ten tokens, a lurk, two throws, and opponents dragged at three
     ///     steps, so every kind of move is in it: runs, position walks, a lurk's walk and rotate, and fixed-time drags.
     /// </summary>
     internal static StratDocument ExecuteB(IZonePlaceResolver map)
