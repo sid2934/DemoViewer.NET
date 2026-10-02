@@ -4,6 +4,11 @@ Owner request, 2026-10-01: tokens in the strat preview move in straight lines be
 through walls. This note covers what map data we already have, the approaches we could take, a prototype
 measured on three maps, and a recommendation.
 
+**Status (2026-10-01): built** on `feature/strat-book-pathing` from the owner's decisions in section 7. The
+production pathfinder, the projection, the wiring, authored-segment bending, the route line and `via` are in; the
+baker change (item 5) is not. docs/strat-format.md ("Motion on the canvas", "Via") is the reference for what ships;
+this note stays as the spike's record.
+
 Spike branch: `spike/strat-book-pathing`. Prototype code:
 
 - `src/Playback2D/DemoViewer.NET.Playback2D.Core/Zones/NavPathfinder.cs`: A* over nav areas plus a funnel pass.
@@ -252,13 +257,32 @@ Items 1 to 3 give routed tokens. Item 5 can come later without blocking anything
   pick the wrong level. Snapping by place id, as the spike does, fixes it for place targets. A free point
   dropped over both levels picks the smaller of the areas containing it, which may be the wrong one.
 
-## 7. Open questions for the owner
+## 7. Owner decisions (2026-10-01)
 
-1. Should routing change timing on existing strats, so arrivals come later and the strat runs longer? The
-   alternatives are to opt in per strat, or to keep straight-line timing and only bend the drawn route.
-2. Should authored drag segments, whose timing is fixed, bend too, or only verb-driven runs and lurks?
-3. Is it worth a Windows-lane re-bake (item 5) to get exact one-way drops and ladders, or is the heuristic
-   good enough for a planning preview?
-4. Should the canvas also draw the route as a faint line while a token moves along it, to show which way it
-   goes?
-5. Is the shortest route the right default, or should a step be able to name a "via" place?
+1. **Timing follows the real path.** Decided: yes. Runs walk the route at run and walk speed, so arrivals and
+   `ContentEndTick` land later, existing strats included.
+2. **Authored drag segments bend.** Decided: yes. Between two keyframes the user placed the token follows the route
+   and still arrives at the keyframe's tick; its speed fits the time, and an impossible route still arrives on time.
+   The same applies to every segment whose ticks a step fixed (a position verb's walk, a run cut short).
+3. **No re-bake.** Decided: keep the heuristic (gap links climbed up to 64 u, shared-edge links two-way, no ladders).
+   Item 5 stays open.
+4. **Faint route line.** Decided: yes, on the canvas and the Detected preview, in the side colour at low alpha through
+   theme tokens (`Pb2dCanvasRouteT`/`Ct`). The export draws it too: it is the same projection, the line is faint and
+   only shows while a token moves, and it answers the question a viewer of the clip has.
+5. **Via.** Decided: a step, or a line, can name places to go through, as `via` (places) and `viaPoints` (points), the
+   `watch.points` shape. Routing goes through each in order.
+
+## 8. What was built, and measured
+
+- `NavPathfinder` (Playback2D.Core): per-thread search scratch with generation stamps, so a miss allocates only its
+  answer (about 1 KB for a 43-point route on dust2) and a repeat is answered from a bounded memo of exact queries with
+  no allocation. It also snaps a point onto the mesh and adds a point wherever a route crosses into another floor.
+  `NavPathfinderTests` builds all ten shipped bakes and routes between each map's places.
+- `PathResolver` / `NavPathResolver` (App, `Services/Strats`): place names to ids, start and end location with
+  fallbacks. Built in `ZonePlaceResolverAdapter` with the zones, inside the queued "Strat places" read.
+- The projection takes the resolver through `PlaceSet`, so `Build`, `Run`, `TrackOf` and `TrackWith` all see it.
+  Null is the old straight lines; the feature `stratbook.routing` (on by default) decides what the canvas passes.
+- Cost per edit, Execute B on dust2 (8 steps, 10 tracks, a lurk, two throws, opponents dragged at three steps), Debug
+  build on the owner's Mac: a full projection build is 0.17 ms straight and 1.7 ms routed with a warm memo (3.1 ms
+  on a fresh graph), and 1.7 ms after a one-token edit; the drag preview (`TrackWith`) is 0.14 ms per pointer move.
+  Under a frame, so no per-slot cache was added. Keyframes go from 63 straight to 313 routed.

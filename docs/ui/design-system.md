@@ -427,16 +427,16 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
   | Verb | Fields | `to` reads |
   |---|---|---|
-  | move | from, to (the validator warns on a move without `to`) | to |
-  | rotate | from, to | to |
-  | push | from, to, watching | to |
+  | move | from, to (the validator warns on a move without `to`), via | to |
+  | rotate | from, to, via | to |
+  | push | from, to, watching, via | to |
   | hold, peek | to, watching | at |
   | plant, defuse | to (`StratFromRound` writes a plant's place there) | site |
   | throw | utility, then lineup, then lands at only while no lineup is picked | |
   | fake | to, utility, watching | at |
-  | lurk | watching, lurk areas, rotate at, or when, rotate to | |
+  | lurk | watching, via, lurk areas, rotate at, or when, rotate to | |
   | wait, call | note only | |
-  | other, or a verb outside the vocabulary | from, to, utility, watching | to |
+  | other, or a verb outside the vocabulary | from, to, utility, watching, via | to |
 
   Move and rotate take no watching: a moving player watches their path, and the facing that matters belongs to
   the hold or push after it.
@@ -454,16 +454,19 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **One place and watching for players who agree** (`ShowCompact`): while every line says the same apart from its
   slot (place, watch and angle), the row shows one `to` and one `watching` under line one, a `*,*,Auto` grid (a
   field takes both columns while the other is hidden), and an edit writes every line (`StratLinePatches.EditAll`).
-  A step for everyone is five agreeing lines; one player is one. `split` (shown with more than one player and a place
-  or watching to differ in) shows the lines one per player; `join` under the lines shows once they agree again. The
+  A step for everyone is five agreeing lines; one player is one. The compact `via` (travel verbs, or while the lines
+  hold one) sits on a second row of the grid across both columns, labelled `via`, multi like watching
+  (`GroupViaField`). `split` (shown with more than one player and a place, watching or via to differ in) shows the
+  lines one per player; `join` under the lines shows once they agree again. The
   row only goes apart on split or on an edit that makes the lines differ (a cone drag on one player), and only
   comes back on join, so a commit never swaps the fields under the caret. Lines that already differ open apart.
   Split on a step for everyone shows five lines, and a line's edit writes all five (the others keep the step's place);
   editing them back to agree folds the file to `all` while the row stays apart until join.
 - **Lines** (`StratLineRow`, written only through `Services/Strats/StratLinePatches.cs`): shown apart, under line one, indented
   like the fields, a `48,*,*,Auto` grid per player: slot, place (labelled with the verb's `to`, `at` or `site`, shown
-  when the verb uses it or it holds one), watching, then the angle and remove buttons; a `who / to / watching` label
-  row above, and `+ player` under them. A step for everyone has no lines and keeps its own `to` field; a one-player
+  when the verb uses it or it holds one), watching, then the angle and remove buttons; a second row, when the verb
+  travels or the line holds one, has a right-aligned `via` label under the slot and the line's via across the place
+  and watching columns (`LineViaField`); a `who / to / watching` label row above, and `+ player` under them. A step for everyone has no lines and keeps its own `to` field; a one-player
   step shows one implicit line (the slot as text, changed with the actor combo, no remove); a step with stored lines
   greys the actor combo, whose value is their summary. `+ player` adds the first slot without a line: on a step for
   everyone that names the first player, who takes the step's place. The writer keeps the stored shape on every edit:
@@ -484,8 +487,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   the rail and list open the line's fields are about 95 px each, so long callout lists trim inside the field; from,
   lands at and rotate to are 150 px, so a coordinate with both buttons reads whole.
 - **Verb change:** the verb and a remove for each member the new verb does not use and the step has (a lurk
-  included); each line's `to` and watch the verb does not use are cleared through `StratLinePatches` in the same
-  entry, so a one-player line that loses its watch folds back into a plain step.
+  included); each line's `to`, watch and via the verb does not use are cleared through `StratLinePatches` in the same
+  entry, so a one-player line that loses its watch folds back into a plain step. Via goes with any verb that does
+  not travel (hold, peek, fake, plant, defuse, throw, wait, call).
   Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and LAN print print
   whatever is set, which is why the clear is not optional.
 - **Combo box bursts:** a closed combo box changes value on the mouse wheel and on Up/Down, so the verb, kind
@@ -589,13 +593,14 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   `Services/Strats/StratLocations.cs` (reading and printing a location).
 - **Purpose:** one control for every location a step holds (from, to, lands at, watching, and the lurk and rotate
   fields), so each can be typed, picked from the map's callouts, or picked on the map.
-- **In the step row:** `GroupPlaceField` and `GroupWatchField` (the compact who's place and watching; they write every
-  line, `StratLocationField.AllLines`), `LinePlaceField` and `LineWatchField` (one line's, by slot), `FromField`,
+- **In the step row:** `GroupPlaceField`, `GroupWatchField` and `GroupViaField` (the compact who's place, watching and
+  via; they write every line, `StratLocationField.AllLines`), `LinePlaceField`, `LineWatchField` and `LineViaField`
+  (one line's, by slot), `FromField`,
   `LandingField`, `LurkAreasField` (multi) and `RotateToField`; `StrayToField` shows a step-level `to` beside lines,
   disabled, beside its clear button. Each binds `Value` to the row's `*Value`, `PickCommandParameter` to its
   `*Target` descriptor, `PickCommand` to the tab's `PickOnMapCommand`, and `ArmedTarget` to `Canvas.ArmedField`, so
   the field that a map click will write shows it.
-- **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, lurk areas). Places are stored canonical and
+- **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, via, lurk areas). Places are stored canonical and
   shown by the owner's word; a place the map lacks shows as stored; a point alone shows as `(1234, -561)`, and keeps
   its point for as long as its text is unchanged. Typed text resolves through the owner's callouts, else is stored as
   typed, never numbers alone. A typed coordinate (`(1234, -560)`, `1234, -560` or `1234 -560`, negatives allowed) is a
@@ -648,14 +653,14 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   One click, one write, one undo entry, then the mode ends. The click comes through `TryTagPositionAt`, ahead of
   the pointer tools, and resolves with `IZonePlaceResolver.ResolveOnFloor` on the clicked pane's floor key.
 - **Any location field:** the mode aims at one `StratLocationField` (step, line slot, every line or none, and
-  `from`, `to`, landing, watching, lurk area or rotate to). A compact who's place and watching write every line; a
+  `from`, `to`, landing, watching, via, lurk area or rotate to). A compact who's place and watching write every line; a
   row shown apart writes the selected line; the toolbar's `to` follows the same rule, and a lurk's toolbar field is a
   lurk area. The toolbar toggle derives it from the verb as above; a location control's pick button
   aims at its own field through `StratStepSelection.PickOnMap`, which selects the step and line first and cancels
   when pressed again. `StratCanvasViewModel.ArmedField` says which field is armed; the toolbar then names it
   (`Set “from” on map`, `Set B's watching on map`).
 - **Hits and misses:** a click inside a place stores the place and the point; a click in no place stores the point
-  alone and drops the stored place, which named another spot. On watching and lurk areas, a click adds the place, or the point
+  alone and drops the stored place, which named another spot. On watching, via and lurk areas, a click adds the place, or the point
   when it is in no place, and a place already watched adds nothing. With no zones for the map (none baked, or the
   read failed) a click sets the point and keeps the stored place. The status line says which.
 - **Cancel:** Esc (the mode counts as an active tool, so Esc resolves to cancel even under pan; in the armed field
@@ -698,6 +703,23 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   after it stops; then a smoke disc that blooms over 1 s, the fire cells, or a pop. A flash pops in `TrailFlash`,
   an HE bursts in `TrailHe`, both growing and fading over about half a second; a decoy is a `TrailDecoy` ring of at
   least 5 px. No new colour tokens. docs/strat-format.md, "Utility on the canvas", has the timings.
+
+### Strat routes on the canvas (the Strats canvas, the Detected preview, a strat export)
+- **Files:** `AddRoutes` in `Playback2D.Pipeline/Frames/StratFrameSource.cs`, `DrawRoute` in
+  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Core/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
+- **What:** while a token moves, a line from where it is through each corner of the move to where it stops: its way
+  ahead, so a viewer reads which way round a wall it goes. Gone on arrival, at a hold, and before a run starts (a
+  step's hold). Only when the tracks are routed (`stratbook.routing` on and the map's nav in memory); off draws
+  nothing new, and a demo frame never carries routes.
+- **Look:** 3 px, round caps and joins, under the discs in the marker layer (no new layer id, so the scene stack, the
+  goldens and `SceneLayerListParityTests` are unchanged). Colour is the side's route token at about 35% alpha:
+  `Pb2dCanvasRouteT` (`#59E0A030` dark, `#66C9821C` light) and `Pb2dCanvasRouteCt` (`#594A90D9`, `#662F73BE`); a
+  palette built without them falls back to the team fill at 35%. A leg is drawn on the pane of either end, as a
+  grenade trail is, so a route down a ramp reads as one line across nuke's panes.
+- **Export:** drawn too. The export is a teaching clip of the same projection, and the line answers the question a
+  viewer has when a token disappears round a corner; it is faint, shows only while a token moves, and the last frames
+  (everyone arrived) are clean. The spec flag (`StratSceneSpec.Routes`) is the one switch: the canvas and the export
+  set it from the projection, so they cannot disagree.
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,

@@ -145,6 +145,7 @@ book: a display name is looked up at render time and a roster rename never touch
   e.g. `TRamp`), never a team's callout word for one, and optionally the world point it was picked at;
   `""` (what the pawn reports before its place is first networked) is treated as unresolved, the same as
   null.
+* **`via`** and **`viaPoints`** (optional) say where a travel goes on its way to `to`; see "Via" below.
 * **`utility`** is present only on a step that throws something: `kind` is `smoke | molotov | he |
   flash | decoy`; `lineupId` is a GUID naming one Utility Book lineup (Lineup On A Strat Step); `landing`
   names where the grenade should land, as a place and (once Step Authoring writes it) a world point.
@@ -306,11 +307,49 @@ plain step, five bare lines to one place fold back into a step for everyone). Th
 | a `move` line whose `to` has no place and no point | warning | `/steps/i/assignments/j/to` |
 | a `to` place the map lacks | warning | `/steps/i/assignments/j/to/place` |
 | a watched place the map lacks | warning | `/steps/i/assignments/j/watch/places/k` |
+| a via place the map lacks | warning | `/steps/i/assignments/j/via/k` |
 | `actor` is not the lines' single slot or `all` | warning | `/steps/i/actor` |
 | a step-level `to` beside lines | warning | `/steps/i/to` |
+| a step-level `via` or `viaPoints` beside lines | warning | `/steps/i/via` (or `/steps/i/viaPoints`) |
 
 With lines, the step-level "a move has no destination place" warning is not raised; each move line is
 checked instead. A lineup throw by a step whose lines name more than one slot warns as `all` does.
+
+### Via (`via`)
+
+```jsonc
+{ "atSeconds": 100.0, "actor": "B", "verb": "move", "to": { "place": "LongDoors" }, "via": ["OutsideLong"] }
+{ "slot": "C", "to": { "place": "BombsiteB" }, "via": ["Middle"], "viaPoints": [{ "x": 120, "y": -40, "levelMinZ": -99968 }] }
+```
+
+A travel can name places to go through on its way, instead of the shortest route: "B moves to Long Doors via Outside
+Long". Both members are optional and not written when absent, so a file without them loads and saves byte for byte as
+before.
+
+* **`via`** is canonical place names, first first. **`viaPoints`** (optional, written only when there is one) holds
+  points picked outside every place, `{ x, y, levelMinZ }` each, after the places in reading order: a sibling of `via`
+  for the reason `watch.points` and `lurk.areaPoints` are siblings. The cost is the same too: a point always reads after
+  the places, so a route goes through every via place before any via point.
+* **Where it lives** is where `to` lives. A step without lines keeps its own; a step with lines keeps one per line and
+  the step's own is not used (the validator warns at `/steps/i/via`). The line writer (`StratLinePatches`) moves a
+  via with its `to`: onto the line when a watch makes a one-player step a line, back onto the step when the lines fold
+  to a plain step or to `all`. Five bare lines fold to `all` only when their vias agree too.
+* **Which verbs** (`StratStepFields`, `StratStepField.Via`): the travel verbs, move, push, rotate, `other` and lurk (its
+  walk to its first area). The editor's verb change clears a via the new verb does not use, in the same entry. The
+  editor shows a multi place field labelled `via`: one on the compact row, which writes every line, and one per line
+  when the row is split. Its map pick adds the place under the click, or the point outside every place
+  (`StratLocationKind.Via`).
+* **Printing.** The call sheet, the role sheets, LAN print and the history print it after the destination:
+  `B moves T Spawn → Long Doors via Outside Long` (`StratStepPhrasing`), `C → Bombsite B via Middle` for a line, and
+  `B moves to Long Doors via Outside Long at 1:45` in the history, whose edits read `via set to Outside Long, Middle`
+  and `via cleared`.
+* **On the canvas** a run goes through each via in order, routing each leg from the last stop (a via place is its
+  arrival on the floor the token is on, a via point is itself), and arrives after the whole length at its speed. With
+  routing off, or no zones for the map, a via is ignored and the run is the straight line it always was.
+
+| Rule | Severity | Pointer |
+|---|---|---|
+| a via place the map lacks | warning | `/steps/i/via/k` |
 
 ### A lurk (`lurk`)
 
@@ -386,6 +425,30 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   the location's point when it has one, else the place's arrival (`StratPlaceCentres.Arrival`: its centre on the
   token's floor when the place has areas there, else on the floor holding most of it, and the token arrives on that
   floor). A place the map lacks, or zones not loaded yet, moves nothing.
+* **Routes.** Tokens walk the map's nav round walls (docs/strat-book/token-pathing.md). The graph is the baked nav areas
+  and links in the map's `zones.json` (`ZoneSet.Areas`, `ZoneSet.AreaLinks`), built with the zones when the canvas reads
+  them through the processing queue, and searched with A* plus a funnel (`NavPathfinder`). A link through a shared
+  edge is walked both ways; a link with no shared edge (a drop, a jump, a gap) is climbed only when the far area's mean
+  Z is at most 64 units higher, which stands in for the nav's one-way drops the bake does not keep. Ladders are not in
+  the bake, so a route takes the long way where a ladder is the short one. Routing is the `stratbook.routing` feature,
+  on by default; off, or with no zones for the map, every move is the straight line and the timing it was before. What
+  routing changes:
+  * A run (a travel, a lurk's walk, a rotate) follows its route at its speed, so it arrives after the route's length,
+    not the straight distance: the transport's end and an export grow with it. Each bend is a keyframe at the tick
+    its share of the length puts it, so the speed is one over the whole run, and the token faces the leg it is on.
+    A run with `hold` interpolation still jumps, at the routed arrival.
+  * A segment whose ticks the steps fixed (two placed entries, a position verb's walk, a run cut short by a later
+    entry) bends along its route and keeps both ticks: the token arrives when the author put it there, faster or
+    slower than a run. A position verb that cuts a run short heads for its place from the last bend the run reached.
+  * The floor changes where the route crosses into the other floor, not half way along the leg before it.
+  * A fanned spot must stand on the nav as well as in the place; with none, the ring spot is snapped onto the
+    place's nav, and with no snap the token goes to the arrival.
+  * A point off the nav snaps to the nearest area within 256 units and the route goes straight from there to the
+    point; a point that does not snap, or two ends no corridor joins, gets the straight line.
+  * Thrown utility is not routed: a projectile flies as before.
+  * The canvas, the Detected preview and an export draw a moving token's way ahead as a faint line in its side's
+    colour (`Pb2dCanvasRouteT`, `Pb2dCanvasRouteCt`), from where it is to where the move ends; it is gone on
+    arrival.
 * **By verb** (`StratSceneProjection.MotionOf`):
 
   | Verbs | Motion |
@@ -395,8 +458,9 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   | lurk | travel: walks to its first area (`areas`, then `areaPoints`) from the step's time; its rotate walks too |
   | throw, wait, call | none: a throw's landing is where the grenade goes, not the player |
 
-  A run is at 215 units a second (`RunUnitsPerSecond`, a rifle's run). A lurker walks at 115 (`WalkUnitsPerSecond`, a
-  rifle's shift-walk): to its area and on its rotate. A later step on the lurk's tick that sends it elsewhere wins, at
+  A run is at 215 units a second (`RunUnitsPerSecond`, a rifle's run), along its route when routing is on. A lurker
+  walks at 115 (`WalkUnitsPerSecond`, a rifle's shift-walk): to its area and on its rotate, each leg routed from where
+  the token stands. A later step on the lurk's tick that sends it elsewhere wins, at
   that step's pace. Both go through the same code, and the transport's end (`ContentEndTick`) covers the walk's arrival.
   A later keyframe for the slot that comes before the token could arrive wins: it heads there from the step's time
   instead. A later destination or rotate cuts a run that has not arrived: a run turns from where the token is at
