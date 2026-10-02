@@ -96,7 +96,8 @@ public static class StratStartBlock
         // A strat that begins at the start gets our five at spawn where nothing else says, as New Strat seeded them; an
         // opponent missing from the seed was taken out by hand.
         Dictionary<string, StartPosition> spawned = new(StringComparer.Ordinal);
-        if (seeded && spawns?.StartFor(document) is { } spawnStart)
+        StratStart? spawnStart = spawns?.StartFor(document);
+        if (seeded && spawnStart is not null)
         {
             foreach (StartPosition spot in spawnStart.Positions.Where(p => StratVocabulary.Slots.Contains(p.Slot) && !found.ContainsKey(p.Slot)))
             {
@@ -111,17 +112,18 @@ public static class StratStartBlock
 
         List<StartSource> ordered = [.. Tokens.Where(found.ContainsKey).Select(t => found[t])];
         sources = ordered;
-        return new StratStart
-        {
-            Kind = StratStart.SpawnKind,
-            Positions =
-            [
-                .. Tokens.Select(t => found.TryGetValue(t, out StartSource source)
-                        ? FromPosition(document.Steps[source.Step].Positions[source.Position])
-                        : spawned.GetValueOrDefault(t))
-                    .OfType<StartPosition>()
-            ]
-        };
+        List<StartPosition> positions =
+        [
+            .. Tokens.Select(t => found.TryGetValue(t, out StartSource source)
+                    ? FromPosition(document.Steps[source.Step].Positions[source.Position])
+                    : spawned.GetValueOrDefault(t))
+                .OfType<StartPosition>()
+        ];
+
+        // Spawn only when every entry stands on the map's spawn spot for its token; anything else was moved by hand.
+        bool atSpawns = spawnStart is not null && positions.All(p => For(spawnStart, p.Slot) is { X: { } sx, Y: { } sy }
+                                                                     && Math.Abs(sx - (p.X ?? double.NaN)) <= 1 && Math.Abs(sy - (p.Y ?? double.NaN)) <= 1);
+        return new StratStart { Kind = atSpawns ? StratStart.SpawnKind : StratStart.CustomKind, Positions = positions };
     }
 
     /// <summary>A step entry as a start entry: its point, level and yaw; the carried and observed marks are not kept.</summary>
@@ -359,6 +361,35 @@ public static class StratStartBlock
 /// </summary>
 public static class StratStartPhrasing
 {
+    /// <summary>
+    ///     A strat's start as its readers print it: an older file's start that is not the map's spawns reads
+    ///     <c>from step 1</c>, since it is that step's spots, not a choice anyone made in the Start row.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    /// <param name="spawns">The map's spawns, as <see cref="StratStartBlock.Effective" />.</param>
+    public static string? Text(StratDocument document, CalloutResolver? callouts, StratSpawns? spawns = null)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        StratStart? start = StratStartBlock.Effective(document, spawns);
+        return document.Start is null && start is { Kind: StratStart.CustomKind } ? FromStepOne : Text(start, callouts);
+    }
+
+    /// <summary>One token's start as its role sheet prints it; <see cref="Text(StratDocument, CalloutResolver, StratSpawns)" />'s rule.</summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string? SlotText(StratDocument document, string slot, CalloutResolver? callouts)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        StratStart? start = StratStartBlock.Effective(document);
+        return document.Start is null && start is { Kind: StratStart.CustomKind } && StratStartBlock.For(start, slot) is not null
+            ? FromStepOne
+            : SlotText(start, slot, callouts);
+    }
+
+    private const string FromStepOne = "from step 1";
+
     /// <summary>The whole start, or null when it places no one.</summary>
     /// <param name="start">The start, or null.</param>
     /// <param name="callouts">The owner's words for the map's places; null splits canonical names.</param>

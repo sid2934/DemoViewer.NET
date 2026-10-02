@@ -23,6 +23,12 @@ public sealed partial class StratStartRow : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    /// <summary>Why the last start edit was not made (the spawns still being read, a step placing the token); empty otherwise.</summary>
+    [ObservableProperty]
+    private string _note = "";
+
+    private Guid? _loaded;
+
     internal StratStartRow(StratEditorViewModel owner)
     {
         _owner = owner;
@@ -63,13 +69,19 @@ public sealed partial class StratStartRow : ObservableObject
     internal void Load(StratDocument document, CalloutResolver places, StratSpawns? spawns)
     {
         StratStart? start = StratStartBlock.Effective(document, spawns);
-        KindText = start is null ? "" : start.Kind switch
+        if (_loaded != document.Id)
+        {
+            _loaded = document.Id;
+            Note = "";
+        }
+
+        KindText = start is null ? "" : document.Start is null && start.Kind == StratStart.CustomKind ? "from step 1" : start.Kind switch
         {
             StratStart.SpawnKind => "spawn",
             StratStart.CapturedKind => "captured",
             _ => "custom"
         };
-        Summary = StratStartPhrasing.Text(start, places) ?? "no one placed: tokens appear at their first step";
+        Summary = StratStartPhrasing.Text(document, places, spawns) ?? "no one placed: tokens appear at their first step";
         Line = document.Trigger?.Text is { Length: > 0 } trigger ? Summary + " · " + trigger : Summary;
         foreach (StratStartSlotRow row in Own.Concat(Opponents))
         {

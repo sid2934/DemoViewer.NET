@@ -678,6 +678,8 @@
                                               ToolTip.Tip="Round: times count down the round clock, 1:55. From trigger: times count up from what starts the strat, +0:08" />
                                 </StackPanel>
                             </WrapPanel>
+                            <TextBlock x:Name="ClockNote" Text="{Binding ClockNote}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding ClockNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                 <TextBlock Grid.Column="0" Text="Tags" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
                                 <TextBox Grid.Column="1" FontSize="12" Watermark="comma separated"
@@ -740,6 +742,9 @@
                                                         Command="{Binding ToggleExpandedCommand}"
                                                         ToolTip.Tip="Each player's start, and what starts the strat" />
                                             </Grid>
+                                            <TextBlock x:Name="StartNote" Text="{Binding Note}" FontSize="11" TextWrapping="Wrap" Margin="24 0 0 0"
+                                                       Foreground="{DynamicResource AccentCaution}"
+                                                       IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                             <StackPanel Margin="24 0 0 0" Spacing="4" IsVisible="{Binding IsExpanded}">
                                                 <StackPanel Classes="stratField">
                                                     <TextBlock Text="what starts it" Classes="stratFieldLabel" />

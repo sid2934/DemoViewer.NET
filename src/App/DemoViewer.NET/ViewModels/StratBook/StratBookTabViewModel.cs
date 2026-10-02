@@ -220,6 +220,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
             placesFor: canvasPlaces, post: post, routing: canvasRouting, spawnsFor: _spawns is { } spawnSource ? spawnSource.ForAsync : null);
         Editor.Spawns = () => Canvas.CurrentSpawns;
+        Editor.LegacyCarriedFor = Canvas.LegacyCarried;
+        Editor.StartRefusal = Canvas.StartRefusal;
         StepSelection = new StratStepSelection(Editor, Canvas);
         Canvas.LinesShownApart = Editor.ShowsLinesApart;
         Editor.PlaceAt = Canvas.PlaceAt;

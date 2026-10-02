@@ -335,7 +335,7 @@ public sealed record RoleSheet(
         StratSlot? slotModel = doc.Slots.Find(s => string.Equals(s.Slot, slot, StringComparison.Ordinal));
         RoleSheetHeader header = new(doc.Name, doc.Map, doc.Side, doc.Type, doc.TargetSite, doc.Economy, doc.Tempo,
             doc.Trigger?.Text, doc.Status, doc.Revision, slot, roster?.GetValueOrDefault(slot), slotModel?.Role,
-            StratStartPhrasing.SlotText(StratStartBlock.Effective(doc), slot, callouts), doc.Clock);
+            StratStartPhrasing.SlotText(doc, slot, callouts), doc.Clock);
 
         HashSet<Guid> ownStepIds = [.. doc.Steps.Where(s => StratStepLines.Involves(s, slot)).Select(s => s.Id)];
 

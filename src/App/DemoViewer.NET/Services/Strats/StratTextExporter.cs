@@ -49,7 +49,7 @@ public static class StratTextExporter
             md.Append("Trigger: ").Append(trigger).Append('\n');
         }
 
-        if (StratStartPhrasing.Text(StratStartBlock.Effective(doc), callouts) is { } start)
+        if (StratStartPhrasing.Text(doc, callouts) is { } start)
         {
             md.Append("Start: ").Append(start).Append('\n');
         }
