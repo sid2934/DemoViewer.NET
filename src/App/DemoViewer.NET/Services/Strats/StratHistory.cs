@@ -501,6 +501,8 @@ public static class StratDiffPhrasing
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + fromSlot + "'s position moved to " + toSlot;
             case ["steps", var index, "lurk", .. var rest]:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + LurkChange(tree, rest, op, callouts);
+            case ["steps", var index, "via" or "viaPoints", ..]:
+                return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + ViaChange(tree, tokens[2..], op, callouts);
             case ["steps", var index, .. var rest]:
                 return StepName(StratHistory.ValueAt(tree, "/steps/" + index)) + ": " + FieldChange(rest, op, callouts);
             case ["branches", _]:
@@ -580,6 +582,8 @@ public static class StratDiffPhrasing
             case ["watch", "points", _]:
                 string? point = StratLocations.NodeText(op.Op == PatchOp.Remove ? StratHistory.ValueAt(tree, op.Path) ?? op.From : op.Value, callouts);
                 return (op.Op == PatchOp.Remove ? "watching removed: " : "watching added: ") + (point ?? "a point");
+            case ["via" or "viaPoints", ..]:
+                return ViaChange(tree, rest, op, callouts);
             case ["watch"] or ["watch", "places"] or ["watch", "points"]:
                 JsonNode? watched = rest.Length == 1 ? op.Value?["places"] : rest[1] == "places" ? op.Value : null;
                 JsonNode? points = rest.Length == 1 ? op.Value?["points"] : rest[1] == "points" ? op.Value : null;
@@ -592,6 +596,34 @@ public static class StratDiffPhrasing
             default:
                 return FieldChange(rest, op, callouts);
         }
+    }
+
+    // "via set to Outside Long, Long Doors", "via added: Middle", "via cleared".
+    private static string ViaChange(JsonNode? tree, string[] rest, PatchOp op, CalloutResolver? callouts)
+    {
+        bool points = rest[0] == "viaPoints";
+        if (rest.Length > 1)
+        {
+            JsonNode? entry = op.Op == PatchOp.Remove ? StratHistory.ValueAt(tree, op.Path) ?? op.From : op.Value;
+            string shown = points
+                ? StratLocations.NodeText(entry, callouts) ?? "a point"
+                : Text(entry) is { } place ? Place(place, callouts) : "a place";
+            return op.Op switch
+            {
+                PatchOp.Add => "via added: " + shown,
+                PatchOp.Remove => "via removed: " + shown,
+                _ => "via set to " + shown
+            };
+        }
+
+        string[] names = op.Value is JsonArray list
+            ? points
+                ? [.. list.Select(p => StratLocations.NodeText(p, callouts)).OfType<string>()]
+                : [.. list.Select(Text).OfType<string>().Select(p => Place(p, callouts))]
+            : [];
+        return op.Op == PatchOp.Remove || names.Length == 0
+            ? points ? "via points cleared" : "via cleared"
+            : (points ? "via points set to " : "via set to ") + string.Join(", ", names);
     }
 
     // "lurk set: Palace; rotate on the call", "lurk area added: Connector", "rotate time 0:45 → 0:40", "rotate to set to B site".
@@ -707,6 +739,7 @@ public static class StratDiffPhrasing
         string verb = Text(obj["verb"]) ?? "move";
         string? utility = Text(obj["utility"]?["kind"]);
         string? to = StratLocations.NodeText(obj["to"], callouts);
+        JsonObject? via = obj;
         bool plural = actor == StratVocabulary.ActorAll;
         if (LineSlots(obj) is { } slots)
         {
@@ -714,6 +747,7 @@ public static class StratDiffPhrasing
             actor = slots.Length == StratVocabulary.Slots.Count ? StratVocabulary.ActorAll : string.Join(", ", slots);
             plural = slots.Length > 1;
             to = slots.Length == 1 ? StratLocations.NodeText(obj["assignments"]?[0]?["to"], callouts) : null;
+            via = slots.Length == 1 ? obj["assignments"]?[0] as JsonObject : null;
         }
 
         bool lines = LineSlots(obj) is not null;
@@ -746,6 +780,16 @@ public static class StratDiffPhrasing
         else if (obj["lurk"]?["areas"] is JsonArray { Count: > 0 } areas)
         {
             sentence.Append(' ').Append(string.Join(", ", areas.Select(Text).OfType<string>().Select(p => Place(p, callouts))));
+        }
+
+        string[] through =
+        [
+            .. via?["via"] is JsonArray viaPlaces ? viaPlaces.Select(Text).OfType<string>().Select(p => Place(p, callouts)) : [],
+            .. via?["viaPoints"] is JsonArray viaPoints ? viaPoints.Select(p => StratLocations.NodeText(p, callouts)).OfType<string>() : []
+        ];
+        if (through.Length > 0)
+        {
+            sentence.Append(" via ").Append(string.Join(", ", through));
         }
 
         if (Number(obj["atSeconds"]) is { } at)

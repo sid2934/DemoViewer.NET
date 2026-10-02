@@ -317,6 +317,29 @@ public class StratFrameSourceTests
         await Assert.That(first.Distinct(StringComparer.Ordinal).Count()).IsGreaterThan(1);
     }
 
+    [Test]
+    public async Task ARoutedSpec_DrawsAMovingTokensWayAhead_UntilItArrives()
+    {
+        // A walks a bend: (0,0) at 0, a corner at (300,0) on 64, the end at (300,300) on 128, then stands.
+        TokenTrackSet tracks = new(
+        [
+            new TokenTrack("A", [new TokenKeyframe(0, 0, 0, 0, 0), new TokenKeyframe(64, 300, 0, 0, 0), new TokenKeyframe(128, 300, 300, 0, 90)]),
+            new TokenTrack("O1", [new TokenKeyframe(0, -1500, 900, 0, 45)])
+        ]);
+        StratSceneSpec spec = Spec(0, 256, 64, 1.0) with { Tracks = tracks, Utility = [], Routes = true };
+        StratFrameSource source = new(spec);
+
+        Scene2DFrame moving = source.FrameAt(32);
+        TokenRouteLine line = moving.Routes.Single();
+        await Assert.That(line.Team).IsEqualTo(2);
+        await Assert.That(line.Points.Select(p => (p.X, p.Y))).IsEquivalentTo(new[] { (150f, 0f), (300f, 0f), (300f, 300f) });
+        await Assert.That(source.FrameAt(96).Routes.Single().Points.Count).IsEqualTo(2).Because("the corner is behind it");
+        await Assert.That(source.FrameAt(128).Routes.Count).IsEqualTo(0).Because("gone on arrival");
+        await Assert.That(new StratFrameSource(spec with { Routes = false }).FrameAt(32).Routes.Count).IsEqualTo(0);
+        await Assert.That(new StratFrameSource(Spec(0, 960, 64, 1.0)).FrameAt(500).Routes.Count).IsEqualTo(0)
+            .Because("a spec that does not ask for routes draws what it always drew");
+    }
+
     private static async Task<IReadOnlyList<string>> HashRun()
     {
         StratSceneSpec spec = Spec(0, 960, 20, 1.0);

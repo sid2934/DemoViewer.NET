@@ -45,7 +45,14 @@ public sealed record StratSceneSpec(
     int StartTick,
     int EndTick,
     int Fps,
-    double Speed);
+    double Speed)
+{
+    /// <summary>
+    ///     Whether a moving token shows its way ahead as a faint line (<see cref="Scene2DFrame.Routes" />): set when
+    ///     the tracks follow the map's nav. Off draws exactly what a strat drew before routing.
+    /// </summary>
+    public bool Routes { get; init; }
+}
 
 /// <summary>What one token slot draws as: its marker text and its side.</summary>
 /// <param name="Slot">One of <see cref="TokenSlots.All" />.</param>

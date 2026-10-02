@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.Strats;
@@ -142,8 +143,8 @@ public sealed class StratSceneProjection
     public const string ClockKind = "dv-strat-clock";
 
     /// <summary>
-    ///     How fast a token sent by a travel verb runs: a rifle's run speed. The canvas has no path to follow, so this
-    ///     only sets when the token arrives.
+    ///     How fast a token sent by a travel verb runs: a rifle's run speed, along its route when the map's nav is in
+    ///     memory, else in a straight line.
     /// </summary>
     public const double RunUnitsPerSecond = 215;
 
@@ -218,6 +219,9 @@ public sealed class StratSceneProjection
     /// <summary>The last step's tick; 0 with no steps.</summary>
     public int LastTick => Schedule.LastTick;
 
+    /// <summary>Whether tokens follow routes round walls: a path resolver was given.</summary>
+    public bool Routed => _places.Paths is not null;
+
     /// <summary>
     ///     The last tick anything moves or shows: the last step's, a run's arrival after it (a destination's or a lurk
     ///     rotate's), or a throw's last effect tick. The transport, the step row and an export run to here, so a run
@@ -278,9 +282,10 @@ public sealed class StratSceneProjection
     /// </param>
     /// <param name="placeContains">Whether a point is in a place, to keep fanned-out tokens inside it; null keeps to a ring.</param>
     /// <param name="throwFlights">Resolves a throw's lineup to its flight and landing; null flies only authored landings.</param>
+    /// <param name="paths">Routes tokens round walls; null moves them in straight lines.</param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
         ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null,
-        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null)
+        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null, PathResolver? paths = null)
     {
         placeArrivals ??= ArrivalsFrom(placeCentres);
         ArgumentNullException.ThrowIfNull(document);
@@ -309,7 +314,7 @@ public sealed class StratSceneProjection
         }
 
         PlaceSet places = new(placeCentres, placeArrivals, placeContains, canvas.DefaultLevelMinZ ?? 0, roundSeconds,
-            IsLegacyCarry(document), IsLegacyObserved(document));
+            IsLegacyCarry(document), IsLegacyObserved(document), paths);
         Dictionary<string, SlotPlan> plans = Fanned(TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
             StringComparer.Ordinal));
         List<TokenTrack> tracks = [];
@@ -543,7 +548,8 @@ public sealed class StratSceneProjection
             bool seen = observed && placement is not null && i != overrideIndex;
             if (to is not null && !fromOrigin && (placement is null || (!seen && !places.Observed && motion is StepMotion.Travel or StepMotion.Lurk)))
             {
-                SendTo(events, tick, i, motion, to, watch);
+                SendTo(events, tick, i, motion, to, watch,
+                    motion is StepMotion.Travel or StepMotion.Lurk && StratStepLines.ViaFor(step, slot) is { Count: > 0 } via ? via : null);
                 departed = tick;
                 moved = true;
             }
@@ -585,11 +591,12 @@ public sealed class StratSceneProjection
         watch is not null && FacingOf(watch, at, centres) is { } yaw ? at with { YawDegrees = yaw } : at;
 
     // On one tick a later step's destination replaces an earlier one's, whatever the verbs, and moves at its own pace.
-    private static void SendTo(List<SlotEvent> events, int tick, int order, StepMotion motion, PlaceRef to, StepWatch? watch)
+    private static void SendTo(List<SlotEvent> events, int tick, int order, StepMotion motion, PlaceRef to, StepWatch? watch,
+        IReadOnlyList<PlaceRef>? via)
     {
         events.RemoveAll(e => e.Tick == tick && e.Shaped && e.To is not null);
         events.Add(new SlotEvent(tick, order, motion == StepMotion.Position ? SlotEventKind.Arrive : SlotEventKind.Travel, to, watch, false, true,
-            motion == StepMotion.Lurk));
+            motion == StepMotion.Lurk, via));
     }
 
     /// <summary>
@@ -669,7 +676,7 @@ public sealed class StratSceneProjection
         foreach (SlotEvent e in plan.Events)
         {
             TokenTrack track = Build(slot, entries);
-            bool standing = track.TrySample(e.Tick, out TokenKeyframe at);
+            bool standing = TrySampleRouted(track, e.Tick, entries, places, out TokenKeyframe at);
             TokenStep shape = e.Shaped ? steps[e.Order] with { Tick = e.Tick } : new TokenStep(e.Tick, 0, TokenInterpolation.Linear);
             if (e.Kind == SlotEventKind.Face)
             {
@@ -717,39 +724,335 @@ public sealed class StratSceneProjection
                 continue;
             }
 
-            Run(entries, track, e, shape, at, target, runYaw, watched ?? runYaw);
+            Run(entries, track, e, shape, at, target, runYaw, watched, places);
         }
 
-        return Build(slot, entries);
+        return Bent(Build(slot, entries), entries, places);
     }
 
     // From the tick the token runs from where it stands to the target, facing the way it runs, and turns to what it
-    // watches on arrival. The step's hold delays the start. A later entry it cannot reach first wins.
+    // watches on arrival. The step's hold delays the start. A later entry it cannot reach first wins. With a route the
+    // run takes its length and leaves an entry at each bend, timed along it at the run's one speed.
     private static void Run(List<TrackEntry> entries, TokenTrack track, SlotEvent e, TokenStep shape, TokenKeyframe start,
-        TokenPlacement target, float runYaw, float arriveYaw)
+        TokenPlacement target, float runYaw, float? watched, PlaceSet places)
     {
         int tick = e.Tick;
-        double distance = Math.Sqrt((target.X - start.X) * (double)(target.X - start.X) + (target.Y - start.Y) * (double)(target.Y - start.Y));
+        List<NavWaypoint>? route = places.Paths is { } paths ? RouteOf(paths, start, target, e, places) : null;
+        double distance = route is not null
+            ? NavPathfinder.Length(route)
+            : Math.Sqrt((target.X - start.X) * (double)(target.X - start.X) + (target.Y - start.Y) * (double)(target.Y - start.Y));
         double speed = e.Walk ? WalkUnitsPerSecond : RunUnitsPerSecond;
         int arrive = tick + shape.HoldTicks + Math.Max(1, (int)Math.Ceiling(distance / speed * StepSchedule.TicksPerSecond));
+        float leaveYaw = route is not null && Heading(route, 0) is { } first ? first : runYaw;
+        float arriveYaw = watched ?? (route is not null && Heading(route, route.Count - 2) is { } last ? last : runYaw);
 
         // Pinned a tick early so the token turns at the run, not across the whole step before it.
-        if (LastKeyTick(entries, tick - 1) < tick - 1 && track.TrySample(tick - 1, out TokenKeyframe held))
+        if (LastKeyTick(entries, tick - 1) < tick - 1 && TrySampleRouted(track, tick - 1, entries, places, out TokenKeyframe held))
         {
             Insert(entries, tick - 1, Placement(held));
         }
 
-        Place(entries, e, shape, Placement(start) with { YawDegrees = runYaw });
+        Place(entries, e, shape, Placement(start) with { YawDegrees = leaveYaw });
         int next = entries.FindIndex(x => x.Step.Tick > tick && x.Placement is not null);
         bool blocked = next >= 0 && entries[next].Step.Tick <= arrive;
         int until = blocked ? entries[next].Step.Tick : arrive;
 
         // A step with no entry inside the run would pin the token where it started.
         entries.RemoveAll(x => x.Placement is null && x.Step.Tick > tick && x.Step.Tick < until);
-        if (!blocked)
+        if (blocked)
         {
-            Insert(entries, arrive, target with { YawDegrees = arriveYaw }, true);
+            return;
         }
+
+        // A hold-interpolated run jumps at its end, so it has no corners to stop at.
+        if (route is { Count: > 2 } && shape.Interpolation == TokenInterpolation.Linear)
+        {
+            foreach (Corner corner in Corners(route, tick + shape.HoldTicks, arrive, start.LevelMinZ, places.Paths))
+            {
+                Insert(entries, corner.Tick, corner.Placement, true);
+            }
+        }
+
+        Insert(entries, arrive, target with { YawDegrees = arriveYaw }, true);
+    }
+
+    // The run's route from where the token stands through each via in order to the target. A leg with no route is
+    // straight; null when no leg routes and there is no via to go through.
+    private static List<NavWaypoint>? RouteOf(PathResolver paths, TokenKeyframe start, TokenPlacement target, SlotEvent e, PlaceSet places)
+    {
+        List<NavWaypoint> route = [];
+        bool routed = false;
+        (double X, double Y, double Level) from = (start.X, start.Y, start.LevelMinZ);
+        foreach (PlaceRef via in e.Via ?? [])
+        {
+            if (ViaAt(via, from.Level, places) is not { } stop)
+            {
+                continue;
+            }
+
+            routed |= Leg(route, paths, from, stop, via.Place);
+            from = stop;
+        }
+
+        routed |= Leg(route, paths, from, (target.X, target.Y, target.LevelMinZ), e.To?.Place);
+        return route.Count >= 2 && (routed || route.Count > 2) ? route : null;
+    }
+
+    private static bool Leg(List<NavWaypoint> route, PathResolver paths, (double X, double Y, double Level) from,
+        (double X, double Y, double Level) to, string? place)
+    {
+        IReadOnlyList<NavWaypoint>? leg = paths.Route(from.X, from.Y, from.Level, to.X, to.Y, to.Level, place);
+        IReadOnlyList<NavWaypoint> points = leg ?? [new NavWaypoint(from.X, from.Y, from.Level), new NavWaypoint(to.X, to.Y, to.Level)];
+        route.AddRange(route.Count == 0 ? points : points.Skip(1));
+        return leg is not null;
+    }
+
+    // A via point is where it was picked; a via place is its arrival, from the floor the token is on.
+    private static (double X, double Y, double Level)? ViaAt(PlaceRef via, double level, PlaceSet places)
+    {
+        if (StratLocations.HasPoint(via))
+        {
+            return (via.X!.Value, via.Y!.Value, via.LevelMinZ ?? level);
+        }
+
+        return StratLocations.HasPlace(via) && places.Arrivals?.Invoke(via.Place!, level) is { } arrival
+            ? (arrival.X, arrival.Y, arrival.LevelMinZ)
+            : null;
+    }
+
+    /// <summary>One bend of a route as a keyframe: when the token is there, where, on which level, facing the next leg.</summary>
+    internal readonly record struct Corner(int Tick, float X, float Y, double LevelMinZ, float YawDegrees)
+    {
+        public TokenPlacement Placement => new(X, Y, LevelMinZ, YawDegrees);
+    }
+
+    /// <summary>
+    ///     A route's inner points as keyframes strictly between <paramref name="fromTick" /> and <paramref name="untilTick" />,
+    ///     each at the tick its share of the length puts it, facing the next leg. Points whose ticks collide are pushed onto
+    ///     consecutive ticks. With more points than ticks, the ones whose removal leaves the line on the mesh go first, then
+    ///     the smallest turns; a floor change goes last. Where the floor changes and a tick is free, a keyframe a tick earlier
+    ///     keeps the old floor, so the token switches at the point and not half way along the leg before it.
+    /// </summary>
+    /// <param name="route">The route, both ends included.</param>
+    /// <param name="fromTick">When the token leaves the first point.</param>
+    /// <param name="untilTick">When it reaches the last.</param>
+    /// <param name="level">The token's level as it leaves.</param>
+    /// <param name="paths">Tests a shortcut against the mesh when points must go; null keeps the sharpest turns.</param>
+    internal static List<Corner> Corners(IReadOnlyList<NavWaypoint> route, int fromTick, int untilTick, double level,
+        PathResolver? paths = null)
+    {
+        List<Corner> corners = [];
+        int room = untilTick - fromTick - 1;
+        double total = route.Count < 3 ? 0 : NavPathfinder.Length(route);
+        if (total < 1e-6 || room < 1)
+        {
+            return corners;
+        }
+
+        double[] along = new double[route.Count];
+        for (int i = 1; i < route.Count; i++)
+        {
+            along[i] = along[i - 1] + Distance(route[i - 1], route[i]);
+        }
+
+        List<int> kept = [.. Enumerable.Range(1, route.Count - 2)];
+        if (kept.Count > room)
+        {
+            Thin(route, kept, room, paths);
+        }
+
+        // Ideal ticks, then pushed apart: up from fromTick, then down from untilTick. kept.Count <= room, so both fit.
+        int[] ticks = new int[kept.Count];
+        for (int j = 0, previous = fromTick; j < kept.Count; j++)
+        {
+            int ideal = fromTick + (int)Math.Round((untilTick - fromTick) * along[kept[j]] / total, MidpointRounding.AwayFromZero);
+            previous = ticks[j] = Math.Max(ideal, previous + 1);
+        }
+
+        for (int j = kept.Count - 1, next = untilTick; j >= 0; j--)
+        {
+            next = ticks[j] = Math.Min(ticks[j], next - 1);
+        }
+
+        int lastTick = fromTick;
+        NavWaypoint last = route[0];
+        for (int j = 0; j < kept.Count; j++)
+        {
+            NavWaypoint here = route[kept[j]];
+            NavWaypoint ahead = route[j + 1 < kept.Count ? kept[j + 1] : route.Count - 1];
+            int tick = ticks[j];
+            if (here.FloorKey != level && tick - 1 > lastTick)
+            {
+                double f = (tick - 1 - lastTick) / (double)(tick - lastTick);
+                corners.Add(new Corner(tick - 1, (float)(last.X + (here.X - last.X) * f), (float)(last.Y + (here.Y - last.Y) * f), level,
+                    Yaw(last, here)));
+            }
+
+            corners.Add(new Corner(tick, (float)here.X, (float)here.Y, here.FloorKey, Yaw(here, ahead)));
+            level = here.FloorKey;
+            lastTick = tick;
+            last = here;
+        }
+
+        return corners;
+    }
+
+    // Drops inner points (indices into route) until `room` are left. Each pass looks at the cheapest few candidates, by
+    // floor change then turn, and drops the first whose shortcut stays on the mesh, else the cheapest.
+    private static void Thin(IReadOnlyList<NavWaypoint> route, List<int> kept, int room, PathResolver? paths)
+    {
+        const int Checked = 8;
+        while (kept.Count > room)
+        {
+            int[] order = [.. Enumerable.Range(0, kept.Count).OrderBy(j => Cost(route, kept, j))];
+            int drop = order[0];
+            for (int c = 0; paths is not null && c < Math.Min(Checked, order.Length); c++)
+            {
+                int j = order[c];
+                NavWaypoint before = route[j == 0 ? 0 : kept[j - 1]];
+                NavWaypoint after = route[j + 1 < kept.Count ? kept[j + 1] : route.Count - 1];
+                if (paths.Clear(before.X, before.Y, after.X, after.Y, before.FloorKey))
+                {
+                    drop = j;
+                    break;
+                }
+            }
+
+            kept.RemoveAt(drop);
+        }
+    }
+
+    // The turn at kept[j] in radians, plus a floor change's weight, so a floor point is the last to go.
+    private static double Cost(IReadOnlyList<NavWaypoint> route, List<int> kept, int j)
+    {
+        int i = kept[j];
+        NavWaypoint before = route[j == 0 ? 0 : kept[j - 1]], here = route[i], after = route[j + 1 < kept.Count ? kept[j + 1] : route.Count - 1];
+        double turn = Math.Abs(Math.Atan2(
+            (here.X - before.X) * (after.Y - here.Y) - (here.Y - before.Y) * (after.X - here.X),
+            (here.X - before.X) * (after.X - here.X) + (here.Y - before.Y) * (after.Y - here.Y)));
+        return turn + (here.FloorKey != route[i - 1].FloorKey ? 2 * Math.PI : 0);
+    }
+
+    private static double Distance(NavWaypoint a, NavWaypoint b) => Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
+
+    private static float Yaw(NavWaypoint from, NavWaypoint to) =>
+        (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(to.Y - from.Y, to.X - from.X) * 180 / Math.PI), 2);
+
+    // The heading of the leg from point i to point i + 1, or null for a leg too short to face along.
+    private static float? Heading(List<NavWaypoint> route, int i)
+    {
+        if (i < 0 || i + 1 >= route.Count)
+        {
+            return null;
+        }
+
+        double dx = route[i + 1].X - route[i].X, dy = route[i + 1].Y - route[i].Y;
+        return dx * dx + dy * dy < 1e-6 ? null : (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(dy, dx) * 180 / Math.PI), 2);
+    }
+
+    // The ticks of run entries. A segment ending on one belongs to a run, already routed and timed by its length.
+    private static HashSet<int> RunTicks(List<TrackEntry> entries) => [.. entries.Where(x => x.Arrival).Select(x => x.Step.Tick)];
+
+    // A segment whose ends' ticks were fixed by steps (an authored entry, a position verb, a run cut short): a route bends
+    // it and keeps both ticks.
+    private static bool Bendable(TokenTrack track, int k, HashSet<int> runTicks)
+    {
+        IReadOnlyList<TokenKeyframe> keys = track.Keyframes;
+        if (k < 0 || k + 1 >= keys.Count || track.Segments[k] != TokenInterpolation.Linear || runTicks.Contains(keys[k + 1].Tick))
+        {
+            return false;
+        }
+
+        TokenKeyframe a = keys[k], b = keys[k + 1];
+        double dx = b.X - a.X, dy = b.Y - a.Y;
+        return dx * dx + dy * dy >= 1 && b.Tick - ((long)a.Tick + track.HoldTicks[k]) >= 2;
+    }
+
+    // Segment k as its route's keyframes, both ends included, or null when the route is straight.
+    private static List<TokenKeyframe>? BendSegment(TokenTrack track, int k, PathResolver paths)
+    {
+        TokenKeyframe a = track.Keyframes[k], b = track.Keyframes[k + 1];
+        if (paths.Route(a.X, a.Y, a.LevelMinZ, b.X, b.Y, b.LevelMinZ, null) is not { Count: > 2 } route)
+        {
+            return null;
+        }
+
+        List<Corner> corners = Corners(route, a.Tick + track.HoldTicks[k], b.Tick, a.LevelMinZ, paths);
+        if (corners.Count == 0)
+        {
+            return null;
+        }
+
+        List<TokenKeyframe> keys = [a];
+        keys.AddRange(corners.Select(c => new TokenKeyframe(c.Tick, c.X, c.Y, c.LevelMinZ, c.YawDegrees)));
+        keys.Add(b);
+        return keys;
+    }
+
+    // A sample on the route where a fixed-time segment bends. A run's corners are entries already.
+    private static bool TrySampleRouted(TokenTrack track, int tick, List<TrackEntry> entries, PlaceSet places, out TokenKeyframe at)
+    {
+        if (!track.TrySample(tick, out at))
+        {
+            return false;
+        }
+
+        if (places.Paths is not { } paths)
+        {
+            return true;
+        }
+
+        IReadOnlyList<TokenKeyframe> keys = track.Keyframes;
+        int k = keys.Count - 1;
+        while (k > 0 && keys[k].Tick > tick)
+        {
+            k--;
+        }
+
+        if (!Bendable(track, k, RunTicks(entries)) || BendSegment(track, k, paths) is not { } bent)
+        {
+            return true;
+        }
+
+        int[] holds = new int[bent.Count];
+        holds[0] = track.HoldTicks[k];
+        return new TokenTrack(track.Slot, bent, holds).TrySample(tick, out at);
+    }
+
+    // The built track with every fixed-time segment bent along its route.
+    private static TokenTrack Bent(TokenTrack track, List<TrackEntry> entries, PlaceSet places)
+    {
+        if (places.Paths is not { } paths || track.Keyframes.Count < 2)
+        {
+            return track;
+        }
+
+        HashSet<int> runTicks = RunTicks(entries);
+        List<TokenKeyframe> keys = [];
+        List<int> holds = [];
+        List<TokenInterpolation> segments = [];
+        bool bentAny = false;
+        for (int k = 0; k < track.Keyframes.Count; k++)
+        {
+            keys.Add(track.Keyframes[k]);
+            holds.Add(track.HoldTicks[k]);
+            segments.Add(track.Segments[k]);
+            if (!Bendable(track, k, runTicks) || BendSegment(track, k, paths) is not { } bent)
+            {
+                continue;
+            }
+
+            for (int c = 1; c < bent.Count - 1; c++)
+            {
+                keys.Add(bent[c]);
+                holds.Add(0);
+                segments.Add(TokenInterpolation.Linear);
+            }
+
+            bentAny = true;
+        }
+
+        return bentAny ? new TokenTrack(track.Slot, keys, holds, segments) : track;
     }
 
     // An event's entry at its tick: its own step's entry when that step owns the tick, so the step's hold and
@@ -775,7 +1078,7 @@ public sealed class StratSceneProjection
             return null;
         }
 
-        (double x, double y) = e.Fan ? SpotFor(e.To.Place, centre, slot, places.Contains) : (centre.X, centre.Y);
+        (double x, double y) = e.Fan ? SpotFor(e.To.Place, centre, slot, places.Contains, places.Paths) : (centre.X, centre.Y);
         return new TokenPlacement((float)x, (float)y, centre.LevelMinZ, null);
     }
 
@@ -793,8 +1096,12 @@ public sealed class StratSceneProjection
     /// <param name="centre">The arrival.</param>
     /// <param name="slot">The token.</param>
     /// <param name="contains">Whether a point is in a place on a floor; null keeps to the ring.</param>
+    /// <param name="paths">
+    ///     When given, a spot must also stand on the nav and the ring is snapped onto it; a ring that does not snap is the
+    ///     arrival itself.
+    /// </param>
     internal static (double X, double Y) SpotFor(string? place, (double X, double Y, double LevelMinZ) centre, string slot,
-        PlaceContainsResolver? contains)
+        PlaceContainsResolver? contains, PathResolver? paths = null)
     {
         int k = Math.Max(0, IndexOfSlot(slot));
         double angle = (90 + 72 * k) * Math.PI / 180;
@@ -804,14 +1111,17 @@ public sealed class StratSceneProjection
             foreach (double r in SpotRadii)
             {
                 (double x, double y) = (centre.X + r * cos, centre.Y + r * sin);
-                if (contains(place, x, y, centre.LevelMinZ))
+                if (contains(place, x, y, centre.LevelMinZ) && (paths is null || paths.OnMesh(x, y, centre.LevelMinZ)))
                 {
                     return (x, y);
                 }
             }
         }
 
-        return (centre.X + RingRadius * cos, centre.Y + RingRadius * sin);
+        (double X, double Y) ring = (centre.X + RingRadius * cos, centre.Y + RingRadius * sin);
+        return paths is null
+            ? ring
+            : paths.Snap(ring.X, ring.Y, centre.LevelMinZ, place, NavPathfinder.DefaultSnap) ?? (centre.X, centre.Y);
     }
 
     private static int IndexOfSlot(string slot)
@@ -878,8 +1188,9 @@ public sealed class StratSceneProjection
     /// <param name="Fan">Another token is at the same destination at the same time.</param>
     /// <param name="Shaped">At its step's tick, so the step's hold and interpolation shape it.</param>
     /// <param name="Walk">At <see cref="WalkUnitsPerSecond" />: a lurker's move.</param>
+    /// <param name="Via">Where a run goes through first, in order; null for the shortest route.</param>
     internal sealed record SlotEvent(int Tick, int Order, SlotEventKind Kind, PlaceRef? To, StepWatch? Watch, bool Fan, bool Shaped,
-        bool Walk = false);
+        bool Walk = false, IReadOnlyList<PlaceRef>? Via = null);
 
     /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
     internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved);
@@ -895,8 +1206,9 @@ public sealed class StratSceneProjection
     ///     read as carried.
     /// </param>
     /// <param name="Observed">Every entry is observed: a capture that predates the per-entry mark (<see cref="IsLegacyObserved" />).</param>
+    /// <param name="Paths">Routes round walls; null keeps every move straight.</param>
     internal sealed record PlaceSet(PlaceCentreResolver? Centres, PlaceArrivalResolver? Arrivals, PlaceContainsResolver? Contains,
-        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false, bool Observed = false);
+        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false, bool Observed = false, PathResolver? Paths = null);
 
     /// <summary>
     ///     Whether every position in the strat reads as observed: a captured or mined strat written before positions

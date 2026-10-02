@@ -157,6 +157,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     ///     over <paramref name="grenades" /> reading on the thread pool when omitted.
     /// </param>
     /// <param name="canvasPlaces">The canvas's zone loader; the app's zone source through the processing queue when omitted.</param>
+    /// <param name="canvasRouting">Whether the canvas routes tokens; the <c>stratbook.routing</c> feature when omitted.</param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
@@ -164,7 +165,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
         StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
-        Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null)
+        Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null)
     {
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
@@ -217,7 +218,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
-            placesFor: canvasPlaces, post: post);
+            placesFor: canvasPlaces, post: post, routing: canvasRouting);
         StepSelection = new StratStepSelection(Editor, Canvas);
         Canvas.LinesShownApart = Editor.ShowsLinesApart;
         Editor.LinesViewChanged += Canvas.RefreshSetPlace;

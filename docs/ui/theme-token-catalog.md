@@ -420,6 +420,8 @@ The 2D playback HUD + the code-drawn Skia canvas (grid, sightlines, rings, trail
 | `Pb2dCanvasMarkerRingT` | `#C8881F` | `#A66A15` |
 | `Pb2dCanvasMarkerRingCt` | `#357ABD` | `#285F9E` |
 | `Pb2dCanvasMarkerRingNeutral` | `#666666` | `#8A8F96` |
+| `Pb2dCanvasRouteT` | `#59E0A030` | `#66C9821C` |
+| `Pb2dCanvasRouteCt` | `#594A90D9` | `#662F73BE` |
 
 ### Message headers: `Msg*` (9)
 

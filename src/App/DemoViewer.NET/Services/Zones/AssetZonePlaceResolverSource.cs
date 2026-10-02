@@ -59,20 +59,36 @@ public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource
 
         string? overlayDir = _overlayDir();
         OverlayStamp stamp = OverlayStamp.Of(ZoneAssetPipeline.OverlayPathFor(overlayDir, map));
+        if (Cached(map, overlayDir, stamp) is { } hit)
+        {
+            return hit.Resolver;
+        }
+
+        // Built outside the lock, so one map's graph never holds up another's lookup; a racing build loses to the published one.
+        // The pipeline never throws: a missing, unreadable or malformed zones file is null, and a
+        // broken overlay is the baked set plus diagnostics the Playback tab already reports.
+        PlaceResolver? loaded = ZoneAssetPipeline.TryLoad(_bundleDirFor(map), overlayDir);
+        ZonePlaceResolverAdapter? resolver = loaded is null ? null : new ZonePlaceResolverAdapter(loaded);
         lock (_lock)
         {
-            if (_maps.TryGetValue(map, out Entry? cached) && cached.Stamp == stamp
-                && string.Equals(cached.OverlayDir, overlayDir, StringComparison.Ordinal))
+            if (Cached(map, overlayDir, stamp) is { } raced)
             {
-                return cached.Resolver;
+                return raced.Resolver;
             }
 
-            // The pipeline never throws: a missing, unreadable or malformed zones file is null, and a
-            // broken overlay is the baked set plus diagnostics the Playback tab already reports.
-            PlaceResolver? loaded = ZoneAssetPipeline.TryLoad(_bundleDirFor(map), overlayDir);
-            ZonePlaceResolverAdapter? resolver = loaded is null ? null : new ZonePlaceResolverAdapter(loaded);
             _maps[map] = new Entry(overlayDir, stamp, resolver);
             return resolver;
+        }
+    }
+
+    private Entry? Cached(string map, string? overlayDir, OverlayStamp stamp)
+    {
+        lock (_lock)
+        {
+            return _maps.TryGetValue(map, out Entry? cached) && cached.Stamp == stamp
+                                                             && string.Equals(cached.OverlayDir, overlayDir, StringComparison.Ordinal)
+                ? cached
+                : null;
         }
     }
 
@@ -131,6 +147,7 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
         }
 
         _centres = StratPlaceCentres.From(resolver.Zones);
+        Paths = new NavPathResolver(resolver.Zones);
     }
 
     /// <summary>The wrapped resolver.</summary>
@@ -157,4 +174,10 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
 
     /// <inheritdoc />
     public IReadOnlyList<string> PlaceNames => [.. Resolver.Zones.Places.Select(p => p.Name)];
+
+    /// <summary>
+    ///     The nav graph over the effective zones, built with this adapter inside the queued zones read. A new overlay
+    ///     makes a new adapter, so the graph always matches <see cref="ZonesVersion" />.
+    /// </summary>
+    public PathResolver Paths { get; }
 }
