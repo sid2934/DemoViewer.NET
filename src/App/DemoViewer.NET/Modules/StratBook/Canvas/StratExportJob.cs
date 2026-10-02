@@ -197,7 +197,10 @@ public sealed class StratExportJob : IExportRunner
         return new StratSceneSpec(capture.Tracks, projection.Schedule, capture.Ink, projection.Labels,
             capture.MapName, asset is null ? [] : MapAssetPipeline.DescribeRadars(asset),
             asset is null ? capture.FallbackBounds : MapAssetPipeline.RadarBounds(asset), null,
-            projection.Utility, projection.RoundSeconds, startTick, endTick, fps, speed);
+            projection.Utility, projection.RoundSeconds, startTick, endTick, fps, speed)
+        {
+            Routes = projection.Routed
+        };
     }
 
     /// <inheritdoc />

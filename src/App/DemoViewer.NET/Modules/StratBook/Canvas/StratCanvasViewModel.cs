@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -69,6 +70,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string, Task<IZonePlaceResolver?>> _placesFor;
     private readonly Action<Action> _post;
+    private readonly IFeatureGate? _gate;
+    private readonly Func<bool> _routing;
     private readonly StratSession _session;
     private readonly StepTrack _stepTrack = new();
 
@@ -86,6 +89,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private string? _mapName;
     private Guid? _projectedStrat;
     private int _projectedVersion = -1;
+    private bool _projectedRouting;
     private StratSceneProjection? _projection;
     private Guid? _seekToStep;
     private StratFrameSource? _source;
@@ -110,16 +114,27 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     queue when omitted.
     /// </param>
     /// <param name="post">Returns a late place lookup to the UI thread; the dispatcher when omitted.</param>
+    /// <param name="routing">
+    ///     Whether tokens follow the map's nav round walls; the <c>stratbook.routing</c> feature when omitted, which a
+    ///     settings change re-reads.
+    /// </param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
         Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
-        Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null)
+        Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null, Func<bool>? routing = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
         _lineupOrigins = lineupOrigins;
         _placesFor = placesFor ?? QueuedPlaces;
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
+        _gate = routing is null ? AppFeatureGate() : null;
+        _routing = routing ?? (() => _gate?.IsEnabled(FeatureCatalog.StratRoutingFeatureId) ?? true);
+        if (_gate is not null)
+        {
+            _gate.Changed += OnGateChanged;
+        }
+
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
@@ -548,6 +563,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             _lineupOrigins.Changed -= OnProjectionInputChanged;
         }
 
+        if (_gate is not null)
+        {
+            _gate.Changed -= OnGateChanged;
+        }
+
         Annotations.PropertyChanged -= OnAnnotationsPropertyChanged;
         _ink.Document.Changed -= OnInkChanged;
         Transport.Changed -= OnTransportChanged;
@@ -949,6 +969,29 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
+    // A host torn down before this canvas (a headless test, shutdown) has no gate to read: routing stays on.
+    private static IFeatureGate? AppFeatureGate()
+    {
+        try
+        {
+            return App.Services?.GetService<IFeatureGate>();
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+    }
+
+    // The routing feature flipped in settings: reproject only when it changes what the canvas draws.
+    private void OnGateChanged(object? sender, EventArgs e) =>
+        _post(() =>
+        {
+            if (!_disposed && _routing() != _projectedRouting)
+            {
+                OnProjectionInputChanged();
+            }
+        });
+
     private void OnSessionChanged()
     {
         if (_session.Version != _projectedVersion)
@@ -1041,10 +1084,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             : StratPath.MainLine(document);
 
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);
+        _projectedRouting = _routing();
         StratSceneProjection projection = StratSceneProjection.Build(document, path,
             _lineupOrigins is { } origins ? (map, utility) => origins.Resolve(map, utility, levelFor) : null,
             PlaceCentres(document.Map), PlaceArrivals(document.Map), PlaceContains(document.Map),
-            _lineupOrigins is { } flights ? (map, utility) => flights.ResolveFlight(map, utility, levelFor) : null);
+            _lineupOrigins is { } flights ? (map, utility) => flights.ResolveFlight(map, utility, levelFor) : null,
+            _projectedRouting ? Paths(document.Map) : null);
         _projection = projection;
 
         foreach (string slot in TokenSlots.All)
@@ -1065,7 +1110,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         WorldBounds bounds = MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection);
         _source = new StratFrameSource(new StratSceneSpec(Tracks, projection.Schedule, _ink.Session, projection.Labels,
             document.Map, MapAsset is { } radarAsset ? MapAssetPipeline.DescribeRadars(radarAsset) : [], bounds, null,
-            projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1));
+            projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1)
+        {
+            Routes = projection.Routed
+        });
 
         int first = projection.Ticks.Count > 0 ? projection.Ticks[0] : 0;
         Transport.SetRange(first, projection.ContentEndTick);
@@ -1476,6 +1524,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 Markers = [.. pooled.Markers],
                 AreaEffects = [.. pooled.AreaEffects],
                 Trails = CopyTrails(pooled.Trails),
+                Routes = CopyRoutes(pooled.Routes),
                 GameInfo = pooled.GameInfo,
                 Map = pooled.Map
             };
@@ -1498,6 +1547,19 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         {
             GrenadeTrail copy = new() { Kind = trail.Kind, Team = trail.Team, LastTick = trail.LastTick, Alpha = trail.Alpha };
             copy.Points.AddRange(trail.Points);
+            copies.Add(copy);
+        }
+
+        return copies;
+    }
+
+    private static List<TokenRouteLine> CopyRoutes(IReadOnlyList<TokenRouteLine> pooled)
+    {
+        List<TokenRouteLine> copies = new(pooled.Count);
+        foreach (TokenRouteLine route in pooled)
+        {
+            TokenRouteLine copy = new() { Team = route.Team };
+            copy.Points.AddRange(route.Points);
             copies.Add(copy);
         }
 
@@ -1606,6 +1668,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private PlaceContainsResolver? PlaceContains(string map) =>
         _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
             ? (place, x, y, level) => string.Equals(zones.ResolveOnFloor(x, y, level), place, StringComparison.Ordinal)
+            : null;
+
+    private PathResolver? Paths(string map) =>
+        _places is { IsCompletedSuccessfully: true, Result: { } zones } && string.Equals(_placesMap, map, StringComparison.OrdinalIgnoreCase)
+            ? zones.Paths
             : null;
 
     private PlaceCentreResolver? PlaceCentres(string map) =>

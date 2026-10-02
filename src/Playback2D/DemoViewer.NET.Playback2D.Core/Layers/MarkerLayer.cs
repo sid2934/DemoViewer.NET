@@ -25,6 +25,9 @@ public sealed class MarkerLayer : ISceneLayer
     private readonly SKPaint _label;
     private readonly bool _ownsText;
     private readonly SKPaint _ring;
+    private readonly SKPaint _route;
+    private readonly SKPath _routePath = new();
+    private readonly List<(int Start, int End)> _routeRuns = new(4);
     private readonly SKPath _wedge = new();
     private readonly TextBlobCache _text;
 
@@ -61,6 +64,14 @@ public sealed class MarkerLayer : ISceneLayer
         _label = new SKPaint
         {
             Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+        _route = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 3,
+            StrokeCap = SKStrokeCap.Round,
+            StrokeJoin = SKStrokeJoin.Round,
             IsAntialias = true
         };
     }
@@ -116,6 +127,13 @@ public sealed class MarkerLayer : ISceneLayer
     {
         ArgumentNullException.ThrowIfNull(canvas);
 
+        // Under the discs, so a token never sits beneath its own way ahead.
+        IReadOnlyList<TokenRouteLine> routes = ctx.Frame.Routes;
+        for (int i = 0; i < routes.Count; i++)
+        {
+            DrawRoute(canvas, routes[i], in ctx);
+        }
+
         IReadOnlyList<PlayerMarker> markers = ctx.Frame.Markers;
         for (int i = 0; i < markers.Count; i++)
         {
@@ -138,10 +156,37 @@ public sealed class MarkerLayer : ISceneLayer
         _heading.Dispose();
         _ring.Dispose();
         _label.Dispose();
+        _route.Dispose();
+        _routePath.Dispose();
         if (_ownsText)
         {
             _text.Dispose();
         }
+    }
+
+    // Each leg is drawn on the pane of either end, as a grenade trail is, so a route down a ramp reads as one line.
+    private void DrawRoute(SKCanvas canvas, TokenRouteLine route, in SceneRenderContext ctx)
+    {
+        TrailGeometry.FloorSegmentRuns(route.Points, in ctx, _routeRuns);
+        if (_routeRuns.Count == 0)
+        {
+            return;
+        }
+
+        _routePath.Reset();
+        foreach ((int start, int end) in _routeRuns)
+        {
+            (double sx, double sy) = ctx.Transform.WorldToScreen(route.Points[start].X, route.Points[start].Y);
+            _routePath.MoveTo((float)sx, (float)sy);
+            for (int i = start + 1; i <= end; i++)
+            {
+                (double x, double y) = ctx.Transform.WorldToScreen(route.Points[i].X, route.Points[i].Y);
+                _routePath.LineTo((float)x, (float)y);
+            }
+        }
+
+        _route.Color = ctx.Palette.RouteFill(route.Team);
+        canvas.DrawPath(_routePath, _route);
     }
 
     /// <summary>The smoothed draw position for a slot: the pre-v2 test hook, same name and shape.</summary>

@@ -28,6 +28,9 @@ public static class FeatureCatalog
     /// <summary>Group whose members toggle atomically: rule-graph / debugger developer chrome.</summary>
     public const string GroupGraphDebug = "graphDebug";
 
+    /// <summary>Strat tokens follow the map's nav round walls; off moves them in straight lines.</summary>
+    public const string StratRoutingFeatureId = "stratbook.routing";
+
     // The catalog order is load-bearing: a group's LEADER is its FIRST member in All (see GroupLeader).
     // parser.hex precedes parser.parseChain + chrome.parseChain → parserDeepDive leader = parser.hex.
     // analysis.breakpoints precedes chrome.debugger + chrome.breakpointNav → graphDebug leader =
@@ -249,6 +252,13 @@ public static class FeatureCatalog
         new(
             "stratbook.export", FeatureScope.SubFeature, "Strat export",
             "Render a strat to gif/webm/mp4 from the Strat Book canvas. Desktop only.",
+            "tab.stratbook", null, false, Defaults(true, true, true)),
+        // Token routing (docs/strat-book/token-pathing.md): strat tokens walk the map's nav round walls instead of in
+        // straight lines, on the canvas, the Detected preview and an export. On by default; off is the straight lines
+        // and timing strats had before. Both hosts: the graph is built from the map's zones.json.
+        new(
+            StratRoutingFeatureId, FeatureScope.SubFeature, "Token routing",
+            "Move strat tokens along the map's walkways instead of in straight lines through walls.",
             "tab.stratbook", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------

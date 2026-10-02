@@ -814,8 +814,9 @@ public class StratStepMotionTests
     {
         StratDocument document = Sent("move");
         (StratStore _, StratSession session) = Opened(document);
+        // Routing off: the straight-line arithmetic this pins. StratRoutingTests covers the routed arrival.
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
-            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(Map), post: a => a());
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(Map), post: a => a(), routing: () => false);
         canvas.Transport.Seek(0);
         int arrive = Two + RunTicks(1100, 100);
         StratSceneProjection projection = canvas.Projection!;
