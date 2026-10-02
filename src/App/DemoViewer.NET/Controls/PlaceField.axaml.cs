@@ -87,6 +87,9 @@ public partial class PlaceField : UserControl
         FieldBox.TextChanged += OnTextChanged;
         FieldBox.AddHandler(KeyDownEvent, OnBoxKeyDown, RoutingStrategies.Bubble, true);
         OptionList.AddHandler(PointerPressedEvent, OnListPressed, RoutingStrategies.Tunnel);
+
+        // The popup's events bubble to the field, so scrolling the highlight into view would also scroll the editor.
+        OptionList.AddHandler(RequestBringIntoViewEvent, (_, e) => e.Handled = true);
         ClearButton.Click += (_, _) => Store(_model.Clear());
         PickButton.Click += (_, _) => RunPick();
     }
@@ -491,8 +494,8 @@ public partial class PlaceField : UserControl
         {
             Items =
             {
-                MenuEntry("Move left", new KeyGesture(Key.Left, KeyModifiers.Alt), index > 0, () => ShiftChip(index, -1)),
-                MenuEntry("Move right", new KeyGesture(Key.Right, KeyModifiers.Alt), index < _model.Value.Count - 1, () => ShiftChip(index, 1)),
+                MenuEntry("Move left", new KeyGesture(Key.Left, KeyModifiers.Alt), _model.CanShift(index, -1), () => ShiftChip(index, -1)),
+                MenuEntry("Move right", new KeyGesture(Key.Right, KeyModifiers.Alt), _model.CanShift(index, 1), () => ShiftChip(index, 1)),
                 MenuEntry("Remove", new KeyGesture(Key.Back), true, () => RemoveChip(index, false))
             }
         };

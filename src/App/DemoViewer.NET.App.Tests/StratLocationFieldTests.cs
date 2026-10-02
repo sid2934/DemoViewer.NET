@@ -557,6 +557,9 @@ public partial class StratLocationFieldTests
             await Assert.That(PlaceFieldModel.ParseEntry("(1, 2)", [Point(9, 9, -512)], Mirage, -256)!.LevelMinZ)
                 .IsEqualTo(-512).Because("a typed point joins at the list's level");
             await Assert.That(PlaceFieldModel.ParseEntry("5", [], Mirage)).IsNull();
+            await Assert.That(PlaceFieldModel.Parse("stairs, jungle", [], Mirage).Single().Place).IsEqualTo("Stairs")
+                .Because("a single field keeps what comes before a comma");
+            await Assert.That(PlaceFieldModel.Parse("(1, 2), jungle", [], Mirage).Single().X).IsEqualTo(1);
         }
     }
 

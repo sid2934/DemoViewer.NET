@@ -338,18 +338,26 @@ public sealed class PlaceFieldModel
     /// <param name="delta">-1 for left, 1 for right.</param>
     public IReadOnlyList<PlaceRef>? Shift(int index, int delta)
     {
-        int to = index + delta;
-        if (index < 0 || index >= _value.Count || to < 0 || to >= _value.Count
-            || StratLocations.HasPlace(_value[index]) != StratLocations.HasPlace(_value[to]))
+        if (!CanShift(index, delta))
         {
             return null;
         }
 
         List<PlaceRef> moved = [.. _value];
-        (moved[index], moved[to]) = (moved[to], moved[index]);
+        (moved[index], moved[index + delta]) = (moved[index + delta], moved[index]);
         _value = moved;
         Raise();
         return _value;
+    }
+
+    /// <summary>Whether <see cref="Shift" /> would move the chip.</summary>
+    /// <param name="index">The chip.</param>
+    /// <param name="delta">-1 for left, 1 for right.</param>
+    public bool CanShift(int index, int delta)
+    {
+        int to = index + delta;
+        return index >= 0 && index < _value.Count && to >= 0 && to < _value.Count
+               && StratLocations.HasPlace(_value[index]) == StratLocations.HasPlace(_value[to]);
     }
 
     // "(1234, -560)", "1234, -560", "1234 -560": two numbers, optional parentheses, a comma or spaces between.
@@ -385,7 +393,8 @@ public sealed class PlaceFieldModel
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(current);
-        string part = text.Trim();
+        // A bare "x, y" is one point; otherwise only the text before a comma outside parentheses counts.
+        string part = TryParsePoint(text, out _, out _) ? text.Trim() : BeforeComma(text).Trim();
         PlaceRef? stored = current.Count > 0 ? current[0] : null;
         if (part.Length == 0)
         {
@@ -431,6 +440,27 @@ public sealed class PlaceFieldModel
         }
 
         return part.Length == 0 || NumberOnly.IsMatch(part) ? null : new PlaceRef { Place = callouts?.Resolve(part) ?? part };
+    }
+
+    private static string BeforeComma(string text)
+    {
+        int depth = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            switch (text[i])
+            {
+                case '(':
+                    depth++;
+                    break;
+                case ')' when depth > 0:
+                    depth--;
+                    break;
+                case ',' when depth == 0:
+                    return text[..i];
+            }
+        }
+
+        return text;
     }
 
     private List<PlaceRef> Parse(string text) => Parse(text, _value, Options?.Resolver, CurrentLevelMinZ);
