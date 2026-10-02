@@ -204,14 +204,14 @@ public class StratDragFieldsTests
 
         canvas.BeginDrag("A", TokenGrip.Body);
         canvas.MoveTo("A", new SKPoint(60, 70), Floor);
-        await Assert.That(canvas.CurrentFrame.Guides.Ghost).IsNotNull();
+        await Assert.That(canvas.Guides.Ghost).IsNotNull();
         canvas.CancelDrag();
         using (Assert.Multiple())
         {
             await Assert.That(Json(session)).IsEqualTo(before);
             await Assert.That(session.UndoDepth).IsEqualTo(0);
             await Assert.That(canvas.DragLabel).IsEqualTo("");
-            await Assert.That(canvas.CurrentFrame.Guides.Ghost).IsNull();
+            await Assert.That(canvas.Guides.Ghost).IsNull();
             await Assert.That(canvas.ArmedField).IsNull();
         }
     }
@@ -381,7 +381,7 @@ public class StratDragFieldsTests
 
         canvas.BeginDrag("A", TokenGrip.Body);
         canvas.MoveTo("A", new SKPoint(52, 49), Floor);
-        SceneGuides guides = canvas.CurrentFrame.Guides;
+        SceneGuides guides = canvas.Guides;
         using (Assert.Multiple())
         {
             await Assert.That(guides.Ghost!.Value.X).IsEqualTo(10f).Because("hollow where A stood");
@@ -397,13 +397,13 @@ public class StratDragFieldsTests
         }
 
         canvas.EndDrag();
-        GuidePin pin = canvas.CurrentFrame.Guides.Pins.Single();
+        GuidePin pin = canvas.Guides.Pins.Single();
         using (Assert.Multiple())
         {
             await Assert.That(pin.At.Label).IsEqualTo("A");
             await Assert.That(pin.At.X).IsEqualTo(50f);
             await Assert.That(pin.At.Y).IsEqualTo(50f);
-            await Assert.That(canvas.CurrentFrame.Guides.Ghost).IsNull();
+            await Assert.That(canvas.Guides.Ghost).IsNull();
             await Assert.That(canvas.DragLabel).IsEqualTo("");
             await Assert.That(canvas.ArmedField).IsNull();
         }

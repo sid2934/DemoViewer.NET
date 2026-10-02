@@ -20,6 +20,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>The Strat Book tab in a window: a token dragged with the pointer changes the field its step row shows.</summary>
 [NotInParallel]
+[Category("Render")]
 public class StratDragWindowTests
 {
     [Test]

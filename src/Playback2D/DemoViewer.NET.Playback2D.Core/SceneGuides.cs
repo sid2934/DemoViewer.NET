@@ -21,8 +21,8 @@ public sealed record GuidePin(GuideToken At, IReadOnlyList<GrenadeTrailPoint> Ro
 
 /// <summary>
 ///     The strat canvas's editing guides over a frame: a drag's ghost (where the token stood, the dashed route it would
-///     take, the place under the pointer) and the selected step's destination pins and via marks. Not part of a recorded
-///     scene: an export and a fixture never carry one.
+///     take, the place under the pointer) and the selected step's destination pins and via marks. Not part of a frame, so
+///     an export, a fixture and a golden never carry one: the host hands them to <c>GuideLayer</c> directly.
 /// </summary>
 public sealed class SceneGuides
 {

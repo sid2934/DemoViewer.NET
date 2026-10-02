@@ -8,10 +8,10 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
-///     The strat canvas's editing guides (<see cref="Scene2DFrame.Guides" />): the selected step's destination pins and
+///     The strat canvas's editing guides (<see cref="SceneGuides" />, read from the host on each paint): the selected step's destination pins and
 ///     via marks, and while a token is dragged its hollow start, the dashed route the drop would store and the place under
 ///     the pointer. Under the markers, so the dragged token stays on top. Draws nothing on a frame without guides, which is
-///     every demo, export and fixture frame.
+///     every host but the strat canvas.
 /// </summary>
 public sealed class GuideLayer : ISceneLayer
 {
@@ -23,10 +23,14 @@ public sealed class GuideLayer : ISceneLayer
     private readonly SKPathEffect _dash = SKPathEffect.CreateDash([7f, 5f], 0);
     private readonly SKPath _path = new();
     private readonly SKPaint _solid;
+    private readonly Func<SceneGuides> _source;
 
-    /// <summary>Creates the layer.</summary>
-    public GuideLayer()
+    /// <summary>Creates the layer over a source of guides.</summary>
+    /// <param name="source">The current guides; read on the render thread, so it hands out an immutable snapshot.</param>
+    public GuideLayer(Func<SceneGuides> source)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        _source = source;
         _solid = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = 2f, IsAntialias = true, StrokeJoin = SKStrokeJoin.Round };
         _dashed = new SKPaint
         {
@@ -61,7 +65,7 @@ public sealed class GuideLayer : ISceneLayer
     public void Render(SKCanvas canvas, SceneRenderContext ctx)
     {
         ArgumentNullException.ThrowIfNull(canvas);
-        SceneGuides guides = ctx.Frame.Guides;
+        SceneGuides guides = _source();
         if (guides.IsEmpty)
         {
             return;

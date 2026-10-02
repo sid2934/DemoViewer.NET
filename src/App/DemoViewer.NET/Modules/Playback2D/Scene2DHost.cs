@@ -1162,7 +1162,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             }
             else
             {
-                _guideLayer = new GuideLayer();
+                _guideLayer = new GuideLayer(() => _vm?.Guides ?? SceneGuides.None);
                 _compositor.Add(_guideLayer);
             }
         }
