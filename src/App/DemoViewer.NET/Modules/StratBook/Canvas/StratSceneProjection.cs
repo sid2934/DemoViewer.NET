@@ -315,17 +315,34 @@ public sealed class StratSceneProjection
 
         PlaceSet places = new(placeCentres, placeArrivals, placeContains, canvas.DefaultLevelMinZ ?? 0, roundSeconds,
             IsLegacyCarry(document), IsLegacyObserved(document), paths);
-        Dictionary<string, SlotPlan> plans = Fanned(TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
-            StringComparer.Ordinal));
-        List<TokenTrack> tracks = [];
+        Dictionary<string, SlotPlan> planned = TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
+            StringComparer.Ordinal);
+        Dictionary<string, SlotPlan> plans = Fanned(planned);
+
+        // A lurk's later areas are timed only once its walk is laid out, so a strat with one is laid out twice: the
+        // first pass says when each lurker is at each area, the second fans the areas two lurkers share.
+        Dictionary<string, List<ChainStay>> chained = new(StringComparer.Ordinal);
+        Dictionary<string, TokenTrack> built = new(StringComparer.Ordinal);
         foreach (string slot in TokenSlots.All)
         {
-            TokenTrack track = TrackOf(plans[slot], slot, tokenSteps, places);
-            if (track.Keyframes.Count > 0)
+            List<ChainStay> stays = [];
+            built[slot] = TrackOf(plans[slot], slot, tokenSteps, places, stays);
+            if (stays.Count > 0)
             {
-                tracks.Add(track);
+                chained[slot] = stays;
             }
         }
+
+        if (chained.Count > 0)
+        {
+            plans = Fanned(planned, chained);
+            foreach (string slot in TokenSlots.All)
+            {
+                built[slot] = TrackOf(plans[slot], slot, tokenSteps, places);
+            }
+        }
+
+        List<TokenTrack> tracks = [.. TokenSlots.All.Select(slot => built[slot]).Where(t => t.Keyframes.Count > 0)];
 
         List<AnnotationElement> elements = [];
         Dictionary<Guid, StrokeRef> strokes = [];
@@ -509,10 +526,16 @@ public sealed class StratSceneProjection
             bool carried = stored is { } s && (marked || (places.LegacyCarry && SameSpot(s, lastStored)));
             StepMotion motion = MotionOf(step.Verb);
             bool names = StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot);
-            PlaceRef? to = DestinationOf(step, slot) is { } d && places.Arrivals is { } arrivals
-                                                    && ArrivalAt(d, (last ?? stored)?.LevelMinZ ?? places.DefaultLevelMinZ, arrivals) is not null
-                ? d
-                : null;
+            double level = (last ?? stored)?.LevelMinZ ?? places.DefaultLevelMinZ;
+            IReadOnlyList<PlaceRef> areas = motion == StepMotion.Lurk && names ? StratLocations.LurkAreas(step.Lurk) : [];
+            int firstArea = places.Arrivals is { } resolver
+                ? areas.ToList().FindIndex(a => StratLocations.IsSet(a) && ArrivalAt(a, level, resolver) is not null)
+                : -1;
+            PlaceRef? to = motion == StepMotion.Lurk
+                ? firstArea >= 0 ? areas[firstArea] : null
+                : DestinationOf(step, slot) is { } d && places.Arrivals is { } arrivals && ArrivalAt(d, level, arrivals) is not null
+                    ? d
+                    : null;
             TokenPlacement? placement = null;
             bool fromOrigin = false;
             if (i != overrideIndex && origins is not null && origins[i] is { } origin && string.Equals(origin.Slot, slot, StringComparison.Ordinal))
@@ -550,9 +573,9 @@ public sealed class StratSceneProjection
             {
                 SendTo(events, tick, i, motion, to, watch,
                     motion is StepMotion.Travel or StepMotion.Lurk && StratStepLines.ViaFor(step, slot) is { Count: > 0 } via ? via : null);
-                if (motion == StepMotion.Lurk && StratLocations.LurkAreas(step.Lurk) is { Count: > 1 } areas)
+                if (motion == StepMotion.Lurk && firstArea + 1 < areas.Count)
                 {
-                    events[^1] = events[^1] with { Areas = [.. areas.Skip(1)] };
+                    events[^1] = events[^1] with { Areas = [.. areas.Skip(firstArea + 1)] };
                 }
 
                 departed = tick;
@@ -610,15 +633,33 @@ public sealed class StratSceneProjection
     ///     sent each does not matter. Only events the precedence let through count, so a token alone goes to the centre.
     /// </summary>
     /// <param name="plans">Every slot's plan.</param>
-    internal static Dictionary<string, SlotPlan> Fanned(Dictionary<string, SlotPlan> plans)
+    /// <param name="chained">
+    ///     Per slot, when a laid-out lurk walk is at each of its areas. Such an event stays at each area only until its
+    ///     next leg leaves, not until the slot's next destination.
+    /// </param>
+    internal static Dictionary<string, SlotPlan> Fanned(Dictionary<string, SlotPlan> plans,
+        IReadOnlyDictionary<string, List<ChainStay>>? chained = null)
     {
-        List<(string Slot, int Index, string Key, int From, int Until)> stays = [];
+        List<(string Slot, int Index, int Area, string Key, int From, int Until)> stays = [];
         foreach ((string slot, SlotPlan plan) in plans)
         {
+            List<ChainStay>? walked = chained?.GetValueOrDefault(slot);
             for (int k = 0; k < plan.Events.Count; k++)
             {
                 SlotEvent e = plan.Events[k];
                 if (e.To is null)
+                {
+                    continue;
+                }
+
+                if (walked?.Where(c => c.Event == k).ToList() is { Count: > 0 } legs)
+                {
+                    stays.AddRange(legs.Select(c => (slot, k, c.Area, DestinationKey(c.Area < 0 ? e.To : e.Areas![c.Area]), c.From, c.Until)));
+                    continue;
+                }
+
+                // Before its walk is laid out a lurk is not fanned, so two lurkers that leave together are timed together.
+                if (chained is null && e.Areas is not null)
                 {
                     continue;
                 }
@@ -633,24 +674,32 @@ public sealed class StratSceneProjection
                     }
                 }
 
-                stays.Add((slot, k, DestinationKey(e.To), e.Tick, until));
+                stays.Add((slot, k, -1, DestinationKey(e.To), e.Tick, until));
             }
         }
 
         Dictionary<string, SlotPlan> fanned = new(plans, StringComparer.Ordinal);
-        foreach ((string slot, int index, string key, int from, int until) in stays)
+        foreach ((string slot, int index, int area, string key, int from, int until) in stays)
         {
             if (stays.Any(o => o.Slot != slot && o.Key == key && o.From < until && from < o.Until))
             {
                 SlotPlan plan = fanned[slot];
                 List<SlotEvent> events = [.. plan.Events];
-                events[index] = events[index] with { Fan = true };
+                SlotEvent e = events[index];
+                events[index] = area < 0 ? e with { Fan = true } : e with { FanAreas = new HashSet<int>(e.FanAreas ?? Enumerable.Empty<int>()) { area } };
                 fanned[slot] = plan with { Events = events };
             }
         }
 
         return fanned;
     }
+
+    /// <summary>When a laid-out lurk walk stands at one of its areas.</summary>
+    /// <param name="Event">The lurk's event index in its slot's plan.</param>
+    /// <param name="Area">The index in its <see cref="SlotEvent.Areas" />, or -1 for its first area.</param>
+    /// <param name="From">The tick it arrives.</param>
+    /// <param name="Until">The tick after the one its next leg leaves on.</param>
+    internal readonly record struct ChainStay(int Event, int Area, int From, int Until);
 
     private static string DestinationKey(PlaceRef to) =>
         StratLocations.HasPoint(to)
@@ -670,21 +719,31 @@ public sealed class StratSceneProjection
     ///     leaves where the token stands at its tick and arrives at <see cref="RunUnitsPerSecond" />, or
     ///     <see cref="WalkUnitsPerSecond" /> for a lurker; a later entry it
     ///     cannot reach first wins, and the token heads there from the run's tick instead. An arrival puts the token at
-    ///     the place at its tick, walking from its previous keyframe, and runs instead when it has no time to walk.
+    ///     the place at its tick, walking from its previous keyframe, and runs instead when it has no time to walk. A lurk
+    ///     walks on through its later areas, each leg queued as an event once the leg before is laid out.
     /// </summary>
-    internal static TokenTrack TrackOf(SlotPlan plan, string slot, IReadOnlyList<TokenStep> steps, PlaceSet places)
+    /// <param name="plan">The slot's plan, fanned.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="steps">Each path step's tick, hold and interpolation.</param>
+    /// <param name="places">Where places are, and the routes.</param>
+    /// <param name="stays">Filled with when each lurk walk stands at each area, for fanning; null for none.</param>
+    internal static TokenTrack TrackOf(SlotPlan plan, string slot, IReadOnlyList<TokenStep> steps, PlaceSet places,
+        List<ChainStay>? stays = null)
     {
         List<TrackEntry> entries = [.. steps.Select((s, i) => new TrackEntry(s, plan.Placements[i], false, i))];
 
-        // A rebuild per event: events are at most the steps plus the lurk rotates, so this is steps squared over a few
-        // dozen steps, far under a frame.
+        // A rebuild per event: events are the steps, the lurk rotates and a leg per lurk area, so this is a few dozen
+        // squared, far under a frame.
         List<SlotEvent> queue = [.. plan.Events];
         for (int i = 0; i < queue.Count; i++)
         {
             SlotEvent e = queue[i];
             TokenTrack track = Build(slot, entries);
             bool standing = TrySampleRouted(track, e.Tick, entries, places, out TokenKeyframe at);
-            TokenStep shape = e.Shaped ? steps[e.Order] with { Tick = e.Tick } : new TokenStep(e.Tick, 0, TokenInterpolation.Linear);
+
+            // A lurk's later legs move as its step does: its interpolation, but not its hold, which only delays the start.
+            TokenStep shape = e.Shaped ? steps[e.Order] with { Tick = e.Tick }
+                : new TokenStep(e.Tick, 0, e.Leg ? steps[e.Order].Interpolation : TokenInterpolation.Linear);
             if (e.Kind == SlotEventKind.Face)
             {
                 if (standing && FacingOf(e.Watch!, Placement(at), places.Centres) is { } yaw)
@@ -707,7 +766,7 @@ public sealed class StratSceneProjection
             {
                 // Nowhere to leave from: the token starts at its destination.
                 Place(entries, e, shape, target with { YawDegrees = watched });
-                ChainAreas(queue, i, slot, target, e.Tick, entries, places);
+                ChainAreas(plan, queue, i, slot, target, e.Tick + shape.HoldTicks, entries, places, stays);
                 continue;
             }
 
@@ -729,13 +788,13 @@ public sealed class StratSceneProjection
                     Place(entries, e, shape, Placement(at) with { YawDegrees = watched ?? at.YawDegrees });
                 }
 
-                ChainAreas(queue, i, slot, Placement(at), e.Tick, entries, places);
+                ChainAreas(plan, queue, i, slot, Placement(at), e.Tick + shape.HoldTicks, entries, places, stays);
                 continue;
             }
 
             if (Run(entries, track, e, shape, at, target, runYaw, watched, places) is { } arrived)
             {
-                ChainAreas(queue, i, slot, target, arrived, entries, places);
+                ChainAreas(plan, queue, i, slot, target, arrived, entries, places, stays);
             }
         }
 
@@ -790,9 +849,10 @@ public sealed class StratSceneProjection
     }
 
     // A lurk's later areas, each leg walked from the area before as soon as the token is there. A leg that would leave at
-    // or after the slot's next destination or placed entry (its rotate, usually) is not walked.
-    private static void ChainAreas(List<SlotEvent> queue, int index, string slot, TokenPlacement first, int arrived,
-        List<TrackEntry> entries, PlaceSet places)
+    // or after the slot's next destination or placed entry (its rotate, usually) is not walked. An area the map lacks is
+    // passed over.
+    private static void ChainAreas(SlotPlan plan, List<SlotEvent> queue, int index, string slot, TokenPlacement first, int arrived,
+        List<TrackEntry> entries, PlaceSet places, List<ChainStay>? stays)
     {
         SlotEvent e = queue[index];
         if (e.Areas is not { Count: > 0 } areas)
@@ -806,11 +866,11 @@ public sealed class StratSceneProjection
             limit = Math.Min(limit, placed.Step.Tick);
         }
 
-        List<(PlaceRef To, int Ticks)> legs = [];
+        List<(SlotEvent Leg, int Area, int Ticks)> legs = [];
         TokenPlacement from = first;
-        foreach (PlaceRef area in areas)
+        for (int k = 0; k < areas.Count; k++)
         {
-            SlotEvent leg = new(0, e.Order, SlotEventKind.Travel, area, e.Watch, false, false, true);
+            SlotEvent leg = new(0, e.Order, SlotEventKind.Travel, areas[k], e.Watch, e.FanAreas?.Contains(k) == true, false, true, Leg: true);
             if (Target(leg, slot, from.LevelMinZ, places) is not { } to)
             {
                 continue;
@@ -820,21 +880,30 @@ public sealed class StratSceneProjection
             double length = places.Paths is { } paths && RouteOf(paths, start, to, leg, places) is { } route
                 ? NavPathfinder.Length(route)
                 : Math.Sqrt((to.X - from.X) * (double)(to.X - from.X) + (to.Y - from.Y) * (double)(to.Y - from.Y));
-            legs.Add((area, Math.Max(1, (int)Math.Ceiling(length / WalkUnitsPerSecond * StepSchedule.TicksPerSecond))));
+            legs.Add((leg, k, Math.Max(1, (int)Math.Ceiling(length / WalkUnitsPerSecond * StepSchedule.TicksPerSecond))));
             from = to;
         }
 
-        int tick = arrived;
-        foreach ((PlaceRef to, int ticks) in legs)
+        // Each leg leaves on the tick the one before arrives. Its entry comes after that arrival's on the tick, so the
+        // arrival's yaw (turned to the watch, often back the way it came) is never shown at an area it walks through.
+        int planned = plan.Events.FindIndex(x => ReferenceEquals(x, e));
+        int tick = arrived, area = -1;
+        foreach ((SlotEvent leg, int k, int ticks) in legs)
         {
             if (tick >= limit)
             {
-                return;
+                break;
             }
 
+            stays?.Add(new ChainStay(planned, area, tick, tick + 1));
             int at = queue.FindIndex(index + 1, x => x.Tick > tick);
-            queue.Insert(at < 0 ? queue.Count : at, new SlotEvent(tick, e.Order, SlotEventKind.Travel, to, e.Watch, false, false, true));
-            tick += ticks;
+            queue.Insert(at < 0 ? queue.Count : at, leg with { Tick = tick });
+            (tick, area) = (tick + ticks, k);
+        }
+
+        if (tick < limit)
+        {
+            stays?.Add(new ChainStay(planned, area, tick, limit));
         }
     }
 
@@ -1261,8 +1330,11 @@ public sealed class StratSceneProjection
     /// <param name="Walk">At <see cref="WalkUnitsPerSecond" />: a lurker's move.</param>
     /// <param name="Via">Where a run goes through first, in order; null for the shortest route.</param>
     /// <param name="Areas">A lurk's areas after <paramref name="To" />, walked in order once it arrives; null for none.</param>
+    /// <param name="FanAreas">The indices in <paramref name="Areas" /> another slot stands at while this one does.</param>
+    /// <param name="Leg">One of a lurk's later legs: it moves with its step's interpolation.</param>
     internal sealed record SlotEvent(int Tick, int Order, SlotEventKind Kind, PlaceRef? To, StepWatch? Watch, bool Fan, bool Shaped,
-        bool Walk = false, IReadOnlyList<PlaceRef>? Via = null, IReadOnlyList<PlaceRef>? Areas = null);
+        bool Walk = false, IReadOnlyList<PlaceRef>? Via = null, IReadOnlyList<PlaceRef>? Areas = null, IReadOnlySet<int>? FanAreas = null,
+        bool Leg = false);
 
     /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
     internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved);
