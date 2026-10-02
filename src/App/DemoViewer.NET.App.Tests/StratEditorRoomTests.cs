@@ -85,6 +85,7 @@ public class StratEditorRoomTests
                 }
             }
 
+            int chips = content.GetVisualDescendants().OfType<Border>().Count(b => b.Classes.Contains("placedChip") && b.IsEffectivelyVisible);
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir,
                 collapsed ? "strat-editor-1280-collapsed.png" : "strat-editor-1280.png"), new PngBitmapEncoderOptions());
             window.Close();
@@ -98,6 +99,7 @@ public class StratEditorRoomTests
                 await Assert.That(fields.Count).IsGreaterThan(10).Because("the seeded rows show their location fields");
                 await Assert.That(fields.Max(f => f.Chips.Count)).IsGreaterThanOrEqualTo(6).Because("the long lists show as chips the scan measures");
                 await Assert.That(narrow).IsEmpty().Because(string.Join("; ", narrow.Take(8)));
+                await Assert.That(chips).IsGreaterThanOrEqualTo(4).Because("the seeded entries show as placed chips the scan measures");
             }
         });
 
@@ -267,6 +269,35 @@ public class StratEditorRoomTests
                 ["atSeconds"] = 40, ["when"] = "after first kill", ["to"] = new JsonObject { ["x"] = -1234.4, ["y"] = -2560.6, ["levelMinZ"] = -256 }
             }
         }));
+
+        // Position entries as placed chips: a departure on the lurk with seen spots and opponents beside it, and a pin on
+        // the pair's hold.
+        static JsonObject Entry(string slot, double x, double y, bool observed = false, double? yaw = null)
+        {
+            JsonObject entry = new() { ["slot"] = slot, ["x"] = x, ["y"] = y, ["levelMinZ"] = -256 };
+            if (observed)
+            {
+                entry["observed"] = true;
+            }
+
+            if (yaw is { } angle)
+            {
+                entry["yawDegrees"] = angle;
+            }
+
+            return entry;
+        }
+
+        foreach (JsonObject entry in (JsonObject[])
+                 [
+                     Entry("E", -1374.25, -412.75), Entry("A", -800, -1200, true), Entry("B", -820, -1210, true),
+                     Entry("O1", -300, -900, yaw: 135), Entry("O2", -320, -950, yaw: 90), Entry("O3", -350, -990)
+                 ])
+        {
+            vm.Session.Apply(PatchOp.AddOp($"/steps/{lurk}/positions/-", entry));
+        }
+
+        vm.Session.Apply(PatchOp.AddOp($"/steps/{vm.Session.Document!.Steps.Count - 1}/positions/-", Entry("B", -1700.5, -2000.25)));
 
         // The editor's catalog groups the map off the UI thread and posts back.
         for (int i = 0; i < 500 && vm.Editor.ResolveLineup(lineup.Id) is null; i++)

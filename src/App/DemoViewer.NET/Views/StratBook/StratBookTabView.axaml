@@ -85,6 +85,33 @@
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
         </Style>
+        <!-- A placed chip: a position entry on a step. A departure, which re-times the leg before, has the caution border. -->
+        <Style Selector="Border.placedChip">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style Selector="Border.placedChip.caution">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentCaution}" />
+        </Style>
+        <Style Selector="Button.placedChipText, Button.placedChipClear">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Button.placedChipText">
+            <Setter Property="Padding" Value="5 1 2 1" />
+            <Setter Property="MaxWidth" Value="250" />
+        </Style>
+        <Style Selector="Button.placedChipClear">
+            <Setter Property="Padding" Value="3 1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
         <!-- A validator issue beside the field it names: the glyph says warning or refusal, the tooltip what. -->
         <Style Selector="TextBlock.stratIssue">
             <Setter Property="FontSize" Value="11" />
@@ -1052,6 +1079,66 @@
                                                                       PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding RotateToTarget}"
                                                                       ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
                                                                       ToolTip.Tip="Where the lurk goes when it rotates" />
+                                                    </StackPanel>
+                                                    <!-- Position entries, which beat or stand in for a field: one chip each when they
+                                                         override what the row shows, the rest grouped. Above the note, wrapping in the row. -->
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding HasPlaced}" MaxWidth="280">
+                                                        <TextBlock Text="placed" Classes="stratFieldLabel" />
+                                                        <ItemsControl Name="PlacedChips" ItemsSource="{Binding Placed}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel ItemSpacing="3" LineSpacing="2" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:StratPlacedChip">
+                                                                    <Border Classes="placedChip" Classes.caution="{Binding IsCaution}" ToolTip.Tip="{Binding ToolTip}">
+                                                                        <Border.ContextMenu>
+                                                                            <ContextMenu>
+                                                                                <MenuItem Header="{Binding ConvertLabel}" IsVisible="{Binding CanConvert}" Command="{Binding ConvertCommand}" />
+                                                                                <MenuItem Header="Clear" Command="{Binding ClearCommand}" />
+                                                                            </ContextMenu>
+                                                                        </Border.ContextMenu>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Button Classes="placedChipText" Content="{Binding Text}" IsVisible="{Binding IsSingle}"
+                                                                                    Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).SelectPlacedCommand, FallbackValue={x:Null}}"
+                                                                                    CommandParameter="{Binding}">
+                                                                                <Button.KeyBindings>
+                                                                                    <KeyBinding Gesture="Delete" Command="{Binding ClearCommand}" />
+                                                                                    <KeyBinding Gesture="Back" Command="{Binding ClearCommand}" />
+                                                                                </Button.KeyBindings>
+                                                                            </Button>
+                                                                            <Button Classes="placedChipText" Content="{Binding Text}" IsVisible="{Binding IsGroup}">
+                                                                                <Button.KeyBindings>
+                                                                                    <KeyBinding Gesture="Delete" Command="{Binding ClearCommand}" />
+                                                                                    <KeyBinding Gesture="Back" Command="{Binding ClearCommand}" />
+                                                                                </Button.KeyBindings>
+                                                                                <Button.Flyout>
+                                                                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                                                                        <ItemsControl ItemsSource="{Binding Entries}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate x:DataType="vm:StratPlacedEntry">
+                                                                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                                                        <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center"
+                                                                                                                   Foreground="{DynamicResource TextValue}" MinWidth="140" />
+                                                                                                        <Button Classes="ghost" FontSize="10" Padding="4 1" Content="{Binding ConvertLabel}"
+                                                                                                                IsVisible="{Binding CanConvert}" Command="{Binding ConvertCommand}" />
+                                                                                                        <Button Classes="ghost" FontSize="10" Padding="4 1" Content="✕"
+                                                                                                                Command="{Binding ClearCommand}" ToolTip.Tip="Clear this entry" />
+                                                                                                    </StackPanel>
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </Flyout>
+                                                                                </Button.Flyout>
+                                                                            </Button>
+                                                                            <Button Classes="placedChipClear" Content="✕" Command="{Binding ClearCommand}" IsTabStop="False"
+                                                                                    ToolTip.Tip="Clear: the token goes where the step's fields send it" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField">
                                                         <TextBlock Text="note" Classes="stratFieldLabel" />
