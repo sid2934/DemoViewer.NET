@@ -27,7 +27,9 @@ public static class StratStepLines
             return step.Assignments!;
         }
 
-        return StratVocabulary.Slots.Contains(step.Actor) ? [new StepAssignment { Slot = step.Actor, To = step.To }] : [];
+        return StratVocabulary.Slots.Contains(step.Actor)
+            ? [new StepAssignment { Slot = step.Actor, To = step.To, Via = step.Via, ViaPoints = step.ViaPoints }]
+            : [];
     }
 
     /// <summary>The <c>actor</c> a step with these lines stores: the slot of a single line, else <c>all</c>.</summary>
@@ -96,6 +98,28 @@ public static class StratStepLines
         return Involves(step, slot) ? step.To : null;
     }
 
+    /// <summary>
+    ///     What <paramref name="slot" /> goes through on the way, in reading order (places, then points): its line's
+    ///     <c>via</c>, or the step's own for a step without lines that names it. Empty when it goes the shortest way.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="slot">A slot letter.</param>
+    public static IReadOnlyList<PlaceRef> ViaFor(StratStep step, string slot)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        if (!StratVocabulary.Slots.Contains(slot))
+        {
+            return [];
+        }
+
+        if (HasLines(step))
+        {
+            return LineFor(step, slot) is { } line ? StratLocations.Via(line.Via, line.ViaPoints) : [];
+        }
+
+        return Involves(step, slot) ? StratLocations.Via(step.Via, step.ViaPoints) : [];
+    }
+
     /// <summary>Every place a step sends someone: each line's, or the step's own <c>to</c>.</summary>
     /// <param name="step">The step.</param>
     public static IEnumerable<string> Destinations(StratStep step)
@@ -126,6 +150,8 @@ public static class StratStepLines
             Verb = step.Verb,
             From = step.From,
             To = line.To,
+            Via = line.Via,
+            ViaPoints = line.ViaPoints,
             Utility = step.Utility,
             Note = step.Note,
             Lurk = step.Lurk

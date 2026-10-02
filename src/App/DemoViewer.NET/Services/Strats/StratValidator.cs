@@ -251,6 +251,7 @@ public static class StratValidator
             if (!hasLines)
             {
                 CheckPlace(places, step.To?.Place, pointer + "/to/place", document.Map, issues);
+                CheckVia(places, step.Via, pointer, document.Map, issues);
             }
 
             if (step.Utility is { } utility)
@@ -343,6 +344,11 @@ public static class StratValidator
             issues.Add(Warn(pointer + "/to", "each line has its own place; the step's to is not used"));
         }
 
+        if (step.Via is not null || step.ViaPoints is not null)
+        {
+            issues.Add(Warn(pointer + (step.Via is not null ? "/via" : "/viaPoints"), "each line has its own via; the step's via is not used"));
+        }
+
         Dictionary<string, int> seen = new(StringComparer.Ordinal);
         for (int j = 0; j < lines.Count; j++)
         {
@@ -363,6 +369,7 @@ public static class StratValidator
             }
 
             CheckPlace(places, line.To?.Place, at + "/to/place", document.Map, issues);
+            CheckVia(places, line.Via, at, document.Map, issues);
             if (line.Watch is { } watch)
             {
                 for (int k = 0; k < watch.Places.Count; k++)
@@ -404,6 +411,14 @@ public static class StratValidator
             {
                 issues.Add(Warn(pointer + "/target/stratId", "the branch continues at a strat that is not in this book on this map"));
             }
+        }
+    }
+
+    private static void CheckVia(CalloutResolver? places, List<string>? via, string pointer, string map, List<StratIssue> issues)
+    {
+        for (int k = 0; k < (via?.Count ?? 0); k++)
+        {
+            CheckPlace(places, via![k], $"{pointer}/via/{k}", map, issues);
         }
     }
 

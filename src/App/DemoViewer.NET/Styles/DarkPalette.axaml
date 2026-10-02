@@ -392,6 +392,8 @@
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingT" Color="#C8881F" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingCt" Color="#357ABD" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingNeutral" Color="#666666" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteT" Color="#59E0A030" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteCt" Color="#594A90D9" />
 
             <!-- Analysis rule-graph (MSAGL) colours (T1c — GraphView resolves these from the token namespace so
                  any theme colours the graph with no code change). Dark = the former GraphStyle defaults EXACTLY. -->
@@ -728,6 +730,8 @@
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingT" Color="#A66A15" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingCt" Color="#285F9E" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingNeutral" Color="#8A8F96" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteT" Color="#66C9821C" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteCt" Color="#662F73BE" />
 
             <!-- Analysis rule-graph — LIGHT: the former GraphStyle.Light values (light surfaces, dark text,
                  deepened semantic edge colours; layout/sizing inherited). -->

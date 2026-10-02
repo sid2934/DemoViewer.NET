@@ -87,6 +87,16 @@ public static class StratLocations
         return entries;
     }
 
+    /// <summary>What a travel goes through, in reading order: the places, then the points.</summary>
+    /// <param name="places">The <c>via</c> places, or null.</param>
+    /// <param name="points">The <c>viaPoints</c>, or null.</param>
+    public static IReadOnlyList<PlaceRef> Via(IReadOnlyList<string>? places, IReadOnlyList<PlaceRef>? points)
+    {
+        List<PlaceRef> entries = [.. (places ?? []).Where(p => !string.IsNullOrEmpty(p)).Select(p => new PlaceRef { Place = p })];
+        entries.AddRange(points?.Where(HasPoint) ?? []);
+        return entries;
+    }
+
     /// <summary>A lurk's areas in reading order: its places, then its points.</summary>
     /// <param name="lurk">A lurk, or null.</param>
     public static IReadOnlyList<PlaceRef> LurkAreas(StepLurk? lurk)

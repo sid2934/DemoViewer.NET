@@ -26,10 +26,10 @@ namespace DemoViewer.NET.UiCapture;
 public static partial class Variants
 {
     private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false,
-        Action<StratBookTabViewModel>? configure = null, IZonePlaceResolver? places = null, string? template = null)
+        Action<StratBookTabViewModel>? configure = null, IZonePlaceResolver? places = null, string? template = null, string map = "de_mirage")
     {
         StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
-        StratBookTabViewModel strats = SeededStratBook(layout, bare, places, template);
+        StratBookTabViewModel strats = SeededStratBook(layout, bare, places, template, map);
         configure?.Invoke(strats);
         StratBookHubViewModel hub = new(layout);
 
@@ -293,20 +293,21 @@ public static partial class Variants
     }
 
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare, IZonePlaceResolver? places = null,
-        string? template = null)
+        string? template = null, string map = "de_mirage")
     {
         StratStore store = new(null);
 
         // Read before New Strat asks, so the strat is created with its spawn step before the capture.
         StratSpawnSource? spawns = template is null ? null : new StratSpawnSource();
-        spawns?.ForAsync("de_mirage").Wait();
+        spawns?.ForAsync(map).Wait();
         StratBookTabViewModel vm = new(store, null, null, false, layout: layout, spawns: spawns,
             canvasPlaces: places is not null
                 ? _ => Task.FromResult<IZonePlaceResolver?>(places)
-                : map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)));
+                : map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)),
+            canvasRouting: () => true);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
-        vm.SelectedMap = "de_mirage";
+        vm.SelectedMap = map;
         vm.NewStratCommand.Execute(template);
         if (bare)
         {

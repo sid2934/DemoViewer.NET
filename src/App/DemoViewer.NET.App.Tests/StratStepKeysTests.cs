@@ -192,9 +192,9 @@ public class StratStepKeysTests
             List<Control> second = Fields(RowContainer(view, 1));
             List<object> expected = [.. first, second[0]];
 
-            // A one-player move shows time, who, verb, its to (a move watches no place), from and note; the next
+            // A one-player move shows time, who, verb, its to (a move watches no place), via, from and note; the next
             // row starts at its time.
-            await Assert.That(first.Count).IsEqualTo(6);
+            await Assert.That(first.Count).IsEqualTo(7);
             first[0].Focus();
             List<object> walked = [window.FocusManager!.GetFocusedElement()!];
             for (int i = 1; i < expected.Count; i++)

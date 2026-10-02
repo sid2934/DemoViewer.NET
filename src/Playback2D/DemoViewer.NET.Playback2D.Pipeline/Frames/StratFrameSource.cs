@@ -193,6 +193,11 @@ public sealed class StratFrameSource : ISceneFrameSource
         AddAreaEffects(tick, slot.AreaEffects);
         slot.Trails.Clear();
         AddTrails(tick, slot);
+        slot.Routes.Clear();
+        if (_spec.Routes)
+        {
+            AddRoutes(tick, slot);
+        }
 
         double remaining = RoundSecondsAt(_spec.RoundSeconds, tick);
         Scene2DFrame frame = slot.Frame;
@@ -333,6 +338,47 @@ public sealed class StratFrameSource : ISceneFrameSource
         }
     }
 
+    // A token mid-move: the line from where it is through each keyframe of the same move to where it stops. A move
+    // ends at the last keyframe, a hold, a jump, or a keyframe it does not leave from straight away.
+    private void AddRoutes(int tick, FrameSlot slot)
+    {
+        foreach (TokenTrack track in _spec.Tracks.Tracks)
+        {
+            IReadOnlyList<TokenKeyframe> keys = track.Keyframes;
+            int k = keys.Count - 1;
+            while (k >= 0 && keys[k].Tick > tick)
+            {
+                k--;
+            }
+
+            if (k < 0 || k >= keys.Count - 1 || !Moving(track, k) || tick < (long)keys[k].Tick + track.HoldTicks[k]
+                || !track.TrySample(tick, out TokenKeyframe at))
+            {
+                continue;
+            }
+
+            int order = TokenSlots.OrderOf(track.Slot);
+            TokenRouteLine line = slot.RouteFor(order);
+            line.Team = _teams[order];
+            line.Points.Clear();
+            line.Points.Add(new GrenadeTrailPoint(at.X, at.Y, (float)at.MarkerZ));
+            for (int j = k + 1; j < keys.Count; j++)
+            {
+                line.Points.Add(new GrenadeTrailPoint(keys[j].X, keys[j].Y, (float)keys[j].MarkerZ));
+                if (j == keys.Count - 1 || track.HoldTicks[j] > 0 || !Moving(track, j))
+                {
+                    break;
+                }
+            }
+
+            slot.Routes.Add(line);
+        }
+    }
+
+    private static bool Moving(TokenTrack track, int k) =>
+        track.Segments[k] == TokenInterpolation.Linear
+        && (track.Keyframes[k].X != track.Keyframes[k + 1].X || track.Keyframes[k].Y != track.Keyframes[k + 1].Y);
+
     // SceneFrameBuilder's m:ss cache: the text changes once a second, so a steady frame allocates nothing.
     private string FormatClock(double seconds)
     {
@@ -352,19 +398,33 @@ public sealed class StratFrameSource : ISceneFrameSource
     private sealed class FrameSlot
     {
         private readonly Dictionary<int, GrenadeTrail> _trailPool = [];
+        private readonly Dictionary<int, TokenRouteLine> _routePool = [];
 
         public FrameSlot() =>
             Frame = new Scene2DFrame
             {
                 Markers = Markers,
                 AreaEffects = AreaEffects,
-                Trails = Trails
+                Trails = Trails,
+                Routes = Routes
             };
 
         public Scene2DFrame Frame { get; }
         public List<PlayerMarker> Markers { get; } = new(TokenSlots.All.Count);
         public List<AreaEffect> AreaEffects { get; } = new(16);
         public List<GrenadeTrail> Trails { get; } = new(8);
+        public List<TokenRouteLine> Routes { get; } = new(10);
+
+        public TokenRouteLine RouteFor(int order)
+        {
+            if (!_routePool.TryGetValue(order, out TokenRouteLine? line))
+            {
+                line = new TokenRouteLine();
+                _routePool[order] = line;
+            }
+
+            return line;
+        }
 
         public GrenadeTrail TrailFor(int cue, GrenadeKind kind)
         {

@@ -32,6 +32,8 @@ public class StratMapFirstTests
     internal static readonly MapLevel Upper = new() { Id = MapSpace.IdForZMin(-500), Name = "upper", ZMin = -500, ZMax = 100_000 };
     private static readonly MapLevel Lower = new() { Id = MapSpace.IdForZMin(-2000), Name = "lower", ZMin = -2000, ZMax = -500 };
 
+    // Its adapter carries a nav graph, but a canvas without a feature gate does not route: a test that wants routes passes
+    // routing: () => true.
     internal static IZonePlaceResolver SyntheticZones() => new ZonePlaceResolverAdapter(new PlaceResolver(new ZoneSet(
         "de_synthetic", "9f1c02aa", "075a27b3", null, 64,
         [new ZoneFloor(-512, -528, 100_000), new ZoneFloor(-2048, -100_000, -528)],

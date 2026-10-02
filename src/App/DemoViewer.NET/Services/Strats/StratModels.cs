@@ -345,6 +345,15 @@ public sealed class StratStep
 
     public PlaceRef? To { get; set; }
 
+    /// <summary>
+    ///     Canonical places a travel goes through on its way to <see cref="To" />, first first. Null, never empty, when
+    ///     there are none. With lines, each line's own is read instead.
+    /// </summary>
+    public List<string>? Via { get; set; }
+
+    /// <summary>Points gone through outside every place, after <see cref="Via" />: a sibling, as <see cref="StepWatch.Points" />.</summary>
+    public List<PlaceRef>? ViaPoints { get; set; }
+
     public UtilityRef? Utility { get; set; }
 
     public string? Note { get; set; }
@@ -418,6 +427,12 @@ public sealed class StepAssignment
     public string Slot { get; set; } = "";
 
     public PlaceRef? To { get; set; }
+
+    /// <summary>Places the line goes through on its way to <see cref="To" />, as <see cref="StratStep.Via" />.</summary>
+    public List<string>? Via { get; set; }
+
+    /// <summary>Points gone through outside every place, after <see cref="Via" />.</summary>
+    public List<PlaceRef>? ViaPoints { get; set; }
 
     public StepWatch? Watch { get; set; }
 
