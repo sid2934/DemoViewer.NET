@@ -122,6 +122,11 @@ public interface IZonePlaceResolver
 
     /// <summary>Routes strat tokens round walls over the map's nav, or null when the source has no nav.</summary>
     Strats.PathResolver? Paths => null;
+
+    /// <summary>A place's outline on a floor, as world-space edges; null when the source has no outlines.</summary>
+    /// <param name="place">A raw place name.</param>
+    /// <param name="floorKey">The floor's key.</param>
+    IReadOnlyList<(Vector2 A, Vector2 B)>? OutlineOf(string place, double floorKey) => null;
 }
 
 /// <summary>Finds a map's zone resolver, or none when the map has no <c>zones.json</c>.</summary>

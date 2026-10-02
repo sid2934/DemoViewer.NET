@@ -120,7 +120,7 @@ public class StratThrowOriginTests
 
         canvas.BeginDrag("B", TokenGrip.Body);
         canvas.MoveTo("B", new SKPoint(0, 0), 0);
-        canvas.EndDrag(null);
+        canvas.EndDrag();
 
         using (Assert.Multiple())
         {

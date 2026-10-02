@@ -124,6 +124,7 @@ public class StratMapFirstTests
             await Assert.That(canvas.ActiveTick).IsEqualTo(Step3);
         }
 
+        // C is named by neither step on the tick: it joins the selected one as a line.
         int depth = session.UndoDepth;
         canvas.BeginDrag("C", TokenGrip.Body);
         for (int i = 1; i <= 20; i++)
@@ -131,12 +132,12 @@ public class StratMapFirstTests
             canvas.MoveTo("C", new SKPoint(200 + i * 10, i * 5), 0);
         }
 
-        canvas.EndDrag(null);
+        canvas.EndDrag();
         using (Assert.Multiple())
         {
             await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
-            await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "C").X).IsEqualTo(400);
-            await Assert.That(session.Document!.Steps[2].Positions.Any(p => p.Slot == "C")).IsFalse();
+            await Assert.That(session.Document!.Steps[1].Assignments!.Single(l => l.Slot == "C").To!.X).IsEqualTo(400);
+            await Assert.That(StratStepLines.Involves(session.Document!.Steps[2], "C")).IsFalse();
             await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1).Because("the edit keeps the selection");
             await Assert.That(editor.Steps[1].IsSelected).IsTrue();
         }
@@ -385,7 +386,7 @@ public class StratMapFirstTests
     }
 
     [Test]
-    public async Task ADrag_WhilePlaying_PausesAndWritesTheStepItStartedOn_AsOneEntry()
+    public async Task ADrag_WhilePlaying_PausesInPlace_AndEditsTheStepThatPlacedTheToken()
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         ManualTicker ticker = new();
@@ -393,17 +394,20 @@ public class StratMapFirstTests
         canvas.Timeline.RequestSeekToFrame(Step2);
         canvas.ExecuteAction(Playback2DAction.TogglePlay);
         ticker.Fire(1.0);
-        await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1);
+        int grabbed = canvas.Transport.Tick;
+        await Assert.That(grabbed).IsGreaterThan(Step2);
 
         canvas.BeginDrag("B", TokenGrip.Body);
+        await Assert.That(canvas.Transport.Tick).IsEqualTo(grabbed).Because("the press pauses where it is");
         canvas.MoveTo("B", new SKPoint(150, 250), 0);
-        canvas.EndDrag(null);
+        canvas.EndDrag();
         using (Assert.Multiple())
         {
             await Assert.That(canvas.IsPlaying).IsFalse();
-            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2);
+            await Assert.That(canvas.Transport.Tick).IsEqualTo(grabbed).Because("no seek after the edit either");
             await Assert.That(session.UndoDepth).IsEqualTo(1);
-            await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "B").Y).IsEqualTo(250);
+            await Assert.That(session.Document!.Steps[0].Assignments!.Single(l => l.Slot == "B").To!.Y).IsEqualTo(250);
+            await Assert.That(session.Document!.Steps[1].Positions.Any(p => p.Slot == "B")).IsFalse();
         }
     }
 
