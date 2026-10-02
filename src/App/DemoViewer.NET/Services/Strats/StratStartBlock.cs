@@ -280,3 +280,53 @@ public static class StratStartBlock
 
     private static string Invariant(FormattableString text) => text.ToString(CultureInfo.InvariantCulture);
 }
+
+/// <summary>
+///     The start in words, for the call sheet, the role sheets, LAN print, the history and the Start row:
+///     <c>spawn</c>, <c>as captured</c>, or each player's place (<c>A Long Doors, B (1234, -561)</c>).
+/// </summary>
+public static class StratStartPhrasing
+{
+    /// <summary>The whole start, or null when it places no one.</summary>
+    /// <param name="start">The start, or null.</param>
+    /// <param name="callouts">The owner's words for the map's places; null splits canonical names.</param>
+    public static string? Text(StratStart? start, CalloutResolver? callouts)
+    {
+        if (start is not { Positions.Count: > 0 })
+        {
+            return null;
+        }
+
+        switch (start.Kind)
+        {
+            case StratStart.SpawnKind:
+                return "spawn";
+            case StratStart.CapturedKind:
+                return "as captured";
+        }
+
+        List<string> players =
+        [
+            .. StratVocabulary.Slots.Select(slot => (slot, text: SlotText(start, slot, callouts)))
+                .Where(p => p.text is not null)
+                .Select(p => p.slot + " " + p.text)
+        ];
+        return players.Count > 0 ? string.Join(", ", players) : "opponents placed";
+    }
+
+    /// <summary>One token's start: <c>spawn</c> on a spawn start, else its place or point; null when it has none.</summary>
+    /// <param name="start">The start, or null.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="callouts">Place names; null for canonical ones.</param>
+    public static string? SlotText(StratStart? start, string slot, CalloutResolver? callouts)
+    {
+        if (StratStartBlock.For(start, slot) is not { } entry)
+        {
+            return null;
+        }
+
+        return string.Equals(start!.Kind, StratStart.SpawnKind, StringComparison.Ordinal)
+            ? "spawn"
+            : StratLocations.Text(StratStartBlock.AsLocation(entry), callouts) ?? "spawn";
+    }
+}

@@ -18,16 +18,23 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
 /// </summary>
 public sealed class StratHudDataSource : IHudDataSource
 {
+    private readonly bool _countsUp;
     private readonly int _roundSeconds;
 
     /// <summary>Creates a source.</summary>
     /// <param name="roundSeconds">The strat's round length.</param>
-    public StratHudDataSource(int roundSeconds) => _roundSeconds = roundSeconds;
+    /// <param name="countsUp">The strat is timed from its trigger: the clock counts up from 0:00.</param>
+    public StratHudDataSource(int roundSeconds, bool countsUp = false)
+    {
+        _roundSeconds = roundSeconds;
+        _countsUp = countsUp;
+    }
 
     /// <inheritdoc />
     public HudSnapshot At(int tick)
     {
-        double remaining = StratFrameSource.RoundSecondsAt(_roundSeconds, tick);
+        // Floored so the counted-up clock shows a whole second only once it has passed; the layer rounds up.
+        double remaining = _countsUp ? Math.Floor(StratFrameSource.ElapsedAt(tick)) : StratFrameSource.RoundSecondsAt(_roundSeconds, tick);
 
         // Clamped at zero: a step after the plant sits past the round clock, and the clock there reads
         // 0:00, as the frame's own RoundTime does.

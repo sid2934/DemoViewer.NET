@@ -225,6 +225,9 @@ public sealed partial class StratEditorViewModel : ObservableObject
     internal List<PlaceRef> ParseLocation(string? text, IReadOnlyList<PlaceRef> current) =>
         PlaceFieldModel.Parse(text ?? "", current, _places, DefaultLevelMinZ);
 
+    /// <summary>The open strat's clock, which the times in the table are read and written on.</summary>
+    internal StratClockInfo? Clock => _session.Document?.Clock;
+
     /// <summary>The level a typed coordinate takes when its field holds no point: the strat canvas's default level.</summary>
     public double? DefaultLevelMinZ => _session.Document?.Canvas?.DefaultLevelMinZ;
 
@@ -833,7 +836,9 @@ public sealed partial class StratEditorViewModel : ObservableObject
             index = document.Steps.Count - 1;
         }
 
-        double wanted = index >= 0 ? document.Steps[index].AtSeconds - NewStepOffsetSeconds : document.Clock.RoundSeconds;
+        double wanted = index >= 0
+            ? StratClock.AtSecondsOf(document.Clock, StratClock.ElapsedOf(document.Clock, document.Steps[index].AtSeconds) + NewStepOffsetSeconds)
+            : StratClock.StartOf(document.Clock);
         Guid id = Guid.NewGuid();
         Apply([StepAuthoringPatches.AddCarriedStep(document, index, wanted, id, _throwOrigins, _placeCentres)]);
         StepFocusRequested?.Invoke(id);
@@ -987,7 +992,9 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
 
         Map = document.Map;
-        ClockLine = $"round clock, counting down from {StratClock.Format(document.Clock.RoundSeconds)}";
+        ClockLine = StratClock.IsTrigger(document.Clock)
+            ? "from the trigger, counting up from +0:00"
+            : $"round clock, counting down from {StratClock.Format(document.Clock.RoundSeconds)}";
         Name = document.Name;
         Side = document.Side;
         Type = document.Type;
@@ -1016,7 +1023,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
         // Options before rows: a combo box whose items are replaced pushes null into its selection, which the
         // projecting guard swallows, and the row load then sets the real value.
         List<StratStepOption> stepOptions =
-            [.. document.Steps.Select((s, i) => new StratStepOption(s.Id, StepLabel(i, s)))];
+            [.. document.Steps.Select((s, i) => new StratStepOption(s.Id, StepLabel(i, s, document.Clock)))];
         if (!StepOptions.SequenceEqual(stepOptions))
         {
             Replace(StepOptions, stepOptions);
@@ -1131,14 +1138,14 @@ public sealed partial class StratEditorViewModel : ObservableObject
         List<StratStepOption> options = [StratStepOption.Start];
         if (targetStrat == document.Id)
         {
-            options.AddRange(document.Steps.Select((s, i) => new StratStepOption(s.Id, StepLabel(i, s))));
+            options.AddRange(document.Steps.Select((s, i) => new StratStepOption(s.Id, StepLabel(i, s, document.Clock))));
         }
 
         return options;
     }
 
-    internal static string StepLabel(int index, StratStep step) =>
-        Invariant($"{index + 1} · {StratClock.Format(step.AtSeconds)} {StratStepLines.ActorOf(step)} {step.Verb}");
+    internal static string StepLabel(int index, StratStep step, StratClockInfo? clock = null) =>
+        Invariant($"{index + 1} · {StratClock.Format(clock, step.AtSeconds)} {StratStepLines.ActorOf(step)} {step.Verb}");
 
     private static JsonValue? NoneToNull(string? value) =>
         string.IsNullOrEmpty(value) || value == None ? null : JsonValue.Create(value);
@@ -1784,7 +1791,7 @@ public sealed partial class StratStepRow : ObservableObject
     {
         _index = index;
         LoadPlaced(step, departureWarnings);
-        TimeText = StratClock.Format(step.AtSeconds);
+        TimeText = StratClock.Format(_owner.Clock, step.AtSeconds);
         Actor = step.Actor;
         Verb = step.Verb;
         FromValue = StratLocationPatches.Read(step, FromTarget);
@@ -1914,7 +1921,7 @@ public sealed partial class StratStepRow : ObservableObject
         StepLurk? lurk = step.Lurk;
         _hasLurk = lurk is not null;
         LurkAreasValue = StratLocations.LurkAreas(lurk);
-        RotateAtText = lurk?.Rotate?.AtSeconds is { } at ? StratClock.Format(at) : "";
+        RotateAtText = lurk?.Rotate?.AtSeconds is { } at ? StratClock.Format(_owner.Clock, at) : "";
         RotateWhenText = lurk?.Rotate?.When ?? "";
         RotateToValue = StratLocations.IsSet(lurk?.Rotate?.To) ? [StratLocations.Clone(lurk!.Rotate!.To!)] : [];
         RotateToText = _owner.DisplayLocations(RotateToValue);
@@ -1957,7 +1964,7 @@ public sealed partial class StratStepRow : ObservableObject
         {
             _owner.EditLurk(_index, lurk => (lurk.Rotate ??= new LurkRotate()).AtSeconds = null);
         }
-        else if (StratClock.TryParse(value, out double at))
+        else if (StratClock.TryParse(_owner.Clock, value, out double at))
         {
             _owner.EditLurk(_index, lurk => (lurk.Rotate ??= new LurkRotate()).AtSeconds = at);
         }
@@ -2040,7 +2047,7 @@ public sealed partial class StratStepRow : ObservableObject
             return;
         }
 
-        if (StratClock.TryParse(value, out double atSeconds))
+        if (StratClock.TryParse(_owner.Clock, value, out double atSeconds))
         {
             _owner.Replace(Path("atSeconds"), JsonValue.Create(atSeconds));
         }

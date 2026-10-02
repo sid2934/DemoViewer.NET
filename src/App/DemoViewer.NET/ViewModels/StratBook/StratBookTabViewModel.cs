@@ -681,7 +681,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// </summary>
     /// <param name="templateId">
     ///     A <see cref="StratTemplates" /> id, or null for a blank strat. The template sets the type, and the side when
-    ///     it has one; its steps follow the spawn seed.
+    ///     it has one; its steps follow the spawn start.
     /// </param>
     [RelayCommand(CanExecute = nameof(CanNewStrat))]
     private void NewStrat(string? templateId)
@@ -768,8 +768,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         StratDocument created = _store.Create(owner, map, side, type, template?.Name ?? "New strat",
             document =>
             {
-                // The seed must stay the first step: the template's steps follow it.
-                spawns?.Seed(document);
+                spawns?.PlaceStart(document);
                 if (template is not null)
                 {
                     StratTemplates.Apply(document, template);
@@ -854,15 +853,15 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     [RelayCommand]
     private void Save() => Session.Commit();
 
-    /// <summary>The templates the open strat can take: its side's, and none once it has steps beyond the spawn seed.</summary>
+    /// <summary>The templates the open strat can take: its side's, and none once it has steps.</summary>
     public IReadOnlyList<StratTemplate> ApplicableTemplates =>
-        Session.Document is { } document && StratTemplates.HasOnlySeed(document)
+        Session.Document is { } document && StratTemplates.HasNoSteps(document)
             ? [.. StratTemplates.Templates.Where(t => t.AppliesTo(document.Side))]
             : [];
 
     public bool CanApplyTemplate => ApplicableTemplates.Count > 0;
 
-    /// <summary>Fills the open strat from a template as one undo entry. Refused once it has steps beyond the spawn seed.</summary>
+    /// <summary>Fills the open strat from a template as one undo entry. Refused once it has steps.</summary>
     /// <param name="templateId">A <see cref="StratTemplates" /> id.</param>
     [RelayCommand(CanExecute = nameof(CanApplyTemplateId))]
     private void ApplyTemplate(string? templateId)
@@ -875,7 +874,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         IReadOnlyList<PatchOp> ops = StratTemplates.Ops(document, template);
         if (ops.Count == 0)
         {
-            ListLine = "a template fills only a strat with no steps beyond the spawns";
+            ListLine = "a template fills only a strat with no steps";
             return;
         }
 

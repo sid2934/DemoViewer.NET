@@ -16,8 +16,8 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A new blank strat starts with A to E in its side's spawn and O1 to O5 in the other's, fanned out, on the
-///     round-start step; a strat that already places a token keeps it.
+///     A new blank strat starts with A to E in its side's spawn and O1 to O5 in the other's, fanned out, as its
+///     start; a strat that already has a start keeps it.
 /// </summary>
 public class StratSpawnTests
 {
@@ -87,26 +87,24 @@ public class StratSpawnTests
     }
 
     [Test]
-    public async Task Seed_PutsOwnSlotsInTheirSpawn_AndOpponentsInTheOther_OnARoundStartHold()
+    public async Task PlaceStart_PutsOwnSlotsInTheirSpawn_AndOpponentsInTheOther_AsASpawnStart()
     {
         StratDocument t = StratDocument.Create(Guid.NewGuid(), Team, "de_mirage", "T", "default", "t", Created);
         StratDocument ct = StratDocument.Create(Guid.NewGuid(), Team, "de_mirage", "CT", "setup", "ct", Created);
-        Fixed.Seed(t);
-        Fixed.Seed(ct);
+        Fixed.PlaceStart(t);
+        Fixed.PlaceStart(ct);
 
-        StratStep step = t.Steps.Single();
+        StratStart start = t.Start!;
         using (Assert.Multiple())
         {
-            await Assert.That(step.AtSeconds).IsEqualTo(t.Clock.RoundSeconds);
-            await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll);
-            await Assert.That(step.Verb).IsEqualTo("hold");
-            await Assert.That(step.Positions.Select(p => p.Slot))
-                .IsEquivalentTo(StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots));
-            await Assert.That(step.Positions.Single(p => p.Slot == "A").X).IsEqualTo(1000);
-            await Assert.That(step.Positions.Single(p => p.Slot == "O1").X).IsEqualTo(-1000);
-            await Assert.That(step.Positions.Single(p => p.Slot == "O1").LevelMinZ).IsEqualTo(-128);
-            await Assert.That(ct.Steps.Single().Positions.Single(p => p.Slot == "A").X).IsEqualTo(-1000);
-            await Assert.That(ct.Steps.Single().Positions.Single(p => p.Slot == "O1").X).IsEqualTo(1000);
+            await Assert.That(t.Steps).IsEmpty().Because("the start is not a step");
+            await Assert.That(start.Kind).IsEqualTo(StratStart.SpawnKind);
+            await Assert.That(start.Positions.Select(p => p.Slot)).IsEquivalentTo(StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots));
+            await Assert.That(start.Positions.Single(p => p.Slot == "A").X).IsEqualTo(1000);
+            await Assert.That(start.Positions.Single(p => p.Slot == "O1").X).IsEqualTo(-1000);
+            await Assert.That(start.Positions.Single(p => p.Slot == "O1").LevelMinZ).IsEqualTo(-128);
+            await Assert.That(ct.Start!.Positions.Single(p => p.Slot == "A").X).IsEqualTo(-1000);
+            await Assert.That(ct.Start.Positions.Single(p => p.Slot == "O1").X).IsEqualTo(1000);
             await Assert.That(StratValidator.Validate(t).Any(i => i.Severity == StratIssueSeverity.Refusal)).IsFalse();
         }
 
@@ -115,25 +113,26 @@ public class StratSpawnTests
     }
 
     [Test]
-    public async Task Seed_NeverMovesAPlacedToken_AndAddsTheRestToARoundStartFirstStep()
+    public async Task PlaceStart_KeepsAStartAlreadyThere()
     {
         StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_mirage", "T", "default", "d", Created);
-        StratStep first = new() { Id = Guid.NewGuid(), AtSeconds = document.Clock.RoundSeconds, Actor = "all", Verb = "move" };
-        first.Positions.Add(new StepPosition { Slot = "A", X = 5, Y = 6 });
-        StratStep later = new() { Id = Guid.NewGuid(), AtSeconds = 90, Actor = "C", Verb = "move" };
-        later.Positions.Add(new StepPosition { Slot = "C", X = 7, Y = 8 });
-        document.Steps = [first, later];
+        document.Start = new StratStart { Kind = StratStart.CustomKind, Positions = [new StartPosition { Slot = "A", X = 5, Y = 6 }] };
 
-        Fixed.Seed(document);
+        Fixed.PlaceStart(document);
 
         using (Assert.Multiple())
         {
-            await Assert.That(document.Steps.Count).IsEqualTo(2);
-            await Assert.That(first.Positions.Single(p => p.Slot == "A").X).IsEqualTo(5);
-            await Assert.That(first.Positions.Any(p => p.Slot == "C")).IsFalse().Because("C is placed at a later step");
-            await Assert.That(first.Positions.Count).IsEqualTo(9).Because("A kept, eight added");
-            await Assert.That(later.Positions.Count).IsEqualTo(1);
+            await Assert.That(document.Start.Kind).IsEqualTo(StratStart.CustomKind);
+            await Assert.That(document.Start.Positions.Single().X).IsEqualTo(5);
         }
+    }
+
+    [Test]
+    [MethodDataSource(nameof(Maps))]
+    public async Task EveryShippedMap_NamesTheSpawnPlace_OnEachSpot(string map)
+    {
+        StratSpawns spawns = StratSpawns.From(RequireZones(map))!;
+        await Assert.That(spawns.T.Concat(spawns.Ct).All(s => !string.IsNullOrEmpty(s.Place))).IsTrue().Because(map);
     }
 
     [Test]
@@ -151,8 +150,9 @@ public class StratSpawnTests
         using (Assert.Multiple())
         {
             await Assert.That(document.Revision).IsEqualTo(1).Because("the spawns are in the created revision, not an edit after it");
-            await Assert.That(document.Steps.Single().Positions.Count).IsEqualTo(10);
-            await Assert.That(store.Load(document.Id).Document!.Steps.Single().Positions.Count).IsEqualTo(10);
+            await Assert.That(document.Start!.Positions.Count).IsEqualTo(10);
+            await Assert.That(document.Steps).IsEmpty();
+            await Assert.That(store.Load(document.Id).Document!.Start!.Positions.Count).IsEqualTo(10);
         }
     }
 
@@ -185,7 +185,7 @@ public class StratSpawnTests
         Drain(posted);
 
         await Assert.That(store.Index.Count).IsEqualTo(1).Because("a second click while waiting makes no second strat");
-        await Assert.That(vm.Session.Document!.Steps.Single().Positions.Count).IsEqualTo(10);
+        await Assert.That(vm.Session.Document!.Start!.Positions.Count).IsEqualTo(10);
     }
 
     [Test]

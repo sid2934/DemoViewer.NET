@@ -85,8 +85,20 @@ public static class StratTemplates
     /// <summary>The template's steps as new strat steps, each with a fresh id and no positions.</summary>
     /// <param name="template">The template.</param>
     /// <param name="roundSeconds">The strat's round length; a round-start step is clamped to it.</param>
-    public static List<StratStep> BuildSteps(StratTemplate template, double roundSeconds = StratClock.DefaultRoundSeconds)
+    public static List<StratStep> BuildSteps(StratTemplate template, double roundSeconds = StratClock.DefaultRoundSeconds) =>
+        BuildSteps(template, new StratClockInfo { RoundSeconds = roundSeconds });
+
+    /// <summary>
+    ///     The template's steps on the strat's clock. A template is written on the round clock; from a trigger each
+    ///     time becomes the seconds after the round's start (<see cref="StratClock.Convert" />).
+    /// </summary>
+    /// <param name="template">The template.</param>
+    /// <param name="clock">The strat's clock.</param>
+    public static List<StratStep> BuildSteps(StratTemplate template, StratClockInfo clock)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+        double roundSeconds = StratClock.LengthOf(clock);
+        bool trigger = StratClock.IsTrigger(clock);
         ArgumentNullException.ThrowIfNull(template);
         if (template.Steps.FirstOrDefault(s => s.Lines is not null && s.To is not null) is { } mixed)
         {
@@ -98,7 +110,7 @@ public static class StratTemplates
             .. template.Steps.Select(s => new StratStep
             {
                 Id = Guid.NewGuid(),
-                AtSeconds = Math.Min(s.AtSeconds, roundSeconds),
+                AtSeconds = trigger ? StratClock.Convert(Math.Min(s.AtSeconds, roundSeconds), roundSeconds) : Math.Min(s.AtSeconds, roundSeconds),
                 Actor = s.Actor,
                 Verb = s.Verb,
                 To = s.To is null ? null : new PlaceRef { Place = s.To },
@@ -114,7 +126,7 @@ public static class StratTemplates
 
     /// <summary>
     ///     Fills a new strat from <paramref name="template" />: type, site, the roles of unnamed slots, and the steps
-    ///     after whatever is there (the spawn seed). Run after <see cref="StratSpawns.Seed" />.
+    ///     after whatever is there: nothing in a new strat, whose spawns are its start (<see cref="StratSpawns.PlaceStart" />).
     /// </summary>
     /// <param name="document">A new strat.</param>
     /// <param name="template">The template.</param>
@@ -132,15 +144,15 @@ public static class StratTemplates
             }
         }
 
-        document.Steps.AddRange(BuildSteps(template, document.Clock.RoundSeconds));
+        document.Steps.AddRange(BuildSteps(template, document.Clock));
     }
 
     /// <summary>
-    ///     Whether <paramref name="document" /> has no steps beyond the spawn seed: none, or one round-start
-    ///     <c>all hold</c> with no place or utility. A captured or mined strat never qualifies: its freeze-end
-    ///     step has the seed's shape but holds real positions.
+    ///     Whether <paramref name="document" /> has no steps: none, or in a file from before the start block only the
+    ///     round-start <c>all hold</c> New Strat used to seed, with no place or utility, which reads as its start. A
+    ///     captured or mined strat never qualifies: its freeze-end step has the seed's shape but holds real positions.
     /// </summary>
-    public static bool HasOnlySeed(StratDocument document)
+    public static bool HasNoSteps(StratDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
         if (document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal))
@@ -155,7 +167,7 @@ public static class StratTemplates
 
         StratStep first = document.Steps[0];
         return document.Steps.Count == 1
-               && first.AtSeconds >= document.Clock.RoundSeconds
+               && StratClock.StratTickOf(document.Clock, first.AtSeconds) == 0
                && string.Equals(first.Actor, All, StringComparison.Ordinal)
                && string.Equals(first.Verb, "hold", StringComparison.Ordinal)
                && first.From is null && first.To is null && first.Utility is null && first.Lurk is null
@@ -173,7 +185,7 @@ public static class StratTemplates
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(template);
-        if (!HasOnlySeed(document) || !template.AppliesTo(document.Side))
+        if (!HasNoSteps(document) || !template.AppliesTo(document.Side))
         {
             return [];
         }
@@ -199,7 +211,7 @@ public static class StratTemplates
 
         // Concrete indices: the inverse of an add has to name the element it removes.
         int index = document.Steps.Count;
-        foreach (StratStep step in BuildSteps(template, document.Clock.RoundSeconds))
+        foreach (StratStep step in BuildSteps(template, document.Clock))
         {
             ops.Add(PatchOp.AddOp($"/steps/{index++}", JsonSerializer.SerializeToNode(step, StratJsonContext.Default.StratStep)));
         }

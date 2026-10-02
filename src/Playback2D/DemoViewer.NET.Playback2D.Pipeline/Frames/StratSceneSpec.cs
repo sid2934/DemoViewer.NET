@@ -52,6 +52,12 @@ public sealed record StratSceneSpec(
     ///     the tracks follow the map's nav. Off draws exactly what a strat drew before routing.
     /// </summary>
     public bool Routes { get; init; }
+
+    /// <summary>
+    ///     Whether the clock counts up from the strat's trigger rather than down from <see cref="RoundSeconds" />: tick 0
+    ///     reads 0:00 and each second after it one more.
+    /// </summary>
+    public bool CountsUp { get; init; }
 }
 
 /// <summary>What one token slot draws as: its marker text and its side.</summary>
