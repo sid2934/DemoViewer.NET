@@ -405,7 +405,7 @@ public sealed class StratSceneProjection
     /// <summary>
     ///     What a step's verb does with its destination: move, push, rotate, <c>other</c> and any verb outside the
     ///     vocabulary travel there; hold, peek, fake, plant and defuse are there at the step's time; a lurk walks to
-    ///     its first area; throw, wait and call do not move for it.
+    ///     its first area and on through the rest; throw, wait and call do not move for it.
     /// </summary>
     /// <param name="verb">A step verb.</param>
     public static StepMotion MotionOf(string? verb) => StratStepFields.MotionOf(verb);
@@ -550,6 +550,11 @@ public sealed class StratSceneProjection
             {
                 SendTo(events, tick, i, motion, to, watch,
                     motion is StepMotion.Travel or StepMotion.Lurk && StratStepLines.ViaFor(step, slot) is { Count: > 0 } via ? via : null);
+                if (motion == StepMotion.Lurk && StratLocations.LurkAreas(step.Lurk) is { Count: > 1 } areas)
+                {
+                    events[^1] = events[^1] with { Areas = [.. areas.Skip(1)] };
+                }
+
                 departed = tick;
                 moved = true;
             }
@@ -673,8 +678,10 @@ public sealed class StratSceneProjection
 
         // A rebuild per event: events are at most the steps plus the lurk rotates, so this is steps squared over a few
         // dozen steps, far under a frame.
-        foreach (SlotEvent e in plan.Events)
+        List<SlotEvent> queue = [.. plan.Events];
+        for (int i = 0; i < queue.Count; i++)
         {
+            SlotEvent e = queue[i];
             TokenTrack track = Build(slot, entries);
             bool standing = TrySampleRouted(track, e.Tick, entries, places, out TokenKeyframe at);
             TokenStep shape = e.Shaped ? steps[e.Order] with { Tick = e.Tick } : new TokenStep(e.Tick, 0, TokenInterpolation.Linear);
@@ -700,6 +707,7 @@ public sealed class StratSceneProjection
             {
                 // Nowhere to leave from: the token starts at its destination.
                 Place(entries, e, shape, target with { YawDegrees = watched });
+                ChainAreas(queue, i, slot, target, e.Tick, entries, places);
                 continue;
             }
 
@@ -721,10 +729,14 @@ public sealed class StratSceneProjection
                     Place(entries, e, shape, Placement(at) with { YawDegrees = watched ?? at.YawDegrees });
                 }
 
+                ChainAreas(queue, i, slot, Placement(at), e.Tick, entries, places);
                 continue;
             }
 
-            Run(entries, track, e, shape, at, target, runYaw, watched, places);
+            if (Run(entries, track, e, shape, at, target, runYaw, watched, places) is { } arrived)
+            {
+                ChainAreas(queue, i, slot, target, arrived, entries, places);
+            }
         }
 
         return Bent(Build(slot, entries), entries, places);
@@ -733,7 +745,7 @@ public sealed class StratSceneProjection
     // From the tick the token runs from where it stands to the target, facing the way it runs, and turns to what it
     // watches on arrival. The step's hold delays the start. A later entry it cannot reach first wins. With a route the
     // run takes its length and leaves an entry at each bend, timed along it at the run's one speed.
-    private static void Run(List<TrackEntry> entries, TokenTrack track, SlotEvent e, TokenStep shape, TokenKeyframe start,
+    private static int? Run(List<TrackEntry> entries, TokenTrack track, SlotEvent e, TokenStep shape, TokenKeyframe start,
         TokenPlacement target, float runYaw, float? watched, PlaceSet places)
     {
         int tick = e.Tick;
@@ -761,7 +773,7 @@ public sealed class StratSceneProjection
         entries.RemoveAll(x => x.Placement is null && x.Step.Tick > tick && x.Step.Tick < until);
         if (blocked)
         {
-            return;
+            return null;
         }
 
         // A hold-interpolated run jumps at its end, so it has no corners to stop at.
@@ -774,6 +786,56 @@ public sealed class StratSceneProjection
         }
 
         Insert(entries, arrive, target with { YawDegrees = arriveYaw }, true);
+        return arrive;
+    }
+
+    // A lurk's later areas, each leg walked from the area before as soon as the token is there. A leg that would leave at
+    // or after the slot's next destination or placed entry (its rotate, usually) is not walked.
+    private static void ChainAreas(List<SlotEvent> queue, int index, string slot, TokenPlacement first, int arrived,
+        List<TrackEntry> entries, PlaceSet places)
+    {
+        SlotEvent e = queue[index];
+        if (e.Areas is not { Count: > 0 } areas)
+        {
+            return;
+        }
+
+        int limit = queue.Skip(index + 1).FirstOrDefault(x => x.To is not null && x.Tick > e.Tick)?.Tick ?? int.MaxValue;
+        if (entries.FirstOrDefault(x => !x.Arrival && x.Placement is not null && x.Step.Tick > e.Tick) is { Placement: not null } placed)
+        {
+            limit = Math.Min(limit, placed.Step.Tick);
+        }
+
+        List<(PlaceRef To, int Ticks)> legs = [];
+        TokenPlacement from = first;
+        foreach (PlaceRef area in areas)
+        {
+            SlotEvent leg = new(0, e.Order, SlotEventKind.Travel, area, e.Watch, false, false, true);
+            if (Target(leg, slot, from.LevelMinZ, places) is not { } to)
+            {
+                continue;
+            }
+
+            TokenKeyframe start = new(0, from.X, from.Y, from.LevelMinZ, 0);
+            double length = places.Paths is { } paths && RouteOf(paths, start, to, leg, places) is { } route
+                ? NavPathfinder.Length(route)
+                : Math.Sqrt((to.X - from.X) * (double)(to.X - from.X) + (to.Y - from.Y) * (double)(to.Y - from.Y));
+            legs.Add((area, Math.Max(1, (int)Math.Ceiling(length / WalkUnitsPerSecond * StepSchedule.TicksPerSecond))));
+            from = to;
+        }
+
+        int tick = arrived;
+        foreach ((PlaceRef to, int ticks) in legs)
+        {
+            if (tick >= limit)
+            {
+                return;
+            }
+
+            int at = queue.FindIndex(index + 1, x => x.Tick > tick);
+            queue.Insert(at < 0 ? queue.Count : at, new SlotEvent(tick, e.Order, SlotEventKind.Travel, to, e.Watch, false, false, true));
+            tick += ticks;
+        }
     }
 
     // The run's route from where the token stands through each via in order to the target. A leg with no route is
@@ -1198,8 +1260,9 @@ public sealed class StratSceneProjection
     /// <param name="Shaped">At its step's tick, so the step's hold and interpolation shape it.</param>
     /// <param name="Walk">At <see cref="WalkUnitsPerSecond" />: a lurker's move.</param>
     /// <param name="Via">Where a run goes through first, in order; null for the shortest route.</param>
+    /// <param name="Areas">A lurk's areas after <paramref name="To" />, walked in order once it arrives; null for none.</param>
     internal sealed record SlotEvent(int Tick, int Order, SlotEventKind Kind, PlaceRef? To, StepWatch? Watch, bool Fan, bool Shaped,
-        bool Walk = false, IReadOnlyList<PlaceRef>? Via = null);
+        bool Walk = false, IReadOnlyList<PlaceRef>? Via = null, IReadOnlyList<PlaceRef>? Areas = null);
 
     /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
     internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved);

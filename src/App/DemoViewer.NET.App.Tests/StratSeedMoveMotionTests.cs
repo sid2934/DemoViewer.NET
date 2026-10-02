@@ -104,6 +104,13 @@ public class StratSeedMoveMotionTests
         return ((float)x, (float)y);
     }
 
+    // The lurk's last area, where it holds until the rotate.
+    private static (float X, float Y) MidDoors(IZonePlaceResolver map)
+    {
+        (double x, double y, double _) = map.PlaceArrival("MidDoors", Level) ?? throw new SkipTestException("no MidDoors arrival");
+        return ((float)x, (float)y);
+    }
+
     // The same strat after this build has written one carried mark anywhere, which ends the legacy reading for the file.
     private static StratDocument Marked()
     {
@@ -165,22 +172,23 @@ public class StratSeedMoveMotionTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task TheLurker_WalksToItsFirstArea_ThenWalksItsRotate_AndNeverRuns(bool marked)
+    public async Task TheLurker_WalksItsAreas_ThenWalksItsRotate_AndNeverRuns(bool marked)
     {
         IZonePlaceResolver map = Dust2();
         StratSceneProjection projection = Project(marked ? Marked() : ExecuteB(), map);
         TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
         (float lx, float ly) = LongDoors(map);
+        (float mx, float my) = MidDoors(map);
         int there = WalkTicks(lx - -610, ly - -800);
         int rotate = Tick(39);
-        int back = rotate + WalkTicks(-580 - lx, 1435 - ly);
+        int back = rotate + WalkTicks(-580 - mx, 1435 - my);
         using (Assert.Multiple())
         {
             await Assert.That((Sample(e, there - 1).X, Sample(e, there - 1).Y)).IsNotEqualTo((lx, ly));
             await Assert.That((Sample(e, there).X, Sample(e, there).Y)).IsEqualTo((lx, ly)).Because("the lurk's first area, at a walk");
             await Assert.That(map.ResolveOnFloor(lx, ly, Level)).IsEqualTo("LongDoors");
             await Assert.That(e.Keyframes.Any(k => k.X == 650f && k.Y == 140f)).IsFalse().Because("the seed's OutsideLong line is the earlier step");
-            await Assert.That((Sample(e, rotate).X, Sample(e, rotate).Y)).IsEqualTo((lx, ly)).Because("it lurks there until the rotate");
+            await Assert.That((Sample(e, rotate).X, Sample(e, rotate).Y)).IsEqualTo((mx, my)).Because("it walks on to its last area and holds there");
             await Assert.That(Sample(e, back - 1).X).IsGreaterThan(-580f);
             await Assert.That((Sample(e, back).X, Sample(e, back).Y)).IsEqualTo((-580f, 1435f));
             await Assert.That(projection.ContentEndTick).IsGreaterThanOrEqualTo(back).Because("the clock reaches the rotate's arrival");
@@ -202,12 +210,12 @@ public class StratSeedMoveMotionTests
         IZonePlaceResolver map = Dust2();
         StratSceneProjection projection = Project(ExecuteB(), map);
         TokenTrack a = projection.Tracks.Single(t => t.Slot == "A"), e = projection.Tracks.Single(t => t.Slot == "E");
-        (float lx, float ly) = LongDoors(map);
+        (float mx, float my) = MidDoors(map);
         int push = Tick(53), later = Tick(45);
         using (Assert.Multiple())
         {
             await Assert.That((Sample(a, later).X, Sample(a, later).Y)).IsEqualTo((-1090f, 1105f)).Because("A holds under, at Tunnel Stairs");
-            await Assert.That((Sample(e, later).X, Sample(e, later).Y)).IsEqualTo((lx, ly)).Because("the lurker is not in the push");
+            await Assert.That((Sample(e, later).X, Sample(e, later).Y)).IsEqualTo((mx, my)).Because("the lurker is not in the push");
             foreach (string slot in new[] { "B", "C", "D" })
             {
                 TokenTrack track = projection.Tracks.Single(t => t.Slot == slot);
@@ -216,9 +224,6 @@ public class StratSeedMoveMotionTests
                 await Assert.That(end.Tick).IsGreaterThan(push);
             }
         }
-
-        // The regroup at 1:15 names A to D only: E keeps lurking.
-        await Assert.That((Sample(e, Tick(70)).X, Sample(e, Tick(70)).Y)).IsEqualTo((lx, ly));
     }
 
     private static readonly string[] LurkWatch = ["LongDoors", "TopofMid", "Catwalk", "Middle", "MidDoors"];
@@ -274,8 +279,27 @@ public class StratSeedMoveMotionTests
         return fastest;
     }
 
+    // The first tick E stands on each lurk area's arrival, in the areas' order; -1 for one it never reaches.
+    private static int[] AreaArrivals(IZonePlaceResolver map, TokenTrack e, int until) =>
+    [
+        .. LurkWatch.Select(area =>
+        {
+            (double x, double y, double _) = map.PlaceArrival(area, Level)!.Value;
+            for (int t = 0; t <= until; t++)
+            {
+                TokenKeyframe k = Sample(e, t);
+                if (Math.Abs(k.X - x) < 1 && Math.Abs(k.Y - y) < 1)
+                {
+                    return t;
+                }
+            }
+
+            return -1;
+        })
+    ];
+
     [Test]
-    public async Task TheOwnersLurk_FromItsSpawnCopy_WalksOutViaLongDoors_HoldsFacingTopOfMid_ThenRotates()
+    public async Task TheOwnersLurk_FromItsSpawnCopy_WalksEveryAreaInOrder_HoldsAtTheLast_ThenRotates()
     {
         IZonePlaceResolver map = Dust2();
         StratDocument document = OwnersLurk(map, false);
@@ -287,36 +311,65 @@ public class StratSeedMoveMotionTests
         double walk = NavPathfinder.Length(map.Paths!.Route(sx, sy, Level, lx, ly, Level, "LongDoors")!);
         int lurk = Tick(114), there = lurk + (int)Math.Ceiling(walk / StratSceneProjection.WalkUnitsPerSecond * 64);
         int rotate = Tick(39);
+        int[] arrivals = AreaArrivals(map, e, projection.ContentEndTick);
+        double[] expected = [89.3, 69.8, 57.1, 53.1, 43.8];
+        (double mx, double my, double _) = map.PlaceArrival("MidDoors", Level)!.Value;
+        Console.WriteLine($"[lurk areas] {string.Join(", ", LurkWatch.Zip(arrivals, (a, t) => $"{a} {115 - t / 64.0:F1}"))}");
         using (Assert.Multiple())
         {
             await Assert.That((Sample(e, lurk).X, Sample(e, lurk).Y)).IsEqualTo(((float)sx, (float)sy))
                 .Because("the seed does not send E, and the lurk step's copy of spawn is carried, not a place to jump back to");
-            await Assert.That((Sample(e, there - 1).X, Sample(e, there - 1).Y)).IsNotEqualTo((lx, ly));
-            await Assert.That((Sample(e, there).X, Sample(e, there).Y)).IsEqualTo((lx, ly)).Because("the routed walk to the first area");
-            await Assert.That(Fastest(e, 0, projection.ContentEndTick)).IsLessThanOrEqualTo(StratSceneProjection.WalkUnitsPerSecond * 1.1).Because("a lurker walks every leg");
-            await Assert.That((Sample(e, rotate).X, Sample(e, rotate).Y)).IsEqualTo((lx, ly));
-            await Assert.That((double)Sample(e, Tick(60)).YawDegrees).IsEqualTo(YawTowards(map, "TopofMid", Sample(e, Tick(60)))).Within(0.05)
-                .Because("E stands on Long Doors, the first place it watches, so it faces the next");
+            await Assert.That(arrivals[0]).IsEqualTo(there).Because("the routed walk via Long Doors to the first area");
+            for (int k = 0; k < arrivals.Length; k++)
+            {
+                await Assert.That(115 - arrivals[k] / 64.0).IsEqualTo(expected[k]).Within(1.0).Because($"{LurkWatch[k]}, in order, at a walk");
+            }
+
+            await Assert.That((double)Sample(e, Tick(41)).YawDegrees).IsEqualTo(YawTowards(map, "LongDoors", Sample(e, Tick(41)))).Within(0.05)
+                .Because("holding Mid Doors, it faces the first place it watches");
+            await Assert.That(Fastest(e, 0, projection.ContentEndTick)).IsLessThanOrEqualTo(StratSceneProjection.WalkUnitsPerSecond * 1.1)
+                .Because("a lurker walks every leg");
+            await Assert.That((double)Sample(e, rotate).X).IsEqualTo(mx).Within(0.01).Because("it holds the last area until the rotate");
+            await Assert.That((double)Sample(e, rotate).Y).IsEqualTo(my).Within(0.01);
             await Assert.That((e.Keyframes[^1].X, e.Keyframes[^1].Y)).IsEqualTo((-580f, 1435f)).Because("the rotate to Lower Tunnel");
-            await Assert.That(e.Keyframes[^1].Tick).IsGreaterThan(rotate);
+            await Assert.That(115 - e.Keyframes[^1].Tick / 64.0).IsEqualTo(31.3).Within(1.0);
         }
     }
 
     [Test]
-    public async Task TheOwnersLurk_DraggedToLongDoors_LeavesFromTheDrag_AndHoldsFacingTopOfMid()
+    public async Task TheOwnersLurk_DraggedToLongDoors_LeavesFromTheDrag()
     {
         IZonePlaceResolver map = Dust2();
         StratDocument document = OwnersLurk(map, true);
         StratSceneProjection projection = StratRoutingTests.Project(document, map);
         TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
         StepPosition drag = document.Steps[1].Positions[4];
-        TokenKeyframe held = Sample(e, Tick(60));
+        TokenKeyframe left = Sample(e, Tick(114));
+        int[] arrivals = AreaArrivals(map, e, projection.ContentEndTick);
         using (Assert.Multiple())
         {
-            await Assert.That((Sample(e, Tick(114)).X, Sample(e, Tick(114)).Y)).IsEqualTo(((float)drag.X, (float)drag.Y))
+            await Assert.That((left.X, left.Y)).IsEqualTo(((float)drag.X, (float)drag.Y))
                 .Because("on a travel verb a drag is where the token is at the step's time");
-            await Assert.That((held.X, held.Y)).IsEqualTo(((float)drag.X, (float)drag.Y)).Because("Long Doors is under 16 units away");
-            await Assert.That((double)held.YawDegrees).IsEqualTo(YawTowards(map, "TopofMid", held)).Within(0.5).Because("faced from Long Doors, where it is already");
+            await Assert.That(arrivals.Skip(1).Zip(arrivals.Skip(2)).All(p => p.First > 0 && p.First < p.Second)).IsTrue()
+                .Because("from the drag it walks on through the other areas in order");
+        }
+    }
+
+    [Test]
+    public async Task ARotateBeforeTheLastArea_CutsTheWalk()
+    {
+        IZonePlaceResolver map = Dust2();
+        StratDocument document = OwnersLurk(map, false);
+        document.Steps[1].Lurk!.Rotate!.AtSeconds = 60;
+        StratSceneProjection projection = StratRoutingTests.Project(document, map);
+        TokenTrack e = projection.Tracks.Single(t => t.Slot == "E");
+        int[] arrivals = AreaArrivals(map, e, projection.ContentEndTick);
+        using (Assert.Multiple())
+        {
+            await Assert.That(arrivals[3]).IsEqualTo(-1).Because("Middle comes after 1:00");
+            await Assert.That(arrivals[4]).IsEqualTo(-1);
+            await Assert.That((e.Keyframes[^1].X, e.Keyframes[^1].Y)).IsEqualTo((-580f, 1435f));
+            await Assert.That(Fastest(e, 0, projection.ContentEndTick)).IsLessThanOrEqualTo(StratSceneProjection.WalkUnitsPerSecond * 1.1);
         }
     }
 }
