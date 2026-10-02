@@ -162,7 +162,7 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
         ApplyHeader(sheet.Header);
         foreach (RoleSheetLine line in sheet.Lines)
         {
-            Lines.Add(new RoleViewLineRow(line));
+            Lines.Add(new RoleViewLineRow(line, sheet.Header.Clock));
         }
 
         foreach (RoleSheetBranchLine branch in sheet.Branches)
@@ -199,7 +199,11 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
         }
 
         MetaLine = string.Join(" · ", meta);
-        TriggerLine = header.TriggerText is { Length: > 0 } trigger ? "Trigger: " + trigger : "";
+        TriggerLine = string.Join(" · ", new[]
+        {
+            header.TriggerText is { Length: > 0 } trigger ? "Trigger: " + trigger : null,
+            header.StartText is { Length: > 0 } start ? "Start: " + start : null
+        }.OfType<string>());
         StatusFooter = "Status: " + header.Status + " · revision " + header.Revision.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -212,10 +216,10 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
     }
 }
 
-/// <summary>One printed line on screen: the round-clock time, the phrased text, and whether it is context.</summary>
-public sealed class RoleViewLineRow(RoleSheetLine line)
+/// <summary>One printed line on screen: the time on the strat's clock, the phrased text, and whether it is context.</summary>
+public sealed class RoleViewLineRow(RoleSheetLine line, StratClockInfo? clock = null)
 {
-    public string AtText { get; } = StratClock.Format(line.AtSeconds);
+    public string AtText { get; } = StratClock.Format(clock, line.AtSeconds);
 
     public string Text { get; } = line.Text;
 

@@ -9,11 +9,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 namespace DemoViewer.NET.Services.Strats;
 
-/// <summary>A token's spawn spot: world XY and the level key it is drawn on.</summary>
-public readonly record struct SpawnSpot(double X, double Y, double LevelMinZ);
+/// <summary>A token's spawn spot: world XY, the level key it is drawn on, and the place it is in, when it has one.</summary>
+public readonly record struct SpawnSpot(double X, double Y, double LevelMinZ, string? Place = null);
 
 /// <summary>
-///     Five spots in each team's spawn on one map, and the round-start step a new blank strat is seeded with.
+///     Five spots in each team's spawn on one map, and the start a new blank strat is given.
 ///     A spawn is the team's largest buy zone in the baked zones; with none, the nav areas of its
 ///     <c>TSpawn</c>/<c>CTSpawn</c> place.
 /// </summary>
@@ -110,50 +110,39 @@ public sealed record StratSpawns(IReadOnlyList<SpawnSpot> T, IReadOnlyList<Spawn
             }
         }
 
-        return [.. taken.Select(a => new SpawnSpot(Math.Round(a.CentroidX), Math.Round(a.CentroidY), levelFor(a.Z)))];
+        return
+        [
+            .. taken.Select(a => new SpawnSpot(Math.Round(a.CentroidX), Math.Round(a.CentroidY), levelFor(a.Z),
+                a.PlaceId >= 0 && a.PlaceId < zones.Places.Count ? zones.Places[a.PlaceId].Name : null))
+        ];
     }
 
     /// <summary>
-    ///     Puts every token with no position anywhere in the strat at its spawn on the round-start step: the first
-    ///     step when it is at round start, else a new <c>all hold</c> step there. A strat with nothing to place is
-    ///     left as it was.
+    ///     The start a new blank strat gets: A to E at its side's spawn spots and O1 to O5 at the other side's, a
+    ///     <c>spawn</c> start. A strat that already has a start keeps it.
     /// </summary>
     /// <param name="document">A new blank strat.</param>
-    public void Seed(StratDocument document)
+    public void PlaceStart(StratDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        HashSet<string> placed = [.. document.Steps.SelectMany(s => s.Positions).Select(p => p.Slot)];
-        bool ct = string.Equals(document.Side, StratVocabulary.SideCt, StringComparison.Ordinal);
-        List<StepPosition> positions = [];
-        AddSlots(StratVocabulary.Slots, ct ? Ct : T);
-        AddSlots(StratVocabulary.OpponentSlots, ct ? T : Ct);
-        if (positions.Count == 0)
-        {
-            return;
-        }
-
-        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
-        StratStep? first = document.Steps.Count > 0 && document.Steps[0].AtSeconds >= roundSeconds ? document.Steps[0] : null;
-        if (first is null)
-        {
-            first = new StratStep { Id = Guid.NewGuid(), AtSeconds = roundSeconds, Actor = StratVocabulary.ActorAll, Verb = "hold" };
-            document.Steps.Insert(0, first);
-        }
-
-        first.Positions.AddRange(positions);
-        return;
-
-        void AddSlots(IReadOnlyList<string> slots, IReadOnlyList<SpawnSpot> spots)
-        {
-            for (int i = 0; i < slots.Count && i < spots.Count; i++)
-            {
-                if (!placed.Contains(slots[i]))
-                {
-                    positions.Add(new StepPosition { Slot = slots[i], X = spots[i].X, Y = spots[i].Y, LevelMinZ = spots[i].LevelMinZ });
-                }
-            }
-        }
+        document.Start ??= StartFor(document);
     }
+
+    /// <summary>A <c>spawn</c> start for the strat's side, or null when there are no spots.</summary>
+    /// <param name="document">The strat.</param>
+    public StratStart? StartFor(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        bool ct = string.Equals(document.Side, StratVocabulary.SideCt, StringComparison.Ordinal);
+        List<StartPosition> positions = [.. Entries(StratVocabulary.Slots, ct ? Ct : T), .. Entries(StratVocabulary.OpponentSlots, ct ? T : Ct)];
+        return positions.Count > 0 ? new StratStart { Kind = StratStart.SpawnKind, Positions = positions } : null;
+    }
+
+    private static IEnumerable<StartPosition> Entries(IReadOnlyList<string> slots, IReadOnlyList<SpawnSpot> spots) =>
+        slots.Take(spots.Count).Select((slot, i) => new StartPosition
+        {
+            Slot = slot, Place = spots[i].Place, X = spots[i].X, Y = spots[i].Y, LevelMinZ = spots[i].LevelMinZ
+        });
 
     private static double Squared(double dx, double dy) => dx * dx + dy * dy;
 }

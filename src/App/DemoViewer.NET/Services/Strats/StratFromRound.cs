@@ -258,6 +258,7 @@ public static class StratFromRound
         document.TargetSite = type == "execute" ? site : null;
         document.Origin = origin;
         document.Clock.RoundSeconds = options.RoundSeconds;
+        document.Start = CapturedStart(capture, options);
         document.Steps = steps;
         if (facts is not null)
         {
@@ -289,6 +290,34 @@ public static class StratFromRound
             not null when place.EndsWith("BombsiteB", StringComparison.OrdinalIgnoreCase) => "B",
             _ => null
         };
+    }
+
+    // The freeze-end as a captured start, each entry observed. The freeze-end step stays as well: it holds the same
+    // entries on tick 0, which the start does not change, and the move threshold is measured from it.
+    private static StratStart? CapturedStart(RoundCapture capture, StratCaptureOptions options)
+    {
+        if (capture.Moments.Count == 0 || capture.FreezeEnd.Trigger != CaptureTrigger.FreezeEnd)
+        {
+            return null;
+        }
+
+        List<StartPosition> positions =
+        [
+            .. capture.FreezeEnd.Pawns
+                .Where(p => options.Tokens.ContainsKey(p.PlayerSlot))
+                .Select(p => new StartPosition
+                {
+                    Slot = options.Tokens[p.PlayerSlot],
+                    Place = string.IsNullOrEmpty(p.Place) ? null : p.Place,
+                    X = Round(p.X),
+                    Y = Round(p.Y),
+                    LevelMinZ = options.LevelMinZFor(p.Z),
+                    YawDegrees = Round(NormalizeYaw(p.Yaw)),
+                    Observed = true
+                })
+                .OrderBy(p => TokenOrder(p.Slot))
+        ];
+        return positions.Count > 0 ? new StratStart { Kind = StratStart.CapturedKind, Positions = positions } : null;
     }
 
     private static StratStep FreezeEnd(CaptureMoment moment, StratCaptureOptions options, Dictionary<string, Keyed> last)

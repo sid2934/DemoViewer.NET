@@ -140,8 +140,9 @@ public sealed partial class StratPlacedChip
     /// <param name="placeAt">The place under a point, or null while the map's places are not loaded.</param>
     /// <param name="warnings">Validator warnings by position index.</param>
     /// <param name="legacySeen">A capture written before the mark: every entry reads as seen.</param>
+    /// <param name="start">Entries an older file's start is read from, which the Start row shows instead.</param>
     internal static List<StratPlacedChip> For(StratStepRow row, StratStep step, Func<double, double, double, string?>? placeAt,
-        IReadOnlyDictionary<int, string>? warnings = null, bool legacySeen = false)
+        IReadOnlyDictionary<int, string>? warnings = null, bool legacySeen = false, IReadOnlySet<int>? start = null)
     {
         List<StratPlacedChip> chips = [];
         List<StratPlacedEntry> spots = [], seen = [], opponents = [];
@@ -149,7 +150,8 @@ public sealed partial class StratPlacedChip
         for (int k = 0; k < step.Positions.Count; k++)
         {
             StepPosition position = step.Positions[k];
-            if (position.Carried == true || string.IsNullOrEmpty(position.Slot))
+            // An older file's start entries are shown by the Start row.
+            if (position.Carried == true || string.IsNullOrEmpty(position.Slot) || start?.Contains(k) == true)
             {
                 continue;
             }

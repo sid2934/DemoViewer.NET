@@ -209,6 +209,9 @@ public sealed class StratDocument
     /// <summary>Exactly five, <c>A</c> to <c>E</c>, in order.</summary>
     public List<StratSlot> Slots { get; set; } = [];
 
+    /// <summary>Where each token stands when the strat begins; null (not written) in a file from before it.</summary>
+    public StratStart? Start { get; set; }
+
     /// <summary>Authoring order, which is Role View's print order; <c>atSeconds</c> never increases along it.</summary>
     public List<StratStep> Steps { get; set; } = [];
 
@@ -252,6 +255,56 @@ public sealed class StratDocument
     };
 }
 
+/// <summary>
+///     Where every token stands at the strat's start, before step 1: tick 0 on either clock. Not a step: it has no
+///     verb, no time and no lines. See docs/strat-format.md, "The start".
+/// </summary>
+public sealed class StratStart
+{
+    /// <summary>Spawn spots a new strat was given.</summary>
+    public const string SpawnKind = "spawn";
+
+    /// <summary>Spots a person set.</summary>
+    public const string CustomKind = "custom";
+
+    /// <summary>Where a captured or mined round's players stood at freeze end.</summary>
+    public const string CapturedKind = "captured";
+
+    /// <summary><c>spawn</c>, <c>custom</c> or <c>captured</c>; anything else reads as custom.</summary>
+    public string Kind { get; set; } = SpawnKind;
+
+    /// <summary>At most one per token, <c>A</c> to <c>E</c> and <c>O1</c> to <c>O5</c>. A token with none has no start.</summary>
+    public List<StartPosition> Positions { get; set; } = [];
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>
+///     One token's start: a location in the <see cref="PlaceRef" /> shape (a place, a point, or both) under its slot.
+///     A point is where the token stands; a place alone is the place's arrival.
+/// </summary>
+public sealed class StartPosition
+{
+    public string Slot { get; set; } = "";
+
+    public string? Place { get; set; }
+
+    public double? X { get; set; }
+
+    public double? Y { get; set; }
+
+    public double? LevelMinZ { get; set; }
+
+    public double? YawDegrees { get; set; }
+
+    /// <summary>True when a capture saw the player there; null (not written) otherwise.</summary>
+    public bool? Observed { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
 /// <summary>When the strat starts: the human text and an optional structured kind.</summary>
 public sealed class StratTrigger
 {
@@ -282,8 +335,8 @@ public sealed class StratOrigin
 }
 
 /// <summary>
-///     The strat clock block (§3.4). <c>round</c> counts down from <see cref="RoundSeconds" />; <c>plant</c> is
-///     reserved for post-plant strats and is not defined in v1 (decision 9).
+///     The strat clock block (§3.4). <c>round</c> counts down from <see cref="RoundSeconds" />; <c>trigger</c> counts up
+///     from 0 at the strat's trigger; <c>plant</c> is reserved for post-plant strats and is not defined (decision 9).
 /// </summary>
 public sealed class StratClockInfo
 {

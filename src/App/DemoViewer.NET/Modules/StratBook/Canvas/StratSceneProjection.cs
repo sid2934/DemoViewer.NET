@@ -183,7 +183,51 @@ public sealed class StratSceneProjection
         RoundSeconds = roundSeconds;
         Canvas = canvas;
         ClockClamped = clockClamped;
+        ClockInfo = places.ClockOrRound;
     }
+
+    /// <summary>The strat's clock: which way its times count, and its round length.</summary>
+    public StratClockInfo ClockInfo { get; }
+
+    /// <summary>Whether the clock counts up from a trigger rather than down the round.</summary>
+    public bool CountsUp => StratClock.IsTrigger(ClockInfo);
+
+    /// <summary>A strat tick as the strat's clock shows it: <c>1:15</c>, or <c>+0:08</c> from a trigger.</summary>
+    /// <param name="tick">A strat tick.</param>
+    public string ClockTextAt(int tick) => StratClock.Format(ClockInfo, StratClock.AtSecondsAtTick(ClockInfo, tick));
+
+    /// <summary>Whether any token has a start: then the clock runs from tick 0, where the tokens stand before step 1.</summary>
+    public bool HasStart => _places.Starts is { Count: > 0 };
+
+    /// <summary>
+    ///     The step index of a step on the start's tick whose own entry for the token wins over the start, or null: a start
+    ///     edit would change nothing on screen while it is there (a capture's freeze-end step, an entry a person put on a
+    ///     step at the start). An older file's round-start entries its start was read from do not count.
+    /// </summary>
+    /// <param name="slot">The token.</param>
+    public int? StartShadowedBy(string slot)
+    {
+        if (!_plans.TryGetValue(slot, out SlotPlan? plan) || plan.Authored is not { } authored)
+        {
+            return null;
+        }
+
+        int? found = null;
+        for (int i = 0; i < Path.Count && Ticks[i] == 0; i++)
+        {
+            if (authored[i] && Path[i].Editable)
+            {
+                found = Path[i].StepIndex;
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>Where a token stands at the start, or null when the strat gives it none.</summary>
+    /// <param name="slot">The token.</param>
+    public TokenPlacement? StartOf(string slot) =>
+        _places.Starts is { } starts && starts.TryGetValue(slot, out TokenPlacement start) ? start : null;
 
     /// <summary>The steps played, in order.</summary>
     public IReadOnlyList<StratPathStep> Path { get; }
@@ -285,18 +329,21 @@ public sealed class StratSceneProjection
     /// <param name="placeContains">Whether a point is in a place, to keep fanned-out tokens inside it; null keeps to a ring.</param>
     /// <param name="throwFlights">Resolves a throw's lineup to its flight and landing; null flies only authored landings.</param>
     /// <param name="paths">Routes tokens round walls; null moves them in straight lines.</param>
+    /// <param name="spawns">The map's spawns, for an older file's start (<see cref="StratStartBlock.Effective" />); null for none.</param>
     public static StratSceneProjection Build(StratDocument document, IReadOnlyList<StratPathStep> path,
         ThrowOriginResolver? throwOrigins = null, PlaceCentreResolver? placeCentres = null, PlaceArrivalResolver? placeArrivals = null,
-        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null, PathResolver? paths = null)
+        PlaceContainsResolver? placeContains = null, ThrowFlightResolver? throwFlights = null, PathResolver? paths = null,
+        StratSpawns? spawns = null)
     {
         placeArrivals ??= ArrivalsFrom(placeCentres);
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(path);
 
-        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
+        double roundSeconds = StratClock.LengthOf(document.Clock);
+        StratClockInfo clock = ClockOf(document);
         StratCanvas canvas = document.Canvas ?? new StratCanvas();
 
-        int[] ticks = TicksOf(path, roundSeconds, out bool clamped);
+        int[] ticks = TicksOf(path, clock, out bool clamped);
         StepSchedule schedule = new(path.Select((p, i) => (p.Step.Id, ticks[i])));
 
         TokenStep[] tokenSteps = new TokenStep[path.Count];
@@ -315,8 +362,7 @@ public sealed class StratSceneProjection
             }
         }
 
-        PlaceSet places = new(placeCentres, placeArrivals, placeContains, canvas.DefaultLevelMinZ ?? 0, roundSeconds,
-            IsLegacyCarry(document), IsLegacyObserved(document), paths);
+        PlaceSet places = PlacesOf(document, placeCentres, placeArrivals, placeContains, paths, spawns);
         Dictionary<string, SlotPlan> planned = TokenSlots.All.ToDictionary(slot => slot, slot => PlanOf(path, ticks, origins, slot, places),
             StringComparer.Ordinal);
         Dictionary<string, SlotPlan> plans = Fanned(planned);
@@ -381,13 +427,13 @@ public sealed class StratSceneProjection
     ///     a strat mid-edit in the step table (or a branch into a strat whose times start earlier) is still worth drawing
     ///     in order.
     /// </summary>
-    internal static int[] TicksOf(IReadOnlyList<StratPathStep> path, double roundSeconds, out bool clamped)
+    internal static int[] TicksOf(IReadOnlyList<StratPathStep> path, StratClockInfo clock, out bool clamped)
     {
         int[] ticks = new int[path.Count];
         clamped = false;
         for (int i = 0; i < path.Count; i++)
         {
-            int tick = Math.Max(0, StepSchedule.TickFor(path[i].Step.AtSeconds, roundSeconds));
+            int tick = StratClock.StratTickOf(clock, path[i].Step.AtSeconds);
             if (i > 0 && tick < ticks[i - 1])
             {
                 tick = ticks[i - 1];
@@ -411,17 +457,84 @@ public sealed class StratSceneProjection
     /// </summary>
     /// <param name="step">The step.</param>
     /// <param name="stepTick">The step's tick.</param>
-    /// <param name="roundSeconds">The strat's round length.</param>
-    internal static int? RotateTickOf(StratStep step, int stepTick, double roundSeconds)
+    /// <param name="clock">The strat's clock.</param>
+    internal static int? RotateTickOf(StratStep step, int stepTick, StratClockInfo clock)
     {
-        if (step.Lurk?.Rotate is not { AtSeconds: { } at, To: { } to } || !StratLocations.IsSet(to) || !StratLurkPatches.IsLater(at, step.AtSeconds, roundSeconds))
+        if (step.Lurk?.Rotate is not { AtSeconds: { } at, To: { } to } || !StratLocations.IsSet(to) || !StratLurkPatches.IsLater(at, step.AtSeconds, clock))
         {
             return null;
         }
 
         // The step's own tick may be held later than its time when the clock runs backwards.
-        int tick = StratLurkPatches.TickOf(at, roundSeconds);
+        int tick = StratClock.StratTickOf(clock, at);
         return tick > stepTick ? tick : null;
+    }
+
+    /// <summary>The document's clock with its round length filled, for the projection's tick maths.</summary>
+    /// <param name="document">The strat.</param>
+    internal static StratClockInfo ClockOf(StratDocument document) =>
+        new() { Kind = StratClock.IsTrigger(document.Clock) ? StratClock.TriggerKind : StratClock.RoundKind, RoundSeconds = StratClock.LengthOf(document.Clock) };
+
+    /// <summary>
+    ///     What the projection knows about a document's map and marks, its clock, and where its tokens start
+    ///     (<see cref="StartsOf" />). The carry and the zip check build the same set the canvas does.
+    /// </summary>
+    internal static PlaceSet PlacesOf(StratDocument document, PlaceCentreResolver? centres, PlaceArrivalResolver? arrivals,
+        PlaceContainsResolver? contains, PathResolver? paths, StratSpawns? spawns = null)
+    {
+        StratCanvas canvas = document.Canvas ?? new StratCanvas();
+        PlaceSet places = new(centres, arrivals ?? ArrivalsFrom(centres), contains, canvas.DefaultLevelMinZ ?? 0, StratClock.LengthOf(document.Clock),
+            IsLegacyCarry(document), IsLegacyObserved(document), paths, Clock: ClockOf(document));
+        IReadOnlyList<StartSource> sources = [];
+        StratStart? start = document.Start ?? StratStartBlock.Legacy(document, out sources, spawns);
+        return places with { Starts = StartsOf(start, places), SeedEntries = SeedEntriesOf(document, sources) };
+    }
+
+    // The round-start step's own entries an older file's start was read from: authored, so never a copy of that start.
+    // A start recovered from a later step's copy is left out: that entry is a copy, and reads as one.
+    private static HashSet<(int Step, string Slot)>? SeedEntriesOf(StratDocument document, IReadOnlyList<StartSource> sources)
+    {
+        HashSet<(int, string)> seed = [.. sources.Where(s => s.Step == 0).Select(s => (s.Step, document.Steps[s.Step].Positions[s.Position].Slot))];
+        return seed.Count > 0 ? seed : null;
+    }
+
+    /// <summary>
+    ///     Each token's start as a placement at tick 0: a point where it was picked, a place alone at its arrival, fanned
+    ///     out as destinations are when several tokens start at one place. A place the map lacks, or zones not in yet,
+    ///     gives that token no start. Null with no start.
+    /// </summary>
+    /// <param name="start">The strat's start, or null.</param>
+    /// <param name="places">Where places are.</param>
+    internal static Dictionary<string, TokenPlacement>? StartsOf(StratStart? start, PlaceSet places)
+    {
+        if (start is not { Positions.Count: > 0 })
+        {
+            return null;
+        }
+
+        Dictionary<string, TokenPlacement> starts = new(StringComparer.Ordinal);
+        List<StartPosition> entries = [.. TokenSlots.All.Select(slot => StratStartBlock.For(start, slot)).OfType<StartPosition>()];
+        foreach (StartPosition entry in entries)
+        {
+            float? yaw = entry.YawDegrees is { } y && double.IsFinite(y) ? (float)y : null;
+            if (entry is { X: { } x, Y: { } py } && double.IsFinite(x) && double.IsFinite(py))
+            {
+                double level = entry.LevelMinZ is { } l && double.IsFinite(l) ? l : places.DefaultLevelMinZ;
+                starts[entry.Slot] = new TokenPlacement((float)x, (float)py, level, yaw);
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(entry.Place) || places.Arrivals?.Invoke(entry.Place, entry.LevelMinZ ?? places.DefaultLevelMinZ) is not { } centre)
+            {
+                continue;
+            }
+
+            bool shared = entries.Count(e => e.X is null && string.Equals(e.Place, entry.Place, StringComparison.Ordinal)) > 1;
+            (double sx, double sy) = shared ? SpotFor(entry.Place, centre, entry.Slot, places.Contains, places.Paths) : (centre.X, centre.Y);
+            starts[entry.Slot] = new TokenPlacement((float)sx, (float)sy, centre.LevelMinZ, yaw);
+        }
+
+        return starts.Count > 0 ? starts : null;
     }
 
     /// <summary>
@@ -507,9 +620,13 @@ public sealed class StratSceneProjection
         PlaceSet places, int overrideIndex = -1, TokenPlacement? overridePlacement = null, bool keepOverrideYaw = false)
     {
         TokenPlacement?[] placements = new TokenPlacement?[path.Count];
+        bool[] authored = new bool[path.Count];
         List<SlotEvent> events = [];
         List<int> rotates = [];
-        TokenPlacement? last = null, lastStored = null;
+
+        // The start is the earliest placement: tick 0, before any step's entry on that tick.
+        TokenPlacement? start = places.Starts is { } starts && starts.TryGetValue(slot, out TokenPlacement s0) ? s0 : null;
+        TokenPlacement? last = start, lastStored = start;
 
         // Since the slot's last origin or authored entry, a destination or a rotate has moved it: a carried entry is
         // stale then, and where it stands is only known once the runs are laid out.
@@ -528,7 +645,8 @@ public sealed class StratSceneProjection
 
             StepWatch? watch = StratStepLines.HasLines(step) ? StratStepLines.LineFor(step, slot)?.Watch : null;
             TokenPlacement? stored = PlacementOf(step, slot, out bool marked, out bool observed);
-            bool carried = stored is { } s && (marked || (places.LegacyCarry && SameSpot(s, lastStored)));
+            bool seed = path[i].Editable && places.SeedEntries?.Contains((path[i].StepIndex, slot)) == true;
+            bool carried = stored is { } s && (marked || (places.LegacyCarry && !seed && SameSpot(s, lastStored)));
             StepMotion motion = MotionOf(step.Verb);
             bool names = StratVocabulary.Slots.Contains(slot) && StratStepLines.Involves(step, slot);
             double level = (last ?? stored)?.LevelMinZ ?? places.DefaultLevelMinZ;
@@ -546,15 +664,18 @@ public sealed class StratSceneProjection
             if (i != overrideIndex && origins is not null && origins[i] is { } origin && string.Equals(origin.Slot, slot, StringComparison.Ordinal))
             {
                 placement = origin.Placement;
+                authored[i] = true;
                 fromOrigin = true;
             }
             else if (i == overrideIndex && overridePlacement is { } dragged)
             {
                 placement = keepOverrideYaw ? dragged : Turned(dragged, watch, places.Centres);
+                authored[i] = true;
             }
             else if (stored is { } own && !carried)
             {
                 placement = Turned(own, watch, places.Centres);
+                authored[i] = !(path[i].Editable && places.SeedEntries?.Contains((path[i].StepIndex, slot)) == true);
             }
 
             // Positions on one tick settle before its destinations: after a same-tick send, an entry is where the token
@@ -607,7 +728,8 @@ public sealed class StratSceneProjection
             placements[i] = placement;
             last = placement ?? last;
 
-            if (names && RotateTickOf(step, tick, places.RoundSeconds) is { } rotateTick && places.Arrivals is not null)
+            if (names && RotateTickOf(step, tick, places.ClockOrRound) is { } rotateTick
+                && places.Arrivals is not null)
             {
                 PlaceRef rotateTo = step.Lurk!.Rotate!.To!;
                 events.Add(new SlotEvent(rotateTick, i, SlotEventKind.Travel, rotateTo, null, false, false, true));
@@ -616,7 +738,7 @@ public sealed class StratSceneProjection
         }
 
         events.Sort((a, b) => a.Tick != b.Tick ? a.Tick.CompareTo(b.Tick) : a.Order.CompareTo(b.Order));
-        return new SlotPlan(placements, [.. ticks], events, moved);
+        return new SlotPlan(placements, [.. ticks], events, moved, start, authored);
     }
 
     // A watching line turns the entry: its angle, else towards the first watched entry.
@@ -737,6 +859,10 @@ public sealed class StratSceneProjection
         List<ChainStay>? stays = null, List<RunSpan>? runs = null)
     {
         List<TrackEntry> entries = [.. steps.Select((s, i) => new TrackEntry(s, plan.Placements[i], false, i))];
+        if (plan.Start is { } start)
+        {
+            entries.Insert(0, new TrackEntry(new TokenStep(0, 0, TokenInterpolation.Linear), start));
+        }
 
         // A rebuild per event: events are the steps, the lurk rotates and a leg per lurk area, so this is a few dozen
         // squared, far under a frame.
@@ -1080,6 +1206,11 @@ public sealed class StratSceneProjection
 
         if (_plans.TryGetValue(slot, out SlotPlan? plan))
         {
+            if (plan.Start is not null && beforeTick > 0)
+            {
+                best = Math.Max(best, 0);
+            }
+
             for (int i = 0; i < plan.Placements.Length; i++)
             {
                 if (plan.Placements[i] is not null && plan.Ticks[i] < beforeTick)
@@ -1538,8 +1669,13 @@ public sealed class StratSceneProjection
         bool Walk = false, IReadOnlyList<PlaceRef>? Via = null, IReadOnlyList<PlaceRef>? Areas = null, IReadOnlySet<int>? FanAreas = null,
         bool Leg = false);
 
-    /// <summary>A slot's entries per step, the steps' ticks, its events, and whether it has moved since its last authored entry.</summary>
-    internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved);
+    /// <summary>
+    ///     A slot's entries per step, the steps' ticks, its events, whether it has moved since its last authored entry, its
+    ///     start, and per step whether the entry is the step's own (a lineup, a drag, a stored entry not read as a copy or as
+    ///     the start).
+    /// </summary>
+    internal sealed record SlotPlan(TokenPlacement?[] Placements, int[] Ticks, List<SlotEvent> Events, bool Moved, TokenPlacement? Start = null,
+        bool[]? Authored = null);
 
     /// <summary>What the projection knows about the map's places, and the clock the rotates run on.</summary>
     /// <param name="Centres">Where places are, for facing.</param>
@@ -1553,8 +1689,25 @@ public sealed class StratSceneProjection
     /// </param>
     /// <param name="Observed">Every entry is observed: a capture that predates the per-entry mark (<see cref="IsLegacyObserved" />).</param>
     /// <param name="Paths">Routes round walls; null keeps every move straight.</param>
+    /// <param name="Starts">Each token's start at tick 0 (<see cref="StartsOf" />); null for none.</param>
+    /// <param name="Clock">The strat's clock; null is the round clock of <paramref name="RoundSeconds" />.</param>
+    /// <param name="SeedEntries">An older file's round-start entries its start was read from, as (step, slot): never read as copies.</param>
     internal sealed record PlaceSet(PlaceCentreResolver? Centres, PlaceArrivalResolver? Arrivals, PlaceContainsResolver? Contains,
-        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false, bool Observed = false, PathResolver? Paths = null);
+        double DefaultLevelMinZ, double RoundSeconds, bool LegacyCarry = false, bool Observed = false, PathResolver? Paths = null,
+        IReadOnlyDictionary<string, TokenPlacement>? Starts = null, StratClockInfo? Clock = null,
+        IReadOnlySet<(int Step, string Slot)>? SeedEntries = null)
+    {
+        /// <summary>The clock, its round length filled.</summary>
+        public StratClockInfo ClockOrRound => Clock ?? new StratClockInfo { RoundSeconds = RoundSeconds };
+    }
+
+    /// <summary>Whether Create Strat From Round or Strat Mining made the strat: it has an origin or the mined tag.</summary>
+    /// <param name="document">The strat.</param>
+    public static bool IsCaptured(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal);
+    }
 
     /// <summary>
     ///     Whether every position in the strat reads as observed: a captured or mined strat written before positions
@@ -1565,7 +1718,8 @@ public sealed class StratSceneProjection
     {
         ArgumentNullException.ThrowIfNull(document);
         return (document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal))
-               && !document.Steps.Any(s => s.Positions.Any(p => p.Observed is not null));
+               && !document.Steps.Any(s => s.Positions.Any(p => p.Observed is not null))
+               && document.Start?.Positions.Any(p => p.Observed is not null) != true;
     }
 
     /// <summary>
@@ -1579,6 +1733,46 @@ public sealed class StratSceneProjection
         ArgumentNullException.ThrowIfNull(document);
         return document.Origin is null && !document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal)
                                        && !document.Steps.Any(s => s.Positions.Any(p => p.Carried is not null));
+    }
+
+    /// <summary>
+    ///     The entries a file from before the carried mark reads as carried copies (<see cref="IsLegacyCarry" />), as
+    ///     (step, entry): what has to be marked when this build writes its first mark without changing what plays. Empty
+    ///     for any other file.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="throwOrigins">The canvas's lineup resolver, since a lineup origin is a placement copies match; null for none.</param>
+    /// <param name="spawns">The map's spawns, as the projection reads the start; null for none.</param>
+    public static IReadOnlyList<StartSource> LegacyCarriedEntries(StratDocument document, ThrowOriginResolver? throwOrigins = null,
+        StratSpawns? spawns = null)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (!IsLegacyCarry(document))
+        {
+            return [];
+        }
+
+        PlaceSet places = PlacesOf(document, null, null, null, null, spawns);
+        List<StartSource> found = [];
+        foreach (string slot in TokenSlots.All)
+        {
+            TokenPlacement? lastStored = places.Starts is { } starts && starts.TryGetValue(slot, out TokenPlacement s0) ? s0 : null;
+            for (int i = 0; i < document.Steps.Count; i++)
+            {
+                StratStep step = document.Steps[i];
+                ThrowOrigin? origin = throwOrigins is null ? null : ThrowOriginOf(document.Map, step, throwOrigins);
+                TokenPlacement? stored = PlacementOf(step, slot, out bool marked, out _);
+                if (stored is { } s && !marked && places.SeedEntries?.Contains((i, slot)) != true && SameSpot(s, lastStored))
+                {
+                    found.Add(new StartSource(i, step.Positions.FindLastIndex(p => string.Equals(p.Slot, slot, StringComparison.Ordinal)
+                                                                                   && double.IsFinite(p.X) && double.IsFinite(p.Y))));
+                }
+
+                lastStored = origin is not null && string.Equals(origin.Slot, slot, StringComparison.Ordinal) ? origin.Placement : stored ?? lastStored;
+            }
+        }
+
+        return found;
     }
 
     /// <summary>

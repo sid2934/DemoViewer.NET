@@ -622,7 +622,7 @@
                         <TextBlock Text="no steps yet" FontSize="11" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextMid}" />
                         <DropDownButton x:Name="ApplyTemplateButton" Content="Apply template" Classes="ghost" FontSize="11" Padding="10 5"
-                                        ToolTip.Tip="Fill this strat from a template; only while it has no steps beyond the spawns">
+                                        ToolTip.Tip="Fill this strat from a template; only while it has no steps">
                             <DropDownButton.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnApplyTemplateMenuOpening" />
                             </DropDownButton.Flyout>
@@ -671,13 +671,18 @@
                                     <TextBlock Text="tempo" Classes="stratFieldLabel" />
                                     <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.Tempos}" SelectedItem="{Binding Tempo}" />
                                 </StackPanel>
+                                <!-- The clock: a switch rewrites every step time in one undo entry and keeps every tick. -->
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="clock" Classes="stratFieldLabel" />
+                                    <ComboBox x:Name="ClockSwitch" ItemsSource="{x:Static vm:StratEditorViewModel.ClockChoices}" SelectedItem="{Binding ClockChoice}"
+                                              ToolTip.Tip="Round: times count down the round clock, 1:55. From trigger: times count up from what starts the strat, +0:08" />
+                                </StackPanel>
                             </WrapPanel>
-                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Trigger" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
-                                <TextBox Grid.Row="0" Grid.Column="1" FontSize="12" Watermark="on call at 1:15"
-                                         Text="{Binding TriggerText, UpdateSourceTrigger=LostFocus}" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Tags" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
-                                <TextBox Grid.Row="1" Grid.Column="1" FontSize="12" Watermark="comma separated"
+                            <TextBlock x:Name="ClockNote" Text="{Binding ClockNote}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding ClockNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Tags" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBox Grid.Column="1" FontSize="12" Watermark="comma separated"
                                          Text="{Binding TagsText, UpdateSourceTrigger=LostFocus}" />
                             </Grid>
                             <TextBox Text="{Binding Notes, UpdateSourceTrigger=LostFocus}" FontSize="12" Watermark="notes"
@@ -712,12 +717,84 @@
 
                             <!-- Steps. -->
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="Steps (round clock remaining, m:ss; +m:ss after the timer stopped)" Classes="col-label" TextWrapping="Wrap"
+                                <TextBlock Grid.Column="0" Text="{Binding StepsHeader}" Classes="col-label" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
                                 <Button Grid.Column="1" x:Name="AddStepButton" Content="Add step" Classes="ghost" FontSize="11" Padding="10 5"
                                         Click="OnAddStepClick"
                                         ToolTip.Tip="After the row last focused, or at the end; Enter in a row's field does the same" />
                             </Grid>
+                            <!-- The start: where every token stands before step 1, and what starts the strat. Not a step:
+                                 one line, opened to a location field per token. -->
+                            <Border x:Name="StartRow" DataContext="{Binding Start}" x:DataType="vm:StratStartRow"
+                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="0 0 0 6">
+                                <Border Classes="stratStep" Classes.selected="{Binding IsSelected}" Padding="0 2">
+                                    <Panel>
+                                        <Border Width="3" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}"
+                                                Background="{DynamicResource AccentInteractive}" />
+                                        <StackPanel Spacing="4">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                                <TextBlock Grid.Column="0" Classes="stratStepNumber" Text="Start" FontSize="12"
+                                                           VerticalAlignment="Center" Margin="6 0 0 0" />
+                                                <TextBlock Grid.Column="1" x:Name="StartSummary" FontSize="12" VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextValue}"
+                                                           Text="{Binding Line}" ToolTip.Tip="{Binding Line}" />
+                                                <Button Grid.Column="2" x:Name="StartExpand" Content="{Binding ExpandGlyph}" Classes="ghost" FontSize="12" Padding="8 2"
+                                                        Command="{Binding ToggleExpandedCommand}"
+                                                        ToolTip.Tip="Each player's start, and what starts the strat" />
+                                            </Grid>
+                                            <TextBlock x:Name="StartNote" Text="{Binding Note}" FontSize="11" TextWrapping="Wrap" Margin="24 0 0 0"
+                                                       Foreground="{DynamicResource AccentCaution}"
+                                                       IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            <StackPanel Margin="24 0 0 0" Spacing="4" IsVisible="{Binding IsExpanded}">
+                                                <StackPanel Classes="stratField">
+                                                    <TextBlock Text="what starts it" Classes="stratFieldLabel" />
+                                                    <TextBox x:Name="StartTrigger" FontSize="12" PlaceholderText="on call at 1:15, or contact at B apps"
+                                                             Text="{Binding $parent[ScrollViewer].((vm:StratEditorViewModel)DataContext).TriggerText, UpdateSourceTrigger=LostFocus}" />
+                                                </StackPanel>
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                    <TextBlock Grid.Column="0" Classes="stratFieldLabel" VerticalAlignment="Center">
+                                                        <Run Text="players · " /><Run Text="{Binding KindText}" />
+                                                    </TextBlock>
+                                                    <Button Grid.Column="1" Content="Spawns" Classes="ghost" FontSize="11" Padding="8 2"
+                                                            Command="{Binding UseSpawnsCommand}" IsVisible="{Binding CanUseSpawns}"
+                                                            ToolTip.Tip="Put every token back at the spawns" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Own}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:StratStartSlotRow">
+                                                            <Grid ColumnDefinitions="24,*" ColumnSpacing="4" Margin="0 0 0 3">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Slot}" FontSize="12" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextValue}" />
+                                                                <c:PlaceField Grid.Column="1" PlaceholderText="spawn, a callout or (x, y)"
+                                                                              Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding Value}"
+                                                                              PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding Target}"
+                                                                              ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                              ToolTip.Tip="Where this player stands before step 1" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="opponents" Classes="stratFieldLabel" />
+                                                <ItemsControl ItemsSource="{Binding Opponents}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:StratStartSlotRow">
+                                                            <Grid ColumnDefinitions="24,*" ColumnSpacing="4" Margin="0 0 0 3">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Slot}" FontSize="12" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextMid}" />
+                                                                <c:PlaceField Grid.Column="1" PlaceholderText="a callout or (x, y)"
+                                                                              Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding Value}"
+                                                                              PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding Target}"
+                                                                              ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                              ToolTip.Tip="Where this opponent stands before step 1" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Panel>
+                                </Border>
+                            </Border>
                             <!-- One step: number, time, actor and verb on the first line with the row's
                                  buttons, then only the fields the verb uses (StratStepFields; a field holding a
                                  value shows whatever the verb), wrapping to the editor's width. -->

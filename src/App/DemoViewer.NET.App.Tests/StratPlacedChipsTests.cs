@@ -49,12 +49,16 @@ public class StratPlacedChipsTests
     private static string Texts(StratStepRow row) => string.Join(" | ", row.Placed.Select(c => c.Text));
 
     [Test]
-    public async Task TheSeed_ReadsAsSpotsAndOpponents_AndAGroupsClear_IsOneEntry()
+    public async Task TenSpotsOnAHold_ReadAsSpotsAndOpponents_AndAGroupsClear_IsOneEntry_WhileAnOlderSeedShowsNone()
     {
-        (StratSession session, StratEditorViewModel editor) = Open(Seed());
-        StratStepRow row = editor.Steps[0];
+        StratStep spots = Seed();
+        spots.AtSeconds = 110;
+        (StratSession session, StratEditorViewModel editor) = Open(Seed(), spots);
+        StratStepRow row = editor.Steps[1];
         using (Assert.Multiple())
         {
+            await Assert.That(Texts(editor.Steps[0])).IsEqualTo("").Because("an older file's seed is its start, shown by the Start row");
+            await Assert.That(editor.Start.Summary).IsEqualTo("from step 1");
             await Assert.That(Texts(row)).IsEqualTo("spots (5) | opponents (5)");
             await Assert.That(row.HasPlaced).IsTrue();
             await Assert.That(row.Placed[1].Entries.Select(e => e.Text)).Contains("O2 at (2060, 0) 135°")
@@ -68,8 +72,8 @@ public class StratPlacedChipsTests
         using (Assert.Multiple())
         {
             await Assert.That(session.UndoDepth).IsEqualTo(1);
-            await Assert.That(session.Document!.Steps[0].Positions.Select(p => p.Slot)).IsEquivalentTo(["A", "B", "C", "D", "E"]);
-            await Assert.That(Texts(editor.Steps[0])).IsEqualTo("spots (5)");
+            await Assert.That(session.Document!.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["A", "B", "C", "D", "E"]);
+            await Assert.That(Texts(editor.Steps[1])).IsEqualTo("spots (5)");
         }
 
         session.Undo();
@@ -77,8 +81,8 @@ public class StratPlacedChipsTests
         await Assert.That(Json(session)).IsEqualTo(before);
 
         // One entry of a group: its own ✕.
-        editor.Steps[0].Placed[0].Entries[2].ClearCommand.Execute(null);
-        await Assert.That(session.Document!.Steps[0].Positions.Select(p => p.Slot)).DoesNotContain("C");
+        editor.Steps[1].Placed[0].Entries[2].ClearCommand.Execute(null);
+        await Assert.That(session.Document!.Steps[1].Positions.Select(p => p.Slot)).DoesNotContain("C");
     }
 
     [Test]

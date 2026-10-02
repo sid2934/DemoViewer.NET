@@ -18,6 +18,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using DemoViewer.NET.Services.Dependencies;
+using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
@@ -156,12 +157,12 @@ public sealed class StratExportJob : IExportRunner
         int end = projection.ContentEndTick + TailTicks;
         List<ExportRangeOption> ranges =
         [
-            new(Describe("First step to last + 2 s", first, end, projection.RoundSeconds), first, end)
+            new(Describe("First step to last + 2 s", first, end, projection), first, end)
         ];
 
         if (first > 0)
         {
-            ranges.Add(new ExportRangeOption(Describe("From the round's start", 0, end, projection.RoundSeconds), 0, end));
+            ranges.Add(new ExportRangeOption(Describe(projection.CountsUp ? "From the start" : "From the round's start", 0, end, projection), 0, end));
         }
 
         return ranges;
@@ -199,7 +200,8 @@ public sealed class StratExportJob : IExportRunner
             asset is null ? capture.FallbackBounds : MapAssetPipeline.RadarBounds(asset), null,
             projection.Utility, projection.RoundSeconds, startTick, endTick, fps, speed)
         {
-            Routes = projection.Routed
+            Routes = projection.Routed,
+            CountsUp = projection.CountsUp
         };
     }
 
@@ -231,7 +233,7 @@ public sealed class StratExportJob : IExportRunner
 
         // No vision solver: the layer is named with the other six and draws nothing without one.
         using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack([.. core.LayerIds], null, null,
-            new StratHudDataSource(spec.RoundSeconds), spec.Ink);
+            new StratHudDataSource(spec.RoundSeconds, spec.CountsUp), spec.Ink);
         using IRenderSurfaceProvider surfaces = _surfaces();
 
         SceneExportSession session = new(compositor)
@@ -258,15 +260,15 @@ public sealed class StratExportJob : IExportRunner
         }
     }
 
-    // "First step to last + 2 s  (1:50 to 1:08)": the round clock the coach wrote the steps on.
-    private static string Describe(string label, int fromTick, int toTick, int roundSeconds) =>
+    // "First step to last + 2 s  (1:50 to 1:08)": the clock the coach wrote the steps on, +0:08 from a trigger.
+    private static string Describe(string label, int fromTick, int toTick, StratSceneProjection projection) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"{label}  ({Clock(roundSeconds, fromTick)} to {Clock(roundSeconds, toTick)})");
+            $"{label}  ({Clock(projection, fromTick)} to {Clock(projection, toTick)})");
 
-    private static string Clock(int roundSeconds, int tick)
+    private static string Clock(StratSceneProjection projection, int tick)
     {
-        double seconds = StepSchedule.AtSecondsFor(tick, roundSeconds);
-        string sign = seconds < 0 ? "-" : "";
+        double seconds = StratClock.AtSecondsAtTick(projection.ClockInfo, tick);
+        string sign = projection.CountsUp ? seconds < 0 ? "-" : "+" : seconds < 0 ? "-" : "";
         int whole = (int)Math.Round(Math.Abs(seconds));
         return string.Create(CultureInfo.InvariantCulture, $"{sign}{whole / 60}:{whole % 60:00}");
     }

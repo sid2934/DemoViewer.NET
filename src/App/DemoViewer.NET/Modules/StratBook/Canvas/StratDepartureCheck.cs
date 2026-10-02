@@ -39,7 +39,8 @@ public static partial class StratDepartureCheck
             return issues;
         }
 
-        for (int i = 1; i < document.Steps.Count; i++)
+        // From the first step: a start is somewhere to have come from.
+        for (int i = 0; i < document.Steps.Count; i++)
         {
             StratStep step = document.Steps[i];
             if (StratStepFields.MotionOf(step.Verb) is not (StepMotion.Travel or StepMotion.Lurk))

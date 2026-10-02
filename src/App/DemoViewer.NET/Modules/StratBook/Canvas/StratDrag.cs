@@ -27,6 +27,9 @@ public enum StratDragAction
     /// <summary>A cone drag: the line's view angle.</summary>
     Turn,
 
+    /// <summary>The token's start: where it stands before step 1. A cone drag turns it there.</summary>
+    Start,
+
     /// <summary>Nothing: <see cref="StratDragTarget.Refusal" /> says why.</summary>
     Refused
 }
@@ -64,6 +67,15 @@ public sealed record StratDragTarget(
     public const string RunnerTurnNote = "a runner faces its run; turn it on the hold or push after";
     public static string NothingPlacesNote(string slot) => $"no step places {slot} here to edit: hold Alt to pin it";
 
+    /// <summary>Why a token's start is not edited: a step on the start's tick places it, and that entry wins.</summary>
+    /// <param name="slot">The token.</param>
+    /// <param name="stepIndex">The step's index.</param>
+    public static string ShadowedNote(string slot, int stepIndex) =>
+        string.Create(CultureInfo.InvariantCulture, $"step {stepIndex + 1} places {slot} at the start: edit it there");
+
+    /// <summary>Why a start edit waits: an older strat's start takes the map's spawns, which are still being read.</summary>
+    public const string SpawnsPendingNote = "reading this map's spawns: try again in a moment";
+
     /// <summary>Whether a drop writes anything.</summary>
     public bool IsRefused => Action == StratDragAction.Refused;
 
@@ -80,12 +92,19 @@ public sealed record StratDragTarget(
     /// <param name="slot">The token.</param>
     /// <param name="grip">Body moves it, heading turns it.</param>
     /// <param name="pin">Alt, or the toolbar's Pin.</param>
-    public static StratDragTarget Resolve(StratSceneProjection projection, int tick, int activeIndex, string slot, TokenGrip grip, bool pin)
+    /// <param name="start">The Start row is selected and the playhead is on tick 0: the drag edits the start.</param>
+    public static StratDragTarget Resolve(StratSceneProjection projection, int tick, int activeIndex, string slot, TokenGrip grip, bool pin,
+        bool start = false)
     {
         ArgumentNullException.ThrowIfNull(projection);
+        if (start && tick == 0)
+        {
+            return projection.StartShadowedBy(slot) is { } step ? Refuse(slot, ShadowedNote(slot, step)) : StartOf(slot);
+        }
+
         if (projection.Path.Count == 0 || activeIndex < 0 || activeIndex >= projection.Path.Count)
         {
-            return Refuse(slot, NoStepNote);
+            return projection.StartOf(slot) is not null && tick == 0 ? StartOf(slot) : Refuse(slot, NoStepNote);
         }
 
         bool own = StratVocabulary.Slots.Contains(slot);
@@ -136,7 +155,8 @@ public sealed record StratDragTarget(
 
         if (projection.PlacedBy(slot, tick) is not { } placed)
         {
-            return Refuse(slot, NothingPlacesNote(slot));
+            // Standing where it started: nothing since has placed it, so the drag moves its start.
+            return projection.StartOf(slot) is not null ? StartOf(slot) : Refuse(slot, NothingPlacesNote(slot));
         }
 
         return placed.Rotate
@@ -188,7 +208,7 @@ public sealed record StratDragTarget(
             // Strictly earlier steps only, so this ends.
             if (projection.PlacedBy(slot, projection.Ticks[pathIndex], i => i < pathIndex) is not { } placed)
             {
-                return Refuse(slot, NothingPlacesNote(slot));
+                return projection.StartOf(slot) is not null ? StartOf(slot) : Refuse(slot, NothingPlacesNote(slot));
             }
 
             return placed.Rotate
@@ -198,7 +218,7 @@ public sealed record StratDragTarget(
 
         if (motion == StepMotion.Lurk)
         {
-            bool rotating = StratSceneProjection.RotateTickOf(step, projection.Ticks[pathIndex], projection.RoundSeconds) is { } rotate && rotate <= tick;
+            bool rotating = StratSceneProjection.RotateTickOf(step, projection.Ticks[pathIndex], projection.ClockInfo) is { } rotate && rotate <= tick;
             return FieldOn(projection, pathIndex, slot, rotating ? StratLocationKind.RotateTo : StratLocationKind.LurkArea, null);
         }
 
@@ -208,6 +228,9 @@ public sealed record StratDragTarget(
             Joins = !names
         };
     }
+
+    private static StratDragTarget StartOf(string slot) =>
+        new(slot, StratDragAction.Start, -1, -1, StratStartBlock.FieldFor(slot));
 
     private static StratDragTarget FieldOn(StratSceneProjection projection, int pathIndex, string slot, StratLocationKind kind, string? fieldSlot) =>
         new(slot, StratDragAction.Field, pathIndex, projection.Path[pathIndex].StepIndex,
@@ -260,11 +283,25 @@ public static partial class StratDragPatches
     /// <param name="document">The strat.</param>
     /// <param name="target">Where the drag lands.</param>
     /// <param name="drop">Where it let go.</param>
-    public static List<PatchOp> Ops(StratDocument document, StratDragTarget target, StratDrop drop)
+    /// <param name="legacyCarried">
+    ///     For a start drag, the entries an older file reads as carried copies (<see cref="StratSceneProjection.LegacyCarriedEntries" />),
+    ///     marked when the start block is first written.
+    /// </param>
+    /// <param name="spawns">The map's spawns, for an older file's start; null for none.</param>
+    public static List<PatchOp> Ops(StratDocument document, StratDragTarget target, StratDrop drop,
+        IReadOnlyCollection<StartSource>? legacyCarried = null, StratSpawns? spawns = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(drop);
+        if (target.Action == StratDragAction.Start)
+        {
+            PlaceRef? stored = StratStartBlock.LocationOf(document, target.Slot, spawns);
+            return drop.YawDegrees is { } turned && stored is not null
+                ? StratStartBlock.WriteLocation(document, target.Slot, stored, legacyCarried, Math.Round(turned, 2), spawns)
+                : StratStartBlock.WriteLocation(document, target.Slot, Entry(stored, drop, false), legacyCarried, spawns: spawns);
+        }
+
         if (!Holds(document, target))
         {
             return [];
@@ -314,8 +351,9 @@ public static partial class StratDragPatches
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(target);
-        return !target.IsRefused && target.StepIndex >= 0 && target.StepIndex < document.Steps.Count
-               && (target.StepId == Guid.Empty || document.Steps[target.StepIndex].Id == target.StepId);
+        return target.Action == StratDragAction.Start
+               || (!target.IsRefused && target.StepIndex >= 0 && target.StepIndex < document.Steps.Count
+               && (target.StepId == Guid.Empty || document.Steps[target.StepIndex].Id == target.StepId));
     }
 
     /// <summary>
