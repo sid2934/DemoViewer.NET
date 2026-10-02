@@ -148,7 +148,11 @@ public readonly record struct ScenePalette(
         SKColor.Parse("#C8881F"),
         SKColor.Parse("#357ABD"),
         SKColor.Parse("#666666"),
-        SceneStrokeWidths.Default);
+        SceneStrokeWidths.Default)
+    {
+        RouteT = SKColor.Parse("#59E0A030"),
+        RouteCt = SKColor.Parse("#594A90D9")
+    };
 
     /// <summary>
     ///     The Light-variant values from the app's theme dictionary (<c>Styles/DarkPalette.axaml</c>'s
@@ -191,7 +195,37 @@ public readonly record struct ScenePalette(
         SKColor.Parse("#A66A15"),
         SKColor.Parse("#285F9E"),
         SKColor.Parse("#8A8F96"),
-        SceneStrokeWidths.Default);
+        SceneStrokeWidths.Default)
+    {
+        RouteT = SKColor.Parse("#66C9821C"),
+        RouteCt = SKColor.Parse("#662F73BE")
+    };
+
+    private readonly SKColor? _routeT;
+    private readonly SKColor? _routeCt;
+
+    /// <summary>T-side strat route line: the side colour at low alpha. Falls back to <see cref="TeamT" /> at 35%.</summary>
+    public SKColor RouteT
+    {
+        get => _routeT ?? TeamT.WithAlpha(0x59);
+        init => _routeT = value;
+    }
+
+    /// <summary>CT-side strat route line. Falls back to <see cref="TeamCt" /> at 35%.</summary>
+    public SKColor RouteCt
+    {
+        get => _routeCt ?? TeamCt.WithAlpha(0x59);
+        init => _routeCt = value;
+    }
+
+    /// <summary>The route line colour for a CS2 team number (2 = T, 3 = CT); neutral for anything else.</summary>
+    /// <param name="team">The token's side.</param>
+    public SKColor RouteFill(int team) => team switch
+    {
+        2 => RouteT,
+        3 => RouteCt,
+        _ => Neutral.WithAlpha(0x59)
+    };
 
     /// <summary>The team-coloured marker fill for a CS2 team number (2 = T, 3 = CT).</summary>
     public SKColor TeamFill(int team) => team switch

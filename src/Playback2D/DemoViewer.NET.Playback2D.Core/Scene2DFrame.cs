@@ -35,6 +35,7 @@ public sealed class Scene2DFrame
     internal IReadOnlyList<PlayerMarker> MarkersField = [];
     internal SceneTime TimeField;
     internal IReadOnlyList<GrenadeTrail> TrailsField = [];
+    internal IReadOnlyList<TokenRouteLine> RoutesField = [];
     internal SceneVision VisionField = SceneVision.Off;
 
     /// <summary>The injected clock for this frame.</summary>
@@ -98,6 +99,16 @@ public sealed class Scene2DFrame
     {
         get => VisionField;
         init => VisionField = value;
+    }
+
+    /// <summary>
+    ///     A strat token's way ahead while it moves: from where it is to where the move ends. Empty on a demo frame.
+    ///     Drawn faintly under the markers by the marker layer.
+    /// </summary>
+    public IReadOnlyList<TokenRouteLine> Routes
+    {
+        get => RoutesField;
+        init => RoutesField = value;
     }
 
     /// <summary>The followed roster slot, or -1 for none. Read by the camera rigs and the marker layer.</summary>
