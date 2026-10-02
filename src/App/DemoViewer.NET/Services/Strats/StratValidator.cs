@@ -72,6 +72,10 @@ public static class StratValidator
         ValidateSlots(document, issues);
         HashSet<Guid> stepIds = ValidateSteps(document, places, lineupExists, issues);
         ValidateBranches(document, stepIds, index, issues);
+        foreach ((int step, int position, string message) in FastDepartures(document))
+        {
+            issues.Add(Warn(string.Create(CultureInfo.InvariantCulture, $"/steps/{step}/positions/{position}"), message));
+        }
 
         if (document.Extra is { Count: > 0 } extra)
         {
@@ -428,6 +432,77 @@ public static class StratValidator
         {
             issues.Add(Warn(pointer, $"'{place}' is not a place on {map}"));
         }
+    }
+
+    /// <summary>
+    ///     Each authored departure on a travel step (a position for a slot a move, push, rotate, other or lurk names)
+    ///     that the token cannot reach at a run from where it last stood: the zip an old token drag leaves. The
+    ///     distance is straight, the time from the step before, so a hit is never a false alarm. Unknown when the last
+    ///     spot is a place, which has no point without the map's zones.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    public static IEnumerable<(int Step, int Position, string Message)> FastDepartures(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        for (int i = 1; i < document.Steps.Count; i++)
+        {
+            StratStep step = document.Steps[i];
+            if (StratStepFields.MotionOf(step.Verb) is not (StepMotion.Travel or StepMotion.Lurk))
+            {
+                continue;
+            }
+
+            for (int k = 0; k < step.Positions.Count; k++)
+            {
+                StepPosition position = step.Positions[k];
+                if (position.Carried == true || position.Observed == true || !StratVocabulary.Slots.Contains(position.Slot)
+                    || !StratStepLines.Involves(step, position.Slot) || LastSpot(document, i, position.Slot) is not { } last)
+                {
+                    continue;
+                }
+
+                double seconds = Math.Max(last.AtSeconds - step.AtSeconds, 1.0 / 64);
+                double distance = Math.Sqrt((position.X - last.X) * (position.X - last.X) + (position.Y - last.Y) * (position.Y - last.Y));
+                if (distance / seconds > Modules.StratBook.Canvas.StratSceneProjection.RunUnitsPerSecond)
+                {
+                    yield return (i, k, string.Create(CultureInfo.InvariantCulture,
+                        $"{position.Slot} would cross {distance:0} u in {seconds:0.0} s to where it leaves from, faster than a run"));
+                }
+            }
+        }
+    }
+
+    // Where the slot last stood before step i: a position on an earlier step, or a destination that is a point.
+    private static (double X, double Y, double AtSeconds)? LastSpot(StratDocument document, int i, string slot)
+    {
+        for (int j = i - 1; j >= 0; j--)
+        {
+            StratStep before = document.Steps[j];
+            if (before.Positions.LastOrDefault(p => p.Slot == slot) is { } position)
+            {
+                return (position.X, position.Y, before.AtSeconds);
+            }
+
+            PlaceRef? to = StratStepLines.Involves(before, slot)
+                ? StratStepFields.MotionOf(before.Verb) switch
+                {
+                    StepMotion.Travel or StepMotion.Position => StratStepLines.LocationFor(before, slot),
+                    StepMotion.Lurk => StratLocations.LurkAreas(before.Lurk) is { Count: > 0 } areas ? areas[0] : null,
+                    _ => null
+                }
+                : null;
+            if (StratLocations.HasPoint(to))
+            {
+                return (to!.X!.Value, to.Y!.Value, before.AtSeconds);
+            }
+
+            if (StratLocations.HasPlace(to))
+            {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private static StratIssue Refuse(string pointer, string message) => new(StratIssueSeverity.Refusal, pointer, message);

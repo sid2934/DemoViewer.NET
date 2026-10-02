@@ -2052,6 +2052,22 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         StratStepLines.HasLines(step)
         || (string.Equals(step.Actor, StratVocabulary.ActorAll, StringComparison.Ordinal) && LinesShownApart?.Invoke(step.Id) == true);
 
+    /// <summary>The place under a point on a floor, from the open map's zones; null in no place or before they load.</summary>
+    /// <param name="x">World X.</param>
+    /// <param name="y">World Y.</param>
+    /// <param name="levelMinZ">The floor's level key.</param>
+    public string? PlaceAt(double x, double y, double levelMinZ) =>
+        LoadedZones() is { } zones ? zones.ResolveOnFloor(x, y, levelMinZ) : null;
+
+    /// <summary>Whether the open map's zones are in memory, so <see cref="PlaceAt" />'s null means no place.</summary>
+    public bool HasPlaces => LoadedZones() is not null;
+
+    private IZonePlaceResolver? LoadedZones() =>
+        _session.Document is { } document && _places is { IsCompletedSuccessfully: true, Result: { } zones }
+                                          && string.Equals(_placesMap, document.Map, StringComparison.OrdinalIgnoreCase)
+            ? zones
+            : null;
+
     /// <summary>Whether the editor shows a step's lines one per player; the tab wires it to the editor.</summary>
     public Func<Guid, bool>? LinesShownApart { get; set; }
 

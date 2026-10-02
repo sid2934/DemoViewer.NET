@@ -221,6 +221,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             placesFor: canvasPlaces, post: post, routing: canvasRouting);
         StepSelection = new StratStepSelection(Editor, Canvas);
         Canvas.LinesShownApart = Editor.ShowsLinesApart;
+        Editor.PlaceAt = Canvas.PlaceAt;
+        Editor.PlacesKnown = () => Canvas.HasPlaces;
         Editor.LinesViewChanged += Canvas.RefreshSetPlace;
 
         // Place warnings from the canvas's loaded zones: none until they land, then a fresh validation.
@@ -484,6 +486,17 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         if (field is not null)
         {
             StepSelection.PickOnMap(field);
+        }
+    }
+
+    /// <summary>A placed chip's click: its step and its player's line become the selection, at the step's time.</summary>
+    /// <param name="chip">The chip.</param>
+    [RelayCommand]
+    private void SelectPlaced(StratPlacedChip? chip)
+    {
+        if (chip is not null && Editor.Steps.FirstOrDefault(r => r.Placed.Contains(chip)) is { } row)
+        {
+            StepSelection.SelectLine(row.Id, StratVocabulary.Slots.Contains(chip.Slot) ? chip.Slot : null);
         }
     }
 
