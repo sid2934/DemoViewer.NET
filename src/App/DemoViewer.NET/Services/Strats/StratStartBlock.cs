@@ -27,42 +27,51 @@ public static class StratStartBlock
 
     /// <summary>The strat's start: its block, else the one an older file implies; null for none.</summary>
     /// <param name="document">The strat.</param>
-    public static StratStart? Effective(StratDocument document)
+    /// <param name="spawns">The map's spawns, which give an older file's own five their spawn when nothing else does; null for none.</param>
+    public static StratStart? Effective(StratDocument document, StratSpawns? spawns = null)
     {
         ArgumentNullException.ThrowIfNull(document);
-        return document.Start ?? Legacy(document, out _);
+        return document.Start ?? Legacy(document, out _, spawns);
     }
 
     /// <summary>
     ///     The start an older file implies, or null. Only for a file with no start block, no origin and no mined tag whose
-    ///     first step is at the strat's start: that step's entries (a carried copy excluded) are the start. A token it
-    ///     does not place starts at its first entry on a later step when that entry is a carried copy (marked, or in a
-    ///     file from before the mark an unmarked entry on a step that does not name it), since a copy of a token nothing
-    ///     placed before can only be of a round-start entry since removed.
+    ///     first step is at the strat's start: that step's entries (a carried copy excluded) are the start. When it places
+    ///     someone, one of A to E it does not place starts at its first entry on a later step when that entry is a carried
+    ///     copy (marked, or in a file from before the mark an unmarked entry on a step that does not name it), since a copy
+    ///     of a token nothing placed before can only be of a round-start entry since removed. With the map's spawns, one
+    ///     of A to E that still has no start starts at its spawn, as a new strat's would, so a first step at the start
+    ///     walks from there.
     /// </summary>
     /// <param name="document">The strat.</param>
-    /// <param name="sources">Where each entry was read from, in the start's order.</param>
-    public static StratStart? Legacy(StratDocument document, out IReadOnlyList<StartSource> sources)
+    /// <param name="sources">Where each entry was read from, in the start's order; a spawn has none.</param>
+    /// <param name="spawns">The map's spawns; null gives no token a spawn.</param>
+    public static StratStart? Legacy(StratDocument document, out IReadOnlyList<StartSource> sources, StratSpawns? spawns = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         sources = [];
-        if (document.Start is not null || document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal)
-            || document.Steps.Count == 0 || StratClock.StratTickOf(document.Clock, document.Steps[0].AtSeconds) != 0)
+        if (document.Start is not null || document.Origin is not null || document.Tags.Contains(MinedStratBuilder.Tag, StringComparer.Ordinal))
         {
             return null;
         }
 
+        bool seeded = document.Steps.Count > 0 && StratClock.StratTickOf(document.Clock, document.Steps[0].AtSeconds) == 0;
         bool unmarkedCopies = !document.Steps.Any(s => s.Positions.Any(p => p.Carried is not null));
         Dictionary<string, StartSource> found = new(StringComparer.Ordinal);
-        foreach (string slot in Tokens)
+        foreach (string slot in seeded ? Tokens : [])
         {
-            if (LastFor(document.Steps[0], slot) is { } own)
+            if (LastFor(document.Steps[0], slot) is { } own && document.Steps[0].Positions[own].Carried != true)
             {
-                if (document.Steps[0].Positions[own].Carried != true)
-                {
-                    found[slot] = new StartSource(0, own);
-                }
+                found[slot] = new StartSource(0, own);
+            }
+        }
 
+        // Only a round-start step that still places someone is a seed, and only our five are recovered from copies:
+        // an opponent is placed by hand, never sent anywhere, so one missing from the seed was taken out on purpose.
+        foreach (string slot in found.Count == 0 ? [] : StratVocabulary.Slots.Where(s => !found.ContainsKey(s)).ToList())
+        {
+            if (LastFor(document.Steps[0], slot) is not null)
+            {
                 continue;
             }
 
@@ -84,7 +93,18 @@ public static class StratStartBlock
             }
         }
 
-        if (found.Count == 0)
+        // A strat that begins at the start gets our five at spawn where nothing else says, as New Strat seeded them; an
+        // opponent missing from the seed was taken out by hand.
+        Dictionary<string, StartPosition> spawned = new(StringComparer.Ordinal);
+        if (seeded && spawns?.StartFor(document) is { } spawnStart)
+        {
+            foreach (StartPosition spot in spawnStart.Positions.Where(p => StratVocabulary.Slots.Contains(p.Slot) && !found.ContainsKey(p.Slot)))
+            {
+                spawned[spot.Slot] = spot;
+            }
+        }
+
+        if (found.Count == 0 && spawned.Count == 0)
         {
             return null;
         }
@@ -94,7 +114,13 @@ public static class StratStartBlock
         return new StratStart
         {
             Kind = StratStart.SpawnKind,
-            Positions = [.. ordered.Select(s => FromPosition(document.Steps[s.Step].Positions[s.Position]))]
+            Positions =
+            [
+                .. Tokens.Select(t => found.TryGetValue(t, out StartSource source)
+                        ? FromPosition(document.Steps[source.Step].Positions[source.Position])
+                        : spawned.GetValueOrDefault(t))
+                    .OfType<StartPosition>()
+            ]
         };
     }
 
@@ -136,12 +162,13 @@ public static class StratStartBlock
     ///     The step entries the projection reads as carried copies in a file from before the mark, as (step, entry); the
     ///     caller asks the projection. Ignored when the file has a block or marks.
     /// </param>
+    /// <param name="spawns">As <see cref="Effective" />: the start the first write starts from.</param>
     public static List<PatchOp> Ops(StratDocument document, IReadOnlyDictionary<string, StartPosition?> changes,
-        IReadOnlyCollection<StartSource>? legacyCarried = null)
+        IReadOnlyCollection<StartSource>? legacyCarried = null, StratSpawns? spawns = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(changes);
-        StratStart current = Clone(Effective(document) ?? new StratStart());
+        StratStart current = Clone(Effective(document, spawns) ?? new StratStart());
         List<StartPosition> next = [.. current.Positions];
         foreach ((string slot, StartPosition? value) in changes)
         {
@@ -233,6 +260,42 @@ public static class StratStartBlock
         }
 
         return ops;
+    }
+
+    /// <summary>The location field a token's start is edited through: the Start row's and a map pick's.</summary>
+    /// <param name="slot">The token.</param>
+    public static StratLocationField FieldFor(string slot) => new(Guid.Empty, slot, StratLocationKind.Start);
+
+    /// <summary>A token's start as a location, or null when it has none.</summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="spawns">As <see cref="Effective" />.</param>
+    public static PlaceRef? LocationOf(StratDocument document, string slot, StratSpawns? spawns = null) =>
+        For(Effective(document, spawns), slot) is { } entry ? AsLocation(entry) : null;
+
+    /// <summary>
+    ///     The ops that set a token's start to a location (its facing kept), or clear it for null, one undo entry
+    ///     through <see cref="Ops" />.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="slot">The token.</param>
+    /// <param name="location">The new start, or null.</param>
+    /// <param name="legacyCarried">As <see cref="Ops" />.</param>
+    /// <param name="yawDegrees">A new facing; null keeps the stored one.</param>
+    /// <param name="spawns">As <see cref="Effective" />.</param>
+    public static List<PatchOp> WriteLocation(StratDocument document, string slot, PlaceRef? location,
+        IReadOnlyCollection<StartSource>? legacyCarried = null, double? yawDegrees = null, StratSpawns? spawns = null)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        StartPosition? current = For(Effective(document, spawns), slot);
+        StartPosition? next = location is null || !StratLocations.IsSet(location)
+            ? null
+            : new StartPosition
+            {
+                Slot = slot, Place = location.Place, X = location.X, Y = location.Y, LevelMinZ = location.LevelMinZ,
+                YawDegrees = yawDegrees ?? current?.YawDegrees, Extra = current?.Extra
+            };
+        return Ops(document, new Dictionary<string, StartPosition?> { [slot] = next }, legacyCarried, spawns);
     }
 
     /// <summary>A copy, unknown fields included.</summary>

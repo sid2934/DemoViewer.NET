@@ -74,6 +74,30 @@ public sealed partial class StratEditorViewModel : ObservableObject
     [ObservableProperty]
     private string _type = "default";
 
+    [ObservableProperty]
+    private string _clockChoice = RoundClockChoice;
+
+    /// <summary>The clock switch's round choice: times count down the round, <c>1:55</c>.</summary>
+    public const string RoundClockChoice = "Round";
+
+    /// <summary>The clock switch's trigger choice: times count up from the trigger, <c>+0:08</c>.</summary>
+    public const string TriggerClockChoice = "From trigger";
+
+    /// <summary>The clock switch's two choices.</summary>
+    public static IReadOnlyList<string> ClockChoices { get; } = [RoundClockChoice, TriggerClockChoice];
+
+    /// <summary>The Start row above step 1.</summary>
+    public StratStartRow Start { get; }
+
+    /// <summary>
+    ///     The open map's spawns once read, else null; set by the tab. An older strat's start takes them, and the Start
+    ///     row's "spawns" button writes them.
+    /// </summary>
+    public Func<StratSpawns?>? Spawns { get; set; }
+
+    /// <summary>The step table's heading: which clock its times are on.</summary>
+    public string StepsHeader { get; private set; } = "Steps (round clock remaining, m:ss; +m:ss after the timer stopped)";
+
     /// <param name="session">The session the editor reads and writes.</param>
     /// <param name="lineups">
     ///     The Utility Book lineups a step can reference (Lineup On A Strat Step): a row's choices, the name of a
@@ -92,6 +116,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
         _lineups = lineups;
         _throwOrigins = throwOrigins;
         _placeCentres = placeCentres;
+        Start = new StratStartRow(this);
     }
 
     public static IReadOnlyList<string> Sides { get; } = [StratVocabulary.SideT, StratVocabulary.SideCt];
@@ -186,6 +211,7 @@ public sealed partial class StratEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(HasDocument));
         OnPropertyChanged(nameof(Map));
         OnPropertyChanged(nameof(ClockLine));
+        OnPropertyChanged(nameof(StepsHeader));
         OnPropertyChanged(nameof(HasIssues));
     }
 
@@ -202,6 +228,19 @@ public sealed partial class StratEditorViewModel : ObservableObject
     {
         if (IsProjecting || _session.Document is not { } document)
         {
+            return;
+        }
+
+        if (field.Kind == StratLocationKind.Start)
+        {
+            EndEditBurst();
+            if (field.Slot is { } slot
+                && StratStartBlock.WriteLocation(document, slot, entries.FirstOrDefault(StratLocations.IsSet), LegacyCarried(document),
+                    spawns: Spawns?.Invoke()) is { Count: > 0 } start)
+            {
+                _session.Apply(start);
+            }
+
             return;
         }
 
@@ -224,6 +263,37 @@ public sealed partial class StratEditorViewModel : ObservableObject
     /// <param name="current">The field's stored value.</param>
     internal List<PlaceRef> ParseLocation(string? text, IReadOnlyList<PlaceRef> current) =>
         PlaceFieldModel.Parse(text ?? "", current, _places, DefaultLevelMinZ);
+
+    /// <summary>The entries an older file reads as carried copies, marked when the start block is first written.</summary>
+    /// <param name="document">The strat.</param>
+    internal IReadOnlyList<StartSource> LegacyCarried(StratDocument document) =>
+        StratSceneProjection.LegacyCarriedEntries(document, _throwOrigins, Spawns?.Invoke());
+
+    /// <summary>Every token back at the spawns, a <c>spawn</c> start, one undo entry. Nothing until the spawns are read.</summary>
+    internal void UseSpawnStart()
+    {
+        if (_session.Document is { } document && Spawns?.Invoke()?.StartFor(document) is { } spawns)
+        {
+            EndEditBurst();
+            Apply(StratStartBlock.Write(document, spawns, LegacyCarried(document)));
+        }
+    }
+
+    // The step entries an older file's start was read from: their chips would say again what the Start row says.
+    private Dictionary<int, HashSet<int>> _startEntries = [];
+
+    internal IReadOnlySet<int>? StartEntriesOn(int stepIndex) => _startEntries.GetValueOrDefault(stepIndex);
+
+    partial void OnClockChoiceChanged(string value)
+    {
+        if (IsProjecting || _session.Document is not { } document)
+        {
+            return;
+        }
+
+        EndEditBurst();
+        Apply(StratClock.SwitchOps(document, value == TriggerClockChoice ? StratClock.TriggerKind : StratClock.RoundKind));
+    }
 
     /// <summary>The open strat's clock, which the times in the table are read and written on.</summary>
     internal StratClockInfo? Clock => _session.Document?.Clock;
@@ -992,6 +1062,20 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
 
         Map = document.Map;
+        ClockChoice = StratClock.IsTrigger(document.Clock) ? TriggerClockChoice : RoundClockChoice;
+        StepsHeader = StratClock.IsTrigger(document.Clock)
+            ? "Steps (from the trigger, +m:ss)"
+            : "Steps (round clock remaining, m:ss; +m:ss after the timer stopped)";
+        _startEntries = [];
+        if (document.Start is null && StratStartBlock.Legacy(document, out IReadOnlyList<StartSource> sources) is not null)
+        {
+            foreach (StartSource source in sources)
+            {
+                (_startEntries.TryGetValue(source.Step, out HashSet<int>? entries) ? entries : _startEntries[source.Step] = []).Add(source.Position);
+            }
+        }
+
+        Start.Load(document, _places, Spawns?.Invoke());
         ClockLine = StratClock.IsTrigger(document.Clock)
             ? "from the trigger, counting up from +0:00"
             : $"round clock, counting down from {StratClock.Format(document.Clock.RoundSeconds)}";
@@ -1836,7 +1920,8 @@ public sealed partial class StratStepRow : ObservableObject
     // Rebuilt only when what they say changes, so a focused chip keeps focus across an unrelated edit.
     private void LoadPlaced(StratStep step, IReadOnlyDictionary<int, string>? warnings)
     {
-        List<StratPlacedChip> chips = StratPlacedChip.For(this, step, _owner.KnownPlaceAtForRows, warnings, _owner.LegacySeen);
+        List<StratPlacedChip> chips = StratPlacedChip.For(this, step, _owner.KnownPlaceAtForRows, warnings, _owner.LegacySeen,
+            _owner.StartEntriesOn(_index));
         if (Placed.Select(Key).SequenceEqual(chips.Select(Key)))
         {
             return;

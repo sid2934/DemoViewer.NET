@@ -49,6 +49,8 @@ public partial class StratBookTabView : UserControl
         // A press or focus anywhere in a row selects its step. Never handled, so the field still gets it.
         StepRows.AddHandler(GotFocusEvent, OnStepRowActivated, RoutingStrategies.Bubble);
         StepRows.AddHandler(PointerPressedEvent, OnStepRowActivated, RoutingStrategies.Tunnel, true);
+        StartRow.AddHandler(GotFocusEvent, OnStartRowActivated, RoutingStrategies.Bubble);
+        StartRow.AddHandler(PointerPressedEvent, OnStartRowActivated, RoutingStrategies.Tunnel, true);
         MapFilter.DropDownClosed += OnMapFilterClosed;
     }
 
@@ -84,6 +86,15 @@ public partial class StratBookTabView : UserControl
             case StratLineRow line:
                 vm.StepSelection.SelectLine(line.Row.Id, line.Slot);
                 break;
+        }
+    }
+
+    // The Start row selects the start: the playhead goes to tick 0, where a drag writes a token's start.
+    private void OnStartRowActivated(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is StratBookTabViewModel vm && !vm.Editor.Start.IsSelected)
+        {
+            vm.StepSelection.SelectStart();
         }
     }
 

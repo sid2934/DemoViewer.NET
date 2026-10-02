@@ -218,7 +218,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
-            placesFor: canvasPlaces, post: post, routing: canvasRouting);
+            placesFor: canvasPlaces, post: post, routing: canvasRouting, spawnsFor: _spawns is { } spawnSource ? spawnSource.ForAsync : null);
+        Editor.Spawns = () => Canvas.CurrentSpawns;
         StepSelection = new StratStepSelection(Editor, Canvas);
         Canvas.LinesShownApart = Editor.ShowsLinesApart;
         Editor.PlaceAt = Canvas.PlaceAt;

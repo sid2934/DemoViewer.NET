@@ -125,17 +125,17 @@ public sealed record StratSpawns(IReadOnlyList<SpawnSpot> T, IReadOnlyList<Spawn
     public void PlaceStart(StratDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        if (document.Start is not null)
-        {
-            return;
-        }
+        document.Start ??= StartFor(document);
+    }
 
+    /// <summary>A <c>spawn</c> start for the strat's side, or null when there are no spots.</summary>
+    /// <param name="document">The strat.</param>
+    public StratStart? StartFor(StratDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
         bool ct = string.Equals(document.Side, StratVocabulary.SideCt, StringComparison.Ordinal);
         List<StartPosition> positions = [.. Entries(StratVocabulary.Slots, ct ? Ct : T), .. Entries(StratVocabulary.OpponentSlots, ct ? T : Ct)];
-        if (positions.Count > 0)
-        {
-            document.Start = new StratStart { Kind = StratStart.SpawnKind, Positions = positions };
-        }
+        return positions.Count > 0 ? new StratStart { Kind = StratStart.SpawnKind, Positions = positions } : null;
     }
 
     private static IEnumerable<StartPosition> Entries(IReadOnlyList<string> slots, IReadOnlyList<SpawnSpot> spots) =>

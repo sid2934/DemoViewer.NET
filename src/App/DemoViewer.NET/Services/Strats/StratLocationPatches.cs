@@ -30,7 +30,10 @@ public enum StratLocationKind
     RotateTo,
 
     /// <summary>What a travel goes through, the step's or a line's when the field names a slot: places, then points.</summary>
-    Via
+    Via,
+
+    /// <summary>A token's start (<see cref="StratStartBlock" />): the slot names the token and the step id is empty.</summary>
+    Start
 }
 
 /// <summary>
