@@ -5,7 +5,8 @@ the map in one second. The step's own fields (to, via, lurk areas) were still th
 overrode them. Nothing in the UI shows that a drag happened, and nothing removes it. The owner's words: "Simply
 dragging should not invisibly override the step's definitions."
 
-**Status:** design only. Nothing here is built. Section 9 lists the decisions owed.
+**Status:** decided 2026-10-01 (option A, the four recommended answers in section 9) and built on
+`feature/strat-book-drag-fields`. "As built" at the end lists where the build differs from this text.
 
 Images are in `docs/strat-book/drag-semantics/`:
 
@@ -254,18 +255,19 @@ strip, with the zip warning and the destination pins.
 
   It works best as the Alt behaviour inside A (decision 1).
 
-## 9. Decisions
+## 9. Decisions (owner, 2026-10-01: all four as recommended)
 
-1. **Departure overrides.** Should "this travel starts from an exact point" survive? Pick one:
+1. **Departure overrides.** Decided: **Alt writes a `placed` chip.** Should "this travel starts from an exact point"
+   survive? Pick one:
    * no: the departure is always where the token stands, and old ones are cleared from the chips;
    * Alt writes a `placed` chip (recommended);
    * Alt writes a `from` point that moves the token, option C.
-2. **Lurk drag.** Should a drop on a lurker insert the area first, keeping the old areas (recommended), or replace
-   area 1?
-3. **A token the step does not name.** Should it join the selected step as a line (recommended), or should the drag
-   edit the step that last placed that player?
-4. **Paused mid-run.** Should the drag add a via to the run (recommended), or insert a new step at the playhead
-   with the drop as its `to`?
+2. **Lurk drag.** Decided: **insert first, keep the old areas.** Should a drop on a lurker insert the area first,
+   keeping the old areas (recommended), or replace area 1?
+3. **A token the step does not name.** Decided: **join the selected step as a line.** Should it join the selected
+   step as a line (recommended), or should the drag edit the step that last placed that player?
+4. **Paused mid-run.** Decided: **add a via to the run.** Should the drag add a via to the run (recommended), or
+   insert a new step at the playhead with the drop as its `to`?
 
 ## Build notes (once decided)
 
@@ -279,3 +281,37 @@ App layer only. No protected parser file is touched.
 * **The row.** `StratStepRow` gains a `Placed` collection.
 * **The design system.** `docs/ui/design-system.md` (map-first editing, step row, view cones) gets the decided
   version.
+
+## As built
+
+Where the build differs from the text above, or settles what it left open:
+
+* **Selection.** The drag selects the step it writes only when that step owns the playhead's tick. Selecting a step on
+  another tick moves the playhead, which decision 4 rules out. The label and the status line name that step instead
+  (`step 2 · A · to: Hut`).
+* **Shift's facing snap** is dropped, not moved. The cone drag on a verb that watches is the one way to set a facing.
+* **Cones on `other`** are allowed: `other` uses every field, watching included, so its row shows a watching field and
+  its angle button. Section 7's table listed it as refused.
+* **A join** follows section 4: a verb with a `to` gains the player's line; on a lurk, throw, wait or call the drag
+  edits the step that placed the player.
+* **Mid-run without a via field.** A lurk's rotate walk takes `rotate to`; a position verb's walk takes its `at`. With
+  routing off a run has no via ticks, so a via place goes after the step's other via places.
+* **Points read after places.** A point dropped as a lurk area (Shift, or outside every place) goes after the place
+  areas, not first; the format has no way to put it first. The same holds for via points.
+* **Pins** show whenever the canvas is paused, for the selected step's runs that have not arrived, not only after a
+  drag; they are hidden while dragging so the dashed ghost route reads on its own. Via marks are small diamonds in
+  `Pb2dCanvasDropTarget`.
+* **Guides are not part of the frame.** `SceneGuides` reaches `GuideLayer` from the host (`ISceneFrameHost.Guides`),
+  and only a host with a token editor mounts the layer, so exports, fixtures, goldens and the 2D tab are unchanged.
+  The label is an Avalonia overlay, not drawn in the scene.
+* **Nothing places the token.** Paused on a token that no step has placed at or before the playhead, the drag is
+  refused with "no step places E here to edit: hold Alt to pin it".
+* **Opponents and Alt** write on the selected step (on its tick, the step that wins it for the slot).
+* **The zip check** is a warning only, not an info on every departure: straight distance from the slot's last spot
+  (an earlier position, or a destination that is a point) over the time since that step. A last spot that is a place
+  is not checked, since the validator has no zones.
+* **The pinned chip** says "not using the step's place" in its tooltip; the row's `at` gets no extra marker.
+* **A group of one** reads as its entry (`O2 at (2060, 0) 135°`), not `opponents (1)`.
+* **The armed highlight** is the existing one plus an `AccentInteractive` outline on the field's box, which Set on map
+  now shows too.
+* **The content end.** A drag that shortens the strat's content can clamp the paused playhead to the new end.

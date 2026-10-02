@@ -477,17 +477,17 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   are there at the same time, whichever steps sent them, each stands on a ray fixed by its slot letter (A at 90
   degrees, then every 72), at 160, 120, 80 or 48 units from the arrival, the widest still inside the place on that
   floor (`IZonePlaceResolver.ResolveOnFloor`); with no spot inside, 96 units out. Nearer spots overlap once the map
-  is fitted to the pane. A token is there from its step's time until its next destination or placed entry. Only destinations that win by precedence count, so a slot whose drag
-  beats its `to` does not push another token off the centre. The same slot takes the same spot in any group; a token
+  is fitted to the pane. A token is there from its step's time until its next destination or placed entry. Only destinations that win by precedence count, so a slot whose pinned
+  position beats its `to` does not push another token off the centre. The same slot takes the same spot in any group; a token
   there alone goes to the centre.
-* **Precedence for a slot on a step:** a throw's lineup origin; then an authored position (a drag, or a set
-  position); then the destination; then a carried position; then where the token already is. An authored position
+* **Precedence for a slot on a step:** a throw's lineup origin; then an authored position (an Alt-drag pin, a drag
+  from a build before option A, or a set position); then the destination; then a carried position; then where the token already is. An authored position
   and a destination conflict only on a position verb, where the position is the exact spot and the destination is
   not used. On a travel verb (move, push, rotate, `other`, lurk) they are two halves of one move: the position is
   where the token is at the step's time and the destination is where it goes from there.
 * **Observed positions.** Create Strat From Round and Strat Mining write `"observed": true` on every position they
   capture, since each is where a player was seen. An observed position is the spot on every verb, so a captured move
-  does not run on to its majority `to`. The field is written only when true. A drag writes the entry without it, Add
+  does not run on to its majority `to`. The field is written only when true. An Alt-drag pin writes the entry without it, Add
   step's copies are carried and never observed, and Duplicate copies the mark as it is. Steps a person adds to a
   captured strat follow the travel rule above.
 
@@ -521,8 +521,8 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   This is what a round-start seed turned into a move, with a lurk on the same tick, needs: the lurk's copies of the
   spawn positions must not hold the five in spawn, whether or not the file still reads unmarked copies as carried.
 * **Carried positions.** Add step copies every token where the projection has it at the step before and writes
-  `"carried": true` on each copy. A drag rewrites the entry without it. The field is written only when true, so a
-  file without it loads and saves byte for byte as before. A carried position holds the token (so a later drag on an
+  `"carried": true` on each copy. An Alt-drag pin rewrites the entry without it. The field is written only when true, so a
+  file without it loads and saves byte for byte as before. A carried position holds the token (so a later edit on an
   earlier step does not move it) until a destination has moved that slot since its last origin or authored entry;
   from then on the copy is stale and ignored, and the token stays where the destination left it. Add step does not
   carry such a token at all, nor a lurker whose rotate has fired.
@@ -545,6 +545,51 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   applies the unmarked rule. The history reads the removal as `B's carried position dropped`.
 * **The clock.** The transport, the step row's last band and an export run to the last arrival
   (`ContentEndTick`), so a run after the last step still plays.
+
+### What a token drag writes
+
+A drag on the editing canvas edits the step's own fields, through the writers above, as one undo entry
+(docs/strat-book/drag-semantics.md, option A; `StratDragTarget`, `StratDragPatches`). It never writes `positions[]` for
+A to E unless Alt is held. Nothing seeks: a press while playing pauses where it is.
+
+* **Which step.** Paused on the selected step's tick: the step that wins that tick for the slot (the later one naming
+  it), else the selected step. Paused between steps with the token mid-run: that run's step, which gets a via. Paused
+  with the token standing: the step that last put it there (its entry, its destination or its lurk's rotate). The step
+  written becomes the selection only when it owns the playhead's tick.
+* **By verb:**
+
+  | Step verb | The drop writes |
+  |---|---|
+  | move, push, rotate, `other` | the slot's `to` (its line's, which folds back to the step's own on a one-player step) |
+  | hold, peek, fake, plant, defuse | the slot's `to` (`at`, `site`), and removes the slot's own entries in `positions[]` on the step, which would beat it |
+  | lurk, rotate not started at the playhead | lurk area 1: the drop goes first, a place already listed moves to first, the others stay after it |
+  | lurk, rotate started | `lurk.rotate.to` |
+  | throw, wait, call | the step that last placed the player, by this table |
+  | throw with a lineup | nothing: refused |
+  | a step that does not name the player | a verb with a `to` adds the player's line with the drop as its `to`; a lurk, throw, wait or call edits the step that placed the player |
+  | opponents `O1`..`O5` | `positions[Ox]` on the selected step, as before |
+
+* **Mid-run.** A place goes into the run's `via` before the via the token was heading for (the leg it is on, from the
+  route's via ticks; with routing off, after the last place). A point goes last in `viaPoints`, since points read after
+  places. A rotate walk mid-run takes `rotate to`; a position verb's walk takes its `at`.
+* **What is stored.** As a map click stores it: a single field gets the place under the drop and the point, a list
+  field (lurk areas, via) the place, or the point outside every place. Within 12 screen pixels of a place's arrival
+  the drop stores the place alone, so several tokens sent there fan out. Shift stores the point alone. A point lurk
+  area goes after the place areas, since the file reads points after places.
+* **Alt** (or the canvas toolbar's Pin, for one drag) pins the token: `positions[slot]` on the selected step, marked
+  neither carried nor observed, as every drag wrote before. The step row shows it as a `placed` chip.
+* **Cones.** On a verb that watches (push, hold, peek, fake, lurk, `other`), or a line that already does, a cone drag
+  writes the line's `watch.yawDegrees`. On any other verb, and mid-run, it is refused: a runner faces its run. An
+  opponent's cone writes its position's `yawDegrees`.
+* **Old files.** Nothing is rewritten on open. Each step row shows its `positions[]` as `placed` chips: one per entry
+  that beats or stands in for a field the row shows (a departure on a travel verb, a pin beside a position verb's
+  place, an observed spot that disagrees with the step's place), the rest grouped as `spots (n)`, `seen (n)` and
+  `opponents (n)`. A chip's ✕ removes its entries; "make it the …" moves the point into the field the table names and
+  removes the entry. Each is one undo entry. Carried entries are not shown.
+* **The zip check.** The validator warns at `/steps/i/positions/j` on an authored departure on a travel step that the
+  token could not reach at a run (215 units a second) from where it last stood: the straight distance over the time
+  since that earlier step, so a warning is never a false alarm. A last spot that is a place, which has no point
+  without the map's zones, is not checked.
 
 ### Utility on the canvas
 
@@ -651,7 +696,7 @@ rotate time 0:40 → 0:35", "E's lurk: lurk areas set to Palace, Connector").
 
 A commit happens at an explicit Save, a tab deactivate, a demo swap, shutdown, or 30 seconds of no
 further edit; consecutive ops on the same path inside one commit merge into one, so a canvas drag that
-fired forty replaces becomes a single history line.
+fired forty samples becomes a single history line.
 
 ## `index.json`
 
