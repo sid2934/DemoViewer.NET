@@ -74,7 +74,7 @@ public class StratVerbsWhoTests
     {
         (StratBookTabViewModel vm, StratStepRow row, int index) = Open(Plain(100, "E", "lurk"));
         using StratBookTabViewModel scope = vm;
-        row.GroupWatchText = "Stairs, Connector";
+        row.GroupWatchValue = [new PlaceRef { Place = "Stairs" }, new PlaceRef { Place = "Connector" }];
         StratStep step = vm.Session.Document!.Steps[index];
         using (Assert.Multiple())
         {
@@ -82,7 +82,7 @@ public class StratVerbsWhoTests
             await Assert.That(StratLocations.LurkAreas(step.Lurk)).IsEmpty().Because("watching writes no area");
         }
 
-        row.LurkAreasText = "PalaceInterior";
+        row.LurkAreasValue = [new PlaceRef { Place = "PalaceInterior" }];
         step = vm.Session.Document!.Steps[index];
         using (Assert.Multiple())
         {
@@ -184,7 +184,7 @@ public class StratVerbsWhoTests
         }
 
         row.GroupPlaceText = "BombsiteB";
-        row.GroupWatchText = "Stairs, Connector";
+        row.GroupWatchValue = [new PlaceRef { Place = "Stairs" }, new PlaceRef { Place = "Connector" }];
         step = vm.Session.Document!.Steps[index];
         using (Assert.Multiple())
         {
@@ -316,7 +316,7 @@ public class StratVerbsWhoTests
         Pick(row, [.. StratVocabulary.Slots]);
         await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth).Because("everyone already takes the step");
 
-        row.GroupWatchText = "Stairs";
+        row.GroupWatchValue = [new PlaceRef { Place = "Stairs" }];
         step = vm.Session.Document!.Steps[index];
         using (Assert.Multiple())
         {

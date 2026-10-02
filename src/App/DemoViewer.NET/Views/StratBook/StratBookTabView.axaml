@@ -819,11 +819,11 @@
                                                                            IsVisible="{Binding GroupWatchIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
                                                                            Text="{Binding GroupWatchIssue.Glyph}" ToolTip.Tip="{Binding GroupWatchIssue.Message}" />
                                                             </StackPanel>
-                                                            <c:PlaceField Name="GroupWatchField" IsMulti="True" PlaceholderText="callouts"
+                                                            <c:PlaceField Name="GroupWatchField" IsMulti="True" PlaceholderText="add callout"
                                                                           Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding GroupWatchValue}"
                                                                           PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding GroupWatchTarget}"
                                                                           ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
-                                                                          ToolTip.Tip="Callouts, comma separated; each cone faces the first unless an angle is set" />
+                                                                          ToolTip.Tip="Callouts watched, in order; each cone faces the first unless an angle is set" />
                                                         </StackPanel>
                                                         <!-- Via: where a travel goes on its way, in order; the route goes through each. -->
                                                         <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" IsVisible="{Binding ShowGroupVia}">
@@ -833,7 +833,7 @@
                                                                            IsVisible="{Binding GroupViaIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
                                                                            Text="{Binding GroupViaIssue.Glyph}" ToolTip.Tip="{Binding GroupViaIssue.Message}" />
                                                             </StackPanel>
-                                                            <c:PlaceField Name="GroupViaField" IsMulti="True" PlaceholderText="callouts on the way"
+                                                            <c:PlaceField Name="GroupViaField" IsMulti="True" PlaceholderText="add callout on the way"
                                                                           Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding GroupViaValue}"
                                                                           PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding GroupViaTarget}"
                                                                           ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
@@ -872,15 +872,15 @@
                                                                                       PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding PlaceTarget}"
                                                                                       ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
                                                                                       ToolTip.Tip="This player's place" />
-                                                                        <c:PlaceField Name="LineWatchField" IsMulti="True" Grid.Column="2" IsVisible="{Binding ShowWatch}" PlaceholderText="callouts"
+                                                                        <c:PlaceField Name="LineWatchField" IsMulti="True" Grid.Column="2" IsVisible="{Binding ShowWatch}" PlaceholderText="add callout"
                                                                                       Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding WatchValue}"
                                                                                       PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding WatchTarget}"
                                                                                       ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
-                                                                                      ToolTip.Tip="Callouts, comma separated; the cone faces the first unless an angle is set" />
+                                                                                      ToolTip.Tip="Callouts watched, in order; the cone faces the first unless an angle is set" />
                                                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="via" Classes="stratFieldLabel" IsVisible="{Binding ShowVia}"
                                                                                    VerticalAlignment="Center" HorizontalAlignment="Right" />
                                                                         <c:PlaceField Name="LineViaField" IsMulti="True" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
-                                                                                      IsVisible="{Binding ShowVia}" PlaceholderText="callouts on the way"
+                                                                                      IsVisible="{Binding ShowVia}" PlaceholderText="add callout on the way"
                                                                                       Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding ViaValue}"
                                                                                       PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding ViaTarget}"
                                                                                       ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
@@ -1015,11 +1015,11 @@
                                                                        IsVisible="{Binding LurkAreasIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
                                                                        Text="{Binding LurkAreasIssue.Glyph}" ToolTip.Tip="{Binding LurkAreasIssue.Message}" />
                                                         </StackPanel>
-                                                        <c:PlaceField Name="LurkAreasField" IsMulti="True" Width="200" PlaceholderText="callouts"
+                                                        <c:PlaceField Name="LurkAreasField" IsMulti="True" Width="200" PlaceholderText="add area"
                                                                       Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding LurkAreasValue}"
                                                                       PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding LurkAreasTarget}"
                                                                       ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
-                                                                      ToolTip.Tip="Places the lurk takes or works towards, comma separated" />
+                                                                      ToolTip.Tip="Places the lurk takes or works towards, in order" />
                                                     </StackPanel>
                                                     <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
                                                         <StackPanel Orientation="Horizontal" Spacing="3">

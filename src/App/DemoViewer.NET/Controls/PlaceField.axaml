@@ -4,7 +4,8 @@
              x:Class="DemoViewer.NET.Controls.PlaceField"
              MinWidth="0">
     <!-- A location field: callouts shown, canonical places stored, a list of the map's callouts while focused,
-         and a pick-on-map button. See "Location field" in docs/ui/design-system.md. -->
+         and a pick-on-map button. A multi field shows its entries as chips above one add field.
+         See "Location field" in docs/ui/design-system.md. -->
     <UserControl.Styles>
         <Style Selector="Button.placeFieldBtn">
             <Setter Property="Background" Value="Transparent" />
@@ -29,36 +30,57 @@
             <Setter Property="MinHeight" Value="22" />
             <Setter Property="Focusable" Value="False" />
         </Style>
+        <Style Selector="Border.placeChip">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="5 0 0 0" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style Selector="Border.placeChip:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+        </Style>
+        <Style Selector="Border.placeChip TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
     </UserControl.Styles>
-    <Panel>
-        <TextBox x:Name="FieldBox" MinWidth="0" FontSize="12">
-            <TextBox.InnerRightContent>
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="ClearButton" Classes="placeFieldBtn" Content="✕" IsVisible="False"
-                            Focusable="False" IsTabStop="False"
-                            AutomationProperties.Name="Clear the point"
-                            ToolTip.Tip="Clear this point" />
-                    <Button x:Name="PickButton" Classes="placeFieldBtn" Content="⌖" IsVisible="False"
-                            Focusable="False" IsTabStop="False"
-                            AutomationProperties.Name="Pick on the map"
-                            ToolTip.Tip="Pick on the map: a click inside a callout sets it, outside one sets the point (Esc cancels)" />
-                </StackPanel>
-            </TextBox.InnerRightContent>
-        </TextBox>
-        <Popup x:Name="DropDown" PlacementTarget="{Binding #FieldBox}" Placement="BottomEdgeAlignedLeft"
-               IsLightDismissEnabled="False" ShouldUseOverlayLayer="True">
-            <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSubtle}"
-                    BorderThickness="1" CornerRadius="3" MaxWidth="260">
-                <ListBox x:Name="OptionList" Focusable="False" MaxHeight="{x:Static c:PlaceField.MaxListHeight}"
-                         Background="Transparent" SelectionMode="Single">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="c:PlaceOption">
-                            <TextBlock Text="{Binding Display}" FontSize="12" Foreground="{DynamicResource TextValue}"
-                                       TextTrimming="CharacterEllipsis" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Border>
-        </Popup>
-    </Panel>
+    <StackPanel Spacing="2">
+        <WrapPanel x:Name="ChipPanel" IsVisible="False" ItemSpacing="3" LineSpacing="2" />
+        <Panel>
+            <TextBox x:Name="FieldBox" MinWidth="0" FontSize="12">
+                <TextBox.InnerRightContent>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="ClearButton" Classes="placeFieldBtn" Content="✕" IsVisible="False"
+                                Focusable="False" IsTabStop="False"
+                                AutomationProperties.Name="Clear the point"
+                                ToolTip.Tip="Clear this point" />
+                        <Button x:Name="PickButton" Classes="placeFieldBtn" Content="⌖" IsVisible="False"
+                                Focusable="False" IsTabStop="False"
+                                AutomationProperties.Name="Pick on the map"
+                                ToolTip.Tip="Pick on the map: a click inside a callout sets it, outside one sets the point (Esc cancels)" />
+                    </StackPanel>
+                </TextBox.InnerRightContent>
+            </TextBox>
+            <Popup x:Name="DropDown" PlacementTarget="{Binding #FieldBox}" Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="False" ShouldUseOverlayLayer="True">
+                <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="1" CornerRadius="3" MaxWidth="260">
+                    <ListBox x:Name="OptionList" Focusable="False" MaxHeight="{x:Static c:PlaceField.MaxListHeight}"
+                             Background="Transparent" SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="c:PlaceOption">
+                                <TextBlock Text="{Binding Display}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Popup>
+        </Panel>
+    </StackPanel>
 </UserControl>

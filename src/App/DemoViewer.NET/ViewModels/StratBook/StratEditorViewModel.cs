@@ -219,12 +219,11 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>Typed text as a field's locations, keeping stored entries its text still names (<see cref="PlaceFieldModel.Parse(string, IReadOnlyList{PlaceRef}, CalloutResolver?, bool, double?)" />).</summary>
+    /// <summary>A single field's typed text as its location, keeping the stored one while its text still names it (<see cref="PlaceFieldModel.Parse(string, IReadOnlyList{PlaceRef}, CalloutResolver?, double?)" />).</summary>
     /// <param name="text">The field's text.</param>
     /// <param name="current">The field's stored value.</param>
-    /// <param name="multi">A list field.</param>
-    internal List<PlaceRef> ParseLocations(string? text, IReadOnlyList<PlaceRef> current, bool multi) =>
-        PlaceFieldModel.Parse(text ?? "", current, _places, multi, DefaultLevelMinZ);
+    internal List<PlaceRef> ParseLocation(string? text, IReadOnlyList<PlaceRef> current) =>
+        PlaceFieldModel.Parse(text ?? "", current, _places, DefaultLevelMinZ);
 
     /// <summary>The level a typed coordinate takes when its field holds no point: the strat canvas's default level.</summary>
     public double? DefaultLevelMinZ => _session.Document?.Canvas?.DefaultLevelMinZ;
@@ -1248,15 +1247,6 @@ public sealed partial class StratStepRow : ObservableObject
     private string _groupPlaceText = "";
 
     [ObservableProperty]
-    private string _groupWatchText = "";
-
-    [ObservableProperty]
-    private string _lurkAreasText = "";
-
-    [ObservableProperty]
-    private string _groupViaText = "";
-
-    [ObservableProperty]
     private IReadOnlyList<PlaceRef> _groupViaValue = [];
 
     [ObservableProperty]
@@ -1359,6 +1349,15 @@ public sealed partial class StratStepRow : ObservableObject
 
     /// <summary>The compact place shows when the verb uses one or the lines hold one.</summary>
     public bool ShowGroupPlace => StratStepFields.Uses(Verb, StratStepField.To) || GroupPlaceText.Length > 0;
+
+    /// <summary>The shared watching as it reads, for display; edits go through <see cref="GroupWatchValue" />.</summary>
+    public string GroupWatchText => _owner.DisplayLocations(GroupWatchValue ?? []);
+
+    /// <summary>The shared via as it reads, for display; edits go through <see cref="GroupViaValue" />.</summary>
+    public string GroupViaText => _owner.DisplayLocations(GroupViaValue ?? []);
+
+    /// <summary>The lurk areas as they read, for display; edits go through <see cref="LurkAreasValue" />.</summary>
+    public string LurkAreasText => _owner.DisplayLocations(LurkAreasValue ?? []);
 
     /// <summary>The compact watching shows when the verb uses it or the lines hold one.</summary>
     public bool ShowGroupWatch => StratStepFields.Uses(Verb, StratStepField.Watch) || GroupWatchText.Length > 0;
@@ -1806,9 +1805,7 @@ public sealed partial class StratStepRow : ObservableObject
         GroupPlaceValue = StratLocations.IsSet(shared?.To) ? [StratLocations.Clone(shared!.To!)] : [];
         GroupPlaceText = _owner.DisplayLocations(GroupPlaceValue);
         GroupWatchValue = StratLocations.Watched(shared?.Watch);
-        GroupWatchText = _owner.DisplayLocations(GroupWatchValue);
         GroupViaValue = StratLocations.Via(shared?.Via, shared?.ViaPoints);
-        GroupViaText = _owner.DisplayLocations(GroupViaValue);
         HasGroupAngle = shared?.Watch?.YawDegrees is not null;
         GroupAngleText = shared?.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
         RefreshView();
@@ -1827,7 +1824,6 @@ public sealed partial class StratStepRow : ObservableObject
         StepLurk? lurk = step.Lurk;
         _hasLurk = lurk is not null;
         LurkAreasValue = StratLocations.LurkAreas(lurk);
-        LurkAreasText = _owner.DisplayLocations(LurkAreasValue);
         RotateAtText = lurk?.Rotate?.AtSeconds is { } at ? StratClock.Format(at) : "";
         RotateWhenText = lurk?.Rotate?.When ?? "";
         RotateToValue = StratLocations.IsSet(lurk?.Rotate?.To) ? [StratLocations.Clone(lurk!.Rotate!.To!)] : [];
@@ -1843,7 +1839,7 @@ public sealed partial class StratStepRow : ObservableObject
             return;
         }
 
-        _owner.WriteLocation(GroupPlaceTarget, _owner.ParseLocations(value, GroupPlaceValue, false));
+        _owner.WriteLocation(GroupPlaceTarget, _owner.ParseLocation(value, GroupPlaceValue));
     }
 
     partial void OnGroupPlaceValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(GroupPlaceTarget, value);
@@ -1852,17 +1848,6 @@ public sealed partial class StratStepRow : ObservableObject
 
     partial void OnGroupViaValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(GroupViaTarget, value);
 
-    partial void OnGroupViaTextChanged(string value)
-    {
-        RaiseShown();
-        if (_owner.IsProjecting)
-        {
-            return;
-        }
-
-        _owner.WriteLocation(GroupViaTarget, _owner.ParseLocations(value, GroupViaValue, true));
-    }
-
     partial void OnFromValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(FromTarget, value);
 
     partial void OnLurkAreasValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(LurkAreasTarget, value);
@@ -1870,27 +1855,6 @@ public sealed partial class StratStepRow : ObservableObject
     partial void OnRotateToValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(RotateToTarget, value);
 
     partial void OnLandingValueChanged(IReadOnlyList<PlaceRef> value) => WriteLanding(value);
-
-    partial void OnGroupWatchTextChanged(string value)
-    {
-        RaiseShown();
-        if (_owner.IsProjecting)
-        {
-            return;
-        }
-
-        _owner.WriteLocation(GroupWatchTarget, _owner.ParseLocations(value, GroupWatchValue, true));
-    }
-
-    partial void OnLurkAreasTextChanged(string value)
-    {
-        if (_owner.IsProjecting)
-        {
-            return;
-        }
-
-        _owner.WriteLocation(LurkAreasTarget, _owner.ParseLocations(value, LurkAreasValue, true));
-    }
 
     partial void OnRotateAtTextChanged(string value)
     {
@@ -1929,7 +1893,7 @@ public sealed partial class StratStepRow : ObservableObject
             return;
         }
 
-        _owner.WriteLocation(RotateToTarget, _owner.ParseLocations(value, RotateToValue, false));
+        _owner.WriteLocation(RotateToTarget, _owner.ParseLocation(value, RotateToValue));
     }
 
     /// <summary>Marks the selected line; null or a slot with no line marks none.</summary>
@@ -2017,7 +1981,7 @@ public sealed partial class StratStepRow : ObservableObject
     partial void OnFromTextChanged(string value)
     {
         RaiseShown();
-        _owner.WriteLocation(FromTarget, _owner.ParseLocations(value, FromValue, false));
+        _owner.WriteLocation(FromTarget, _owner.ParseLocation(value, FromValue));
     }
 
     // Beside stored lines the step's own to is not used: the field only shows it for clearing.
@@ -2030,7 +1994,7 @@ public sealed partial class StratStepRow : ObservableObject
         }
 
         RaiseShown();
-        _owner.WriteLocation(ToTarget, _owner.ParseLocations(value, ToValue, false));
+        _owner.WriteLocation(ToTarget, _owner.ParseLocation(value, ToValue));
     }
 
     /// <summary>A step-level to beside stored lines: shown read-only, with a clear that writes the lines' shape.</summary>
@@ -2053,7 +2017,7 @@ public sealed partial class StratStepRow : ObservableObject
     partial void OnLandingTextChanged(string value)
     {
         RaiseShown();
-        WriteLanding(_owner.ParseLocations(value, LandingValue, false));
+        WriteLanding(_owner.ParseLocation(value, LandingValue));
     }
 
     // A landing keeps its captured point when the place is retyped or cleared; clearing a landing that is only a
@@ -2126,21 +2090,21 @@ public sealed partial class StratLineRow : ObservableObject
     private string? _slot;
 
     [ObservableProperty]
-    private string _watchText = "";
-
-    [ObservableProperty]
     private IReadOnlyList<PlaceRef> _placeValue = [];
 
     [ObservableProperty]
     private IReadOnlyList<PlaceRef> _watchValue = [];
 
     [ObservableProperty]
-    private string _viaText = "";
-
-    [ObservableProperty]
     private IReadOnlyList<PlaceRef> _viaValue = [];
 
     internal StratLineRow(StratStepRow row) => _row = row;
+
+    /// <summary>The watching as it reads, for display; edits go through <see cref="WatchValue" />.</summary>
+    public string WatchText => _row.Owner.DisplayLocations(WatchValue ?? []);
+
+    /// <summary>The via as it reads, for display; edits go through <see cref="ViaValue" />.</summary>
+    public string ViaText => _row.Owner.DisplayLocations(ViaValue ?? []);
 
     /// <summary>The owner's words for the location fields' lists.</summary>
     public CalloutResolver Callouts => _row.Owner.Places;
@@ -2219,12 +2183,10 @@ public sealed partial class StratLineRow : ObservableObject
             PlaceValue = StratLocations.IsSet(line.To) ? [StratLocations.Clone(line.To!)] : [];
             PlaceText = _row.Owner.DisplayLocations(PlaceValue);
             WatchValue = StratLocations.Watched(line.Watch);
-            WatchText = _row.Owner.DisplayLocations(WatchValue);
             PlaceLabel = StratStepFields.ToLabel(verb);
             ShowPlace = StratStepFields.Uses(verb, StratStepField.To) || PlaceText.Length > 0;
             ShowWatch = StratStepFields.Uses(verb, StratStepField.Watch) || WatchText.Length > 0 || line.Watch?.YawDegrees is not null;
             ViaValue = StratLocations.Via(line.Via, line.ViaPoints);
-            ViaText = _row.Owner.DisplayLocations(ViaValue);
             ShowVia = StratStepFields.Uses(verb, StratStepField.Via) || ViaText.Length > 0;
             HasAngle = line.Watch?.YawDegrees is not null;
             AngleText = line.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
@@ -2311,7 +2273,7 @@ public sealed partial class StratLineRow : ObservableObject
             return;
         }
 
-        WritePlace(_row.Owner.ParseLocations(value, PlaceValue, false));
+        WritePlace(_row.Owner.ParseLocation(value, PlaceValue));
     }
 
     partial void OnPlaceValueChanged(IReadOnlyList<PlaceRef> value)
@@ -2346,29 +2308,11 @@ public sealed partial class StratLineRow : ObservableObject
         }
     }
 
-    partial void OnWatchTextChanged(string value)
-    {
-        if (_loading)
-        {
-            return;
-        }
-
-        WriteWatch(_row.Owner.ParseLocations(value, WatchValue, true));
-    }
-
     partial void OnViaValueChanged(IReadOnlyList<PlaceRef> value)
     {
         if (!_loading && Slot is not null)
         {
             _row.Owner.WriteLocation(ViaTarget, value);
-        }
-    }
-
-    partial void OnViaTextChanged(string value)
-    {
-        if (!_loading && Slot is not null)
-        {
-            _row.Owner.WriteLocation(ViaTarget, _row.Owner.ParseLocations(value, ViaValue, true));
         }
     }
 }
