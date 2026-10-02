@@ -50,11 +50,8 @@ public static class StratStepCarry
         StratSceneProjection.ThrowOrigin?[] origins = throwOrigins is null
             ? new StratSceneProjection.ThrowOrigin?[path.Count]
             : [.. path.Select(p => StratSceneProjection.ThrowOriginOf(document.Map, p.Step, throwOrigins))];
-        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
-        int[] ticks = StratSceneProjection.TicksOf(path, roundSeconds, out _);
-        StratSceneProjection.PlaceSet places = new(placeCentres, StratSceneProjection.ArrivalsFrom(placeCentres), null,
-            document.Canvas?.DefaultLevelMinZ ?? 0, roundSeconds, StratSceneProjection.IsLegacyCarry(document),
-            StratSceneProjection.IsLegacyObserved(document));
+        StratSceneProjection.PlaceSet places = StratSceneProjection.PlacesOf(document, placeCentres, null, null, null);
+        int[] ticks = StratSceneProjection.TicksOf(path, places.ClockOrRound, out _);
         foreach (string slot in StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots))
         {
             StratSceneProjection.SlotPlan plan = StratSceneProjection.PlanOf(path, ticks, origins, slot, places);
@@ -100,13 +97,13 @@ public static class StratStepCarry
             return false;
         }
 
-        double roundSeconds = document.Clock.RoundSeconds > 0 ? document.Clock.RoundSeconds : StratClock.DefaultRoundSeconds;
-        int at = StratLurkPatches.TickOf(atSeconds, roundSeconds);
+        StratClockInfo clock = StratSceneProjection.ClockOf(document);
+        int at = StratClock.StratTickOf(clock, atSeconds);
         for (int k = 0; k <= last; k++)
         {
             StratStep step = document.Steps[k];
             if (StratStepLines.Involves(step, slot)
-                && StratSceneProjection.RotateTickOf(step, StratLurkPatches.TickOf(step.AtSeconds, roundSeconds), roundSeconds) is { } tick
+                && StratSceneProjection.RotateTickOf(step, StratClock.StratTickOf(clock, step.AtSeconds), clock) is { } tick
                 && tick <= at && (StratLocations.HasPoint(step.Lurk!.Rotate!.To) || centres(step.Lurk.Rotate.To!.Place!, 0) is not null))
             {
                 return true;
