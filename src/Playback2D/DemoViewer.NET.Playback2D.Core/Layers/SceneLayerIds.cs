@@ -24,6 +24,9 @@ public static class SceneLayerIds
     /// <summary>Planted-C4 diamond and timer rings.</summary>
     public const string Bomb = "playback2d.bomb";
 
+    /// <summary>The strat canvas's drag ghost and destination pins; empty on every other frame.</summary>
+    public const string Guides = "playback2d.guides";
+
     /// <summary>Per-band floor caption.</summary>
     public const string FloorLabel = "playback2d.floorlabel";
 

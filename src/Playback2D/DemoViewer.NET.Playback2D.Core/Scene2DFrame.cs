@@ -111,6 +111,9 @@ public sealed class Scene2DFrame
         init => RoutesField = value;
     }
 
+    /// <summary>The strat canvas's editing guides: a drag's ghost and the selected step's pins. Never serialized.</summary>
+    public SceneGuides Guides { get; init; } = SceneGuides.None;
+
     /// <summary>The followed roster slot, or -1 for none. Read by the camera rigs and the marker layer.</summary>
     public int FollowSlot
     {
