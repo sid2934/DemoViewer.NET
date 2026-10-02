@@ -131,6 +131,7 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
         }
 
         _centres = StratPlaceCentres.From(resolver.Zones);
+        Paths = new NavPathResolver(resolver.Zones);
     }
 
     /// <summary>The wrapped resolver.</summary>
@@ -157,4 +158,10 @@ public sealed class ZonePlaceResolverAdapter : IZonePlaceResolver
 
     /// <inheritdoc />
     public IReadOnlyList<string> PlaceNames => [.. Resolver.Zones.Places.Select(p => p.Name)];
+
+    /// <summary>
+    ///     The nav graph over the effective zones, built with this adapter inside the queued zones read. A new overlay
+    ///     makes a new adapter, so the graph always matches <see cref="ZonesVersion" />.
+    /// </summary>
+    public PathResolver Paths { get; }
 }
