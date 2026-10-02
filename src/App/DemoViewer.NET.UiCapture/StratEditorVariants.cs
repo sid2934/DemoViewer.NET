@@ -292,6 +292,75 @@ public static partial class Variants
         return view;
     }
 
+    // Chips at the editor's narrowest: a two-player push whose lines watch and go via several callouts and a point,
+    // and a lurk with long areas. With open, the lurk's add field has "a" typed and its list showing.
+    private static StratBookHubView StratEditorChips(bool open)
+    {
+        StratBookTabViewModel? strats = null;
+        StratBookHubView view = StratEditor(false, false, configure: vm =>
+        {
+            strats = vm;
+            double at = vm.Session.Document!.Steps[^1].AtSeconds - 5;
+            PlaceRef point = new() { X = -1234.4, Y = -560.6, LevelMinZ = -256 };
+            StratStep push = new()
+            {
+                Id = Guid.NewGuid(), AtSeconds = at, Actor = StratVocabulary.ActorAll, Verb = "move",
+                Assignments =
+                [
+                    new StepAssignment
+                    {
+                        Slot = "B", To = new PlaceRef { Place = "BombsiteA" }, Watch = new StepWatch { Places = ["Stairs", "CTSpawn", "Jungle"] },
+                        Via = ["TopofMid", "Connector"], ViaPoints = [point]
+                    },
+                    new StepAssignment
+                    {
+                        Slot = "C", To = new PlaceRef { Place = "BombsiteA" }, Watch = new StepWatch { Places = ["TRamp"], Points = [point] },
+                        Via = ["PalaceAlley"]
+                    }
+                ]
+            };
+            StratStep lurk = new()
+            {
+                Id = Guid.NewGuid(), AtSeconds = at - 5, Actor = "E", Verb = "lurk",
+                Lurk = new StepLurk
+                {
+                    Areas = ["PalaceInterior", "Connector", "Underpass", "Apartments"], AreaPoints = [point],
+                    Rotate = new LurkRotate { AtSeconds = 40, To = new PlaceRef { Place = "BombsiteB" } }
+                }
+            };
+            vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(push, StratJsonContext.Default.StratStep)));
+            vm.Session.Apply(PatchOp.AddOp("/steps/-", JsonSerializer.SerializeToNode(lurk, StratJsonContext.Default.StratStep)));
+        });
+        view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (view.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault(c => c.Name == "StepRows") is not { } rows
+                || rows.ContainerFromIndex(strats!.Editor.Steps.Count - 2) is not { } pushRow
+                || rows.ContainerFromIndex(strats.Editor.Steps.Count - 1) is not { } lurkRow)
+            {
+                return;
+            }
+
+            strats.StepSelection.Select(strats.Editor.Steps[^2].Id);
+            lurkRow.BringIntoView();
+            pushRow.BringIntoView();
+            if (!open)
+            {
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (lurkRow.GetVisualDescendants().OfType<Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
+                        ?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } box)
+                {
+                    box.Focus();
+                    box.Text = "a";
+                }
+            }, DispatcherPriority.Background);
+        }, DispatcherPriority.Background);
+        return view;
+    }
+
     private static StratBookTabViewModel SeededStratBook(StratBookLayout layout, bool bare, IZonePlaceResolver? places = null,
         string? template = null, string map = "de_mirage")
     {
