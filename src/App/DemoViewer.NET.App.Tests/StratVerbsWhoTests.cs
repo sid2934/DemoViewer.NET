@@ -389,29 +389,31 @@ public class StratVerbsWhoTests
     }
 
     [Test]
-    public async Task AConeDrag_OnAVerbWithoutWatching_WritesThePositionsYaw()
+    public async Task AConeDrag_OnAVerbWithoutWatching_IsRefused_AndOnAWatchingVerb_SetsTheAngle()
     {
         StratDocument document = StratCanvasTestData.FiveSteps();
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], post: a => a());
 
-        // Step 2 is A's move: no watching.
+        // Step 2 is A's move: no watching, so a runner faces its run.
         canvas.SelectStep(document.Steps[1].Id);
         canvas.BeginDrag("A", TokenGrip.Heading);
         canvas.MoveTo("A", new SkiaSharp.SKPoint(600, 100), 0);
-        canvas.EndDrag(null);
+        canvas.EndDrag();
         StratStep move = session.Document!.Steps[1];
         using (Assert.Multiple())
         {
+            await Assert.That(session.UndoDepth).IsEqualTo(0);
             await Assert.That(move.Assignments).IsNull();
-            await Assert.That(move.Positions.Single(p => p.Slot == "A").YawDegrees ?? double.NaN).IsEqualTo(90).Within(0.01);
+            await Assert.That(move.Positions.Single(p => p.Slot == "A").YawDegrees).IsNull();
+            await Assert.That(canvas.StatusLine).Contains("faces its run");
         }
 
         // Step 3 is B's peek, which watches: the turn is the line's angle.
         canvas.SelectStep(document.Steps[2].Id);
         canvas.BeginDrag("B", TokenGrip.Heading);
         canvas.MoveTo("B", new SkiaSharp.SKPoint(100, 1000), 0);
-        canvas.EndDrag(null);
+        canvas.EndDrag();
         await Assert.That(session.Document!.Steps[2].Assignments!.Single().Watch!.YawDegrees ?? double.NaN).IsEqualTo(90).Within(0.01);
     }
 

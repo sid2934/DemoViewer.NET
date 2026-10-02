@@ -149,7 +149,7 @@ public class StratCanvasTests
     }
 
     [Test]
-    public async Task ATokenDrag_OfFortyMoves_IsOneReplace_WithThePreDragFrom_AndUndoPutsItBack()
+    public async Task ATokenDrag_OfFortyMoves_IsOneEntry_OnTheStepsTo_AndUndoAndRedoAreByteExact()
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
@@ -159,9 +159,10 @@ public class StratCanvasTests
         List<IReadOnlyList<PatchOp>> applied = [];
         session.OpsApplied += applied.Add;
         int depth = session.UndoDepth;
+        string before = StratHistory.ToNode(session.Document!).ToJsonString();
 
         canvas.BeginDrag("A", TokenGrip.Body);
-        await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2).Because("a drag shows the moment it writes");
+        await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10).Because("a drag edits the moment it grabbed, with no seek");
         for (int i = 1; i <= 40; i++)
         {
             canvas.MoveTo("A", new SKPoint(600 + i * 5, i * 10), 0);
@@ -169,35 +170,30 @@ public class StratCanvasTests
 
         await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(800f).Because("the drag shows before it commits");
         await Assert.That(applied.Count).IsEqualTo(0);
-        canvas.EndDrag(null);
+        canvas.EndDrag();
 
+        // A stands on step 2's spot between steps, so the drag is that step's to: a move takes the point, its spot stays.
         PatchOp op = applied.Single().Single();
+        string after = StratHistory.ToNode(session.Document!).ToJsonString();
         using (Assert.Multiple())
         {
             await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
-            await Assert.That(op.Op).IsEqualTo(PatchOp.Replace);
-            await Assert.That(op.Path).IsEqualTo("/steps/1/positions/0");
-            await Assert.That(op.From!["x"]!.GetValue<double>()).IsEqualTo(600);
+            await Assert.That(op.Op).IsEqualTo(PatchOp.Replace).Because("the lines writer replaces an absent member, as the applier allows");
+            await Assert.That(op.Path).IsEqualTo("/steps/1/to");
             await Assert.That(op.Value!["x"]!.GetValue<double>()).IsEqualTo(800);
             await Assert.That(op.Value!["y"]!.GetValue<double>()).IsEqualTo(400);
-            await Assert.That(session.Document!.Steps[1].Positions[0].X).IsEqualTo(800);
-            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(800f);
+            await Assert.That(session.Document!.Steps[1].Positions[0].X).IsEqualTo(600);
+            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10);
         }
 
         await Assert.That(canvas.ExecuteAction(Playback2DAction.Undo)).IsTrue();
-        using (Assert.Multiple())
-        {
-            await Assert.That(session.Document!.Steps[1].Positions[0].X).IsEqualTo(600);
-            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(600f);
-            await Assert.That(canvas.AnnotationSession!.Document.UndoDepth).IsEqualTo(0);
-        }
-
+        await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(before);
         await Assert.That(canvas.ExecuteAction(Playback2DAction.Redo)).IsTrue();
-        await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(800f);
+        await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(after);
     }
 
     [Test]
-    public async Task ADrag_OnAStepWithNoEntryForTheSlot_AddsOne_AndACancelChangesNothing()
+    public async Task ADrag_OfAPlayerTheStepDoesNotName_JoinsItAsALine_AltPins_AndACancelChangesNothing()
     {
         // A hold watches, so a turn there is a line's view angle.
         StratDocument document = FiveSteps();
@@ -217,31 +213,40 @@ public class StratCanvasTests
 
         canvas.BeginDrag("D", TokenGrip.Body);
         canvas.MoveTo("D", new SKPoint(350, 50), 0);
-        canvas.EndDrag(45);
-
-        StepPosition added = session.Document!.Steps[1].Positions.Single(p => p.Slot == "D");
+        canvas.EndDrag();
+        StratStep joined = session.Document!.Steps[1];
         using (Assert.Multiple())
         {
-            await Assert.That(added.X).IsEqualTo(350);
-            await Assert.That(added.YawDegrees).IsEqualTo(45).Because("a Shift release writes the facing");
+            await Assert.That(joined.Assignments!.Select(l => l.Slot)).IsEquivalentTo(["A", "D"]);
+            await Assert.That(joined.Assignments![1].To!.X).IsEqualTo(350);
+            await Assert.That(joined.Positions.Any(p => p.Slot == "D")).IsFalse();
             await Assert.That(session.UndoDepth).IsEqualTo(1);
         }
 
-        // A heading drag turns without moving: an own token's turn is its line's view angle, added with the line.
-        canvas.BeginDrag("D", TokenGrip.Heading);
-        canvas.MoveTo("D", new SKPoint(350, 150), 0);
-        canvas.EndDrag(null);
-        StratStep step = session.Document!.Steps[1];
-        StepPosition turned = step.Positions.Single(p => p.Slot == "D");
+        // Alt pins the spot: a position entry, which the row shows as a placed chip.
+        canvas.BeginDrag("D", TokenGrip.Body);
+        canvas.MoveTo("D", new SKPoint(360, 60), 0, ToolModifiers.Alt);
+        canvas.EndDrag(ToolModifiers.Alt);
+        StepPosition pinned = session.Document!.Steps[1].Positions.Single(p => p.Slot == "D");
         using (Assert.Multiple())
         {
-            await Assert.That(turned.X).IsEqualTo(350);
-            await Assert.That(turned.YawDegrees).IsEqualTo(45).Because("the position keeps its own facing");
-            await Assert.That(step.Assignments!.Select(l => l.Slot)).IsEquivalentTo(["A", "D"]);
-            await Assert.That(step.Assignments![1].Watch!.YawDegrees).IsEqualTo(90);
-            await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll);
-            await Assert.That(Marker(canvas, "D").YawDegrees).IsEqualTo(90f);
+            await Assert.That(pinned.X).IsEqualTo(360);
+            await Assert.That(pinned.Carried).IsNull();
+            await Assert.That(session.Document!.Steps[1].Assignments![1].To!.X).IsEqualTo(350).Because("a pin leaves the field alone");
             await Assert.That(session.UndoDepth).IsEqualTo(2);
+        }
+
+        // A heading drag turns without moving: an own token's turn is its line's view angle.
+        canvas.BeginDrag("D", TokenGrip.Heading);
+        canvas.MoveTo("D", new SKPoint(360, 160), 0);
+        canvas.EndDrag();
+        StratStep step = session.Document!.Steps[1];
+        using (Assert.Multiple())
+        {
+            await Assert.That(step.Positions.Single(p => p.Slot == "D").X).IsEqualTo(360);
+            await Assert.That(step.Assignments![1].Watch!.YawDegrees).IsEqualTo(90);
+            await Assert.That(Marker(canvas, "D").YawDegrees).IsEqualTo(90f);
+            await Assert.That(session.UndoDepth).IsEqualTo(3);
         }
     }
 
