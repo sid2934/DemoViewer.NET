@@ -25,6 +25,8 @@ namespace DemoViewer.NET.Views.StratBook;
 public partial class StratCanvasView : UserControl
 {
     private readonly Scene2DHost? _host;
+    private readonly Canvas? _dragLabelLayer;
+    private readonly Border? _dragLabel;
     private readonly Canvas? _textEditorLayer;
     private readonly TextBox? _textEditor;
 
@@ -40,6 +42,8 @@ public partial class StratCanvasView : UserControl
 
         _host = this.FindControl<Scene2DHost>("Host");
         _textEditorLayer = this.FindControl<Canvas>("TextEditorLayer");
+        _dragLabelLayer = this.FindControl<Canvas>("DragLabelLayer");
+        _dragLabel = this.FindControl<Border>("DragLabel");
         _textEditor = this.FindControl<TextBox>("AnnotationTextEditor");
         if (_host is IAnnotationSurface surface && _textEditor is not null)
         {
@@ -52,6 +56,7 @@ public partial class StratCanvasView : UserControl
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Tunnel, true);
 
         DataContextChanged += (_, _) => Bind();
         Bind();
@@ -88,6 +93,34 @@ public partial class StratCanvasView : UserControl
         {
             Focus();
         }
+    }
+
+    // The drag label follows the pointer, kept inside the scene.
+    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragLabel is null || _dragLabelLayer is null || _bound is not { IsDragging: true })
+        {
+            return;
+        }
+
+        PlaceDragLabel(e.GetPosition(_dragLabelLayer));
+    }
+
+    /// <summary>Puts the drag label beside a point of the scene: right of and above it, flipped at the edges.</summary>
+    /// <param name="at">The pointer, in the scene's coordinates.</param>
+    internal void PlaceDragLabel(Point at)
+    {
+        if (_dragLabel is null || _dragLabelLayer is null)
+        {
+            return;
+        }
+
+        Size size = _dragLabel.DesiredSize;
+        Rect bounds = _dragLabelLayer.Bounds;
+        double x = at.X + 18 + size.Width > bounds.Width ? at.X - 18 - size.Width : at.X + 18;
+        double y = at.Y - 18 - size.Height < 0 ? at.Y + 18 : at.Y - 18 - size.Height;
+        Canvas.SetLeft(_dragLabel, Math.Max(0, x));
+        Canvas.SetTop(_dragLabel, Math.Max(0, y));
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
