@@ -224,7 +224,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     Whether a tool other than pan is selected, or Set On Map is waiting for a click: what makes the keymap's
     ///     tool scope shadow Space and Esc.
     /// </summary>
-    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace;
+    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace || _drag is not null;
 
     /// <summary>
     ///     The slot whose line is selected on the active step: the chosen one when the step has a line for it, else its
@@ -1021,6 +1021,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         OnPropertyChanged(nameof(IsDragging));
         OnPropertyChanged(nameof(DragTarget));
         RaiseSetPlace();
+        OnPropertyChanged(nameof(IsToolActive));
     }
 
     // Who the drag writes, read once at the press and again when Alt or Pin flips. The step it writes becomes the
@@ -1036,6 +1037,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         drag.ShownField = ShownField(drag.Target);
         OnPropertyChanged(nameof(IsDragging));
+        OnPropertyChanged(nameof(IsToolActive));
         OnPropertyChanged(nameof(DragTarget));
         RaiseSetPlace();
     }

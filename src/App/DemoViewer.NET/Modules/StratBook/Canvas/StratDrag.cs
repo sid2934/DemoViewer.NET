@@ -357,7 +357,8 @@ public static partial class StratDragPatches
     {
         StratLocationField field = target.Field!;
         PlaceRef entry = Entry(null, drop, true);
-        List<PlaceRef> current = [.. StratLocationPatches.Read(document.Steps[index], field)];
+        // The slot's own reading: a step for everyone has no line yet, and its via is every player's.
+        List<PlaceRef> current = [.. StratStepLines.ViaFor(document.Steps[index], target.Slot)];
         List<PlaceRef> places = [.. current.Where(StratLocations.HasPlace).Where(e => !StratLocationPatches.SameEntry(e, entry))];
         List<PlaceRef> points = [.. current.Where(e => !StratLocations.HasPlace(e))];
         if (StratLocations.HasPlace(entry))

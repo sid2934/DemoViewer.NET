@@ -59,7 +59,21 @@ public class StratDragWindowTests
                 return Playback2DTimelineHarness.ToWindow(host, window, sx, sy);
             }
 
+            // Esc mid-drag under the pan tool cancels: nothing written, the label gone.
             Point a = Screen(0, 0);
+            window.MouseDown(a, MouseButton.Left);
+            window.MouseMove(new Point(a.X + 30, a.Y + 10));
+            Playback2DTimelineHarness.Pump();
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            window.MouseUp(new Point(a.X + 30, a.Y + 10), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth);
+                await Assert.That(vm.Canvas.DragLabel).IsEqualTo("");
+                await Assert.That(vm.Canvas.IsDragging).IsFalse();
+            }
+
             window.MouseDown(a, MouseButton.Left);
             window.MouseMove(new Point(a.X + 30, a.Y + 10));
             Playback2DTimelineHarness.Pump();

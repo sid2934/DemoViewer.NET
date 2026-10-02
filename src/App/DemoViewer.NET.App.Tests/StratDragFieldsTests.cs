@@ -351,6 +351,28 @@ public class StratDragFieldsTests
     }
 
     [Test]
+    public async Task PausedMidRun_OnAStepForEveryone_TheViaKeepsTheStepsOthers()
+    {
+        StratStep all = Step(110, StratVocabulary.ActorAll, "move", Place("Ramp"));
+        all.Via = ["Hut"];
+        StratDocument document = Strat(all);
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        using StratCanvasViewModel canvas = Canvas(session);
+        canvas.Timeline.RequestSeekToFrame(S1 + 20);
+        await Assert.That(canvas.Projection!.RunAt("A", S1 + 20)).IsNotNull();
+
+        Drag(canvas, "A", 300, 300);
+        StepAssignment a = session.Document!.Steps[1].Assignments!.Single(l => l.Slot == "A");
+        using (Assert.Multiple())
+        {
+            await Assert.That(a.Via).IsEquivalentTo(["Hut"]);
+            await Assert.That(a.ViaPoints!.Single().X).IsEqualTo(300);
+            await Assert.That(session.Document!.Steps[1].Assignments!.Single(l => l.Slot == "B").Via).IsEquivalentTo(["Hut"]);
+            await Assert.That(session.UndoDepth).IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task PausedWhileStanding_TheDragEditsTheStepThatPutThePlayerThere()
     {
         StratDocument document = Strat(Step(110, "A", "move", Place("Ramp")), Step(100, "B", "move", Place("Ramp")));
