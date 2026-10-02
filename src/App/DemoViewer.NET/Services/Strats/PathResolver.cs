@@ -37,6 +37,29 @@ public abstract class PathResolver
     /// <param name="maxDistance">How far off the mesh the point may be.</param>
     public abstract (double X, double Y)? Snap(double x, double y, double level, string? place, double maxDistance);
 
+    /// <summary>Whether a straight line stays within <paramref name="tolerance" /> of the mesh on a level, tested every 8 units.</summary>
+    /// <param name="x0">Start X.</param>
+    /// <param name="y0">Start Y.</param>
+    /// <param name="x1">End X.</param>
+    /// <param name="y1">End Y.</param>
+    /// <param name="level">The level key.</param>
+    /// <param name="tolerance">How far off the mesh a sample may be.</param>
+    public bool Clear(double x0, double y0, double x1, double y1, double level, double tolerance = 12)
+    {
+        double length = Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+        int samples = Math.Max(1, (int)Math.Ceiling(length / 8));
+        for (int s = 1; s < samples; s++)
+        {
+            double t = s / (double)samples;
+            if (Snap(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, level, null, tolerance) is null)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Whether a point stands on the mesh on its level.</summary>
     /// <param name="x">World X.</param>
     /// <param name="y">World Y.</param>

@@ -162,6 +162,41 @@ public class StratRoutingTests
     }
 
     [Test]
+    [Arguments(115.0, 114.9)]
+    [Arguments(115.0, 114.5)]
+    public async Task AShortAuthoredSegment_WithAWindingRoute_StaysOnTheMesh(double from, double to)
+    {
+        ZonePlaceResolverAdapter map = Map(Dust2);
+        StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_dust2", "T", "execute", "short drag", Created);
+        StratStep one = Step(1, from, "A", "hold");
+        one.Positions = [At("A", Arrival(map, "TSpawn"))];
+        StratStep two = Step(2, to, "A", "hold");
+        two.Positions = [At("A", Arrival(map, "LongDoors"))];
+        document.Steps = [one, two];
+
+        TokenTrack a = Track(Project(document, map), "A");
+        int end = a.Keyframes[^1].Tick;
+        int routeCorners = map.Paths.Route(a.Keyframes[0].X, a.Keyframes[0].Y, -99968, a.Keyframes[^1].X, a.Keyframes[^1].Y, -99968, null)!.Count - 2;
+        int off = 0, segments = 0;
+        for (int i = 1; i < a.Keyframes.Count; i++)
+        {
+            TokenKeyframe p = a.Keyframes[i - 1], q = a.Keyframes[i];
+            segments++;
+            off += map.Paths.Clear(p.X, p.Y, q.X, q.Y, p.LevelMinZ, 24) ? 0 : 1;
+        }
+
+        Console.WriteLine($"[routing] {end} ticks for {routeCorners} bends: {a.Keyframes.Count} keyframes, {off}/{segments} drawn segments off the mesh");
+        await Assert.That(a.Keyframes.Count).IsEqualTo(Math.Min(end + 1, routeCorners + 2)).Because("a bend on every free tick");
+        for (int t = 0; t <= end; t++)
+        {
+            TokenKeyframe k = At(a, t);
+            await Assert.That(map.Paths.Snap(k.X, k.Y, k.LevelMinZ, null, 12)).IsNotNull().Because($"tick {t} is on the mesh");
+        }
+
+        await Assert.That(off).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task ARouteAcrossNukesFloors_SwitchesLevelAtTheCrossing()
     {
         ZonePlaceResolverAdapter map = Map(Nuke);

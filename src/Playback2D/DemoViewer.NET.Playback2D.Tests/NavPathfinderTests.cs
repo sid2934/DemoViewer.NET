@@ -197,6 +197,55 @@ public class NavPathfinderTests
         await Assert.That(missBytes).IsLessThan(4096);
     }
 
+    [Test]
+    public async Task TwoThreads_FindTheSamePathsAsOne()
+    {
+        if (Zones("de_dust2") is not { } zones)
+        {
+            throw new SkipTestException("no de_dust2 zones in this checkout");
+        }
+
+        string[] places = ["TSpawn", "LongDoors", "BombsiteB", "CTSpawn", "Middle", "UpperTunnel", "LongA", "BombsiteA"];
+        List<((double X, double Y, int Area) A, (double X, double Y, int Area) B)> pairs = [];
+        NavPathfinder reference = NavPathfinder.Build(zones);
+        foreach (string a in places)
+        {
+            foreach (string b in places.Where(b => b != a))
+            {
+                pairs.Add((Anchor(zones, reference, a), Anchor(zones, reference, b)));
+            }
+        }
+
+        // Expected from a graph of its own, so no answer comes out of the shared memo.
+        string[] expected = [.. pairs.Select(p => Describe(reference.FindPath(p.A.X, p.A.Y, p.A.Area, p.B.X, p.B.Y, p.B.Area)))];
+        NavPathfinder shared = NavPathfinder.Build(zones);
+        string[][] seen = new string[2][];
+        await Task.WhenAll(Enumerable.Range(0, 2).Select(n => Task.Run(() =>
+        {
+            // Opposite orders, many rounds, so the two threads search and fill the memo at the same time.
+            string[] mine = new string[pairs.Count];
+            for (int round = 0; round < 20; round++)
+            {
+                for (int k = 0; k < pairs.Count; k++)
+                {
+                    int i = n == 0 ? k : pairs.Count - 1 - k;
+                    ((double X, double Y, int Area) a, (double X, double Y, int Area) b) = pairs[i];
+                    mine[i] = Describe(shared.FindPath(a.X + round, a.Y, a.Area, b.X, b.Y, b.Area) is not null
+                        ? shared.FindPath(a.X, a.Y, a.Area, b.X, b.Y, b.Area)
+                        : null);
+                }
+            }
+
+            seen[n] = mine;
+        })));
+
+        await Assert.That(seen[0]).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(seen[1]).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    private static string Describe(IReadOnlyList<NavWaypoint>? path) =>
+        path is null ? "none" : string.Join(";", path.Select(p => FormattableString.Invariant($"{p.X:F3},{p.Y:F3},{p.FloorKey}")));
+
     internal static ZoneSet? Zones(string map)
     {
         using LoadedMapAsset? asset = MapAssetPipeline.TryLoad(map);

@@ -767,9 +767,9 @@ public sealed class StratSceneProjection
         // A hold-interpolated run jumps at its end, so it has no corners to stop at.
         if (route is { Count: > 2 } && shape.Interpolation == TokenInterpolation.Linear)
         {
-            foreach ((int cornerTick, TokenPlacement corner) in Corners(route, tick + shape.HoldTicks, arrive, start.LevelMinZ))
+            foreach (Corner corner in Corners(route, tick + shape.HoldTicks, arrive, start.LevelMinZ, places.Paths))
             {
-                Insert(entries, cornerTick, corner, true);
+                Insert(entries, corner.Tick, corner.Placement, true);
             }
         }
 
@@ -795,7 +795,7 @@ public sealed class StratSceneProjection
         }
 
         routed |= Leg(route, paths, from, (target.X, target.Y, target.LevelMinZ), e.To?.Place);
-        return routed || route.Count > 2 ? route : null;
+        return route.Count >= 2 && (routed || route.Count > 2) ? route : null;
     }
 
     private static bool Leg(List<NavWaypoint> route, PathResolver paths, (double X, double Y, double Level) from,
@@ -820,57 +820,126 @@ public sealed class StratSceneProjection
             : null;
     }
 
+    /// <summary>One bend of a route as a keyframe: when the token is there, where, on which level, facing the next leg.</summary>
+    internal readonly record struct Corner(int Tick, float X, float Y, double LevelMinZ, float YawDegrees)
+    {
+        public TokenPlacement Placement => new(X, Y, LevelMinZ, YawDegrees);
+    }
+
     /// <summary>
-    ///     A route's inner points as entries between <paramref name="fromTick" /> and <paramref name="untilTick" />, each
-    ///     at the tick its share of the length puts it, facing the next leg. A point that would share a tick with the one
-    ///     before is dropped. Where the floor changes, an entry a tick earlier keeps the old floor, so the token switches
-    ///     at the point and not half way along the leg before it.
+    ///     A route's inner points as keyframes strictly between <paramref name="fromTick" /> and <paramref name="untilTick" />,
+    ///     each at the tick its share of the length puts it, facing the next leg. Points whose ticks collide are pushed onto
+    ///     consecutive ticks. With more points than ticks, the ones whose removal leaves the line on the mesh go first, then
+    ///     the smallest turns; a floor change goes last. Where the floor changes and a tick is free, a keyframe a tick earlier
+    ///     keeps the old floor, so the token switches at the point and not half way along the leg before it.
     /// </summary>
     /// <param name="route">The route, both ends included.</param>
     /// <param name="fromTick">When the token leaves the first point.</param>
     /// <param name="untilTick">When it reaches the last.</param>
     /// <param name="level">The token's level as it leaves.</param>
-    internal static List<(int Tick, TokenPlacement Placement)> Corners(IReadOnlyList<NavWaypoint> route, int fromTick, int untilTick, double level)
+    /// <param name="paths">Tests a shortcut against the mesh when points must go; null keeps the sharpest turns.</param>
+    internal static List<Corner> Corners(IReadOnlyList<NavWaypoint> route, int fromTick, int untilTick, double level,
+        PathResolver? paths = null)
     {
-        List<(int, TokenPlacement)> corners = [];
-        double total = NavPathfinder.Length(route);
-        if (total < 1e-6 || untilTick - fromTick < 2)
+        List<Corner> corners = [];
+        int room = untilTick - fromTick - 1;
+        double total = route.Count < 3 ? 0 : NavPathfinder.Length(route);
+        if (total < 1e-6 || room < 1)
         {
             return corners;
         }
 
-        double along = 0;
-        int lastTick = fromTick;
-        (double X, double Y) last = (route[0].X, route[0].Y);
-        for (int i = 1; i < route.Count - 1; i++)
+        double[] along = new double[route.Count];
+        for (int i = 1; i < route.Count; i++)
         {
-            double dx = route[i].X - route[i - 1].X, dy = route[i].Y - route[i - 1].Y;
-            along += Math.Sqrt(dx * dx + dy * dy);
-            int tick = fromTick + (int)Math.Round((untilTick - fromTick) * along / total, MidpointRounding.AwayFromZero);
-            if (tick <= lastTick || tick >= untilTick)
-            {
-                continue;
-            }
+            along[i] = along[i - 1] + Distance(route[i - 1], route[i]);
+        }
 
-            float yaw = Heading(route, i) ?? Heading(route, i - 1) ?? 0;
-            if (route[i].FloorKey != level && tick - 1 > lastTick)
+        List<int> kept = [.. Enumerable.Range(1, route.Count - 2)];
+        if (kept.Count > room)
+        {
+            Thin(route, kept, room, paths);
+        }
+
+        // Ideal ticks, then pushed apart: up from fromTick, then down from untilTick. kept.Count <= room, so both fit.
+        int[] ticks = new int[kept.Count];
+        for (int j = 0, previous = fromTick; j < kept.Count; j++)
+        {
+            int ideal = fromTick + (int)Math.Round((untilTick - fromTick) * along[kept[j]] / total, MidpointRounding.AwayFromZero);
+            previous = ticks[j] = Math.Max(ideal, previous + 1);
+        }
+
+        for (int j = kept.Count - 1, next = untilTick; j >= 0; j--)
+        {
+            next = ticks[j] = Math.Min(ticks[j], next - 1);
+        }
+
+        int lastTick = fromTick;
+        NavWaypoint last = route[0];
+        for (int j = 0; j < kept.Count; j++)
+        {
+            NavWaypoint here = route[kept[j]];
+            NavWaypoint ahead = route[j + 1 < kept.Count ? kept[j + 1] : route.Count - 1];
+            int tick = ticks[j];
+            if (here.FloorKey != level && tick - 1 > lastTick)
             {
                 double f = (tick - 1 - lastTick) / (double)(tick - lastTick);
-                corners.Add((tick - 1, new TokenPlacement((float)(last.X + (route[i].X - last.X) * f),
-                    (float)(last.Y + (route[i].Y - last.Y) * f), level, Heading(route, i - 1) ?? yaw)));
+                corners.Add(new Corner(tick - 1, (float)(last.X + (here.X - last.X) * f), (float)(last.Y + (here.Y - last.Y) * f), level,
+                    Yaw(last, here)));
             }
 
-            corners.Add((tick, new TokenPlacement((float)route[i].X, (float)route[i].Y, route[i].FloorKey, yaw)));
-            level = route[i].FloorKey;
+            corners.Add(new Corner(tick, (float)here.X, (float)here.Y, here.FloorKey, Yaw(here, ahead)));
+            level = here.FloorKey;
             lastTick = tick;
-            last = (route[i].X, route[i].Y);
+            last = here;
         }
 
         return corners;
     }
 
+    // Drops inner points (indices into route) until `room` are left. Each pass looks at the cheapest few candidates, by
+    // floor change then turn, and drops the first whose shortcut stays on the mesh, else the cheapest.
+    private static void Thin(IReadOnlyList<NavWaypoint> route, List<int> kept, int room, PathResolver? paths)
+    {
+        const int Checked = 8;
+        while (kept.Count > room)
+        {
+            int[] order = [.. Enumerable.Range(0, kept.Count).OrderBy(j => Cost(route, kept, j))];
+            int drop = order[0];
+            for (int c = 0; paths is not null && c < Math.Min(Checked, order.Length); c++)
+            {
+                int j = order[c];
+                NavWaypoint before = route[j == 0 ? 0 : kept[j - 1]];
+                NavWaypoint after = route[j + 1 < kept.Count ? kept[j + 1] : route.Count - 1];
+                if (paths.Clear(before.X, before.Y, after.X, after.Y, before.FloorKey))
+                {
+                    drop = j;
+                    break;
+                }
+            }
+
+            kept.RemoveAt(drop);
+        }
+    }
+
+    // The turn at kept[j] in radians, plus a floor change's weight, so a floor point is the last to go.
+    private static double Cost(IReadOnlyList<NavWaypoint> route, List<int> kept, int j)
+    {
+        int i = kept[j];
+        NavWaypoint before = route[j == 0 ? 0 : kept[j - 1]], here = route[i], after = route[j + 1 < kept.Count ? kept[j + 1] : route.Count - 1];
+        double turn = Math.Abs(Math.Atan2(
+            (here.X - before.X) * (after.Y - here.Y) - (here.Y - before.Y) * (after.X - here.X),
+            (here.X - before.X) * (after.X - here.X) + (here.Y - before.Y) * (after.Y - here.Y)));
+        return turn + (here.FloorKey != route[i - 1].FloorKey ? 2 * Math.PI : 0);
+    }
+
+    private static double Distance(NavWaypoint a, NavWaypoint b) => Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
+
+    private static float Yaw(NavWaypoint from, NavWaypoint to) =>
+        (float)Math.Round(StratFromRound.NormalizeYaw(Math.Atan2(to.Y - from.Y, to.X - from.X) * 180 / Math.PI), 2);
+
     // The heading of the leg from point i to point i + 1, or null for a leg too short to face along.
-    private static float? Heading(IReadOnlyList<NavWaypoint> route, int i)
+    private static float? Heading(List<NavWaypoint> route, int i)
     {
         if (i < 0 || i + 1 >= route.Count)
         {
@@ -908,15 +977,14 @@ public sealed class StratSceneProjection
             return null;
         }
 
-        List<(int Tick, TokenPlacement Placement)> corners = Corners(route, a.Tick + track.HoldTicks[k], b.Tick, a.LevelMinZ);
+        List<Corner> corners = Corners(route, a.Tick + track.HoldTicks[k], b.Tick, a.LevelMinZ, paths);
         if (corners.Count == 0)
         {
             return null;
         }
 
         List<TokenKeyframe> keys = [a];
-        keys.AddRange(corners.Select(c => new TokenKeyframe(c.Tick, c.Placement.X, c.Placement.Y, c.Placement.LevelMinZ,
-            c.Placement.YawDegrees ?? a.YawDegrees)));
+        keys.AddRange(corners.Select(c => new TokenKeyframe(c.Tick, c.X, c.Y, c.LevelMinZ, c.YawDegrees)));
         keys.Add(b);
         return keys;
     }
