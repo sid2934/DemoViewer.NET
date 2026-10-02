@@ -119,6 +119,9 @@ public interface IZonePlaceResolver
 
     /// <summary>The map's place names, custom zones included; empty when the source has no list.</summary>
     IReadOnlyList<string> PlaceNames => [];
+
+    /// <summary>Routes strat tokens round walls over the map's nav, or null when the source has no nav.</summary>
+    Strats.PathResolver? Paths => null;
 }
 
 /// <summary>Finds a map's zone resolver, or none when the map has no <c>zones.json</c>.</summary>
