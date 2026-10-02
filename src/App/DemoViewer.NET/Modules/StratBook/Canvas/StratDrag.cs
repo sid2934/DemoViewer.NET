@@ -45,6 +45,7 @@ public enum StratDragAction
 /// <param name="DropsOwnPosition">A position verb: the slot's own entry on the step goes, or it would beat the field.</param>
 /// <param name="Joins">The step does not name the slot: the write adds its line.</param>
 /// <param name="Refusal">Why nothing is written.</param>
+/// <param name="StepId">The step's id: the write is refused when <paramref name="StepIndex" /> no longer holds it.</param>
 public sealed record StratDragTarget(
     string Slot,
     StratDragAction Action,
@@ -54,7 +55,8 @@ public sealed record StratDragTarget(
     int ViaIndex = 0,
     bool DropsOwnPosition = false,
     bool Joins = false,
-    string? Refusal = null)
+    string? Refusal = null,
+    Guid StepId = default)
 {
     public const string NoStepNote = "add a step first: a token is placed at a step";
     public const string ReadOnlyNote = "this step belongs to another strat: open that strat to edit it";
@@ -95,7 +97,8 @@ public sealed record StratDragTarget(
                 ? Refuse(slot, ReadOnlyNote)
                 : projection.ThrowOriginAt(pinAt, slot) is not null
                     ? Refuse(slot, LineupNote)
-                    : new StratDragTarget(slot, own ? StratDragAction.Pin : StratDragAction.Opponent, pinAt, projection.Path[pinAt].StepIndex);
+                    : new StratDragTarget(slot, own ? StratDragAction.Pin : StratDragAction.Opponent, pinAt, projection.Path[pinAt].StepIndex,
+                        StepId: projection.Path[pinAt].Step.Id);
         }
 
         if (onTick)
@@ -125,7 +128,7 @@ public sealed record StratDragTarget(
             {
                 int places = StratStepLines.LineFor(step, slot)?.Via?.Count ?? (StratStepLines.HasLines(step) ? 0 : step.Via?.Count ?? 0);
                 return new StratDragTarget(slot, StratDragAction.Via, run.PathIndex, projection.Path[run.PathIndex].StepIndex,
-                    new StratLocationField(step.Id, slot, StratLocationKind.Via), Math.Min(run.LegAt(tick), places));
+                    new StratLocationField(step.Id, slot, StratLocationKind.Via), Math.Min(run.LegAt(tick), places), StepId: step.Id);
             }
 
             return ByVerb(projection, run.PathIndex, tick, slot, grip);
@@ -175,7 +178,7 @@ public sealed record StratDragTarget(
         if (grip == TokenGrip.Heading)
         {
             return StratStepFields.Uses(step.Verb, StratStepField.Watch) || StratStepLines.LineFor(step, slot)?.Watch is not null
-                ? new StratDragTarget(slot, StratDragAction.Turn, pathIndex, at.StepIndex, Joins: !names)
+                ? new StratDragTarget(slot, StratDragAction.Turn, pathIndex, at.StepIndex, Joins: !names, StepId: step.Id)
                 : Refuse(slot, RunnerTurnNote);
         }
 
@@ -208,7 +211,7 @@ public sealed record StratDragTarget(
 
     private static StratDragTarget FieldOn(StratSceneProjection projection, int pathIndex, string slot, StratLocationKind kind, string? fieldSlot) =>
         new(slot, StratDragAction.Field, pathIndex, projection.Path[pathIndex].StepIndex,
-            new StratLocationField(projection.Path[pathIndex].Step.Id, fieldSlot, kind));
+            new StratLocationField(projection.Path[pathIndex].Step.Id, fieldSlot, kind), StepId: projection.Path[pathIndex].Step.Id);
 }
 
 /// <summary>Where a drag let go, and how the place under it is read.</summary>
@@ -262,7 +265,7 @@ public static partial class StratDragPatches
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(drop);
-        if (target.IsRefused || target.StepIndex < 0 || target.StepIndex >= document.Steps.Count)
+        if (!Holds(document, target))
         {
             return [];
         }
@@ -286,10 +289,53 @@ public static partial class StratDragPatches
                     _ => StratLocationPatches.Write(document, index, field,
                         [Entry(StratLocationPatches.Read(step, field) is { Count: > 0 } current ? current[0] : null, drop, false)])
                 };
-                return target.DropsOwnPosition ? WithPositionsRemoved(step, index, ops, target.Slot) : ops;
+                if (target.DropsOwnPosition)
+                {
+                    return WithPositionsRemoved(step, index, ops, target.Slot);
+                }
+
+                if (ReplacesSeen(document, target))
+                {
+                    bool legacy = StratSceneProjection.IsLegacyObserved(document);
+                    return WithPositionsRemoved(step, index, ops, target.Slot,
+                        seen: k => step.Positions[k].Carried != true && (legacy || step.Positions[k].Observed == true));
+                }
+
+                return ops;
             default:
                 return [];
         }
+    }
+
+    /// <summary>Whether the target's step is still at its index: a step edit during a drag moves the indices under it.</summary>
+    /// <param name="document">The strat as it is now.</param>
+    /// <param name="target">Where the drag lands.</param>
+    public static bool Holds(StratDocument document, StratDragTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(target);
+        return !target.IsRefused && target.StepIndex >= 0 && target.StepIndex < document.Steps.Count
+               && (target.StepId == Guid.Empty || document.Steps[target.StepIndex].Id == target.StepId);
+    }
+
+    /// <summary>
+    ///     Whether the drop replaces the slot's observed entry on the step: a travel's <c>to</c> or a lurk's area, which the
+    ///     entry would otherwise beat, as a capture's spot is the token's spot on every verb.
+    /// </summary>
+    /// <param name="document">The strat.</param>
+    /// <param name="target">Where the drag lands.</param>
+    public static bool ReplacesSeen(StratDocument document, StratDragTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(target);
+        if (!Holds(document, target) || target.Action != StratDragAction.Field || target.DropsOwnPosition
+            || target.Field?.Kind is not (StratLocationKind.To or StratLocationKind.LurkArea))
+        {
+            return false;
+        }
+
+        bool legacy = StratSceneProjection.IsLegacyObserved(document);
+        return document.Steps[target.StepIndex].Positions.Any(p => p.Slot == target.Slot && p.Carried != true && (legacy || p.Observed == true));
     }
 
     /// <summary>
@@ -311,7 +357,7 @@ public static partial class StratDragPatches
         }
 
         StratDrop drop = new(placeAt?.Invoke(position.X, position.Y, position.LevelMinZ), position.X, position.Y, position.LevelMinZ, placeAt is not null);
-        StratDragTarget target = new(position.Slot, StratDragAction.Field, -1, stepIndex, field);
+        StratDragTarget target = new(position.Slot, StratDragAction.Field, -1, stepIndex, field, StepId: step.Id);
         List<PatchOp> ops = field.Kind == StratLocationKind.LurkArea
             ? LurkFirst(document, stepIndex, field, drop)
             : StratLocationPatches.Write(document, stepIndex, field,
@@ -375,7 +421,8 @@ public static partial class StratDragPatches
 
     // The slot's own entries on the step go with the edit, as one set of removes after every other op, highest first, so
     // the field writers' carried removes and these never name one index twice.
-    private static List<PatchOp> WithPositionsRemoved(StratStep step, int index, List<PatchOp> ops, string slot, int? only = null)
+    private static List<PatchOp> WithPositionsRemoved(StratStep step, int index, List<PatchOp> ops, string slot, int? only = null,
+        Func<int, bool>? seen = null)
     {
         Regex pointer = PositionPointer();
         SortedSet<int> removes = [];
@@ -395,7 +442,7 @@ public static partial class StratDragPatches
 
         for (int k = 0; k < step.Positions.Count; k++)
         {
-            if (only is { } single ? k == single : string.Equals(step.Positions[k].Slot, slot, StringComparison.Ordinal))
+            if (only is { } single ? k == single : string.Equals(step.Positions[k].Slot, slot, StringComparison.Ordinal) && (seen is null || seen(k)))
             {
                 removes.Add(k);
             }
