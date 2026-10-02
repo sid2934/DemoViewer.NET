@@ -2,11 +2,13 @@
 
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Services.Strats;
 
@@ -17,8 +19,9 @@ namespace DemoViewer.NET.Controls;
 /// <summary>
 ///     A location field (docs/ui/design-system.md, "Location field"): shows callouts, stores canonical places, accepts
 ///     free text, and while focused lists the map's callouts, filtered as you type, above or below the field as room
-///     allows. <see cref="IsMulti" /> makes it the watching list. The pick button runs <see cref="PickCommand" />,
-///     which arms the canvas for this field. Logic lives in <see cref="PlaceFieldModel" />.
+///     allows. <see cref="IsMulti" /> makes it a list: one chip per entry, in order, each removable and movable, over an
+///     add field that appends. The pick button runs <see cref="PickCommand" />, which arms the canvas for this field.
+///     Logic lives in <see cref="PlaceFieldModel" />.
 /// </summary>
 public partial class PlaceField : UserControl
 {
@@ -63,13 +66,24 @@ public partial class PlaceField : UserControl
     private PlaceFieldModel _model = new();
     private bool _syncing;
 
+    // What the chips were built from, so typing does not rebuild them.
+    private IReadOnlyList<PlaceRef>? _chipsOf;
+    private CalloutResolver? _chipsBy;
+
     public PlaceField()
     {
         InitializeComponent();
         _model.Changed += Sync;
 
         FieldBox.GotFocus += (_, _) => OpenList();
-        FieldBox.LostFocus += (_, _) => CommitText();
+        FieldBox.LostFocus += (_, _) =>
+        {
+            CommitText();
+            if (!IsDropDownOpen)
+            {
+                UnhookKeys();
+            }
+        };
         FieldBox.TextChanged += OnTextChanged;
         FieldBox.AddHandler(KeyDownEvent, OnBoxKeyDown, RoutingStrategies.Bubble, true);
         OptionList.AddHandler(PointerPressedEvent, OnListPressed, RoutingStrategies.Tunnel);
@@ -91,7 +105,7 @@ public partial class PlaceField : UserControl
         set => SetValue(CalloutsProperty, value);
     }
 
-    /// <summary>A list of locations, comma separated (watching), rather than one.</summary>
+    /// <summary>A list of locations (watching, via, lurk areas) shown as chips, rather than one.</summary>
     public bool IsMulti
     {
         get => GetValue(IsMultiProperty);
@@ -151,6 +165,9 @@ public partial class PlaceField : UserControl
     /// <summary>The field's logic, for tests.</summary>
     internal PlaceFieldModel Model => _model;
 
+    /// <summary>A multi field's chips, in order.</summary>
+    internal IReadOnlyList<Border> Chips => [.. ChipPanel.Children.OfType<Border>()];
+
     /// <summary>
     ///     Whether the list opens above the field: when the rows it wants do not fit below and there is more room
     ///     above than below.
@@ -177,6 +194,11 @@ public partial class PlaceField : UserControl
             {
                 _model.Load(Value);
             }
+        }
+        else if (change.Property == ValueProperty && IsMulti)
+        {
+            // Even while storing: the written list comes back as the document holds it.
+            _model.Reload(Value);
         }
         else if (change.Property == ValueProperty && !_syncing && (!FieldBox.IsFocused || !_model.HasPendingEdit))
         {
@@ -217,6 +239,11 @@ public partial class PlaceField : UserControl
         {
             _model.Load(Value);
             _model.Open();
+        }
+
+        if (IsMulti)
+        {
+            HookKeys();
         }
     }
 
@@ -285,10 +312,32 @@ public partial class PlaceField : UserControl
     }
 
     // While the list is open its keys are taken at the window, before any ancestor's tunnel handler: a step row adds a
-    // step on Enter and leaves the field on Esc, and neither may see a key meant for the list.
+    // step on Enter and leaves the field on Esc, and neither may see a key meant for the list. A multi field's add
+    // field also takes Backspace when empty, and Enter on typed text with no list showing.
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!IsDropDownOpen || !FieldBox.IsFocused || e.KeyModifiers != KeyModifiers.None)
+        if (!FieldBox.IsFocused || e.KeyModifiers != KeyModifiers.None)
+        {
+            return;
+        }
+
+        if (IsMulti && e.Key == Key.Back && _model.Text.Length == 0 && Chips.Count > 0)
+        {
+            _model.Dismiss();
+            Chips[^1].Focus(NavigationMethod.Directional);
+            e.Handled = true;
+            return;
+        }
+
+        if (IsMulti && !IsDropDownOpen && e.Key == Key.Enter && _model.HasPendingEdit && _model.Text.Trim().Length > 0)
+        {
+            CommitText();
+            _listKey = e;
+            e.Handled = true;
+            return;
+        }
+
+        if (!IsDropDownOpen)
         {
             return;
         }
@@ -356,6 +405,7 @@ public partial class PlaceField : UserControl
             }
 
             ClearButton.IsVisible = _model.HasPointOnly;
+            BuildChips();
             if (!ReferenceEquals(OptionList.ItemsSource, _model.Items))
             {
                 OptionList.ItemsSource = _model.Items;
@@ -376,7 +426,7 @@ public partial class PlaceField : UserControl
 
             DropDown.IsOpen = open;
             IsDropDownOpen = open;
-            if (open)
+            if (open || (IsMulti && FieldBox.IsFocused))
             {
                 HookKeys();
             }
@@ -389,6 +439,130 @@ public partial class PlaceField : UserControl
         {
             _syncing = false;
         }
+    }
+
+    private void BuildChips()
+    {
+        IReadOnlyList<PlaceRef> value = IsMulti ? _model.Value : [];
+        CalloutResolver? callouts = _model.Options?.Resolver;
+        if (ReferenceEquals(value, _chipsOf) && ReferenceEquals(callouts, _chipsBy))
+        {
+            return;
+        }
+
+        _chipsOf = value;
+        _chipsBy = callouts;
+        ChipPanel.Children.Clear();
+        for (int i = 0; i < value.Count; i++)
+        {
+            ChipPanel.Children.Add(Chip(i, PlaceFieldModel.DisplayOf([value[i]], callouts)));
+        }
+
+        ChipPanel.IsVisible = value.Count > 0;
+    }
+
+    private Border Chip(int index, string text)
+    {
+        Button remove = new()
+        {
+            Content = "✕", Focusable = false, IsTabStop = false, Classes = { "placeFieldBtn" }
+        };
+        AutomationProperties.SetName(remove, "Remove " + text);
+        ToolTip.SetTip(remove, "Remove");
+        remove.Click += (_, _) => RemoveChip(index, false);
+        DockPanel.SetDock(remove, Dock.Right);
+
+        Border chip = new()
+        {
+            Classes = { "placeChip" }, Focusable = true, IsTabStop = false,
+            Child = new DockPanel { Children = { remove, new TextBlock { Text = text } } }
+        };
+        AutomationProperties.SetName(chip, text);
+        ToolTip.SetTip(chip, text + "\nAlt+Left or Alt+Right moves it, Backspace removes it");
+        chip.KeyDown += (_, e) => OnChipKeyDown(index, e);
+        chip.PointerPressed += (_, e) =>
+        {
+            if (e.Source is not Visual v || v.FindAncestorOfType<Button>(true) is null)
+            {
+                chip.Focus(NavigationMethod.Pointer);
+            }
+        };
+        chip.ContextMenu = new ContextMenu
+        {
+            Items =
+            {
+                MenuEntry("Move left", new KeyGesture(Key.Left, KeyModifiers.Alt), index > 0, () => ShiftChip(index, -1)),
+                MenuEntry("Move right", new KeyGesture(Key.Right, KeyModifiers.Alt), index < _model.Value.Count - 1, () => ShiftChip(index, 1)),
+                MenuEntry("Remove", new KeyGesture(Key.Back), true, () => RemoveChip(index, false))
+            }
+        };
+        return chip;
+    }
+
+    private static MenuItem MenuEntry(string header, KeyGesture gesture, bool enabled, Action run)
+    {
+        MenuItem item = new() { Header = header, InputGesture = gesture, IsEnabled = enabled };
+        item.Click += (_, _) => run();
+        return item;
+    }
+
+    // A chip has the focus after Backspace in the empty add field, a click, or Left from the next chip.
+    private void OnChipKeyDown(int index, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Left or Key.Right when e.KeyModifiers == KeyModifiers.Alt:
+                ShiftChip(index, e.Key == Key.Left ? -1 : 1);
+                break;
+            case Key.Left when e.KeyModifiers == KeyModifiers.None:
+                Chips[Math.Max(0, index - 1)].Focus(NavigationMethod.Directional);
+                break;
+            case Key.Right when e.KeyModifiers == KeyModifiers.None:
+                if (index + 1 < Chips.Count)
+                {
+                    Chips[index + 1].Focus(NavigationMethod.Directional);
+                }
+                else
+                {
+                    FieldBox.Focus(NavigationMethod.Directional);
+                }
+
+                break;
+            case Key.Back or Key.Delete when e.KeyModifiers == KeyModifiers.None:
+                RemoveChip(index, true);
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    private void RemoveChip(int index, bool byKey)
+    {
+        Store(_model.Remove(index));
+        if (byKey)
+        {
+            Dispatcher.UIThread.Post(() => FieldBox.Focus(NavigationMethod.Directional), DispatcherPriority.Loaded);
+        }
+    }
+
+    private void ShiftChip(int index, int delta)
+    {
+        if (_model.Shift(index, delta) is not { } moved)
+        {
+            return;
+        }
+
+        Store(moved);
+        int to = index + delta;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (to < Chips.Count)
+            {
+                Chips[to].Focus(NavigationMethod.Directional);
+            }
+        }, DispatcherPriority.Loaded);
     }
 
     // A field focused by Tab is scrolled into view after it opened its list: choose the side again once it has moved.

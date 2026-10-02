@@ -63,7 +63,7 @@ public class StratLineSlotTests
         Row(vm, id).Lines[2].Slot = "C";
         vm.Editor.EndEditBurst();
         Row(vm, id).Lines[2].PlaceText = "BombsiteB";
-        Row(vm, id).Lines[0].WatchText = "Back, BombsiteB";
+        Row(vm, id).Lines[0].WatchValue = [new PlaceRef { Place = "Back" }, new PlaceRef { Place = "BombsiteB" }];
     }
 
     [Test]

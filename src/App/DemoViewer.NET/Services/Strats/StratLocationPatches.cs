@@ -296,7 +296,8 @@ public static class StratLocationPatches
             ? StratLinePatches.Copy(step, true) is { Count: > 0 } lines ? lines[0] : null
             : StratStepLines.LineFor(step, field.Slot!);
 
-    private static bool SameEntry(PlaceRef a, PlaceRef b) =>
+    /// <summary>Whether two list entries are one: the same place, or for points the same coordinates and level.</summary>
+    internal static bool SameEntry(PlaceRef a, PlaceRef b) =>
         StratLocations.HasPlace(a) || StratLocations.HasPlace(b)
             ? string.Equals(a.Place, b.Place, StringComparison.Ordinal)
             : a.X == b.X && a.Y == b.Y && a.LevelMinZ == b.LevelMinZ;
