@@ -622,7 +622,7 @@
                         <TextBlock Text="no steps yet" FontSize="11" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextMid}" />
                         <DropDownButton x:Name="ApplyTemplateButton" Content="Apply template" Classes="ghost" FontSize="11" Padding="10 5"
-                                        ToolTip.Tip="Fill this strat from a template; only while it has no steps beyond the spawns">
+                                        ToolTip.Tip="Fill this strat from a template; only while it has no steps">
                             <DropDownButton.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnApplyTemplateMenuOpening" />
                             </DropDownButton.Flyout>

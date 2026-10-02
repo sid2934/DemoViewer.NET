@@ -152,8 +152,8 @@ public static class StepAuthoringPatches
     }
 
     /// <summary>
-    ///     A new step inserted after <paramref name="afterIndex" /> (or first, at -1), at a round-clock time
-    ///     held between its neighbours so the clock still counts down. A move for every slot, with nothing
+    ///     A new step inserted after <paramref name="afterIndex" /> (or first, at -1), at a time on the strat's
+    ///     clock held between its neighbours so the steps stay in order. A move for every slot, with nothing
     ///     placed: the stationary rule keeps each token where it was until the author drags it.
     /// </summary>
     /// <param name="document">The strat.</param>
@@ -212,7 +212,8 @@ public static class StepAuthoringPatches
         StratStep source = document.Steps[index];
         JsonObject node = JsonSerializer.SerializeToNode(source, StratJsonContext.Default.StratStep)!.AsObject();
         node["id"] = id.ToString("D", CultureInfo.InvariantCulture);
-        node["atSeconds"] = ClampBetween(document, index, source.AtSeconds - DuplicateOffsetSeconds);
+        node["atSeconds"] = ClampBetween(document, index,
+            StratClock.AtSecondsOf(document.Clock, StratClock.ElapsedOf(document.Clock, source.AtSeconds) + DuplicateOffsetSeconds));
 
         if (node["strokes"] is JsonArray strokes)
         {
@@ -285,23 +286,29 @@ public static class StepAuthoringPatches
         return ops;
     }
 
-    // A time between the step it follows and the one after, so an insert never breaks the countdown the
-    // validator enforces; past the last step, no earlier than the clock's end unless that step already is.
-    // Rounded to a tick: the canvas's clock has no finer grain to show.
+    // A time between the step it follows and the one after, so an insert never breaks the order the validator
+    // enforces; past the last step on the round clock, no later than a minute after the timer stops unless that step
+    // already is. Worked in seconds from the start, so either clock clamps the same way. Rounded to a tick: the canvas's
+    // clock has no finer grain to show.
     private static double ClampBetween(StratDocument document, int afterIndex, double atSeconds)
     {
-        double upper = afterIndex >= 0 && afterIndex < document.Steps.Count ? document.Steps[afterIndex].AtSeconds : double.PositiveInfinity;
-        double lower = afterIndex + 1 < document.Steps.Count
-            ? document.Steps[afterIndex + 1].AtSeconds
-            : Math.Min(upper, StratValidator.EarliestAfterTimerSeconds);
-        if (lower > upper)
+        StratClockInfo clock = document.Clock;
+        double from = afterIndex >= 0 && afterIndex < document.Steps.Count
+            ? StratClock.ElapsedOf(clock, document.Steps[afterIndex].AtSeconds)
+            : double.NegativeInfinity;
+        double until = afterIndex + 1 < document.Steps.Count
+            ? StratClock.ElapsedOf(clock, document.Steps[afterIndex + 1].AtSeconds)
+            : StratClock.IsTrigger(clock)
+                ? double.PositiveInfinity
+                : Math.Max(from, StratClock.ElapsedOf(clock, StratValidator.EarliestAfterTimerSeconds));
+        if (until < from)
         {
-            return upper;
+            return document.Steps[afterIndex].AtSeconds;
         }
 
-        double clamped = Math.Max(lower, Math.Min(upper, atSeconds));
+        double clamped = Math.Max(from, Math.Min(until, StratClock.ElapsedOf(clock, atSeconds)));
         double rounded = Math.Round(clamped * StepSchedule.TicksPerSecond, MidpointRounding.AwayFromZero) / StepSchedule.TicksPerSecond;
-        return rounded > upper || rounded < lower ? clamped : rounded;
+        return StratClock.AtSecondsOf(clock, rounded > until || rounded < from ? clamped : rounded);
     }
 
     private static StepPosition Clone(StepPosition position) =>

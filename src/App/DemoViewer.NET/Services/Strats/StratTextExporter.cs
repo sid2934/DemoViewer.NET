@@ -49,6 +49,11 @@ public static class StratTextExporter
             md.Append("Trigger: ").Append(trigger).Append('\n');
         }
 
+        if (StratStartPhrasing.Text(StratStartBlock.Effective(doc), callouts) is { } start)
+        {
+            md.Append("Start: ").Append(start).Append('\n');
+        }
+
         md.Append('\n');
 
         Dictionary<Guid, List<StratBranch>> branchesAfter = [];
@@ -64,8 +69,8 @@ public static class StratTextExporter
 
         foreach (StratStep step in doc.Steps)
         {
-            md.Append("- **").Append(StratClock.Format(step.AtSeconds)).Append("** ")
-                .Append(StratStepPhrasing.Phrase(step, callouts, lineupTitle)).Append('\n');
+            md.Append("- **").Append(StratClock.Format(doc.Clock, step.AtSeconds)).Append("** ")
+                .Append(StratStepPhrasing.Phrase(step, callouts, lineupTitle, doc.Clock)).Append('\n');
             foreach (StepAssignment line in step.Assignments ?? [])
             {
                 md.Append("  - ").Append(StratStepPhrasing.PhraseLine(line, step.Verb, callouts)).Append('\n');
@@ -180,11 +185,16 @@ public static class RoleSheetHtmlWriter
             section.Append("<div class=\"trigger\">Trigger: ").Append(Escape(trigger)).Append("</div>\n");
         }
 
+        if (header.StartText is { Length: > 0 } start)
+        {
+            section.Append("<div class=\"trigger\">Start: ").Append(Escape(start)).Append("</div>\n");
+        }
+
         section.Append("<ol class=\"lines\">\n");
         foreach (RoleSheetLine line in sheet.Lines)
         {
             section.Append("<li").Append(line.IsContext ? " class=\"context\"" : "").Append('>')
-                .Append(StratClock.Format(line.AtSeconds)).Append(" · ").Append(Escape(line.Text)).Append("</li>\n");
+                .Append(StratClock.Format(header.Clock, line.AtSeconds)).Append(" · ").Append(Escape(line.Text)).Append("</li>\n");
         }
 
         section.Append("</ol>\n");

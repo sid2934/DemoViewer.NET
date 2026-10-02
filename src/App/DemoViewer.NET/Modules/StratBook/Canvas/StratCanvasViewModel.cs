@@ -213,7 +213,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 return "";
             }
 
-            string clock = StratClock.Format(StepSchedule.AtSecondsFor(Transport.Tick, p.RoundSeconds));
+            string clock = p.ClockTextAt(Transport.Tick);
             return p.Path.Count == 0
                 ? clock + " · no steps"
                 : string.Create(CultureInfo.InvariantCulture, $"{clock} · step {Math.Max(1, _activeIndex + 1)} of {p.Path.Count}");
@@ -1543,10 +1543,12 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             document.Map, MapAsset is { } radarAsset ? MapAssetPipeline.DescribeRadars(radarAsset) : [], bounds, null,
             projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1)
         {
-            Routes = projection.Routed
+            Routes = projection.Routed,
+            CountsUp = projection.CountsUp
         });
 
-        int first = projection.Ticks.Count > 0 ? projection.Ticks[0] : 0;
+        // With a start the tokens stand somewhere before step 1, so the clock runs from it.
+        int first = projection.HasStart || projection.Ticks.Count == 0 ? 0 : projection.Ticks[0];
         Transport.SetRange(first, projection.ContentEndTick);
 
         // A selected step stays selected through an edit, its time included; a new step becomes the selection.
@@ -1802,7 +1804,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         // After the active step, or first when the strat has none or the active one is another strat's.
         int after = EditableActiveStep() ?? (projection.Path.Count == 0 ? -1 : document.Steps.Count - 1);
-        double atSeconds = StepSchedule.AtSecondsFor(Transport.Tick, projection.RoundSeconds);
+        double atSeconds = StratClock.AtSecondsAtTick(projection.ClockInfo, Transport.Tick);
         Guid id = Guid.NewGuid();
         _seekToStep = id;
         Func<double, double> levelFor = StratFromRound.FloorLevelKeys(MapAsset?.Floors);

@@ -218,6 +218,41 @@ public class StratStartBlockTests
     }
 
     [Test]
+    public async Task ACapture_WritesItsFreezeEndAsAnObservedStart_AndPlaysExactlyAsWithout()
+    {
+        const int freeze = 6400;
+        List<CapturedPawn> start = [.. Enumerable.Range(0, 10).Select(s => new CapturedPawn(s, s < 5 ? 2 : 3, (ulong)(100 + s), "p" + s, s * 400, 0, 0, 90, "TSpawn"))];
+        List<CapturedPawn> later = [.. start.Select(p => p with { X = p.X + 900, Y = 300, Place = "Mid" })];
+        RoundCapture capture = new(7, freeze, freeze + 64 * 100, 64,
+        [
+            new CaptureMoment(freeze, CaptureTrigger.FreezeEnd, start),
+            new CaptureMoment(freeze + 64 * 10, CaptureTrigger.Sweep, later)
+        ]);
+        StratCaptureOptions options = new(2, StratFromRound.Tokens(start, 2, StratFromRound.SlotMap(start.Where(p => p.Team == 2), null, null)),
+            StratClock.DefaultRoundSeconds, false, StratFromRound.QuantizedLevel);
+        StratDocument captured = StratFromRound.Document(capture, options, Team, "de_mirage", "r7", new StratOrigin { DemoSha256 = "ab", Round = 7 }, null, Created);
+        StratDocument without = captured.Clone();
+        without.Start = null;
+
+        StratSceneProjection with = Project(captured, null), plain = Project(without, null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(captured.Start!.Kind).IsEqualTo(StratStart.CapturedKind);
+            await Assert.That(captured.Start.Positions.All(p => p.Observed == true && p.Place == "TSpawn")).IsTrue();
+            await Assert.That(captured.Steps[0].Verb).IsEqualTo("hold").Because("the freeze-end step stays");
+            await Assert.That(with.Tracks.Select(t => t.Slot)).IsEquivalentTo(plain.Tracks.Select(t => t.Slot));
+            foreach (TokenTrack track in plain.Tracks)
+            {
+                for (int tick = 0; tick <= plain.ContentEndTick; tick += 7)
+                {
+                    TokenKeyframe a = Sample(plain, track.Slot, tick), b = Sample(with, track.Slot, tick);
+                    await Assert.That((b.X, b.Y, b.YawDegrees)).IsEqualTo((a.X, a.Y, a.YawDegrees)).Because($"{track.Slot} at {tick}");
+                }
+            }
+        }
+    }
+
+    [Test]
     public async Task ACapturedStrat_HasNoImpliedStart()
     {
         StratDocument document = Legacy();
