@@ -113,11 +113,17 @@ files to `<owner>/<map>/.trash/` rather than removing them.
     `roundSeconds - atSeconds` on the round clock and `atSeconds` from a trigger (`StratClock.StratTickOf`), so a round
     strat lands on exactly the ticks it always did.
   * **Switching** (the editor's clock switch, `StratClock.SwitchOps`) writes `clock.kind` and every step's `atSeconds`
-    and every lurk `rotate.atSeconds` as `roundSeconds - t`, rounded to a thousandth, in one undo entry. It is its own
-    inverse, keeps the order, and moves no tick. An after-plant time (`-12.5`) becomes one past the round length
+    and every lurk `rotate.atSeconds` as `roundSeconds - t`, rounded to a thousandth, in one undo entry. Switching back
+    gives every time stored to a thousandth or coarser (all the editor writes) exactly as it was; the switch keeps the
+    order and moves no tick. An after-plant time (`-12.5`) becomes one past the round length
     (`127.5`, `+2:07.5`), and back. `holdSeconds` is a duration and `trigger.atSeconds` a round time, so neither moves.
-  * **An older build** does not know `trigger`: it warns that the clock is read as the round clock, and refuses the
-    file on its increasing times. Switch back to the round clock before sharing such a strat with one.
+    Times written as prose (a note, a branch condition, the trigger's text) are not touched; the editor says so once
+    under the switch.
+  * **An older build** does not know `trigger`: it warns that the clock is read as the round clock and reads every
+    time as round clock remaining. It refuses the file only when some step's time is greater than the one before; a
+    strat whose steps all share one time, or that has a single step, opens there with its times read as round clock
+    remaining, so it plays at the wrong times with only the clock warning to say so. Switch back to the round clock
+    before sharing such a strat with one.
 * **`canvas`** is Step Authoring's per-strat defaults for the token canvas: fade-in/out in ticks,
   whether opponent tokens show, and a default level. Present from schema v1 even though nothing writes a
   non-default value until Step Authoring does.
@@ -160,7 +166,9 @@ clock. Optional and not written when absent, so a file without it loads and save
   no start and appears at its first placement, as before.
 * **The projection** puts each start at tick 0 as the earliest placement: before any step's entry on that tick, which
   replaces it. A step at the start time travels from it, so a move at 1:55 (or +0:00) walks, and a position verb there
-  runs from it (the "no time to walk" rule). The legacy carried rule reads the start as the entry before a step's copy;
+  runs from it (the "no time to walk" rule). The legacy carried rule reads the start as the entry before a step's copy,
+  except for an older file's round-start entries the start was read from: those are the spots a person put there, never
+  copies, so a hold on the seed still stands on them;
   the zip check reads it as where the token last stood; the drag treats a token nothing has placed since as standing on
   its start. Add step does not copy a start into a new step: a token at its start stays there by the stationary rule,
   and a later start edit still moves it.
@@ -176,11 +184,20 @@ clock. Optional and not written when absent, so a file without it loads and save
   unmarked entry on a step that does not name it): Add step copied every token, so a copy of one nothing placed before
   can only be of a seed entry since removed. With the map's spawns read, one of A to E with still no start starts at
   its spawn, as a new strat's would. Opponents are not filled in: one missing from a seed was taken out by hand.
-  `StratStartBlock.Legacy` is the reader; the call sheet and the role sheets read it without spawns.
+  `StratStartBlock.Legacy` is the reader; the call sheet and the role sheets read it without spawns. Such a start is
+  `spawn` only when every entry stands on the map's spawn spot for its token; otherwise it is `custom`, and the readers
+  print it as `from step 1`.
 * **The first start edit** in such a file writes the block, in one undo entry with the history line `start read from
   the round-start step`: the start as read plus the edit, the step entries it was read from removed (so they no longer
   stand in for it), and, in a file from before the carried mark, a `"carried": true` on every unmarked entry the
-  legacy rule reads as carried, so writing the file's first mark changes nothing it plays.
+  legacy rule reads as carried, so writing the file's first mark changes nothing it plays. When that first write would
+  take the map's spawns, start edits wait until they are read (or known to be missing), with the note `reading this
+  map's spawns: try again in a moment`, so it never bakes in a half-read start.
+* **A start edit that would change nothing on screen is refused**, not written: while a step on the start's tick has its
+  own entry for the token (a capture's freeze-end step, an entry a person put on a step at the start), that entry wins,
+  so a drag, a Start row field, a pick or the Spawns button says `step 1 places A at the start: edit it there` and
+  writes nothing. A captured start therefore stays `captured`, its marks kept, and it is edited on the freeze-end step.
+  Writing back the spot a token already has is no edit either.
 
 | Rule | Severity | Pointer |
 |---|---|---|
