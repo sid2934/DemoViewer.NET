@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -29,11 +30,15 @@ public class StratPlacedChipsTests
         At("A", 0, 0), At("B", 60, 0), At("C", 120, 0), At("D", 180, 0), At("E", 240, 0),
         At("O1", 2000, 0), At("O2", 2060, 0, 135), At("O3", 2120, 0), At("O4", 2180, 0), At("O5", 2240, 0));
 
-    private static (StratSession Session, StratEditorViewModel Editor) Open(params StratStep[] steps)
+    private static (StratSession Session, StratEditorViewModel Editor) Open(params StratStep[] steps) => Open(null, steps);
+
+    private static (StratSession Session, StratEditorViewModel Editor) Open(StratOrigin? origin, params StratStep[] steps)
     {
         StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_synthetic", "T", "execute", "chips", Created);
         document.Steps = [.. steps];
+        document.Origin = origin;
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        session.GeometryChecks = StratDepartureCheck.Check;
         StratEditorViewModel editor = new(session);
         editor.Project();
         return (session, editor);
@@ -164,6 +169,21 @@ public class StratPlacedChipsTests
     }
 
     [Test]
+    public async Task ALegacyCapture_ReadsEveryEntryAsSeen_AndIsNotZipChecked()
+    {
+        // A capture written before the observed mark: an origin, and no observed key anywhere.
+        StratStep lurk = Step(114, "E", "lurk", null, At("E", 2140, 0));
+        lurk.Lurk = new StepLurk { Areas = ["Middle"] };
+        (StratSession session, StratEditorViewModel editor) = Open(new StratOrigin { DemoSha256 = "ab", Round = 3 }, Seed(), lurk);
+        using (Assert.Multiple())
+        {
+            await Assert.That(Texts(editor.Steps[0])).IsEqualTo("seen (5) | opponents (5)");
+            await Assert.That(Texts(editor.Steps[1])).IsEqualTo("E seen at (2140, 0)");
+            await Assert.That(session.Issues.Any(i => StratDepartureCheck.PositionOf(i.Field) is not null)).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task ADepartureThatForcesALegFasterThanARun_Warns_TheExecuteBZip()
     {
         // Execute B's shape: everyone at spawn on the seed hold at 1:55, E's lurk a second later with a dragged departure
@@ -173,7 +193,7 @@ public class StratPlacedChipsTests
         StratStep slow = Step(100, "A", "move", new PlaceRef { Place = "Ramp" }, At("A", 300, 0));
         (StratSession session, StratEditorViewModel editor) = Open(Seed(), lurk, slow);
 
-        IReadOnlyList<StratIssue> issues = StratValidator.Validate(session.Document!);
+        IReadOnlyList<StratIssue> issues = session.Issues;
         StratIssue zip = issues.Single(i => i.Field.StartsWith("/steps/1/positions/", StringComparison.Ordinal));
         using (Assert.Multiple())
         {

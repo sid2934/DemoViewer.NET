@@ -532,6 +532,9 @@ public sealed partial class StratEditorViewModel : ObservableObject
 
     internal Func<double, double, double, string?>? KnownPlaceAtForRows => KnownPlaceAt;
 
+    // A capture written before the observed mark: every position reads as seen (StratSceneProjection.IsLegacyObserved).
+    internal bool LegacySeen => _session.Document is { } document && StratSceneProjection.IsLegacyObserved(document);
+
     /// <summary>Removes position entries of a step, a placed chip's ✕: one undo entry.</summary>
     /// <param name="stepId">The step.</param>
     /// <param name="positions">The entries' indices.</param>
@@ -1029,9 +1032,12 @@ public sealed partial class StratEditorViewModel : ObservableObject
         }
 
         Dictionary<int, Dictionary<int, string>> zips = [];
-        foreach ((int step, int position, string message) in StratValidator.FastDepartures(document))
+        foreach (StratIssue issue in _session.Issues)
         {
-            (zips.TryGetValue(step, out Dictionary<int, string>? byPosition) ? byPosition : zips[step] = [])[position] = message;
+            if (issue.Severity == StratIssueSeverity.Warning && StratDepartureCheck.PositionOf(issue.Field) is { } at)
+            {
+                (zips.TryGetValue(at.Step, out Dictionary<int, string>? byPosition) ? byPosition : zips[at.Step] = [])[at.Position] = issue.Message;
+            }
         }
 
         for (int i = 0; i < document.Steps.Count; i++)
@@ -1823,7 +1829,7 @@ public sealed partial class StratStepRow : ObservableObject
     // Rebuilt only when what they say changes, so a focused chip keeps focus across an unrelated edit.
     private void LoadPlaced(StratStep step, IReadOnlyDictionary<int, string>? warnings)
     {
-        List<StratPlacedChip> chips = StratPlacedChip.For(this, step, _owner.KnownPlaceAtForRows, warnings);
+        List<StratPlacedChip> chips = StratPlacedChip.For(this, step, _owner.KnownPlaceAtForRows, warnings, _owner.LegacySeen);
         if (Placed.Select(Key).SequenceEqual(chips.Select(Key)))
         {
             return;

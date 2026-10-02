@@ -223,6 +223,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas.LinesShownApart = Editor.ShowsLinesApart;
         Editor.PlaceAt = Canvas.PlaceAt;
         Editor.PlacesKnown = () => Canvas.HasPlaces;
+        Session.GeometryChecks = Canvas.DepartureChecks;
         Editor.LinesViewChanged += Canvas.RefreshSetPlace;
 
         // Place warnings from the canvas's loaded zones: none until they land, then a fresh validation.

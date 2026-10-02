@@ -1058,6 +1058,42 @@ public sealed class StratSceneProjection
         return found;
     }
 
+    /// <summary>The route resolver the tracks were built with; null when they are straight.</summary>
+    internal PathResolver? Paths => _places.Paths;
+
+    /// <summary>
+    ///     Where a slot last stood or arrived before a tick, and when: a run's arrival, a run's start while it still runs
+    ///     at the tick, or a placed entry, whichever is latest. Null when nothing placed it.
+    /// </summary>
+    /// <param name="slot">The token.</param>
+    /// <param name="beforeTick">The tick.</param>
+    internal (int Tick, TokenKeyframe At)? LastStand(string slot, int beforeTick)
+    {
+        int best = int.MinValue;
+        foreach (RunSpan run in _runs.TryGetValue(slot, out List<RunSpan>? runs) ? runs : [])
+        {
+            if (run.StartTick < beforeTick)
+            {
+                best = Math.Max(best, run.ArriveTick <= beforeTick ? run.ArriveTick : run.StartTick);
+            }
+        }
+
+        if (_plans.TryGetValue(slot, out SlotPlan? plan))
+        {
+            for (int i = 0; i < plan.Placements.Length; i++)
+            {
+                if (plan.Placements[i] is not null && plan.Ticks[i] < beforeTick)
+                {
+                    best = Math.Max(best, plan.Ticks[i]);
+                }
+            }
+        }
+
+        return best > int.MinValue && Tracks.FirstOrDefault(t => t.Slot == slot) is { } track && track.TrySample(best, out TokenKeyframe at)
+            ? (best, at)
+            : null;
+    }
+
     /// <summary>The runs one path step sends: its destinations', or its lurk's rotate walks.</summary>
     /// <param name="pathIndex">The step's position on the path.</param>
     /// <param name="rotate">The rotate walks instead of the destinations.</param>

@@ -307,9 +307,15 @@ Where the build differs from the text above, or settles what it left open:
 * **Nothing places the token.** Paused on a token that no step has placed at or before the playhead, the drag is
   refused with "no step places E here to edit: hold Alt to pin it".
 * **Opponents and Alt** write on the selected step (on its tick, the step that wins it for the slot).
-* **The zip check** is a warning only, not an info on every departure: straight distance from the slot's last spot
-  (an earlier position, or a destination that is a point) over the time since that step. A last spot that is a place
-  is not checked, since the validator has no zones.
+* **The zip check** is a warning only, not an info on every departure. It reads the leg from the projection with the
+  departure taken out (where the token last stood or arrived, by route length when routing is on), so it matches what
+  the canvas plays. It runs as a session check the canvas supplies (`StratSession.GeometryChecks`), not in
+  `StratValidator`, which has no map.
+* **Seen positions.** A drop on a travel or lurk field also removes the slot's observed entry on the step (any entry in
+  a legacy capture), since a capture's spot beats every field. The status line says so.
+* **Step edits during a drag** cancel it first; a drag whose step moved under it writes nothing.
+* **A drop the playhead has passed** (a lurker already at its last area when lurk area 1 changes) leaves a faint ring
+  at the arrival of the step's first run for that token, until the playhead moves.
 * **The pinned chip** says "not using the step's place" in its tooltip; the row's `at` gets no extra marker.
 * **A group of one** reads as its entry (`O2 at (2060, 0) 135°`), not `opponents (1)`.
 * **The armed highlight** is the existing one plus an `AccentInteractive` outline on the field's box, which Set on map

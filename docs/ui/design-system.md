@@ -744,14 +744,18 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
     under it, and the row field the drop writes is lit through `ArmedField`, the highlight Set on map gives it: an
     armed `PlaceField` outlines its box in `AccentInteractive` and bolds its pick glyph. A compact row's field stands
     for every line, so the highlight names the field the row shows even when the write goes to one line.
+  - **A seen position** on a travel or lurk step goes with the drop, in the same undo entry; the status line ends
+    "replaced the seen position". Add step, Duplicate and Delete step cancel an open drag.
   - **After the release** the token is drawn where it stands at the playhead, and the selected step's destination
     pins show where it sends each token it moves: a hollow ring in the side colour at the arrival and a solid route
     there in the ghost colour, with a small `Pb2dCanvasDropTarget` diamond at each via. Pins show while paused, until
     the token arrives; dragging a pin is the same edit as dragging its token. The status line says what changed:
-    `E's lurk area 1 is now Long Doors (was Middle). Ctrl+Z undoes`.
+    `E's lurk area 1 is now Long Doors (was Middle). Ctrl+Z undoes`. When the playhead is past the step's run for that
+    token (a lurker at its last area), a faint ring at the run's arrival (the pin colour at 40%, no route) marks where the
+    drop went, until the playhead moves.
   - **Tokens:** `Pb2dCanvasRouteGhostT` (`#B3E0A030` dark, `#B3A66A15` light) and `Pb2dCanvasRouteGhostCt`
     (`#B34A90D9`, `#B3285F9E`), the side colours at about 70%; `Pb2dCanvasDropTarget` (`#A99CF0` dark, `#5B4BC4`
-    light, `#00E5FF` high contrast), a violet light enough to read over the radar, where `AccentInteractive` is too
+    light, `#00E5FF` high contrast; high contrast also sets the ghost routes to its team colours at 90%), a violet light enough to read over the radar, where `AccentInteractive` is too
     dark. `ScenePalette.Dark` and `Light` carry the same values for headless renders.
 - **Utility in flight:** the strat canvas and the Detected preview turn trails on
   (`StratCanvasViewModel.ShowTrails`), and an export names the trail layer (`StratExportJob.LayerIds`). A throw draws as a demo grenade does, through `TrailLayer` and
@@ -762,7 +766,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### Placed chips (the Strats editor's step row)
 - **Files:** `ViewModels/StratBook/StratPlacedChips.cs` (`StratPlacedChip.For`, `StratPlacedEntry`), `StratStepRow.Placed`,
-  the `placed` strip in `StratBookTabView.axaml`, `StratDragPatches.Convert` and `Clear`, `StratValidator.FastDepartures`.
+  the `placed` strip in `StratBookTabView.axaml`, `StratDragPatches.Convert` and `Clear`, `StratDepartureCheck`.
 - **What:** a step's `positions[]` entries, which beat or stand in for its fields, so nothing moves a token unseen. A
   `placed` label over a `WrapPanel` of chips (max 280 px, so it wraps inside the 315 px editor that
   `StratEditorRoomTests` guards), above `note`, shown only when it has a chip.
