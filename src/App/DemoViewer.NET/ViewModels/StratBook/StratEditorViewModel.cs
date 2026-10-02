@@ -404,6 +404,14 @@ public sealed partial class StratEditorViewModel : ObservableObject
             mid.Lurk = null;
         }
 
+        bool clearVia = !StratStepFields.Uses(verb, StratStepField.Via);
+        if (clearVia && (mid.Via is not null || mid.ViaPoints is not null))
+        {
+            ops.AddRange(StratLinePatches.StepVia(mid, path, null, null));
+            mid.Via = null;
+            mid.ViaPoints = null;
+        }
+
         bool clearWatch = !StratStepFields.Uses(verb, StratStepField.Watch);
         List<StepAssignment> lines = StratLinePatches.Copy(mid);
         bool linesChanged = false;
@@ -418,6 +426,13 @@ public sealed partial class StratEditorViewModel : ObservableObject
             if (clearWatch && line.Watch is not null)
             {
                 line.Watch = null;
+                linesChanged = true;
+            }
+
+            if (clearVia && (line.Via is not null || line.ViaPoints is not null))
+            {
+                line.Via = null;
+                line.ViaPoints = null;
                 linesChanged = true;
             }
         }
@@ -1239,6 +1254,12 @@ public sealed partial class StratStepRow : ObservableObject
     private string _lurkAreasText = "";
 
     [ObservableProperty]
+    private string _groupViaText = "";
+
+    [ObservableProperty]
+    private IReadOnlyList<PlaceRef> _groupViaValue = [];
+
+    [ObservableProperty]
     private string _rotateAtText = "";
 
     [ObservableProperty]
@@ -1300,6 +1321,8 @@ public sealed partial class StratStepRow : ObservableObject
 
     public StratLocationField GroupWatchTarget => new(Id, StratLocationField.AllLines, StratLocationKind.Watch);
 
+    public StratLocationField GroupViaTarget => new(Id, StratLocationField.AllLines, StratLocationKind.Via);
+
     public StratLocationField LurkAreasTarget => new(Id, null, StratLocationKind.LurkArea);
 
     public StratLocationField RotateToTarget => new(Id, null, StratLocationKind.RotateTo);
@@ -1322,7 +1345,7 @@ public sealed partial class StratStepRow : ObservableObject
     public int PlayerCount { get; private set; }
 
     /// <summary>Split is offered on a compact row with more than one player and a place or watching to differ in.</summary>
-    public bool CanSplit => ShowCompact && PlayerCount > 1 && (ShowGroupPlace || ShowGroupWatch);
+    public bool CanSplit => ShowCompact && PlayerCount > 1 && (ShowGroupPlace || ShowGroupWatch || ShowGroupVia);
 
     // Each compact field takes both columns while the other is hidden.
     public int GroupPlaceSpan => ShowGroupWatch ? 1 : 2;
@@ -1339,6 +1362,9 @@ public sealed partial class StratStepRow : ObservableObject
 
     /// <summary>The compact watching shows when the verb uses it or the lines hold one.</summary>
     public bool ShowGroupWatch => StratStepFields.Uses(Verb, StratStepField.Watch) || GroupWatchText.Length > 0;
+
+    /// <summary>The compact via shows for a travel verb, or while the lines hold one.</summary>
+    public bool ShowGroupVia => StratStepFields.Uses(Verb, StratStepField.Via) || GroupViaText.Length > 0;
 
     /// <summary>The lines share an explicit view angle.</summary>
     public bool HasGroupAngle { get; private set; }
@@ -1358,6 +1384,11 @@ public sealed partial class StratStepRow : ObservableObject
     public StratFieldIssue? GroupPlaceIssue { get; private set; }
 
     public StratFieldIssue? GroupWatchIssue { get; private set; }
+
+    public StratFieldIssue? GroupViaIssue { get; private set; }
+
+    /// <summary>A warning on the step's own via, shown on the compact via.</summary>
+    public StratFieldIssue? ViaIssue { get; private set; }
 
     public StratFieldIssue? LurkAreasIssue { get; private set; }
 
@@ -1594,6 +1625,7 @@ public sealed partial class StratStepRow : ObservableObject
         LurkAreasIssue = StratFieldIssue.From(byField, nameof(LurkAreasIssue));
         RotateAtIssue = StratFieldIssue.From(byField, nameof(RotateAtIssue));
         RotateToIssue = StratFieldIssue.From(byField, nameof(RotateToIssue));
+        ViaIssue = StratFieldIssue.From(byField, nameof(ViaIssue));
         IssueText = string.Join(Environment.NewLine, lines);
         for (int j = 0; j < Lines.Count; j++)
         {
@@ -1604,13 +1636,14 @@ public sealed partial class StratStepRow : ObservableObject
         WhoIssue = StratFieldIssue.Merge([ActorIssue, .. Lines.Select(l => l.SlotIssue)]);
         GroupPlaceIssue = StratFieldIssue.Merge(HasLines ? [.. Lines.Select(l => l.PlaceIssue)] : IsStrayTo ? [] : [ToIssue]);
         GroupWatchIssue = StratFieldIssue.Merge([.. Lines.Select(l => l.WatchIssue)]);
+        GroupViaIssue = StratFieldIssue.Merge([ViaIssue, .. Lines.Select(l => l.ViaIssue)]);
 
         foreach (string name in (string[])
                  [
                      nameof(TimeIssue), nameof(ActorIssue), nameof(VerbIssue), nameof(FromIssue), nameof(ToIssue), nameof(UtilityIssue),
                      nameof(LineupIssue), nameof(TechniqueIssue), nameof(LandingIssue), nameof(RowIssue), nameof(IssueText), nameof(HasIssues),
                      nameof(LurkAreasIssue), nameof(RotateAtIssue), nameof(RotateToIssue), nameof(WhoIssue), nameof(GroupPlaceIssue),
-                     nameof(GroupWatchIssue)
+                     nameof(GroupWatchIssue), nameof(GroupViaIssue), nameof(ViaIssue)
                  ])
         {
             OnPropertyChanged(name);
@@ -1628,7 +1661,9 @@ public sealed partial class StratStepRow : ObservableObject
             return (line, parts.Length > 5 ? parts[5] : "slot");
         }
 
-        return !HasStoredLines && Lines.Count == 1 && parts.Length > 3 && parts[3] == "to" ? (0, "to") : (null, null);
+        return !HasStoredLines && Lines.Count == 1 && parts.Length > 3 && parts[3] is "to" or "via" or "viaPoints"
+            ? (0, parts[3] == "to" ? "to" : "via")
+            : (null, null);
     }
 
     // The marker a pointer under /steps/{i} belongs to. A field the row hides marks the row instead.
@@ -1644,6 +1679,7 @@ public sealed partial class StratStepRow : ObservableObject
             ("verb", _) => nameof(VerbIssue),
             ("from", _) when ShowFrom => nameof(FromIssue),
             ("to", _) when ShowTo => nameof(ToIssue),
+            ("via" or "viaPoints", _) when ShowGroupVia => nameof(ViaIssue),
             ("utility", "lineupId") => ShowLineup ? nameof(LineupIssue) : nameof(RowIssue),
             ("utility", "technique") => ShowTechnique ? nameof(TechniqueIssue) : nameof(RowIssue),
             ("utility", "landing") => ShowLanding ? nameof(LandingIssue) : nameof(RowIssue),
@@ -1673,6 +1709,7 @@ public sealed partial class StratStepRow : ObservableObject
         nameof(LurkAreasIssue) => "lurk areas",
         nameof(RotateAtIssue) => "rotate at",
         nameof(RotateToIssue) => "rotate to",
+        nameof(ViaIssue) => "via",
         _ => "step"
     };
 
@@ -1770,11 +1807,16 @@ public sealed partial class StratStepRow : ObservableObject
         GroupPlaceText = _owner.DisplayLocations(GroupPlaceValue);
         GroupWatchValue = StratLocations.Watched(shared?.Watch);
         GroupWatchText = _owner.DisplayLocations(GroupWatchValue);
+        GroupViaValue = StratLocations.Via(shared?.Via, shared?.ViaPoints);
+        GroupViaText = _owner.DisplayLocations(GroupViaValue);
         HasGroupAngle = shared?.Watch?.YawDegrees is not null;
         GroupAngleText = shared?.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
         RefreshView();
         foreach (string name in (string[])
-                 [nameof(WhoText), nameof(PlayerCount), nameof(HasGroupAngle), nameof(GroupAngleText), nameof(ShowGroupPlace), nameof(ShowGroupWatch)])
+                 [
+                     nameof(WhoText), nameof(PlayerCount), nameof(HasGroupAngle), nameof(GroupAngleText), nameof(ShowGroupPlace), nameof(ShowGroupWatch),
+                     nameof(ShowGroupVia)
+                 ])
         {
             OnPropertyChanged(name);
         }
@@ -1807,6 +1849,19 @@ public sealed partial class StratStepRow : ObservableObject
     partial void OnGroupPlaceValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(GroupPlaceTarget, value);
 
     partial void OnGroupWatchValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(GroupWatchTarget, value);
+
+    partial void OnGroupViaValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(GroupViaTarget, value);
+
+    partial void OnGroupViaTextChanged(string value)
+    {
+        RaiseShown();
+        if (_owner.IsProjecting)
+        {
+            return;
+        }
+
+        _owner.WriteLocation(GroupViaTarget, _owner.ParseLocations(value, GroupViaValue, true));
+    }
 
     partial void OnFromValueChanged(IReadOnlyList<PlaceRef> value) => _owner.WriteLocation(FromTarget, value);
 
@@ -1914,6 +1969,7 @@ public sealed partial class StratStepRow : ObservableObject
         OnPropertyChanged(nameof(ToLabel));
         OnPropertyChanged(nameof(ShowGroupPlace));
         OnPropertyChanged(nameof(ShowGroupWatch));
+        OnPropertyChanged(nameof(ShowGroupVia));
         OnPropertyChanged(nameof(GroupPlaceSpan));
         OnPropertyChanged(nameof(GroupWatchColumn));
         OnPropertyChanged(nameof(GroupWatchSpan));
@@ -2078,6 +2134,12 @@ public sealed partial class StratLineRow : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<PlaceRef> _watchValue = [];
 
+    [ObservableProperty]
+    private string _viaText = "";
+
+    [ObservableProperty]
+    private IReadOnlyList<PlaceRef> _viaValue = [];
+
     internal StratLineRow(StratStepRow row) => _row = row;
 
     /// <summary>The owner's words for the location fields' lists.</summary>
@@ -2091,6 +2153,9 @@ public sealed partial class StratLineRow : ObservableObject
 
     /// <summary>What the line's watching field writes and picks.</summary>
     public StratLocationField WatchTarget => new(_row.Id, Slot, StratLocationKind.Watch);
+
+    /// <summary>What the line's via field writes and picks: this slot's <c>via</c>.</summary>
+    public StratLocationField ViaTarget => new(_row.Id, Slot, StratLocationKind.Via);
 
     /// <summary>The step row this line is on.</summary>
     public StratStepRow Row => _row;
@@ -2118,6 +2183,9 @@ public sealed partial class StratLineRow : ObservableObject
     /// <summary>The verb uses watching, or this line holds a watch.</summary>
     public bool ShowWatch { get; private set; }
 
+    /// <summary>The verb travels, or this line holds a via.</summary>
+    public bool ShowVia { get; private set; }
+
     /// <summary>An explicit view angle is set: the cone points there, not at the first watched place.</summary>
     public bool HasAngle { get; private set; }
 
@@ -2128,6 +2196,8 @@ public sealed partial class StratLineRow : ObservableObject
     public StratFieldIssue? PlaceIssue { get; private set; }
 
     public StratFieldIssue? WatchIssue { get; private set; }
+
+    public StratFieldIssue? ViaIssue { get; private set; }
 
     internal void Load(int index, StepAssignment line, bool isImplicit, string verb, IReadOnlyList<string> slotOptions)
     {
@@ -2153,6 +2223,9 @@ public sealed partial class StratLineRow : ObservableObject
             PlaceLabel = StratStepFields.ToLabel(verb);
             ShowPlace = StratStepFields.Uses(verb, StratStepField.To) || PlaceText.Length > 0;
             ShowWatch = StratStepFields.Uses(verb, StratStepField.Watch) || WatchText.Length > 0 || line.Watch?.YawDegrees is not null;
+            ViaValue = StratLocations.Via(line.Via, line.ViaPoints);
+            ViaText = _row.Owner.DisplayLocations(ViaValue);
+            ShowVia = StratStepFields.Uses(verb, StratStepField.Via) || ViaText.Length > 0;
             HasAngle = line.Watch?.YawDegrees is not null;
             AngleText = line.Watch?.YawDegrees is { } yaw ? yaw.ToString("0", CultureInfo.InvariantCulture) + "°" : "";
         }
@@ -2164,7 +2237,7 @@ public sealed partial class StratLineRow : ObservableObject
         foreach (string name in (string[])
                  [
                      nameof(Index), nameof(IsImplicit), nameof(IsExplicit), nameof(PlaceLabel), nameof(ShowPlace), nameof(ShowWatch), nameof(HasAngle),
-                     nameof(AngleText), nameof(Callouts), nameof(PlaceTarget), nameof(WatchTarget)
+                     nameof(AngleText), nameof(Callouts), nameof(PlaceTarget), nameof(WatchTarget), nameof(ViaTarget), nameof(ShowVia)
                  ])
         {
             OnPropertyChanged(name);
@@ -2180,6 +2253,7 @@ public sealed partial class StratLineRow : ObservableObject
             {
                 "to" => nameof(PlaceIssue),
                 "watch" => nameof(WatchIssue),
+                "via" or "viaPoints" => nameof(ViaIssue),
                 _ => nameof(SlotIssue)
             };
             if (!byField.TryGetValue(field, out List<StratIssue>? list))
@@ -2193,6 +2267,8 @@ public sealed partial class StratLineRow : ObservableObject
         SlotIssue = StratFieldIssue.From(byField, nameof(SlotIssue));
         PlaceIssue = StratFieldIssue.From(byField, nameof(PlaceIssue));
         WatchIssue = StratFieldIssue.From(byField, nameof(WatchIssue));
+        ViaIssue = StratFieldIssue.From(byField, nameof(ViaIssue));
+        OnPropertyChanged(nameof(ViaIssue));
         OnPropertyChanged(nameof(SlotIssue));
         OnPropertyChanged(nameof(PlaceIssue));
         OnPropertyChanged(nameof(WatchIssue));
@@ -2202,6 +2278,7 @@ public sealed partial class StratLineRow : ObservableObject
     {
         "to" => PlaceLabel,
         "watch" => "watching",
+        "via" or "viaPoints" => "via",
         _ => "slot"
     };
 
@@ -2279,6 +2356,21 @@ public sealed partial class StratLineRow : ObservableObject
         WriteWatch(_row.Owner.ParseLocations(value, WatchValue, true));
     }
 
+    partial void OnViaValueChanged(IReadOnlyList<PlaceRef> value)
+    {
+        if (!_loading && Slot is not null)
+        {
+            _row.Owner.WriteLocation(ViaTarget, value);
+        }
+    }
+
+    partial void OnViaTextChanged(string value)
+    {
+        if (!_loading && Slot is not null)
+        {
+            _row.Owner.WriteLocation(ViaTarget, _row.Owner.ParseLocations(value, ViaValue, true));
+        }
+    }
 }
 
 /// <summary>One slot's toggle in a step row's Who flyout.</summary>

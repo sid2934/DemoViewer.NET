@@ -15,8 +15,11 @@ public enum StratStepField
     /// <summary>A lurk's areas and rotate.</summary>
     Lurk = 16,
 
+    /// <summary>Places a travel goes through on its way: <c>via</c>, the step's or each line's.</summary>
+    Via = 32,
+
     /// <summary>What <c>other</c> and a verb outside the vocabulary use: everything but the lurk's own fields.</summary>
-    All = From | To | Utility | Watch
+    All = From | To | Utility | Watch | Via
 }
 
 /// <summary>What a step's verb does with its destination (<see cref="StratStepFields.MotionOf" />).</summary>
@@ -49,13 +52,13 @@ public static class StratStepFields
     /// <param name="verb">A step verb.</param>
     public static StratStepField For(string? verb) => verb switch
     {
-        "move" or "rotate" => StratStepField.From | StratStepField.To,
-        "push" => StratStepField.From | StratStepField.To | StratStepField.Watch,
+        "move" or "rotate" => StratStepField.From | StratStepField.To | StratStepField.Via,
+        "push" => StratStepField.From | StratStepField.To | StratStepField.Watch | StratStepField.Via,
         "hold" or "peek" => StratStepField.To | StratStepField.Watch,
         "plant" or "defuse" => StratStepField.To,
         "throw" => StratStepField.Utility,
         "fake" => StratStepField.To | StratStepField.Utility | StratStepField.Watch,
-        "lurk" => StratStepField.Watch | StratStepField.Lurk,
+        "lurk" => StratStepField.Watch | StratStepField.Lurk | StratStepField.Via,
         "wait" or "call" => StratStepField.None,
         _ => StratStepField.All
     };
