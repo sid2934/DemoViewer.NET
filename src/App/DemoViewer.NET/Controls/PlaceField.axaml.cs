@@ -481,7 +481,7 @@ public partial class PlaceField : UserControl
             Child = new DockPanel { Children = { remove, new TextBlock { Text = text } } }
         };
         AutomationProperties.SetName(chip, text);
-        ToolTip.SetTip(chip, text + "\nAlt+Left or Alt+Right moves it, Backspace removes it");
+        ToolTip.SetTip(chip, text + "\nAlt+Left or Alt+Right moves it, Backspace or Delete removes it");
         chip.KeyDown += (_, e) => OnChipKeyDown(index, e);
         chip.PointerPressed += (_, e) =>
         {
@@ -496,7 +496,7 @@ public partial class PlaceField : UserControl
             {
                 MenuEntry("Move left", new KeyGesture(Key.Left, KeyModifiers.Alt), _model.CanShift(index, -1), () => ShiftChip(index, -1)),
                 MenuEntry("Move right", new KeyGesture(Key.Right, KeyModifiers.Alt), _model.CanShift(index, 1), () => ShiftChip(index, 1)),
-                MenuEntry("Remove", new KeyGesture(Key.Back), true, () => RemoveChip(index, false))
+                MenuEntry("Remove", new KeyGesture(Key.Delete), true, () => RemoveChip(index, false))
             }
         };
         return chip;

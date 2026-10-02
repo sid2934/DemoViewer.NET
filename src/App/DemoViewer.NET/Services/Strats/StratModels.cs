@@ -444,7 +444,17 @@ public sealed class StepAssignment
 public sealed class StepWatch
 {
     /// <summary>Canonical place names, never callouts.</summary>
+    [JsonIgnore]
     public List<string> Places { get; set; } = [];
+
+    // Written only when it holds a place, so a watch left with an angle or points carries no "places": [].
+    [JsonInclude]
+    [JsonPropertyName("places")]
+    internal List<string>? PlacesJson
+    {
+        get => Places.Count == 0 ? null : Places;
+        set => Places = value ?? [];
+    }
 
     /// <summary>World yaw, 0 = +X; overrides facing the first place.</summary>
     public double? YawDegrees { get; set; }

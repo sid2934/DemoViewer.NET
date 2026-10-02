@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -332,6 +333,100 @@ public partial class StratLocationFieldTests
                     .Select(p => p.Place ?? "")).IsEquivalentTo(["Connector", "BombsiteB"]);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(via.Chips.Count).IsEqualTo(2);
+            }
+
+            window.Close();
+        });
+
+    [Test]
+    public async Task AnAliasTypedExactly_ForAChosenCallout_HighlightsNothing_AndIsRefused()
+    {
+        PlaceFieldModel model = new(true) { Options = PlaceFieldOptions.For(Mirage) };
+        model.Load([Named("PalaceInterior")]);
+        model.Type("palace");
+        using (Assert.Multiple())
+        {
+            await Assert.That(model.Items.Any(o => o.Place == "PalaceAlley")).IsTrue().Because("a neighbour that starts the same is listed");
+            await Assert.That(model.Highlight).IsEqualTo(-1).Because("\"palace\" is PalaceInterior's alias, already chosen");
+            await Assert.That(model.Accept()).IsNull();
+            await Assert.That(model.Commit()).IsNull();
+            await Assert.That(model.Value.Select(p => p.Place ?? "")).IsEquivalentTo(["PalaceInterior"]);
+        }
+    }
+
+    [Test]
+    public async Task RemovingTheLastWatchedChip_BesideAnAngle_DropsThePlacesArray_WithExactUndoAndRedo() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using StratBookTabViewModel vm = OpenOnMirage();
+            StratStep hold = StratStepEditingTests.Step(100, "B", "hold", StratStepEditingTests.At("B", 0));
+            hold.Assignments = [new StepAssignment { Slot = "B", Watch = new StepWatch { Places = ["Stairs"], YawDegrees = 135 } }];
+            StratStepEditingTests.Seed(vm, hold);
+            (Window window, StratBookTabView _, Control row, int index) = ShowStep(vm);
+            PlaceField watch = FieldIn(row, "LineWatchField", "GroupWatchField");
+            string before = Bytes(vm);
+            int depth = vm.Session.UndoDepth;
+
+            Click(window, watch.Chips[0].GetVisualDescendants().OfType<Button>().Single());
+            string removed = Bytes(vm);
+            JsonObject kept = JsonNode.Parse(removed)!["steps"]![index]!["assignments"]![0]!["watch"]!.AsObject();
+            using (Assert.Multiple())
+            {
+                await Assert.That(kept["yawDegrees"]!.GetValue<double>()).IsEqualTo(135);
+                await Assert.That(kept.ContainsKey("places")).IsFalse().Because("no empty places array is written");
+                await Assert.That(kept.ContainsKey("points")).IsFalse();
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+            }
+
+            vm.Session.Undo();
+            await Assert.That(Bytes(vm)).IsEqualTo(before);
+            vm.Session.Redo();
+            await Assert.That(Bytes(vm)).IsEqualTo(removed);
+            window.Close();
+        });
+
+    [Test]
+    public async Task TheListsHighlight_ScrollsTheList_AndNeverTheEditor() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using StratBookTabViewModel vm = OpenOnMirage();
+            for (int i = 0; i < 6; i++)
+            {
+                StratStepEditingTests.Seed(vm, StratStepEditingTests.Step(100 - i, "C", "move"));
+            }
+
+            StratStep lurk = StratStepEditingTests.Step(90, "E", "lurk");
+            lurk.Lurk = new StepLurk { Areas = ["PalaceInterior"] };
+            StratStepEditingTests.Seed(vm, lurk);
+            (Window window, StratBookTabView _, Control row, int _) = ShowStep(vm);
+            PlaceField areas = FieldIn(row, "LurkAreasField");
+            ScrollViewer editor = window.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "EditorScroll");
+            editor.Offset = new Vector(0, 0);
+            Dispatcher.UIThread.RunJobs();
+
+            // Reached by Tab from above: the field scrolls into view after its list opened, and the list is placed again.
+            BoxOf(areas).Focus(NavigationMethod.Tab);
+            BoxOf(areas).Text = "a";
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            Vector editorAt = editor.Offset;
+            ListBox list = areas.FindControl<ListBox>("OptionList")!;
+            ScrollViewer inner = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+            Vector listAt = inner.Offset;
+            for (int i = 0; i < 15; i++)
+            {
+                window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(editorAt.Y).IsGreaterThan(0).Because("the field sits low in a scrolled editor");
+                await Assert.That(areas.IsDropDownOpen).IsTrue();
+                await Assert.That(areas.Model.Highlight).IsGreaterThanOrEqualTo(12);
+                await Assert.That(inner.Offset.Y).IsGreaterThan(listAt.Y).Because("the list follows its highlight");
+                await Assert.That(editor.Offset).IsEqualTo(editorAt).Because("the editor stays where it was");
             }
 
             window.Close();
