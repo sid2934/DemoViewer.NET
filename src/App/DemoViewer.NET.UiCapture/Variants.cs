@@ -245,6 +245,9 @@ public static partial class Variants
             ["strat-editor-seed-move-regroup"] = () => StratEditorSeedMove(68),
             ["strat-editor-seed-move-rotate"] = () => StratEditorSeedMove(32),
             ["strat-editor-execute-throws"] = StratEditorExecuteThrows,
+            ["strat-routing-execute-b"] = () => StratRoutingExecuteB(104),
+            ["strat-routing-execute-b-push"] = () => StratRoutingExecuteB(83),
+            ["strat-routing-via"] = StratRoutingVia,
             ["strat-lineup-picker"] = StratLineupPicker
         };
 
