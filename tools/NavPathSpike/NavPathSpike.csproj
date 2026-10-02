@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Token pathing spike (docs/strat-book/token-pathing.md). Out of the .slnx on purpose. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <AnalysisMode>Minimum</AnalysisMode>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Playback2D\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+    </ItemGroup>
+
+</Project>
