@@ -208,8 +208,10 @@ with a floor key per waypoint, and the projection treats it as follows:
   then straight to the point. A point that does not snap gets a straight line, as today.
 
 **Drag preview.** `TrackWith` rebuilds one slot per pointer move, which means at most a few dozen queries
-per move at 7 to 160 us each. Memoise per slot per (start area, end area, rounded endpoints) so a still
-pointer costs nothing. Nothing else is needed.
+per move at 7 to 160 us each. Memoise per (start area, end area, endpoints) so a still pointer costs
+nothing. As built, the endpoints are exact, not rounded: a rounded key would answer one query with another's
+endpoints, so the projection would depend on query order. A still pointer repeats its floats exactly, so it
+still hits; a moving one misses, at the measured 0.14 ms per move.
 
 **Export.** `StratExportJob` takes a built `StratSceneProjection`, so routes, longer arrivals and the later
 `ContentEndTick` follow with no export change. The goldens and tests that pin arrival ticks move only where

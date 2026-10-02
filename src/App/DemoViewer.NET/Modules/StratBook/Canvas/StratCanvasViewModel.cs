@@ -116,7 +116,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <param name="post">Returns a late place lookup to the UI thread; the dispatcher when omitted.</param>
     /// <param name="routing">
     ///     Whether tokens follow the map's nav round walls; the <c>stratbook.routing</c> feature when omitted, which a
-    ///     settings change re-reads.
+    ///     settings change re-reads. With no feature gate (a host without services) routing is off.
     /// </param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
@@ -129,7 +129,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _placesFor = placesFor ?? QueuedPlaces;
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         _gate = routing is null ? AppFeatureGate() : null;
-        _routing = routing ?? (() => _gate?.IsEnabled(FeatureCatalog.StratRoutingFeatureId) ?? true);
+        _routing = routing ?? (() => _gate?.IsEnabled(FeatureCatalog.StratRoutingFeatureId) ?? false);
         if (_gate is not null)
         {
             _gate.Changed += OnGateChanged;
@@ -969,7 +969,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
-    // A host torn down before this canvas (a headless test, shutdown) has no gate to read: routing stays on.
+    // A host torn down before this canvas (a headless test, shutdown) has no gate to read: routing stays off.
     private static IFeatureGate? AppFeatureGate()
     {
         try

@@ -303,7 +303,8 @@ public static partial class Variants
         StratBookTabViewModel vm = new(store, null, null, false, layout: layout, spawns: spawns,
             canvasPlaces: places is not null
                 ? _ => Task.FromResult<IZonePlaceResolver?>(places)
-                : map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)));
+                : map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)),
+            canvasRouting: () => true);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = map;
