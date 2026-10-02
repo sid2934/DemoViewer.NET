@@ -336,9 +336,9 @@ before.
   via with its `to`: onto the line when a watch makes a one-player step a line, back onto the step when the lines fold
   to a plain step or to `all`. Five bare lines fold to `all` only when their vias agree too.
 * **Which verbs** (`StratStepFields`, `StratStepField.Via`): the travel verbs, move, push, rotate, `other` and lurk (its
-  walk to its first area; the walk on to the other areas takes no via). The editor's verb change clears a via the new verb does not use, in the same entry. The
-  editor shows a multi place field labelled `via`: one on the compact row, which writes every line, and one per line
-  when the row is split. Its map pick adds the place under the click, or the point outside every place
+  walk to its first area; the walk on to the other areas takes no via). The editor's verb change clears a via the
+  new verb does not use, in the same entry. The editor shows a multi place field labelled `via`: one on the compact
+  row, which writes every line, and one per line when the row is split. Its map pick adds the place under the click, or the point outside every place
   (`StratLocationKind.Via`).
 * **Printing.** The call sheet, the role sheets, LAN print and the history print it after the destination:
   `B moves T Spawn → Long Doors via Outside Long` (`StratStepPhrasing`), `C → Bombsite B via Middle` for a line, and
@@ -394,7 +394,10 @@ The place rules wait for the map's zones, as the other place warnings do.
 the canvas"): to the first area (through the line's via, if any), then each next area as soon as it reaches the one
 before, with no stop on the way, and it holds at the last area until the rotate. A rotate that comes before the
 lurker reaches its last area cuts the walk where the token is, as any later destination cuts a run, and the areas
-after it are not walked. A rotate with a time and a place moves every token the step names: from the rotate time the
+after it are not walked. An area the map lacks is passed over, first or later. The step's `holdSeconds` delays the
+start of the walk; its `interpolation` shapes every leg, so `hold` waits at each area and jumps to the next. Two
+lurkers at one area at once (two lines on one lurk step, say) stand on their own spots, as tokens sent to one place
+do; a lurker walking through an area is there only for the tick it turns to the next. A rotate with a time and a place moves every token the step names: from the rotate time the
 token walks from where it stands to the centre of the rotate-to place (`StratPlaceCentres.Arrival`: on the token's
 floor when the place has areas there, else on the floor holding most of the place, and the token arrives on that
 floor), at
@@ -413,8 +416,8 @@ throw with a lineup and one named slot still pins that slot); else the slot's li
 else towards the first watched entry: a place's centre, on the token's level when the place has nav areas
 there, else over all its floors, or a watched point itself. An entry within 16 units of the token gives no direction
 and the next one is faced, so a lurker holding Long Doors while it watches Long Doors and Top of Mid faces Top of Mid;
-an entry the map lacks (or one whose zones are not in yet) ends the search. Else `positions[].yawDegrees`; else, for a token a
-destination moves, the direction it travels; else the yaw it had. A token running to a destination faces the way
+an entry the map lacks (or one whose zones are not in yet) ends the search. Else `positions[].yawDegrees`; else, for
+a token a destination moves, the direction it travels; else the yaw it had. A token running to a destination faces the way
 it runs and turns to its watch on arrival, faced from the arrival point; one already there turns at the step's
 time. A watching line on a
 step with no position for its slot adds a keyframe where the token already stands, so no move is re-timed.
