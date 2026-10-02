@@ -484,8 +484,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   or a pick. The angle button (`135°`) shows only while `watch.yawDegrees` is set and clears it, so the cone faces
   the first watched place again. The line Set On Map writes has a 2 px `AccentInteractive` bar on its left
   (`Border.stratLine.lineSelected`); focus or a press in a line's field selects its step and the line. At 1280 with
-  the rail and list open the line's fields are about 95 px each, so long callout lists trim inside the field; from,
-  lands at and rotate to are 150 px, so a coordinate with both buttons reads whole.
+  the rail and list open the line's fields are about 95 px each, so a watching list's chips wrap onto more lines and a
+  long callout trims inside its chip; from, lands at and rotate to are 150 px, so a coordinate with both buttons reads
+  whole.
 - **Verb change:** the verb and a remove for each member the new verb does not use and the step has (a lurk
   included); each line's `to`, watch and via the verb does not use are cleared through `StratLinePatches` in the same
   entry, so a one-player line that loses its watch folds back into a plain step. Via goes with any verb that does
@@ -523,7 +524,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
   the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
   ids), a fresh step id, 5 s later held before the next step. Each is one undo entry and focuses the new row's time.
-- **Lurk fields** (`ShowLurk`): lurk areas (an `AutoCompleteBox` of callouts like watching, 200 px), rotate at
+- **Lurk fields** (`ShowLurk`): lurk areas (a multi location field like watching, 200 px), rotate at
   (56 px, a round clock time; text that is not one shows the stored time again), or when (an `AutoCompleteBox`
   suggesting `StratVocabulary.RotateConditions`, free text stored), rotate to (128 px, like `to`). All written
   through `StratLurkPatches` on focus loss, one entry each. The place fields are the plain ones the row uses for
@@ -600,9 +601,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   disabled, beside its clear button. Each binds `Value` to the row's `*Value`, `PickCommandParameter` to its
   `*Target` descriptor, `PickCommand` to the tab's `PickOnMapCommand`, and `ArmedTarget` to `Canvas.ArmedField`, so
   the field that a map click will write shows it.
-- **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, via, lurk areas). Places are stored canonical and
-  shown by the owner's word; a place the map lacks shows as stored; a point alone shows as `(1234, -561)`, and keeps
-  its point for as long as its text is unchanged. Typed text resolves through the owner's callouts, else is stored as
+- **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, via, lurk areas; see "Multi
+  field" below). Places are stored canonical and shown by the owner's word; a place the map lacks shows as stored; a
+  point alone shows as `(1234, -561)`, and in a single field keeps its point for as long as its text is unchanged. Typed text resolves through the owner's callouts, else is stored as
   typed, never numbers alone. A typed coordinate (`(1234, -560)`, `1234, -560` or `1234 -560`, negatives allowed) is a
   point: its level is the stored point's, else the strat's default canvas level, else none. A commit (focus loss,
   Enter or a click in the list) writes only when the value changed. A value pushed from outside (a map pick, an undo)
@@ -613,8 +614,27 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   blur store the same place). The stored callout is highlighted. The list
   opens below the field, or above when fewer than its rows (at most 200 px) fit below and more room is above
   (`PlaceField.ChooseUp`), chosen again once layout settles, since a field reached by Tab is scrolled into view
-  after it opened. The list is drawn in the window's overlay layer. A multi field filters and replaces the text
-  after the last comma; commas inside a coordinate's parentheses do not split it.
+  after it opened. The list is drawn in the window's overlay layer. A multi field's list leaves out the callouts it
+  already holds.
+- **Multi field (chips):** watching, via and lurk areas show one chip per entry, in stored order, in a `WrapPanel`
+  above one add field (the field's own text box, with the list, typed coordinates and `⌖`). The order is what the
+  file holds: places first, then points, since each list is stored as two arrays (`places` and `points`, `areas`
+  and `areaPoints`, `via` and `viaPoints`). The watch cone faces the first entry and via routes in order.
+  - **Add:** a pick from the list, Enter on typed text (also with no list showing, so a typed coordinate never
+    reaches the row's Enter) or a blur appends one entry and clears the field. A typed name resolves through the
+    callouts; a coordinate takes the level of the list's first point, else the strat's default level. A duplicate
+    (same place, or same x, y and level) is refused quietly and the field cleared. Text that names a chosen callout
+    highlights nothing, so Enter cannot add a neighbour that merely starts the same. A map pick appends too.
+  - **Chips:** `Border.placeChip`, focusable but not a tab stop, so Tab goes from the field before straight into the
+    add field. The callout or short coordinate (`TextTrimming`, the full text in the tooltip) and a `✕` that removes
+    it. Backspace in the empty add field focuses the last chip; Backspace or Delete there removes it and returns to
+    the add field. Left and Right walk the chips (Right past the last returns to the add field). Alt+Left and
+    Alt+Right move the focused chip one place, and it keeps the focus; a move past either end or between the places
+    and the points is refused. The context menu has the same three actions for the mouse. No drag.
+  - **Writes:** every add, remove or move stores the whole list through `Value`, so it is one
+    `StratLocationPatches.Write` and one undo entry. Edits work on the `PlaceRef`s themselves, never on their text,
+    so a point keeps its exact x, y and level. A list pushed from outside (an undo, a pick) rebuilds the chips at
+    once and keeps any text typed in the add field.
 - **Keys:** the list a focus opens is only a view: Enter and Esc there close it and go on to the row (Enter adds a
   step, Esc leaves the field), so the row's keys work as before. Once the user types, moves the highlight or opens the
   list with Down, the list holds Up, Down, Enter (pick the highlighted callout, or commit the text) and Esc (close the
@@ -623,11 +643,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   field is armed on the map also cancels the pick (after the row's Esc, which it listens to handled). Picking the
   stored callout writes nothing.
 - **Buttons:** inside the field's right edge, not tab stops: `⌖` pick on map (shown when `PickCommand` is set;
-  `AccentInteractive` and bold while `IsPicking`), and `✕` clear, shown only while the value holds a point without
-  a place. The buttons are 16 px wide with 2 px padding: at 95 px with both showing, the text keeps at least 45 px
+  `AccentInteractive` and bold while `IsPicking`), and `✕` clear, shown only while a single field holds a point
+  without a place (a multi field removes per chip instead). The buttons are 16 px wide with 2 px padding: at 95 px with both showing, the text keeps at least 45 px
   (pinned by `StratLocationFieldTests`).
 - **Tokens:** list `CardBg` with a `BorderSubtle` border, rows `TextValue`, buttons `TextMid` with
-  `PanelHeaderHoverDeep` on hover.
+  `PanelHeaderHoverDeep` on hover. Chips `PanelHeaderHover` with a `BorderSubtle` border and `TextValue` text at
+  11 px; a focused chip `PanelHeaderHoverDeep` with an `AccentInteractive` border.
 
 ### Map-first editing (the Strats editor and canvas)
 - **Files:** `ViewModels/StratBook/StratStepSelection.cs`, `SelectStep`, `BeginSetPlace` and `TryTagPositionAt` in
