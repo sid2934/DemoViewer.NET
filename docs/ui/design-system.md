@@ -706,8 +706,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   first, so the others stay in it); on a verb without watching (move, rotate, throw and the rest) it writes the
   position's yaw, as before lines. The drag shows the turned yaw, and one entry is written on release. Turning an
   opponent token writes its position's yaw as before. The line's angle button clears it.
-- **Motion from destinations:** a step's `to` (the step's, a line's or the compact who's) and a lurk's first area
-  move the tokens it names. Move, push, rotate and other run there from the step's time at 215 u/s; hold, peek,
+- **Motion from destinations:** a step's `to` (the step's, a line's or the compact who's) and a lurk's areas, in
+  order, move the tokens it names. Move, push, rotate and other run there from the step's time at 215 u/s; hold, peek,
   fake, plant and defuse are there at the step's time; throw, wait and call do not move. Tokens at one place at the
   same time fan out inside it, each slot on its own spot, whichever steps sent them. A runner faces its run and
   turns to what it watches on arrival. A drag on that step wins over the destination; setting a `to`
