@@ -766,10 +766,9 @@ public sealed class StratStore
         }
     }
 
-    // A working copy stamped behind its log: a commit's line landed and its strat write did not, or an older
-    // build stamped it from a stale index row. Its edits go onto the log's head where the head still holds what
+    // A working copy stamped behind its log. Its edits go onto the log's head where the head still holds what
     // they replaced; edits the head already has are dropped, so an array insert never applies twice. Anything
-    // else is a conflict, and the file is set aside rather than merged.
+    // else is a conflict: the file is set aside, never merged, and is only replaced once the copy is written.
     private StratDocument RebaseWorkingCopy(StratDocument document, string? path, IReadOnlyList<HistoryEntry> log)
     {
         int stamped = document.Revision;
@@ -820,10 +819,15 @@ public sealed class StratStore
             }
         }
 
-        string kept = SetAside(document, path, stamped);
+        string conflict = $"recovered edits from revision {stamped} conflict with revision {head.Revision}";
+        if (SetAside(document, path, stamped) is not { } kept)
+        {
+            Note(document.Id, conflict + "; the working copy could not be set aside, so it opens as it is");
+            return document;
+        }
+
         WriteStrat(head, path);
-        Note(document.Id, $"recovered edits from revision {stamped} conflict with revision {head.Revision} and were not applied"
-                          + (kept.Length == 0 ? "" : "; they are kept in " + kept));
+        Note(document.Id, conflict + " and were not applied; they are kept in " + kept);
         return head;
     }
 
@@ -854,27 +858,31 @@ public sealed class StratStore
         return onHead;
     }
 
-    // Beside the strat, under a name the listing never matches. Empty with no disk or a failed write.
-    private static string SetAside(StratDocument document, string? path, int revision)
+    // Beside the strat, under a name the listing never matches and no earlier copy holds. Null with no disk
+    // or a failed write.
+    private string? SetAside(StratDocument document, string? path, int revision)
     {
         if (path is null)
         {
-            return "";
+            return null;
         }
 
-        string target = path[..^StratExtension.Length] + $".working-r{revision}.json";
+        string stem = path[..^StratExtension.Length] + $".working-r{revision}-"
+                      + _utcNow().ToString("yyyyMMddTHHmmssZ", System.Globalization.CultureInfo.InvariantCulture);
         try
         {
-            if (!File.Exists(target))
+            string target = stem + ".json";
+            for (int n = 2; File.Exists(target); n++)
             {
-                WriteAtomic(target, Serialize(document));
+                target = stem + "-" + n.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json";
             }
 
+            WriteAtomic(target, Serialize(document));
             return Path.GetFileName(target);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            return "";
+            return null;
         }
     }
 
