@@ -42,8 +42,9 @@ public class StratLogPositionTests
         Directory.GetFiles(Path.GetDirectoryName(StratFile(root, document))!, document.Id + ".working-r*.json");
 
     /// <summary>
-    ///     Writes a log with the given revisions, one rename and one step move per line so every position has its
-    ///     own state, and returns those states in file order. No strat file is left; the caller writes one.
+    ///     Writes a log with the given revisions and returns its states in file order. Every line renames the strat
+    ///     and, in turn, appends a step, removes the last one or moves one, so a line applied twice or skipped
+    ///     shows up as a duplicated or missing step. No strat file is left; the caller writes one.
     /// </summary>
     private static List<StratDocument> WriteLog(string root, int[] revisions)
     {
@@ -56,11 +57,19 @@ public class StratLogPositionTests
         for (int i = 1; i < revisions.Length; i++)
         {
             StratDocument before = states[^1];
-            int step = i % 2;
-            double to = step == 0 ? 90 - i : 60 - i;
+            JsonNode beforeNode = StratHistory.ToNode(before);
+            int count = before.Steps.Count;
+            PatchOp stepOp = (i % 3) switch
+            {
+                1 when count > 2 => PatchOp.RemoveOp($"/steps/{count - 1}", beforeNode["steps"]![count - 1]!.DeepClone()),
+                0 or 1 => PatchOp.AddOp("/steps/-",
+                    JsonSerializer.SerializeToNode(Step(100 + i, 20, "A", "peek"), StratJsonContext.Default.StratStep)),
+                _ => PatchOp.ReplaceOp($"/steps/{i % 2}/atSeconds", JsonValue.Create(before.Steps[i % 2].AtSeconds),
+                    JsonValue.Create(i % 2 == 0 ? 90 - i : 60 - i))
+            };
             PatchOp[] ops =
             [
-                PatchOp.ReplaceOp($"/steps/{step}/atSeconds", JsonValue.Create(before.Steps[step].AtSeconds), JsonValue.Create(to)),
+                stepOp,
                 PatchOp.ReplaceOp("/name", JsonValue.Create(before.Name), JsonValue.Create($"line {i}"))
             ];
             HistoryEntry entry = new() { Revision = revisions[i], AtUtc = Past.AddMinutes(10 + i), Summary = $"line {i}", Ops = [.. ops] };
@@ -108,20 +117,22 @@ public class StratLogPositionTests
 
     [Test]
     [MethodDataSource(nameof(Shapes))]
-    public async Task ACommittedFileOneLineBehind_GetsOnlyTheLinesAfterItsPosition(int[] shape)
+    public async Task ACommittedFileTwoLinesBehind_GetsOnlyTheLinesAfterItsPosition(int[] shape)
     {
         string root = TempRoot();
         try
         {
-            // A crash between the last line and its strat write: the file is the line before, whose revision
-            // the log also holds earlier. Replaying by number would apply the earlier lines again.
+            // The file is two lines behind, at a revision the log also holds elsewhere. By number, the first
+            // shape would apply nothing and the second would apply the first 11 again, removing a step twice.
             List<StratDocument> states = WriteLog(root, shape);
-            WriteStrat(root, states[^2]);
+            WriteStrat(root, states[^3]);
 
             StratStore store = new(root);
             StratDocument loaded = store.TryLoad(states[^1].Id)!;
             using (Assert.Multiple())
             {
+                await Assert.That(loaded.Steps.Select(s => s.Id)).IsEquivalentTo(states[^1].Steps.Select(s => s.Id));
+                await Assert.That(loaded.Steps.Select(s => s.Id).Distinct().Count()).IsEqualTo(loaded.Steps.Count);
                 await Assert.That(Committed(loaded)).IsEqualTo(Committed(states[^1]));
                 await Assert.That(File.ReadAllText(StratFile(root, states[^1]))).IsEqualTo(Committed(states[^1]));
                 await Assert.That(store.TakeNote(states[^1].Id)).Contains("re-applied");

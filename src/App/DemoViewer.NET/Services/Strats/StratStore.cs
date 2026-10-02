@@ -238,6 +238,11 @@ public sealed class StratStore
                 return StratSaveResult.Failed("an unreadable strat file already has this id", issues);
             }
 
+            if (IsUnresolved(document.Id))
+            {
+                return StratSaveResult.Failed(UnresolvedReason, issues);
+            }
+
             if (known is not null && ops.Count == 0)
             {
                 return new StratSaveResult(true, null, known.Revision, issues);
@@ -288,19 +293,28 @@ public sealed class StratStore
                 }
             }
 
-            // The log now has the commit, so a failure below is recovered on the next load.
+            // The log now has the commit, so it is saved whatever happens below: reporting a failure would have
+            // the caller retry and append the same ops again. The next load rebuilds the file from the log.
+            string? warning = null;
             if (!WriteStrat(committed, newPath))
             {
-                return StratSaveResult.Failed("the strat file could not be written; the next load recovers it from history", issues);
+                warning = "the strat file could not be written; the commit is in the history and the next load rebuilds the file";
+                lock (_gate)
+                {
+                    _index[document.Id] = StratIndexEntry.From(committed);
+                    if (newPath is not null)
+                    {
+                        _paths[document.Id] = newPath;
+                    }
+                }
             }
 
             document.Revision = committed.Revision;
             document.ModifiedUtc = now;
             document.Map = committed.Map;
+            RaiseChanged(document.Id);
+            return new StratSaveResult(true, warning, document.Revision, issues);
         }
-
-        RaiseChanged(document.Id);
-        return new StratSaveResult(true, null, document.Revision, issues);
     }
 
     // The owner's callouts over the embedded list: display needs only the primary aliases, and the store has no
@@ -461,6 +475,12 @@ public sealed class StratStore
                 unresolved = _unresolved.Contains(document.Id);
             }
 
+            // Dropping the marker would turn the unresolved copy into a committed file at a stale stamp.
+            if (unresolved)
+            {
+                copy = WithPending(document, true);
+            }
+
             int last = LogHead(document.Id, path).Last;
             copy.Revision = unresolved ? document.Revision : last > 0 ? last : known.Revision;
             if (!WriteStrat(copy, _root is null ? null : path ?? StratPath(copy)))
@@ -487,6 +507,23 @@ public sealed class StratStore
         }
     }
 
+    /// <summary>What a refused commit on an unresolved working copy says.</summary>
+    public const string UnresolvedReason =
+        "the working copy conflicts with the history and could not be set aside; it is read-only until it can be, on the next open";
+
+    /// <summary>
+    ///     Whether the strat's file is a conflicting working copy that could not be set aside. It opens read-only:
+    ///     no recovered edits, and <see cref="Save" /> refuses, until a later load sets it aside or rebases it.
+    /// </summary>
+    /// <param name="id">The strat's id.</param>
+    public bool IsUnresolved(Guid id)
+    {
+        lock (_gate)
+        {
+            return _unresolved.Contains(id);
+        }
+    }
+
     /// <summary>Whether a strat file is an autosaved working copy with uncommitted edits.</summary>
     /// <param name="document">A loaded strat.</param>
     public static bool IsPending(StratDocument document)
@@ -504,7 +541,7 @@ public sealed class StratStore
     public IReadOnlyList<PatchOp> PendingOps(StratDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        if (!IsPending(document))
+        if (!IsPending(document) || IsUnresolved(document.Id))
         {
             return [];
         }
@@ -778,6 +815,12 @@ public sealed class StratStore
     // Every change made here leaves a note.
     private StratDocument Reconcile(StratDocument document, string? path)
     {
+        // Every load decides afresh; the set-aside branch marks it again if it still cannot write.
+        lock (_gate)
+        {
+            _unresolved.Remove(document.Id);
+        }
+
         IReadOnlyList<HistoryEntry> log = History(document.Id);
         if (log.Count == 0)
         {
@@ -977,7 +1020,7 @@ public sealed class StratStore
                 _unresolved.Add(document.Id);
             }
 
-            Note(document.Id, conflict + "; the working copy could not be set aside, so it opens as it is");
+            Note(document.Id, conflict + "; the working copy could not be set aside, so it opens read-only until it can be");
             return document;
         }
 
@@ -1192,21 +1235,30 @@ public sealed class StratStore
         // An owner or map change moves the log with the strat, before the append, so the log stays whole.
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+            string newFolder = Path.GetDirectoryName(newPath)!;
+            Directory.CreateDirectory(newFolder);
+
+            // Best-effort and first: a set-aside copy left behind is still on disk, and must never stop the log.
+            foreach (string kept in SetAsideBeside(oldPath))
+            {
+                try
+                {
+                    string target = Path.Combine(newFolder, Path.GetFileName(kept));
+                    if (!File.Exists(target))
+                    {
+                        File.Move(kept, target);
+                    }
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // Stays in the old folder.
+                }
+            }
+
             string oldLog = HistoryPathBeside(oldPath);
             if (File.Exists(oldLog))
             {
                 File.Move(oldLog, HistoryPathBeside(newPath));
-            }
-
-            string newFolder = Path.GetDirectoryName(newPath)!;
-            foreach (string kept in SetAsideBeside(oldPath))
-            {
-                string target = Path.Combine(newFolder, Path.GetFileName(kept));
-                if (!File.Exists(target))
-                {
-                    File.Move(kept, target);
-                }
             }
 
             File.Delete(oldPath);
