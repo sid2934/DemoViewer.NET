@@ -98,8 +98,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         LineupClipService lineups = _sp.GetRequiredService<LineupClipService>();
         TeamIdentityService teams = _sp.GetRequiredService<TeamIdentityService>();
         TagFactsRefresher tagFacts = _sp.GetRequiredService<TagFactsRefresher>();
-        // The zone graphs are read per map by the loads below and by nothing outside the pack, so they
-        // are the pack's to release even though the source is registered by the composition root.
+        // The zone graphs are read per map by the loads below and by nothing outside the pack.
         IPackResident? zones = _sp.GetService<IZonePlaceResolverSource>() as IPackResident;
 
         Task attach = PackItem(queue, QueueJobKind.SectionCompute, AttachTitle, Owner, epoch, () =>
@@ -231,6 +230,17 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         catch (Exception ex)
         {
             AppLog.OperationFailed(log, "grenade lineup flush on shutdown", ex);
+        }
+
+        // The Tag Store defers its index to shutdown (tag-store.md); idempotent, so a re-fired request
+        // writes nothing new.
+        try
+        {
+            _instances.Tags?.SaveIndex();
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(log, "tag index flush on shutdown", ex);
         }
     }
 

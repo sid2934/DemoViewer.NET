@@ -330,7 +330,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         int missing = 0;
         foreach (TagInstanceRef instance in cell.Refs)
         {
-            if (ReviewQueue.FromTag(instance, sha => _indexBySha(sha)?.Path, _tickRates.GetValueOrDefault(instance.Sha256)) is { } clip)
+            if (TagClips.FromTag(instance, sha => _indexBySha(sha)?.Path, _tickRates.GetValueOrDefault(instance.Sha256)) is { } clip)
             {
                 clips.Add(clip);
             }

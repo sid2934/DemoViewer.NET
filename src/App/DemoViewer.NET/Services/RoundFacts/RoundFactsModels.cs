@@ -80,7 +80,7 @@ public enum RoundEndReason
     CTsReachedHostage = 20
 }
 
-/// <summary>The phase a tick falls in. See <see cref="RoundPhases" /> for the intervals.</summary>
+/// <summary>The phase a tick falls in. The extension's <c>RoundPhases</c> computes the intervals.</summary>
 public enum RoundPhase
 {
     None = 0,
@@ -371,9 +371,9 @@ public enum ScoreSituation
 ///     A cross-demo round query. Every field is optional and they AND together. The round-level
 ///     fields read the record; the tick-anchored ones (<see cref="Phase" />, <see cref="ClockBand" />,
 ///     <see cref="ManCount" />, <see cref="CtAlive" />, <see cref="TAlive" />) read
-///     <see cref="RoundPhases" /> at a tick: the round index applies them at each sampled step it
+///     <c>RoundPhases</c> at a tick: the round index applies them at each sampled step it
 ///     matched, and <c>IRoundFactsSource.Query</c>, which has no tick, asks whether any tick of the
-///     live window passes (<see cref="RoundFactsSource.MatchesAnywhere" />).
+///     live window passes (<c>RoundFactsSource.MatchesAnywhere</c>).
 /// </summary>
 public sealed class RoundFactsFilter
 {

@@ -11,7 +11,6 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -20,32 +19,19 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
-using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
-using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.ViewModels.Teams;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.RuleWorkbench;
 using Microsoft.Extensions.DependencyInjection;
@@ -176,18 +162,6 @@ public class App : Application
             // Reels tab is lazy, and staging must work before it has ever been opened.
             viewModel.ReelTrayLocator = services.GetRequiredService<HighlightsTabViewModel>;
 
-            // Match Overview's "Index grenades": the grenade walk forced at user priority. Desktop only: the
-            // browser head has no processing queue to run it on, and an absent action beats an inert one.
-            // Resolved lazily, inside the delegates: constructing GrenadeIndexEvaluator here, unconditionally,
-            // would build it even with the pack off, regardless of whether the user ever presses the action.
-            if (!OperatingSystem.IsBrowser())
-            {
-                IFeatureGate? grenadeGate = services.GetService<IFeatureGate>();
-                viewModel.MatchOverviewTab.IndexGrenades = path => services.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
-                viewModel.MatchOverviewTab.AreGrenadesIndexed = path => services.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path);
-                viewModel.MatchOverviewTab.PackEnabled = () => grenadeGate?.IsEnabled("pack.stratbook") ?? true;
-            }
-
             // Session restore runs HERE, not in the shell ctor: it activates the persisted tab, and tab
             // activation may resolve the shell, which only works once the singleton above is cached (and now
             // once the host services above are attached). Still before the DataContext is set, so the UI binds
@@ -283,16 +257,13 @@ public class App : Application
             // throws or hangs here must never cost the machine its restored CS2 install.
             static void FlushStores(ServiceProvider services)
             {
-                // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
-                // their index to it: the Strat Book writes its own (through its pack's lifecycle below), and
-                // the Tag Store's is written here, the call its design leaves to the shell. TagStore and
-                // ReviewQueue are core (Reels uses the queue too), so their flush stays unconditional here
-                // rather than behind a pack's "was built" guard. Idempotent, so a re-fired request writes
-                // nothing new.
+                // Shutdown is a strat commit trigger (strat-model.md §3.8); the user-truth stores defer their
+                // index to it. The Review Queue is core (Reels uses it too), so its flush stays unconditional
+                // here; the Strat Book's and the Tag Store's run through the pack's lifecycle below.
+                // Idempotent, so a re-fired request writes nothing new.
                 ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
                 Action[] flushes =
                 [
-                    () => services.GetService<TagStore>()?.SaveIndex(),
                     () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
                     () =>
                     {
@@ -876,164 +847,12 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
-        // Round Facts (the evaluator, its row source and identity, and IRoundFactsSource) is registered by
-        // StratBookPack.Register: decision 1 puts it in the pack. The registrations below that read
-        // IRoundFactsSource resolve it lazily, after the pack has registered.
-
-        // The Round Index: one row per (demo, live round, sampled second) with the per-side place-count
-        // token, written as a .dvri.json sidecar beside the cache by an evaluator on the same tier-2
-        // fan-out, one place after Round Facts so it reads the rows written in the same pass. The
-        // in-memory SituationIndex is the only reader at query time; it loads once at startup off the
-        // UI thread and merges each sidecar as the evaluator writes it. The zone resolver source is Zone
-        // Baking's PlaceResolver over the baked zones.json plus the user overlay, one load per map; a map
-        // without a zones file, and every map on the browser host, answers "no zones" and the empirical
-        // graph applies.
-        services.AddSingleton<IZonePlaceResolverSource>(new AssetZonePlaceResolverSource());
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            return new RoundIndexPlaceSources(
-                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
-                sp.GetRequiredService<IZonePlaceResolverSource>());
-        });
-        services.AddSingleton(sp => new RoundIndexStore(
-            AppPaths.DemoCacheDir,
-            sp.GetRequiredService<DemoCacheStore>()));
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
-            RoundIndexEvaluator built = new(
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<RoundIndexStore>(),
-                sp.GetRequiredService<RoundIndexPlaceSources>(),
-                () => monitor?.CurrentValue.Situations.BackgroundIndex ?? true,
-                action => Dispatcher.UIThread.Post(action),
-                // The literal id, not StratBookPack.PackFeatureId: this is core code, and a pack id fails
-                // off on a typo (FeatureCatalog.IsPackId), never silently on.
-                enabled: () => features?.IsEnabled("pack.stratbook") ?? true);
-            // Set here, not by the evaluator registry's lazy wrapper: SituationIndex resolves this
-            // directly at StartPacks time, before anything has polled the coordinator, so a wrapper-only
-            // assignment would leave Coordinator null and Request/RebuildAll silently no-op until then.
-            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
-            return built;
-        });
-        services.AddSingleton(sp => new SituationIndex(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<RoundIndexStore>(),
-            sp.GetRequiredService<RoundIndexPlaceSources>(),
-            sp.GetRequiredService<IRoundFactsSource>(),
-            sp.GetRequiredService<IZonePlaceResolverSource>(),
-            sp.GetRequiredService<RoundIndexEvaluator>(),
-            action => Dispatcher.UIThread.Post(action)));
-        services.AddSingleton<ISituationIndex>(sp => sp.GetRequiredService<SituationIndex>());
-        // Result Cards seek playback through the shell's own funnels: the shared load core when the
-        // card's demo is not the loaded one, the controller's SeekToTick, and the tab switch by id.
-        // Every delegate reaches the shell at call time, never at construction.
-        services.AddSingleton<ISituationPlayback>(_ => new SituationPlaybackSeek(
-            () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-            async path =>
-            {
-                if (Services?.GetService<MainViewModel>() is not { } shell)
-                {
-                    return false;
-                }
-
-                await shell.LoadDemoFromPathAsync(path);
-                return shell.HasFile;
-            },
-            tick => Services?.GetService<MainViewModel>()?.Playback.SeekToTick(tick),
-            tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
         services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
             scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
-        // The Round Tagger's store: per-demo tag documents keyed by content hash under <config>/tags. One
-        // per process, because CheckOut's single-writer guarantee is only as wide as the instance that
-        // holds it. Null root (the browser) keeps tags in memory for the session.
-        services.AddSingleton(_ => new TagStore(AppPaths.TagsDir, action => Dispatcher.UIThread.Post(action)));
-        // Free labels: every tag instance carries its round's facts in the parser namespace, rewritten
-        // when the evaluator rewrites a demo's rows. The cache index is the path-to-hash join; the
-        // refresh itself runs off the UI thread and reaches an open demo through the store's routing.
-        services.AddSingleton(sp =>
-        {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
-            return new TagFactsRefresher(
-                sp.GetRequiredService<TagStore>(),
-                sp.GetRequiredService<IRoundFactsSource>(),
-                path => cache.TryGetIndex(path)?.Sha256,
-                background: work => _ = QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreSave,
-                    "Tags: round facts", "tags", _ => work()));
-        });
-
-        // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
-        // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
-        // no directory and offers the built-in alone.
-        services.AddSingleton(_ =>
-        {
-            TagPaletteStore palettes = new(AppPaths.EnsurePalettesDirectory());
-            palettes.Reload();
-            return palettes;
-        });
-
-        // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
-        // user's teams.json beside settings.json and the derived team-index.json under cache/; the
-        // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.
-        // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
-        services.AddSingleton(sp =>
-        {
-            // BuildShell resolves this unconditionally (the Library team filter), so the pack's gate
-            // cannot decide whether the service is built. It is built detached and unread: the pack's
-            // lifecycle attaches it, and only then does its file read enter the queue. The gate is not
-            // read here on purpose, since at container build the first-run wizard has not asked yet.
-            TeamIdentityService teams = new(
-                AppPaths.ConfigRoot,
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<IRoundFactsSource>(),
-                action => Dispatcher.UIThread.Post(action),
-                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
-                    "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
-                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"),
-                loadAtStart: false);
-            // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
-            // UI thread and mutate there, so reading them in their own Changed is safe.
-            StratStore strats = sp.GetRequiredService<StratStore>();
-            DossierNotesStore notes = sp.GetRequiredService<DossierNotesStore>();
-            VetoHistoryStore vetoes = sp.GetRequiredService<VetoHistoryStore>();
-            void Report() => teams.SetReferencedTeams(
-                strats.Index.Select(e => e.Owner.TeamId).OfType<Guid>().Concat(notes.TeamIds).Concat(vetoes.TeamIds));
-            Report();
-            strats.Changed += _ => Report();
-            notes.Changed += Report;
-            vetoes.Changed += Report;
-            return teams;
-        });
-        // Demo Provenance Labels: the override from teams.json else the heuristic over the cache row and
-        // the assignment. No store of its own; it re-raises the two stores' Changed on the UI thread.
-        services.AddSingleton(sp => new DemoProvenanceSource(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<TeamIdentityService>(),
-            action => Dispatcher.UIThread.Post(action)));
-        services.AddSingleton<IDemoProvenanceSource>(sp => sp.GetRequiredService<DemoProvenanceSource>());
-        // The Teams tab VM: a container singleton resolved lazily on first activation. Opening a demo
-        // reaches the shell at call time, never at construction.
-        services.AddSingleton(sp => new TeamsTabViewModel(
-            sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<DemoCacheStore>(),
-            async path =>
-            {
-                if (Services?.GetService<MainViewModel>() is { } shell)
-                {
-                    await shell.LoadDemoFromPathAsync(path);
-                }
-            },
-            command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
-                "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested,
-                serial: TeamIdentityService.QueueSerial),
-            post: action => Dispatcher.UIThread.Post(action)));
-
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators for a demo and coalesces their queue submissions onto
         // ONE parse. Library and Highlights are core, always in the fan-out; a pack's evaluators come from
@@ -1206,6 +1025,13 @@ public class App : Application
             // mounts into on the first Export). A post-construction call, not a ctor parameter: the ctor
             // parameter list is item 22's to edit next.
             shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
+
+            // The packs' shell attachments (item 25): the delegate slots core pages expose, set here where the
+            // composition root used to set them by hand, with the shell instance, before anything resolves it.
+            foreach (Action<MainViewModel> attach in sp.GetRequiredService<PackContributionSet>().ShellAttachments)
+            {
+                attach(shell);
+            }
 
             return shell;
         }

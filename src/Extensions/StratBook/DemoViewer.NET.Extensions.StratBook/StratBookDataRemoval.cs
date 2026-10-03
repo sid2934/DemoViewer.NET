@@ -63,7 +63,7 @@ internal sealed class StratBookDataRemoval : IPackDataRemoval
     /// <inheritdoc />
     /// <remarks>
     ///     If the pack is on, writes the gate override off (the same write the master switch row makes) and
-    ///     waits for <see cref="PackSwitch.Pending" />, which <see cref="Features.FeatureGate.RaiseChanged" />
+    ///     waits for <see cref="PackSwitch.Pending" />, which <c>FeatureGate.RaiseChanged</c>
     ///     updates inline on this call because the write runs on the UI thread: by the time the override
     ///     write returns, <see cref="PackSwitch" /> has already queued the release, so the wait is for a
     ///     real task, never a stale one. Only once that release has run does this delete the files, so

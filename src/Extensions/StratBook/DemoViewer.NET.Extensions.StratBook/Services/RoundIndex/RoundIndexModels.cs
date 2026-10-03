@@ -8,16 +8,6 @@ using DemoViewer.NET.Services.RoundFacts;
 
 namespace DemoViewer.NET.Services.RoundIndex;
 
-/// <summary>Which string a row's place comes from. A setting; changing it re-indexes the library.</summary>
-public enum RoundIndexTokenSource
-{
-    /// <summary>The pawn's <c>m_szLastPlaceName</c>: Valve's names, no asset needed.</summary>
-    Pawn,
-
-    /// <summary>The effective zone set's resolver over the sample position: the team's names, per map.</summary>
-    Zones
-}
-
 /// <summary>
 ///     The parameters that decide what a row means. Every one of them is in the fingerprint, so a
 ///     change re-indexes rather than reinterprets. Neither is a user setting.
