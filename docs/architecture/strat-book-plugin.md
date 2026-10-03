@@ -30,10 +30,13 @@ Users see it as an **extension** ("Strat Book extension"), decided 2026-10-02 (s
   later move to a separate assembly (b) is mechanical.** Option (c), runtime-loaded plugins, is ruled out
   for the Strat Book by the add-on design's own rule: 33 Strat Book files reference CS2DemoKit, and add-ons
   must never do so.
-- **Effort:** 24 items for (a) across five phases (0 to 4). Phase 0 (contracts and the pack
+- **Structure (decision 5, 2026-10-02):** every extension lives in its own directory now and becomes its
+  own csproj as soon as the core-to-extension edges are cut, so an extension can ship on its own cadence.
+  Section 13 gives the layout, phases 5 and 6 the project split and the independent release.
+- **Effort:** 25 items for (a) across five phases (0 to 4), then 8 for the project split
+  (Phase 5, now required) and about 6 for the independent release (Phase 6). Phase 0 (contracts and the pack
   skeleton) unblocks parallel work; Phase 1 (real "off", in-session release, first-run prompt) ships value
-  on its own. Splitting into an assembly (b) is about 8 more items after that. Items in section 6, the
-  parallel schedule in section 11.
+  on its own. Items in section 6, the build order in section 11.
 
 ---
 
@@ -298,7 +301,7 @@ an interface assembly), registered through the same pack contract. Still one ins
 - **UX:** same as (a). The only user-visible difference would be a smaller download if a build without
   the pack were ever published, which nothing asks for.
 - **Testing:** the boundary becomes compile-enforced: core cannot accidentally take a new dependency on
-  the pack. That is the real value of (b), and the reason (a) should be laid out as if (b) were coming.
+  the pack. That is the real value of (b). Decision 5 makes (b) the target: (a) is the path to it.
 
 ### (c) True runtime plugins (AssemblyLoadContext, third-party capable)
 
@@ -337,7 +340,7 @@ sized for one branch and one commit set. Item ids are stable; section 11 gives t
 that the rest can run in parallel: once the contracts and the pack class are in, later items edit the pack
 and small, separate seams instead of all queueing on `App.axaml.cs`.
 
-### Phase 0: contracts and the pack skeleton (1 item, plus the baseline measurement)
+### Phase 0: contracts, the pack skeleton and the directory (2 items, plus the baseline measurement)
 
 0. **Contracts and `StratBookPack`.** `IFeaturePack`, `IPackLifecycle`, `IPackContributions` (section 7;
    only `Module`, `Evaluator` and `JobKind` need bodies now, the rest can be added by the item that first
@@ -348,6 +351,13 @@ and small, separate seams instead of all queueing on `App.axaml.cs`.
    `ParentId = "pack.stratbook"`; `BuildRegistry` asks each pack for its modules. Behaviour is identical
    when on. Test: the composition root resolves the same services and modules as before, and
    `IsEnabled("pack.stratbook")` false cascades every section off and hides the hub.
+   0b. **One directory per extension.** Move every Strat Book file under
+   `src/App/DemoViewer.NET/Extensions/StratBook/` (section 13), tests under
+   `DemoViewer.NET.App.Tests/Extensions/StratBook/`, UiCapture variants under
+   `DemoViewer.NET.UiCapture/Extensions/StratBook/`. Pure `git mv` plus csproj globs; namespaces and
+   behaviour unchanged, so the diff is renames only and `git log --follow` keeps every file's history.
+   Runs alone after item 0, before wave 1, because it touches every file the later items edit. The
+   csproj split (Phase 5) then moves that one directory up to `src/Extensions/`.
    M0. **Baseline measurement.** On a copy of the owner's library (never the live config dir): resident set
    after startup, and library index time, at the current head with everything on. Record the numbers in
    section 12 of this doc. Runs alongside item 0; it is the only heavy parse at the time.
@@ -444,14 +454,51 @@ and small, separate seams instead of all queueing on `App.axaml.cs`.
 24. **Delete Strat Book data.** `StoreDescriptor`s for every pack store and cache path, and a confirmed
     settings action that names the user-work stores (section 8).
 
-### Phase 5 (optional): separate assembly, option (b) (about 8 items)
+### Phase 5: own csproj, option (b) (8 items, required by decision 5)
 
-25. Extract a `DemoViewer.NET.Core` (or `.Host`) assembly with the services packs consume (`DemoCacheStore`,
-    queue, `QueueWork`, `MergedRulesBuild`, `MapSceneHost`, `Scene2DHost`, `ISceneFrameHost`, `FrameClock`,
-    `AppPaths`). 26. Move the Strat Book folders into `DemoViewer.NET.StratBook`. 27. Move strat-only types
-    out of Playback2D Core and Pipeline. 28. ViewLocator and `avares` resources across assemblies.
-    29. UiCapture variants and tests reference the pack. 30. Heads register the pack. 31. A build-time
-    check that core does not reference the pack. 32. WASM publish check.
+Possible only once Phases 2 to 4 have cut every core-to-extension edge in section 4.1, because the app
+assembly cannot reference the extension. The extension references the app assembly; the heads (Desktop,
+Browser) reference both and hand the pack to `App.BuildServices`. No `Core` assembly is needed for this
+step.
+
+25. `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.csproj`: move the Phase 0b directory up,
+    reference the app project, keep namespaces. 26. Move strat-only types out of Playback2D Core and
+    Pipeline (`Keyframes/`, `StratFrameSource`, `StratSceneSpec`, `StratHudDataSource`, route palette,
+    guides, token tool) into the extension, or leave the neutral ones in core with a note. 27. ViewLocator
+    and `avares://` resources across assemblies; embedded palettes and callouts move with the project.
+    28. `DemoViewer.NET.Extensions.StratBook.Tests` and the UiCapture variants reference the extension.
+    29. Heads register the pack conditionally. 30. A build-time check that the app project does not
+    reference the extension (the compiler now enforces it; the test from item 7 is retired). 31. WASM
+    publish check: the Browser head compile-links the extension. 32. `scripts/test.sh` gains the extension
+    test project and tier.
+
+### Phase 6: independent release cadence (about 6 items)
+
+The extension ships and updates separately from the app. Bounded by one hard fact: the extension uses
+CS2DemoKit types directly (33 files), so an extension build is compatible only with app builds on the
+same CS2DemoKit version and app contract. The loader enforces that and disables, never crashes.
+
+33. **Contract version.** The app exposes `ExtensionHostVersion` (the pack contracts) and its CS2DemoKit
+    version; the extension carries a manifest (`extension.json`: id, version, `requiresHost` range,
+    `requiresCs2DemoKit`). A mismatch disables the extension with a settings-page message.
+34. **Loader.** At startup the Desktop head loads first-party extension assemblies from
+    `<config root>/extensions/<id>/<version>/` when present, else the copy shipped in the installer. Loads
+    into the default context (no unload: "off" is the Phase 1 switch, not an unload). Browser head
+    unchanged: it compile-links the version it was built with.
+35. **Signing and trust.** Only assemblies signed with the project's key load from the config root;
+    anything else is ignored with a log line. First-party only; the add-on design's consent UX is not
+    pulled in.
+36. **Update feed.** Velopack owns `current/` and cannot carry a second package, so the extension has its
+    own feed (a GitHub release per extension version); the app's Update service checks it, downloads,
+    verifies, stages under the config root and applies on next start. Settings shows the installed and
+    available versions under "Extensions".
+37. **CI and packaging.** A release workflow per extension producing the signed zip and feed entry; the
+    app installer still bundles the extension version current at app release time.
+38. **Compatibility matrix test.** A test that builds the extension against the app and asserts the
+    manifest's ranges match the referenced versions, so a release cannot ship an unloadable pair.
+
+Other first-party modules (Highlights, Rule Workbench, Library sections) can take the same layout later;
+nothing here depends on it.
 
 ### Proof of concept
 
@@ -683,6 +730,9 @@ data for the session only.
    restart" fallback.
 4. **Name:** users see it as an **extension** ("Strat Book extension"). The per-section switches stay under
    the master switch.
+5. **Structure:** each extension lives in its own directory from the start (Phase 0b) and becomes its own
+   csproj once the edges are cut (Phase 5), so extensions can be released on a different cadence from the
+   app (Phase 6).
 
 
 ---
@@ -707,3 +757,34 @@ library, with the pack on (M0), off at startup (9), and after an on-to-off toggl
 | Pack on (M0, head at the time) | | | |
 | Pack off at startup (9) | | | |
 | On, then off in session (9) | | | |
+
+## 13. Repository layout (decision 5)
+
+After Phase 0b, inside the app project, with namespaces unchanged:
+
+```
+src/App/DemoViewer.NET/Extensions/StratBook/
+  StratBookPack.cs                      the IFeaturePack
+  Modules/   StratBook, UtilityBook, RoundTagger, SuggestedTags, Situations, Dossier, Teams, Review
+  Services/  Strats, RoundIndex, RoundFacts, Tags, Teams, Review (pack side), Zones (if pack-only)
+  ViewModels/ StratBook, UtilityBook, Situations
+  Views/     StratBook, UtilityBook
+  Controls/  PlaceField and the other pack-only controls
+  Assets/    palettes, callouts
+src/App/DemoViewer.NET.App.Tests/Extensions/StratBook/
+src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/
+```
+
+After Phase 5, the same tree moved up:
+
+```
+src/Extensions/StratBook/
+  DemoViewer.NET.Extensions.StratBook/            the csproj; references src/App/DemoViewer.NET
+  DemoViewer.NET.Extensions.StratBook.Tests/
+  extension.json                                   Phase 6 manifest
+```
+
+What stays in the app: everything ring G in section 3 (lanes, shape tools, `MapSceneHost`, zones,
+`QueueWork`, the processing queue) and the Review Queue (decision 1). Ring S items move with the
+extension once their contribution seams exist (items 2, 22). Which `Services/` folders are pack-only
+versus shared is settled by item 0b's move list, reviewed before the move.
