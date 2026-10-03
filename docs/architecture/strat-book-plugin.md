@@ -944,8 +944,8 @@ library, with the pack on (M0), off at startup (9), and after an on-to-off toggl
 |---|---|---|---|
 | Pack on (M0, head f48f6695) | GC heap 368.7 MB immediately after settling (median of 5); drops to 323.5 MB after 90s more idle with no queue activity to explain it (median of 5), likely a .NET buffer-pool trim rather than app or pack behavior, since the isolated probe drops by the same amount with no app, no queue and no Avalonia at all | full 6-evaluator pass 14.5 s versus library+highlights-only 9.3 s, pooled median of 3 runs x 4 demos each (about 57% slower, a floor: see §12.1 on library's own asymmetry; run medians ranged 44 to 87%) | macOS arm64, Release, head f48f6695, 382-demo copy. `PrivateMemorySize64` reads 0 on this OS; see §12.1. |
 | Pack on, rerun (9, head 396495e1) | GC heap 369.9 MB immediately after settling (median of 5); after 90s more idle the drop M0 saw recurred in only 2 of 5 trials (down to ~324.6 MB, the same ~45 MB M0 measured), while the other 3 rose instead (to ~374.8 MB), so the late median (374.8 MB) sits above the early one | full 6-evaluator pass 13.5 s versus library+highlights-only-with-the-pack-still-on 7.7 s, one run x 4 demos each (about 76% slower). Not the pack-off comparison; see the pack-off row and §12.3 for that | macOS arm64, Release, head 396495e1 (code-identical to fa77bad5), fresh copy of the same 382-demo library |
-| Pack off at startup (9) | GC heap 29.6 MB immediately after settling (median of 5); 29.7 MB after 90s more idle (median of 5), essentially flat: no drift recurs when nothing of the pack ever decodes a sidecar. Working set 203.8 MB early / 202.4 MB late (median), but individual trials ranged 116 to 206 MB late, noise with no counterpart in the GC heap | library + highlights only, which is what `Wants()` resolves the full evaluator list to with the pack off: 9.4 s median of 8 demos, one run; `round_facts` confirmed excluded from the merged ruleset (`MergedRulesBuild.EnabledDoc("round_facts") is null`) | macOS arm64, Release, head 396495e1, fresh copy of the same library with `Features.Overrides["pack.stratbook"] = false` in settings.json |
-| On, then off in session (9) | GC heap: on 369.9 MB, then off 84.1 MB immediately after the release, then off 31.2 MB after 90s more idle (matching the pack-off-at-startup row's 29.6 MB within 1.6 MB), then on again 369.4 MB (medians of 3, real `IDemoProcessingQueue`). The 84.1 MB immediate figure is mostly buffer-pool residue, not retained pack state: once it settles, re-enabling costs about the same as the first enable, not more | not measured in session; the library+highlights-only figure is the pack-off row above | macOS arm64, Release, head 396495e1, same 382-demo copy as the pack-on rerun, pack on at boot, off and on again through `SettingsService.Write` + `PackSwitch` |
+| Pack off at startup (9) | GC heap 29.6 MB immediately after settling (median of 5); 29.7 MB after 90s more idle (median of 5), essentially flat: no drift recurs when nothing of the pack ever decodes a sidecar. Working set 203.8 MB early / 202.4 MB late (median), but individual trials ranged 116 to 206 MB late, noise with no counterpart in the GC heap | library + highlights only, which is what `Wants()` resolves the full evaluator list to with the pack off: two runs over the same 8 demos, 9.2 s and 9.4 s median; `round_facts` confirmed excluded from the merged ruleset (`MergedRulesBuild.EnabledDoc("round_facts") is null`) | macOS arm64, Release, head 396495e1, fresh copy of the same library with `Features.Overrides["pack.stratbook"] = false` in settings.json |
+| On, then off in session (9) | GC heap: on 369.9 MB, then off 84.1 MB immediately after the release, then off 31.2 MB after 90s more idle (matching the pack-off-at-startup row's 29.6 MB within 1.6 MB), then on again 369.4 MB (medians of 3, real `IDemoProcessingQueue`). The 84.1 MB immediate figure is transient (gone after 90s idle; likely a pool trim), not retained pack state: once it settles, re-enabling costs about the same as the first enable, not more | not measured in session; the library+highlights-only figure is the pack-off row above | macOS arm64, Release, head 396495e1, same 382-demo copy as the pack-on rerun, pack on at boot, off and on again through `SettingsService.Write` + `PackSwitch` |
 
 ### 12.1 M0 method and numbers
 
@@ -1247,14 +1247,16 @@ uses, resolves both:
 | 3 | 369.86 MB | 84.10 MB | 31.21 MB | 369.44 MB |
 | **median** | **369.88 MB** | **84.10 MB** | **31.21 MB** | **369.44 MB** |
 
-**The 84.1 MB immediate figure is buffer-pool residue, not retained pack state.** After 90s of idle (no
+**The 84.1 MB immediate figure is transient, not retained pack state.** After 90s of idle (no
 further gate changes, nothing else running) the same process's heap drops to 31.2 MB, 1.6 MB above the
-pack-off-at-startup row's 29.6 MB, close enough to call it the same floor. This is the same ~45 to 55 MB
-scale M0 attributed to a buffer-pool trim on decode, and it fits: the release itself does the real work
-(`SituationIndex`, `GrenadeIndex` and Team Identity all report not ready/not loaded the instant the release
-item completes, before any idle wait), and what lingers afterward is exactly the kind of thing a timer-gated
-pool trim would leave behind, not something the release forgot to drop. Decision 3 ("no reclaimed on
-restart") holds: the heap does go back to where it was, just not within the first few seconds.
+pack-off-at-startup row's 29.6 MB, close enough to call it the same floor; committed bytes drop with it, to
+a median of 24.7 MB, matching the pack-off-at-startup row's 24.8 MB almost exactly. This is the same ~45 to
+55 MB scale M0 attributed to a buffer-pool trim on decode, and the timing fits that reading (the release
+itself does the real work: `SituationIndex`, `GrenadeIndex` and Team Identity all report not ready/not
+loaded the instant the release item completes, before any idle wait), but the probe only shows that
+whatever lingers is gone within 90s, not what specifically holds it until then. Decision 3 ("no reclaimed
+on restart") holds either way: the heap does go back to where it was, just not within the first few
+seconds.
 
 **Re-enabling from a settled state costs about the same as the first enable, not more.** on-again (369.44
 MB median) sits 0.44 MB below on-before (369.88 MB), well inside the trial noise the pack-on rerun's own
