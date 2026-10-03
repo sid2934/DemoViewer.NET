@@ -203,8 +203,11 @@ public class StratBookPackTests
         await WithGate(async (svc, gate) =>
         {
             svc.Write(s => s.UserCategory = UserCategory.Developer);
-            // An explicit per-tab override does not survive the pack going off: cascade beats override.
+            // An explicit override does not survive the pack going off: cascade beats override, through
+            // ParentId (tab.dossier) and through OwnerPackId alone (playback2d.tagger, whose ParentId is the
+            // core tab.playback2d and so never reaches the pack that way).
             svc.Write(s => s.Features.Overrides["tab.dossier"] = true);
+            svc.Write(s => s.Features.Overrides["playback2d.tagger"] = true);
             svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
 
             await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsFalse();
@@ -213,6 +216,9 @@ public class StratBookPackTests
                 await Assert.That(gate.IsEnabled(id)).IsFalse()
                     .Because($"{id} is owned by the pack and goes off with it, whatever {parent} resolves to");
             }
+
+            await Assert.That(gate.IsEnabled("playback2d.tagger")).IsFalse()
+                .Because("the owning-pack rule beats an explicit override=true, the same as ParentId cascade does");
 
             // Core tabs are untouched, and so is a core SUB-feature sharing tab.playback2d with the two
             // pack-owned ones that just went off above: the rule discriminates by owner, not by ParentId.
@@ -335,9 +341,14 @@ public class StratBookPackTests
     {
         FakePack requiredPack = new("pack.req", [Pack("pack.req") with { Required = true }]);
         FakePack requiredTab = new("pack.reqtab", [Pack("pack.reqtab"), Tab("tab.reqtab", "pack.reqtab") with { Required = true }]);
+        // Owned via OwnerPackId alone: parented to a CORE tab (tab.library), not to the pack directly, the
+        // playback2d.tagger shape.
+        FakePack requiredSubFeatureUnderCoreTab = new("pack.reqsub",
+            [Pack("pack.reqsub"), SubFeature("sub.reqsub", "tab.library") with { Required = true }]);
 
         await Assert.That(Message(() => FeatureCatalog.Build([requiredPack]))).Contains("may not be Required");
         await Assert.That(Message(() => FeatureCatalog.Build([requiredTab]))).Contains("may not be Required");
+        await Assert.That(Message(() => FeatureCatalog.Build([requiredSubFeatureUnderCoreTab]))).Contains("may not be Required");
     }
 
     [Test]
@@ -457,6 +468,9 @@ public class StratBookPackTests
 
     private static FeatureDescriptor Tab(string id, string? parent) =>
         new(id, FeatureScope.Tab, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+
+    private static FeatureDescriptor SubFeature(string id, string? parent) =>
+        new(id, FeatureScope.SubFeature, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
 
     private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
     {
