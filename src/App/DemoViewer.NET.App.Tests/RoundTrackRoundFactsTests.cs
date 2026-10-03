@@ -69,8 +69,8 @@ public class RoundTrackRoundFactsTests
         }
     }
 
-    // The pack off on a Valve demo: no rows ever written, no round_end on the wire. The bands still lay out;
-    // they are simply not tinted.
+    // The pack off on a Valve demo: the gated source answers null whether or not rows were ever written,
+    // and the wire carries no round_end. The bands still lay out; they are simply not tinted.
     [Test]
     public async Task WithoutASource_AndNoRoundEnd_EveryBandIsNeutral()
     {

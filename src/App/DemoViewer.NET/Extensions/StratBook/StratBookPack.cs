@@ -203,9 +203,16 @@ public sealed class StratBookPack : IFeaturePack
                 action => Dispatcher.UIThread.Post(action),
                 enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
         });
-        services.AddSingleton<IRoundFactsSource>(sp => new RoundFactsSource(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<RoundFactsEvaluator>()));
+        // The reader is gated too, so off looks off: rows written while on stop surfacing until the pack
+        // comes back. They stay on disk.
+        services.AddSingleton<IRoundFactsSource>(sp =>
+        {
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            return new RoundFactsSource(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<RoundFactsEvaluator>(),
+                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+        });
 
         services.AddSingleton(sp =>
         {
