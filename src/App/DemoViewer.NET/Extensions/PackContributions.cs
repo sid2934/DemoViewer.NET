@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -23,6 +24,7 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<StatusChipContribution> _statusChips = [];
     private readonly List<IPackReindexEstimate> _reindexEstimates = [];
     private readonly List<IPlaybackContribution> _playback = [];
+    private readonly List<ILibraryContribution> _library = [];
     private readonly List<StoreDescriptor> _stores = [];
     private IPackDataRemoval? _dataRemoval;
 
@@ -58,6 +60,9 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>2D Playback contributions, in contribution order.</summary>
     public IReadOnlyList<IPlaybackContribution> PlaybackContributions => _playback;
+
+    /// <summary>Library filter/badge contributions, in contribution order, each stamped with a gate id.</summary>
+    public IReadOnlyList<ILibraryContribution> LibraryContributions => _library;
 
     /// <summary>Store and cache paths the pack declared, in contribution order.</summary>
     public IReadOnlyList<StoreDescriptor> Stores => _stores;
@@ -146,6 +151,13 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     }
 
     /// <inheritdoc />
+    public void Library(ILibraryContribution contribution)
+    {
+        ArgumentNullException.ThrowIfNull(contribution);
+        _library.Add(contribution.FeatureId is null ? new StampedLibraryContribution(contribution, Pack.FeatureId) : contribution);
+    }
+
+    /// <inheritdoc />
     public void Store(StoreDescriptor store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -158,5 +170,27 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(removal);
         _dataRemoval = removal;
+    }
+
+    // Stamps the owning pack's id onto a contribution that left FeatureId null, so the host always has a
+    // concrete gate id and never has to fall back to "always on" the way a settings page or chip would.
+    private sealed class StampedLibraryContribution(ILibraryContribution inner, string featureId) : ILibraryContribution
+    {
+        public string? FeatureId => featureId;
+
+        public event Action? Changed
+        {
+            add => inner.Changed += value;
+            remove => inner.Changed -= value;
+        }
+
+        public LibraryFilter? Filter => inner.Filter;
+        public bool HasBadge => inner.HasBadge;
+        public LibraryBadge? BadgeFor(DemoEntry entry) => inner.BadgeFor(entry);
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries) => inner.BadgesFor(entries);
+        public IReadOnlyList<string> BadgeLabels => inner.BadgeLabels;
+        public string? BadgeResetLabel => inner.BadgeResetLabel;
+        public string? BadgeResetTooltip => inner.BadgeResetTooltip;
+        public void SetLabel(DemoEntry entry, string? label) => inner.SetLabel(entry, label);
     }
 }
