@@ -631,6 +631,11 @@ public class App : Application
         Current.RequestedThemeVariant = active;
     }
 
+    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
+        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
+            DemoJobPriority.UserRequested);
+
     /// <summary>
     ///     Builds the app's single composition root: a bare Microsoft.Extensions DI container (NO
     ///     Microsoft.Extensions.Hosting). It owns the long-lived <see cref="SettingsService" />, a live
@@ -647,12 +652,64 @@ public class App : Application
     ///         starts a <c>DispatcherTimer</c>) at build time.
     ///     </para>
     /// </summary>
-    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
-    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
-        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
-            DemoJobPriority.UserRequested);
-
     internal static ServiceProvider BuildServices(IWindowService windowService)
+    {
+        ServiceCollection services = ComposeServices(windowService);
+
+        // ValidateOnBuild: a missing/broken registration fails HERE (a loud construction error on the UI
+        // thread at framework-init) instead of silently at the first GetRequiredService<MainViewModel>().
+        // It eagerly constructs the singletons, all of which the shell resolves immediately anyway, so
+        // there is no extra side-effect beyond building them a few lines earlier, on the same UI thread.
+        ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true
+        });
+        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
+        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
+        // any rescan, independent of ValidateOnBuild's eager-construction behavior.
+        provider.GetRequiredService<DemoEvaluationCoordinator>();
+        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
+        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
+        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
+        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
+        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
+        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
+        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
+        provider.GetRequiredService<LineupClipService>();
+        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
+        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
+        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
+        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
+        provider.GetRequiredService<TagFactsRefresher>();
+        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
+        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
+        // 30 s so startup loads are not competing for the disk.
+        if (!OperatingSystem.IsBrowser())
+        {
+            DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
+            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
+            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
+                {
+                    SidecarFormatMigration.Submit(queue, demoCache,
+                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
+
+                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
+                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
+                },
+                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        }
+        Services = provider;
+        return provider;
+    }
+
+    /// <summary>
+    ///     Every registration of the composition root, before the provider is built. Kept apart from
+    ///     <see cref="BuildServices" /> so a test can enumerate what is registered without constructing
+    ///     the singletons.
+    /// </summary>
+    internal static ServiceCollection ComposeServices(IWindowService windowService)
     {
         ServiceCollection services = new();
 
@@ -1358,53 +1415,7 @@ public class App : Application
         // handed in so the shell FILTERS the workspace tab strip per user category (and reconciles live on
         // IFeatureGate.Changed). A null gate (the designer / unit-test path) fails open: no tab filtering.
         services.AddSingleton(BuildShell);
-
-        // ValidateOnBuild: a missing/broken registration fails HERE (a loud construction error on the UI
-        // thread at framework-init) instead of silently at the first GetRequiredService<MainViewModel>().
-        // It eagerly constructs the singletons, all of which the shell resolves immediately anyway, so
-        // there is no extra side-effect beyond building them a few lines earlier, on the same UI thread.
-        ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
-        {
-            ValidateOnBuild = true
-        });
-        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
-        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
-        // any rescan, independent of ValidateOnBuild's eager-construction behavior.
-        provider.GetRequiredService<DemoEvaluationCoordinator>();
-        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
-        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
-        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
-        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
-        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
-        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
-        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
-        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
-        provider.GetRequiredService<LineupClipService>();
-        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
-        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
-        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
-        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
-        provider.GetRequiredService<TagFactsRefresher>();
-        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
-        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
-        // 30 s so startup loads are not competing for the disk.
-        if (!OperatingSystem.IsBrowser())
-        {
-            DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
-            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
-            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
-            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
-                {
-                    SidecarFormatMigration.Submit(queue, demoCache,
-                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
-
-                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
-                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
-                },
-                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
-        }
-        Services = provider;
-        return provider;
+        return services;
     }
 
     /// <summary>
