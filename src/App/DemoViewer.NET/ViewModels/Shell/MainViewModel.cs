@@ -4592,11 +4592,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Hands each host's pack-keyed blob to its view model, by the host's own FeatureId (the pack's
-    // umbrella gate, as PackContributions.HostTab stamps it): a pack that is off right now is never
-    // restored into, so its blob stays exactly what was loaded until SnapshotPackSessions carries it
-    // through on the next save. Runs through every host regardless of gate, unlike RestoreModuleTabs
-    // (TabsAndSections), because the rail/list state must be in place before any tab activates.
+    // Walks every host in _hosts, not TabsAndSections, so a host's pack state lands before any tab
+    // activates. Skips a host whose gate (host.Tab.FeatureId) is off; IsPackSessionEnabled is the same
+    // check SnapshotPackSessions uses, so a skipped pack's blob is read back unchanged on the next save.
     private void RestorePackSessions(Dictionary<string, JsonElement>? packs)
     {
         if (packs is null)

@@ -85,7 +85,7 @@ public sealed record SessionPayload(
 
     // A file written before Packs existed carried the Strat Book pack's layout flat as "StratBook". Folded
     // once, keyed under LegacyPackFields.PackId (core cannot name the pack's own id constant); an existing
-    // Packs entry for that id wins, same rule item 21 uses for the demo cache record.
+    // Packs entry for that id wins.
     void IJsonOnDeserialized.OnDeserialized()
     {
         if (UnknownMembers is { Count: > 0 } members

@@ -758,8 +758,9 @@ leaves two live-toggle edges unhandled: flipping the pack on mid-session shows t
 just-constructed (unrestored) default until the next full restore, and flipping it off after a change and
 then saving carries forward the stale blob from the last load rather than the live value at the moment it
 went off. Both are accepted for now (session restore is a restart-time concern per section 8; a live-
-toggle fix would touch `OnGateChanged`, outside this item's session-region scope) and are not what the
-round-trip tests below exercise, which is strictly restart-time: load off, save, load on.
+toggle fix would touch `OnGateChanged`, outside this item's session-region scope) and are not what
+`StratBookShellTests.PackOff_AtStartup_WithAPersistedPackSection_RestoresToLibrary_AndCarriesThePackBlobThroughUnchanged`
+or `SessionPackStateTests` exercise, which is strictly restart-time: load off, save, load on.
 
 ### 7.5 Commands and keybindings
 
