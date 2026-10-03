@@ -1598,6 +1598,15 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     [RelayCommand]
     private void RequestGrenadeIndex()
     {
+        if (!(PackEnabled?.Invoke() ?? true))
+        {
+            // The chip can still be showing from before the pack went off this session (nothing pushes a
+            // refresh on the gate flip). A press must not mark the demo requested: IndexGrenades.Request
+            // is a no-op now, and _grenadesRequestedFor would wrongly hide the chip once the pack returns.
+            OnPropertyChanged(nameof(HasIndexGrenadesAction));
+            return;
+        }
+
         if (SubjectKey is { } key && IndexGrenades is { } index)
         {
             index(key);

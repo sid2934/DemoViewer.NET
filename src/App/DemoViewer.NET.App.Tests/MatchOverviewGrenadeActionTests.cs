@@ -100,4 +100,31 @@ public class MatchOverviewGrenadeActionTests
 
         await Assert.That(vm.HasIndexGrenadesAction).IsTrue();
     }
+
+    // The mid-session residual: the chip rendered while the pack was on (nothing pushes a refresh on the
+    // gate flip, that is item 8), then the pack goes off before the stale chip is pressed. The command's
+    // own guard must still refuse it, and must not mark the demo requested, or the chip would stay hidden
+    // once the pack returns.
+    [Test]
+    public async Task WithThePackOff_APress_DoesNothing_AndDoesNotMarkTheDemoRequested()
+    {
+        bool packOn = true;
+        List<string> requested = [];
+        MatchOverviewTabViewModel vm = new()
+        {
+            IndexGrenades = requested.Add,
+            AreGrenadesIndexed = _ => false,
+            PackEnabled = () => packOn
+        };
+        vm.SetCachedRecord(Parsed());
+        await Assert.That(vm.HasIndexGrenadesAction).IsTrue();
+
+        packOn = false;
+        vm.RequestGrenadeIndexCommand.Execute(null);
+        await Assert.That(requested).IsEmpty().Because("IndexGrenades must not be called while the pack is off");
+
+        packOn = true;
+        await Assert.That(vm.HasIndexGrenadesAction).IsTrue()
+            .Because("the refused press must not have marked the demo requested");
+    }
 }
