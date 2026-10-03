@@ -53,7 +53,7 @@ public sealed class DossierModule : IWorkspaceModule
             TabId = BrowserTabId,
             Header = "Dossier",
             Order = 5, // after Review (4)
-            Placement = TabPlacement.StratBook,
+            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new DossierTabView()

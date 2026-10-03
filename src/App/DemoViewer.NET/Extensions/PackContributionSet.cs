@@ -33,6 +33,9 @@ internal sealed class PackContributionSet
     /// <summary>One entry per pack, in pack order.</summary>
     public IReadOnlyList<PackContributions> Packs { get; }
 
+    /// <summary>Every pack's host tabs, in pack order then contribution order. The shell builds its strip from this.</summary>
+    public IReadOnlyList<HostTabContribution> HostTabs => [.. Packs.SelectMany(p => p.HostTabs)];
+
     /// <summary>
     ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,
     ///     the designer and unit-test path; a pack id the gate does not know resolves off, never on.
