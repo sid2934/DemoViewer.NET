@@ -2,10 +2,18 @@
 
 using Avalonia.Controls;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.ViewModels.Library;
+using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
 using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
 
@@ -35,6 +43,23 @@ public class StratBookShellTests
         }
 
         MainViewModel vm = new(null, registry, TestLibraries.Empty(), null, gate, null, settings);
+        vm.RestoreSession();
+        return vm;
+    }
+
+    // Item 4: the Library's team filter and provenance chip, which NewShell above never wires.
+    private static MainViewModel NewShellWithTeams(
+        IFeatureGate? gate, TeamIdentityService teams, IDemoProvenanceSource provenance,
+        params IWorkspaceModule[] modules)
+    {
+        ModuleRegistry registry = new();
+        foreach (IWorkspaceModule module in modules)
+        {
+            registry.Register(module);
+        }
+
+        MainViewModel vm = new(null, registry, TestLibraries.Empty(), null, gate, null, null,
+            teams: teams, provenance: provenance);
         vm.RestoreSession();
         return vm;
     }
@@ -213,7 +238,8 @@ public class StratBookShellTests
                     await Assert.That(vm.StratBookHub.Sections.Sections).IsEmpty();
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId)
                         .Because("a rail with nothing on it has no tab");
-                    await Assert.That(vm.SelectedTab!.TabId).IsNotEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
+                        .Because("the hub's own order-neighbour is not always Library, but a disabled pack falls back to it specifically");
                 }
 
                 gate.Answers["tab.review"] = true;
@@ -311,6 +337,220 @@ public class StratBookShellTests
             }
         }
     }
+
+    // FakeGate has no cascade, so every id the real pack parents to pack.stratbook is set by hand here,
+    // the same way TheGate_Hides... above does.
+    private static void SetPackOff(FakeGate gate)
+    {
+        gate.Answers[StratBookPack.PackFeatureId] = false;
+        gate.Answers["tab.stratbook"] = false;
+        gate.Answers["tab.teams"] = false;
+        gate.Answers["tab.situations"] = false;
+        gate.Answers["tab.review"] = false;
+    }
+
+    private static void SetPackOn(FakeGate gate)
+    {
+        gate.Answers.Remove(StratBookPack.PackFeatureId);
+        gate.Answers.Remove("tab.stratbook");
+        gate.Answers.Remove("tab.teams");
+        gate.Answers.Remove("tab.situations");
+        gate.Answers.Remove("tab.review");
+    }
+
+    private static (DemoCacheStore Cache, TeamIdentityService Teams) NewTeams()
+    {
+        DemoCacheStore cache = new(null);
+        TeamIdentityService teams = new(null, cache, run: a =>
+        {
+            a();
+            return Task.CompletedTask;
+        });
+        return (cache, teams);
+    }
+
+    [Test]
+    public async Task PackOff_AtStartup_HidesTheSharedSurfaces_AndNeverQueriesProvenance() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new();
+            SetPackOff(gate);
+            (_, TeamIdentityService teams) = NewTeams();
+            await teams.StartAsync();
+            CountingProvenanceSource provenance = new();
+
+            MainViewModel vm = NewShellWithTeams(gate, teams, provenance, new SectionsModule());
+            FakeExportJob job = new();
+            Playback2DExportStatusViewModel status = new(job);
+            try
+            {
+                vm.AttachStratExportStatus(status);
+                job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 10, 0, TimeSpan.Zero, "strat.webm", null));
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse();
+                    await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
+                    await Assert.That(vm.LibraryTab.AvailableTeams).IsEquivalentTo([TeamFilterItem.All])
+                        .Because("no team filter items beyond the sentinel");
+                    await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
+                    await Assert.That(vm.TrySelectTab("stratbook.browser")).IsFalse();
+                    await Assert.That(vm.Chips.Contains(status.Chip)).IsFalse()
+                        .Because("a strat export attached while the pack is off never joins the strip");
+                    await Assert.That(provenance.ResolveAllCalls).IsEqualTo(0)
+                        .Because("the Library must not query provenance while the pack is off");
+                }
+            }
+            finally
+            {
+                vm.Dispose();
+                teams.Dispose();
+            }
+        });
+
+    [Test]
+    public async Task PackOff_AtStartup_WithAPersistedPackSection_RestoresToLibrary_AndKeepsTheStratBookBlob()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, "stratbook.browser",
+                    null, null, new StratBookLayoutState(true, true)));
+
+                FakeGate gate = new();
+                SetPackOff(gate);
+                MainViewModel vm = NewShell(gate, svc, new SectionsModule());
+                try
+                {
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
+                            .Because("a persisted pack section with the pack off lands on Library, not nothing");
+                        await Assert.That(vm.StratBookHub.Layout.IsRailCollapsed).IsTrue()
+                            .Because("the pack's own session blob restores untouched even while the pack is off");
+                        await Assert.That(vm.StratBookHub.Layout.IsListCollapsed).IsTrue();
+                    }
+
+                    vm.SaveSession();
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+
+                SessionPayload? reloaded = svc.LoadSession();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(reloaded!.StratBook!.RailCollapsed).IsTrue()
+                        .Because("re-saving with the pack off must not clobber the blob with a fresh default");
+                    await Assert.That(reloaded.StratBook!.ListCollapsed).IsTrue();
+                }
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    [Test]
+    public async Task PackToggledOffInSession_WhileAPackSectionIsActive_FallsBackToLibrary_AndOnReappears() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new();
+            (_, TeamIdentityService teams) = NewTeams();
+            await teams.StartAsync();
+            CountingProvenanceSource provenance = new();
+            SectionsModule module = new();
+            MainViewModel vm = NewShellWithTeams(gate, teams, provenance, module);
+            FakeExportJob job = new();
+            Playback2DExportStatusViewModel status = new(job);
+            try
+            {
+                vm.AttachStratExportStatus(status);
+                job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 10, 0, TimeSpan.Zero, "strat.webm", null));
+
+                await Assert.That(vm.TrySelectTab("stratbook.browser")).IsTrue();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
+                    await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
+                    await Assert.That(vm.Chips.Contains(status.Chip)).IsTrue();
+                }
+
+                SetPackOff(gate);
+                gate.RaiseChanged();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
+                        .Because("the Strat Book tab the user was on just went away");
+                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse();
+                    await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
+                    await Assert.That(vm.LibraryTab.AvailableTeams).IsEquivalentTo([TeamFilterItem.All]);
+                    await Assert.That(vm.Chips.Contains(status.Chip)).IsFalse()
+                        .Because("a running strat export is hidden, not stopped, while the pack is off");
+                }
+
+                // A status change while still off (the mapper keeps running) must not resurrect the chip
+                // through OnExportStatusPropertyChanged's own reconcile call.
+                job.Push(new ExportJobStatus(ExportPhase.Completed, 10, 10, 60, TimeSpan.FromSeconds(10),
+                    "strat.webm", null));
+                await Assert.That(vm.Chips.Contains(status.Chip)).IsFalse();
+
+                SetPackOn(gate);
+                gate.RaiseChanged();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
+                    await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
+                    await Assert.That(vm.Chips.Contains(status.Chip)).IsTrue()
+                        .Because("the same mapper reappears: turning the pack off never unsubscribed it");
+                    await Assert.That(vm.TrySelectTab("stratbook.browser")).IsTrue();
+                }
+            }
+            finally
+            {
+                vm.Dispose();
+                teams.Dispose();
+            }
+        });
+
+    [Test]
+    public async Task PackOn_TheLibraryTeamFilterAndProvenanceChip_WorkAsBefore() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (_, TeamIdentityService teams) = NewTeams();
+            await teams.StartAsync();
+            CountingProvenanceSource provenance = new();
+
+            MainViewModel vm = NewShellWithTeams(null, teams, provenance, new SectionsModule());
+            try
+            {
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
+                    await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
+                    await Assert.That(provenance.ResolveAllCalls).IsGreaterThan(0)
+                        .Because("the pack on is the pre-gating behaviour: nothing new is suppressed");
+                }
+            }
+            finally
+            {
+                vm.Dispose();
+                teams.Dispose();
+            }
+        });
 
     [Test]
     public async Task CollapsedPanes_SurviveRestarts_WithoutADemo_AndWithoutOpeningTheStratBook()
@@ -439,5 +679,52 @@ public class StratBookShellTests
         public event EventHandler? Changed;
 
         public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    // Counts ResolveAll calls so a test can assert the Library never queries provenance while the pack
+    // is off; everything it returns is unlabeled, which is enough to drive RefreshProvenance.
+    private sealed class CountingProvenanceSource : IDemoProvenanceSource
+    {
+        public int ResolveAllCalls { get; private set; }
+
+        public string? LabelFor(string sha256) => null;
+
+        public IReadOnlyDictionary<string, string?> LabelsFor(IEnumerable<string> sha256s) =>
+            sha256s.ToDictionary(s => s, _ => (string?)null, StringComparer.Ordinal);
+
+        public DemoProvenance? Resolve(string demoPath) => null;
+
+        public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths)
+        {
+            ResolveAllCalls++;
+            return demoPaths.ToDictionary(p => p,
+                p => new DemoProvenance(p, null, null, null, ProvenanceOrigin.None), StringComparer.Ordinal);
+        }
+
+        // Never raised: no test here depends on it, and the interface requires the member regardless.
+#pragma warning disable CS0067
+        public event Action? Changed;
+#pragma warning restore CS0067
+    }
+
+    // A job that only publishes what a test tells it to, the same seam Playback2DExportSurfaceTests builds
+    // its FakeExportJob on.
+    private sealed class FakeExportJob : IExportJobService
+    {
+        public ExportJobStatus Status { get; private set; } = ExportJobStatus.Idle;
+
+        public event EventHandler<ExportJobStatus>? StatusChanged;
+
+        public void Start(Scene2DExportRequest request)
+        {
+        }
+
+        public Task CancelAsync() => Task.CompletedTask;
+
+        public void Push(ExportJobStatus status)
+        {
+            Status = status;
+            StatusChanged?.Invoke(this, status);
+        }
     }
 }
