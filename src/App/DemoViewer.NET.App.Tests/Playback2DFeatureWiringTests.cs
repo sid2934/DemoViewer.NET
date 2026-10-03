@@ -28,9 +28,15 @@ public class Playback2DFeatureWiringTests
     {
         string appRoot = Path.Combine(RepoRoot(), "src", "App", "DemoViewer.NET");
         string catalogPath = Path.Combine(appRoot, "Features", "FeatureCatalog.cs");
+        // The compiled-in extensions' production sources (item 25): a pack reads the ids of the tabs and
+        // features it contributes. Their test and capture projects are not production and do not count.
+        string extensionsRoot = Path.Combine(RepoRoot(), "src", "Extensions");
 
         string[] sources = Directory
             .EnumerateFiles(appRoot, "*.*", SearchOption.AllDirectories)
+            .Concat(Directory.Exists(extensionsRoot)
+                ? Directory.EnumerateFiles(extensionsRoot, "*.*", SearchOption.AllDirectories).Where(IsExtensionProductionSource)
+                : [])
             .Where(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
                         || p.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase))
             .Where(p => !string.Equals(p, catalogPath, StringComparison.OrdinalIgnoreCase))
@@ -51,6 +57,14 @@ public class Playback2DFeatureWiringTests
             .Because("a catalog row nothing reads is a switch wired to nothing — the user flips it and "
                      + "the app does not change");
     }
+
+    // No build output, and no segment that names a test, test-support or capture project.
+    private static bool IsExtensionProductionSource(string path) =>
+        path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).All(segment =>
+            segment is not ("bin" or "obj")
+            && !segment.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
+            && !segment.EndsWith(".TestSupport", StringComparison.OrdinalIgnoreCase)
+            && !segment.EndsWith(".UiCapture", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     ///     The single <c>!OperatingSystem.IsBrowser()</c> site for module ids (B5 D4). Export is in it;
