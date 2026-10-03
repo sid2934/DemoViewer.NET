@@ -30,7 +30,7 @@ public static partial class Variants
         StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
         StratBookTabViewModel strats = SeededStratBook(layout, bare, places, template, map);
         configure?.Invoke(strats);
-        StratBookHubViewModel hub = new(layout);
+        StratBookHubViewModel hub = new(layout) { RailLabel = "STRAT BOOK" };
 
         List<WorkspaceTabDescriptor> sections =
         [

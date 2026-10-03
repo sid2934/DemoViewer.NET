@@ -2434,6 +2434,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         foreach (HostTabContribution host in _hostTabs)
         {
             IHostTabViewModel viewModel = host.ViewModelFactory();
+            viewModel.RailLabel = host.RailLabel;
             WorkspaceTabDescriptor tab = new()
             {
                 TabId = host.TabId,

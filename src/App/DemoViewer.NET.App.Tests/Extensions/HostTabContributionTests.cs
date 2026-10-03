@@ -97,7 +97,8 @@ public class HostTabContributionTests
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("fake.alpha");
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("fake.beta");
                     await Assert.That(host.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections);
-                    await Assert.That(texts).Contains("FAKE RAIL");
+                    await Assert.That(host.RailLabel).IsEqualTo("FAKE RAIL").Because("the shell sets it from the contribution");
+                    await Assert.That(texts).Contains("FAKE RAIL").Because("the band binds the VM's label, nothing hardcoded");
                     await Assert.That(texts).Contains("Alpha");
                     await Assert.That(texts).Contains("Beta");
                     await Assert.That(texts).Contains("Alpha section view")
@@ -280,17 +281,21 @@ public class HostTabContributionTests
     {
         public TabSectionHost Sections { get; } = new(autoSelectFirst: true);
 
+        public string RailLabel { get; set; } = "";
+
         public void OnActivated(IModuleContext context) => Sections.OnHostActivated(context);
 
         public void OnDeactivated() => Sections.OnHostDeactivated();
     }
 
-    // The rail band, the section list and the selected section's content, bound the way the real hub binds.
+    // The rail band, the section list and the selected section's content, bound the way the real hub binds:
+    // the band reads the VM's RailLabel, which the shell set from the contribution.
     private sealed class FakeHostView : DockPanel
     {
         public FakeHostView()
         {
-            TextBlock band = new() { Text = "FAKE RAIL" };
+            TextBlock band = new();
+            band.Bind(TextBlock.TextProperty, new Binding("RailLabel"));
             SetDock(band, Dock.Top);
             ListBox rail = new()
             {

@@ -92,7 +92,7 @@ public class StratBookShellTests
                     await Assert.That(strip).DoesNotContain("situations.search");
                     await Assert.That(strip).DoesNotContain("review.queue");
                     await Assert.That(strip).DoesNotContain("teams.browser");
-                    await Assert.That(rail).IsEquivalentTo(_railOrder)
+                    await Assert.That(rail).IsEquivalentTo(_railOrder, TUnit.Assertions.Enums.CollectionOrdering.Matching)
                         .Because("rail order is the section Order, not registration order");
                     await Assert.That(vm.LibraryTab.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_teamsOnly);
                     await Assert.That(vm.LibraryTab.HasTeamsView).IsTrue();

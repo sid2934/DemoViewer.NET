@@ -18,6 +18,9 @@ public interface IHostTabViewModel : IWorkspaceTabViewModel
     /// <summary>The hosted sections and the selection. The shell fills and gates the list; the view binds it.</summary>
     TabSectionHost Sections { get; }
 
+    /// <summary>The band over the rail. The shell sets it from the contribution before any view binds it.</summary>
+    string RailLabel { get; set; }
+
     // The session file keeps one pane-layout slot beside the active tab, restored before any demo loads. Item 23
     // moves it into pack session state; until then the shell hands the slot to every host and the one that owns
     // it answers.

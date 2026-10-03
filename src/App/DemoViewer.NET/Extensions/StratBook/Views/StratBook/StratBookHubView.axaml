@@ -69,7 +69,7 @@
                     <Button x:Name="CollapseRail" DockPanel.Dock="Right" Classes="pane-toggle" Content="«"
                             Command="{Binding Layout.ToggleRailCommand}"
                             ToolTip.Tip="Collapse the Strat Book rail" />
-                    <TextBlock Text="{Binding Label}" Classes="sectionLabel" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding RailLabel}" Classes="sectionLabel" VerticalAlignment="Center" />
                 </DockPanel>
             </Border>
             <ListBox Classes="strat-rail"

@@ -437,14 +437,16 @@ public class StratBookPackTests
             {
                 await Assert.That(host.HostId).IsEqualTo(StratBookHubViewModel.HostId);
                 await Assert.That(host.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
-                await Assert.That(host.RailLabel).IsEqualTo(StratBookHubViewModel.RailLabel);
+                await Assert.That(host.RailLabel).IsEqualTo("STRAT BOOK");
+                await Assert.That(vm.StratBookHub().RailLabel).IsEqualTo("STRAT BOOK")
+                    .Because("the shell hands the contribution's label to the VM the view binds");
                 await Assert.That(hubTab.Header).IsEqualTo("Strat Book");
                 await Assert.That(hubTab.Order).IsEqualTo(4).Because("after 2D Playback, before Authoring");
                 await Assert.That(hubTab.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
                 await Assert.That(hubTab.ViewModelFactory!()).IsSameReferenceAs(vm.StratBookHub())
                     .Because("the strip tab's VM is the one the contribution built, not a second hub");
-                await Assert.That(rail.Select(s => s.TabId)).IsEquivalentTo(_railOrder);
-                await Assert.That(rail.Select(s => s.Header)).IsEquivalentTo(_railHeaders);
+                await Assert.That(rail.Select(s => s.TabId)).IsEquivalentTo(_railOrder, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+                await Assert.That(rail.Select(s => s.Header)).IsEquivalentTo(_railHeaders, TUnit.Assertions.Enums.CollectionOrdering.Matching);
                 await Assert.That(rail.All(s => s.HostId == StratBookHubViewModel.HostId)).IsTrue()
                     .Because("every rail entry is a pack module's own descriptor, so the badge a module moves is the badge the rail shows");
             }
