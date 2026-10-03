@@ -2,7 +2,11 @@
 
 using System.Diagnostics;
 using System.Text.Json;
+using Avalonia.Threading;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.SuggestedTags;
@@ -22,14 +26,16 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Strat Book extension plan, item M0 (and item 9, which reruns the same probes against a later head):
-///     docs/architecture/strat-book-plugin.md §12. Three env-var-gated probes, skipped (not failed) when
-///     their env var is unset, so the standard tier never runs them. Driven by
-///     <c>tools/strat-book-baseline/run.sh</c> against a COPY of a real config dir, never the live one.
+///     Strat Book extension plan, item M0 (and item 9, which reruns the same probes against a later head,
+///     plus the pack-off and in-session toggle states): docs/architecture/strat-book-plugin.md §12.
+///     Env-var-gated probes, skipped (not failed) when their env var is unset, so the standard tier never
+///     runs them. Driven by <c>tools/strat-book-baseline/run.sh</c> against a COPY of a real config dir,
+///     never the live one.
 ///     <para>
 ///         Each probe is one measurement per process: a second boot in the same process would carry the
 ///         first boot's JIT and GC committed high-water, so repeats come from running the test again, not
-///         from looping inside it.
+///         from looping inside it. The one exception is <see cref="OnThenOffThenOn_InSession" />, which
+///         measures the toggle itself and so must stay in one process by design.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -118,13 +124,15 @@ public class StratBookPackBaselineTests
         }
     }
 
-    private static void Snapshot(ServiceProvider provider, string label)
+    // tagPrefix defaults to the M0 tag so the existing probe and run.sh grep are untouched; item 9's new
+    // probes pass their own prefix so the two never collide in one run.sh invocation's output.
+    private static void Snapshot(ServiceProvider provider, string label, string tagPrefix = "@M0_RESIDENT")
     {
         Process proc = Process.GetCurrentProcess();
         proc.Refresh();
         long gcBytes = GC.GetTotalMemory(true);
         GCMemoryInfo gi = GC.GetGCMemoryInfo();
-        Console.WriteLine($"@M0_RESIDENT_{label} " + JsonSerializer.Serialize(new
+        Console.WriteLine($"{tagPrefix}_{label} " + JsonSerializer.Serialize(new
         {
             workingSetMb = proc.WorkingSet64 / 1024.0 / 1024.0,
             privateMb = proc.PrivateMemorySize64 / 1024.0 / 1024.0,
@@ -136,7 +144,7 @@ public class StratBookPackBaselineTests
         }));
         if (label == "early")
         {
-            Console.WriteLine("@M0_RESIDENT " + JsonSerializer.Serialize(new
+            Console.WriteLine($"{tagPrefix} " + JsonSerializer.Serialize(new
             {
                 workingSetMb = proc.WorkingSet64 / 1024.0 / 1024.0,
                 privateMb = proc.PrivateMemorySize64 / 1024.0 / 1024.0,
@@ -191,6 +199,102 @@ public class StratBookPackBaselineTests
         {
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
             GC.WaitForPendingFinalizers();
+        }
+    }
+
+    private static readonly IFeaturePack Pack = FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
+
+    // Pack-off counterpart to SettleStartupLoads: those readiness flags never go true when nothing of
+    // the pack attaches, so this asserts the gate and the residents' state instead of waiting on them.
+    private static async Task SettleWithPackOff(ServiceProvider provider)
+    {
+        SettingsService settings = provider.GetRequiredService<SettingsService>();
+        if (settings.NeedsFirstRun)
+        {
+            throw new InvalidOperationException(
+                "the config copy has not completed first run; the wizard would hold the pack, which is not the off state item 9 measures");
+        }
+
+        PackSwitch packs = provider.GetRequiredService<PackSwitch>();
+        await packs.Pending;
+        if (packs.IsOn(Pack))
+        {
+            throw new InvalidOperationException(
+                "the pack resolved ON in a config copy meant to measure it OFF; check Features.Overrides[\"pack.stratbook\"] in settings.json");
+        }
+
+        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+        GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
+        TeamIdentityService teams = provider.GetRequiredService<TeamIdentityService>();
+        if (situations.IsReady || grenades.IsReady || teams.IsLoaded)
+        {
+            throw new InvalidOperationException(
+                $"pack resolved off but a resident loaded anyway: situationsReady={situations.IsReady} "
+                + $"grenadesReady={grenades.IsReady} teamsLoaded={teams.IsLoaded}");
+        }
+
+        // Nothing of the pack's is in flight, but App.BuildServices' own non-pack work (library's
+        // ValidateOnBuild construction, the window service) is still settling on the first tick or two.
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            GC.WaitForPendingFinalizers();
+        }
+    }
+
+    /// <summary>
+    ///     Item 9's "pack off at startup" row: the same boot and the same early/late snapshot shape as
+    ///     <see cref="ResidentSetAfterStartup" />, over a config copy whose settings.json carries
+    ///     <c>Features.Overrides["pack.stratbook"] = false</c>, so <c>StartPacks</c> never resolves the
+    ///     pack's lifecycle and none of its startup loads run. Reuses the same 90s-idle-then-resnapshot
+    ///     window as the pack-on probe so §12.3 can say whether the drift M0 saw recurs with the pack off.
+    /// </summary>
+    [Test]
+    [Category("Environmental")]
+    public async Task ResidentSetAfterStartup_PackOff()
+    {
+        string dir = RequireEnv(ConfigEnvVar);
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                IDemoProcessingQueue diagQueue = provider.GetRequiredService<IDemoProcessingQueue>();
+                long t0 = Stopwatch.GetTimestamp();
+                void LogChanged() => Console.WriteLine(
+                    $"@M0_QUEUE_CHANGED t={Stopwatch.GetElapsedTime(t0).TotalSeconds:F1}s "
+                    + $"items=[{string.Join(", ", diagQueue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.Owners}/{i.Priority}/{i.State}"))}]");
+                diagQueue.Changed += LogChanged;
+                try
+                {
+                    LogChanged();
+                    await SettleWithPackOff(provider);
+                    LogChanged();
+                    Snapshot(provider, "early", "@M0_RESIDENT_OFF");
+
+                    for (int elapsed = 0; elapsed < 90; elapsed += 15)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(15));
+                        Console.WriteLine($"@M0_QUEUE_OFF_T+{elapsed + 15}s "
+                            + $"queued={diagQueue.QueuedCount} running={diagQueue.RunningCount} "
+                            + $"items=[{string.Join(", ", diagQueue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.State}"))}]");
+                    }
+
+                    Snapshot(provider, "late", "@M0_RESIDENT_OFF");
+                }
+                finally
+                {
+                    diagQueue.Changed -= LogChanged;
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
         }
     }
 
@@ -487,5 +591,203 @@ public class StratBookPackBaselineTests
         library.EvaluateForward(path, pass);
         highlights.EvaluateForward(path, pass);
         return Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+    }
+
+    // ── Probe 4 (item 9): per-demo indexing time with the pack off ──────────────────────────────────────
+
+    /// <summary>
+    ///     Item 9's "library + highlights only" indexing-time row. Unlike <see cref="IndexingTimePerDemo" />,
+    ///     which calls every evaluator's <see cref="IDemoEvaluator.Evaluate" /> directly and so bypasses
+    ///     <see cref="IDemoEvaluator.Wants" />, this times every demo with <see cref="TimeReduced" /> only:
+    ///     with the pack off, Round Facts, Round Index, Suggested Tags and Grenades all answer
+    ///     <c>Wants() == false</c>, so the real coordinator never submits a demo to them and the forward
+    ///     pass library and highlights alone run is the whole of what "library index time" means now. Also
+    ///     confirms <c>round_facts</c> actually left the merged ruleset (item 2), not just the evaluator's
+    ///     own write.
+    /// </summary>
+    [Test]
+    [Category("Environmental")]
+    public async Task IndexingTimePerDemo_PackOff()
+    {
+        string dir = RequireEnv(ConfigEnvVar);
+        string demosFile = RequireEnv(DemosEnvVar);
+        string[] lines = File.ReadAllLines(demosFile).Where(l => l.Length > 0).ToArray();
+        if (lines.Length < 2)
+        {
+            throw new SkipTestException(DemosEnvVar + " must list a warm-up demo plus at least one measured demo");
+        }
+
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            ServiceProvider? provider = null;
+            DemoLibraryService library = null!;
+            HighlightScanService highlights = null!;
+            ForwardPassRunner forward = null!;
+            DemoCacheStore demoCache = null!;
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                provider = App.BuildServices(new DesktopWindowService(() => null));
+                await SettleWithPackOff(provider);
+
+                library = provider.GetRequiredService<DemoLibraryService>();
+                highlights = provider.GetRequiredService<HighlightScanService>();
+                forward = new ForwardPassRunner(provider.GetRequiredService<MergedRulesBuild>());
+                demoCache = provider.GetRequiredService<DemoCacheStore>();
+                Console.WriteLine("@M0_INDEXMS_OFF_RULESET " + JsonSerializer.Serialize(new
+                {
+                    roundFactsEnabled = provider.GetRequiredService<MergedRulesBuild>().EnabledDoc("round_facts") is not null
+                }));
+            });
+
+            try
+            {
+                InvalidateForReindex(demoCache, lines[0]);
+                TimeReduced(lines[0], forward, library, highlights);
+
+                List<(string Demo, double Ms)> results = [];
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    string path = lines[i];
+                    string name = Path.GetFileName(path);
+                    double sizeMb = new FileInfo(path).Length / 1024.0 / 1024.0;
+                    InvalidateForReindex(demoCache, path);
+                    double ms = TimeReduced(path, forward, library, highlights);
+                    results.Add((name, ms));
+                    Console.WriteLine("@M0_INDEXMS_OFF " + JsonSerializer.Serialize(new { demo = name, sizeMb, ms }));
+                }
+
+                Console.WriteLine("@M0_INDEXMS_OFF_SUMMARY " + JsonSerializer.Serialize(new
+                {
+                    medianMs = Median(results.Select(r => r.Ms)),
+                    count = results.Count
+                }));
+            }
+            finally
+            {
+                if (provider is not null)
+                {
+                    ServiceProvider toDispose = provider;
+                    await HeadlessSession.RunOnUi(() =>
+                    {
+                        toDispose.Dispose();
+                        return Task.CompletedTask;
+                    });
+                }
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+        }
+    }
+
+    // ── Probe 5 (item 9): the real in-session toggle, on the real queue ────────────────────────────────
+
+    /// <summary>
+    ///     Item 9's "on, then off in session" row. Boots the real composition root with the pack on (the
+    ///     config copy's settings.json carries no override, so the default resolves it on), settles the
+    ///     same way <see cref="ResidentSetAfterStartup" /> does, then flips
+    ///     <c>Features.Overrides["pack.stratbook"]</c> off through <see cref="SettingsService.Write" />,
+    ///     the real <see cref="PackSwitch" /> path <c>StratBookLiveToggleTests</c> exercises on a fake
+    ///     queue; here the queue is the real <see cref="IDemoProcessingQueue" />, so awaiting
+    ///     <see cref="PackSwitch.Pending" /> waits for the real "Strat Book: release memory" item to run,
+    ///     not just for it to be submitted. Flips on again the same way, so the re-enable cost is the same
+    ///     shape as the first enable. One process measures all three points: the whole point is the
+    ///     toggle itself, so splitting it across processes would lose what it is measuring.
+    /// </summary>
+    [Test]
+    [Category("Environmental")]
+    public async Task OnThenOffThenOn_InSession()
+    {
+        string dir = RequireEnv(ConfigEnvVar);
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    PackSwitch packs = provider.GetRequiredService<PackSwitch>();
+                    SettingsService settings = provider.GetRequiredService<SettingsService>();
+                    await SettleStartupLoads(provider);
+                    if (!packs.IsOn(Pack))
+                    {
+                        throw new InvalidOperationException("the pack resolved OFF at startup; the toggle probe needs it on first");
+                    }
+
+                    Snapshot(provider, "on-before", "@TOGGLE_RESIDENT");
+
+                    settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+                    Dispatcher.UIThread.RunJobs();
+                    if (packs.IsOn(Pack))
+                    {
+                        throw new InvalidOperationException("the gate write did not flip the pack off synchronously");
+                    }
+
+                    await packs.Pending;
+                    Dispatcher.UIThread.RunJobs();
+                    SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+                    GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
+                    TeamIdentityService teams = provider.GetRequiredService<TeamIdentityService>();
+                    if (situations.IsReady || grenades.IsReady || teams.IsLoaded)
+                    {
+                        throw new InvalidOperationException("the release item ran but a resident is still reporting loaded");
+                    }
+
+                    for (int i = 0; i < 3; i++)
+                    {
+                        GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+                        GC.WaitForPendingFinalizers();
+                    }
+
+                    Snapshot(provider, "off", "@TOGGLE_RESIDENT");
+
+                    // Separates pool residue (freed on the same timer ResidentSetAfterStartup's late
+                    // reading catches) from state the release genuinely left attached.
+                    await Task.Delay(TimeSpan.FromSeconds(90));
+                    for (int i = 0; i < 3; i++)
+                    {
+                        GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+                        GC.WaitForPendingFinalizers();
+                    }
+
+                    Snapshot(provider, "off-late", "@TOGGLE_RESIDENT");
+
+                    settings.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                    Dispatcher.UIThread.RunJobs();
+                    if (!packs.IsOn(Pack))
+                    {
+                        throw new InvalidOperationException("the gate write did not flip the pack on synchronously");
+                    }
+
+                    await packs.Pending;
+                    Dispatcher.UIThread.RunJobs();
+                    if (!situations.IsReady || !grenades.IsReady || !teams.IsLoaded)
+                    {
+                        throw new InvalidOperationException("the re-enable's loads ran but a resident is not reporting ready");
+                    }
+
+                    for (int i = 0; i < 3; i++)
+                    {
+                        GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+                        GC.WaitForPendingFinalizers();
+                    }
+
+                    Snapshot(provider, "on-again", "@TOGGLE_RESIDENT");
+                }
+                finally
+                {
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+        }
     }
 }
