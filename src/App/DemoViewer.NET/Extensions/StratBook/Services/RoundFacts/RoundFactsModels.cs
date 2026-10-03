@@ -266,7 +266,7 @@ public static class RoundFactsSourceKind
 
 /// <summary>
 ///     The Analysis-tier payload: every round of one demo plus the clock header every persisted per-demo
-///     store carries. Invalidated by <c>DemoCacheRecord.RoundFactsFingerprint</c>, never by the tier stamp.
+///     store carries. Invalidated by the round facts stamp's fingerprint, never by the tier stamp.
 /// </summary>
 public sealed class RoundFactsRows
 {

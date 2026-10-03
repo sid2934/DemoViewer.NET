@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Dossier;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
@@ -56,7 +57,7 @@ public class SetupHeatmapTests
     // first contact at 20 s cuts its window to 15..19 s; round 3's at 5 s leaves it no window at all.
     private static DemoCacheRecord Record() => Record(Demo, "de_nuke", 0, new RoundFactsRows
     {
-        Schema = DemoCacheRecord.RoundFactsSchema,
+        Schema = StratBookCache.RoundFactsSchema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [
@@ -78,9 +79,13 @@ public class SetupHeatmapTests
             Size = 1000,
             ModifiedTicks = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(day).Ticks,
             Map = map,
-            Sha256 = rows is null ? null : "abc123",
-            RoundFacts = rows
+            Sha256 = rows is null ? null : "abc123"
         };
+        if (rows is not null)
+        {
+            record.SetRoundFacts(rows, "rf-A");
+        }
+
         for (int slot = 0; slot < 10; slot++)
         {
             record.Players.Add(new CachedPlayerInfo

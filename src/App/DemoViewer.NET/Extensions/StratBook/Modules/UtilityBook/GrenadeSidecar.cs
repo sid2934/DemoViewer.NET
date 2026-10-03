@@ -3,6 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
@@ -111,8 +112,8 @@ public static class GrenadeSidecar
     /// <summary>The paths sibling as written before gzip. Read when <see cref="PathsSuffix" /> is absent.</summary>
     public const string LegacyPathsSuffix = ".grenades.paths.json";
 
-    /// <summary>The shape of both files; equal to <see cref="DemoCacheRecord.GrenadeSchema" />.</summary>
-    public const int CurrentSchema = DemoCacheRecord.GrenadeSchema;
+    /// <summary>The shape of both files; equal to <see cref="StratBookCache.GrenadeSchema" />.</summary>
+    public const int CurrentSchema = StratBookCache.GrenadeSchema;
 
     /// <summary>Camel case like the other sidecars, compact, enums by name, nulls written.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()

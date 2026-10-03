@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
@@ -205,9 +206,9 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
         try
         {
-            if (_demoCache.TryGetIndex(path) is { GrenadeState: DemoAnalysisState.Failed })
+            if (_demoCache.TryGetIndex(path)?.GrenadesStamp() is { State: DemoAnalysisState.Failed })
             {
-                _demoCache.UpdateExisting(path, r => r.GrenadeState = DemoAnalysisState.Pending);
+                _demoCache.UpdateExisting(path, r => r.ClearFailed(EvaluatorId));
             }
         }
         catch (Exception)
@@ -262,11 +263,8 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
             _demoCache.UpdateExisting(path, r =>
             {
-                DemoCacheStore.StampGrenades(r);
-                r.GrenadeState = DemoAnalysisState.Indexed;
-                r.GrenadeCount = rows.Grenades.Count;
-                r.GrenadeWalker = GrenadeWalker.Version;
-                r.GrenadeInputCoverage = rows.Source.InputCoverage;
+                r.SetGrenades(GrenadeWalker.Version, rows.Grenades.Count);
+                _demoCache.UpdatePayload(r, p => p.GrenadeInputCoverage = rows.Source.InputCoverage);
             });
             if (!GrenadeSidecar.DeleteLegacy(_demoCache, path))
             {
@@ -281,7 +279,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             GrenadeIndexLog.WalkFailed(Log, fileName, ex);
             try
             {
-                _demoCache.UpdateExisting(path, r => r.GrenadeState = DemoAnalysisState.Failed);
+                _demoCache.UpdateExisting(path, r => r.MarkFailed(EvaluatorId));
             }
             catch (Exception)
             {

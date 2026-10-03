@@ -2,6 +2,7 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
@@ -254,7 +255,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         LibraryCount = rows.Count;
         IndexedCount = _index.IndexedDemoCount;
         StaleCount = _index.StaleDemoCount;
-        FailedCount = rows.Count(r => r.RoundIndexState == RoundIndexState.Failed);
+        FailedCount = rows.Count(r => r.RoundIndexStamp() is { State: DemoAnalysisState.Failed });
         PendingCount = pending.Count;
         IsIndexing = _evaluator?.IsIndexing ?? false;
         // PendingPaths is newest-first, the order the queue drains in, so its head is the demo in flight.
