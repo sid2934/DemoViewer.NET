@@ -1,5 +1,6 @@
 #region
 
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
@@ -8,7 +9,9 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -79,7 +82,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
                     // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
                     GrenadeStoreMigration.Submit(queue, demoCache, grenades);
                 },
-                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+                ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
         }
 
         return Task.CompletedTask;
@@ -95,13 +98,30 @@ internal sealed class StratBookLifecycle : IPackLifecycle
     public void OnShutdown(TimeSpan budget)
     {
         // Each guarded by the tracker, not a fresh resolve: GetService on a singleton factory constructs
-        // it, which is exactly what a never-opened pack must not do at shutdown.
-        _instances.Grenades?.FlushLineups(budget);
-
-        if (_sp.GetService<ModuleRegistry>()?.Modules.OfType<StratBookModule>().FirstOrDefault() is { } stratBook)
+        // it, which is exactly what a never-opened pack must not do at shutdown. The strat commit runs
+        // first (it is the user's own work, written nowhere else) and each flush is isolated so the
+        // lineup flush still runs even if committing the open strat throws.
+        ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+        try
         {
             // StratBookModule.Shutdown is itself a no-op when its tab was never activated.
-            stratBook.Shutdown();
+            if (_sp.GetService<ModuleRegistry>()?.Modules.OfType<StratBookModule>().FirstOrDefault() is { } stratBook)
+            {
+                stratBook.Shutdown();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(log, "strat commit on shutdown", ex);
+        }
+
+        try
+        {
+            _instances.Grenades?.FlushLineups(budget);
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(log, "grenade lineup flush on shutdown", ex);
         }
     }
 
