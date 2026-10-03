@@ -700,16 +700,24 @@ session (decision 3). A core `PackSwitch` subscribes to the gate's `Changed` onc
 transitions only: the resolved `IsEnabled(pack.FeatureId)` against the state the lifecycle was last put in,
 so a settings write that leaves the pack where it was does nothing. `App.StartPacks` is its startup pass.
 
-- *Off to on:* `OnEnabledAsync(EnabledInSession, ct)`, the same code path as startup (the loads are queue
-  items at user priority), then a user-priority `SectionCompute` item owned by the pack id ("Strat Book
-  extension: find demos to re-index") that re-polls the library through the coordinator, so the pack's
-  evaluators submit every demo whose pack fields are missing or stale and the backfill is visible and
-  pausable in the queue. Open 2D Playback tabs and the shell react through the gate's `Changed` as before.
-- *On to off:* the enable's token is cancelled (a load still queued does nothing when it runs), every queued
-  pack item goes by owner tag through `IDemoProcessingQueue.CancelOwned(ownerTag)` (a running one finishes
-  its unit; a parse the library co-owns stays), and the release itself is one `SectionCompute` item at user
-  priority, owner the pack id, sharing the loads' serial, so a large index never leaves memory on the UI
-  thread and never beside a load still running. `OnDisabledAsync` returns that item's completion.
+- *Off to on:* `OnEnabledAsync(EnabledInSession, ct)`, the same code path as startup: the two index loads
+  and one attach item ("Strat Book: attach services", which attaches the lineup clips, Team Identity (its
+  file read and `StartAsync` are queued from inside it), the facts refresher, the zone graphs and every
+  resident built lazily before a release) are queue items at user priority on the pack's serial; then a
+  user-priority `SectionCompute` item owned by the pack id ("Strat Book extension: find demos to re-index")
+  re-polls the library through the coordinator, so the pack's evaluators submit every demo whose pack
+  fields are missing or stale and the backfill is visible and pausable in the queue. Open 2D Playback tabs
+  and the shell react through the gate's `Changed` as before.
+- *On to off:* the enable's token is cancelled, every queued pack item goes by owner tag through
+  `IDemoProcessingQueue.CancelOwned(ownerTag)` (a running one finishes its unit; a parse the library co-owns
+  stays), and the release itself is one `SectionCompute` item at user priority, owner the pack id, on the
+  same serial, so a large index never leaves memory on the UI thread and never beside a load still running.
+  `OnDisabledAsync` returns that item's completion.
+- *Ordering.* Every item of the pack's own (loads, attach, release) shares one serial, so nothing of the
+  pack's state changes outside a totally ordered item, and each carries the lifecycle epoch it was queued
+  under: every enable and disable bumps it, an enable also drops a release still queued (by owner), and an
+  item that runs under an older epoch does nothing. So a fast off-on leaves everything attached and the
+  live view intact (shutdown's lineup flush still writes), and a fast on-off leaves nothing loaded.
 - *What release means.* The residents are container singletons that core surfaces hold references to
   (Team Identity for the Library filter, the situation index for the shell), so the object cannot be
   replaced; its state can. Each implements `IPackResident`: `Release` unsubscribes from the sources that
@@ -721,7 +729,10 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
   `StratMiningService` (the quiet timer, the patterns, the `SignatureCache`), and the zone graphs in
   `AssetZonePlaceResolverSource` (only pack code reads them). `StratBookPackInstances` keeps the built
   residents across a release and nulls its typed view, so shutdown flushes nothing that was dropped and a
-  re-enable restores and re-attaches everything built lazily before the release.
+  re-enable restores and re-attaches everything built lazily before the release. A mine or a lineup render
+  still running in the heavy lane when the release runs (their items set no serial) skips its next step
+  once detached and writes nothing back; the release lets it end (bounded by one batch) before dropping the
+  signature cache, which is not thread-safe.
 - *Not released:* the pack's tab view-models (container singletons the modules hand to the shell; their
   result lists are bounded by the last query and their map assets by the last map shown) and the pack's
   small user-truth stores (strats, tags, dossier notes, veto history, proposals, profile, site regions),
@@ -730,10 +741,12 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
 - *First run.* On a fresh desktop install `StartPacks` waits while `SettingsService.NeedsFirstRun` is true;
   the wizard's Finish or Skip writes settings, which is a gate change like any other, and the pack starts
   if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
-  browser never shows the wizard and never waits. Upgrades with the flag set start as today.
+  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team
+  Identity, which the shell builds for the Library filter before the wizard has asked, is built detached
+  and unread whatever the gate says at container build; only the attach item reads its files.
 - *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
-  60 grenades each): an enable builds about 21 MB on the GC heap; the release leaves 0.5 MB after the
-  first off-on-off cycle and 0.05 MB after the second, so nothing grows per toggle.
+  60 grenades each, a mine and a watch seeded): an enable builds about 21 MB on the GC heap; the release
+  leaves 0.5 MB after the first off-on-off cycle and 0.0 MB after the second, so nothing grows per toggle.
 
 **Session restore.** If the persisted active tab id belongs to a disabled pack, restore lands on Library.
 Pack session blobs of a disabled pack are preserved in the session file untouched, so re-enabling restores

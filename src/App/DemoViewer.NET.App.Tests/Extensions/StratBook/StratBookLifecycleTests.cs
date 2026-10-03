@@ -51,15 +51,14 @@ public class StratBookLifecycleTests
                                         }
                                         """;
 
-    // The exact startup items App.axaml.cs used to submit by hand, in order: SituationIndex's own load,
-    // GrenadeIndex's own load, then Team Identity's ctor-side load and its StartAsync update. Neither
-    // LineupClipService nor TagFactsRefresher submits anything of its own; being resolved is the point.
+    // The exact items the lifecycle queues on enable, in order: SituationIndex's own load, GrenadeIndex's
+    // own load, then the attach item, which queues Team Identity's file read and its StartAsync update when
+    // it runs (this recorder never runs a body, so those two are StratBookLiveToggleTests' to pin).
     private static readonly string[] _expectedStartupLabels =
     [
         "Load: situations index",
         "Load: grenade index",
-        "Load: teams",
-        "Teams: update"
+        StratBookLifecycle.AttachTitle
     ];
 
     [Test]
@@ -75,7 +74,7 @@ public class StratBookLifecycleTests
             using (Assert.Multiple())
             {
                 await Assert.That(titles).IsEqualTo(string.Join(", ", _expectedStartupLabels))
-                    .Because("the pack's startup loads, in the order App.axaml.cs ran them by hand");
+                    .Because("the pack's startup loads, in the order App.axaml.cs ran them by hand, then the attach item");
                 await Assert.That(instances.Situations).IsNotNull();
                 await Assert.That(instances.Grenades).IsNotNull();
                 await Assert.That(instances.Teams).IsNotNull();
