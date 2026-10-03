@@ -19,11 +19,12 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
-using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 // The v2 model also defines a TriggerDef; explicit aliases keep the v1 Config.TriggerDef
 // references in this file unambiguous.
@@ -1268,8 +1269,22 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        // Round facts run on their own at index time; evaluating them here too would only cost time.
-        return (DemoAnalysis.Build(demo, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets), options), rules);
+        // Pack-owned rulesets run at index time; evaluating them here too would only cost time.
+        return (DemoAnalysis.Build(demo, CoreRulesets(rules.Rulesets), options), rules);
+    }
+
+    // The composition root's merged build knows which rulesets a pack owns; without one (the designer,
+    // a test) nothing is excluded.
+    private static IReadOnlyList<RulesetDoc> CoreRulesets(IReadOnlyList<RulesetDoc> rulesets)
+    {
+        try
+        {
+            return App.Services?.GetService<MergedRulesBuild>()?.WithoutPackRulesets(rulesets) ?? rulesets;
+        }
+        catch (Exception)
+        {
+            return rulesets;
+        }
     }
 
     /// <summary>

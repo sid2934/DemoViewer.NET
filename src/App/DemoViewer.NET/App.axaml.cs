@@ -805,7 +805,13 @@ public class App : Application
         // callback is rooted by the singleton IOptionsMonitor for the app's lifetime; nothing to dispose.
         // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
-        services.AddSingleton(_ => new MergedRulesBuild());
+        // A pack-owned ruleset (round_facts) rides the merged set only while its pack is on; the pack
+        // contributions are read on the first build, never at construction, since Contribute resolves services.
+        services.AddSingleton(sp =>
+        {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            return new MergedRulesBuild(() => sp.GetRequiredService<PackContributionSet>().GatedRulesets(gate));
+        });
         services.AddSingleton(sp =>
         {
             ForwardPassRunner? forward = OperatingSystem.IsBrowser()
@@ -1139,6 +1145,10 @@ public class App : Application
             pack.Register(services);
         }
 
+        // Every pack's Contribute, run once on first resolve: the module registry reads the modules, the
+        // merged rules build the ruleset claims.
+        services.AddSingleton(sp => new PackContributionSet(packs, sp));
+
         // The first-party module registry, built ONCE by BuildRegistry and held by the container (the
         // reconciliation), injected into the shell so there is no stray second construction. The provider is
         // passed so BuildRegistry can DI-resolve module deps (the Highlights cache/scanner) + defer the
@@ -1270,11 +1280,10 @@ public class App : Application
         registry.Register(new HighlightsModule(sp.GetRequiredService<HighlightsTabViewModel>));
 
         // Each pack's modules, in pack order, after the core modules. The pack owns which modules it
-        // contributes and their order.
-        foreach (IFeaturePack pack in packs)
+        // contributes and their order. Rulesets are consumed by MergedRulesBuild.
+        foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
-            PackContributions contributions = new(pack);
-            pack.Contribute(contributions, sp);
+            IFeaturePack pack = contributions.Pack;
             // Nothing reads these yet. Refusing them keeps a pack from contributing into a void.
             if (contributions.Evaluators.Count > 0)
             {

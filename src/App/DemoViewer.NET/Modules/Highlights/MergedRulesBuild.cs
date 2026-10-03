@@ -11,8 +11,8 @@ using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -21,9 +21,10 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
-///     The one rules read and the one bare build that highlights and round facts share: every effective
-///     ruleset, <c>round_facts</c> included, evaluated together. Highlights are stamped with
-///     <see cref="Fingerprint" />, round facts with <see cref="RoundFactsIdentity" />.
+///     The one rules read and the one bare build the background passes share: the core rulesets plus
+///     every pack-owned ruleset whose pack is on, evaluated together. Highlights are stamped with
+///     <see cref="Fingerprint" />, which covers the core rulesets only; a pack stamps its rows with
+///     <see cref="RulesetIdentity" /> of its own ruleset, so a pack toggle moves neither.
 /// </summary>
 public sealed class MergedRulesBuild
 {
@@ -32,20 +33,34 @@ public sealed class MergedRulesBuild
     // One bare run per held parse: the highlight scan and round facts read the same run on a retained entry.
     private readonly ConditionalWeakTable<ParsedDemo, AnalysisRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
+    private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly Func<RuleConfigLoadResult> _load;
+    private readonly Lazy<IReadOnlyList<GatedRuleset>> _packRulesets;
     private RuleConfigLoadResult? _rules;
-    private string? _roundFactsSource;
+    private IReadOnlyList<RulesetDoc>? _coreDocs;
+    private (ulong Mask, IReadOnlyList<RulesetDoc> Docs)? _merged;
 
-    /// <summary>The shipped rules with the user's overlay.</summary>
+    /// <summary>The shipped rules with the user's overlay and no pack-owned rulesets.</summary>
     public MergedRulesBuild() : this(LoadShippedWithUserOverlay)
     {
     }
 
+    /// <summary>The shipped rules with the user's overlay, gated by <paramref name="packRulesets" />.</summary>
+    public MergedRulesBuild(Func<IReadOnlyList<GatedRuleset>> packRulesets) : this(LoadShippedWithUserOverlay, packRulesets)
+    {
+    }
+
     /// <param name="load">Reads the rule set; called once until <see cref="Invalidate" />.</param>
-    public MergedRulesBuild(Func<RuleConfigLoadResult> load)
+    /// <param name="packRulesets">
+    ///     The pack-owned rulesets and their gates; read once, on the first build. Null means no pack owns
+    ///     any ruleset, so the merged set is the whole read.
+    /// </param>
+    public MergedRulesBuild(Func<RuleConfigLoadResult> load, Func<IReadOnlyList<GatedRuleset>>? packRulesets = null)
     {
         _load = load;
+        _packRulesets = new Lazy<IReadOnlyList<GatedRuleset>>(
+            packRulesets is null ? () => [] : packRulesets, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
@@ -61,30 +76,114 @@ public sealed class MergedRulesBuild
         }
     }
 
-    /// <summary>Every ruleset the build runs.</summary>
-    public IReadOnlyList<RulesetDoc> Docs => Rules.Rulesets;
+    /// <summary>The pack-owned rulesets this build knows, gated by their owners.</summary>
+    public IReadOnlyList<GatedRuleset> PackRulesets => _packRulesets.Value;
 
-    /// <summary>The enabled <c>round_facts</c> ruleset (a user's same-id override wins), or null.</summary>
-    public RulesetDoc? RoundFactsDoc => Rules.Rulesets.FirstOrDefault(r =>
-        r.Enabled && string.Equals(r.Id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal));
+    /// <summary>
+    ///     Every ruleset the background passes run now: the core rulesets plus the pack-owned ones whose
+    ///     pack is on, in the order the directories were read. Re-derived when a gate answer changes.
+    /// </summary>
+    public IReadOnlyList<RulesetDoc> Docs
+    {
+        get
+        {
+            // The gates are read outside the lock: a gate may be any object, and the first read also
+            // resolves the pack contributions.
+            IReadOnlyList<GatedRuleset> packs = PackRulesets;
+            ulong mask = 0;
+            for (int i = 0; i < packs.Count; i++)
+            {
+                if (packs[i].Enabled())
+                {
+                    mask |= 1UL << (i & 63);
+                }
+            }
 
-    /// <summary>The merged set's identity at a tick rate. Throws when the set does not compose.</summary>
+            RuleConfigLoadResult rules = Rules;
+            lock (_gate)
+            {
+                if (ReferenceEquals(rules, _rules) && _merged is { } hit && hit.Mask == mask)
+                {
+                    return hit.Docs;
+                }
+
+                HashSet<string> off = new(
+                    packs.Where(p => !p.Enabled()).Select(p => p.RulesetId), StringComparer.Ordinal);
+                IReadOnlyList<RulesetDoc> docs = off.Count == 0
+                    ? rules.Rulesets
+                    : [.. rules.Rulesets.Where(r => !off.Contains(r.Id))];
+                if (ReferenceEquals(rules, _rules))
+                {
+                    _merged = (mask, docs);
+                }
+
+                return docs;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The rulesets no pack owns, whatever the gates say: what the highlights fingerprint covers and
+    ///     what the open demo's Stats run evaluates.
+    /// </summary>
+    public IReadOnlyList<RulesetDoc> CoreDocs
+    {
+        get
+        {
+            IReadOnlyList<GatedRuleset> packs = PackRulesets;
+            RuleConfigLoadResult rules = Rules;
+            lock (_gate)
+            {
+                if (ReferenceEquals(rules, _rules) && _coreDocs is { } hit)
+                {
+                    return hit;
+                }
+
+                IReadOnlyList<RulesetDoc> docs = WithoutPackRulesets(rules.Rulesets, packs);
+                if (ReferenceEquals(rules, _rules))
+                {
+                    _coreDocs = docs;
+                }
+
+                return docs;
+            }
+        }
+    }
+
+    /// <summary><paramref name="rulesets" /> minus every pack-owned ruleset, for a read made elsewhere.</summary>
+    public IReadOnlyList<RulesetDoc> WithoutPackRulesets(IReadOnlyList<RulesetDoc> rulesets)
+    {
+        ArgumentNullException.ThrowIfNull(rulesets);
+        return WithoutPackRulesets(rulesets, PackRulesets);
+    }
+
+    /// <summary>
+    ///     The enabled ruleset with this id in the merged set (a user's same-id override wins), or null
+    ///     when there is none: not in the directories, disabled by an override, or owned by a pack that is off.
+    /// </summary>
+    public RulesetDoc? EnabledDoc(string rulesetId) => Docs.FirstOrDefault(r =>
+        r.Enabled && string.Equals(r.Id, rulesetId, StringComparison.Ordinal));
+
+    /// <summary>
+    ///     The core set's identity at a tick rate: what highlights are stamped with. Throws when the set
+    ///     does not compose.
+    /// </summary>
     public HighlightConfigFingerprint.Result Fingerprint(int tickRate)
     {
-        RuleConfigLoadResult rules = Rules;
+        IReadOnlyList<RulesetDoc> core = CoreDocs;
         lock (_gate)
         {
-            if (ReferenceEquals(rules, _rules) && _fingerprints.TryGetValue(tickRate, out HighlightConfigFingerprint.Result? hit))
+            if (ReferenceEquals(core, _coreDocs) && _fingerprints.TryGetValue(tickRate, out HighlightConfigFingerprint.Result? hit))
             {
                 return hit;
             }
         }
 
         HighlightConfigFingerprint.Result result =
-            HighlightConfigFingerprint.Compute(rules.Rulesets, tickRate, RulesHighlightHarvester.GotvProfileId);
+            HighlightConfigFingerprint.Compute(core, tickRate, RulesHighlightHarvester.GotvProfileId);
         lock (_gate)
         {
-            if (ReferenceEquals(rules, _rules))
+            if (ReferenceEquals(core, _coreDocs))
             {
                 _fingerprints[tickRate] = result;
             }
@@ -94,19 +193,25 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     What the round facts rows are stored under, before the schema is folded in. Composes
-    ///     <c>round_facts</c> alone, so a broken highlight file never blocks it, and throws when it does
-    ///     not compose. The engine's fingerprint hashes highlight definitions only, which a ruleset without
-    ///     highlights has none of, so the source and the engine version carry the identity.
+    ///     One ruleset's own identity, for rows a pack stores under it. Composes the ruleset alone, so a
+    ///     broken highlight file never blocks it, and throws when it does not compose or is not enabled.
+    ///     The engine's fingerprint hashes highlight definitions only, which a ruleset without highlights
+    ///     has none of, so the source and the engine version carry the identity.
     /// </summary>
-    public string RoundFactsIdentity(int tickRate)
+    public string RulesetIdentity(string rulesetId, int tickRate)
     {
-        RulesetDoc doc = RoundFactsDoc ?? throw new InvalidOperationException("no enabled round_facts ruleset");
+        RulesetDoc doc = EnabledDoc(rulesetId) ?? throw new InvalidOperationException($"no enabled {rulesetId} ruleset");
         string composed = HighlightConfigFingerprint.Compute([doc], tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;
         string source;
         lock (_gate)
         {
-            source = _roundFactsSource ??= SourceIdentity(doc);
+            if (!_sources.TryGetValue(rulesetId, out string? known))
+            {
+                known = SourceIdentity(doc);
+                _sources[rulesetId] = known;
+            }
+
+            source = known;
         }
 
         string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
@@ -151,12 +256,12 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     The snapshot run a forced scan asks for, over the highlight rulesets only: the scoreboard is
-    ///     projected from these snapshots, and <c>round_facts</c> would add nodes and memory to both.
+    ///     The snapshot run a forced scan asks for, over the core rulesets only: the scoreboard is
+    ///     projected from these snapshots, and a pack's index-time ruleset would add nodes and memory to both.
     /// </summary>
     public AnalysisRun FullRun(ParsedDemo parsed)
     {
-        BuildResult build = DemoAnalysis.Build(parsed, RoundFactsFingerprint.WithoutRoundFacts(Docs));
+        BuildResult build = DemoAnalysis.Build(parsed, CoreDocs);
         RulesetExclusionReport.Report(Log, build);
         return DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
     }
@@ -167,10 +272,23 @@ public sealed class MergedRulesBuild
         lock (_gate)
         {
             _rules = null;
-            _roundFactsSource = null;
+            _coreDocs = null;
+            _merged = null;
+            _sources.Clear();
             _fingerprints.Clear();
             _runs.Clear();
         }
+    }
+
+    private static IReadOnlyList<RulesetDoc> WithoutPackRulesets(IReadOnlyList<RulesetDoc> rulesets, IReadOnlyList<GatedRuleset> packs)
+    {
+        if (packs.Count == 0)
+        {
+            return rulesets;
+        }
+
+        HashSet<string> owned = new(packs.Select(p => p.RulesetId), StringComparer.Ordinal);
+        return [.. rulesets.Where(r => !owned.Contains(r.Id))];
     }
 
     // The file the effective doc was read from; the doc's JSON where there is no readable file (Browser).

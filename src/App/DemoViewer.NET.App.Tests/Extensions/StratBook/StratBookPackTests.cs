@@ -40,6 +40,8 @@ public class StratBookPackTests
         "Microsoft.Extensions.Options.IConfigureOptions`1[DemoViewer.NET.Configuration.AppSettings]",
         "DemoViewer.NET.Features.IFeatureGate",
         "DemoViewer.NET.Extensions.IPackLifecycle",
+        // Added by item 2: every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
+        "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
         "DemoViewer.NET.Theming.ThemeRegistry",
         "DemoViewer.NET.Services.IWindowService",
