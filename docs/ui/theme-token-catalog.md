@@ -68,7 +68,7 @@ dotnet run --project src/App/DemoViewer.NET.UiCapture -- settings --theme egirl
 `--theme` accepts any registry id; a drop-in is re-scanned each run (set `DEMOVIEWER_CONFIG_DIR` to author
 against a scratch folder).
 
-## Token namespace (226 tokens)
+## Token namespace (229 tokens)
 
 Dark is the canonical base; the Dark/Light reference values below are what an omitted token inherits. High-
 impact families for a new theme: **surfaces** (Shell/Panel/Card/Frame/Hex/Primary), the **Text ramp**,
@@ -422,6 +422,9 @@ The 2D playback HUD + the code-drawn Skia canvas (grid, sightlines, rings, trail
 | `Pb2dCanvasMarkerRingNeutral` | `#666666` | `#8A8F96` |
 | `Pb2dCanvasRouteT` | `#59E0A030` | `#66C9821C` |
 | `Pb2dCanvasRouteCt` | `#594A90D9` | `#662F73BE` |
+| `Pb2dCanvasRouteGhostT` | `#B3E0A030` | `#B3A66A15` |
+| `Pb2dCanvasRouteGhostCt` | `#B34A90D9` | `#B3285F9E` |
+| `Pb2dCanvasDropTarget` | `#A99CF0` | `#5B4BC4` |
 
 ### Message headers: `Msg*` (9)
 
