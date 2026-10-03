@@ -17,7 +17,8 @@ namespace DemoViewer.NET.Features;
 ///         <b>Resolution</b> (see <see cref="Resolve" />): (1) a Required descriptor is on; (2) an explicit
 ///         <c>Overrides[id]</c> wins; (3) otherwise the category default; (4) a grouped feature adopts the
 ///         group LEADER's own-state (the first catalog member of the group) so a group toggles atomically;
-///         (5) a sub-feature/chrome whose parent tab resolves disabled is implicitly off (cascade).
+///         (5) a feature whose parent resolves disabled is implicitly off (cascade: sub-feature to tab to pack).
+///         An id not in the catalog fails open unless it is a <c>pack.*</c> id, which resolves off.
 ///         Group (horizontal, "toggle together") and cascade (vertical, "parent hides child") are
 ///         orthogonal: a chrome member follows its leader even while the leader is itself cascade-hidden.
 ///     </para>
@@ -78,7 +79,9 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         FeatureDescriptor? descriptor = FeatureCatalog.ById(featureId);
         if (descriptor is null)
         {
-            return true; // fail-open: an id not in the catalog is not gated (visible).
+            // Fail-open: an id not in the catalog is not gated (visible). A pack id is the exception: it
+            // gates background work, so a typo must not silently enable it.
+            return !FeatureCatalog.IsPackId(featureId);
         }
 
         Dictionary<string, bool> overrides = _monitor.CurrentValue.Features.Overrides ?? _emptyOverrides;
@@ -135,12 +138,16 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             : descriptor;
         bool enabled = ResolveOwn(stateSource, category, overrides);
 
-        // (5) CASCADE: a feature under a tab that resolves disabled is implicitly off, regardless of its
-        // own/group state. Uses THIS feature's ParentId (chrome has none → no cascade).
+        // (5) CASCADE: a feature under a parent that resolves disabled is implicitly off, regardless of its
+        // own/group state. Uses THIS feature's ParentId (chrome and packs have none → no cascade). A tab's
+        // parent is its pack, so the walk runs sub-feature → tab → pack.
         if (enabled && descriptor.ParentId is { } parentId)
         {
             FeatureDescriptor? parent = FeatureCatalog.ById(parentId);
-            if (parent is not null && !Resolve(parent, category, overrides, visiting))
+            bool parentEnabled = parent is null
+                ? !FeatureCatalog.IsPackId(parentId)
+                : Resolve(parent, category, overrides, visiting);
+            if (!parentEnabled)
             {
                 enabled = false;
             }
