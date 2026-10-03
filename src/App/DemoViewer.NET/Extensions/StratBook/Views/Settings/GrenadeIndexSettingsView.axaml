@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:settings="using:DemoViewer.NET.ViewModels.Settings"
+             x:Class="DemoViewer.NET.Views.Settings.GrenadeIndexSettingsView"
+             x:DataType="settings:GrenadeIndexSettingsViewModel">
+
+    <!-- Relocated here from HIGHLIGHTS (settings-extensions item 14), where it rode on that section's
+         desktop-only gate incidentally. Content unchanged by the move. -->
+    <StackPanel Spacing="12">
+
+        <!-- Background grenade walk opt-in, the same shape and the same default -->
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="1">
+                <TextBlock Text="Walk library grenades in the background"
+                           Foreground="{DynamicResource TextValue}" FontSize="12" />
+                <TextBlock
+                    Text="About 2 s per demo. Off = the open demo's grenades, and any demo from Match Overview."
+                    Foreground="{DynamicResource TextDim}" FontSize="10"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                          OnContent="" OffContent=""
+                          IsChecked="{Binding BackgroundIndex, Mode=TwoWay}" />
+        </Grid>
+
+        <!-- Lineup Clip Render: a GIF and its setpos line per repeated throw position -->
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="1">
+                <TextBlock Text="Render lineup clips"
+                           Foreground="{DynamicResource TextValue}" FontSize="12" />
+                <TextBlock
+                    Text="A GIF of each lineup thrown more than once, beside its setpos line, queued in Review."
+                    Foreground="{DynamicResource TextDim}" FontSize="10"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                          OnContent="" OffContent=""
+                          IsChecked="{Binding RenderLineupClips, Mode=TwoWay}" />
+        </Grid>
+
+    </StackPanel>
+</UserControl>
