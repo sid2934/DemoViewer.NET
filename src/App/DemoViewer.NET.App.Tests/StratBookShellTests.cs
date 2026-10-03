@@ -609,6 +609,164 @@ public class StratBookShellTests
     }
 
     [Test]
+    public async Task PackOff_AtStartup_EnabledLive_WithNoFurtherChanges_SavesTheRestoredBlobUnchanged()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                JsonElement b0 = JsonSerializer.SerializeToElement(new { RailCollapsed = true, ListCollapsed = false });
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
+                    new Dictionary<string, JsonElement>(StringComparer.Ordinal) { [StratBookPack.PackId] = b0 }));
+
+                FakeGate gate = new();
+                SetPackOff(gate);
+                MainViewModel vm = NewShell(gate, svc, new SectionsModule());
+                try
+                {
+                    await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                        .Because("the pack is off at startup: B0 is not restored yet");
+
+                    SetPackOn(gate);
+                    gate.RaiseChanged();
+
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsTrue()
+                            .Because("a live enable restores the carried blob, not the just-built default");
+                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsFalse();
+                    }
+
+                    vm.SaveSession();
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+
+                SessionPayload? reloaded = svc.LoadSession();
+                await Assert.That(JsonElement.DeepEquals(reloaded!.Packs![StratBookPack.PackId], b0)).IsTrue()
+                    .Because("nothing changed after the live enable, so the saved blob is still B0");
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    [Test]
+    public async Task PackOff_AtStartup_EnabledLive_ThenChanged_SavesTheNewValueNotTheStartupBlob()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                JsonElement b0 = JsonSerializer.SerializeToElement(new { RailCollapsed = false, ListCollapsed = false });
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
+                    new Dictionary<string, JsonElement>(StringComparer.Ordinal) { [StratBookPack.PackId] = b0 }));
+
+                FakeGate gate = new();
+                SetPackOff(gate);
+                MainViewModel vm = NewShell(gate, svc, new SectionsModule());
+                try
+                {
+                    SetPackOn(gate);
+                    gate.RaiseChanged();
+
+                    vm.StratBookHub().Layout.IsRailCollapsed = true; // the user's live change, after enabling
+
+                    vm.SaveSession();
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+
+                SessionPayload? reloaded = svc.LoadSession();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(reloaded!.Packs![StratBookPack.PackId].GetProperty("RailCollapsed").GetBoolean()).IsTrue()
+                        .Because("the live change made after enabling must win over B0's saved false");
+                    await Assert.That(reloaded.Packs[StratBookPack.PackId].GetProperty("ListCollapsed").GetBoolean()).IsFalse();
+                }
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    [Test]
+    public async Task PackOn_AtStartup_ThenChangedThenDisabledLive_SavesTheChangeNotTheStartupBlob()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                JsonElement startup = JsonSerializer.SerializeToElement(new { RailCollapsed = false, ListCollapsed = false });
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
+                    new Dictionary<string, JsonElement>(StringComparer.Ordinal) { [StratBookPack.PackId] = startup }));
+
+                FakeGate gate = new(); // pack on by default: FakeGate fails open with no overrides
+                MainViewModel vm = NewShell(gate, svc, new SectionsModule());
+                try
+                {
+                    await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                        .Because("restored from the startup blob while the pack was already on");
+
+                    vm.StratBookHub().Layout.IsRailCollapsed = true; // the user's live change, while still on
+
+                    SetPackOff(gate);
+                    gate.RaiseChanged();
+
+                    vm.SaveSession();
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+
+                SessionPayload? reloaded = svc.LoadSession();
+                await Assert.That(reloaded!.Packs![StratBookPack.PackId].GetProperty("RailCollapsed").GetBoolean()).IsTrue()
+                    .Because("the pack was live for this change; disabling it afterward must not revert to the startup blob");
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    [Test]
     public async Task PackOn_AtStartup_WithALegacyTopLevelStratBookBlob_FoldsItAndRestoresTheHub()
     {
         string dir = NewTempDir();
@@ -707,6 +865,20 @@ public class StratBookShellTests
                 finally
                 {
                     vm2.Dispose();
+                }
+
+                // The above proves no throw, but a fresh Layout defaults to false anyway, so it does not
+                // prove the bad blob was ignored rather than applied. Set a value true first and prove a
+                // non-object blob leaves it exactly as it was.
+                StratBookLayout layout = new();
+                layout.IsRailCollapsed = true;
+                layout.IsListCollapsed = true;
+                layout.RestoreSessionState(JsonSerializer.SerializeToElement(42));
+                using (Assert.Multiple())
+                {
+                    await Assert.That(layout.IsRailCollapsed).IsTrue()
+                        .Because("a non-object blob is ignored outright, not applied as all-false");
+                    await Assert.That(layout.IsListCollapsed).IsTrue();
                 }
             });
         }
