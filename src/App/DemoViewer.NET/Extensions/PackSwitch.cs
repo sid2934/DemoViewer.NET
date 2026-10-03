@@ -97,6 +97,8 @@ public sealed class PackSwitch : IDisposable
         foreach (PackState state in _states.Values)
         {
             state.Enabling?.Cancel();
+            state.Enabling?.Dispose();
+            state.Enabling = null;
         }
     }
 
@@ -162,8 +164,9 @@ public sealed class PackSwitch : IDisposable
         }
 
         // The backfill (design section 8): the pack's evaluators now want every demo whose pack fields are
-        // missing or stale. The re-poll is a queue item behind the loads, owned by the pack so a switch-off
-        // cancels it, and skipped when that happened before it ran.
+        // missing or stale. The re-poll is a queue item on the pack's serial (its feature id, the lifecycle's
+        // convention) so it runs after the loads, owned by the pack so a switch-off cancels it, and skipped
+        // when that happened before it ran.
         Task reconsider = QueueWork.Run(_queue, QueueJobKind.SectionCompute, LabelOf(pack) + ": find demos to re-index",
             pack.FeatureId, token =>
             {
@@ -171,13 +174,16 @@ public sealed class PackSwitch : IDisposable
                 {
                     _reconsider();
                 }
-            }, DemoJobPriority.UserRequested);
+            }, DemoJobPriority.UserRequested, serial: pack.FeatureId);
         state.Pending = Task.WhenAll(loads, reconsider);
     }
 
     private void Disable(IFeaturePack pack, PackState state)
     {
+        // Cancelled then disposed: the items that hold its token only read IsCancellationRequested, which
+        // a disposed source still answers.
         state.Enabling?.Cancel();
+        state.Enabling?.Dispose();
         state.Enabling = null;
         if (_lifecycleFor(pack) is not { } lifecycle)
         {

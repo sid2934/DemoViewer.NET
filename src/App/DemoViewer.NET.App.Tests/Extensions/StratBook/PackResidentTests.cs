@@ -166,6 +166,58 @@ public class PackResidentTests
     }
 
     [Test]
+    public async Task TeamIdentity_AReadReachingADetachedService_ReadsNothing_WritesNothing_AndAttachReadsTheFiles()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "dvteamsdetachedread_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(Path.Combine(root, "cache"));
+        try
+        {
+            DemoCacheStore cache = new(null);
+            Func<Action, Task> inline = work =>
+            {
+                work();
+                return Task.CompletedTask;
+            };
+
+            // An attached service writes the user's file, then goes away.
+            using (TeamIdentityService writer = new(root, cache, run: inline, scheduleLoad: inline))
+            {
+                writer.SetSquad(["76561198000000001", "76561198000000002"], "us");
+            }
+
+            string teamsFile = Path.Combine(root, "teams.json");
+            string indexFile = Path.Combine(root, "cache", "team-index.json");
+            string onDisk = await File.ReadAllTextAsync(teamsFile);
+            string indexOnDisk = await File.ReadAllTextAsync(indexFile);
+
+            // Detached from the start, the way the shell builds it before the wizard has asked. A read that
+            // reaches it anyway (a mutator's own Ensure stands in for a stale queued "Load: teams" here)
+            // reads nothing, and what the mutator then computes over nothing reaches no file.
+            using TeamIdentityService teams = new(root, cache, run: inline, scheduleLoad: inline, loadAtStart: false);
+            teams.SetSquad(["76561198000000009", "76561198000000010"], "not us");
+            using (Assert.Multiple())
+            {
+                await Assert.That(teams.IsLoaded).IsFalse().Because("the skipped read leaves a fresh load behind");
+                await Assert.That(await File.ReadAllTextAsync(teamsFile)).IsEqualTo(onDisk).Because("detached, nothing is written");
+                await Assert.That(await File.ReadAllTextAsync(indexFile)).IsEqualTo(indexOnDisk).Because("nor is the derived index");
+            }
+
+            teams.Attach();
+            using (Assert.Multiple())
+            {
+                await Assert.That(teams.IsLoaded).IsTrue();
+                await Assert.That(teams.AllTeams.Select(t => t.Name)).IsEquivalentTo(["us"])
+                    .Because("Attach read the file as the attached service left it; the detached mutation is gone");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task WatchedSituations_ReleaseDropsTheNewHits_AndStopsFollowingTheIndex_AttachReevaluates()
     {
         DemoCacheStore cache = new(null);

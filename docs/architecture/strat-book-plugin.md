@@ -700,14 +700,15 @@ session (decision 3). A core `PackSwitch` subscribes to the gate's `Changed` onc
 transitions only: the resolved `IsEnabled(pack.FeatureId)` against the state the lifecycle was last put in,
 so a settings write that leaves the pack where it was does nothing. `App.StartPacks` is its startup pass.
 
-- *Off to on:* `OnEnabledAsync(EnabledInSession, ct)`, the same code path as startup: the two index loads
-  and one attach item ("Strat Book: attach services", which attaches the lineup clips, Team Identity (its
-  file read and `StartAsync` are queued from inside it), the facts refresher, the zone graphs and every
-  resident built lazily before a release) are queue items at user priority on the pack's serial; then a
-  user-priority `SectionCompute` item owned by the pack id ("Strat Book extension: find demos to re-index")
-  re-polls the library through the coordinator, so the pack's evaluators submit every demo whose pack
-  fields are missing or stale and the backfill is visible and pausable in the queue. Open 2D Playback tabs
-  and the shell react through the gate's `Changed` as before.
+- *Off to on:* `OnEnabledAsync(EnabledInSession, ct)`, the same code path as startup: one attach item
+  first ("Strat Book: attach services", which attaches the lineup clips, Team Identity (its file read and
+  `StartAsync` are queued from inside it, so the Library team filter is not held behind the index loads),
+  the facts refresher, the zone graphs and every resident built lazily before a release), then the two
+  index loads, all queue items at user priority on the pack's serial; then a user-priority `SectionCompute`
+  item on the same serial, owned by the pack id ("Strat Book extension: find demos to re-index"), re-polls
+  the library through the coordinator, so the pack's evaluators submit every demo whose pack fields are
+  missing or stale and the backfill is visible and pausable in the queue. Open 2D Playback tabs and the
+  shell react through the gate's `Changed` as before.
 - *On to off:* the enable's token is cancelled, every queued pack item goes by owner tag through
   `IDemoProcessingQueue.CancelOwned(ownerTag)` (a running one finishes its unit; a parse the library co-owns
   stays), and the release itself is one `SectionCompute` item at user priority, owner the pack id, on the
@@ -743,7 +744,8 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
   if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
   browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team
   Identity, which the shell builds for the Library filter before the wizard has asked, is built detached
-  and unread whatever the gate says at container build; only the attach item reads its files.
+  and unread whatever the gate says at container build; only the attach item reads its files, and a read
+  that reaches a detached service (a queued one that lost the race with a release) reads and writes nothing.
 - *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
   60 grenades each, a mine and a watch seeded): an enable builds about 21 MB on the GC heap; the release
   leaves 0.5 MB after the first off-on-off cycle and 0.0 MB after the second, so nothing grows per toggle.

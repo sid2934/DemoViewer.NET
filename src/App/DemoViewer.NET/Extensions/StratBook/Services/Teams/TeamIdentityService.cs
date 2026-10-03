@@ -116,18 +116,37 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
         }
     }
 
-    private LoadOnce NewLoad() => new(() =>
+    // The read, under the gate with the attached check: a queued read that passed the generation guard and
+    // then lost the race with a release must not fill a released service. Skipped, it leaves a fresh
+    // LoadOnce behind so the next Attach reads.
+    private LoadOnce NewLoad()
     {
-        lock (_gate)
+        LoadOnce? created = null;
+        created = new LoadOnce(() =>
         {
-            Load();
-        }
+            lock (_gate)
+            {
+                if (!_attached)
+                {
+                    if (ReferenceEquals(_load, created))
+                    {
+                        _load = NewLoad();
+                        _loadScheduled = false;
+                    }
 
-        if (_scheduleLoad is not null)
-        {
-            _post(() => Changed?.Invoke());
-        }
-    });
+                    return;
+                }
+
+                Load();
+            }
+
+            if (_scheduleLoad is not null)
+            {
+                _post(() => Changed?.Invoke());
+            }
+        });
+        return created;
+    }
 
     /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
     /// <summary>
@@ -1595,7 +1614,8 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
 
     private void SaveTeams()
     {
-        if (_teamsPath is null || _teamsRefused)
+        // Detached, the service read nothing, so nothing it holds may reach the user's file.
+        if (_teamsPath is null || _teamsRefused || !_attached)
         {
             return;
         }
@@ -1612,7 +1632,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
 
     private void SaveIndex()
     {
-        if (_indexPath is null)
+        if (_indexPath is null || !_attached)
         {
             return;
         }
