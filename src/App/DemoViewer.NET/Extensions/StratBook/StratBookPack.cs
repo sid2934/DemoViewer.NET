@@ -187,6 +187,10 @@ public sealed class StratBookPack : IFeaturePack
         TrackBuilt<SituationIndex>(services, (instances, built) => instances.Situations = built);
         TrackBuilt<TeamIdentityService>(services, (instances, built) => instances.Teams = built);
         TrackBuilt<TagFactsRefresher>(services, (instances, built) => instances.TagFacts = built);
+        // Round Index is core-registered too (SituationIndex depends on it directly), so it is wrapped
+        // the same way. The other three evaluators below are registered here, so they record themselves
+        // inline instead.
+        TrackBuilt<RoundIndexEvaluator>(services, (instances, built) => instances.RoundIndex = built);
 
         // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
         // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
@@ -201,12 +205,14 @@ public sealed class StratBookPack : IFeaturePack
         services.AddSingleton(sp =>
         {
             IFeatureGate? features = sp.GetService<IFeatureGate>();
-            return new RoundFactsEvaluator(
+            RoundFactsEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsRowSource>(),
                 sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
                 action => Dispatcher.UIThread.Post(action),
                 enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+            sp.GetRequiredService<StratBookPackInstances>().RoundFacts = built;
+            return built;
         });
         // The reader is gated too, so off looks off: rows written while on stop surfacing until the pack
         // comes back. They stay on disk.
@@ -348,7 +354,7 @@ public sealed class StratBookPack : IFeaturePack
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             IFeatureGate? features = sp.GetService<IFeatureGate>();
-            return new SuggestedTagsService(
+            SuggestedTagsService built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<ProposalStore>(),
                 sp.GetRequiredService<TagStore>(),
@@ -362,6 +368,8 @@ public sealed class StratBookPack : IFeaturePack
                 map => sp.GetRequiredService<ISituationIndex>().Places(map),
                 () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
                 action => Dispatcher.UIThread.Post(action));
+            sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
+            return built;
         });
         // The tuning view's harness: stored counts for free, an in-memory re-run over a candidate
         // profile for recall/precision (§3.7). Shares the evaluator's store and region table so a
@@ -498,12 +506,14 @@ public sealed class StratBookPack : IFeaturePack
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             IFeatureGate? features = sp.GetService<IFeatureGate>();
-            return new GrenadeIndexEvaluator(
+            GrenadeIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
                 () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
                 () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
                 enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+            sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
+            return built;
         });
 
         // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the
@@ -629,6 +639,20 @@ public sealed class StratBookPack : IFeaturePack
         // while the pack is on and keeps it out of the highlights fingerprint. Not a doc of its own, so
         // the user overlay and the Workbench keep working on it.
         contributions.Ruleset(RoundFactsFingerprint.RulesetId);
+
+        // The four pack evaluators on the demo fan-out (item 11), ordered to match the dependency chain
+        // each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
+        // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
+        // the others write). The registry resolves this only while the pack is on, so these factories are
+        // never invoked, and these services never constructed, with the pack off.
+        contributions.Evaluator(RoundFactsEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundFactsEvaluator>(),
+            "library");
+        contributions.Evaluator(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
+            RoundFactsEvaluator.EvaluatorId);
+        contributions.Evaluator(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
+            RoundIndexEvaluator.EvaluatorId);
+        contributions.Evaluator(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
+            "library");
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator

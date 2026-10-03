@@ -45,10 +45,11 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     }
 
     /// <inheritdoc />
-    public void Evaluator(Func<IDemoEvaluator> factory, params string[] after)
+    public void Evaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _evaluators.Add(new EvaluatorContribution(factory, [.. after]));
+        _evaluators.Add(new EvaluatorContribution(id, factory, [.. after]));
     }
 
     /// <inheritdoc />
