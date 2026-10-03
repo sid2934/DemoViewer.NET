@@ -70,9 +70,6 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     /// <summary>A right-column panel opened, closed or changed its gate. The tab re-reads <see cref="HasPanels" />.</summary>
     public event Action? PanelsChanged;
 
-    /// <summary><see cref="HasKeyboard" /> changed.</summary>
-    public event Action? KeyboardChanged;
-
     /// <summary>The side panes added, in order. For tests.</summary>
     internal IReadOnlyList<IPaneHandle> Panes => _panes;
 
@@ -230,7 +227,6 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         PanelsChanged?.Invoke();
         OnPropertyChanged(nameof(HasPanels));
         OnPropertyChanged(nameof(HasKeyboard));
-        KeyboardChanged?.Invoke();
     }
 
     /// <summary>The tab's Review mode flipped: every panel re-reads whether it shows, then the contributions hear it.</summary>
@@ -242,7 +238,6 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         }
 
         OnPropertyChanged(nameof(HasKeyboard));
-        KeyboardChanged?.Invoke();
         ReviewModeChanged?.Invoke();
     }
 
@@ -326,7 +321,6 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         PanelsChanged?.Invoke();
         OnPropertyChanged(nameof(HasPanels));
         OnPropertyChanged(nameof(HasKeyboard));
-        KeyboardChanged?.Invoke();
     }
 
     internal void RemovePanel(Playback2DPanel panel)
@@ -335,11 +329,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         _panels.Remove(panel);
     }
 
-    internal void OnPanelKeyboardChanged()
-    {
-        OnPropertyChanged(nameof(HasKeyboard));
-        KeyboardChanged?.Invoke();
-    }
+    internal void OnPanelKeyboardChanged() => OnPropertyChanged(nameof(HasKeyboard));
 
     private sealed class PaneHandle(Playback2DSurface owner, int order, Func<object> factory) : IPaneHandle
     {

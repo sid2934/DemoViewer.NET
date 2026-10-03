@@ -254,14 +254,11 @@ public class Playback2DRightColumnTests
         }
 
         // Focused: the handler is asked first and can take a core action.
-        int keyboardChanges = 0;
-        vm.Surface.KeyboardChanged += () => keyboardChanges++;
         panel.HasKeyboard = true;
         actions.Clear();
         using (Assert.Multiple())
         {
             await Assert.That(vm.Surface.HasKeyboard).IsTrue();
-            await Assert.That(keyboardChanges).IsEqualTo(1);
             await Assert.That(vm.ExecuteAction(Playback2DAction.TogglePlay)).IsTrue();
             await Assert.That(ctx.PlayCount).IsEqualTo(1).Because("the focused panel took play");
             await Assert.That(vm.ExecuteAction(Playback2DAction.StepForward)).IsTrue().Because("what it declines falls to the tab");
