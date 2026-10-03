@@ -134,7 +134,7 @@ public class ForwardPassRealDemoTests
 
         IReadOnlyList<RulesetDoc> rules = ShippedRules().Rulesets;
         BuildResult highlightsOnly = DemoAnalysis.Build(parsed, RoundFactsFingerprint.WithoutRoundFacts(rules));
-        RulesetDoc doc = merged.RoundFactsDoc!;
+        RulesetDoc doc = merged.EnabledDoc(RoundFactsFingerprint.RulesetId)!;
         BuildResult factsOnly = DemoAnalysis.Build(parsed, [doc]);
         AnalysisRun factsRun = DemoAnalysis.Evaluate(parsed, factsOnly, new AnalysisOptions { CaptureSnapshots = false });
         MetricTable? table = factsRun.ProjectConfiguredOutputs(parsed)

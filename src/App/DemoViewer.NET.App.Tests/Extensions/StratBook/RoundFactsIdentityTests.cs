@@ -32,8 +32,8 @@ public class RoundFactsIdentityTests
 
             MergedRulesBuild before = new(() => YamlConfigLoader.LoadWithOverlay(shipped, null));
             MergedRulesBuild after = new(() => YamlConfigLoader.LoadWithOverlay(shipped, user.FullName));
-            RulesetDoc beforeDoc = before.RoundFactsDoc!;
-            RulesetDoc afterDoc = after.RoundFactsDoc!;
+            RulesetDoc beforeDoc = before.EnabledDoc(RoundFactsFingerprint.RulesetId)!;
+            RulesetDoc afterDoc = after.EnabledDoc(RoundFactsFingerprint.RulesetId)!;
 
             using (Assert.Multiple())
             {
