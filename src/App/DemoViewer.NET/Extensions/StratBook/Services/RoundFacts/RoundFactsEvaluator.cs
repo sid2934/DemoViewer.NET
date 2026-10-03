@@ -23,10 +23,10 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///         the index reads these rows in the same pass.
 ///     </para>
 ///     <para>
-///         Nothing here is gated by a setting: the rows ride tier 2, and wherever a parse runs this
-///         runs. A user who disables the ruleset (a same-id override with <c>enabled: false</c>) removes
-///         it from the effective set; the identity then answers null, and this evaluator wants nothing
-///         and writes nothing.
+///         Gated by the pack alone: off, it wants nothing, lists nothing pending and writes nothing on
+///         the opportunistic hooks. A user who disables the ruleset (a same-id override with
+///         <c>enabled: false</c>) removes it from the effective set; the identity then answers null, and
+///         the evaluator wants nothing either way.
 ///     </para>
 /// </summary>
 public sealed class RoundFactsEvaluator : IDemoEvaluator
@@ -41,6 +41,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private static ILogger? _diagLog;
 
     private readonly DemoCacheStore _demoCache;
+    private readonly Func<bool> _enabled;
     private readonly IRoundFactsRulesetIdentity _identity;
     private readonly Action<Action> _post;
     private readonly IRoundFactsRowSource _rows;
@@ -56,16 +57,19 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// <param name="rows">The engine seam that evaluates the ruleset on a held parse.</param>
     /// <param name="identity">The effective ruleset's fingerprint, or null when there is none.</param>
     /// <param name="post">UI-thread marshal for <see cref="Updated" />; defaults to synchronous.</param>
+    /// <param name="enabled">The owning pack's live gate; null means always on.</param>
     public RoundFactsEvaluator(
         DemoCacheStore demoCache,
         IRoundFactsRowSource rows,
         IRoundFactsRulesetIdentity identity,
-        Action<Action>? post = null)
+        Action<Action>? post = null,
+        Func<bool>? enabled = null)
     {
         _demoCache = demoCache;
         _rows = rows;
         _identity = identity;
         _post = post ?? (action => action());
+        _enabled = enabled ?? (() => true);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundFactsLog.Category);
@@ -87,6 +91,11 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// </remarks>
     public bool Wants(string path)
     {
+        if (!_enabled())
+        {
+            return false;
+        }
+
         DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
         string? fingerprint = TryFingerprint(BacklogTickRate);
         return entry is { ParseSchema: > 0 } && entry.NeedsRoundFacts(fingerprint) && !TriedWithoutRows(path, fingerprint);
@@ -121,6 +130,11 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
+        if (!_enabled())
+        {
+            return [];
+        }
+
         string? fingerprint = TryFingerprint(BacklogTickRate);
         if (fingerprint is null)
         {
@@ -146,6 +160,11 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private void Refresh(string path, int tickRate, Func<RoundFactsTable> rowsOf,
         Func<IReadOnlyList<ClipRound>> roundsOf, Func<ClockIdentity> clockOf)
     {
+        if (!_enabled())
+        {
+            return;
+        }
+
         string fileName = Path.GetFileName(path);
         try
         {

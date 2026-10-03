@@ -69,6 +69,26 @@ public class RoundTrackRoundFactsTests
         }
     }
 
+    // The pack off on a Valve demo: the gated source answers null whether or not rows were ever written,
+    // and the wire carries no round_end. The bands still lay out; they are simply not tinted.
+    [Test]
+    public async Task WithoutASource_AndNoRoundEnd_EveryBandIsNeutral()
+    {
+        FakeTimelineData data = new(300);
+        data.EventFrames["round_freeze_end"] = [50, 100, 200];
+        RoundTrack track = new();
+
+        IReadOnlyList<TimelineBand> bands = track.BuildBands(data);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(track.Facts).IsNull();
+            await Assert.That(bands.Count).IsEqualTo(4).Because("warmup plus three rounds");
+            await Assert.That(bands.Select(b => b.Argb)).IsEquivalentTo([0u, 0u, 0u, 0u]);
+            await Assert.That(bands.Any(b => b.Tooltip.Contains("won by", StringComparison.Ordinal))).IsFalse();
+        }
+    }
+
     [Test]
     public async Task RefreshTints_AsksTheTimelineToReQuery()
     {

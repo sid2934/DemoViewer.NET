@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
-///     What decides whether cached round facts are current: <see cref="MergedRulesBuild.RoundFactsIdentity" />
+///     What decides whether cached round facts are current: <see cref="MergedRulesBuild.RulesetIdentity" />
 ///     (the effective <c>round_facts</c> composed alone, its source file and the engine version) folded
 ///     with the payload schema. Editing a threshold re-runs round facts; the highlight scan and the roster
 ///     parse never notice.
@@ -23,18 +23,9 @@ public static class RoundFactsFingerprint
     /// <summary>The ruleset id the evaluator looks for in the effective set.</summary>
     public const string RulesetId = "round_facts";
 
-    /// <summary>
-    ///     The rulesets minus <c>round_facts</c>, for the open demo's Stats run, where the ruleset would
-    ///     put a per-side table in the extras. The background scan runs the merged set.
-    /// </summary>
-    public static IReadOnlyList<RulesetDoc> WithoutRoundFacts(IReadOnlyList<RulesetDoc> rulesets) =>
-    [
-        .. rulesets.Where(r => !string.Equals(r.Id, RulesetId, StringComparison.Ordinal))
-    ];
-
     /// <summary>Folds the payload schema into a ruleset identity hash.</summary>
     /// <param name="schema">The <see cref="RoundFactsRows.Schema" /> the rows would be written at.</param>
-    /// <param name="rulesetIdentity">The <c>round_facts</c> identity from <see cref="MergedRulesBuild.RoundFactsIdentity" />.</param>
+    /// <param name="rulesetIdentity">The <c>round_facts</c> identity from <see cref="MergedRulesBuild.RulesetIdentity" />.</param>
     public static string Combine(int schema, string rulesetIdentity)
     {
         ArgumentNullException.ThrowIfNull(rulesetIdentity);
@@ -85,8 +76,11 @@ public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
     /// <summary>The build the rows come out of.</summary>
     public MergedRulesBuild Rules { get; }
 
-    /// <summary>The effective <c>round_facts</c> ruleset, or null when there is none enabled.</summary>
-    public RulesetDoc? EffectiveDoc() => Rules.RoundFactsDoc;
+    /// <summary>
+    ///     The effective <c>round_facts</c> ruleset, or null when there is none enabled, the pack that
+    ///     owns it being off included.
+    /// </summary>
+    public RulesetDoc? EffectiveDoc() => Rules.EnabledDoc(RoundFactsFingerprint.RulesetId);
 
     /// <inheritdoc />
     public string? Fingerprint(int tickRate)
@@ -98,7 +92,8 @@ public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
                 return null;
             }
 
-            return RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema, Rules.RoundFactsIdentity(tickRate));
+            return RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema,
+                Rules.RulesetIdentity(RoundFactsFingerprint.RulesetId, tickRate));
         }
         catch (Exception ex)
         {

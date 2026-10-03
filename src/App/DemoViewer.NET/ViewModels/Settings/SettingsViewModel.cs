@@ -6,16 +6,20 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Update;
 using FuzzySharp;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 // Aliased: the release-notes service namespace's short name collides with this VM's `Update`
 // property (the shared UpdateViewModel), which XAML binds by that exact name.
@@ -65,7 +69,13 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ("Playback2DKeys", "keys keybinds keybindings keyboard shortcuts hotkeys gestures rebind "
                            + "controls 2d playback radar draw erase undo pan follow round kill speed"),
         ("SuggestedTagsTuning", "suggested tags tuning detectors profile execute default fake opener "
-                                + "retake recall precision parameters preview verdicts")
+                                + "retake recall precision parameters preview verdicts"),
+        // The generic keyword surface for the section that lists every FeatureScope.Pack master switch.
+        // ExtensionsSectionMatches below ALSO scans each built row's own Label, so a pack's name (and its
+        // tabs' names) are findable without listing them here by hand.
+        ("Extensions", "extension extensions pack packs plugin addon add-on master switch background "
+                       + "indexing reindex"),
+        ("GrenadeIndex", "grenade index utility book lineup clip render walk background")
     ];
 
     // Every feature row, in one flat list, for the gate-driven refresh sweep (the bound collections below are
@@ -76,6 +86,19 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // Changed event is the cue to refresh the rows. A SINGLETON shared with the shell (composition root), so a
     // toggle here reconciles the app's tabs/chrome and this list from the one gate.
     private readonly IFeatureGate _gate;
+
+    // Test seam for the Extensions "N demos will be re-indexed" notice (item 5, §8): null in production,
+    // where StratBookPendingReindexCount resolves the pack's evaluators through the app service locator
+    // (the constructor shape is fixed, so this cannot be a normal dependency).
+    private readonly Func<Task<int>>? _countStratBookPendingReindex;
+
+    // Bumped on every pack-toggle transition so a slow count that lands after a LATER flip is dropped
+    // rather than overwriting a more recent notice.
+    private int _stratBookNoticeGeneration;
+
+    // The pack's last-observed resolved state, seeded at construction so the ctor's own first refresh
+    // never reads as a transition and shows a notice nobody asked for.
+    private bool _stratBookPackWasEnabled;
 
     // Whether this is the WASM head. Injected, not read from OperatingSystem here. See the internal ctor.
     private readonly Func<bool> _isBrowser;
@@ -146,6 +169,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     private bool _disposed;
 
+    // Lazy: most sessions never hit the best-effort catch this backs.
+    private ILogger? _diagLog;
+
     /// <summary>Advanced (developer): force an incompatible plugin → <c>AppSettings.LiveSync.ForceIncompatiblePlugin</c>.</summary>
     [ObservableProperty]
     private bool _forceIncompatiblePlugin;
@@ -183,6 +209,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isGroupDiagnosticsExpanded = true;
+
+    // Extensions starts EXPANDED, unlike Features: it is one master switch card plus (today) two small
+    // relocated cards, not a wall of ~25 rows, and the switch is the kind of control worth surfacing
+    // without a click.
+    [ObservableProperty]
+    private bool _isGroupExtensionsExpanded = true;
 
     [ObservableProperty]
     private bool _isGroupFeaturesExpanded;
@@ -311,6 +343,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _showGroupDiagnostics = true;
 
     [ObservableProperty]
+    private bool _showGroupExtensions = true;
+
+    [ObservableProperty]
     private bool _showGroupFeatures = true;
 
     // Group visibility (any member visible) + expansion. Features starts COLLAPSED: its ~25
@@ -328,10 +363,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _showSectionDiagnostics = true;
 
     [ObservableProperty]
+    private bool _showSectionExtensions = true;
+
+    [ObservableProperty]
     private bool _showSectionFeatures = true;
 
     [ObservableProperty]
     private bool _showSectionFolders = true;
+
+    [ObservableProperty]
+    private bool _showSectionGrenadeIndex = true;
 
     [ObservableProperty]
     private bool _showSectionHighlights = true;
@@ -365,6 +406,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // handoff). Null on WASM / headless, so the folder picker is then unavailable (see CanAddFolder).
     private IStorageProvider? _storageProvider;
 
+    /// <summary>
+    ///     Feedback for the last in-session flip of the Strat Book extension's master switch (§8): null
+    ///     until a flip happens in this VM's lifetime (nothing to report at a plain startup). On: "Counting…"
+    ///     then a demo count once <see cref="RecomputeStratBookToggleNoticeAsync" /> lands. Off: a one-line
+    ///     note that its data stays on disk.
+    /// </summary>
+    [ObservableProperty]
+    private string? _stratBookToggleNotice;
+
     // true while THIS VM is persisting a change, so the synchronous OnChange echo of its own write is
     // skipped as redundant (the bound state already matches what was just written).
     private bool _writing;
@@ -396,9 +446,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <param name="isBrowser">Whether the host is the WASM head.</param>
     /// <param name="replayWalkthrough">Re-runs the tutorial walkthrough, or null.</param>
     /// <param name="suggestedTagsTuning">The Suggested Tags tuning section's VM; a hidden stand-in when null.</param>
+    /// <param name="countStratBookPendingReindex">
+    ///     Test seam for the Extensions "N demos will be re-indexed" notice (§8): null (production) resolves
+    ///     the count through <see cref="StratBookPendingReindexCount" />.
+    /// </param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Func<bool> isBrowser, Action? replayWalkthrough = null, SuggestedTagsTuningViewModel? suggestedTagsTuning = null)
+        Func<bool> isBrowser, Action? replayWalkthrough = null, SuggestedTagsTuningViewModel? suggestedTagsTuning = null,
+        Func<Task<int>>? countStratBookPendingReindex = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -410,6 +465,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _isBrowser = isBrowser;
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
+        _countStratBookPendingReindex = countStratBookPendingReindex;
         // Null in a test that does not wire the tuning harness: the section then hides itself
         // (SuggestedTagsTuningViewModel(null, null) reports CanManageTuning = false).
         SuggestedTagsTuning = suggestedTagsTuning ?? new SuggestedTagsTuningViewModel(null, null, isBrowser());
@@ -470,10 +526,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             LibraryFolders.Add(folder);
         }
 
-        // Build the feature-toggle rows (grouped: Tabs each followed by their SubFeatures, then Chrome), seed
-        // their state from the gate, and subscribe for live re-resolution. The gate marshals Changed to the UI
-        // thread in the headed app, so the handler need not marshal again.
+        // Seeded BEFORE the first RefreshFeatureRows below, so that call sees no transition and shows no
+        // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip (§8), not state.
+        _stratBookPackWasEnabled = gate.IsEnabled(StratBookPack.PackFeatureId);
+
+        // Build the feature-toggle rows (grouped: Tabs each followed by their SubFeatures, then Chrome),
+        // then the Extensions rows (every pack's master switch plus its own tabs/sub-features, which leave
+        // the two collections above), seed state from the gate, and subscribe for live re-resolution. The
+        // gate marshals Changed to the UI thread in the headed app, so the handler need not marshal again.
         BuildFeatureRows();
+        BuildExtensionsFeatureRows();
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
 
@@ -565,6 +627,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>Whether the Highlights section is shown: desktop only (cache/scan/reel need a filesystem).</summary>
     public bool CanManageHighlights { get; } = !OperatingSystem.IsBrowser();
 
+    /// <summary>
+    ///     Whether the Grenade Index card (under Extensions) is shown: desktop only, the same gate it had
+    ///     while it rode inside the Highlights section.
+    /// </summary>
+    public bool CanManageGrenadeIndex { get; } = !OperatingSystem.IsBrowser();
+
+    /// <summary>Whether the Strat Book extension's master switch currently resolves on; drives the two relocated cards beneath it.</summary>
+    public bool IsStratBookPackEnabled => _gate.IsEnabled(StratBookPack.PackFeatureId);
+
     /// <summary>The effective user category: the selected card's value. Convenience for callers/tests.</summary>
     public UserCategory SelectedCategory => SelectedCategoryOption.Value;
 
@@ -576,6 +647,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     /// <summary>Global-chrome rows (no parent tab), the second grouped block of the feature-toggle list.</summary>
     public ObservableCollection<FeatureToggleRow> ChromeFeatureRows { get; } = [];
+
+    /// <summary>
+    ///     The Extensions section's rows: every <see cref="FeatureScope.Pack" /> descriptor's master row,
+    ///     immediately followed by the tabs it parents (each in turn followed by ITS SubFeature children,
+    ///     indented one level deeper) and then any remaining sub-feature the pack docks in a core tab (2D
+    ///     Playback's tag palette and Suggested Tags), flat. Built from <see cref="FeatureCatalog.All" />, so
+    ///     a second pack's rows appear here with no code change. These rows leave <see cref="TabFeatureRows" />
+    ///     and <see cref="ChromeFeatureRows" /> so they are never listed twice.
+    /// </summary>
+    public ObservableCollection<FeatureToggleRow> ExtensionsFeatureRows { get; } = [];
 
     /// <summary>
     ///     How many non-Required features the current user has hidden versus the developer-full baseline (from
@@ -722,13 +803,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ShowSectionDiagnostics = CanManageDiagnosticsLogging && SectionMatches("Diagnostics", filter);
         // No platform gate: the 2D tab (and therefore its keymap) is WASM-reachable.
         ShowSectionPlayback2DKeys = SectionMatches("Playback2DKeys", filter);
-        // Its own gate: no filesystem for the profile file on the browser (§3.8).
-        ShowSectionSuggestedTagsTuning = SuggestedTagsTuning.CanManageTuning && SectionMatches("SuggestedTagsTuning", filter);
+        // The Extensions master-switch card is always reachable (it is how a user turns the pack back
+        // on), so it ignores IsStratBookPackEnabled; the two relocated cards beneath it do not.
+        ShowSectionExtensions = ExtensionsSectionMatches(filter);
+        // Relocated under Extensions (item 5): Strat Book-only, hidden entirely while the pack is off, on
+        // top of their own pre-existing platform gate (§3.8 / desktop-only lineup rendering).
+        ShowSectionSuggestedTagsTuning =
+            IsStratBookPackEnabled && SuggestedTagsTuning.CanManageTuning && SectionMatches("SuggestedTagsTuning", filter);
+        ShowSectionGrenadeIndex = IsStratBookPackEnabled && CanManageGrenadeIndex && SectionMatches("GrenadeIndex", filter);
 
         ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates
-                           || ShowSectionPlayback2DKeys || ShowSectionSuggestedTagsTuning;
+                           || ShowSectionPlayback2DKeys;
         ShowGroupLibrary = ShowSectionFolders || ShowSectionProcessing || ShowSectionIdle;
         ShowGroupFeatures = ShowSectionFeatures;
+        ShowGroupExtensions = ShowSectionExtensions || ShowSectionSuggestedTagsTuning || ShowSectionGrenadeIndex;
         ShowGroupLiveCs2 = ShowSectionLiveSync || ShowSectionHighlights;
         ShowGroupDiagnostics = ShowSectionDiagnostics;
 
@@ -737,9 +825,38 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             IsGroupGeneralExpanded |= ShowGroupGeneral;
             IsGroupLibraryExpanded |= ShowGroupLibrary;
             IsGroupFeaturesExpanded |= ShowGroupFeatures;
+            IsGroupExtensionsExpanded |= ShowGroupExtensions;
             IsGroupLiveCs2Expanded |= ShowGroupLiveCs2;
             IsGroupDiagnosticsExpanded |= ShowGroupDiagnostics;
         }
+    }
+
+    // "Extensions" generic keywords OR any built row's own Label (its pack's name, or one of its
+    // tabs/sub-features): a second pack's rows are searchable with no change here. ExtensionsFeatureRows
+    // is built before ApplySectionFilter ever runs (see the ctor), so this is safe at construction too.
+    private bool ExtensionsSectionMatches(string filter)
+    {
+        if (filter.Length == 0)
+        {
+            return true;
+        }
+
+        if (SectionMatches("Extensions", filter))
+        {
+            return true;
+        }
+
+        string needle = filter.ToLowerInvariant();
+        foreach (FeatureToggleRow row in ExtensionsFeatureRows)
+        {
+            string label = row.Label.ToLowerInvariant();
+            if (label.Contains(needle, StringComparison.OrdinalIgnoreCase) || Fuzz.PartialRatio(needle, label) >= 80)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     partial void OnKeybindRejectionNoteChanged(string value) =>
@@ -1611,12 +1728,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         Persist(s => s.Features.Overrides.Remove(featureId));
 
     // Build the grouped row list once: from FeatureCatalog.All, each Tab immediately followed by its
-    // SubFeature children (indented), then all Chrome rows. The flat _featureRows mirror is the refresh sweep.
+    // SubFeature children (indented), then all Chrome rows. The flat _featureRows mirror is the refresh
+    // sweep. A row owned by a pack (OwnerPackId set) is skipped here even when its ParentId is a core tab
+    // (2D Playback's tag palette, Suggested Tags): it renders under Extensions instead, never twice.
     private void BuildFeatureRows()
     {
         foreach (FeatureDescriptor descriptor in FeatureCatalog.All)
         {
-            if (descriptor.Scope != FeatureScope.Tab)
+            if (descriptor.Scope != FeatureScope.Tab || descriptor.OwnerPackId is not null)
             {
                 continue;
             }
@@ -1624,15 +1743,62 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             AddFeatureRow(TabFeatureRows, descriptor, 0);
             foreach (FeatureDescriptor child in FeatureCatalog.Children(descriptor.Id))
             {
+                if (child.OwnerPackId is not null)
+                {
+                    continue;
+                }
+
                 AddFeatureRow(TabFeatureRows, child, 1);
             }
         }
 
         foreach (FeatureDescriptor descriptor in FeatureCatalog.All)
         {
-            if (descriptor.Scope == FeatureScope.Chrome)
+            if (descriptor.Scope == FeatureScope.Chrome && descriptor.OwnerPackId is null)
             {
                 AddFeatureRow(ChromeFeatureRows, descriptor, 0);
+            }
+        }
+    }
+
+    // The Extensions section's rows (ExtensionsFeatureRows doc comment has the shape): every pack's master
+    // row, its own tabs with their children nested beneath, then any sub-feature it docks in a CORE tab
+    // (no tab of its own under the pack), flat. Driven entirely from FeatureCatalog.All by Scope/OwnerPackId,
+    // so a second pack needs no change here.
+    private void BuildExtensionsFeatureRows()
+    {
+        foreach (FeatureDescriptor pack in FeatureCatalog.All)
+        {
+            if (pack.Scope != FeatureScope.Pack)
+            {
+                continue;
+            }
+
+            AddFeatureRow(ExtensionsFeatureRows, pack, 0);
+
+            HashSet<string> ownTabIds = new(StringComparer.Ordinal);
+            foreach (FeatureDescriptor tab in FeatureCatalog.All)
+            {
+                if (tab.Scope != FeatureScope.Tab || tab.ParentId != pack.Id)
+                {
+                    continue;
+                }
+
+                ownTabIds.Add(tab.Id);
+                AddFeatureRow(ExtensionsFeatureRows, tab, 1);
+                foreach (FeatureDescriptor child in FeatureCatalog.Children(tab.Id))
+                {
+                    AddFeatureRow(ExtensionsFeatureRows, child, 2);
+                }
+            }
+
+            foreach (FeatureDescriptor sub in FeatureCatalog.All)
+            {
+                if (sub.Scope == FeatureScope.SubFeature && sub.OwnerPackId == pack.Id
+                    && !ownTabIds.Contains(sub.ParentId!))
+                {
+                    AddFeatureRow(ExtensionsFeatureRows, sub, 1);
+                }
             }
         }
     }
@@ -1683,10 +1849,60 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             _applyingExternal = false;
         }
 
+        // §8's in-session notice: fires only on a TRANSITION (not every refresh), so a plain category
+        // change or an unrelated override write never shows it. Catches a self-write, Reset-to-defaults,
+        // and an external edit alike, since all three land here through gate.Changed.
+        bool stratBookNowEnabled = _gate.IsEnabled(StratBookPack.PackFeatureId);
+        if (stratBookNowEnabled != _stratBookPackWasEnabled)
+        {
+            _stratBookPackWasEnabled = stratBookNowEnabled;
+            _stratBookNoticeGeneration++;
+            if (stratBookNowEnabled)
+            {
+                StratBookToggleNotice = "Counting…";
+                _ = RecomputeStratBookToggleNoticeAsync(_stratBookNoticeGeneration);
+            }
+            else
+            {
+                StratBookToggleNotice = "The Strat Book extension stops its background work. Its data stays on disk.";
+            }
+        }
+
         OnPropertyChanged(nameof(HiddenCount));
         OnPropertyChanged(nameof(FeatureCategoryLabel));
         OnPropertyChanged(nameof(FeaturesHeaderText));
         OnPropertyChanged(nameof(ResetButtonText));
+        OnPropertyChanged(nameof(IsStratBookPackEnabled));
+    }
+
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Settings");
+
+    // Resolves the re-index count off the UI thread (PendingPaths over a large library is not free) and
+    // writes the final notice, UNLESS a later toggle already changed the generation: dropping a stale
+    // result beats a "12 demos…" note that lands after the user flipped the extension back off.
+    private async Task RecomputeStratBookToggleNoticeAsync(int generation)
+    {
+        int count;
+        try
+        {
+            count = _countStratBookPendingReindex is { } compute
+                ? await compute()
+                : await StratBookPendingReindexCount.ComputeAsync();
+        }
+        catch (Exception ex)
+        {
+            // Best-effort: a bad probe must not leave the toggle itself looking broken, but a silent
+            // zero would read as "nothing pending" when the count simply failed. Logged, not swallowed.
+            AppLog.OperationFailed(DiagLog, "count demos to re-index", ex);
+            count = 0;
+        }
+
+        if (_disposed || generation != _stratBookNoticeGeneration)
+        {
+            return;
+        }
+
+        StratBookToggleNotice = $"{count} demos will be re-indexed in the background.";
     }
 
     // IFeatureGate.Changed handler. The gate marshals Changed to the UI thread in the headed app (and raises

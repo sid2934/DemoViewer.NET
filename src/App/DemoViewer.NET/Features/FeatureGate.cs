@@ -107,6 +107,11 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
                     continue; // Required features are never hidden: excluded from the count.
                 }
 
+                if (descriptor.Scope == FeatureScope.Pack)
+                {
+                    continue; // The pack's own row renders as its live master switch, not a hidden feature.
+                }
+
                 // The Developer-full baseline: what a developer with default settings sees (no overrides).
                 bool developerBaseline = Resolve(descriptor, UserCategory.Developer, _emptyOverrides, null);
                 bool current = Resolve(descriptor, category, overrides, null);

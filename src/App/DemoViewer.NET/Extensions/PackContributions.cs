@@ -17,9 +17,13 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<EvaluatorContribution> _evaluators = [];
     private readonly List<JobKindDescriptor> _jobKinds = [];
     private readonly List<CommandDescriptor> _commands = [];
+    private readonly List<RulesetContribution> _rulesets = [];
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
+
+    /// <summary>Rulesets the pack owns, in contribution order.</summary>
+    public IReadOnlyList<RulesetContribution> Rulesets => _rulesets;
 
     /// <summary>Modules, in contribution order.</summary>
     public IReadOnlyList<IWorkspaceModule> Modules => _modules;
@@ -59,5 +63,12 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(commands);
         _commands.AddRange(commands);
+    }
+
+    /// <inheritdoc />
+    public void Ruleset(string rulesetId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rulesetId);
+        _rulesets.Add(new RulesetContribution(rulesetId));
     }
 }

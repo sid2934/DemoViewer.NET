@@ -178,6 +178,7 @@ public class AppCompositionRootTests
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
             SeedQualifyingDemo(provider, demo);
+            Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<Services.RoundFacts.RoundFactsEvaluator>();
             Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
             Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
             Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
@@ -188,6 +189,10 @@ public class AppCompositionRootTests
 
             using (Assert.Multiple())
             {
+                // The seeded rows carry a fake fingerprint, so they are stale: the control below shows the
+                // pack-on build wants them, which is what makes this assertion non-vacuous.
+                await Assert.That(roundFacts.Wants(demo)).IsFalse();
+                await Assert.That(roundFacts.PendingPaths()).IsEmpty();
                 await Assert.That(roundIndex.Wants(demo)).IsFalse();
                 await Assert.That(roundIndex.PendingPaths()).IsEmpty();
                 await Assert.That(suggestedTags.Wants(demo)).IsFalse();
@@ -201,6 +206,10 @@ public class AppCompositionRootTests
             }
 
             await Assert.That(SuggestedBadge(provider)).IsNull().Because("the pack is off: the pending suggestions are never read");
+            // The ruleset itself leaves the merged set: the Library and Highlights passes run less. Read
+            // after the evaluator asserts, since the first rules read collects the pack contributions.
+            await Assert.That(provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>().Docs.Select(d => d.Id))
+                .DoesNotContain(Services.RoundFacts.RoundFactsFingerprint.RulesetId);
         }, packOff);
 
         // Control: the same seed and the same demo, pack on (its default). Without this, the asserts
@@ -208,6 +217,7 @@ public class AppCompositionRootTests
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
             SeedQualifyingDemo(provider, demo);
+            Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<Services.RoundFacts.RoundFactsEvaluator>();
             Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
             Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
             Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
@@ -223,6 +233,14 @@ public class AppCompositionRootTests
             }
 
             await Assert.That(SuggestedBadge(provider)).IsEqualTo("7");
+            // Last: the first rules read collects the pack contributions, which queues the Review load and
+            // wakes the coordinator, and a job on the seeded demo would clear the forced grenade path above.
+            using (Assert.Multiple())
+            {
+                await Assert.That(roundFacts.Wants(demo)).IsTrue().Because("the seeded rows carry a stale fingerprint");
+                await Assert.That(provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>().Docs.Select(d => d.Id))
+                    .Contains(Services.RoundFacts.RoundFactsFingerprint.RulesetId);
+            }
         }, packOn);
     }
 
