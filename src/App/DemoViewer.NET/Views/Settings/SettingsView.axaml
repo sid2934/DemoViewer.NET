@@ -261,7 +261,8 @@
                                     <ItemsControl ItemsSource="{Binding Playback2DKeybindRows}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="settings:KeybindRow">
-                                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3"
+                                                      IsVisible="{Binding IsVisible}">
                                                     <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                             <TextBlock Text="{Binding Label}"
@@ -280,6 +281,13 @@
                                                                 <TextBlock Classes="mono" FontSize="9"
                                                                            Foreground="{DynamicResource TextChainBadge}"
                                                                            Text="reserved" />
+                                                            </Border>
+                                                            <Border Classes="badge" Padding="4,1"
+                                                                    VerticalAlignment="Center"
+                                                                    IsVisible="{Binding HasPackLabel}">
+                                                                <TextBlock Classes="mono" FontSize="9"
+                                                                           Foreground="{DynamicResource TextChainBadge}"
+                                                                           Text="{Binding PackLabel}" />
                                                             </Border>
                                                             <Ellipse Width="6" Height="6" VerticalAlignment="Center"
                                                                      Fill="{DynamicResource AccentAmber}"
