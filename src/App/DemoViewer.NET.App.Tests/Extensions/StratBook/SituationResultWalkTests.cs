@@ -18,19 +18,23 @@ public class SituationResultWalkTests
     [Test]
     public async Task JAndK_AreTheResultWalk_AlwaysScoped_AndNotReserved()
     {
+        // NextSituationResult/PrevSituationResult are Strat Book extension commands now
+        // (StratBookCommands); the profile a tab actually routes through resolves them, the bare core
+        // table (Playback2DKeymap) does not.
+        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {
-            await Assert.That(Playback2DKeymap.TryResolve(Key.J, KeyModifiers.None, false, out Playback2DAction next)).IsTrue();
+            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out Playback2DAction next)).IsTrue();
             await Assert.That(next).IsEqualTo(Playback2DAction.NextSituationResult);
-            await Assert.That(Playback2DKeymap.TryResolve(Key.K, KeyModifiers.None, false, out Playback2DAction prev)).IsTrue();
+            await Assert.That(keymap.TryResolve(Key.K, KeyModifiers.None, false, out Playback2DAction prev)).IsTrue();
             await Assert.That(prev).IsEqualTo(Playback2DAction.PrevSituationResult);
 
             // A drawing tool does not take the keys away: the rows are Always-scoped.
-            await Assert.That(Playback2DKeymap.TryResolve(Key.J, KeyModifiers.None, true, out Playback2DAction tool)).IsTrue();
+            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, true, out Playback2DAction tool)).IsTrue();
             await Assert.That(tool).IsEqualTo(Playback2DAction.NextSituationResult);
 
-            await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.NextSituationResult)).IsEqualTo("J");
-            await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.PrevSituationResult)).IsEqualTo("K");
+            await Assert.That(keymap.GestureText(Playback2DAction.NextSituationResult)).IsEqualTo("J");
+            await Assert.That(keymap.GestureText(Playback2DAction.PrevSituationResult)).IsEqualTo("K");
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.J, KeyModifiers.None));
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.K, KeyModifiers.None));
         }

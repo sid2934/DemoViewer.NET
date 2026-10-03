@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Services.DemoCache;
@@ -275,7 +276,9 @@ public class TagPaletteTests
         Playback2DAction[] palette =
             [Playback2DAction.FocusTagPalette, Playback2DAction.TagPaletteBack, Playback2DAction.TagNote, Playback2DAction.TagClearSticky];
 
-        foreach (Playback2DBinding row in Playback2DKeymap.Default.Where(b => palette.Contains(b.Action)))
+        // These four are Strat Book extension commands now (StratBookCommands), not core rows; the
+        // merged table is what has to be checked for them to be checked at all.
+        foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.Action)))
         {
             await Assert.That(claimed.Contains((row.Key, row.Modifiers))).IsFalse()
                 .Because($"{row.Action} must not take a key Ctrl+F or the Suggested Tags queue claimed");
