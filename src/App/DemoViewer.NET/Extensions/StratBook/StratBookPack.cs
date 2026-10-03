@@ -332,18 +332,23 @@ public sealed class StratBookPack : IFeaturePack
             sp.GetRequiredService<IDemoProvenanceSource>()));
         // Strat Mining: repeated setups and executes found from cached files, offered in the Strats
         // section's Detected inbox and written to a book only when the user adds one.
-        services.AddSingleton(sp => new StratMiningService(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<RoundIndexStore>(),
-            sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
-            sp.GetRequiredService<GrenadeIndex>(),
-            sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<StratStore>(),
-            sp.GetRequiredService<TagStore>(),
-            AppPaths.DemoCacheDir,
-            AppPaths.ConfigRoot,
-            action => Dispatcher.UIThread.Post(action),
-            queue: sp.GetRequiredService<IDemoProcessingQueue>()));
+        services.AddSingleton(sp =>
+        {
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            return new StratMiningService(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<RoundIndexStore>(),
+                sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
+                sp.GetRequiredService<GrenadeIndex>(),
+                sp.GetRequiredService<TeamIdentityService>(),
+                sp.GetRequiredService<StratStore>(),
+                sp.GetRequiredService<TagStore>(),
+                AppPaths.DemoCacheDir,
+                AppPaths.ConfigRoot,
+                action => Dispatcher.UIThread.Post(action),
+                queue: sp.GetRequiredService<IDemoProcessingQueue>(),
+                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+        });
         services.AddSingleton<StratBookLayout>();
         services.AddSingleton(sp =>
         {
@@ -388,11 +393,13 @@ public sealed class StratBookPack : IFeaturePack
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
             return new GrenadeIndexEvaluator(
                 sp.GetRequiredService<DemoCacheStore>(),
                 () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
                 () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4);
+                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
+                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
         });
 
         // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the

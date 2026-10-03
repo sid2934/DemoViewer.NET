@@ -71,6 +71,21 @@ public class GrenadeIndexEvaluatorTests
     }
 
     [Test]
+    public async Task WithThePackOff_NothingIsWanted_AndTheOpenDemoIsNotWalkedEither()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: "abc"));
+        GrenadeIndexEvaluator evaluator = new(cache, () => true, () => Demo, walk: OneSmoke, enabled: () => false);
+
+        await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.PendingPaths()).IsEmpty();
+
+        evaluator.OnParsedOpportunistically(Demo, Parse());
+        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull()
+            .Because("the open-demo walk is one of the opportunistic hooks the pack gate forces off");
+    }
+
+    [Test]
     public async Task ARequest_IsWantedAtUserPriority_WhateverTheOptInSays()
     {
         (_, GrenadeIndexEvaluator evaluator) = Wire();
