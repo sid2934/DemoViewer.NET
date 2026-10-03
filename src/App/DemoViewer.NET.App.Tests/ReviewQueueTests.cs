@@ -447,13 +447,8 @@ public class ReviewQueueTests
     public async Task TheModule_ContributesTheReviewSection_UnderThePersistedIds_WithTheClipCountAsBadge()
     {
         ReviewQueue queue = new(null);
-        ReviewQueueTabViewModel vm = new(queue);
-        ReviewQueueModule module = new(() => vm, () => queue);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue, enabled: () => true);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
-        await Assert.That(tab.Badge).IsNull().Because("the badge subscribes on first activation, not at registration");
-
-        // First activation: builds the VM and, with it, subscribes the badge to the queue.
-        tab.ViewModelFactory!.Invoke();
         await Assert.That(tab.Badge).IsNull();
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
 
@@ -473,6 +468,20 @@ public class ReviewQueueTests
             await Assert.That(ShellModuleFeatureGate.DesktopOnlyIds).DoesNotContain("tab.review")
                 .Because("the tab renders on the browser and keeps the queue for the session");
         }
+    }
+
+    [Test]
+    public async Task WithThePackOff_TheReviewBadge_IsNeverShown_AndTheServiceIsIgnored()
+    {
+        ReviewQueue queue = new(null);
+        queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue, enabled: () => false);
+        WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
+
+        await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the section is off");
+
+        queue.Add([Clip("/d/b.dem", 1, 2)], "Another section");
+        await Assert.That(tab.Badge).IsNull().Because("queue.Changed must not recompute it while the section is off");
     }
 
     // ── Thousands of rows ─────────────────────────────────────────────────────

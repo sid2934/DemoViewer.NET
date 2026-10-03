@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
@@ -150,12 +151,10 @@ public class WatchedSituationsTests
             int raised = 0;
             service.Changed += () => raised++;
 
-            // The tab header's badge subscribes on first activation (item 3): the module calls the
-            // accessor only once its own VM factory has already run.
-            using SituationsTabViewModel vm = new(h.Index, h.Evaluator, h.Cache, h.Sources,
-                () => RoundIndexTokenSource.Pawn, isBrowser: false, watched: service);
-            WorkspaceTabDescriptor tab = new SituationsModule(() => vm, () => service).CreateTabs(null!).Single();
-            tab.ViewModelFactory!.Invoke();
+            // The tab header's badge, before the tab's VM exists: the module drives it from the service.
+            WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service,
+                    enabled: () => true)
+                .CreateTabs(null!).Single();
 
             WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
             int afterWatch = raised;
@@ -245,6 +244,26 @@ public class WatchedSituationsTests
                 Directory.Delete(root, true);
             }
         }
+    }
+
+    [Test]
+    public async Task WithThePackOff_TheSituationsBadge_IsNeverShown_AndTheServiceIsIgnored()
+    {
+        using Harness h = new();
+        using WatchedSituationsService service = new(null, h.Index, h.Cache, now: () => Before);
+        WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
+        h.Evaluate("/d/b.dem", "de_nuke", 1000); // a matching demo, so NewCount would be nonzero if read
+
+        WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service,
+                enabled: () => false)
+            .CreateTabs(null!).Single();
+
+        await Assert.That(service.NewCount).IsGreaterThan(0).Because("the service itself still counts the hit");
+        await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the section is off");
+
+        h.Evaluate("/d/c.dem", "de_nuke", 2000);
+        await Assert.That(tab.Badge).IsNull().Because("watched.Changed must not recompute it while the section is off");
+        _ = watch;
     }
 
     [Test]
