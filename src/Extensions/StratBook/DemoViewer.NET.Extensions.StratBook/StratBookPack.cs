@@ -862,6 +862,20 @@ public sealed class StratBookPack : IFeaturePack
         // re-enable backfill polls.
         contributions.ReindexEstimate(new StratBookPendingReindexCount(sp));
 
+        // Match Overview's "Index grenades": the grenade walk forced at user priority. Desktop only: the
+        // browser head has no processing queue to run it on, and an absent action beats an inert one. The
+        // evaluator resolves inside the delegates, so a press, not the shell's construction, builds it.
+        if (!OperatingSystem.IsBrowser())
+        {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            contributions.Shell(shell =>
+            {
+                shell.MatchOverviewTab.IndexGrenades = path => sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
+                shell.MatchOverviewTab.AreGrenadesIndexed = path => sp.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path);
+                shell.MatchOverviewTab.PackEnabled = () => gate?.IsEnabled(PackFeatureId) ?? true;
+            });
+        }
+
         // The Library's Team filter and provenance chip (item 22), each resolving its service lazily on first use.
         contributions.Library(new TeamLibraryContribution(sp.GetRequiredService<TeamIdentityService>));
         contributions.Library(new ProvenanceLibraryContribution(sp.GetRequiredService<IDemoProvenanceSource>, sp.GetRequiredService<TeamIdentityService>));

@@ -371,4 +371,12 @@ public interface IPackContributions
 
     /// <summary>The pack's "delete extension data" action; see <see cref="IPackDataRemoval" />.</summary>
     void DataRemoval(IPackDataRemoval removal);
+
+    /// <summary>
+    ///     Runs once, with the shell, right after the shell singleton is constructed (the moment the
+    ///     composition root used to wire a pack's delegates by hand): for the delegate slots a core page
+    ///     exposes, such as Match Overview's grenade walk. The attachment must not resolve the shell itself
+    ///     and should reach everything else lazily, at call time.
+    /// </summary>
+    void Shell(Action<MainViewModel> attach);
 }

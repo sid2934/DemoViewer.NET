@@ -3,6 +3,7 @@
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
@@ -26,6 +27,7 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<IPlaybackContribution> _playback = [];
     private readonly List<ILibraryContribution> _library = [];
     private readonly List<StoreDescriptor> _stores = [];
+    private readonly List<Action<MainViewModel>> _shellAttachments = [];
     private IPackDataRemoval? _dataRemoval;
 
     /// <summary>The pack these contributions belong to.</summary>
@@ -171,6 +173,16 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
         ArgumentNullException.ThrowIfNull(removal);
         _dataRemoval = removal;
     }
+
+    /// <inheritdoc />
+    public void Shell(Action<MainViewModel> attach)
+    {
+        ArgumentNullException.ThrowIfNull(attach);
+        _shellAttachments.Add(attach);
+    }
+
+    /// <summary>What the pack attaches to the shell once it exists, in contribution order.</summary>
+    public IReadOnlyList<Action<MainViewModel>> ShellAttachments => _shellAttachments;
 
     // Stamps the owning pack's id onto a contribution that left FeatureId null, so the host always has a
     // concrete gate id and never has to fall back to "always on" the way a settings page or chip would.

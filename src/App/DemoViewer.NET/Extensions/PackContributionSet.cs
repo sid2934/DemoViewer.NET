@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Features;
+using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
@@ -50,6 +51,9 @@ internal sealed class PackContributionSet
 
     /// <summary>Every pack's store and cache paths, in pack order then contribution order.</summary>
     public IReadOnlyList<StoreDescriptor> Stores => [.. Packs.SelectMany(p => p.Stores)];
+
+    /// <summary>Every pack's shell attachment, in pack order; the shell factory runs them once after construction.</summary>
+    public IReadOnlyList<Action<MainViewModel>> ShellAttachments => [.. Packs.SelectMany(p => p.ShellAttachments)];
 
     /// <summary>Every pack's "delete extension data" action, in pack order. One row per entry in Settings.</summary>
     public IReadOnlyList<IPackDataRemoval> DataRemovals => [.. Packs.Select(p => p.DataRemovalContribution).OfType<IPackDataRemoval>()];

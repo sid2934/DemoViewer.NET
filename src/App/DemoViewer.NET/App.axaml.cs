@@ -1026,6 +1026,13 @@ public class App : Application
             // parameter list is item 22's to edit next.
             shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
 
+            // The packs' shell attachments (item 25): the delegate slots core pages expose, set here where the
+            // composition root used to set them by hand, with the shell instance, before anything resolves it.
+            foreach (Action<MainViewModel> attach in sp.GetRequiredService<PackContributionSet>().ShellAttachments)
+            {
+                attach(shell);
+            }
+
             return shell;
         }
         finally
