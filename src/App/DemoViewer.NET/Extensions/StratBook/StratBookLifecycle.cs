@@ -22,10 +22,15 @@ namespace DemoViewer.NET.Extensions.StratBook;
 /// <summary>
 ///     The pack's startup loads, its in-session release and its shutdown flushes. <see cref="OnEnabledAsync" />
 ///     is the explicit startup block <c>App.axaml.cs</c> used to run by hand and runs the same way for a
-///     switch-on mid-session: resolving a service is itself the subscription on first build, and
-///     <see cref="IPackResident.Attach" /> is the subscription on every later enable. <see cref="OnDisabledAsync" />
-///     cancels the pack's queue items by owner and releases every resident as one queue item, so a large
-///     index never leaves memory on the UI thread.
+///     switch-on mid-session: the loads and the <see cref="IPackResident.Attach" /> calls are queue items.
+///     <see cref="OnDisabledAsync" /> cancels the pack's queue items by owner and releases every resident as
+///     one queue item, so a large index never leaves memory on the UI thread.
+///     <para>
+///         Every item of the pack's own shares one serial, so loads, attaches and releases are totally
+///         ordered, and each carries the epoch it was queued under: a release still queued when the user
+///         switches back on, or a load still queued when the user switches off, runs after the newer
+///         transition's bump and does nothing. Nothing of the pack's state changes outside those items.
+///     </para>
 /// </summary>
 internal sealed class StratBookLifecycle : IPackLifecycle
 {
@@ -34,6 +39,9 @@ internal sealed class StratBookLifecycle : IPackLifecycle
 
     /// <summary>The release item's title, pinned by a test.</summary>
     internal const string ReleaseTitle = "Strat Book: release memory";
+
+    /// <summary>The attach item's title (the subscriptions that are not a load), pinned by a test.</summary>
+    internal const string AttachTitle = "Strat Book: attach services";
 
     /// <summary>
     ///     Every owner tag a pack job or parse attachment carries, cancelled together on disable. No
@@ -53,6 +61,9 @@ internal sealed class StratBookLifecycle : IPackLifecycle
     private readonly StratBookPackInstances _instances;
     private readonly TimeSpan _migrationDelay;
 
+    // Bumped by every enable and disable; an item queued under an older value does nothing when it runs.
+    private int _epoch;
+
     /// <param name="sp">The composition root, resolved from the same container <see cref="StratBookPack.Register" /> fed.</param>
     /// <param name="instances">The pack's live-state tracker, so shutdown never constructs a store that nothing opened.</param>
     /// <param name="migrationDelay">
@@ -69,48 +80,59 @@ internal sealed class StratBookLifecycle : IPackLifecycle
     }
 
     /// <inheritdoc />
-    /// <remarks>Completes when the loads have run (or were cancelled). The migrations are not awaited.</remarks>
+    /// <remarks>Completes when the loads and the attach have run (or were dropped). The migrations are not awaited.</remarks>
     public Task OnEnabledAsync(PackStartReason reason, CancellationToken ct)
     {
+        int epoch = Interlocked.Increment(ref _epoch);
         IDemoProcessingQueue? queue = _sp.GetService<IDemoProcessingQueue>();
+
+        // A release still queued from the switch-off this enable follows goes now; one already running
+        // finishes first (the serial) and the items below rebuild after it; one this cancel missed sees the
+        // newer epoch and does nothing.
+        queue?.CancelOwned(Owner);
 
         // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
         // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
         SituationIndex situations = _sp.GetRequiredService<SituationIndex>();
-        Task situationsLoad = StartupLoad(queue, "Load: situations index", "situations", situations.Load, ct);
+        Task situationsLoad = PackItem(queue, QueueJobKind.StoreLoad, "Load: situations index", "situations", epoch, situations.Load, ct);
 
         // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
         GrenadeIndex grenadeIndex = _sp.GetRequiredService<GrenadeIndex>();
-        Task grenadesLoad = StartupLoad(queue, "Load: grenade index", "utility", grenadeIndex.Load, ct);
+        Task grenadesLoad = PackItem(queue, QueueJobKind.StoreLoad, "Load: grenade index", "utility", epoch, grenadeIndex.Load, ct);
 
-        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
-        _sp.GetRequiredService<LineupClipService>().Attach();
-
-        // Team Identity's startup: its file read as a queue item (Attach schedules it once; the first build
-        // already did when the pack was on at startup), then a rebuild from the sidecars when team-index.json
-        // is missing or behind, else the index-versus-cache diff. Off the UI thread; the tab reads whatever
-        // is there meanwhile.
+        // Resolved here, attached in the item below: a first build subscribes in its constructor, every
+        // later enable through Attach, and the item keeps either ordered after a release still queued.
+        LineupClipService lineups = _sp.GetRequiredService<LineupClipService>();
         TeamIdentityService teams = _sp.GetRequiredService<TeamIdentityService>();
-        teams.Attach();
-        Task teamsStart = teams.StartAsync();
-
-        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
-        _sp.GetRequiredService<TagFactsRefresher>().Attach();
-
+        TagFactsRefresher tagFacts = _sp.GetRequiredService<TagFactsRefresher>();
         // The zone graphs are read per map by the loads above and by nothing outside the pack, so they
         // are the pack's to release even though the source is registered by the composition root.
-        if (_sp.GetService<IZonePlaceResolverSource>() is IPackResident zones)
-        {
-            _instances.Record(zones);
-        }
+        IPackResident? zones = _sp.GetService<IZonePlaceResolverSource>() as IPackResident;
 
-        // After a release the typed view is empty; the residents are the same objects. Everything built
-        // lazily before the release (Watched Situations, Strat Mining) re-attaches here too.
-        _instances.Restore();
-        foreach (IPackResident resident in _instances.Residents)
+        Task attach = PackItem(queue, QueueJobKind.SectionCompute, AttachTitle, Owner, epoch, () =>
         {
-            resident.Attach();
-        }
+            lineups.Attach();
+
+            // Team Identity's startup: Attach schedules its file read as a queue item, once; StartAsync then
+            // rebuilds from the sidecars when team-index.json is missing or behind, else runs the
+            // index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
+            teams.Attach();
+            _ = teams.StartAsync();
+
+            tagFacts.Attach();
+            if (zones is not null)
+            {
+                _instances.Record(zones);
+            }
+
+            // After a release the typed view is empty; the residents are the same objects. Everything built
+            // lazily before the release (Watched Situations, Strat Mining) re-attaches here too.
+            _instances.Restore();
+            foreach (IPackResident resident in _instances.Residents)
+            {
+                resident.Attach();
+            }
+        }, ct);
 
         // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
         // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
@@ -129,17 +151,19 @@ internal sealed class StratBookLifecycle : IPackLifecycle
                 ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
         }
 
-        return Task.WhenAll(situationsLoad, grenadesLoad, teamsStart);
+        return Task.WhenAll(situationsLoad, grenadesLoad, attach);
     }
 
     /// <inheritdoc />
     /// <remarks>
     ///     The evaluators already stop by predicate. Every queued pack item goes by owner tag (a running one
     ///     finishes its unit); the release itself is a user-priority queue item sharing the loads' serial, so
-    ///     it runs after a load still in flight and never beside one.
+    ///     it runs after a load still in flight and never beside one, and does nothing when an enable has
+    ///     bumped the epoch since.
     /// </remarks>
     public Task OnDisabledAsync()
     {
+        int epoch = Interlocked.Increment(ref _epoch);
         IDemoProcessingQueue? queue = _sp.GetService<IDemoProcessingQueue>();
         if (queue is not null)
         {
@@ -149,8 +173,13 @@ internal sealed class StratBookLifecycle : IPackLifecycle
             }
         }
 
-        return QueueWork.Run(queue, QueueJobKind.SectionCompute, ReleaseTitle, Owner, _ => Release(),
-            DemoJobPriority.UserRequested, serial: Owner);
+        return QueueWork.Run(queue, QueueJobKind.SectionCompute, ReleaseTitle, Owner, _ =>
+        {
+            if (Volatile.Read(ref _epoch) == epoch)
+            {
+                Release();
+            }
+        }, DemoJobPriority.UserRequested, serial: Owner);
     }
 
     // Dependents first (reverse build order): a watcher leaves the index before the index empties and raises.
@@ -203,16 +232,16 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         }
     }
 
-    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
-    // Mirrors App.StartupLoad; kept local so the pack does not reach back into App for a private helper.
-    // The serial keeps a release from running beside it. The token is the enable's: cancelled, the item
-    // does nothing when the queue did not drop it first.
-    private static Task StartupLoad(IDemoProcessingQueue? queue, string title, string owner, Action load, CancellationToken ct) =>
-        QueueWork.Run(queue, QueueJobKind.StoreLoad, title, owner, _ =>
+    // One of the pack's own items: a light queue item ahead of background work, so it shows in the queue
+    // list, on the serial that orders it against every other pack item. It does nothing when the enable it
+    // belongs to was cancelled or a later transition bumped the epoch, whether or not the queue dropped it.
+    private Task PackItem(IDemoProcessingQueue? queue, QueueJobKind kind, string title, string owner, int epoch,
+        Action work, CancellationToken ct) =>
+        QueueWork.Run(queue, kind, title, owner, _ =>
         {
-            if (!ct.IsCancellationRequested)
+            if (!ct.IsCancellationRequested && Volatile.Read(ref _epoch) == epoch)
             {
-                load();
+                work();
             }
         }, DemoJobPriority.UserRequested, serial: Owner);
 }
