@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.ViewModels;
 
 #endregion
@@ -26,7 +27,7 @@ public class ViewLocator : IDataTemplate
         }
 
         string name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
-        Type? type = Type.GetType(name);
+        Type? type = Type.GetType(name) ?? PackViewType(name);
 
         if (type != null)
         {
@@ -37,6 +38,22 @@ public class ViewLocator : IDataTemplate
         {
             Text = "Not Found: " + name
         };
+    }
+
+    // A pack's views live in the pack's assembly under the same naming convention, so the search
+    // continues through the compiled-in packs' assemblies (FeaturePacks.Default). Type.GetType above
+    // sees only this assembly and the core library.
+    private static Type? PackViewType(string name)
+    {
+        foreach (IFeaturePack pack in FeaturePacks.Default)
+        {
+            if (pack.GetType().Assembly.GetType(name) is { } type)
+            {
+                return type;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Match.</summary>
