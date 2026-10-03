@@ -81,7 +81,7 @@ public sealed class StratBookPack : IFeaturePack
     {
         ArgumentNullException.ThrowIfNull(layout);
         return new HostTabContribution(
-            StratBookHubViewModel.HostId, StratBookHubViewModel.TabId, "Strat Book", 4, StratBookHubViewModel.RailLabel,
+            StratBookHubViewModel.HostId, StratBookHubViewModel.TabId, "Strat Book", 4, "STRAT BOOK",
             () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
     }
 

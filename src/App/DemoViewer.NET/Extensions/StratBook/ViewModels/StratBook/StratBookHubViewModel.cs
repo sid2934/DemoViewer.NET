@@ -28,9 +28,6 @@ public sealed class StratBookHubViewModel : IHostTabViewModel
     /// <summary>The hub's tab id, the same key. Persisted; never renamed.</summary>
     public const string TabId = HostId;
 
-    /// <summary>The band over the rail.</summary>
-    public const string RailLabel = "STRAT BOOK";
-
     /// <param name="layout">The collapsed panes, shared with the Strats section; a fresh one when omitted.</param>
     public StratBookHubViewModel(StratBookLayout? layout = null) => Layout = layout ?? new StratBookLayout();
 
@@ -40,8 +37,8 @@ public sealed class StratBookHubViewModel : IHostTabViewModel
     /// <summary>Whether the rail and the strat list are collapsed. The shell persists it.</summary>
     public StratBookLayout Layout { get; }
 
-    /// <summary>The band over the rail. Bound by the hub view.</summary>
-    public string Label { get; } = RailLabel;
+    /// <summary>The band over the rail, from the contribution. Bound by the hub view.</summary>
+    public string RailLabel { get; set; } = "";
 
     public void OnActivated(IModuleContext context) => Sections.OnHostActivated(context);
 

@@ -400,9 +400,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   member for a new host; contribute a host tab and name it.
 
 ### Collapsible side pane (the Strat Book rail and the strat list)
-- **Files:** `ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle commands),
-  `Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the `StratPicker` header in
-  `Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in `Styles/Primitives.axaml`.
+- **Files:** `Extensions/StratBook/ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle
+  commands), `Extensions/StratBook/Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the
+  `StratPicker` header in `Extensions/StratBook/Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in
+  `Styles/Primitives.axaml`.
 - **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
   1280 wide with the rail (164) and the strat list (280) open.
 - **Contract:** the pane's own header carries `«` (a `Button.pane-toggle`, 24 px). Collapsed, the pane becomes a
