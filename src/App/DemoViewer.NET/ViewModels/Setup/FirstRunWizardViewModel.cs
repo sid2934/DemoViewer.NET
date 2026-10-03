@@ -300,8 +300,6 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     partial void OnSelectedCategoryOptionChanged(CategoryOption value)
     {
         OnPropertyChanged(nameof(SelectedCategory));
-        // Category is step 1, Extensions is step 3: a category change on the way there reseeds every
-        // pack option that has not already been answered (no persisted override, not yet touched here).
         foreach (PackOptionViewModel option in PackOptions)
         {
             option.Reseed(value.Value);
@@ -507,7 +505,13 @@ public sealed partial class PackOptionViewModel : ObservableObject
         }
 
         _reseeding = true;
-        Enabled = _defaults.TryGetValue(category, out bool byDefault) && byDefault;
-        _reseeding = false;
+        try
+        {
+            Enabled = _defaults.TryGetValue(category, out bool byDefault) && byDefault;
+        }
+        finally
+        {
+            _reseeding = false;
+        }
     }
 }
