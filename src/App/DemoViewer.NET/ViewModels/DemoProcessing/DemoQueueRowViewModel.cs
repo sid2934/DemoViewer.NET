@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -24,16 +25,21 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
 {
     private readonly DemoQueueItem _item;
+    private readonly JobKindRegistry _jobKinds;
     private readonly IDemoProcessingQueue _queue;
     private bool _disposed;
 
-    /// <summary>Wraps <paramref name="item" /> for display and subscribes to its in-place state updates.</summary>
-    public DemoQueueRowViewModel(DemoQueueItem item, IDemoProcessingQueue queue)
+    /// <summary>
+    ///     Wraps <paramref name="item" /> for display and subscribes to its in-place state updates.
+    ///     <paramref name="jobKinds" /> resolves the kind chip's label; defaults to <see cref="JobKindRegistry.Default" />.
+    /// </summary>
+    public DemoQueueRowViewModel(DemoQueueItem item, IDemoProcessingQueue queue, JobKindRegistry? jobKinds = null)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(queue);
         _item = item;
         _queue = queue;
+        _jobKinds = jobKinds ?? JobKindRegistry.Default;
         _item.PropertyChanged += OnItemChanged;
     }
 
@@ -54,23 +60,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     public bool HasOwners => _item.Kind == QueueJobKind.DemoProcessing && !string.IsNullOrWhiteSpace(_item.Owners);
 
     /// <summary>The job kind's short chip; empty for a demo parse.</summary>
-    public string KindLabel => _item.Kind switch
-    {
-        QueueJobKind.LineupClips => "clips",
-        QueueJobKind.StratMining => "mining",
-        QueueJobKind.StratPreview => "preview",
-        QueueJobKind.SuggestionsInbox => "suggestions",
-        QueueJobKind.SidecarMigration => "migration",
-        QueueJobKind.PackExport => "pack export",
-        QueueJobKind.HeapCompaction => "memory",
-        QueueJobKind.StoreSave => "save",
-        QueueJobKind.StoreLoad => "load",
-        QueueJobKind.SectionCompute => "section",
-        QueueJobKind.TeamsCommand => "teams",
-        QueueJobKind.LibraryScan => "library",
-        QueueJobKind.DemoOpen => "open",
-        _ => ""
-    };
+    public string KindLabel => _jobKinds.Label(_item.Kind);
 
     /// <summary>True for every kind but a demo parse.</summary>
     public bool HasKind => _item.Kind != QueueJobKind.DemoProcessing;
