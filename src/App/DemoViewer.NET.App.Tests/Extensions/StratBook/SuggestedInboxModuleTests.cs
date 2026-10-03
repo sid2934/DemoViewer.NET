@@ -1,0 +1,52 @@
+#region
+
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Services.DemoCache;
+using static DemoViewer.NET.AppTests.RoundIndexTestData;
+
+#endregion
+
+namespace DemoViewer.NET.AppTests;
+
+/// <summary>
+///     The Suggested section's badge (item 1): recomputed from the demo index on every <c>cache.Changed</c>
+///     while the owning pack's gate is on, left alone while it is off, re-read live so a mid-session toggle
+///     needs no restart.
+/// </summary>
+public class SuggestedInboxModuleTests
+{
+    private static DemoCacheStore CacheWithPending(string path, int pending)
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(ParsedRecord(path));
+        cache.UpdateExisting(path, r => r.SuggestionCount = pending);
+        return cache;
+    }
+
+    [Test]
+    public async Task WithThePackOff_TheBadge_IsNeverRecomputed()
+    {
+        DemoCacheStore cache = CacheWithPending("/d/a.dem", 3);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache, enabled: () => false);
+        WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
+
+        await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the pack is off");
+
+        cache.UpdateExisting("/d/a.dem", r => r.SuggestionCount = 9);
+        await Assert.That(tab.Badge).IsNull().Because("cache.Changed must not recompute it while the pack is off");
+    }
+
+    [Test]
+    public async Task WithThePackOn_TheBadge_FollowsTheIndex()
+    {
+        DemoCacheStore cache = CacheWithPending("/d/a.dem", 0);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache, enabled: () => true);
+        WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
+
+        await Assert.That(tab.Badge).IsNull();
+
+        cache.UpdateExisting("/d/a.dem", r => r.SuggestionCount = 5);
+        await Assert.That(tab.Badge).IsEqualTo("5");
+    }
+}

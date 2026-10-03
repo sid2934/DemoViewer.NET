@@ -1,10 +1,12 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.Views.SuggestedTags;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -24,15 +26,22 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     public const string TabFeatureId = "tab.suggested";
 
     private readonly DemoCacheStore? _cache;
+    private readonly Func<bool> _enabled;
     private readonly Func<SuggestedInboxViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
     /// <param name="cache">The demo index, for the badge; null shows none.</param>
-    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null)
+    /// <param name="enabled">
+    ///     The owning pack's gate for the badge recompute; null resolves <see cref="IFeatureGate" /> from
+    ///     <see cref="App.Services" /> live (the shell's shared locator, so the call site here needs no
+    ///     constructor change).
+    /// </param>
+    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null, Func<bool>? enabled = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _cache = cache;
+        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? true);
     }
 
     public string Id => "net.demoviewer.suggested";
@@ -56,8 +65,19 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
 
         if (_cache is { } cache)
         {
-            tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
-            cache.Changed += _ => tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+            if (_enabled())
+            {
+                tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+            }
+
+            // Read live: a toggle mid-session stops this recompute without a restart.
+            cache.Changed += _ =>
+            {
+                if (_enabled())
+                {
+                    tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+                }
+            };
         }
 
         yield return tab;
