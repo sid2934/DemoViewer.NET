@@ -149,8 +149,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // (the real app + the gating tests).
     private readonly IFeatureGate? _gate;
 
-    // The Strat Book's umbrella id. The Library's team filter and provenance chip, and the strat export
-    // chip, key off this directly: none of them is a section with a feature id of its own.
+    // The Strat Book's umbrella id. The Library's team filter and provenance chip key off this directly:
+    // neither is a section with a feature id of its own. (The strat export chip used to as well; it now
+    // goes through its own StatusChipContribution.FeatureId, item 14.)
     private const string StratBookPackFeatureId = "pack.stratbook";
 
     // A null gate fails open, matching every other surface this flag controls.
@@ -286,7 +287,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // factory, so a field initializer would cache a NullLogger. First use is a demo load, after wiring.
     private ILogger? _diagLog;
     private bool _exportChipDismissed;
-    private bool _stratExportChipDismissed;
 
     /// <summary>
     ///     The active first-run wizard when shown as an in-app OVERLAY (P2b: the WASM host has no OS
@@ -1056,6 +1056,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<StatusChipViewModel> Chips { get; } = [];
 
+    // The pack-contributed chip slots (item 14), set once by AttachStatusChips. Each contribution's own
+    // Source.PropertyChanged subscription is kept so Dispose can detach it; _shownContributedChips tracks
+    // which Chip instance this slot last added to Chips, keyed by the contribution's own id.
+    private IReadOnlyList<StatusChipContribution> _statusChipContributions = [];
+    private readonly List<(IContributedStatusChip Source, PropertyChangedEventHandler Handler)> _statusChipSubscriptions = [];
+    private readonly Dictionary<string, StatusChipViewModel> _shownContributedChips = new(StringComparer.Ordinal);
+
     /// <summary>The background reel-generation service, when the host provides one (desktop). Null otherwise.</summary>
     public IReelJobService? ReelJob { get; private set; }
 
@@ -1616,9 +1623,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The 2D export chip's mapper, or null until an export has been opened. For tests.</summary>
     internal Playback2DExportStatusViewModel? Playback2DExportStatus { get; private set; }
 
-    /// <summary>The Strat Book export chip's mapper, or null until a strat export has been opened. For tests.</summary>
-    internal Playback2DExportStatusViewModel? StratExportStatus { get; private set; }
-
     /// <summary>
     ///     Main-window geometry for the NEXT snapshot. Written by the desktop host (which tracks the
     ///     window's last-Normal bounds, the VM deliberately has no <c>Window</c> reference) and read
@@ -1645,6 +1649,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             _gate.Changed -= OnGateChanged;
         }
+
+        foreach ((IContributedStatusChip source, PropertyChangedEventHandler handler) in _statusChipSubscriptions)
+        {
+            source.PropertyChanged -= handler;
+        }
+
+        _statusChipSubscriptions.Clear();
 
         if (LiveSync is not null)
         {
@@ -2285,34 +2296,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReconcileExportChip();
     }
 
-    /// <summary>
-    ///     Mounts the Strat Book's export chip beside the 2D one. A slot of its own rather than the 2D slot: the
-    ///     two tabs build their jobs independently and either can run while the other's result is still showing,
-    ///     so sharing one slot would unmount whichever attached first for good.
-    /// </summary>
-    /// <param name="status">The mapper the Strat Book built over its job service.</param>
-    internal void AttachStratExportStatus(Playback2DExportStatusViewModel status)
-    {
-        ArgumentNullException.ThrowIfNull(status);
-        if (ReferenceEquals(StratExportStatus, status))
-        {
-            return;
-        }
-
-        if (StratExportStatus is { } previous)
-        {
-            previous.DismissRequested -= OnExportDismissRequested;
-            previous.PropertyChanged -= OnExportStatusPropertyChanged;
-            Chips.Remove(previous.Chip);
-        }
-
-        StratExportStatus = status;
-        _stratExportChipDismissed = false;
-        status.DismissRequested += OnExportDismissRequested;
-        status.PropertyChanged += OnExportStatusPropertyChanged;
-        ReconcileExportChip();
-    }
-
     private void OnExportStatusPropertyChanged(object? sender,
         PropertyChangedEventArgs e)
     {
@@ -2328,36 +2311,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _exportChipDismissed = false;
         }
 
-        if (StratExportStatus is { IsRunning: true })
-        {
-            _stratExportChipDismissed = false;
-        }
-
         ReconcileExportChip();
     }
 
     private void OnExportDismissRequested(object? sender, EventArgs e)
     {
-        if (ReferenceEquals(sender, StratExportStatus))
-        {
-            _stratExportChipDismissed = true;
-        }
-        else
-        {
-            _exportChipDismissed = true;
-        }
-
+        _exportChipDismissed = true;
         ReconcileExportChip();
     }
 
     // Shown while running, or while a finished result has not been dismissed. An idle mapper adds nothing
-    // to the strip: the tab attaches it on the first Export, which is long before the first Start. The
-    // strat slot also requires the pack: off hides it without unsubscribing, so it returns when the pack does.
-    private void ReconcileExportChip()
-    {
+    // to the strip: the tab attaches it on the first Export, which is long before the first Start.
+    private void ReconcileExportChip() =>
         ReconcileExportChip(Playback2DExportStatus, _exportChipDismissed, allowed: true);
-        ReconcileExportChip(StratExportStatus, _stratExportChipDismissed, allowed: IsStratBookPackEnabled);
-    }
 
     private void ReconcileExportChip(Playback2DExportStatusViewModel? mounted, bool dismissed, bool allowed)
     {
@@ -2375,6 +2341,67 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         else if (!shouldShow && present)
         {
             Chips.Remove(status.Chip);
+        }
+    }
+
+    /// <summary>
+    ///     Mounts the chip slots the packs contributed (item 14): a generic replacement for what used to be
+    ///     a dedicated Strat-export slot. Each slot's own <see cref="IContributedStatusChip.IsShown" />
+    ///     decides presence once its owning pack's gate allows it; a slot may mount its chip long after this
+    ///     runs (the Strat Book builds its export job lazily, on the first Export), so this subscribes to
+    ///     the slot rather than reading it once. Called once by the composition root after the shell is
+    ///     built.
+    /// </summary>
+    internal void AttachStatusChips(IReadOnlyList<StatusChipContribution> chips)
+    {
+        ArgumentNullException.ThrowIfNull(chips);
+        _statusChipContributions = chips;
+        foreach (StatusChipContribution contribution in chips)
+        {
+            PropertyChangedEventHandler handler = (_, _) => ReconcileContributedChip(contribution);
+            contribution.Source.PropertyChanged += handler;
+            _statusChipSubscriptions.Add((contribution.Source, handler));
+            ReconcileContributedChip(contribution);
+        }
+    }
+
+    // Re-checks every contributed slot against the gate (a pack toggle may have flipped which ones are
+    // allowed). Called from ApplyGateChange; a slot's OWN mount/dismiss changes reconcile themselves
+    // through the per-contribution subscription AttachStatusChips installs.
+    private void ReconcileContributedChips()
+    {
+        foreach (StatusChipContribution contribution in _statusChipContributions)
+        {
+            ReconcileContributedChip(contribution);
+        }
+    }
+
+    // A contributed chip's Chip reference can change identity across a remount (a new job, a new mapper);
+    // _shownContributedChips tracks which instance THIS slot last added, so a stale one is removed rather
+    // than orphaned in Chips forever.
+    private void ReconcileContributedChip(StatusChipContribution contribution)
+    {
+        bool allowed = contribution.FeatureId is null || (_gate?.IsEnabled(contribution.FeatureId) ?? true);
+        StatusChipViewModel? current = contribution.Source.Chip;
+
+        if (_shownContributedChips.TryGetValue(contribution.Id, out StatusChipViewModel? previous)
+            && !ReferenceEquals(previous, current))
+        {
+            Chips.Remove(previous);
+            _shownContributedChips.Remove(contribution.Id);
+        }
+
+        bool shouldShow = allowed && current is not null && contribution.Source.IsShown;
+        bool present = current is not null && Chips.Contains(current);
+        if (shouldShow && !present)
+        {
+            Chips.Add(current!);
+            _shownContributedChips[contribution.Id] = current!;
+        }
+        else if (!shouldShow && present)
+        {
+            Chips.Remove(current!);
+            _shownContributedChips.Remove(contribution.Id);
         }
     }
 
@@ -2577,10 +2604,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // The chrome.processingQueue gate may have flipped: add/remove the Processing chip to match.
         ReconcileQueueChip();
 
-        // The pack id may have flipped: the Library's team filter and provenance chip go with it, and so
-        // does the strat export chip (the hub and its sections already went through ReconcileTabs above).
+        // The pack id may have flipped: the Library's team filter and provenance chip go with it (the hub
+        // and its sections already went through ReconcileTabs above).
         LibraryTab.RefreshPackGate();
         ReconcileExportChip();
+        // Any contributed chip's own feature id (the Strat export chip's, among others) may have flipped.
+        ReconcileContributedChips();
     }
 
     /// <summary>
