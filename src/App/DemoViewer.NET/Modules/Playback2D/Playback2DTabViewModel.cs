@@ -1043,9 +1043,17 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="endFrame">The band's last frame.</param>
     internal void OpenCreateStrat(int startFrame, int endFrame)
     {
-        if (_context is not { } context || context.GetService<IStratCapture>() is not StratCaptureHost host
-                                         || host.Demo() is not { } demo || demo.Frames.Count == 0)
+        if (_context is not { } context || context.GetService<IStratCapture>() is not { } capture
+                                         || capture.Demo() is not { } demo || demo.Frames.Count == 0)
         {
+            return;
+        }
+
+        // CanCreateStrat only proves IStratCapture resolves with a demo; it cannot see the concrete type,
+        // so this is the one place a mismatch (a registration this tab was never meant to read) surfaces.
+        if (capture is not StratCaptureHost host)
+        {
+            Status = "create strat is unavailable";
             return;
         }
 

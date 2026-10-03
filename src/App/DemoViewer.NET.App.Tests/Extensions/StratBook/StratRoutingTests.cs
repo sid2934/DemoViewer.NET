@@ -375,10 +375,8 @@ public class StratRoutingTests
 
         gate.Enabled = true;
         gate.Raise();
-        canvas.Transport.Seek(0);
-        session.Apply(PatchOp.ReplaceOp("/name", null, System.Text.Json.Nodes.JsonValue.Create("routed")));
         StratSceneProjection on = canvas.Projection!;
-        await Assert.That(on.Routed).IsTrue().Because("Changed re-reads the gate and reprojects");
+        await Assert.That(on.Routed).IsTrue().Because("Changed alone, with no Seek or Apply after it, re-reads the gate and reprojects");
     }
 
     [Test]

@@ -49,9 +49,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     private readonly PlaybackSnapshot _snapshot;
     private readonly Dictionary<string, IReadOnlyList<GameEventView>> _timelineCache = new();
 
-    // GetService's two sources: an explicit lazy registration (ExportHost's bridge, a test double) wins
-    // over the app's own DI container (a pack's registrations). Checked fresh on every call, never cached,
-    // so a live pack toggle or a host wired after registration is always the current one.
+    // Explicit registration wins over the DI container. Checked fresh on every call, never cached,
+    // so a live pack toggle is always reflected.
     private readonly Dictionary<Type, Func<object?>> _serviceLookups = new();
     private IServiceProvider? _services;
 
@@ -307,8 +306,23 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void RegisterService<T>(Func<T?> resolve) where T : class => _serviceLookups[typeof(T)] = () => resolve();
 
     /// <inheritdoc />
-    public T? GetService<T>() where T : class =>
-        _serviceLookups.TryGetValue(typeof(T), out Func<object?>? resolve) ? (T?)resolve() : _services?.GetService<T>();
+    public T? GetService<T>() where T : class
+    {
+        if (_serviceLookups.TryGetValue(typeof(T), out Func<object?>? resolve))
+        {
+            return (T?)resolve();
+        }
+
+        try
+        {
+            return _services?.GetService<T>();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A host torn down before this context (a headless test, shutdown) has nothing to resolve.
+            return null;
+        }
+    }
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The

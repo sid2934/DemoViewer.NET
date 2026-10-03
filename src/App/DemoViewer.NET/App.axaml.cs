@@ -1176,10 +1176,8 @@ public class App : Application
                 // The Strat Book's collapsed panes: the hub rail and the Strats section's list share it.
                 sp.GetRequiredService<StratBookLayout>());
 
-            // GetService<T> on the module context falls back to this container for anything a pack
-            // registers by type (Create Strat From Round's capture host, the Strat Book's export host).
-            // Wired here, not in OnFrameworkInitializationCompleted, so every path that resolves the
-            // shell gets it, tests included, and only when the shell is actually resolved.
+            // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
+            // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.
             if (shell.ModuleContext is ModuleContext moduleContext)
             {
                 moduleContext.SetServices(sp);
