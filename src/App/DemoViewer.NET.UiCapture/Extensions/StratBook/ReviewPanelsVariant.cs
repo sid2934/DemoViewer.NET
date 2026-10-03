@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
@@ -15,11 +16,12 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.UiCapture;
 
 /// <summary>
-///     The 2D Playback tab in Review mode with the Strat Book's contribution attached as the pack attaches
-///     it (items 17 and 18): the Review toggle on the toolbar, the tag lane on the timeline, the Tag Palette,
-///     the review panel on its Labels tab with an editor open, and the Suggestion Queue under it, over two
-///     tags on a session-only document. The pack-off twin attaches the same contribution behind an off gate,
-///     so the toolbar, the timeline and the column show the core content alone.
+///     The 2D Playback tab in Review mode with the Strat Book's contributions attached as the pack attaches
+///     them (items 17, 18 and 20): the Review toggle and the "Rounds like this" toolbar item, the tag lane
+///     on the timeline, the Tag Palette, the review panel on its Labels tab with an editor open, and the
+///     Suggestion Queue under it, over two tags on a session-only document. The pack-off twin attaches the
+///     same contributions behind an off gate, so the toolbar, the timeline and the column show the core
+///     content alone.
 /// </summary>
 public static partial class Variants
 {
@@ -31,7 +33,8 @@ public static partial class Variants
     {
         PaneContext ctx = new();
         ReviewPanelsPlaybackContribution review = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [review])], packOn ? null : new OffGate());
+        SituationsPlaybackContribution situations = new();
+        PlaybackContributionHost host = new([(new StratBookPack(), [review, situations])], packOn ? null : new OffGate());
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
 

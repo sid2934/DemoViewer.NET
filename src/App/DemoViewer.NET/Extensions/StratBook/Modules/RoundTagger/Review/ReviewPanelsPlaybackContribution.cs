@@ -13,8 +13,6 @@ using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
@@ -158,7 +156,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
         _registrations.Add(surface.AddKeyHandler(OnKey));
         _registrations.Add(surface.AddActionHandler(OnAction));
-        _registrations.Add(surface.AddMapClickHandler(OnMapClick));
+        _registrations.Add(surface.AddPointerPreHandler(OnPointerPreHandler));
         _registrations.Add(surface.OnDemoChanged(AttachTagsToCurrentDemo));
         _registrations.Add(surface.OnPlayheadChanged(OnPlayheadChanged));
         surface.KeymapChanged += OnKeymapChanged;
@@ -564,9 +562,9 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     // Click To Tag Position: with an editor open the point goes on the tag being edited; else, while the
     // palette has focus, on the tag being made or the last one written. The place comes from the map's
     // zones when it has them, else from the nearest pawn on that floor in the frame on screen.
-    private bool OnMapClick(MapLevel level, double worldX, double worldY)
+    private bool OnPointerPreHandler(ScenePointer pointer)
     {
-        if (_surface is not { } surface || Palette is not { } palette)
+        if (Palette is not { } palette)
         {
             return false;
         }
@@ -577,8 +575,8 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
             return false;
         }
 
-        Scene2DFrame frame = surface.CurrentFrame;
-        TagPosition position = TagPositionResolver.Resolve(worldX, worldY, level, Playhead(), surface.Zones, frame.Markers);
+        TagPosition position = TagPositionResolver.Resolve(pointer.WorldX, pointer.WorldY, pointer.Level, Playhead(),
+            pointer.Zones(), pointer.Frame.Markers);
         return toEditor ? Review!.AddPosition(position) : palette.AttachPosition(position);
     }
 
