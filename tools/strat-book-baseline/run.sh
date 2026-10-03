@@ -23,6 +23,11 @@
 #
 # Never writes to --config beyond what the app itself writes there (cache sidecars from the indexing-time
 # probe's Evaluate calls); never touches the live config dir; never copies, moves or deletes a .dem file.
+#
+# Start every invocation from a FRESH copy. The indexing-time probe rewrites its demos' round index, round
+# facts, suggested-tags and highlights sidecars on every run, so a copy reused across invocations is not
+# the state the resident-memory probes above it were measured against, and a copy reused across several
+# indexing-time runs is on its second or third genuine recompute, not its first.
 set -euo pipefail
 
 CONFIG=""
