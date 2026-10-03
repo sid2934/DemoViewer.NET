@@ -2222,7 +2222,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   (default `true`; mirrored from `OwnerPackId is {} p && gate.IsEnabled(p)` on every `Refresh`) joins
   `IsInteractive`/`HasLockHint`/`LockHint` (`NotifyPropertyChangedFor`, since unlike `IsRequired` this one
   changes live). The lock hint reads "extension is off". A stray programmatic set while locked bounces back
-  without writing, the same treatment `IsRequired` and a group follower get — the row's own override (if
+  without writing, the same treatment `IsRequired` and a group follower get: the row's own override (if
   any) is untouched either way, so it is honoured again once the pack is back on. The master row's own
   `IsPackEnabled` is never set (a pack does not own itself via `OwnerPackId`), so the switch that turns a
   pack off is never itself locked by that state.
@@ -2232,14 +2232,14 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **Two existing pack-only settings blocks moved under this section**, content unchanged, each gated by
   `IsStratBookPackEnabled` on top of whatever platform gate it already had: Suggested Tags tuning (was in
   GENERAL) and a new GRENADE INDEX card (`Walk library grenades in the background`, `Render lineup clips`;
-  was embedded inside HIGHLIGHTS, riding that section's desktop-only gate incidentally — kept as
+  was embedded inside HIGHLIGHTS, riding that section's desktop-only gate incidentally: kept as
   `CanManageGrenadeIndex`). These are hidden entirely while the pack is off, not merely disabled: they are
   dedicated custom UI, not generic toggle rows, so "gone" reads better than "present and dark". No settings
   contribution seam yet (item 14); the XAML is grouped under one Expander so that item can lift it later.
 - **Search**: `ExtensionsSectionMatches` ORs the generic `_sectionKeywords` entry ("extension", "pack",
   "plugin", …) with a scan of every BUILT row's own `Label` (fuzzy `PartialRatio >= 80`, same threshold the
   rest of findability uses), so a pack's name and its tabs'/sub-features' names are searchable without
-  listing them by hand — again, a second pack costs nothing here.
+  listing them by hand. A second pack costs nothing here either.
 - **The in-session toggle notice** (`StratBookToggleNotice`, architecture doc §8): null until a flip
   happens in THIS vm's lifetime (seeded from the gate before the ctor's first refresh, so plain startup
   shows nothing). On a transition detected in `RefreshFeatureRows` (so a self-write, Reset-to-defaults and
@@ -2247,7 +2247,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   stays on disk."; on → "Counting…" then `"{N} demos will be re-indexed in the background."` once
   `StratBookPendingReindexCount.ComputeAsync()` lands (the union of `RoundIndexEvaluator`,
   `GrenadeIndexEvaluator` and `SuggestedTagsService`'s own `PendingPaths()`, resolved through `App.Services`
-  since the VM's constructor cannot take them — the public ctor shape is unchanged; a `Func<Task<int>>?`
+  since the VM's constructor cannot take them (the public ctor shape is unchanged); a `Func<Task<int>>?`
   test seam is the INTERNAL ctor's 8th, all-optional parameter). A generation counter drops a result that
   lands after a later flip rather than overwriting a more recent notice.
 - **Fits the real host width** (520-560px desktop/WASM, §settings-layout above) with no horizontal

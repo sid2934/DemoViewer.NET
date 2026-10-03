@@ -616,7 +616,7 @@
                 <!-- EXTENSIONS (item 5): one master switch per FeatureScope.Pack row in FeatureCatalog,
                      its own tabs and sub-features listed beneath it (ExtensionsFeatureRows is built from
                      the catalog, so a second pack appears here with no XAML change), followed by any
-                     dedicated settings a pack contributes outside the generic row list — today the
+                     dedicated settings a pack contributes outside the generic row list: today the
                      Suggested Tags tuning card and the Grenade Index card, both Strat Book-only and both
                      hidden while the pack is off. Grouped as one block so item 14's settings-page
                      contribution can lift it later. -->
@@ -647,7 +647,7 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Suggested Tags tuning (suggested-tags.md §3.7, step 6) — relocated here from
+                        <!-- Suggested Tags tuning (suggested-tags.md §3.7, step 6): relocated here from
                      GENERAL: Strat Book-only, so it is hidden with the pack off, on top of its own
                      pre-existing CanManageTuning gate (the browser: §3.8 says no tuning view there).
                      Content unchanged by the move. -->
@@ -731,7 +731,7 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Grenade Index — relocated here from HIGHLIGHTS, where it rode on that section's
+                        <!-- Grenade Index: relocated here from HIGHLIGHTS, where it rode on that section's
                      desktop-only gate incidentally: Strat Book / Utility Book-only, so it keeps that
                      desktop-only gate (CanManageGrenadeIndex) plus hides entirely with the pack off. -->
                         <StackPanel Spacing="0" IsVisible="{Binding ShowSectionGrenadeIndex}">

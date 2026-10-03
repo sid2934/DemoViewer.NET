@@ -121,8 +121,8 @@ public class StratBookShellTests
     // Item 5's window test: a LIVE FeatureGate over a real SettingsService (not FakeGate, which has no
     // cascade), the same harness TabFeatureGatingTests.WithGatedShell uses. Flipping the master switch
     // override cascades off every section's tab id (they are all in MainViewModel._tabFeatureIds,
-    // parented to the pack in the catalog), so the hub tab — synthesized only while some section passes
-    // the gate — vanishes, and clearing the override brings it right back without a rebuild.
+    // parented to the pack in the catalog), so the hub tab, synthesized only while some section passes
+    // the gate, vanishes, and clearing the override brings it right back without a rebuild.
     [Test]
     public async Task LiveToggle_OfTheMasterSwitch_HidesAndRestoresTheStratBookHubTab()
     {
