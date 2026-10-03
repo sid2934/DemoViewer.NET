@@ -307,7 +307,7 @@ public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposab
         int missing = 0;
         foreach (StratRun run in runs)
         {
-            if (ReviewQueue.FromTag(run.Ref, sha => _indexBySha(sha)?.Path) is { } clip)
+            if (TagClips.FromTag(run.Ref, sha => _indexBySha(sha)?.Path) is { } clip)
             {
                 clips.Add(clip);
             }
