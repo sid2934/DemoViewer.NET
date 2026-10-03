@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
@@ -703,6 +704,7 @@ public class StratBookPackTests
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
+        public ExtensionManifest Manifest => FakeManifests.For(Id);
         public IEnumerable<FeatureDescriptor> Features => features;
 
         public void Register(IServiceCollection services)

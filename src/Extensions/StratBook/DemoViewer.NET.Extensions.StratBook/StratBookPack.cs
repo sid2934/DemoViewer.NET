@@ -4,6 +4,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Dossier;
@@ -70,6 +71,9 @@ public sealed class StratBookPack : IFeaturePack
     public string FeatureId => PackFeatureId;
 
     /// <inheritdoc />
+    public ExtensionManifest Manifest => _manifest.Value;
+
+    /// <inheritdoc />
     public IEnumerable<FeatureDescriptor> Features => _features;
 
     /// <inheritdoc />
@@ -91,6 +95,10 @@ public sealed class StratBookPack : IFeaturePack
             StratBookHubViewModel.HostId, StratBookHubViewModel.TabId, "Strat Book", 4, "STRAT BOOK",
             () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
     }
+
+    // The embedded extension.json (the csproj embeds src/Extensions/StratBook/extension.json), read once.
+    private static readonly Lazy<ExtensionManifest> _manifest =
+        new(() => ExtensionManifest.ReadEmbedded(typeof(StratBookPack).Assembly));
 
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
