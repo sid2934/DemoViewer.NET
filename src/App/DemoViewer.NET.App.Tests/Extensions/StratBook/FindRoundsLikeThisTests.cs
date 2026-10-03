@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
@@ -20,8 +22,10 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Find Rounds Like This: the key (plan D7), the snapshot's round-trip with the index builder (one
-///     function applied twice, in both token modes), the canvas load, the 2D tab's funnel onto the seam
-///     and the shipped seam's tab switch. The real-demo half is <c>FindRoundsLikeThisRealDemoTests</c>.
+///     function applied twice, in both token modes), the canvas load, and the shipped seam's tab switch.
+///     The view's route onto the seam through a real <c>SituationsPlaybackContribution</c> is
+///     <c>CtrlF_RoutesThroughTheView_ToTheSeam</c>; the contribution's own wiring is
+///     <c>SituationsPlaybackContributionTests</c>. The real-demo half is <c>FindRoundsLikeThisRealDemoTests</c>.
 /// </summary>
 public class FindRoundsLikeThisTests
 {
@@ -221,70 +225,6 @@ public class FindRoundsLikeThisTests
     }
 
     [Test]
-    public async Task ThePlaybackTab_HandsTheCurrentFrameToTheSeam_AndRefusesWithoutOne()
-    {
-        // A bare context with no roster: the activation resync then builds an empty scene, which is
-        // the state before the first push.
-        Playback2DTabViewModel vm = new();
-        Playback2DFakeContext ctx = new()
-        {
-            MapName = "de_nuke"
-        };
-        vm.OnActivated(ctx);
-        RecordingSeam seam = new();
-        vm.FindRounds = seam;
-
-        // Nothing pushed yet: the scene is empty, so the key stays unhandled without asking the seam.
-        await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
-        await Assert.That(seam.Calls.Count).IsEqualTo(0);
-
-        ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"), (6, 2, -900, 200, 64, "Lobby"));
-
-        await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsTrue();
-        (string map, SceneTime time, IReadOnlyList<PlayerMarker> markers) = seam.Calls.Single();
-        using (Assert.Multiple())
-        {
-            await Assert.That(map).IsEqualTo("de_nuke");
-            await Assert.That(time.Tick).IsEqualTo(ctx.CurrentTick).Because("the frame the markers belong to");
-            await Assert.That(markers.Select(m => m.Place ?? "?")).IsEquivalentTo(["BombsiteA", "Lobby"]);
-        }
-
-        // The command the menu entry and the toolbar button run is the same funnel.
-        vm.FindRoundsLikeThisCommand.Execute(null);
-        await Assert.That(seam.Calls.Count).IsEqualTo(2);
-
-        // No seam (a host without the Situations module) and no map both leave the key unhandled
-        // without asking anything.
-        vm.FindRounds = null;
-        await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
-        vm.FindRounds = seam;
-        ctx.MapName = null;
-        await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
-        await Assert.That(seam.Calls.Count).IsEqualTo(2);
-    }
-
-    [Test]
-    public async Task TheLabelAndTheToolTip_ReadTheResolvedProfile()
-    {
-        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
-        await Assert.That(vm.FindRoundsLikeThisLabel).IsEqualTo("Find rounds like this (Ctrl+F)");
-        await Assert.That(vm.FindRoundsLikeThisToolTip).StartsWith("Find rounds like this (Ctrl+F): ");
-
-        vm.ApplyKeymapOverrides(["FindRoundsLikeThis=Ctrl+Shift+S"]);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(vm.KeymapRejections).IsEmpty();
-            await Assert.That(vm.FindRoundsLikeThisLabel).IsEqualTo("Find rounds like this (Ctrl+Shift+S)");
-            await Assert.That(vm.Keymap.TryResolve(Key.S, KeyModifiers.Control | KeyModifiers.Shift, false,
-                out Playback2DAction action)).IsTrue();
-            await Assert.That(action).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
-            await Assert.That(vm.Keymap.TryResolve(Key.F, KeyModifiers.Control, false, out _)).IsFalse()
-                .Because("the shipped chord was vacated by the override");
-        }
-    }
-
-    [Test]
     public async Task TheShippedSeam_LoadsTheCanvas_AndShowsTheTab_OrRefusesWhenTheTabIsGone()
     {
         using Harness h = new();
@@ -329,10 +269,14 @@ public class FindRoundsLikeThisTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            ctx.MapName = "de_nuke";
             RecordingSeam seam = new();
-            vm.FindRounds = seam;
+            PlaybackContributionHost host = new([(new StratBookPack(), [new SituationsPlaybackContribution()])], null);
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(
+                contributions: host, configure: c =>
+                {
+                    c.MapName = "de_nuke";
+                    c.SetService<IFindRoundsLikeThis>(seam);
+                });
             ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"));
 
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);

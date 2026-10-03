@@ -10,8 +10,9 @@ using DemoViewer.NET.ViewModels.Situations;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     J / K in 2D playback: the keymap rows, the tab's dispatch onto the walk seam (unhandled without
-///     one, and the seam's own answer otherwise), and the shipped seam resolving the tab lazily.
+///     J / K in 2D playback: the keymap rows and the shipped seam resolving the tab lazily. The dispatch
+///     onto the walk seam (unhandled without one, the seam's own answer otherwise, the Situations tab's
+///     feature gate) is <c>SituationsPlaybackContributionTests</c>.
 /// </summary>
 public class SituationResultWalkTests
 {
@@ -37,53 +38,6 @@ public class SituationResultWalkTests
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.J, KeyModifiers.None));
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.K, KeyModifiers.None));
         }
-    }
-
-    [Test]
-    public async Task ThePlaybackTab_HandsTheDirectionToTheSeam_AndLeavesTheKeyUnhandledWithoutOne()
-    {
-        Playback2DTabViewModel vm = new();
-        Playback2DFakeContext ctx = new();
-        vm.OnActivated(ctx);
-        RecordingWalk walk = new();
-        vm.SituationResults = walk;
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsTrue();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.PrevSituationResult)).IsTrue();
-            await Assert.That(walk.Directions).IsEquivalentTo([1, -1]);
-        }
-
-        // The seam says there is nothing to walk to: the key stays unhandled, exactly as the seam said.
-        walk.Answer = false;
-        await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
-        await Assert.That(walk.Directions.Count).IsEqualTo(3);
-
-        // No seam (a host without the Situations module): unhandled without asking anything.
-        vm.SituationResults = null;
-        await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
-        await Assert.That(vm.ExecuteAction(Playback2DAction.PrevSituationResult)).IsFalse();
-
-        // The walk seeks through the seam's own funnel, never through the tab's context.
-        await Assert.That(ctx.SeekTicks).IsEmpty();
-        await Assert.That(ctx.SeekFrames).IsEmpty();
-    }
-
-    /// <summary>With the Situations tab (and so the pack, which it cascades off with) gated off, the keys stay unhandled and the seam is never asked.</summary>
-    [Test]
-    public async Task WithTheSituationsTabGatedOff_TheKeysAreUnhandled_AndTheSeamIsNeverAsked()
-    {
-        Playback2DFakeContext ctx = new() { Gate = new FakeModuleFeatureGate() };
-        ctx.Gate!.SetEnabled(SituationsModule.TabFeatureId, false);
-        Playback2DTabViewModel vm = new();
-        vm.OnActivated(ctx);
-        RecordingWalk walk = new();
-        vm.SituationResults = walk;
-
-        await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
-        await Assert.That(vm.ExecuteAction(Playback2DAction.PrevSituationResult)).IsFalse();
-        await Assert.That(walk.Directions).IsEmpty().Because("gated off, the seam must not be asked at all");
     }
 
     [Test]
@@ -120,19 +74,6 @@ public class SituationResultWalkTests
             await Assert.That(resolved).IsEqualTo(2);
             await Assert.That(results.SelectedIndex).IsEqualTo(1);
             await Assert.That(playback.Seeks).IsEquivalentTo([("/d/a.dem", 3368)]);
-        }
-    }
-
-    private sealed class RecordingWalk : ISituationResultWalk
-    {
-        public List<int> Directions { get; } = [];
-
-        public bool Answer { get; set; } = true;
-
-        public bool Walk(int direction)
-        {
-            Directions.Add(direction);
-            return Answer;
         }
     }
 }
