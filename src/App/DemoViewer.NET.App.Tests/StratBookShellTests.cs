@@ -321,6 +321,68 @@ public class StratBookShellTests
             }
         });
 
+    // A descriptor's own FeatureId gates it with no entry in MainViewModel's fallback map at all; a
+    // descriptor that declares neither still fails open.
+    [Test]
+    public async Task DescriptorFeatureId_GatesTheTab_WithNoFallbackMapEntry() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new();
+            MainViewModel vm = NewShell(gate, null, new FeatureIdModule());
+            try
+            {
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.featured");
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.unmapped");
+                }
+
+                gate.Answers[FeatureIdModule.FeatureId] = false;
+                gate.RaiseChanged();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("test.featured")
+                        .Because("the descriptor's own FeatureId gates it, with no _tabFeatureIds entry for its TabId");
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.unmapped")
+                        .Because("no FeatureId and no fallback entry fails open");
+                }
+
+                gate.Answers[FeatureIdModule.FeatureId] = true;
+                gate.RaiseChanged();
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.featured");
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+        });
+
+    // A built-in tab contributes no FeatureId of its own: MainViewModel's fallback map still gates it by TabId.
+    [Test]
+    public async Task ABuiltInTab_WithNoDeclaredFeatureId_StillGatesThroughTheFallbackMap() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new();
+            MainViewModel vm = NewShell(gate, null);
+            try
+            {
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("builtin.parser");
+
+                gate.Answers["tab.parser"] = false;
+                gate.RaiseChanged();
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("builtin.parser")
+                    .Because("builtin.parser declares no FeatureId; MainViewModel._tabFeatureIds still gates it");
+
+                gate.Answers["tab.parser"] = true;
+                gate.RaiseChanged();
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("builtin.parser");
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+        });
+
     [Test]
     public async Task Session_PersistsTheSelectedSectionAsTheActiveTab_AndAnOldStripSectionId_LandsOnTheRail()
     {
@@ -675,8 +737,41 @@ public class StratBookShellTests
     }
 
     /// <summary>
-    ///     Three rail sections under the shipped feature ids (out of rail order, to pin the sort) and the
-    ///     Library-hosted Teams view.
+    ///     A strip tab whose descriptor declares its own <see cref="WorkspaceTabDescriptor.FeatureId" />
+    ///     (an id with no entry anywhere in <c>MainViewModel._tabFeatureIds</c>), alongside one that
+    ///     declares neither.
+    /// </summary>
+    private sealed class FeatureIdModule : IWorkspaceModule
+    {
+        public const string FeatureId = "test.featureid";
+
+        public string Id => "net.demoviewer.test.featureid";
+        public string DisplayName => "FeatureId";
+        public Version ContractVersion => new(1, 0, 0);
+
+        public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
+        {
+            yield return new WorkspaceTabDescriptor
+            {
+                TabId = "test.featured",
+                Header = "Featured",
+                Order = 10,
+                FeatureId = FeatureId,
+                ViewFactory = () => new ContentControl()
+            };
+            yield return new WorkspaceTabDescriptor
+            {
+                TabId = "test.unmapped",
+                Header = "Unmapped",
+                Order = 11,
+                ViewFactory = () => new ContentControl()
+            };
+        }
+    }
+
+    /// <summary>
+    ///     Three rail sections declaring the shipped feature ids on their own descriptors (out of rail
+    ///     order, to pin the sort) and the Library-hosted Teams view.
     /// </summary>
     private sealed class SectionsModule : IWorkspaceModule
     {
@@ -688,13 +783,13 @@ public class StratBookShellTests
 
         public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
         {
-            yield return Section("review.queue", "Review", 4, TabPlacement.StratBook);
-            yield return Section("stratbook.browser", "Strats", 0, TabPlacement.StratBook);
-            yield return Section("situations.search", "Situations", 1, TabPlacement.StratBook);
-            yield return Section("teams.browser", "Teams", 0, TabPlacement.Library);
+            yield return Section("review.queue", "Review", 4, TabPlacement.StratBook, "tab.review");
+            yield return Section("stratbook.browser", "Strats", 0, TabPlacement.StratBook, "tab.stratbook");
+            yield return Section("situations.search", "Situations", 1, TabPlacement.StratBook, "tab.situations");
+            yield return Section("teams.browser", "Teams", 0, TabPlacement.Library, "tab.teams");
         }
 
-        private WorkspaceTabDescriptor Section(string id, string header, int order, TabPlacement placement)
+        private WorkspaceTabDescriptor Section(string id, string header, int order, TabPlacement placement, string featureId)
         {
             Activations[id] = 0;
             return new WorkspaceTabDescriptor
@@ -703,6 +798,7 @@ public class StratBookShellTests
                 Header = header,
                 Order = order,
                 Placement = placement,
+                FeatureId = featureId,
                 ViewModelFactory = () => new SectionViewModel(id, () => Activations[id]++),
                 ViewFactory = () => new ContentControl()
             };

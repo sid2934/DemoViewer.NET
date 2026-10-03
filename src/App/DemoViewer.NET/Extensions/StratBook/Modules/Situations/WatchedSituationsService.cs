@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Text.Json;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
@@ -39,7 +40,7 @@ namespace DemoViewer.NET.Modules.Situations;
 ///         keeps the watches for the session only.
 ///     </para>
 /// </summary>
-public sealed class WatchedSituationsService : IDisposable
+public sealed class WatchedSituationsService : IPackResident, IDisposable
 {
     /// <summary>The file under the config root.</summary>
     public const string FileName = "watched-situations.json";
@@ -56,6 +57,7 @@ public sealed class WatchedSituationsService : IDisposable
     private readonly IDemoProvenanceSource? _provenance;
     private readonly TeamIdentityService? _teams;
 
+    private bool _attached;
     private bool _disposed;
     private WatchedSituationsFile _file = new();
     private bool _refused;
@@ -87,22 +89,7 @@ public sealed class WatchedSituationsService : IDisposable
         _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
 
         Load();
-
-        // The hook first, then the full pass: both are posted by the index in that order after a merge,
-        // and the pass finds nothing to change after the hook has already counted the demo.
-        _index.Indexed += OnIndexed;
-        _index.Changed += Reevaluate;
-        if (_teams is not null)
-        {
-            _teams.Changed += Reevaluate;
-        }
-
-        if (_provenance is not null)
-        {
-            _provenance.Changed += Reevaluate;
-        }
-
-        Reevaluate();
+        Attach();
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
@@ -150,6 +137,74 @@ public sealed class WatchedSituationsService : IDisposable
         }
 
         _disposed = true;
+        Detach();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Re-runs every watch once subscribed, so the badges are current again.</remarks>
+    public void Attach()
+    {
+        lock (_gate)
+        {
+            if (_attached || _disposed)
+            {
+                return;
+            }
+
+            _attached = true;
+        }
+
+        // The hook first, then the full pass: both are posted by the index in that order after a merge,
+        // and the pass finds nothing to change after the hook has already counted the demo.
+        _index.Indexed += OnIndexed;
+        _index.Changed += Reevaluate;
+        if (_teams is not null)
+        {
+            _teams.Changed += Reevaluate;
+        }
+
+        if (_provenance is not null)
+        {
+            _provenance.Changed += Reevaluate;
+        }
+
+        Reevaluate();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>The saved watches stay (they are the user's file); the new-hit groups go.</remarks>
+    public void Release()
+    {
+        if (!Detach())
+        {
+            return;
+        }
+
+        bool changed;
+        lock (_gate)
+        {
+            changed = _new.Count > 0;
+            _new.Clear();
+        }
+
+        if (changed)
+        {
+            _post(() => Changed?.Invoke());
+        }
+    }
+
+    private bool Detach()
+    {
+        lock (_gate)
+        {
+            if (!_attached)
+            {
+                return false;
+            }
+
+            _attached = false;
+        }
+
         _index.Indexed -= OnIndexed;
         _index.Changed -= Reevaluate;
         if (_teams is not null)
@@ -161,6 +216,8 @@ public sealed class WatchedSituationsService : IDisposable
         {
             _provenance.Changed -= Reevaluate;
         }
+
+        return true;
     }
 
     /// <summary>New hits of one watch: its own badge.</summary>

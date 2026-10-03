@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -32,13 +33,14 @@ namespace DemoViewer.NET.Services.Tags;
 ///         person or Team Identity says so.
 ///     </para>
 /// </summary>
-public sealed class TagFactsRefresher : IDisposable
+public sealed class TagFactsRefresher : IPackResident, IDisposable
 {
     private readonly Action<Action> _background;
     private readonly IRoundFactsSource _facts;
     private readonly Func<string, string?> _sha256For;
     private readonly TagStore _tags;
     private readonly Func<DateTime> _utcNow;
+    private int _attached;
     private int _disposed;
 
     /// <param name="tags">The tag store the documents live in.</param>
@@ -64,13 +66,32 @@ public sealed class TagFactsRefresher : IDisposable
         _sha256For = sha256For;
         _background = background ?? (action => _ = Task.Run(action));
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
-        _facts.Updated += OnUpdated;
+        Attach();
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public void Attach()
+    {
+        if (Volatile.Read(ref _disposed) == 0 && Interlocked.Exchange(ref _attached, 1) == 0)
+        {
+            _facts.Updated += OnUpdated;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Holds no state of its own: releasing is unsubscribing.</remarks>
+    public void Release()
+    {
+        if (Interlocked.Exchange(ref _attached, 0) == 1)
         {
             _facts.Updated -= OnUpdated;
         }

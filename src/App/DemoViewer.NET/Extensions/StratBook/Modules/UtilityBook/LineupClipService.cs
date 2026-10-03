@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -65,7 +66,7 @@ public interface ILineupClipRenderer
 ///         the processing queue, which runs them exclusively; the sweep runs on the pool.
 ///     </para>
 /// </summary>
-public sealed class LineupClipService : IDisposable
+public sealed class LineupClipService : IPackResident, IDisposable
 {
     /// <summary>The file in the clip directory listing evicted pair stems, one per line.</summary>
     public const string EvictedFileName = "evicted.txt";
@@ -113,6 +114,7 @@ public sealed class LineupClipService : IDisposable
     private readonly object _capGate = new();
     private readonly Action<string, string> _writeText;
     private bool _disposed;
+    private bool _released;
     private HashSet<string>? _evicted;
     private TaskCompletionSource? _idle;
     private bool _running;
@@ -201,6 +203,61 @@ public sealed class LineupClipService : IDisposable
         _cts.Dispose();
     }
 
+    /// <inheritdoc />
+    /// <remarks>Plans again: the index it reads has reloaded by the time the pack calls this.</remarks>
+    public void Attach()
+    {
+        lock (_gate)
+        {
+            if (!_released || _disposed)
+            {
+                return;
+            }
+
+            _released = false;
+        }
+
+        _ = PlanSoon();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     The plan, the ranks, the session's requests and the eviction cache go; the queue items the
+    ///     worker submitted are the pack's to cancel by owner. Until <see cref="Attach" />, a plan is a no-op.
+    /// </remarks>
+    public void Release()
+    {
+        Task worker;
+        lock (_gate)
+        {
+            if (_released)
+            {
+                return;
+            }
+
+            _released = true;
+            _pending.Clear();
+            _planned.Clear();
+            _ranks.Clear();
+            _requested.Clear();
+            _orphanSince.Clear();
+            _evictedAbsentSince.Clear();
+            _evicted = null;
+            worker = WorkerTask;
+        }
+
+        // A render still running writes nothing back once released (the pack cancelled its queue item too);
+        // the worker ends after it. Bounded: one demo's batch.
+        try
+        {
+            worker.Wait(TimeSpan.FromSeconds(15));
+        }
+        catch (AggregateException)
+        {
+            // Its failure is its own; the release goes on.
+        }
+    }
+
     /// <summary>
     ///     Plans every clip the index calls for that has no pair on disk, was not evicted, and was not
     ///     planned earlier this session with the same representative, and starts the worker. A pair of the
@@ -222,6 +279,14 @@ public sealed class LineupClipService : IDisposable
     /// </summary>
     public Task PlanSoon()
     {
+        lock (_gate)
+        {
+            if (_released || _disposed)
+            {
+                return Task.CompletedTask;
+            }
+        }
+
         lock (_soonGate)
         {
             if (_soonScheduled)
@@ -256,7 +321,13 @@ public sealed class LineupClipService : IDisposable
 
     private int PlanLocked()
     {
-        if (_disposed || _directory is null || !_enabled())
+        bool released;
+        lock (_gate)
+        {
+            released = _released;
+        }
+
+        if (released || _disposed || _directory is null || !_enabled())
         {
             return 0;
         }
@@ -772,16 +843,15 @@ public sealed class LineupClipService : IDisposable
         TaskCompletionSource idle = new(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_gate)
         {
-            if (_running || _pending.Count == 0)
+            if (_running || _released || _pending.Count == 0)
             {
                 return;
             }
 
             _running = true;
             _idle = idle;
+            WorkerTask = idle.Task;
         }
-
-        WorkerTask = idle.Task;
         if (_processing is null)
         {
             _ = Task.Run(() => DrainAsync(_ct), CancellationToken.None);
@@ -913,6 +983,15 @@ public sealed class LineupClipService : IDisposable
         {
             _log?.Invoke($"lineup clips: {demoPath}: {ex.Message}");
             return;
+        }
+
+        lock (_gate)
+        {
+            // Released meanwhile: the GIFs on disk are adopted by the next plan; nothing else is touched.
+            if (_released || _disposed)
+            {
+                return;
+            }
         }
 
         job?.NoteDemoParsed();

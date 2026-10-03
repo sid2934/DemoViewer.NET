@@ -32,7 +32,7 @@ public sealed class RoundTaggerModule : IWorkspaceModule
     /// <summary>The Tag Palette's feature id, a sub-feature of the 2D Playback tab. A persisted key; never renamed.</summary>
     public const string PaletteFeatureId = "playback2d.tagger";
 
-    /// <summary>The Matrix section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The Matrix section's tab id; its descriptor declares <see cref="TabFeatureId" /> directly.</summary>
     public const string MatrixTabId = "tagger.matrix";
 
     private readonly Func<TagMatrixTabViewModel> _viewModelFactory;
@@ -56,6 +56,7 @@ public sealed class RoundTaggerModule : IWorkspaceModule
             Header = "Tags",
             Order = 2, // after Situations (1)
             Placement = TabPlacement.StratBook,
+            FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TagMatrixTabView()
         };

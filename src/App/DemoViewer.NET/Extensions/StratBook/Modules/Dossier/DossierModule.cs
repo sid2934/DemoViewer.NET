@@ -30,7 +30,7 @@ public sealed class DossierModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed. On by default for every category.</summary>
     public const string TabFeatureId = "tab.dossier";
 
-    /// <summary>The section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The section's tab id; its descriptor declares <see cref="TabFeatureId" /> directly.</summary>
     public const string BrowserTabId = "dossier.browser";
 
     private readonly Func<DossierTabViewModel> _viewModelFactory;
@@ -54,6 +54,7 @@ public sealed class DossierModule : IWorkspaceModule
             Header = "Dossier",
             Order = 5, // after Review (4)
             Placement = TabPlacement.StratBook,
+            FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new DossierTabView()
         };

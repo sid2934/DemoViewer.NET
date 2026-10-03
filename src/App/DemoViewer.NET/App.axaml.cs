@@ -296,10 +296,9 @@ public class App : Application
                     () =>
                     {
                         // Every pack's lifecycle, unconditionally: whether OnEnabledAsync ran at startup is
-                        // not whether there is anything to flush now (a pack turned on mid-session has no
-                        // live-toggle re-run yet, item 8's job, but a tab it exposed can still have been
-                        // opened and written to). Each lifecycle's own "was built" guards decide what, if
-                        // anything, to touch; one lifecycle's failure must not skip the others.
+                        // not whether there is anything to flush now (a pack turned on and off in session,
+                        // or one whose tab was opened and written to). Each lifecycle's own "is live" guards
+                        // decide what, if anything, to touch; one lifecycle's failure must not skip the others.
                         foreach (IFeaturePack pack in FeaturePacks.Default)
                         {
                             if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
@@ -656,35 +655,20 @@ public class App : Application
         // Each pack whose feature id resolves on gets its lifecycle's startup loads. A pack that is off
         // never resolves its lifecycle, so none of this runs: no index load, no Team Identity rebuild, no
         // queue item.
-        StartPacks(provider, packs);
+        StartPacks(provider);
         Services = provider;
         return provider;
     }
 
     /// <summary>
-    ///     For each pack whose <see cref="IFeaturePack.FeatureId" /> resolves on, resolves its
-    ///     <see cref="IPackLifecycle" /> (if registered, keyed by <see cref="IFeaturePack.Id" />) and fires
-    ///     <see cref="IPackLifecycle.OnEnabledAsync" />. Fire-and-forget: a pack's startup loads run on the
-    ///     processing queue, same as the explicit block this replaced. Shutdown does not read anything
-    ///     this records: every pack's lifecycle gets an unconditional <see cref="IPackLifecycle.OnShutdown" />
-    ///     instead, each deciding for itself what it actually built.
+    ///     Starts the <see cref="PackSwitch" />: each pack whose <see cref="IFeaturePack.FeatureId" /> resolves
+    ///     on gets its <see cref="IPackLifecycle.OnEnabledAsync" /> (fire-and-forget: the loads are queue
+    ///     items), and from then on the gate's <see cref="IFeatureGate.Changed" /> drives the lifecycle both
+    ///     ways. On a fresh desktop install nothing starts until the first-run wizard has asked. Shutdown
+    ///     does not read anything this records: every pack's lifecycle gets an unconditional
+    ///     <see cref="IPackLifecycle.OnShutdown" /> instead, each deciding for itself what it actually built.
     /// </summary>
-    internal static void StartPacks(IServiceProvider provider, IReadOnlyList<IFeaturePack> packs)
-    {
-        IFeatureGate gate = provider.GetRequiredService<IFeatureGate>();
-        foreach (IFeaturePack pack in packs)
-        {
-            if (!gate.IsEnabled(pack.FeatureId))
-            {
-                continue;
-            }
-
-            if (provider.GetKeyedService<IPackLifecycle>(pack.Id) is { } lifecycle)
-            {
-                _ = lifecycle.OnEnabledAsync(PackStartReason.Startup, CancellationToken.None);
-            }
-        }
-    }
+    internal static void StartPacks(IServiceProvider provider) => provider.GetRequiredService<PackSwitch>().Start();
 
     /// <summary>
     ///     Every registration of the composition root, before the provider is built: the core services,
@@ -987,12 +971,9 @@ public class App : Application
         services.AddSingleton(sp =>
         {
             // BuildShell resolves this unconditionally (the Library team filter), so the pack's gate
-            // cannot decide whether the service is built, only whether its startup READ is a queue item.
-            // Off, the ctor's own fallback (scheduleLoad null) reads teams.json inline instead: the
-            // Library still needs a working service, but nothing from a disabled pack belongs in the
-            // queue list.
-            IFeatureGate? teamsGate = sp.GetService<IFeatureGate>();
-            bool packOn = teamsGate?.IsEnabled(StratBookPack.PackFeatureId) ?? false;
+            // cannot decide whether the service is built. It is built detached and unread: the pack's
+            // lifecycle attaches it, and only then does its file read enter the queue. The gate is not
+            // read here on purpose, since at container build the first-run wizard has not asked yet.
             TeamIdentityService teams = new(
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
@@ -1000,7 +981,8 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action),
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
                     "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
-                scheduleLoad: packOn ? StartupLoad(sp, "Load: teams", "teams") : null);
+                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"),
+                loadAtStart: false);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
@@ -1104,6 +1086,16 @@ public class App : Application
         // Every pack's Contribute, run once on first resolve: the module registry reads the modules, the
         // merged rules build the ruleset claims.
         services.AddSingleton(sp => new PackContributionSet(packs, sp));
+
+        // The live toggle: started by StartPacks, driven by the gate's Changed after that. The re-poll after a
+        // switch-on is the coordinator's capacity re-feed, run as a queue item. The browser never shows the
+        // wizard (NeedsFirstRun is always true there), so it never waits for it.
+        services.AddSingleton(sp => new PackSwitch(packs,
+            sp.GetRequiredService<IFeatureGate>(),
+            pack => sp.GetKeyedService<IPackLifecycle>(pack.Id),
+            sp.GetRequiredService<IDemoProcessingQueue>(),
+            () => sp.GetRequiredService<DemoEvaluationCoordinator>().ConsiderAll(),
+            () => !OperatingSystem.IsBrowser() && sp.GetRequiredService<SettingsService>().NeedsFirstRun));
 
         // The first-party module registry, built ONCE by BuildRegistry and held by the container (the
         // reconciliation), injected into the shell so there is no stray second construction. The provider is

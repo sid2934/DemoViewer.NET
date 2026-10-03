@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
@@ -44,7 +45,7 @@ public sealed record PromoteResult(StratDocument? Document, bool PatternChanged)
 ///         inputs changed (<see cref="SignatureCache" />).
 ///     </para>
 /// </summary>
-public sealed class StratMiningService : IDisposable
+public sealed class StratMiningService : IPackResident, IDisposable
 {
     /// <summary>The detected file's shape version.</summary>
     public const int SchemaVersion = 1;
@@ -78,7 +79,12 @@ public sealed class StratMiningService : IDisposable
     private readonly StratStore _strats;
     private readonly TagStore? _tags;
     private readonly TeamIdentityService? _teams;
+    private bool _attached;
+    private bool _released;
     private bool _deferred;
+
+    // The mine in flight, so a release can let it end before touching the signature cache it reads.
+    private Task _mine = Task.CompletedTask;
     private Timer? _quiet;
     private bool _rerun;
     private bool _running;
@@ -131,17 +137,7 @@ public sealed class StratMiningService : IDisposable
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
             new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
         Load();
-        _strats.Deleted += OnStratDeleted;
-        _demoCache.Changed += OnSourceChanged;
-        if (_grenadeIndex is not null)
-        {
-            _grenadeIndex.Changed += OnSourceChanged;
-        }
-
-        if (_queue is not null)
-        {
-            _queue.Changed += OnQueueChanged;
-        }
+        Attach();
     }
 
     /// <summary>The builder, for its cache counts.</summary>
@@ -180,6 +176,103 @@ public sealed class StratMiningService : IDisposable
 
     public void Dispose()
     {
+        Detach();
+        lock (_gate)
+        {
+            _quiet?.Dispose();
+            _quiet = null;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Reads the detected file again when a release dropped the patterns.</remarks>
+    public void Attach()
+    {
+        bool reload;
+        lock (_gate)
+        {
+            if (_attached)
+            {
+                return;
+            }
+
+            _attached = true;
+            reload = _released;
+            _released = false;
+        }
+
+        if (reload)
+        {
+            Load();
+        }
+
+        _strats.Deleted += OnStratDeleted;
+        _demoCache.Changed += OnSourceChanged;
+        if (_grenadeIndex is not null)
+        {
+            _grenadeIndex.Changed += OnSourceChanged;
+        }
+
+        if (_queue is not null)
+        {
+            _queue.Changed += OnQueueChanged;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     The quiet timer, the detected patterns and the signature cache go (the cache is written first when
+    ///     dirty); a mine in flight is the pack's to cancel by owner.
+    /// </remarks>
+    public void Release()
+    {
+        if (!Detach())
+        {
+            return;
+        }
+
+        Task mine;
+        lock (_gate)
+        {
+            _released = true;
+            _quiet?.Dispose();
+            _quiet = null;
+            _deferred = false;
+            _rerun = false;
+            mine = _mine;
+        }
+
+        // A mine still running skips its next step now that it is detached (the pack cancelled its queue
+        // item too); the cache is dropped only once it has let go. Bounded: a step is one batch of demos.
+        try
+        {
+            mine.Wait(TimeSpan.FromSeconds(15));
+        }
+        catch (AggregateException)
+        {
+            // Its failure is its own; the release goes on.
+        }
+
+        _signatures.ReleaseCache();
+        _post(() =>
+        {
+            Patterns = [];
+            Changed?.Invoke();
+        });
+    }
+
+    private bool Detach()
+    {
+        lock (_gate)
+        {
+            if (!_attached)
+            {
+                return false;
+            }
+
+            _attached = false;
+        }
+
         _strats.Deleted -= OnStratDeleted;
         _demoCache.Changed -= OnSourceChanged;
         if (_grenadeIndex is not null)
@@ -192,7 +285,7 @@ public sealed class StratMiningService : IDisposable
             _queue.Changed -= OnQueueChanged;
         }
 
-        _quiet?.Dispose();
+        return true;
     }
 
     /// <summary>Raised on the UI thread when the patterns or their flags change.</summary>
@@ -227,13 +320,19 @@ public sealed class StratMiningService : IDisposable
 
         if (_queue is null)
         {
-            return _run(MineLoop);
+            Task loop = _run(MineLoop);
+            lock (_gate)
+            {
+                _mine = loop;
+            }
+
+            return loop;
         }
 
         IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: library",
             "strat-mining", user ? DemoJobPriority.UserRequested : DemoJobPriority.Background, MineQueuedAsync,
             Key: "strat-mining"));
-        return handle.Completion.ContinueWith(_ =>
+        Task mine = handle.Completion.ContinueWith(_ =>
         {
             lock (_gate)
             {
@@ -242,6 +341,12 @@ public sealed class StratMiningService : IDisposable
 
             _post(() => Changed?.Invoke());
         }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        lock (_gate)
+        {
+            _mine = mine;
+        }
+
+        return mine;
     }
 
     // One pass as a queue item. Steps aside between batches, so a demo open waits for one batch at most.
@@ -252,7 +357,11 @@ public sealed class StratMiningService : IDisposable
         try
         {
             RoundSignatureBuilder.BuildSession? session = null;
-            await _run(() => session = _signatures.Begin()).ConfigureAwait(false);
+            if (!await StepAsync(() => session = _signatures.Begin()).ConfigureAwait(false))
+            {
+                return;
+            }
+
             int count = session!.Count;
             for (int from = 0; from < count; from += BatchSize)
             {
@@ -264,17 +373,23 @@ public sealed class StratMiningService : IDisposable
                 }
 
                 int start = from;
-                await _run(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false);
+                if (!await StepAsync(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false))
+                {
+                    return;
+                }
             }
 
             job.Report(count, count, "grouping rounds");
             await job.StepAsideAsync().ConfigureAwait(false);
-            await _run(() =>
+            if (!await StepAsync(() =>
+                {
+                    signatures = _signatures.Finish(session);
+                    patterns = StratMiner.Mine(signatures);
+                    Save(patterns);
+                }).ConfigureAwait(false))
             {
-                signatures = _signatures.Finish(session);
-                patterns = StratMiner.Mine(signatures);
-                Save(patterns);
-            }).ConfigureAwait(false);
+                return;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -282,6 +397,26 @@ public sealed class StratMiningService : IDisposable
         }
 
         Published(signatures, patterns);
+    }
+
+    // One step of a mine, skipped once the pack released this service: nothing it would read is wanted and
+    // the signature cache is not thread-safe. False ends the mine without publishing.
+    private async Task<bool> StepAsync(Action step)
+    {
+        bool attached = false;
+        await _run(() =>
+        {
+            lock (_gate)
+            {
+                attached = _attached;
+            }
+
+            if (attached)
+            {
+                step();
+            }
+        }).ConfigureAwait(false);
+        return attached;
     }
 
     private void MineLoop()
