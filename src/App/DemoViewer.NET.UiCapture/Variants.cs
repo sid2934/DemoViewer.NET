@@ -18,6 +18,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
@@ -140,6 +141,10 @@ public static partial class Variants
             // safety-critical element per demo-processing-queue.md). The default state (1, no warning) is
             // captured by "settings".
             ["settings-queue-warn"] = () => Settings(2),
+            // Extensions section (item 5): the filter text both selects the section (more reliable in a
+            // one-shot capture than the posted ScrollTargetSection scroll) AND auto-expands its group.
+            ["settings-extensions-on"] = () => Settings(packOff: false),
+            ["settings-extensions-off"] = () => Settings(packOff: true),
             ["wizard"] = Wizard,
             ["library-landing"] = () => Library(LibraryState.Landing),
             ["library-populated"] = () => Library(LibraryState.Populated),
@@ -1253,9 +1258,12 @@ public static partial class Variants
     ///     throwaway temp-dir <see cref="SettingsService" /> and a real <see cref="FeatureGate" />, so the
     ///     P2a-ii per-feature toggle list renders exactly as shipped. Two seeded overrides exercise both the
     ///     "overridden" indicator and the clear affordance (one default-off dev sub-feature turned ON, one
-    ///     core tab turned OFF). Rendered inside the headless UI thread by <c>CaptureHost</c>.
+    ///     core tab turned OFF). <paramref name="packOff" /> (item 5) overrides the Strat Book extension's
+    ///     master switch off and sets the SettingsFilterText to "extension", which both selects the
+    ///     Extensions section and auto-expands its group for the capture, the on variant the same way minus
+    ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
-    private static SettingsView Settings(int maxConcurrency = 1)
+    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1270,6 +1278,10 @@ public static partial class Variants
             s.Features.Overrides["parser.hex"] = true; // dev sub-feature forced ON  → overridden + enabled
             s.Features.Overrides["tab.stats"] = false; // core tab forced OFF        → overridden + disabled
             s.ProcessingQueue.MaxConcurrency = maxConcurrency; // > 1 reveals the RAM-risk warning
+            if (packOff == true)
+            {
+                s.Features.Overrides[StratBookPack.PackFeatureId] = false;
+            }
         });
 
         ServiceCollection services = new();
@@ -1278,6 +1290,11 @@ public static partial class Variants
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         FeatureGate gate = new(monitor);
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry());
+        if (packOff is not null)
+        {
+            vm.SettingsFilterText = "extension";
+        }
+
         return new SettingsView
         {
             DataContext = vm
