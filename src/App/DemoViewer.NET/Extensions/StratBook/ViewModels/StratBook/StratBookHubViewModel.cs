@@ -1,6 +1,7 @@
 #region
 
-using DemoViewer.NET.Models;
+using System.Text.Json;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.ViewModels.Shell;
 
@@ -44,7 +45,9 @@ public sealed class StratBookHubViewModel : IHostTabViewModel
 
     public void OnDeactivated() => Sections.OnHostDeactivated();
 
-    public StratBookLayoutState? SnapshotLayout() => Layout.Snapshot();
+    public string? SessionPackId => StratBookPack.PackId;
 
-    public void RestoreLayout(StratBookLayoutState? state) => Layout.Restore(state);
+    public JsonElement? SnapshotPackState() => Layout.SnapshotSessionState();
+
+    public void RestorePackState(JsonElement state) => Layout.RestoreSessionState(state);
 }
