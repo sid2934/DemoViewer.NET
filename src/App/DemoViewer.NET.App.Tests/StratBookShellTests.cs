@@ -675,8 +675,8 @@ public class StratBookShellTests
     }
 
     /// <summary>
-    ///     Three rail sections under the shipped feature ids (out of rail order, to pin the sort) and the
-    ///     Library-hosted Teams view.
+    ///     Three rail sections declaring the shipped feature ids on their own descriptors (out of rail
+    ///     order, to pin the sort) and the Library-hosted Teams view.
     /// </summary>
     private sealed class SectionsModule : IWorkspaceModule
     {
@@ -688,13 +688,13 @@ public class StratBookShellTests
 
         public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
         {
-            yield return Section("review.queue", "Review", 4, TabPlacement.StratBook);
-            yield return Section("stratbook.browser", "Strats", 0, TabPlacement.StratBook);
-            yield return Section("situations.search", "Situations", 1, TabPlacement.StratBook);
-            yield return Section("teams.browser", "Teams", 0, TabPlacement.Library);
+            yield return Section("review.queue", "Review", 4, TabPlacement.StratBook, "tab.review");
+            yield return Section("stratbook.browser", "Strats", 0, TabPlacement.StratBook, "tab.stratbook");
+            yield return Section("situations.search", "Situations", 1, TabPlacement.StratBook, "tab.situations");
+            yield return Section("teams.browser", "Teams", 0, TabPlacement.Library, "tab.teams");
         }
 
-        private WorkspaceTabDescriptor Section(string id, string header, int order, TabPlacement placement)
+        private WorkspaceTabDescriptor Section(string id, string header, int order, TabPlacement placement, string featureId)
         {
             Activations[id] = 0;
             return new WorkspaceTabDescriptor
@@ -703,6 +703,7 @@ public class StratBookShellTests
                 Header = header,
                 Order = order,
                 Placement = placement,
+                FeatureId = featureId,
                 ViewModelFactory = () => new SectionViewModel(id, () => Activations[id]++),
                 ViewFactory = () => new ContentControl()
             };
