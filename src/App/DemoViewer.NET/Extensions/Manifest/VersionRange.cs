@@ -15,9 +15,10 @@ namespace DemoViewer.NET.Extensions.Manifest;
 ///     when partial: <c>1.2</c> is <c>&gt;=1.2.0 &lt;1.3.0</c>), <c>*</c> for any, and <c>||</c> between
 ///     alternatives. A prerelease version satisfies a set only when some comparator in it names a
 ///     prerelease of the same major.minor.patch, so <c>^1.0</c> never admits <c>1.5.0-rc1</c> while
-///     <c>0.13.0-beta0001</c> is an exact match for itself.
+///     <c>0.13.0-beta0001</c> is an exact match for itself; <c>*</c> alone admits everything, prereleases
+///     included, since a pre-1.0 CS2DemoKit is the normal case. Two ranges are equal when written the same.
 /// </summary>
-public sealed partial class VersionRange
+public sealed partial class VersionRange : IEquatable<VersionRange>
 {
     private readonly IReadOnlyList<IReadOnlyList<Comparator>> _alternatives;
     private readonly string _text;
@@ -78,6 +79,11 @@ public sealed partial class VersionRange
         ArgumentNullException.ThrowIfNull(version);
         foreach (IReadOnlyList<Comparator> set in _alternatives)
         {
+            if (set.Count == 0)
+            {
+                return true;
+            }
+
             if (set.All(c => c.Holds(version)) && (!version.IsPrerelease || set.Any(c => c.Version.IsPrerelease && c.Version.SameCore(version))))
             {
                 return true;
@@ -89,6 +95,15 @@ public sealed partial class VersionRange
 
     /// <summary>The range as written.</summary>
     public override string ToString() => _text;
+
+    /// <inheritdoc />
+    public bool Equals(VersionRange? other) => other is not null && string.Equals(_text, other._text, StringComparison.Ordinal);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => Equals(obj as VersionRange);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => string.GetHashCode(_text, StringComparison.Ordinal);
 
     // One token into its comparators. A caret, tilde or partial version becomes a >= / < pair.
     private static bool TryParseComparator(string token, List<Comparator> into)
