@@ -92,6 +92,9 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     public event Action? KeymapChanged;
 
     /// <inheritdoc />
+    public event Action? Deactivated;
+
+    /// <inheritdoc />
     public bool IsReviewMode => _isReviewMode();
 
     /// <inheritdoc />
@@ -208,6 +211,9 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     internal bool IsFeatureEnabled(string featureId) => _isEnabled(featureId);
+
+    /// <summary>The tab deactivated. Raised before the tab flushes its documents.</summary>
+    internal void NotifyDeactivated() => Deactivated?.Invoke();
 
     /// <summary>The tab's resolved keymap changed.</summary>
     internal void SetKeymap(Playback2DKeymapProfile keymap)

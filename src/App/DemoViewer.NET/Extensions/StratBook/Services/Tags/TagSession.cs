@@ -158,8 +158,12 @@ public sealed class TagSession : IDisposable
     /// <summary>Raised after any change to the document or the status line. May fire off the UI thread.</summary>
     public event Action? Changed;
 
-    /// <summary>Raised at the start of every flush, on the flushing thread, before the document is written. A pending edit applied here goes out with it.</summary>
-    public event Action? Flushing;
+    /// <summary>
+    ///     Raised before the session lets go of its document, on a swap (<see cref="AttachAsync" />) or a
+    ///     <see cref="Detach" />, while the old document is still current and before it is flushed. A pending
+    ///     edit applied here lands in the document going out.
+    /// </summary>
+    public event Action? Detaching;
 
     /// <inheritdoc />
     public void Dispose()
@@ -231,6 +235,8 @@ public sealed class TagSession : IDisposable
         ArgumentNullException.ThrowIfNull(clock);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // Before the flush: a subscriber's last write to the old document goes out with it.
+        Detaching?.Invoke();
         await FlushAsync().ConfigureAwait(true);
         if (Document is not null)
         {
@@ -286,6 +292,7 @@ public sealed class TagSession : IDisposable
     {
         if (Document is not null)
         {
+            Detaching?.Invoke();
             Flush();
         }
 
@@ -351,9 +358,6 @@ public sealed class TagSession : IDisposable
     /// <summary>Writes any pending change now: on demo swap, tab deactivate and shutdown. Never throws.</summary>
     public async Task FlushAsync()
     {
-        // Raised before the write so a tag still being made (the palette's pending one) is applied and
-        // goes out with this flush: demo swap, tab deactivate and shutdown all come through here.
-        Flushing?.Invoke();
         CancelDebounce();
         await SaveNowAsync().ConfigureAwait(false);
     }

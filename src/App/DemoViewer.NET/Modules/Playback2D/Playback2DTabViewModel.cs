@@ -758,7 +758,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
         // fire-and-forget write races the process exit.
         _annotationController.Flush();
-        _tagSession.Flush(); // a tag a panel is still making is written through Flushing, not dropped
+        Surface.NotifyDeactivated(); // a panel holding the keyboard lets go and writes what it was making
+        _tagSession.Flush();
 
         // A contributed pane in progress (a Create Strat review mid-walk) is dropped: nothing was saved, and
         // the tab may come back to another demo.

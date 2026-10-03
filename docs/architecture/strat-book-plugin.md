@@ -677,9 +677,18 @@ through `AddBandMenu` and the press, drag and label handlers through the timelin
 into lane contributions with their own `ILaneBehaviour`. `CurrentFrame`, `Zones` and `AddMapClickHandler`
 (item 20): Click To Tag Position resolves the clicked point in the pack against the frame on screen and the
 map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer. `OnDemoChanged` was
-not needed: a tag the palette is still making is written through `TagSession.Flushing`, raised at the start of
-every flush (the swap inside `AttachAsync`, a deactivation's `Flush`, shutdown), so the tab calls nothing on
-the palette by name.
+not needed. The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus
+off) on two signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which
+the tab raises before it flushes its documents, and `TagSession.Detaching`, raised before a swap inside
+`AttachAsync` or a `Detach` lets go of the document, while the old document is still current. So the tab
+calls nothing on the palette by name, and neither focus nor a half-typed note survives a tab switch or a
+demo swap.
+
+One behaviour changed on purpose. Undo and redo while the palette has the keyboard report handled (true)
+even when the tag history is empty; before, the tab returned the real `TagSession.Undo()` result, which made
+an empty tag history leave the key unhandled. Returning true is what keeps an empty tag history from falling
+through to the annotations' undo now that the focused panel is asked first; the annotations' history stays
+the unfocused case's.
 
 The contribution (`Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs`)
 builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over the lane's session

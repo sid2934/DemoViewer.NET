@@ -86,6 +86,13 @@ public interface IPlaybackSurface
     event Action? KeymapChanged;
 
     /// <summary>
+    ///     The tab deactivated (another tab took the shell, or shutdown). Raised before the tab flushes its
+    ///     documents, so a contribution holding transient keyboard state gives it up and writes what it was
+    ///     making. Contributions stay attached across deactivation.
+    /// </summary>
+    event Action? Deactivated;
+
+    /// <summary>
     ///     Review mode, the tab's. The right column shows contributed panels only while it is on. Temporary:
     ///     item 18 makes the mode a pack-owned toggle the timeline exposes, and this leaves with it.
     /// </summary>
