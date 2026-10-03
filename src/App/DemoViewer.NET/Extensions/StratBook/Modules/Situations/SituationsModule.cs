@@ -83,7 +83,7 @@ public sealed class SituationsModule : IWorkspaceModule
             TabId = "situations.search",
             Header = "Situations",
             Order = 1, // after Strats (0)
-            Placement = TabPlacement.StratBook,
+            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SituationsTabView()

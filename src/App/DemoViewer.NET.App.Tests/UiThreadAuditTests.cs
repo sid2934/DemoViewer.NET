@@ -78,7 +78,7 @@ public class UiThreadAuditTests
                     await GrenadeMerges(provider, vm);
 
                     List<string> ids = [.. vm.Tabs.Select(t => t.TabId)];
-                    ids.AddRange(vm.StratBookHub.Sections.Sections.Select(s => s.TabId));
+                    ids.AddRange(vm.StratBookHub().Sections.Sections.Select(s => s.TabId));
                     ids.AddRange(vm.LibraryTab.Sections.Sections.Select(s => s.TabId));
                     string[] skip = ["builtin.parser", "builtin.entity", "builtin.analysis", "builtin.diagnostics", "ruleworkbench.editor"];
                     foreach (string id in ids.Distinct().Where(i => !skip.Contains(i)))
@@ -97,7 +97,7 @@ public class UiThreadAuditTests
                             Report($"{id} open#{pass}{(selected ? "" : " (absent)")}", 0, open, stall);
                         }
 
-                        if (ids.Contains(id) && vm.StratBookHub.Sections.Sections.Concat(vm.LibraryTab.Sections.Sections).Concat(vm.Tabs)
+                        if (ids.Contains(id) && vm.StratBookHub().Sections.Sections.Concat(vm.LibraryTab.Sections.Sections).Concat(vm.Tabs)
                                 .FirstOrDefault(t => t.TabId == id)?.TabViewModel is { } tabVm)
                         {
                             await Interact(id, tabVm);
@@ -385,7 +385,7 @@ public class UiThreadAuditTests
         Console.WriteLine($"[ui-audit] grenade index ready after {wait.ElapsedMilliseconds}ms more; demos={grenades.DemoCount}");
         vm.TrySelectTab("utilitybook.browser");
         Settle();
-        ViewModels.UtilityBook.UtilityBookTabViewModel? utility = vm.StratBookHub.Sections.Sections
+        ViewModels.UtilityBook.UtilityBookTabViewModel? utility = vm.StratBookHub().Sections.Sections
             .First(s => s.TabId == "utilitybook.browser").TabViewModel as ViewModels.UtilityBook.UtilityBookTabViewModel;
         for (int i = 0; i < 50 && utility?.Maps.Count == 0; i++)
         {
@@ -500,7 +500,7 @@ public class UiThreadAuditTests
 
                         vm.TrySelectTab("dossier.browser");
                         Settle();
-                        ViewModels.Dossier.DossierTabViewModel dossier = (ViewModels.Dossier.DossierTabViewModel)vm.StratBookHub.Sections.Sections
+                        ViewModels.Dossier.DossierTabViewModel dossier = (ViewModels.Dossier.DossierTabViewModel)vm.StratBookHub().Sections.Sections
                             .First(s => s.TabId == "dossier.browser").TabViewModel!;
                         ViewModels.Dossier.DossierTeamRow team = dossier.Teams[0];
                         dossier.SelectedTeam = dossier.Teams.First(t => t != team);
@@ -512,7 +512,7 @@ public class UiThreadAuditTests
 
                         vm.TrySelectTab("utilitybook.browser");
                         Settle();
-                        ViewModels.UtilityBook.UtilityBookTabViewModel utility = (ViewModels.UtilityBook.UtilityBookTabViewModel)vm.StratBookHub.Sections.Sections
+                        ViewModels.UtilityBook.UtilityBookTabViewModel utility = (ViewModels.UtilityBook.UtilityBookTabViewModel)vm.StratBookHub().Sections.Sections
                             .First(s => s.TabId == "utilitybook.browser").TabViewModel!;
                         await Until(() => utility.Maps.Count > 1, 10_000);
                         int applied = 0;
@@ -538,7 +538,7 @@ public class UiThreadAuditTests
 
                         vm.TrySelectTab("situations.search");
                         Settle();
-                        ViewModels.Situations.SituationsTabViewModel situations = (ViewModels.Situations.SituationsTabViewModel)vm.StratBookHub.Sections.Sections
+                        ViewModels.Situations.SituationsTabViewModel situations = (ViewModels.Situations.SituationsTabViewModel)vm.StratBookHub().Sections.Sections
                             .First(s => s.TabId == "situations.search").TabViewModel!;
                         situations.Canvas.Map = situations.Canvas.Maps.Contains("de_ancient") ? "de_ancient" : situations.Canvas.Maps[0];
                         Settle();

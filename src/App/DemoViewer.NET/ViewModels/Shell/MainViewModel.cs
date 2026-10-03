@@ -23,6 +23,7 @@ using CS2DemoKit.Parser.GameEvents;
 using CS2DemoKit.Parser.Models;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -30,8 +31,6 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
@@ -112,11 +111,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // never re-running CreateTabs, which would tear down that state).
     private readonly List<WorkspaceTabDescriptor> _allTabDescriptors = [];
 
-    // Hosted sections, cached unfiltered like _allTabDescriptors: the Strat Book rail's and the Library's.
-    // They never enter Tabs; their host reconciles them by the same gate on the same events.
-    private readonly List<WorkspaceTabDescriptor> _stratBookSections = [];
-    private readonly List<WorkspaceTabDescriptor> _librarySections = [];
-    private WorkspaceTabDescriptor? _stratBookHubTab;
+    // The tabs that host sections, keyed by host id: the Library (built in, always on the strip) and every
+    // host tab a pack contributed. Each entry caches its sections unfiltered, like _allTabDescriptors; they
+    // never enter Tabs, their host reconciles them by the same gate on the same events.
+    private readonly List<SectionHostEntry> _hosts = [];
+    private readonly IReadOnlyList<HostTabContribution> _hostTabs;
+
+    // One host tab and what it carries. The host VM exists from BuildWorkspaceTabs: the shell reconciles
+    // sections and restores the session through it before the tab is ever selected.
+    private sealed class SectionHostEntry(
+        string hostId, WorkspaceTabDescriptor tab, TabSectionHost sections, IHostTabViewModel? viewModel, bool contributed)
+    {
+        public string HostId { get; } = hostId;
+        public WorkspaceTabDescriptor Tab { get; } = tab;
+        public TabSectionHost Sections { get; } = sections;
+        public IHostTabViewModel? ViewModel { get; } = viewModel;
+
+        // A contributed host shows only while a hosted section does and falls back to Library when it goes;
+        // the Library is a strip tab with a body of its own and never hides for want of sections.
+        public bool Contributed { get; } = contributed;
+        public List<WorkspaceTabDescriptor> AllSections { get; } = [];
+    }
 
     // The unified demo cache, the source for a cached Match Overview render. Null on WASM and in tests
     // that do not exercise the preview path.
@@ -511,9 +526,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Demo Provenance Labels, for the Library card's label chip. Null (designer, most tests) → no
     ///     chip.
     /// </param>
-    /// <param name="stratBookLayout">
-    ///     The Strat Book's collapsed panes, shared with the Strats section and kept in the session file.
-    ///     Null (most tests) builds one the hub alone reads.
+    /// <param name="hostTabs">
+    ///     The host tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
+    ///     the Library, so a section naming another host is dropped with a module log line.
     /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
@@ -527,9 +542,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DemoCacheStore? demoCache = null,
         TeamIdentityService? teams = null,
         IDemoProvenanceSource? provenance = null,
-        StratBookLayout? stratBookLayout = null)
+        IReadOnlyList<HostTabContribution>? hostTabs = null)
     {
-        StratBookHub = new StratBookHubViewModel(stratBookLayout);
+        _hostTabs = hostTabs ?? [];
         _demoCache = demoCache;
         _windowService = windowService;
         _settingsService = settingsService;
@@ -1052,7 +1067,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     it holds stay as lazy as any module tab. Its strip descriptor exists only when a module
     ///     contributed a section.
     /// </summary>
-    public StratBookHubViewModel StratBookHub { get; }
+    /// <summary>The view model of the host tab with this host id, or null when no pack contributed one.</summary>
+    /// <param name="hostId">The id sections name, e.g. <c>"stratbook.hub"</c>.</param>
+    internal IHostTabViewModel? HostViewModel(string hostId) =>
+        _hosts.FirstOrDefault(h => h.HostId == hostId)?.ViewModel;
 
     /// <summary>
     ///     The workspace tab strip. ItemsSource-driven; the four built-in tabs are registered
@@ -2408,26 +2426,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
-        // Sections leave the strip here: the Strat Book rail hosts its own, the Library hosts Teams. The
-        // hub tab exists only when a module contributed a section for it.
-        _stratBookSections.Clear();
-        _stratBookSections.AddRange(descriptors.Where(d => d.Placement == TabPlacement.StratBook));
-        _librarySections.Clear();
-        _librarySections.AddRange(descriptors.Where(d => d.Placement == TabPlacement.Library));
-        descriptors.RemoveAll(d => d.Placement is TabPlacement.StratBook or TabPlacement.Library);
-        _stratBookHubTab = null;
-        if (_stratBookSections.Count > 0)
+        // The hosts: the Library (its own descriptor is a built-in above) and one strip tab per contributed
+        // host, its VM built now so the sections and the session have somewhere to land before activation.
+        _hosts.Clear();
+        _hosts.Add(new SectionHostEntry(LibraryTabViewModel.HostId, descriptors.First(d => d.TabId == LibraryTabViewModel.HostId),
+            LibraryTab.Sections, null, contributed: false));
+        foreach (HostTabContribution host in _hostTabs)
         {
-            _stratBookHubTab = new WorkspaceTabDescriptor
+            IHostTabViewModel viewModel = host.ViewModelFactory();
+            viewModel.RailLabel = host.RailLabel;
+            WorkspaceTabDescriptor tab = new()
             {
-                TabId = StratBookHubViewModel.TabId,
-                Header = "Strat Book",
-                Order = 4, // after 2D Playback (4, registered earlier), before Authoring (5)
-                Placement = TabPlacement.Main,
-                ViewModelFactory = () => StratBookHub,
-                ViewFactory = () => new StratBookHubView()
+                TabId = host.TabId,
+                Header = host.Header,
+                Order = host.Order,
+                FeatureId = host.FeatureId,
+                ViewModelFactory = () => viewModel,
+                ViewFactory = host.ViewFactory
             };
-            descriptors.Add(_stratBookHubTab);
+            descriptors.Add(tab);
+            _hosts.Add(new SectionHostEntry(host.HostId, tab, viewModel.Sections, viewModel, contributed: true));
+        }
+
+        // Sections leave the strip here, each to the host it names.
+        foreach (WorkspaceTabDescriptor section in descriptors.Where(d => d.HostId is not null).ToList())
+        {
+            descriptors.Remove(section);
+            if (_hosts.FirstOrDefault(h => h.HostId == section.HostId) is { } host)
+            {
+                host.AllSections.Add(section);
+            }
+            else
+            {
+                RouteModuleLog(ModuleLogLevel.Error,
+                    $"Section '{section.TabId}' names host '{section.HostId}', which nothing contributes; dropped.");
+            }
         }
 
         // Cache the FULL descriptor set (every module, unfiltered) so the live reconcile can re-add a
@@ -2464,17 +2497,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // True when the tab should be shown. Fail-open in two ways: a null gate (no filtering at all) and a
     // descriptor with no FeatureId and no entry in the built-in fallback map (an ungated tab is always
-    // shown). The Strat Book hub has no feature of its own: it shows while any of its sections does.
+    // shown). A contributed host tab is the exception to the null-gate rule: with or without a gate it
+    // shows only while its own id resolves on AND some section it hosts does, so a host nothing targets
+    // (or whose every section is off) has no tab.
     private bool IsTabEnabled(WorkspaceTabDescriptor descriptor)
     {
+        if (HostFor(descriptor) is { Contributed: true } host)
+        {
+            return (host.Tab.FeatureId is null || _gate is null || _gate.IsEnabled(host.Tab.FeatureId))
+                   && host.AllSections.Any(IsTabEnabled);
+        }
+
         if (_gate is null)
         {
             return true;
-        }
-
-        if (ReferenceEquals(descriptor, _stratBookHubTab))
-        {
-            return _stratBookSections.Any(IsTabEnabled);
         }
 
         string? featureId = descriptor.FeatureId;
@@ -2577,11 +2613,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (ReferenceEquals(SelectedTab, removed))
             {
                 // Neighbor-select BEFORE the remove so the selection is already on a surviving tab when
-                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard. The hub is
-                // special-cased: its order-neighbor can be any tab to its left, but a disabled pack must
-                // land on Library specifically, not whatever happens to sort just before it.
-                SelectedTab = ReferenceEquals(removed, _stratBookHubTab)
-                    ? Tabs.FirstOrDefault(t => t.TabId == "builtin.library") ?? ChooseNeighbor(removed, desired)
+                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard. A contributed
+                // host is special-cased: its order-neighbor can be any tab to its left, but a disabled pack
+                // must land on Library specifically, not whatever happens to sort just before it.
+                SelectedTab = HostFor(removed) is { Contributed: true }
+                    ? Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId) ?? ChooseNeighbor(removed, desired)
                     : ChooseNeighbor(removed, desired);
             }
 
@@ -2614,9 +2650,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // a section's cached VM survives a gate flip the way a strip tab's does.
     private void ReconcileSections()
     {
-        StratBookHub.Sections.Reconcile(_stratBookSections.Where(IsTabEnabled).OrderBy(d => d.Order).ToList());
-        LibraryTab.Sections.Reconcile(_librarySections.Where(IsTabEnabled).OrderBy(d => d.Order).ToList());
+        foreach (SectionHostEntry host in _hosts)
+        {
+            host.Sections.Reconcile(host.AllSections.Where(IsTabEnabled).OrderBy(d => d.Order).ToList());
+        }
     }
+
+    // The host entry whose strip tab this descriptor is, or null for an ordinary tab.
+    private SectionHostEntry? HostFor(WorkspaceTabDescriptor descriptor) =>
+        _hosts.FirstOrDefault(h => ReferenceEquals(h.Tab, descriptor));
 
     // The id a session or idle snapshot records for "where the user was": the selected section's own id when
     // a host tab is selected with a section live on it, else the strip tab's. TrySelectTab resolves a section id
@@ -2625,15 +2667,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string? PersistedActiveTabId =>
         SelectedTab switch
         {
-            { } hub when ReferenceEquals(hub, _stratBookHubTab) && StratBookHub.Sections.SelectedSection is { } section => section.TabId,
-            { TabId: "builtin.library" } when LibraryTab.Sections.SelectedSection is { } teams => teams.TabId,
+            { } tab when HostFor(tab)?.Sections.SelectedSection is { } section => section.TabId,
             { } tab => tab.TabId,
             null => null
         };
 
     // Every descriptor with a VM the session file may hold state for: the strip tabs and the hosted sections.
     private IEnumerable<WorkspaceTabDescriptor> TabsAndSections() =>
-        Tabs.Concat(StratBookHub.Sections.Sections).Concat(LibraryTab.Sections.Sections);
+        Tabs.Concat(_hosts.SelectMany(h => h.Sections.Sections));
 
     // The tab selection lands on when the SELECTED tab is removed: the nearest still-enabled tab with a
     // LOWER sort position, else the first (Library) tab. `desired` is already sorted, so the last entry
@@ -3653,16 +3694,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return true;
         }
 
-        if (StratBookHub.Sections.TrySelect(tabId) && _stratBookHubTab is { } hub && Tabs.Contains(hub))
+        // The host must be on the strip before its sections are asked: a section of a hidden host is "not
+        // here", and asking first would move the host's selection as a side effect of a false answer.
+        foreach (SectionHostEntry host in _hosts)
         {
-            SelectedTab = hub;
-            return true;
-        }
-
-        if (LibraryTab.Sections.TrySelect(tabId) && Tabs.FirstOrDefault(t => t.TabId == "builtin.library") is { } library)
-        {
-            SelectedTab = library;
-            return true;
+            if (Tabs.Contains(host.Tab) && host.Sections.TrySelect(tabId))
+            {
+                SelectedTab = host.Tab;
+                return true;
+            }
         }
 
         return false;
@@ -4479,7 +4519,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        StratBookHub.Layout.Restore(p.StratBook);
+        foreach (SectionHostEntry host in _hosts)
+        {
+            host.ViewModel?.RestoreLayout(p.StratBook);
+        }
+
         RestoreActiveTab(p);
         // Never restore an owned panel OPEN when its chrome is gated off for the current
         // category: otherwise a drawer/rail a developer left open would return open at startup with its
@@ -4510,7 +4554,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // section/hub id from a session where the pack was on and is now off.
         if (!TrySelectTab(p.ActiveTabId))
         {
-            SelectedTab = Tabs.FirstOrDefault(t => t.TabId == "builtin.library") ?? Tabs[0];
+            SelectedTab = Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId) ?? Tabs[0];
         }
     }
 
@@ -4583,7 +4627,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PersistedActiveTabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
         WindowBounds,
-        StratBookHub.Layout.Snapshot());
+        // The one pane-layout slot the file has; the host that owns it answers, the rest answer null.
+        _hosts.Select(h => h.ViewModel?.SnapshotLayout()).FirstOrDefault(s => s is not null));
 
     /// <summary>
     ///     Collects session state from MODULE-contributed tabs. The framework has always declared
