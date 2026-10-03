@@ -3,9 +3,14 @@
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Avalonia.Media;
+using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
@@ -393,6 +398,35 @@ public class CreateStratFromRoundTests
 
         await Assert.That(asked.Count).IsEqualTo(1);
         await Assert.That(asked[0]).IsSameReferenceAs(round);
+    }
+
+    // The pack-off shape from the 2D tab's own side (item 15): nothing registers IStratCapture, so
+    // GetService returns null and CanCreateStrat is false, without the tab ever naming StratCaptureHost
+    // for this check.
+    [Test]
+    public async Task CanCreateStrat_IsFalse_WhenNothingRegistersTheCaptureService()
+    {
+        Playback2DTabViewModel vm = new();
+        Playback2DFakeContext context = new();
+
+        vm.OnActivated(context);
+
+        await Assert.That(vm.CanCreateStrat).IsFalse();
+    }
+
+    [Test]
+    public async Task CanCreateStrat_IsTrue_WhenACaptureWithADemoIsRegistered()
+    {
+        Playback2DTabViewModel vm = new();
+        Playback2DFakeContext context = new();
+        // CanCreateStrat only checks the reference is non-null; it never reads the demo, so an
+        // uninitialized instance (no constructor run) stands in for a real parse.
+        ParsedDemo placeholder = (ParsedDemo)RuntimeHelpers.GetUninitializedObject(typeof(ParsedDemo));
+        context.SetService<IStratCapture>(new StratCaptureHost(() => placeholder, new StratStore(null), null));
+
+        vm.OnActivated(context);
+
+        await Assert.That(vm.CanCreateStrat).IsTrue();
     }
 
     private static TimelineBandViewModel Band(string track, string label) =>

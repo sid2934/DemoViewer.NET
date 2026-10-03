@@ -6,8 +6,8 @@ using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.ViewModels.Playback;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -49,6 +49,11 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     private readonly PlaybackSnapshot _snapshot;
     private readonly Dictionary<string, IReadOnlyList<GameEventView>> _timelineCache = new();
 
+    // Explicit registration wins over the DI container. Checked fresh on every call, never cached,
+    // so a live pack toggle is always reflected.
+    private readonly Dictionary<Type, Func<object?>> _serviceLookups = new();
+    private IServiceProvider? _services;
+
     // The demo's pre-decoded flat event list (set once at load, mirroring SetRoster) + a per-name cache of
     // the projected GameEventView timeline. A module pre-builds its own windowed view from a timeline; the
     // host materializes a given name's views ONCE on first request (so high-volume names it never asks for,
@@ -89,6 +94,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
         // Re-raise the controller's coalesced PlaybackFrame as the module-facing IPlaybackSnapshot,
         // ONLY while a module is subscribed (active tab). Two deliberate layers.
         _controller.Advanced += OnControllerAdvanced;
+
+        // ExportHost is set later, by SetExportHost; the closure reads it live rather than snapshotting
+        // the (currently null) property.
+        RegisterService<Playback2DExportHost>(() => ExportHost);
     }
 
     private static EntitySet EmptyEntitySet { get; } = new();
@@ -103,20 +112,6 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     ///     </para>
     /// </summary>
     public Playback2DExportHost? ExportHost { get; private set; }
-
-    /// <summary>
-    ///     The Strat Book's export host, or null when this build has none (browser, tests, designer). Not on
-    ///     <see cref="IModuleContext" /> for <see cref="ExportHost" />'s reason: the gate and the chip mount are
-    ///     first-party capabilities the shell hands one tab.
-    /// </summary>
-    public StratExportHost? StratExportHost { get; private set; }
-
-    /// <summary>
-    ///     Create Strat From Round's host, or null when this build has none (tests, designer). Not on
-    ///     <see cref="IModuleContext" /> for <see cref="ExportHost" />'s reason: the parse and the strat store are
-    ///     first-party capabilities the shell hands one tab.
-    /// </summary>
-    public StratCaptureHost? StratCaptureHost { get; private set; }
 
     /// <inheritdoc />
     public ParsedDemo? CurrentDemo { get; private set; }
@@ -295,13 +290,39 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <param name="host">The host, or null for a build with no export.</param>
     public void SetExportHost(Playback2DExportHost? host) => ExportHost = host;
 
-    /// <summary>Wires the Strat Book's export host once at composition, beside <see cref="SetExportHost" />.</summary>
-    /// <param name="host">The host, or null for a build with no export.</param>
-    public void SetStratExportHost(StratExportHost? host) => StratExportHost = host;
+    /// <summary>
+    ///     Wires the app's DI container as <see cref="GetService{T}" />'s fallback for anything not
+    ///     explicitly registered through <see cref="RegisterService{T}" />: a pack's capture or export
+    ///     host, resolved by type. Null (tests, designer) leaves every unregistered lookup at null.
+    /// </summary>
+    public void SetServices(IServiceProvider? services) => _services = services;
 
-    /// <summary>Wires Create Strat From Round's host once at composition, beside <see cref="SetExportHost" />.</summary>
-    /// <param name="host">The host, or null for a build with no capture.</param>
-    public void SetStratCaptureHost(StratCaptureHost? host) => StratCaptureHost = host;
+    /// <summary>
+    ///     Registers a lazy, typed lookup for a first-party host this context does not otherwise expose
+    ///     (mirrors <see cref="SetExportHost" />'s reason, generalized): resolved fresh on every
+    ///     <see cref="GetService{T}" /> call, so a host wired or swapped after this call is still the
+    ///     current one. Last registration for a type wins.
+    /// </summary>
+    public void RegisterService<T>(Func<T?> resolve) where T : class => _serviceLookups[typeof(T)] = () => resolve();
+
+    /// <inheritdoc />
+    public T? GetService<T>() where T : class
+    {
+        if (_serviceLookups.TryGetValue(typeof(T), out Func<object?>? resolve))
+        {
+            return (T?)resolve();
+        }
+
+        try
+        {
+            return _services?.GetService<T>();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A host torn down before this context (a headless test, shutdown) has nothing to resolve.
+            return null;
+        }
+    }
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The
