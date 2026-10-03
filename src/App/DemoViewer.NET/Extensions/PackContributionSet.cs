@@ -42,7 +42,7 @@ internal sealed class PackContributionSet
     /// <summary>Every pack's status-chip slots, in pack order then contribution order. The shell fills its chip strip from this.</summary>
     public IReadOnlyList<StatusChipContribution> StatusChips => [.. Packs.SelectMany(p => p.StatusChips)];
 
-    /// <summary>Every pack's re-index estimate, in pack order. Settings sums these for the toggle notice.</summary>
+    /// <summary>Every pack's re-index estimate, in pack order. Settings watches only the first for the toggle notice.</summary>
     public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];
 
     /// <summary>
