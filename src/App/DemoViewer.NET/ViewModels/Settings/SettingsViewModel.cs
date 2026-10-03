@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
@@ -80,6 +81,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // Every feature row, in one flat list, for the gate-driven refresh sweep (the bound collections below are
     // the same rows split by scope for grouped display).
     private readonly List<FeatureToggleRow> _featureRows = [];
+
+    // Every declared pack's verdict (item 33), read once at construction: the list is frozen for the process.
+    private readonly IReadOnlyList<PackStatus> _packStatuses;
 
     // The live show/hide authority. Its GET is the source of truth for every FeatureToggleRow.IsEnabled; its
     // Changed event is the cue to refresh the rows. A SINGLETON shared with the shell (composition root), so a
@@ -414,9 +418,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null)
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<PackStatus>? packStatuses = null)
         : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
-            reindexEstimates, dataRemovals)
+            reindexEstimates, dataRemovals, packStatuses)
     {
     }
 
@@ -445,12 +450,18 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     Each pack's "delete extension data" action (item 24), one <see cref="ExtensionDataActionViewModel" />
     ///     row per entry under Extensions, available whether its pack is on or off. Null (most tests) shows no row.
     /// </param>
+    /// <param name="packStatuses">
+    ///     Every declared pack's compatibility verdict (item 33): the version each master row shows, and a
+    ///     locked row with the reason for a pack that failed the check (such a pack has no catalog row).
+    ///     Null reads <see cref="FeaturePacks.Statuses" />.
+    /// </param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Func<bool> isBrowser, Action? replayWalkthrough = null,
         IReadOnlyList<SettingsPageContribution>? settingsPages = null,
         IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null,
-        IReadOnlyList<IPackDataRemoval>? dataRemovals = null)
+        IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<PackStatus>? packStatuses = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -462,6 +473,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _isBrowser = isBrowser;
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
+        _packStatuses = packStatuses ?? FeaturePacks.Statuses;
         _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
         foreach (IPackDataRemoval removal in dataRemovals ?? [])
         {
@@ -1788,7 +1800,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // The Extensions section's rows (ExtensionsFeatureRows doc comment has the shape): every pack's master
     // row, its own tabs with their children nested beneath, then any sub-feature it docks in a CORE tab
     // (no tab of its own under the pack), flat. Driven entirely from FeatureCatalog.All by Scope/OwnerPackId,
-    // so a second pack needs no change here.
+    // so a second pack needs no change here. A pack that failed the compatibility check has no catalog row
+    // (it composed nothing), so its master row is synthesized from its status after the catalog ones:
+    // locked off, with the reason, so the user sees why the extension is missing rather than nothing.
     private void BuildExtensionsFeatureRows()
     {
         foreach (FeatureDescriptor pack in FeatureCatalog.All)
@@ -1798,7 +1812,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 continue;
             }
 
-            AddFeatureRow(ExtensionsFeatureRows, pack, 0);
+            PackStatus? status = _packStatuses.FirstOrDefault(s => s.Pack.FeatureId == pack.Id);
+            AddFeatureRow(ExtensionsFeatureRows, pack, 0, status?.Manifest?.Version.ToString());
 
             HashSet<string> ownTabIds = new(StringComparer.Ordinal);
             foreach (FeatureDescriptor tab in FeatureCatalog.All)
@@ -1824,6 +1839,21 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                     AddFeatureRow(ExtensionsFeatureRows, sub, 1);
                 }
             }
+        }
+
+        foreach (PackStatus status in _packStatuses)
+        {
+            if (status.IsCompatible)
+            {
+                continue;
+            }
+
+            string label = status.Manifest?.Name ?? status.Pack.Id;
+            FeatureDescriptor placeholder = new(
+                status.Pack.FeatureId, FeatureScope.Pack, label,
+                "This extension cannot load on this version of the app.",
+                null, null, false, new Dictionary<UserCategory, bool>());
+            AddFeatureRow(ExtensionsFeatureRows, placeholder, 0, status.Manifest?.Version.ToString(), status.Problem);
         }
     }
 
@@ -1853,7 +1883,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     private void AddFeatureRow(
-        ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel)
+        ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel,
+        string? version = null, string? incompatibility = null)
     {
         // The PLATFORM half of the answer, which the raw IFeatureGate does not know. See
         // FeatureToggleRow.IsPlatformUnavailable for why this matters on the browser head.
@@ -1865,7 +1896,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         bool platformUnavailable =
             _isBrowser() && ShellModuleFeatureGate.DesktopOnlyIds.Contains(descriptor.Id);
 
-        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable);
+        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable, version, incompatibility);
         group.Add(row);
         _featureRows.Add(row);
     }

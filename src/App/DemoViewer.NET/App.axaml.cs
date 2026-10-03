@@ -701,7 +701,10 @@ public class App : Application
             // watches only the first entry.
             sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
             // Each pack's "delete extension data" action (item 24), one row per entry.
-            sp.GetRequiredService<PackContributionSet>().DataRemovals));
+            sp.GetRequiredService<PackContributionSet>().DataRemovals,
+            // Every declared pack's compatibility verdict (item 33): versions, and the locked row with
+            // the reason for a pack that did not compose.
+            FeaturePacks.Statuses));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
