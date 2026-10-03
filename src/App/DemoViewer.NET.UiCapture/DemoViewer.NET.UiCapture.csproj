@@ -21,6 +21,8 @@
     <ItemGroup>
         <!-- The real app, so its styles / DarkPalette tokens / DataTemplates load into every capture. -->
         <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
+        <!-- The Strat Book variants render the extension's views. -->
+        <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
     </ItemGroup>
 
 </Project>
