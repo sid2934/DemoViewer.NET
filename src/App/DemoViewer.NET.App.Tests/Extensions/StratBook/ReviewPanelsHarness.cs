@@ -19,12 +19,15 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 internal static class ReviewPanelsHarness
 {
     /// <summary>A tab with the review panels attached and activated. A null gate reads the pack as on.</summary>
+    /// <param name="gate">The pack gate, or null for on.</param>
+    /// <param name="totalFrames">The fake demo's length.</param>
+    /// <param name="configure">Runs on the context before activation: the services the contribution resolves, the demo path.</param>
     public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx, ReviewPanelsPlaybackContribution Review) Tab(
-        IFeatureGate? gate = null, int totalFrames = 1000)
+        IFeatureGate? gate = null, int totalFrames = 1000, Action<Playback2DFakeContext>? configure = null)
     {
         ReviewPanelsPlaybackContribution review = new();
         PlaybackContributionHost host = new([(new StratBookPack(), [review])], gate);
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(totalFrames, host);
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(totalFrames, host, configure);
         return (vm, ctx, review);
     }
 

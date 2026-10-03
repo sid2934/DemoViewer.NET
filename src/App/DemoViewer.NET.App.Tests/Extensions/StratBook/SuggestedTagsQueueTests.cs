@@ -393,7 +393,7 @@ public class SuggestedTagsQueueTests
     {
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) =
             AppTests.Extensions.StratBook.ReviewPanelsHarness.Tab();
-        vm.IsReviewMode = true;
+        review.ReviewMode!.IsOn = true;
 
         using (Assert.Multiple())
         {

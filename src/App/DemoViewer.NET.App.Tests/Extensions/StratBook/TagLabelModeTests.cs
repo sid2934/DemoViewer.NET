@@ -281,7 +281,7 @@ public class TagLabelModeTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
-            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
+            review.ReviewMode!.IsOn = true; // tagging and its lanes live in Review mode
             vm.Timeline.PixelWidth = 1000;
             TagSession tags = review.Session!;
             await tags.AttachAsync(Demo, Clock, DemoPath);
