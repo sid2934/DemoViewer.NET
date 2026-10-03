@@ -1,7 +1,9 @@
 #region
 
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Tags;
@@ -35,6 +37,14 @@ internal sealed class StratBookPackInstances
     public TagFactsRefresher? TagFacts { get; set; }
     public WatchedSituationsService? Watched { get; set; }
     public StratMiningService? Mining { get; set; }
+
+    // The four evaluator-registry contributions (item 11), set inline by their own factories, not
+    // through Record: they are plain fan-out evaluators, not IPackResident, so Clear/Restore leave
+    // them alone. Once set they stay set for the session: "was ever constructed", not "is live now".
+    public RoundFactsEvaluator? RoundFacts { get; set; }
+    public RoundIndexEvaluator? RoundIndex { get; set; }
+    public SuggestedTagsService? SuggestedTags { get; set; }
+    public GrenadeIndexEvaluator? GrenadeWalk { get; set; }
 
     /// <summary>Every resident built this session, in build order; survives a release.</summary>
     public IReadOnlyList<IPackResident> Residents

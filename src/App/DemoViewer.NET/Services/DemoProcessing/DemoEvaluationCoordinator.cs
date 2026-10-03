@@ -29,7 +29,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         (the queue moves its owners onto the entry that replaces it).
 ///     </para>
 ///     <para>
-///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider" /> may be
+///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider(string)" /> may be
 ///         called from the rescan thread and from the (posted) capacity handler.
 ///     </para>
 /// </summary>
@@ -39,6 +39,14 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     private readonly HashSet<(string Eval, string Path)> _backlog = [];
     private readonly Func<IEnumerable<string>> _candidatePaths;
     private readonly IReadOnlyList<IDemoEvaluator> _evaluators;
+
+    // Set only by the live-registry constructor. Re-read on every poll so an evaluator whose pack just
+    // came on is included on the next Consider/ConsiderAll, with no separate refresh step.
+    private readonly Func<IReadOnlyList<IDemoEvaluator>>? _liveEvaluators;
+
+    // Set only by the live-registry constructor: the registry's own Validate, so BuildServices can fail
+    // fast on a cycle or an unknown After id without materializing any evaluator.
+    private readonly Action? _validateEvaluators;
 
     private readonly object _lock = new();
 
@@ -69,6 +77,41 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         _queue.CapacityAvailable += OnCapacityAvailable;
     }
 
+    /// <param name="evaluators">
+    ///     Read fresh on every poll (an <see cref="EvaluatorRegistry" />'s <c>Resolve</c>, typically), not
+    ///     snapshotted once: a pack evaluator is never constructed until the pack is enabled AND something
+    ///     actually polls, and an enable mid-session is picked up on the very next poll.
+    /// </param>
+    /// <param name="queue">The shared processing queue that owns the workers + gate + coalescing.</param>
+    /// <param name="candidatePaths">
+    ///     Yields the current universe of demo paths to (re-)poll: typically the
+    ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
+    /// </param>
+    /// <param name="parseReleased">Called after <see cref="FanOutParsed" /> has handed a parse to every evaluator.</param>
+    /// <param name="validateEvaluators">
+    ///     The registry's own <c>Validate</c>: populates and sorts without constructing anything, so
+    ///     <see cref="ValidateEvaluators" /> can fail fast on a cycle or an unknown After id at startup.
+    /// </param>
+    public DemoEvaluationCoordinator(
+        Func<IReadOnlyList<IDemoEvaluator>> evaluators,
+        IDemoProcessingQueue queue,
+        Func<IEnumerable<string>> candidatePaths,
+        Action<ParsedDemo>? parseReleased = null,
+        Action? validateEvaluators = null)
+        : this([], queue, candidatePaths, parseReleased)
+    {
+        _liveEvaluators = evaluators;
+        _validateEvaluators = validateEvaluators;
+    }
+
+    private IReadOnlyList<IDemoEvaluator> CurrentEvaluators => _liveEvaluators?.Invoke() ?? _evaluators;
+
+    /// <summary>
+    ///     Validates the live registry's After graph without constructing any evaluator: a cycle or an
+    ///     unknown After id throws here. No-op for a coordinator built from a plain snapshot.
+    /// </summary>
+    public void ValidateEvaluators() => _validateEvaluators?.Invoke();
+
     /// <summary>Detaches the capacity handler.</summary>
     public void Dispose()
     {
@@ -86,13 +129,18 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     build on (an evaluator may read what the one before it wrote in the same pass), so the
     ///     composition root's list is pinned by a test through this.
     /// </summary>
-    public IReadOnlyList<string> EvaluatorIds => [.. _evaluators.Select(e => e.Id)];
+    public IReadOnlyList<string> EvaluatorIds => [.. CurrentEvaluators.Select(e => e.Id)];
 
     /// <summary>Polls every evaluator for one path and submits for each interested, not-outstanding one.</summary>
-    public void Consider(string path)
+    public void Consider(string path) => Consider(path, CurrentEvaluators);
+
+    // ConsiderAll resolves the live list ONCE for the whole batch and passes it here, instead of every
+    // Consider(path) re-resolving it: the registry's factory calls are cheap (DI caches the singleton)
+    // but the gate checks and the sort lookup are not free to repeat per path.
+    private void Consider(string path, IReadOnlyList<IDemoEvaluator> evaluators)
     {
         List<IDemoEvaluator> wanting = [];
-        foreach (IDemoEvaluator evaluator in _evaluators)
+        foreach (IDemoEvaluator evaluator in evaluators)
         {
             bool wants;
             try
@@ -156,9 +204,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// <summary>Re-polls the whole candidate universe (rescan + capacity re-feed). Idempotent.</summary>
     public void ConsiderAll()
     {
+        IReadOnlyList<IDemoEvaluator> evaluators = CurrentEvaluators;
         foreach (string path in _candidatePaths())
         {
-            Consider(path);
+            Consider(path, evaluators);
         }
     }
 
@@ -183,7 +232,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// </param>
     public void FanOutParsed(string path, ParsedDemo parsed, IReadOnlySet<string>? skip = null)
     {
-        foreach (IDemoEvaluator evaluator in _evaluators)
+        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
         {
             if (skip is not null && skip.Contains(evaluator.Id))
             {
@@ -262,7 +311,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// </summary>
     public void FanOutForward(string path, ForwardDemoResult pass, IReadOnlySet<string>? skip = null)
     {
-        foreach (IDemoEvaluator evaluator in _evaluators)
+        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
         {
             if (skip is not null && skip.Contains(evaluator.Id))
             {
