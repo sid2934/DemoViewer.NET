@@ -74,70 +74,6 @@ public static class FeatureCatalog
             "Build and customise highlight reels — stage clips from any match and render them to video. "
             + "Explore a match's own highlights on Match Overview.",
             null, null, false, Defaults(true, true, true)),
-        // The Situations tab: Situation Search over the round index. Default-visible to every category
-        // like Reels, for the same reason: the flagship's payoff must not hide from the audience that
-        // wants it. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.situations", FeatureScope.Tab, "Situations",
-            "Find rounds by where the players stood — search the library's round index for a setup, "
-            + "an execute or a retake and walk the hits.",
-            null, null, false, Defaults(true, true, true)),
-        // The Teams tab: who played in which demo, which team is us, the opponent per demo. Default-visible
-        // like Situations: the Library's team filter and every "our / their" surface read what is decided
-        // here. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.teams", FeatureScope.Tab, "Teams",
-            "The teams found across your demos: name them, say which one is you, merge or split rosters, "
-            + "and confirm your own accounts so every demo knows which side is ours.",
-            null, null, false, Defaults(true, true, true)),
-        // The Review tab: the Review Queue every surface sends clips to, the Reels tray's included.
-        // Default-visible like Teams: the Reels tray stages into it whether or not it shows. Only the id
-        // is a persisted key; the label is display text.
-        new(
-            "tab.review", FeatureScope.Tab, "Review",
-            "One queue of clips from any demo: staged highlights, situation search results and picks at the "
-            + "playhead, in sections with a question per clip.",
-            null, null, false, Defaults(true, true, true)),
-        // The Strat Book's Suggested section: every demo's tag suggestions in one inbox. Default-visible like
-        // Review. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.suggested", FeatureScope.Tab, "Suggested",
-            "Every demo's tag suggestions in one list: accept them into the demo's tags, dismiss them, or open "
-            + "one in 2D Playback.",
-            null, null, false, Defaults(true, true, true)),
-        // The Round Tagger's Matrix tab: codes by labels across the library's tags. Default-visible like
-        // Situations and Teams. The module ships ahead of the tab, so until The Matrix lands this row
-        // gates nothing it can show. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.tagger", FeatureScope.Tab, "Round Tagger",
-            "Tag stretches of a round with your own codes and labels, then pivot them across every demo "
-            + "in the Matrix.",
-            null, null, false, Defaults(true, true, true)),
-        // The Strat Book tab: strats per book (a team or you) on the round clock, with slots, steps and
-        // branches. Default-visible like the Matrix, and on both hosts: the browser keeps strats for the
-        // session and says so. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.stratbook", FeatureScope.Tab, "Strat Book",
-            "Write your team's strats on the round clock: five slots, the steps each one takes, and the "
-            + "branches when the plan changes.",
-            null, null, false, Defaults(true, true, true)),
-        // The Utility Book tab: the Grenade Index, every indexed grenade clustered by where it landed.
-        // Default-visible like the Strat Book, and on both hosts: the browser indexes the open demo for the
-        // session and says so. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.utilitybook", FeatureScope.Tab, "Utility Book",
-            "Every grenade in your indexed demos, grouped by where it landed: pick a map, a grenade and a "
-            + "landing place to see every position it was thrown from.",
-            null, null, false, Defaults(true, true, true)),
-        // The Opponent Dossier tab: the Map Pool Record and, later, the rest of the Dossier sections,
-        // keyed by a Team Identity team. Default-visible like the Strat Book and the Utility Book, and
-        // on both hosts: the browser keeps teams for the session and the Teams tab already says so. Only
-        // the id is a persisted key; the label is display text.
-        new(
-            "tab.dossier", FeatureScope.Tab, "Dossier",
-            "A scouting page per team: maps played, win rate, side wins and the decider record where "
-            + "it is inferable, plus a veto history you enter by hand.",
-            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",
@@ -215,7 +151,8 @@ public static class FeatureCatalog
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
         // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
-        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export · tagger · suggestedtags): the ids
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export; the Strat Book pack
+        // appends tagger · suggestedtags): the ids
         // are persisted override keys and must never be renamed.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
@@ -241,32 +178,6 @@ public static class FeatureCatalog
             "playback2d.export", FeatureScope.SubFeature, "Video export",
             "Render the 2D playback to webm/mp4/gif. Desktop only.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
-        // The Round Tagger's palette docked in the 2D tab (tag-store.md §3.11). Works on both hosts: the
-        // browser keeps tags for the session and the palette says so.
-        new(
-            "playback2d.tagger", FeatureScope.SubFeature, "Tag palette",
-            "Tag the round you are watching with a hotkey palette; tags are saved per demo.",
-            "tab.playback2d", null, false, Defaults(true, true, true)),
-        // Suggested Tags (suggested-tags.md §3.6): the Suggested track, the proposal queue and the
-        // evaluator. On for both hosts; the browser keeps proposals and verdicts for the session.
-        new(
-            "playback2d.suggestedtags", FeatureScope.SubFeature, "Suggested tags",
-            "Offer tags found by detectors (execute, default, fake, opener, retake) to accept, edit or reject.",
-            "tab.playback2d", null, false, Defaults(true, true, true)),
-        // Strat Export (step-authoring.md §3.6): the open strat to GIF or video with no demo behind it. Desktop
-        // only for playback2d.export's reason, through the same ShellModuleFeatureGate.DesktopOnlyIds. Only
-        // the ID is a persisted key.
-        new(
-            "stratbook.export", FeatureScope.SubFeature, "Strat export",
-            "Render a strat to gif/webm/mp4 from the Strat Book canvas. Desktop only.",
-            "tab.stratbook", null, false, Defaults(true, true, true)),
-        // Token routing (docs/strat-book/token-pathing.md): strat tokens walk the map's nav round walls instead of in
-        // straight lines, on the canvas, the Detected preview and an export. On by default; off is the straight lines
-        // and timing strats had before. Both hosts: the graph is built from the map's zones.json.
-        new(
-            StratRoutingFeatureId, FeatureScope.SubFeature, "Token routing",
-            "Move strat tokens along the map's walkways instead of in straight lines through walls.",
-            "tab.stratbook", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------
         new(

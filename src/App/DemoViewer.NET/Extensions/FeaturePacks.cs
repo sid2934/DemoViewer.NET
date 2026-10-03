@@ -1,3 +1,9 @@
+#region
+
+using DemoViewer.NET.Extensions.StratBook;
+
+#endregion
+
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
@@ -7,5 +13,5 @@ namespace DemoViewer.NET.Extensions;
 public static class FeaturePacks
 {
     /// <summary>Every first-party pack.</summary>
-    public static IReadOnlyList<IFeaturePack> Default { get; } = [];
+    public static IReadOnlyList<IFeaturePack> Default { get; } = [new StratBookPack()];
 }
