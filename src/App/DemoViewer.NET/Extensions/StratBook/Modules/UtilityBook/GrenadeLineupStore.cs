@@ -75,6 +75,9 @@ public sealed class GrenadeLineupStore
         return new GrenadeLineupStore(cache.CacheRoot);
     }
 
+    /// <summary>Drops the in-memory document; the next use reads the file again. In memory this empties the store.</summary>
+    public void Unload() => _loaded = null;
+
     /// <summary>True when the file exists (always false in memory).</summary>
     public bool Exists => _file is not null && File.Exists(_file);
 
