@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DemoViewer.NET.Models;
 
@@ -57,8 +58,12 @@ public sealed record TabSessionState(
 ///     Main-window geometry (v0.6.0). Nullable trailing param like <paramref name="ActiveTabId" />, so
 ///     pre-0.6.0 files bind <c>null</c> and the window simply opens at the platform default once.
 /// </param>
-/// <param name="StratBook">
-///     The Strat Book's collapsed rail and strat list. Null in older files, which open both.
+/// <param name="Packs">
+///     Per-pack session state, keyed by pack id (e.g. <c>"net.demoviewer.pack.stratbook"</c>), opaque to
+///     the shell. A pack that has never been enabled this session is never asked for its state, so its
+///     entry here is carried through unread and unwritten. A pack that HAS been enabled (at startup or by
+///     a live toggle) is restored into once and its live value is trusted from then on, even after the
+///     pack goes off again, so a value set while it was on is never lost to a later disable.
 /// </param>
 public sealed record SessionPayload(
     TabSessionState? Parser,
@@ -69,12 +74,39 @@ public sealed record SessionPayload(
     string? ActiveTabId = null,
     Dictionary<string, JsonElement>? ModuleTabs = null,
     WindowBoundsState? Window = null,
-    StratBookLayoutState? StratBook = null);
+    Dictionary<string, JsonElement>? Packs = null) : IJsonOnDeserialized
+{
+    // Redeclares the positional property with a setter: OnDeserialized below needs to fold into it, which
+    // an init-only property (the compiler's default for a positional parameter) does not allow. Private:
+    // nothing outside this type writes Packs after construction.
+    public Dictionary<string, JsonElement>? Packs { get; private set; } = Packs;
 
-/// <summary>Which Strat Book panes were collapsed.</summary>
-/// <param name="RailCollapsed">The hub's section rail.</param>
-/// <param name="ListCollapsed">The Strats section's list.</param>
-public sealed record StratBookLayoutState(bool RailCollapsed, bool ListCollapsed);
+    /// <summary>A pre-<see cref="Packs" /> file's top-level members, held only until <c>OnDeserialized</c> folds them.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
+
+    // The Strat Book pack's id (StratBookPack.PackId), literal because Models must not depend on
+    // Services or the pack, and because this is the shape the PACK wrote, not a core concept.
+    private const string LegacyStratBookPackId = "net.demoviewer.pack.stratbook";
+
+    // A file written before Packs existed carried the Strat Book pack's layout flat as "StratBook". Folded
+    // once, keyed under LegacyStratBookPackId; an existing Packs entry for that id wins.
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (UnknownMembers is { Count: > 0 } members
+            && members.TryGetValue("StratBook", out JsonElement legacy)
+            && legacy.ValueKind == JsonValueKind.Object)
+        {
+            Packs ??= new(StringComparer.Ordinal);
+            if (!Packs.ContainsKey(LegacyStratBookPackId))
+            {
+                Packs[LegacyStratBookPackId] = legacy.Clone();
+            }
+        }
+
+        UnknownMembers = null;
+    }
+}
 
 /// <summary>
 ///     Persisted main-window geometry. <see cref="Width" />/<see cref="Height" /> are DIPs (Avalonia

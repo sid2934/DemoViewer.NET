@@ -25,6 +25,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     two sections that name it, and the shell builds the strip from <see cref="PackContributionSet" />
 ///     alone. Nothing here knows the pack beyond its id.
 /// </summary>
+[NotInParallel]
 [Category("Render")]
 public class HostTabContributionTests
 {
