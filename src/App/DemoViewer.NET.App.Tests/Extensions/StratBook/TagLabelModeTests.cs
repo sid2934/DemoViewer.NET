@@ -1,6 +1,8 @@
 #region
 
 using Avalonia.Input;
+using DemoViewer.NET.AppTests.Extensions.StratBook;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
@@ -278,45 +280,44 @@ public class TagLabelModeTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             vm.IsReviewMode = true; // tagging and its lanes live in Review mode
             vm.Timeline.PixelWidth = 1000;
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
             TagInstance execute = Instance("A execute", 800, 1_200);
             TagInstance retake = Instance("Retake", 1_000, 1_400);
-            vm.Tags.Apply(new TagDelta.Add(execute));
-            vm.Tags.Apply(new TagDelta.Add(retake));
+            tags.Apply(new TagDelta.Add(execute));
+            tags.Apply(new TagDelta.Add(retake));
             Playback2DTimelineHarness.Pump();
             ctx.CurrentTick = 1_100;
 
-            bool Press(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
-                vm.TryHandleTagPaletteKey(key, modifiers)
-                || vm.Keymap.TryResolve(key, modifiers, false, out Playback2DAction action) && vm.ExecuteAction(action);
+            bool Press(Key key, KeyModifiers modifiers = KeyModifiers.None) => ReviewPanelsHarness.Press(vm, key, modifiers);
 
             await Assert.That(Press(Key.C)).IsTrue();
             await Assert.That(Press(Key.L, KeyModifiers.Control)).IsTrue();
-            await Assert.That(vm.TagPalette.LabelTargetText).StartsWith("Retake");
+            await Assert.That(review.Palette!.LabelTargetText).StartsWith("Retake");
 
             TimelineBandViewModel band = vm.Timeline.LaneBands.Single();
             vm.Timeline.PressBand(band);
-            await Assert.That(vm.TagPalette.LabelTargetText).StartsWith("A execute");
+            await Assert.That(review.Palette.LabelTargetText).StartsWith("A execute");
             await Assert.That(ctx.SeekFrames).Contains(band.StartFrameIndex).Because("the band still seeks");
             Press(Key.W);
 
             vm.Timeline.PressBand(band);
             Press(Key.B);
 
-            List<TagInstance> tags = vm.Tags.Document!.Instances;
+            List<TagInstance> written = tags.Document!.Instances;
             using (Assert.Multiple())
             {
-                await Assert.That(tags.Count).IsEqualTo(2);
-                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(Won);
-                await Assert.That(LabelsOf(tags[1])).IsEquivalentTo(SiteB);
+                await Assert.That(written.Count).IsEqualTo(2);
+                await Assert.That(LabelsOf(written[0])).IsEquivalentTo(Won);
+                await Assert.That(LabelsOf(written[1])).IsEquivalentTo(SiteB);
             }
 
             await Assert.That(Press(Key.Z, KeyModifiers.Control)).IsTrue();
-            await Assert.That(vm.Tags.Document!.Instances[1].Labels).IsEmpty();
-            await Assert.That(vm.Tags.Document!.Instances.Count).IsEqualTo(2);
+            await Assert.That(tags.Document!.Instances[1].Labels).IsEmpty();
+            await Assert.That(tags.Document!.Instances.Count).IsEqualTo(2);
 
             vm.OnDeactivated();
             vm.Dispose();

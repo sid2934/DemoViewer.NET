@@ -861,13 +861,20 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   set it from the projection, so they cannot disagree.
 
 ### Review mode (2D Playback)
-- **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows), `Views/RoundTagger/TagEditorView.axaml`,
-  `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`, `Modules/RoundTagger/Review/TagEditorViewModel.cs`,
-  `Views/Playback2D/TimelineControl.axaml` (the lane's edit band).
+- **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows and the panel host),
+  `Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the panels and their
+  behaviour), `Extensions/StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle, editor, Labels list),
+  `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
+  `Modules/RoundTagger/Review/TagEditorViewModel.cs`, `Views/Playback2D/TimelineControl.axaml` (the lane's edit band).
 - **Purpose:** labelling and suggestion review are a mode, off by default (the `Review` toolbar toggle, Shift+R,
   persisted as `Playback2D.ReviewMode`). Off: full player cards, no palette, queue or tag lanes, and C, Y, N, Enter
-  and Ctrl+Y fall through. On: the cards collapse to a one-line strip (name, HP, money) and the review panel takes
-  the rest of the column: palette, a Suggested / Labels toggle, one editor, the queue or the Labels list.
+  and Ctrl+Y fall through. On: the cards collapse to a one-line strip (name, HP, money) and the contributed panels
+  take the rest of the column: palette, a Suggested / Labels toggle, one editor, the queue or the Labels list.
+- **Ownership:** the three panels are the Strat Book extension's right-column contributions
+  (`IPlaybackSurface.AddPanel`), not the tab's: the tab hosts `Surface.Panels` in its third row and knows no panel
+  by name. The toggle is offered only while a contributed panel's gate is on, so with the extension off the
+  column is the game info and the cards alone. Variants `playback2d-review-panels` and
+  `playback2d-review-panels-pack-off` (1280x900) render both.
 - **Contract:** one `TagEditorViewModel` edits both a suggestion (Save accepts it with the edit) and a written tag
   (Save replaces it, Delete removes it through `TagDelta`, so both undo). Start and end are seconds from the round
   start and clamp to the round like the palette does. With an editor open, a map click adds a position and the lane
@@ -1155,6 +1162,15 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   such pane; it used to be a second hardcoded `Border` bound to a pack-typed property on the tab. The tab
   closes any open side pane on deactivation and on a demo reset, and the view model of a closed pane is
   disposed. Variant `playback2d-create-strat-pane` (1280x800) renders the host with that review open.
+
+- **The right column's third row is one panel host, not one view per feature.** `Playback2DView.axaml` lists
+  `Playback2DTabViewModel.Surface.Panels` in an `ItemsControl` under the player cards, visible in Review mode;
+  each item is a contributed control (or the view model, for the `ViewLocator`) under a 6 px gutter, shown
+  while its own gate is on. An extension pack adds a panel through `IPlaybackSurface.AddPanel(order,
+  viewModel, view, featureId)`; several are open at once, in order, and a panel can hold the keyboard
+  (`IPanelHandle.HasKeyboard`), under which the pack's key handlers run before the tab's keymap. The Strat
+  Book's three (Tag Palette, review panel, Suggestion Queue) were three hardcoded views bound to pack-typed
+  properties on the tab; the cards' strip row and the game-info row keep their place around the host.
 
 - **Docking, not reflow, is the answer to "the toolbars are always displayed".** D35's responsive rule
   ([wrap or scroll](#responsive-strip)) is about a strip that is too WIDE; the reported defect was chrome

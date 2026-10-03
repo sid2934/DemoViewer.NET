@@ -184,6 +184,10 @@ public static partial class Variants
             ["playback2d-livesync-hud"] = Playback2DLiveSyncHud,
             // The 2D tab with the Create Strat review open in the contributed side pane (item 16); 1280x800.
             ["playback2d-create-strat-pane"] = Playback2DCreateStratPane,
+            // The 2D tab in Review mode with the pack's right-column panels (item 17), and the same with the
+            // pack off so the column shows the core content alone; 1280x900.
+            ["playback2d-review-panels"] = Playback2DReviewPanels,
+            ["playback2d-review-panels-pack-off"] = Playback2DReviewPanelsPackOff,
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),

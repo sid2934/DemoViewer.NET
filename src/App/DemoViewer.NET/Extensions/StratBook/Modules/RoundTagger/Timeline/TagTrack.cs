@@ -75,6 +75,9 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
     /// </summary>
     public Func<string, uint?>? CodeColour { get; set; }
 
+    /// <summary>The session the bands are read from. The review panels edit through it while the tab registers this track (item 18).</summary>
+    public TagSession Session => _session;
+
     /// <inheritdoc />
     public void Dispose()
     {
