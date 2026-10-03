@@ -728,7 +728,9 @@ public class App : Application
             sp.GetRequiredService<PackContributionSet>().SettingsPages,
             // The Extensions "N demos will be re-indexed" notice's count (item 14); SettingsViewModel
             // watches only the first entry.
-            sp.GetRequiredService<PackContributionSet>().ReindexEstimates));
+            sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
+            // Each pack's "delete extension data" action (item 24), one row per entry.
+            sp.GetRequiredService<PackContributionSet>().DataRemovals));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
