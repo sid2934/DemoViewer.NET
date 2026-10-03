@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -51,6 +53,11 @@ internal sealed class Program
         }
 
         builder.Run();
+
+        // The extensions this build ships (strat-book-plugin.md §13). The app assembly references none of
+        // them; the composition root and the static registries read this list, so it is declared before
+        // anything Avalonia-side runs.
+        FeaturePacks.Configure([new StratBookPack()]);
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack.
