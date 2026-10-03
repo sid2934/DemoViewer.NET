@@ -112,6 +112,21 @@ public class PackOffCompositionTests
         });
     }
 
+    // MainViewModel's Match Overview wiring used to resolve GrenadeIndexEvaluator unconditionally
+    // (desktop-only, not gated on the pack): building the shell with the pack off must not construct it.
+    [Test]
+    public async Task PackOff_BuildingMainViewModel_StillDoesNotConstructTheGrenadeEvaluator()
+    {
+        await WithProvider(async provider =>
+        {
+            MainViewModel _ = provider.GetRequiredService<MainViewModel>();
+
+            StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
+            await Assert.That(instances.GrenadeWalk).IsNull()
+                .Because("the pack is off: Match Overview's grenades action resolves lazily now");
+        });
+    }
+
     [Test]
     public async Task PackOff_PackEvaluatorsReturnFalseOnWants()
     {

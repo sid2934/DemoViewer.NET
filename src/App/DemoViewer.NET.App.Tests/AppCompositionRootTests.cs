@@ -138,9 +138,8 @@ public class AppCompositionRootTests
             // The grenade walk reads nothing the others write; last so it never delays one that does.
             await Assert.That(coordinator.EvaluatorIds[5]).IsEqualTo("grenades");
 
-            // The order above came from the registry's resolve, not a literal array: prove it actually
-            // built the four pack evaluators (the PackOff_* test proves the converse, that it does not,
-            // with the pack off), so this is not equally true of a coordinator with an empty pack list.
+            // The order came from the registry's resolve: confirm it actually built the four pack
+            // evaluators, not merely listed their ids.
             StratBookPackInstances instances =
                 provider.GetRequiredService<StratBookPackInstances>();
             using (Assert.Multiple())
@@ -164,11 +163,9 @@ public class AppCompositionRootTests
         });
     }
 
-    // The converse of the test above: with the pack off, the registry's gate keeps the four pack
-    // evaluators out of the resolved order, and their factories are never invoked, so the services
-    // themselves are never constructed. Resolving StratBookPackInstances only AFTER polling the
-    // coordinator (never GetRequiredService on a pack evaluator directly, which would construct it
-    // regardless of this test) is what makes this a proof rather than a tautology.
+    // The converse: with the pack off, the registry's gate keeps the four pack evaluators out of the
+    // resolved order, and their factories are never invoked. Never GetRequiredService a pack evaluator
+    // directly here, which would construct it regardless of the gate.
     [Test]
     public async Task EvaluatorFanOutOrder_WithThePackOff_IsOnlyLibraryAndHighlights_AndBuildsNothingPackOwned()
     {
@@ -195,6 +192,24 @@ public class AppCompositionRootTests
                     .Because("the pack is off: Grenade Index evaluator was never constructed, not merely excluded");
             }
         }, packOff);
+    }
+
+    // RoundIndexEvaluator and GrenadeIndexEvaluator can be built through SituationIndex/GrenadeIndex, at
+    // StartPacks time, before the coordinator has ever polled. Their own factory must set .Coordinator;
+    // the registry's lazy wrapper is too late for this path.
+    [Test]
+    public async Task SituationIndexAndGrenadeIndex_SetTheirEvaluatorsCoordinator_WithoutEverPollingTheCoordinator()
+    {
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            Services.RoundIndex.SituationIndex _ = provider.GetRequiredService<Services.RoundIndex.SituationIndex>();
+            Modules.UtilityBook.GrenadeIndex __ = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>();
+
+            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
+                .IsNotNull();
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
+                .IsNotNull();
+        });
     }
 
     // Wired end to end: with the pack off, the real container's own factories (not a test double) leave
