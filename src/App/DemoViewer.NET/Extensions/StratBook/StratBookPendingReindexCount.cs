@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,8 +21,15 @@ namespace DemoViewer.NET.Extensions.StratBook;
 /// </summary>
 internal static class StratBookPendingReindexCount
 {
-    /// <summary>Runs the count off the UI thread; a null <see cref="App.Services" /> (tests, a host not yet composed) counts zero.</summary>
-    public static Task<int> ComputeAsync() => Task.Run(() => Compute(App.Services));
+    /// <summary>
+    ///     Runs the count as a queue item the user can see and pause, at user priority (the standing rule:
+    ///     every off-UI-thread job goes through the one queue, and user-triggered work jumps the line). A
+    ///     null <see cref="QueueWork.Ambient" /> (tests, the browser head) falls back to the pool; a null
+    ///     <see cref="App.Services" /> (a host not yet composed) counts zero either way.
+    /// </summary>
+    public static Task<int> ComputeAsync() =>
+        QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.SectionCompute, "Settings: demos to re-index",
+            "settings", () => Compute(App.Services), 0, DemoJobPriority.UserRequested);
 
     internal static int Compute(IServiceProvider? services)
     {
