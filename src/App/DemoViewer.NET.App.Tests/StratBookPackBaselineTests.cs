@@ -72,18 +72,29 @@ public class StratBookPackBaselineTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                // Subscribed from here, before SettleStartupLoads, so a job that starts and finishes
+                // between two polls (invisible to Items, which drops terminal entries) still gets logged.
+                // Covers the race SettleStartupLoads has: TeamIdentityService.IsLoaded can go true before
+                // StartAsync's own TeamsCommand is even submitted.
+                IDemoProcessingQueue diagQueue = provider.GetRequiredService<IDemoProcessingQueue>();
+                long t0 = Stopwatch.GetTimestamp();
+                void LogChanged() => Console.WriteLine(
+                    $"@M0_QUEUE_CHANGED t={Stopwatch.GetElapsedTime(t0).TotalSeconds:F1}s "
+                    + $"items=[{string.Join(", ", diagQueue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.Owners}/{i.Priority}/{i.State}"))}]");
+                diagQueue.Changed += LogChanged;
                 try
                 {
+                    LogChanged();
                     await SettleStartupLoads(provider);
+                    LogChanged();
                     Snapshot(provider, "early");
 
-                    // Checks that "settled" (the readiness flags above) really is settled: logs the queue's
-                    // full item list at 15s intervals for 90s more, then snapshots again. If the late figure
-                    // disagrees with the early one, something besides the three readiness flags was still
-                    // doing work (a HeapCompaction job, a lineup save, anything IsLight or LibraryScan-exempt
-                    // that keeps running under BackgroundProcessingEnabled=false), and the early snapshot is
-                    // the wrong one to trust.
-                    IDemoProcessingQueue diagQueue = provider.GetRequiredService<IDemoProcessingQueue>();
+                    // Checks that "settled" (the readiness flags above) really is settled: the Changed log
+                    // above catches any queue-tracked job, start to finish, for the whole window; this also
+                    // polls Items every 15s as a belt-and-suspenders cross-check, then snapshots again. If
+                    // the late figure disagrees with the early one and nothing queue-tracked explains it
+                    // (no Changed line in between), the release is happening outside the processing queue
+                    // entirely, and the early snapshot's "settled" does not mean what it sounds like.
                     for (int elapsed = 0; elapsed < 90; elapsed += 15)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(15));
@@ -96,6 +107,7 @@ public class StratBookPackBaselineTests
                 }
                 finally
                 {
+                    diagQueue.Changed -= LogChanged;
                     provider.Dispose();
                 }
             });
@@ -232,10 +244,28 @@ public class StratBookPackBaselineTests
         Console.WriteLine("@M0_PACKCOST " + JsonSerializer.Serialize(new
         {
             demos = demoCache.Index.Count,
+            grenadeDemos = grenades.DemoCount,
             situationsMb = (afterSituations - before) / 1024.0 / 1024.0,
             grenadesMb = (afterGrenades - afterSituations) / 1024.0 / 1024.0,
             teamsMb = (afterTeams - afterGrenades) / 1024.0 / 1024.0,
             totalMb = (afterTeams - before) / 1024.0 / 1024.0
+        }));
+
+        // Checks whether the ~90s resident-memory decline ResidentSetAfterStartup shows is a whole-process
+        // effect (buffer pools, delayed finalizers) or specific to the full app: if this isolated, no-DI,
+        // no-Avalonia construction ALSO drops after idling with nothing else running, the cause is below
+        // the app layer and the two probes' numbers are comparable late as well as early.
+        await Task.Delay(TimeSpan.FromSeconds(90));
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            GC.WaitForPendingFinalizers();
+        }
+
+        long late = GC.GetTotalMemory(true);
+        Console.WriteLine("@M0_PACKCOST_LATE " + JsonSerializer.Serialize(new
+        {
+            totalMb = (late - before) / 1024.0 / 1024.0
         }));
     }
 
