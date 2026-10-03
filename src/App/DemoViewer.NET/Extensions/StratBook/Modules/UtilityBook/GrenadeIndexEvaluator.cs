@@ -38,6 +38,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     private readonly Func<bool> _backgroundIndex;
     private readonly DemoCacheStore _demoCache;
+    private readonly Func<bool> _enabled;
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, List<TrajectoryPoint>>> _flights = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
@@ -54,13 +55,15 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// <param name="stride">The live <c>GrenadesSettings.TrajectoryStride</c>; null is the design's 4.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
+    /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>
     public GrenadeIndexEvaluator(
         DemoCacheStore demoCache,
         Func<bool> backgroundIndex,
         Func<string?>? openDemo = null,
         Func<int>? stride = null,
         Action<Action>? post = null,
-        Func<ParsedDemo, GrenadeWalk>? walk = null)
+        Func<ParsedDemo, GrenadeWalk>? walk = null,
+        Func<bool>? enabled = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(backgroundIndex);
@@ -70,6 +73,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         _stride = stride ?? (() => 4);
         _post = post ?? (action => action());
         _walk = walk;
+        _enabled = enabled ?? (() => true);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
@@ -88,11 +92,16 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     From the index row alone: a parsed demo whose grenades are missing, stale under the walker
-    ///     version or the schema, and not failed, with the sweep on or the demo forced.
+    ///     From the index row alone: the owning pack's gate on, a parsed demo whose grenades are missing,
+    ///     stale under the walker version or the schema, and not failed, with the sweep on or the demo forced.
     /// </remarks>
     public bool Wants(string path)
     {
+        if (!_enabled())
+        {
+            return false;
+        }
+
         DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
         lock (_gate)
         {
@@ -123,10 +132,15 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     The open demo is walked on the parse its open paid for whatever the opt-in says (D4); any other
-    ///     demo only when it would have been wanted.
+    ///     demo only when it would have been wanted. Neither runs while the owning pack's gate is off.
     /// </remarks>
     public void OnParsedOpportunistically(string path, ParsedDemo parsed)
     {
+        if (!_enabled())
+        {
+            return;
+        }
+
         if (Wants(path) || (IsOpen(path) && NeedsWalk(_demoCache.TryGetIndex(path))))
         {
             Refresh(path, parsed);
@@ -142,6 +156,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
+        if (!_enabled())
+        {
+            return [];
+        }
+
         bool background = _backgroundIndex();
         HashSet<string> forced;
         lock (_gate)
