@@ -593,7 +593,7 @@ public partial class Playback2DView : UserControl
 
         foreach (ToolbarItem item in vm.Surface.ToolbarItems)
         {
-            MenuItem menuItem = new() { Header = item.Label, Command = item.Command };
+            MenuItem menuItem = new() { Header = item.MenuHeader ?? item.Label, Command = item.Command };
             _modeMenuFlyout.Items.Add(menuItem);
             _toolbarMenuItems.Add(menuItem);
         }

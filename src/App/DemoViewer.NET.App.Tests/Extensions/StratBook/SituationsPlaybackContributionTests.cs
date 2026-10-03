@@ -1,5 +1,8 @@
 #region
 
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.VisualTree;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
@@ -7,6 +10,7 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Views.Playback2D;
 
 #endregion
 
@@ -130,15 +134,102 @@ public class SituationsPlaybackContributionTests
         vm.Dispose();
     }
 
+    /// <summary>
+    ///     The overflow menu the way <c>StratTemplateMenuTests</c> reads a <c>MenuFlyout</c>: open the real
+    ///     flyout and read its realized <c>Items</c>. One toolbar item: the entry's header is the
+    ///     <see cref="ToolbarItem.MenuHeader" />, not the <see cref="ToolbarItem.Label" />, its
+    ///     <c>Command</c> runs the same funnel as the toolbar button, and the divider separator shows. No
+    ///     toolbar item (pack off): no entry, and the separator hides.
+    /// </summary>
     [Test]
-    public async Task TheLabelAndTheToolTip_ReadTheResolvedProfile_AndFollowARebind()
+    [NotInParallel]
+    [Category("Render")]
+    public async Task TheOverflowMenu_HeadersFromMenuHeader_RunsTheCommand_AndHidesTheSeparatorWithNoItems() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            RecordingSeam seam = new();
+            SituationsPlaybackContribution situations = new();
+            PlaybackContributionHost host = new([(new StratBookPack(), [situations])], null);
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(
+                contributions: host, configure: c =>
+                {
+                    c.MapName = "de_dust2";
+                    c.SetService<IFindRoundsLikeThis>(seam);
+                });
+            ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"));
+
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            Playback2DTimelineHarness.Pump();
+
+            SplitButton modeButton = window.GetVisualDescendants().OfType<SplitButton>().Single(b => b.Name == "ModeButton");
+            modeButton.Flyout!.ShowAt(modeButton);
+            Playback2DTimelineHarness.Pump();
+
+            MenuItem entry = window.GetVisualDescendants().OfType<MenuItem>()
+                .Single(i => Equals(i.Header, "Find rounds like this (Ctrl+F)"));
+            Separator separator = window.GetVisualDescendants().OfType<Separator>()
+                .Single(s => s.Name == "ToolbarItemsSeparator");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(entry.Header).IsNotEqualTo("Rounds like this").Because("the menu uses MenuHeader, not Label");
+                await Assert.That(separator.IsVisible).IsTrue();
+            }
+
+            entry.Command!.Execute(null);
+            await Assert.That(seam.Calls.Count).IsEqualTo(1).Because("the menu entry's Command is the toolbar item's own");
+
+            window.Close();
+            vm.OnDeactivated();
+            vm.Dispose();
+        });
+
+    /// <summary>With the pack off (no toolbar item), the overflow menu has no contributed entry and the divider hides.</summary>
+    [Test]
+    [NotInParallel]
+    [Category("Render")]
+    public async Task TheOverflowMenu_WithNoToolbarItems_HasNoEntry_AndTheSeparatorHides() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new() { On = false };
+            SituationsPlaybackContribution situations = new();
+            PlaybackContributionHost host = new([(new StratBookPack(), [situations])], gate);
+            (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab(
+                contributions: host, configure: c => c.MapName = "de_dust2");
+
+            (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm);
+            Playback2DTimelineHarness.Pump();
+
+            SplitButton modeButton = window.GetVisualDescendants().OfType<SplitButton>().Single(b => b.Name == "ModeButton");
+            modeButton.Flyout!.ShowAt(modeButton);
+            Playback2DTimelineHarness.Pump();
+
+            Separator separator = window.GetVisualDescendants().OfType<Separator>()
+                .Single(s => s.Name == "ToolbarItemsSeparator");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(window.GetVisualDescendants().OfType<MenuItem>()
+                    .Any(i => Equals(i.Header, "Find rounds like this (Ctrl+F)"))).IsFalse();
+                await Assert.That(separator.IsVisible).IsFalse();
+            }
+
+            window.Close();
+            vm.OnDeactivated();
+            vm.Dispose();
+        });
+
+    [Test]
+    public async Task TheLabelIsConstant_TheMenuHeaderAndTheToolTip_ReadTheResolvedProfile_AndFollowARebind()
     {
         (Playback2DTabViewModel vm, _, SituationsPlaybackContribution situations) = Tab(configure: c => c.MapName = "de_dust2");
         ToolbarItem item = situations.ToolbarItem!;
 
         using (Assert.Multiple())
         {
-            await Assert.That(item.Label).IsEqualTo("Rounds like this (Ctrl+F)");
+            await Assert.That(item.Label).IsEqualTo("Rounds like this").Because("the button's own text, no gesture hint");
+            await Assert.That(item.Icon).IsEqualTo("⌕");
+            await Assert.That(item.MenuHeader).IsEqualTo("Find rounds like this (Ctrl+F)");
             await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+F): ");
         }
 
@@ -146,7 +237,8 @@ public class SituationsPlaybackContributionTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(item.Label).IsEqualTo("Rounds like this (Ctrl+Shift+S)");
+            await Assert.That(item.Label).IsEqualTo("Rounds like this").Because("the label never changes");
+            await Assert.That(item.MenuHeader).IsEqualTo("Find rounds like this (Ctrl+Shift+S)");
             await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+Shift+S): ");
         }
 
