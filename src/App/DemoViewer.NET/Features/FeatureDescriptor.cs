@@ -11,14 +11,24 @@ namespace DemoViewer.NET.Features;
 /// </summary>
 public enum FeatureScope
 {
-    /// <summary>A top-level workspace tab (Library, Stats, Parser, …). Has no parent; can be cascaded FROM.</summary>
+    /// <summary>
+    ///     A top-level workspace tab (Library, Stats, Parser, …). Has no parent unless a <see cref="Pack" />
+    ///     owns it, in which case it cascades off with the pack; can be cascaded FROM.
+    /// </summary>
     Tab,
 
     /// <summary>A sub-surface OWNED by a tab (parser hex pane, entity schema lens, …). Cascades off with its parent tab.</summary>
     SubFeature,
 
     /// <summary>Global chrome not owned by any single tab (toolbar/NavStrip/debugger rail). No parent → never cascaded.</summary>
-    Chrome
+    Chrome,
+
+    /// <summary>
+    ///     A feature pack's umbrella switch (the Strat Book extension). No parent; the tabs the pack owns
+    ///     name it as theirs and cascade off with it, and through them so do their sub-features. The only
+    ///     scope a <see cref="Tab" /> may have as a parent.
+    /// </summary>
+    Pack
 }
 
 /// <summary>
@@ -32,13 +42,14 @@ public enum FeatureScope
 ///     bindings), e.g. <c>"tab.parser"</c>, <c>"parser.hex"</c>, <c>"chrome.debugger"</c>. Never renamed
 ///     once shipped: it is the persisted override key.
 /// </param>
-/// <param name="Scope">Tab / SubFeature / Chrome: drives cascade and settings-UI grouping.</param>
+/// <param name="Scope">Tab / SubFeature / Chrome / Pack: drives cascade and settings-UI grouping.</param>
 /// <param name="Label">Short human name for the settings UI and the "N features hidden" messaging.</param>
 /// <param name="Description">One-line explanation of the feature for the settings UI.</param>
 /// <param name="ParentId">
-///     For a <see cref="FeatureScope.SubFeature" />, the id of the owning tab, the cascade edge: when the
-///     parent tab resolves disabled, this sub-feature is implicitly off. <c>null</c> for tabs and chrome
-///     (chrome is global, not tab-owned).
+///     The cascade edge: when the parent resolves disabled, this feature is implicitly off. For a
+///     <see cref="FeatureScope.SubFeature" />, the id of the owning tab. For a <see cref="FeatureScope.Tab" />,
+///     <c>null</c> or the id of the owning <see cref="FeatureScope.Pack" />, never anything else. <c>null</c>
+///     for chrome (global, not tab-owned) and for a pack.
 /// </param>
 /// <param name="GroupId">
 ///     Optional id of a group whose members toggle atomically. Every member resolves to the group LEADER's
