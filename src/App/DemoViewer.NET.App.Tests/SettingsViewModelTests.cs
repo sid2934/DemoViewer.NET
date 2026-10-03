@@ -558,6 +558,66 @@ public class SettingsViewModelTests
         }
     }
 
+    // Item 14 blocker fix: a page whose gate is off at construction must not run its factories at all, and
+    // must run them exactly once, the first time the gate turns on, never again on a later toggle.
+    [Test]
+    public async Task ContributedPage_BuildsItsFactoriesOnlyOnce_TheFirstTimeItsGateTurnsOn()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+            ServiceCollection services = new();
+            services.Configure<AppSettings>(svc.Configuration);
+            services.AddSingleton<IFeatureGate>(s =>
+                new FeatureGate(s.GetRequiredService<IOptionsMonitor<AppSettings>>(), false));
+            ServiceProvider sp = services.BuildServiceProvider();
+            IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
+            IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
+
+            int calls = 0;
+            SettingsPageContribution fake = new(
+                "fake.widget", "WIDGET SETTINGS", 0, "widget",
+                () =>
+                {
+                    calls++;
+                    return new FakePageViewModel();
+                },
+                () => new Border(), StratBookPack.PackFeatureId);
+            SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
+                null, [fake], null);
+            using (sp)
+            {
+                try
+                {
+                    MountedSettingsPage page = vm.ContributedSettingsPages.Single();
+                    await Assert.That(calls).IsEqualTo(0).Because("the gate is off at construction");
+                    await Assert.That(page.IsBuilt).IsFalse();
+                    await Assert.That(page.IsVisible).IsFalse();
+
+                    svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                    await Assert.That(calls).IsEqualTo(1).Because("built once, the first time the gate turns on");
+                    await Assert.That(page.IsBuilt).IsTrue();
+                    await Assert.That(page.IsVisible).IsTrue();
+
+                    svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+                    svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                    await Assert.That(calls).IsEqualTo(1).Because("already built; a later toggle cycle does not rebuild");
+                    await Assert.That(page.IsVisible).IsTrue();
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
     // Plumbing: the WASM overlay open/close flow. OpenSettings on the browser service routes through the
     // wired shell callback to set MainViewModel.SettingsOverlay; the VM's Close then clears it back to null.
     [Test]
