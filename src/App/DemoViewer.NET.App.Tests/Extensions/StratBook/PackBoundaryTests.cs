@@ -34,18 +34,16 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.StratBook", "composition root"),
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.SuggestedTags", "composition root"),
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.Teams", "composition root"),
+        // The default pack list the heads hand the composition root; the heads name the packs themselves at item 29.
+        ("src/App/DemoViewer.NET/Extensions/FeaturePacks.cs", "DemoViewer.NET.Extensions.StratBook", "composition root"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Palette", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Review", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Timeline", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.Situations", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.StratBook", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.RoundFacts", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Strats", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Tags", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Teams", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.ViewModels.StratBook", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Timeline/RoundTrack.cs", "DemoViewer.NET.Services.RoundFacts", "item 2"),
         ("src/App/DemoViewer.NET/Services/Review/ReviewQueue.cs", "DemoViewer.NET.Services.Tags", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.RoundIndex", "item 25"),
@@ -71,18 +69,19 @@ public class PackBoundaryTests
         // Build the set of pack-owned namespaces: those where EVERY file declaring the namespace lives under Extensions/StratBook.
         HashSet<string> packOwnedNamespaces = FindPackOwnedNamespaces(repoRoot);
 
-        // Scan every .cs and .axaml file under src/App/DemoViewer.NET that is NOT under Extensions/,
-        // looking for using/xmlns/fully-qualified references to pack-owned namespaces.
+        // Scan every .cs and .axaml file under src/App/DemoViewer.NET that is NOT inside a pack directory
+        // (Extensions/<pack>/), looking for using/xmlns/fully-qualified references to pack-owned namespaces.
+        // Files directly under Extensions/ are the generic contracts and hosts: core, so scanned.
         string appRoot = Path.Combine(repoRoot, "src", "App", "DemoViewer.NET");
         HashSet<string> allowedSet = new(AllowedEdges.Select(e => $"{e.FilePath}|{e.Namespace}"), StringComparer.Ordinal);
 
         List<(string FilePath, string Namespace)> violations = new();
         foreach (string file in Directory.EnumerateFiles(appRoot, "*.*", SearchOption.AllDirectories))
         {
-            // Skip build output and extension files.
+            // Skip build output and pack files.
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                 || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                || file.Contains($"{Path.DirectorySeparatorChar}Extensions{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                || IsPackFile(appRoot, file))
             {
                 continue;
             }
@@ -128,6 +127,16 @@ public class PackBoundaryTests
     }
 
     /// <summary>
+    ///     True for a file inside a pack directory, Extensions/&lt;pack&gt;/...; a file directly under Extensions/
+    ///     is a generic contract or host and counts as core.
+    /// </summary>
+    private static bool IsPackFile(string appRoot, string file)
+    {
+        string[] parts = Path.GetRelativePath(appRoot, file).Split(Path.DirectorySeparatorChar);
+        return parts.Length > 2 && parts[0] == "Extensions";
+    }
+
+    /// <summary>
     ///     Scans all namespaces declared under Extensions/StratBook and returns those where EVERY file declaring
     ///     the namespace lives under Extensions/StratBook (i.e., the namespace is pack-owned, not shared).
     /// </summary>
@@ -170,7 +179,7 @@ public class PackBoundaryTests
         {
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                 || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                || file.Contains($"{Path.DirectorySeparatorChar}Extensions{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                || IsPackFile(coreRoot, file))
             {
                 continue;
             }

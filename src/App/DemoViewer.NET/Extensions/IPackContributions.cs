@@ -105,4 +105,10 @@ public interface IPackContributions
 
     /// <summary>A ruleset in the rules directories the pack owns; see <see cref="RulesetContribution" />.</summary>
     void Ruleset(string rulesetId);
+
+    /// <summary>
+    ///     A 2D Playback contribution: attached to every 2D tab while the pack is on, detached when it goes
+    ///     off. See <see cref="IPlaybackContribution" />.
+    /// </summary>
+    void Playback(IPlaybackContribution contribution);
 }

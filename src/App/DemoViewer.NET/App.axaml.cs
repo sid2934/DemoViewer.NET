@@ -1222,9 +1222,11 @@ public class App : Application
     {
         IOptionsMonitor<AppSettings>? settings = sp.GetService<IOptionsMonitor<AppSettings>>();
         ModuleRegistry registry = new();
-        // The 2D Playback pilot. First-party,
-        // granted Playback.Control. Both desktop and browser hosts use this path.
-        registry.Register(new Playback2DModule());
+        // The 2D Playback pilot. First-party, granted Playback.Control. Both desktop and browser hosts
+        // use this path. The packs' playback contributions (band menus, panes) attach to each tab
+        // view-model through the host, gated live by the pack's umbrella id (item 16).
+        registry.Register(new Playback2DModule(() => PlaybackContributionHost.From(
+            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>())));
         // The Rulesets v2 authoring Workbench.
         // Registered on both hosts; desktop-only features (editor save, FileSystemWatcher, code --goto)
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles

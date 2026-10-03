@@ -19,6 +19,7 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<JobKindDescriptor> _jobKinds = [];
     private readonly List<CommandDescriptor> _commands = [];
     private readonly List<RulesetContribution> _rulesets = [];
+    private readonly List<IPlaybackContribution> _playback = [];
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
@@ -40,6 +41,9 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>Commands, in contribution order. Named apart from the <see cref="Commands(IEnumerable{CommandDescriptor})" /> method the interface declares.</summary>
     public IReadOnlyList<CommandDescriptor> ContributedCommands => _commands;
+
+    /// <summary>2D Playback contributions, in contribution order.</summary>
+    public IReadOnlyList<IPlaybackContribution> PlaybackContributions => _playback;
 
     /// <inheritdoc />
     public void Module(IWorkspaceModule workspaceModule)
@@ -86,5 +90,12 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rulesetId);
         _rulesets.Add(new RulesetContribution(rulesetId));
+    }
+
+    /// <inheritdoc />
+    public void Playback(IPlaybackContribution contribution)
+    {
+        ArgumentNullException.ThrowIfNull(contribution);
+        _playback.Add(contribution);
     }
 }
