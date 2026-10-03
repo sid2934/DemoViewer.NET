@@ -375,19 +375,29 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Used in:** the 4 message-card list surfaces (Parser card list + descendants).
 
 ### Hosted tab sections (the Strat Book rail, the Library's Teams view)
-- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle), `ViewModels/Shell/StratBookHubViewModel.cs`
-  and `Views/StratBook/StratBookHubView.axaml` (the rail), the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
-- **Purpose:** a module tab that belongs to a workflow rather than the strip. `TabPlacement.StratBook` puts a
-  descriptor on the Strat Book tab's left rail (164px, collapsible to a 32px strip, `PanelHeaderBg`, `sectionHeader` band "STRAT BOOK",
+- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle) and
+  `ViewModels/Shell/IHostTabViewModel.cs` (what a host tab's VM exposes) in the shell; the Strat Book hub is
+  pack-owned: `Extensions/StratBook/ViewModels/StratBook/StratBookHubViewModel.cs`,
+  `Extensions/StratBook/Views/StratBook/StratBookHubView.axaml` (the rail) and `StratBookPack.HubHostTab`
+  (the contribution); the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
+- **Purpose:** a module tab that belongs to a workflow rather than the strip. A descriptor names its host by
+  id in `WorkspaceTabDescriptor.HostId`: `"stratbook.hub"` puts it on the Strat Book tab's left rail (164px,
+  collapsible to a 32px strip, `PanelHeaderBg`, `sectionHeader` band bound to the host's rail label, "STRAT BOOK",
   `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
-  `TabPlacement.Library` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from
-  four tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
-- **Contract:** the descriptor keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session
-  file treat a section exactly as they treated the strip tab (the shell resolves a section id through its
-  host and persists the section id as the active tab). A section is `Activate`d only while it is selected
-  AND its host tab is, so the one-realized-View invariant holds one level down. The hub tab exists only
-  when a section was contributed and hides when the gate turns every section off.
-- **Do not:** add a Main-strip tab for a Strat Book feature; add a section.
+  `"builtin.library"` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from four
+  tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
+- **Contract:** a host tab is a pack contribution (`IPackContributions.HostTab`, a `HostTabContribution`: host
+  id, tab id, header, strip order, rail label, feature id, VM and view factories); the shell builds the host VM
+  with the strip and keys one `TabSectionHost` per host id, the Library being the built-in host. The descriptor
+  keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session file treat a section exactly as
+  they treated the strip tab (the shell resolves a section id through its host and persists the section id as
+  the active tab; a section of a hidden host answers false). A section is `Activate`d only while it is selected
+  AND its host tab is, so the one-realized-View invariant holds one level down. A contributed host tab shows
+  only while its feature id resolves on and some hosted section does, and the selection lands on Library when
+  it goes away. A section naming a host nothing contributes is dropped with a module log line, never put on the
+  strip.
+- **Do not:** add a Main-strip tab for a Strat Book feature; add a section. Do not add a `TabPlacement`
+  member for a new host; contribute a host tab and name it.
 
 ### Collapsible side pane (the Strat Book rail and the strat list)
 - **Files:** `ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle commands),
