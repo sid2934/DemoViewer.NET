@@ -17,7 +17,6 @@ using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.Views.StratBook;
-using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
 
 #endregion
 
@@ -43,12 +42,12 @@ public class StratEditorRoomTests
             hub.Sections.Reconcile([
                 new WorkspaceTabDescriptor
                 {
-                    TabId = "stratbook.browser", Header = "Strats", Order = 0, Placement = TabPlacement.StratBook,
+                    TabId = "stratbook.browser", Header = "Strats", Order = 0, HostId = StratBookHubViewModel.HostId,
                     ViewModelFactory = () => strats, ViewFactory = () => new StratBookTabView()
                 },
                 new WorkspaceTabDescriptor
                 {
-                    TabId = "review.queue", Header = "Review", Order = 1, Placement = TabPlacement.StratBook, Badge = "12",
+                    TabId = "review.queue", Header = "Review", Order = 1, HostId = StratBookHubViewModel.HostId, Badge = "12",
                     ViewFactory = () => new TextBlock { Text = "Review" }
                 }
             ]);

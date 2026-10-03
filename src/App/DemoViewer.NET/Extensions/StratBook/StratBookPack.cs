@@ -39,6 +39,7 @@ using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.ViewModels.Teams;
 using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Views.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -69,6 +70,20 @@ public sealed class StratBookPack : IFeaturePack
 
     /// <inheritdoc />
     public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
+
+    /// <summary>
+    ///     The Strat Book hub as a host tab: one strip tab whose rail lists every section that names
+    ///     <see cref="StratBookHubViewModel.HostId" />. Order 4 sits after 2D Playback and before Authoring.
+    ///     Public so a shell test can host sections on the real hub without the rest of the pack.
+    /// </summary>
+    /// <param name="layout">Resolves the collapsed panes the hub shares with the Strats section, when the shell builds the hub.</param>
+    public static HostTabContribution HubHostTab(Func<StratBookLayout?> layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        return new HostTabContribution(
+            StratBookHubViewModel.HostId, StratBookHubViewModel.TabId, "Strat Book", 4, StratBookHubViewModel.RailLabel,
+            () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
+    }
 
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
@@ -657,6 +672,10 @@ public sealed class StratBookPack : IFeaturePack
         ArgumentNullException.ThrowIfNull(sp);
 
         contributions.Commands(StratBookCommands.All);
+
+        // The hub every section below sits on. The shell builds the hub VM when it builds the strip, so the
+        // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
+        contributions.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
 
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here

@@ -1,15 +1,16 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
              xmlns:modules="using:DemoViewer.NET.Modules.Abstractions"
              x:Class="DemoViewer.NET.Views.StratBook.StratBookHubView"
              x:DataType="vm:StratBookHubViewModel">
 
     <!--
-      THE STRAT BOOK TAB: a left rail of sections (Strats, Situations, Tags, Utility, Review, Dossier) and
-      the selected section's view filling the rest. Each section is a module tab descriptor; the rail item
-      shows its header and its live badge, and the selected section's ActiveContent is the same realized
-      view a strip tab would have shown, so nothing about a section changes when it moves here.
+      THE STRAT BOOK TAB: a left rail of sections (Strats, Situations, Tags, Utility, Review, Dossier,
+      Suggested) and the selected section's view filling the rest. The pack contributes the tab as a host
+      (HostTabContribution); each section is a module tab descriptor naming it by HostId. The rail item
+      shows the section's header and its live badge, and the selected section's ActiveContent is the same
+      realized view a strip tab would have shown, so nothing about a section changes when it moves here.
 
       Colour: every value is a {DynamicResource} token; the selected rail item is carried by the
       selection fill and a brighter label, never by tint.
@@ -68,7 +69,7 @@
                     <Button x:Name="CollapseRail" DockPanel.Dock="Right" Classes="pane-toggle" Content="«"
                             Command="{Binding Layout.ToggleRailCommand}"
                             ToolTip.Tip="Collapse the Strat Book rail" />
-                    <TextBlock Text="STRAT BOOK" Classes="sectionLabel" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Label}" Classes="sectionLabel" VerticalAlignment="Center" />
                 </DockPanel>
             </Border>
             <ListBox Classes="strat-rail"
