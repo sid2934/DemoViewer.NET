@@ -112,6 +112,16 @@ Per demo, the cache is about 880 KB once grenade-walked (631 KB of it grenade si
 contents: RoundFacts 61%, Highlights 30%, HighlightHashes 6%. Inside RoundFacts rows, the per-round
 `Sources` provenance map is 36%, Kills 29%, the two SideFacts 32%.
 
+Record layout since 2026-10-03 (strat-book-plugin.md item 21): the Strat Book fields no longer sit flat on
+the record. The rows and the grenade input coverage ride `Packs["net.demoviewer.pack.stratbook"]`, an
+opaque JSON object core never deserialises, and each evaluator's schema, fingerprint, outcome, write time
+and row count is one entry of `PackStamps`, mirrored onto the index row. A sidecar or `index.json` in the
+old shape folds on read and is rewritten on its next save; no stamp changes value, so no demo is re-indexed
+for it. Cost, measured on 400 synthetic rows (`DemoCachePackPayloadTests`): an index row with all four
+facets written is 47 B larger (1,015 to 1,062 B), one with round facts and the round index alone, the
+common case, is 131 B smaller (953 to 822 B), since a facet never written costs nothing; one gzipped record
+with 2 rounds of facts grows 30 B (1,195 to 1,225 B).
+
 ## 3. Top findings (what grows with library size, and why)
 
 **F1. Committed heap is mostly fragmentation from whole-file demo reads, not library state.** See L1.

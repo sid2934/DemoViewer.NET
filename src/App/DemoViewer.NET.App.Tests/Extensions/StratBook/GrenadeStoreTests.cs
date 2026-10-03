@@ -104,9 +104,7 @@ public class GrenadeStoreTests
     {
         DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, Map, sha);
         record.Players = [new CachedPlayerInfo { Slot = 3, Name = "window guy", SteamId64 = "76561198000000003", Team = 2 }];
-        DemoCacheStore.StampGrenades(record);
-        record.GrenadeState = DemoAnalysisState.Indexed;
-        record.GrenadeWalker = GrenadeWalker.Version;
+        record.StampGrenades();
         cache.Upsert(record);
         GrenadeDemoHeader header = new() { Sha256 = sha, StableKey = DemoCacheStore.StableKey(path) };
         GrenadeDocument document = new() { Demo = header, Grenades = [.. rows] };

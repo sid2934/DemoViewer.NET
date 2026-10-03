@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;

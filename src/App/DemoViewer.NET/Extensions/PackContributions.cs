@@ -22,6 +22,7 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<SettingsPageContribution> _settingsPages = [];
     private readonly List<StatusChipContribution> _statusChips = [];
     private readonly List<IPackReindexEstimate> _reindexEstimates = [];
+    private readonly List<IPlaybackContribution> _playback = [];
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
@@ -52,6 +53,9 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>Re-index estimates, in contribution order.</summary>
     public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => _reindexEstimates;
+
+    /// <summary>2D Playback contributions, in contribution order.</summary>
+    public IReadOnlyList<IPlaybackContribution> PlaybackContributions => _playback;
 
     /// <inheritdoc />
     public void Module(IWorkspaceModule workspaceModule)
@@ -124,5 +128,12 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(estimate);
         _reindexEstimates.Add(estimate);
+    }
+
+    /// <inheritdoc />
+    public void Playback(IPlaybackContribution contribution)
+    {
+        ArgumentNullException.ThrowIfNull(contribution);
+        _playback.Add(contribution);
     }
 }

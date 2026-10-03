@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoCache;
@@ -79,7 +80,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
         {
             if (_enabled())
             {
-                tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+                tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount()));
             }
 
             // Read live: a toggle mid-session stops this recompute without a restart.
@@ -87,7 +88,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
             {
                 if (_enabled())
                 {
-                    tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+                    tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount()));
                 }
             };
 
@@ -95,7 +96,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
             // leaving it until the next unrelated cache write; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount)) : null;
+                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount())) : null;
             }
         }
 

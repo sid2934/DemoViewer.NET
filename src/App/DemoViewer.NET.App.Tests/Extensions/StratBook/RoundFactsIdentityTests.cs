@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
@@ -52,6 +53,6 @@ public class RoundFactsIdentityTests
         }
     }
 
-    private static string Old(RulesetDoc doc) => RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema,
+    private static string Old(RulesetDoc doc) => RoundFactsFingerprint.Combine(StratBookCache.RoundFactsSchema,
         HighlightConfigFingerprint.Compute([doc], 64, RulesHighlightHarvester.GotvProfileId).Fingerprint);
 }

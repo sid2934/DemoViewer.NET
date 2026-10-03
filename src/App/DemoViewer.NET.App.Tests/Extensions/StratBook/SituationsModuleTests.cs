@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
@@ -105,7 +106,7 @@ public class SituationsModuleTests
             await Assert.That(vm.TokenSourceLine).Contains("pawn");
         }
 
-        cache.UpdateExisting("/d/b.dem", r => r.RoundIndexState = RoundIndexState.Failed);
+        cache.UpdateExisting("/d/b.dem", r => r.MarkFailed(RoundIndexEvaluator.EvaluatorId));
         using (Assert.Multiple())
         {
             await Assert.That(vm.FailedCount).IsEqualTo(1);
@@ -114,7 +115,7 @@ public class SituationsModuleTests
         }
 
         vm.RetryFailedCommand.Execute(null);
-        await Assert.That(cache.TryGetIndex("/d/b.dem")!.RoundIndexState).IsEqualTo(RoundIndexState.Pending);
+        await Assert.That(cache.TryGetIndex("/d/b.dem")!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Pending);
         await Assert.That(vm.PendingCount).IsEqualTo(1);
 
         vm.RebuildIndexCommand.Execute(null);

@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Generated;
@@ -493,9 +494,9 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         // The facts a hand-made tag gets as it is made, so the Matrix can slice an accepted tag at once
         // rather than after the next rows rewrite.
         DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-        if (record?.RoundFacts is { Schema: DemoCacheRecord.RoundFactsSchema } rows)
+        if (record is not null && _demoCache.RoundFactsOf(record) is { Schema: StratBookCache.RoundFactsSchema } rows)
         {
-            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, DemoCacheRecord.RoundFactsSchema, now);
+            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, StratBookCache.RoundFactsSchema, now);
         }
 
         DemoIdentity demo = new(sha, document.Demo.FileName ?? Path.GetFileName(path),
@@ -550,7 +551,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         int pending = LoadCore(path, sha256).Set.Pending.Count;
         try
         {
-            _demoCache.UpdateExisting(path, r => r.SuggestionCount = pending);
+            _demoCache.UpdateExisting(path, r => r.SetSuggestionCount(pending));
             _demoCache.SaveIndex();
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -621,8 +622,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
         try
         {
-            DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-            if (record?.RoundFacts is not { Schema: DemoCacheRecord.RoundFactsSchema } facts)
+            if (_demoCache.TryLoadWithRoundFacts(path) is not ({ } record, { Schema: StratBookCache.RoundFactsSchema } facts))
             {
                 return; // nothing to bound rounds and seat sides with; Round Facts has not written this demo
             }
@@ -631,7 +631,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             DetectorProfile profile = _profile();
             SiteRegionTable? table = TableFor(map);
             string fingerprint = SuggestionsFingerprint.Compose(profile, table);
-            if (!forced && string.Equals(record.SuggestionsFingerprint, fingerprint, StringComparison.Ordinal)
+            if (!forced && record.IsSuggestionsCurrent(fingerprint)
                         && _proposals.TryRead(path) is not null)
             {
                 return; // a queued request the open's fan-out already satisfied
@@ -673,11 +673,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             // with nothing behind it.
             _proposals.Write(path, document);
             int pending = LoadCore(path, null).Set.Pending.Count;
-            _demoCache.UpdateExisting(path, r =>
-            {
-                r.SuggestionsFingerprint = fingerprint;
-                r.SuggestionCount = pending;
-            });
+            _demoCache.UpdateExisting(path, r => r.SetSuggestions(fingerprint, pending));
             _demoCache.SaveIndex();
             RaiseChanged(path);
         }
@@ -759,11 +755,10 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     }
 
     private bool NeedsBuild(DemoCacheIndexEntry? entry) =>
-        HasInputs(entry)
-        && !string.Equals(entry!.SuggestionsFingerprint, FingerprintFor(entry.Map), StringComparison.Ordinal);
+        entry is not null && HasInputs(entry) && !entry.IsSuggestionsCurrent(FingerprintFor(entry.Map));
 
     private static bool HasInputs(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0, RoundFactsSchema: > 0, RoundFactsFingerprint: not null };
+        entry is { ParseSchema: > 0 } && entry.HasRoundFacts();
 
     private SiteRegionTable? TableFor(string? map)
     {

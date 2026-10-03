@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
@@ -97,7 +98,7 @@ public class BackgroundPlanRealDemoTests
 
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity())
             .OnParsedOpportunistically(path, parsed);
-        outputs["round facts"] = JsonSerializer.Serialize(cache.TryLoadRecord(path)?.RoundFacts, Json);
+        outputs["round facts"] = JsonSerializer.Serialize(cache.TryLoadRecord(path)?.RoundFacts(), Json);
 
         RoundIndexStore index = new(null, cache);
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);

@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Views.Playback2D;
 
@@ -22,6 +23,23 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </summary>
 public sealed class Playback2DModule : IWorkspaceModule
 {
+    private readonly Func<PlaybackContributionHost?>? _contributions;
+
+    /// <summary>A tab with no pack contributions: tests, the designer.</summary>
+    public Playback2DModule()
+    {
+    }
+
+    /// <param name="contributions">
+    ///     The packs' playback contributions, resolved when a tab view-model is built (at first activation,
+    ///     long after composition) so a disabled pack's Contribute never runs for this.
+    /// </param>
+    public Playback2DModule(Func<PlaybackContributionHost?> contributions)
+    {
+        ArgumentNullException.ThrowIfNull(contributions);
+        _contributions = contributions;
+    }
+
     public string Id => "net.demoviewer.playback2d";
 
     public string DisplayName => "2D Playback";
@@ -44,7 +62,7 @@ public sealed class Playback2DModule : IWorkspaceModule
             Placement = TabPlacement.Main,
             // ViewModelFactory (LAZY + RETAINED): NOT DataContext. This is what makes Activate() build
             // and drive the VM's OnActivated/OnDeactivated lifecycle.
-            ViewModelFactory = () => new Playback2DTabViewModel(),
+            ViewModelFactory = () => new Playback2DTabViewModel { Contributions = _contributions?.Invoke() },
             ViewFactory = () => new Playback2DView()
         };
     }

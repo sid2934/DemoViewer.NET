@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
@@ -612,7 +613,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
         ArgumentNullException.ThrowIfNull(pattern);
         RoundSignature medoid = pattern.Medoid;
         cancellationToken.ThrowIfCancellationRequested();
-        if (_demoCache.TryLoadRecord(medoid.DemoPath) is not { RoundFacts: { } rows } record
+        if (_demoCache.TryLoadWithRoundFacts(medoid.DemoPath) is not ({ } record, { } rows)
             || rows.Rounds.FirstOrDefault(r => r.Number == medoid.Round) is not { } facts
             || cancellationToken.IsCancellationRequested
             || _positions.TryReadPositions(medoid.DemoPath, _fingerprintFor(pattern.Map), record.Sha256) is not { } positions
@@ -660,7 +661,8 @@ public sealed class StratMiningService : IPackResident, IDisposable
                 continue;
             }
 
-            (int from, int to) = RunSpan(pattern, member, record.RoundFacts?.Rounds.FirstOrDefault(r => r.Number == member.Round));
+            RoundFacts.RoundFactsRows? facts = _demoCache.RoundFactsOf(record);
+            (int from, int to) = RunSpan(pattern, member, facts?.Rounds.FirstOrDefault(r => r.Number == member.Round));
             TagInstance run = new()
             {
                 Id = Guid.NewGuid(),
@@ -679,7 +681,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
                 ]
             };
             _tags.Append(new DemoIdentity(sha, Path.GetFileName(member.DemoPath), record.Size),
-                record.RoundFacts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
+                facts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
         }
     }
 

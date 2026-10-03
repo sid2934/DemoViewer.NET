@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -603,7 +604,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
                 positions = _store.TryReadPositions(hit.DemoPath, fingerprint, record?.Sha256);
             }
 
-            RoundFacts? round = record?.RoundFacts?.Rounds.FirstOrDefault(r => r.Number == hit.RoundNumber);
+            RoundFacts? round = record is null ? null : _demoCache.RoundFactsOf(record)?.Rounds.FirstOrDefault(r => r.Number == hit.RoundNumber);
             int tickRate = record?.TickRate ?? 0;
 
             byte[]? png = null;

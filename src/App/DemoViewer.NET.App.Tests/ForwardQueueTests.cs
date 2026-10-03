@@ -391,18 +391,18 @@ public class ForwardQueueTests
         DemoCacheStore store = new(null);
         for (int i = 0; i < demos; i++)
         {
-            store.Upsert(new DemoCacheRecord
+            DemoCacheRecord record = new()
             {
                 Path = $"/d/{i}.dem",
                 Size = 10,
                 ModifiedTicks = i,
                 Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
-                RoundFacts = new RoundFactsRows(),
-                RoundFactsFingerprint = "before-merge",
                 AnalysisState = DemoAnalysisState.Indexed,
                 ConfigFingerprint = "fp@64",
                 Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 }
-            });
+            };
+            record.SetRoundFacts(new RoundFactsRows(), "before-merge");
+            store.Upsert(record);
         }
 
         List<string> passes = [];
