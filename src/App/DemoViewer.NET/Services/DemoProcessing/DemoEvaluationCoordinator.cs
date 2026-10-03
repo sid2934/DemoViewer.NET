@@ -29,7 +29,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         (the queue moves its owners onto the entry that replaces it).
 ///     </para>
 ///     <para>
-///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider" /> may be
+///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider(string)" /> may be
 ///         called from the rescan thread and from the (posted) capacity handler.
 ///     </para>
 /// </summary>
@@ -43,6 +43,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     // Set only by the live-registry constructor. Re-read on every poll so an evaluator whose pack just
     // came on is included on the next Consider/ConsiderAll, with no separate refresh step.
     private readonly Func<IReadOnlyList<IDemoEvaluator>>? _liveEvaluators;
+
+    // Set only by the live-registry constructor: the registry's own Validate, so BuildServices can fail
+    // fast on a cycle or an unknown After id without materializing any evaluator.
+    private readonly Action? _validateEvaluators;
 
     private readonly object _lock = new();
 
@@ -84,17 +88,29 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
     /// </param>
     /// <param name="parseReleased">Called after <see cref="FanOutParsed" /> has handed a parse to every evaluator.</param>
+    /// <param name="validateEvaluators">
+    ///     The registry's own <c>Validate</c>: populates and sorts without constructing anything, so
+    ///     <see cref="ValidateEvaluators" /> can fail fast on a cycle or an unknown After id at startup.
+    /// </param>
     public DemoEvaluationCoordinator(
         Func<IReadOnlyList<IDemoEvaluator>> evaluators,
         IDemoProcessingQueue queue,
         Func<IEnumerable<string>> candidatePaths,
-        Action<ParsedDemo>? parseReleased = null)
+        Action<ParsedDemo>? parseReleased = null,
+        Action? validateEvaluators = null)
         : this([], queue, candidatePaths, parseReleased)
     {
         _liveEvaluators = evaluators;
+        _validateEvaluators = validateEvaluators;
     }
 
     private IReadOnlyList<IDemoEvaluator> CurrentEvaluators => _liveEvaluators?.Invoke() ?? _evaluators;
+
+    /// <summary>
+    ///     Validates the live registry's After graph without constructing any evaluator: a cycle or an
+    ///     unknown After id throws here. No-op for a coordinator built from a plain snapshot.
+    /// </summary>
+    public void ValidateEvaluators() => _validateEvaluators?.Invoke();
 
     /// <summary>Detaches the capacity handler.</summary>
     public void Dispose()
@@ -116,10 +132,15 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     public IReadOnlyList<string> EvaluatorIds => [.. CurrentEvaluators.Select(e => e.Id)];
 
     /// <summary>Polls every evaluator for one path and submits for each interested, not-outstanding one.</summary>
-    public void Consider(string path)
+    public void Consider(string path) => Consider(path, CurrentEvaluators);
+
+    // ConsiderAll resolves the live list ONCE for the whole batch and passes it here, instead of every
+    // Consider(path) re-resolving it: the registry's factory calls are cheap (DI caches the singleton)
+    // but the gate checks and the sort lookup are not free to repeat per path.
+    private void Consider(string path, IReadOnlyList<IDemoEvaluator> evaluators)
     {
         List<IDemoEvaluator> wanting = [];
-        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
+        foreach (IDemoEvaluator evaluator in evaluators)
         {
             bool wants;
             try
@@ -183,9 +204,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// <summary>Re-polls the whole candidate universe (rescan + capacity re-feed). Idempotent.</summary>
     public void ConsiderAll()
     {
+        IReadOnlyList<IDemoEvaluator> evaluators = CurrentEvaluators;
         foreach (string path in _candidatePaths())
         {
-            Consider(path);
+            Consider(path, evaluators);
         }
     }
 

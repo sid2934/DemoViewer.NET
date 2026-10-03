@@ -556,7 +556,7 @@ public interface IPackContributions
 {
     void Module(IWorkspaceModule module);                    // tabs and sections
     void HostTab(HostTabContribution host);                  // a tab that hosts sections (the hub)
-    void Evaluator(Func<IDemoEvaluator> factory, params string[] after);
+    void Evaluator(string id, Func<IDemoEvaluator> factory, params string[] after);
     void JobKind(JobKindDescriptor kind);                    // label, rank, light, owner
     void SettingsPage(SettingsPageContribution page);        // header, order, VM factory, view factory, keywords
     void StatusChip(StatusChipContribution chip);
