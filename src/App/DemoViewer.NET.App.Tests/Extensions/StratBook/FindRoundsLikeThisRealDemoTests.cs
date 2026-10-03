@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
@@ -32,7 +33,7 @@ public class FindRoundsLikeThisRealDemoTests
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
+        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
 
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
 

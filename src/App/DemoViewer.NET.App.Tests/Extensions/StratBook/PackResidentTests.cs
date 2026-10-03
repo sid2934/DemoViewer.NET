@@ -302,10 +302,7 @@ public class PackResidentTests
             Grenades = [row]
         };
         cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        DemoCacheStore.StampGrenades(record);
-        record.GrenadeState = DemoAnalysisState.Indexed;
-        record.GrenadeCount = document.Grenades.Count;
-        record.GrenadeWalker = GrenadeWalker.Version;
+        record.StampGrenades(document.Grenades.Count);
         cache.Upsert(record);
     }
 

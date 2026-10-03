@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
@@ -22,7 +23,7 @@ public class SuggestedInboxModuleTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord(path));
-        cache.UpdateExisting(path, r => r.SuggestionCount = pending);
+        cache.UpdateExisting(path, r => r.SetSuggestionCount(pending));
         return cache;
     }
 
@@ -35,7 +36,7 @@ public class SuggestedInboxModuleTests
 
         await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the pack is off");
 
-        cache.UpdateExisting("/d/a.dem", r => r.SuggestionCount = 9);
+        cache.UpdateExisting("/d/a.dem", r => r.SetSuggestionCount(9));
         await Assert.That(tab.Badge).IsNull().Because("cache.Changed must not recompute it while the pack is off");
     }
 
@@ -48,7 +49,7 @@ public class SuggestedInboxModuleTests
 
         await Assert.That(tab.Badge).IsNull();
 
-        cache.UpdateExisting("/d/a.dem", r => r.SuggestionCount = 5);
+        cache.UpdateExisting("/d/a.dem", r => r.SetSuggestionCount(5));
         await Assert.That(tab.Badge).IsEqualTo("5");
     }
 
@@ -67,7 +68,7 @@ public class SuggestedInboxModuleTests
         gate.RaiseChanged();
         await Assert.That(tab.Badge).IsNull().Because("the gate's own Changed clears a stale count going off");
 
-        cache.UpdateExisting("/d/a.dem", r => r.SuggestionCount = 9);
+        cache.UpdateExisting("/d/a.dem", r => r.SetSuggestionCount(9));
         await Assert.That(tab.Badge).IsNull().Because("cache.Changed still does nothing while off");
 
         gate.Answers[SuggestedInboxModule.TabFeatureId] = true;

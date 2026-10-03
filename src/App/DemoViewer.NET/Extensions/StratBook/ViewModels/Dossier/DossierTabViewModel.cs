@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
@@ -570,7 +571,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             if (_demoCache.TryGetIndex(demo.Path) is { } entry)
             {
                 key.Append(CultureInfo.InvariantCulture,
-                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsFingerprint}/{entry.RoundIndexFingerprint}/{entry.RoundIndexComputedAtTicks}/{entry.GrenadeState}/{entry.GrenadeCount}/{entry.GrenadeWalker}/{_grenades?.IsLoaded(demo.Path)}");
+                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsStamp()?.Fingerprint}/{entry.RoundIndexStamp()?.Fingerprint}/{entry.RoundIndexComputedAtTicks()}/{entry.GrenadesStamp()?.State ?? DemoAnalysisState.Pending}/{entry.GrenadesStamp()?.Count ?? 0}/{entry.GrenadesStamp()?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
             }
         }
 

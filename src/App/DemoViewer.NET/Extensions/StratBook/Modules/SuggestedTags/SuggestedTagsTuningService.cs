@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Tags;
 
@@ -185,7 +186,7 @@ public sealed class SuggestedTagsTuningService
         }
 
         DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-        if (record?.RoundFacts is not { Schema: DemoCacheRecord.RoundFactsSchema } facts)
+        if (record is null || _demoCache.RoundFactsOf(record) is not { Schema: StratBookCache.RoundFactsSchema } facts)
         {
             return null; // no Round Facts rows: nothing to bound rounds and seat sides with
         }

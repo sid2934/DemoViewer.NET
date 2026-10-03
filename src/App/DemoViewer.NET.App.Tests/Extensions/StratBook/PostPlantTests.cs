@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
@@ -69,7 +70,7 @@ public class PostPlantTests
     // Rounds 6 to 8: B plants A at (0, 0); the retake is together, trickled, then nobody. Round 9: no plant.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = DemoCacheRecord.RoundFactsSchema,
+        Schema = StratBookCache.RoundFactsSchema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [
@@ -99,9 +100,13 @@ public class PostPlantTests
             Size = 1000,
             ModifiedTicks = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(day).Ticks,
             Map = map,
-            Sha256 = rows is null ? null : "abc123",
-            RoundFacts = rows
+            Sha256 = rows is null ? null : "abc123"
         };
+        if (rows is not null)
+        {
+            record.SetRoundFacts(rows, "rf-A");
+        }
+
         for (int slot = 0; slot < 10; slot++)
         {
             record.Players.Add(new CachedPlayerInfo

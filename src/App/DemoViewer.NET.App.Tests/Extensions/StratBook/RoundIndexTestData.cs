@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -45,7 +46,7 @@ internal static class RoundIndexTestData
 
     internal static RoundFactsRows Facts(params RoundFacts[] rounds) => new()
     {
-        Schema = DemoCacheRecord.RoundFactsSchema,
+        Schema = StratBookCache.RoundFactsSchema,
         Clock = new RoundFactsClock
         {
             TickRate = 64,
@@ -159,21 +160,28 @@ internal static class RoundIndexTestData
 
     /// <summary>A parsed record with Round Facts rows, the state the index evaluator wants.</summary>
     internal static DemoCacheRecord ParsedRecord(string path, string map = "de_nuke", string? sha = null,
-        RoundFactsRows? facts = null, long modifiedTicks = 20) => new()
+        RoundFactsRows? facts = null, long modifiedTicks = 20)
     {
-        Path = path,
-        Size = 10,
-        ModifiedTicks = modifiedTicks,
-        Sha256 = sha,
-        Map = map,
-        Parse = new TierStamp
+        DemoCacheRecord record = new()
         {
-            Schema = DemoCacheRecord.ParseSchema,
-            ComputedAtTicks = 1
-        },
-        RoundFacts = facts,
-        RoundFactsFingerprint = facts is null ? null : "rf-A"
-    };
+            Path = path,
+            Size = 10,
+            ModifiedTicks = modifiedTicks,
+            Sha256 = sha,
+            Map = map,
+            Parse = new TierStamp
+            {
+                Schema = DemoCacheRecord.ParseSchema,
+                ComputedAtTicks = 1
+            }
+        };
+        if (facts is not null)
+        {
+            record.SetRoundFacts(facts, "rf-A");
+        }
+
+        return record;
+    }
 
     /// <summary>Writes a document and stamps its record Indexed, the way the evaluator leaves a demo.</summary>
     internal static void Indexed(DemoCacheStore store, RoundIndexStore sidecars, string path, RoundIndexDocument document,
@@ -181,14 +189,7 @@ internal static class RoundIndexTestData
     {
         sidecars.Write(path, document);
         DemoCacheRecord record = ParsedRecord(path, document.Map, sha, modifiedTicks: modifiedTicks);
-        record.RoundIndex = new TierStamp
-        {
-            Schema = DemoCacheRecord.RoundIndexSchema,
-            ComputedAtTicks = computedAt
-        };
-        record.RoundIndexState = RoundIndexState.Indexed;
-        record.RoundIndexFingerprint = document.Fingerprint;
-        record.RoundIndexRowCount = document.RowCount;
+        record.StampRoundIndex(document.Fingerprint, computedAt, document.RowCount);
         store.Upsert(record);
     }
 }

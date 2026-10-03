@@ -559,13 +559,16 @@ public sealed class DemoCacheStore
     public static void StampAnalysis(DemoCacheRecord record) =>
         Stamp(record.Analysis, DemoCacheRecord.AnalysisSchema);
 
-    /// <summary>Stamps the round index sidecar as written now.</summary>
-    public static void StampRoundIndex(DemoCacheRecord record) =>
-        Stamp(record.RoundIndex, DemoCacheRecord.RoundIndexSchema);
-
-    /// <summary>Stamps the grenade siblings as written now.</summary>
-    public static void StampGrenades(DemoCacheRecord record) =>
-        Stamp(record.Grenades, DemoCacheRecord.GrenadeSchema);
+    /// <summary>
+    ///     Typed access to one pack's payload on the records (<see cref="DemoCacheRecord.Packs" />), serialised
+    ///     with this store's options. Stateless: hold one per pack or ask again.
+    /// </summary>
+    /// <param name="packId">The pack's id.</param>
+    public IPackPayloads Payloads(string packId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packId);
+        return new PackPayloads(this, packId, _jsonOptions);
+    }
 
     private static void Stamp(TierStamp stamp, int schema)
     {

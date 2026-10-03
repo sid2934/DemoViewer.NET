@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
@@ -352,7 +353,7 @@ public class SearchFiltersTests
     public async Task TheCrossDemoQuery_AsksAnyTickOfTheLiveWindow_ForATickAnchoredField()
     {
         DemoCacheStore store = new(null);
-        store.Upsert(new DemoCacheRecord
+        DemoCacheRecord a = new()
         {
             Path = DemoA,
             Size = 1,
@@ -361,12 +362,12 @@ public class SearchFiltersTests
             {
                 Schema = 1,
                 ComputedAtTicks = 1
-            },
-            RoundFactsFingerprint = "rf",
-            RoundFacts = Facts(
-                LongRound(1, 10000, _secondFive, _firstFive, BuyType.Full, BuyType.Eco, 0, 0),
-                ShortRound(2, 20000, _firstFive, _secondFive, BuyType.Eco, BuyType.Full, 1, 0))
-        });
+            }
+        };
+        a.SetRoundFacts(Facts(
+            LongRound(1, 10000, _secondFive, _firstFive, BuyType.Full, BuyType.Eco, 0, 0),
+            ShortRound(2, 20000, _firstFive, _secondFive, BuyType.Eco, BuyType.Full, 1, 0)), "rf");
+        store.Upsert(a);
         RoundFactsSource source = new(store);
 
         using (Assert.Multiple())
@@ -537,15 +538,8 @@ public class SearchFiltersTests
             }
 
             DemoCacheStore.StampParse(record);
-            record.RoundFactsFingerprint = "rf-A";
-            record.RoundIndex = new TierStamp
-            {
-                Schema = DemoCacheRecord.RoundIndexSchema,
-                ComputedAtTicks = 100
-            };
-            record.RoundIndexState = RoundIndexState.Indexed;
-            record.RoundIndexFingerprint = document.Fingerprint;
-            record.RoundIndexRowCount = document.RowCount;
+            record.SetStamp(new PackStamp(RoundFactsEvaluator.EvaluatorId, 0, "rf-A") { State = DemoAnalysisState.Pending });
+            record.StampRoundIndex(document.Fingerprint, 100, document.RowCount);
             Cache.Upsert(record);
         }
 
@@ -563,7 +557,7 @@ public class SearchFiltersTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => DemoCacheRecord.RoundFactsSchema;
+        public int Schema => StratBookCache.RoundFactsSchema;
 
         public event Action<string>? Updated
         {

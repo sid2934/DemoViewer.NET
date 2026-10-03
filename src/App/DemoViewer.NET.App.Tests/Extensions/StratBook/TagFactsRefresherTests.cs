@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -67,7 +68,7 @@ public class TagFactsRefresherTests
         TagInstance execute = Instance("B execute", 11_000, 13_000, ("outcome", "won"));
         TagDocument document = Document(Sha, execute);
 
-        TagFactsRefresher.Refresh(document, Rows(), DemoCacheRecord.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(document, Rows(), StratBookCache.RoundFactsSchema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -92,7 +93,7 @@ public class TagFactsRefresherTests
             await Assert.That(execute.Facts.Any(f => f.Group is "side" or "buy.us" or "buy.them")).IsFalse()
                 .Because("relative facts are Team Identity's to derive at query time (overview correction 10)");
             await Assert.That(execute.Facts.Any(f => f.Group.StartsWith("parser.", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(DemoCacheRecord.RoundFactsSchema);
+            await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
             await Assert.That(execute.FactsStamp.ComputedUtc).IsEqualTo(Refreshed);
             await Assert.That(execute.FactsStamp.Stale).IsFalse();
         }
@@ -111,7 +112,7 @@ public class TagFactsRefresherTests
         string before = LabelsJson(execute);
         TagDocument document = Document(Sha, execute);
 
-        TagFactsRefresher.Refresh(document, Rows(), DemoCacheRecord.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(document, Rows(), StratBookCache.RoundFactsSchema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -132,7 +133,7 @@ public class TagFactsRefresherTests
         warmup.Facts = [new TagLabel("buy.ct", "full")];
         warmup.FactsStamp = new TagFactsStamp { Schema = 1, ComputedUtc = Created };
 
-        TagFactsRefresher.Refresh(Document(Sha, warmup), Rows(), DemoCacheRecord.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(Document(Sha, warmup), Rows(), StratBookCache.RoundFactsSchema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -370,7 +371,7 @@ public class TagFactsRefresherTests
 
         public int Subscribers => _updated?.GetInvocationList().Length ?? 0;
 
-        public int Schema => DemoCacheRecord.RoundFactsSchema;
+        public int Schema => StratBookCache.RoundFactsSchema;
 
         public event Action<string>? Updated
         {
