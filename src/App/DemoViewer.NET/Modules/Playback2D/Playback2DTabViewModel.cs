@@ -503,7 +503,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context is ModuleContext { ExportHost: not null } &&
+        _context?.GetService<Playback2DExportHost>() is not null &&
         _context.HasDemo;
 
     // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so the WASM branch of ExportUnavailableNote
@@ -567,7 +567,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     True when a round band can offer "Create strat from this round": the shell wired a capture host and the
     ///     open demo's parse is there. Re-read from <see cref="RefreshGates" /> with the export's inputs.
     /// </summary>
-    public bool CanCreateStrat => _context is ModuleContext { StratCaptureHost: { } host, HasDemo: true } && host.Demo() is not null;
+    public bool CanCreateStrat =>
+        _context is { HasDemo: true } && _context.GetService<IStratCapture>() is { } capture && capture.Demo() is not null;
 
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => CurrentFrame.Markers;
@@ -955,7 +956,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [RelayCommand]
     private void OpenExport()
     {
-        if (!CanExport || _context is not ModuleContext { ExportHost: { } host })
+        if (!CanExport || _context?.GetService<Playback2DExportHost>() is not { } host)
         {
             return;
         }
@@ -1039,8 +1040,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="endFrame">The band's last frame.</param>
     internal void OpenCreateStrat(int startFrame, int endFrame)
     {
-        if (_context is not ModuleContext { StratCaptureHost: { } host } context || host.Demo() is not { } demo
-                                                                                 || demo.Frames.Count == 0)
+        if (_context is not { } context || context.GetService<IStratCapture>() is not StratCaptureHost host
+                                         || host.Demo() is not { } demo || demo.Frames.Count == 0)
         {
             return;
         }
@@ -1102,7 +1103,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Our side's key and book from Team Identity: the side key of our end-of-demo side when the demo has one,
     // else the me accounts; the team's book when that side is a known team, else the user's own.
-    private StratCaptureRequest BuildCaptureRequest(StratCaptureHost host, ModuleContext context, ClipRound round,
+    private StratCaptureRequest BuildCaptureRequest(StratCaptureHost host, IModuleContext context, ClipRound round,
         int? windowEnd, RoundFacts? facts, string? demoMap)
     {
         TeamAssignment? assignment = context.DemoPath is { } path ? host.Teams?.GetAssignment(path) : null;
@@ -1285,7 +1286,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     private int OutputFrameCount(int startFrame, int endFrame, int fps, double speed) =>
-        _context is ModuleContext { ExportHost: { } host } && host.Frames() is { } frames
+        _context?.GetService<Playback2DExportHost>() is { } host && host.Frames() is { } frames
             ? TrackerFrameSource.OutputFrameCount(frames, startFrame, endFrame, fps, speed, _tickRate)
             : Math.Max(1, endFrame - startFrame + 1);
 

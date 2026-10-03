@@ -39,4 +39,4 @@ public sealed record StratExportHost(
     Func<AppSettings> Settings,
     Action<Action<AppSettings>> PersistSettings,
     Action<Playback2DExportStatusViewModel>? MountStatusChip = null,
-    Action<string>? OpenExportFolder = null);
+    Action<string>? OpenExportFolder = null) : IStratExport;

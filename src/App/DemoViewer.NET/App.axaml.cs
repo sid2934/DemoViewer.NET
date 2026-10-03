@@ -21,7 +21,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
@@ -167,21 +166,7 @@ public class App : Application
                     // first Export: see Playback2DExportHost.MountStatusChip.
                     viewModel.AttachPlayback2DExportStatus,
                     viewModel.OpenOutputFolder));
-
-                // Strat Export (step-authoring.md §3.6): the same gate, interlocks and settings, no frame list
-                // (a strat is its own scene), and a chip slot of its own so the two tabs' exports never
-                // unmount each other.
-                moduleContext.SetStratExportHost(new StratExportHost(
-                    services.GetRequiredService<HeavyJobGate>(),
-                    () => liveSync?.State.IsSessionActive == true,
-                    () => reelJob?.Status.IsRunning == true,
-                    () => settings.Current,
-                    settings.Write,
-                    viewModel.AttachStratExportStatus,
-                    viewModel.OpenOutputFolder));
             }
-
-            WireStratCapture(services, viewModel);
 
             // The highlight-scan chip. Attached from the container's instance so the strip shows a
             // running library scan even when the Reels tab has never been opened (module tab VMs are lazy).
@@ -478,9 +463,6 @@ public class App : Application
             WireTheme(services); // L0c: apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab (file no-ops on WASM)
-            // Create Strat From Round works here too, session only (step-authoring.md §3.10): the parse is in
-            // memory and so is the strat store.
-            WireStratCapture(services, viewModel);
 
             // Same ordering contract as the desktop root above: after the singleton is cached, never in
             // the ctor. No-ops on WASM (fileless settings persist no session), but the call site stays so
@@ -499,30 +481,6 @@ public class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
-    }
-
-    /// <summary>
-    ///     Hands 2D Playback Create Strat From Round's host (step-authoring.md §3.9): the open parse, the strat
-    ///     store and Team Identity, and the way to the new strat, which selects the Strat Book tab and opens it
-    ///     there. Both heads: nothing in it writes a file the store would not.
-    /// </summary>
-    private static void WireStratCapture(ServiceProvider services, MainViewModel viewModel)
-    {
-        if (viewModel.ModuleContext is not ModuleContext moduleContext)
-        {
-            return;
-        }
-
-        moduleContext.SetStratCaptureHost(new StratCaptureHost(
-            () => moduleContext.CurrentDemo,
-            services.GetRequiredService<StratStore>(),
-            services.GetService<TeamIdentityService>(),
-            id =>
-            {
-                // The tab first: activation refreshes its list, which the open strat is then selected in.
-                viewModel.TrySelectTab(StratBookModule.BrowserTabId);
-                services.GetRequiredService<StratBookTabViewModel>().OpenStrat(id);
-            }));
     }
 
     /// <summary>
@@ -1189,7 +1147,7 @@ public class App : Application
         _shellUnderConstruction = true;
         try
         {
-            return new MainViewModel(
+            MainViewModel shell = new(
                 sp.GetRequiredService<IWindowService>(),
                 sp.GetRequiredService<ModuleRegistry>(),
                 sp.GetRequiredService<DemoLibraryService>(),
@@ -1221,6 +1179,17 @@ public class App : Application
                 sp.GetRequiredService<IDemoProvenanceSource>(),
                 // The Strat Book's collapsed panes: the hub rail and the Strats section's list share it.
                 sp.GetRequiredService<StratBookLayout>());
+
+            // GetService<T> on the module context falls back to this container for anything a pack
+            // registers by type (Create Strat From Round's capture host, the Strat Book's export host).
+            // Wired here, not in OnFrameworkInitializationCompleted, so every path that resolves the
+            // shell gets it, tests included, and only when the shell is actually resolved.
+            if (shell.ModuleContext is ModuleContext moduleContext)
+            {
+                moduleContext.SetServices(sp);
+            }
+
+            return shell;
         }
         finally
         {

@@ -24,7 +24,6 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
-using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 
 #endregion
@@ -119,25 +118,31 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// </param>
     /// <param name="post">Returns a late place lookup to the UI thread; the dispatcher when omitted.</param>
     /// <param name="routing">
-    ///     Whether tokens follow the map's nav round walls; the <c>stratbook.routing</c> feature when omitted, which a
-    ///     settings change re-reads. With no feature gate (a host without services) routing is off.
+    ///     Whether tokens follow the map's nav round walls; the <c>stratbook.routing</c> feature when omitted, read off
+    ///     <paramref name="lookups" />'s gate, which a settings change re-reads. With no gate injected, routing is off.
     /// </param>
     /// <param name="spawnsFor">
     ///     A map's spawns, for an older strat's start (<see cref="StratStartBlock.Effective" />); null reads no spawns.
+    /// </param>
+    /// <param name="lookups">
+    ///     The feature gate, zone place resolver and settings a caller two hops up resolved from the app; null
+    ///     members (and a null bundle) mean the same as before: routing off, the baked-in place resolver, no
+    ///     keybind overrides.
     /// </param>
     public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
         Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
         Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null, Func<bool>? routing = null,
-        Func<string, Task<StratSpawns?>>? spawnsFor = null)
+        Func<string, Task<StratSpawns?>>? spawnsFor = null, StratCanvasServices? lookups = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
         _spawnsFor = spawnsFor;
         _lineupOrigins = lineupOrigins;
-        _placesFor = placesFor ?? QueuedPlaces;
+        _placesFor = placesFor ?? (map => QueuedPlaces(map, lookups?.Places));
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
-        _gate = routing is null ? AppFeatureGate() : null;
+        // No gate injected (a headless test, a designer instance): routing stays off.
+        _gate = routing is null ? lookups?.Gate : null;
         _routing = routing ?? (() => _gate?.IsEnabled(FeatureCatalog.StratRoutingFeatureId) ?? false);
         if (_gate is not null)
         {
@@ -147,7 +152,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
-        _keybindOverrides = keybindOverrides ?? SettingsOverrides;
+        _keybindOverrides = keybindOverrides ?? (() => lookups?.Settings?.Current.Playback2D.KeybindOverrides ?? []);
 
         // Session only by construction: the strat file is the persistence, so there is no sidecar, and no
         // settings either, so the canvas's tool choice never becomes the 2D tab's remembered tool.
@@ -1497,19 +1502,6 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
-    // A host torn down before this canvas (a headless test, shutdown) has no gate to read: routing stays off.
-    private static IFeatureGate? AppFeatureGate()
-    {
-        try
-        {
-            return App.Services?.GetService<IFeatureGate>();
-        }
-        catch (ObjectDisposedException)
-        {
-            return null;
-        }
-    }
-
     // The routing feature flipped in settings: reproject only when it changes what the canvas draws.
     private void OnGateChanged(object? sender, EventArgs e) =>
         _post(() =>
@@ -2474,7 +2466,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     // The zone source reads files under a lock the first time, so it runs as a queue item, at the front: a user
     // opened the strat or clicked for a place.
     // One read in flight per map across every canvas (the editor's and a Detected preview's), so the queue shows one.
-    private static Task<IZonePlaceResolver?> QueuedPlaces(string map)
+    private static Task<IZonePlaceResolver?> QueuedPlaces(string map, IZonePlaceResolverSource? resolverSource)
     {
         lock (_placesGate)
         {
@@ -2485,7 +2477,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
             Task<IZonePlaceResolver?> read = QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.SectionCompute,
                 "Strat places: " + map, "Strat Book",
-                () => (App.Services?.GetService<IZonePlaceResolverSource>() ?? NoZonePlaceResolverSource.Instance).TryGet(map),
+                () => (resolverSource ?? NoZonePlaceResolverSource.Instance).TryGet(map),
                 null, DemoJobPriority.UserRequested);
             _placesInFlight[map] = read;
             return read;
@@ -2557,9 +2549,6 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
         }
     }
-
-    private static string[] SettingsOverrides() =>
-        App.Services?.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? [];
 
     // Set On Map waiting for its click. Pending once the click is in and the place lookup has not answered.
     private sealed class ArmedPlace(Guid stratId, StratLocationField field, string map, int number, string prompt)
