@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.Settings;
+namespace DemoViewer.NET.Extensions.StratBook.Views.Settings;
 
 /// <summary>The Suggested Tags tuning settings card. Bindings only; every behaviour lives on the VM.</summary>
 public partial class SuggestedTagsTuningView : UserControl

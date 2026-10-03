@@ -3,11 +3,12 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.ViewModels;
 using Microsoft.Extensions.Options;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Settings;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 
 /// <summary>
 ///     The Grenade Index settings card (grenade-walk.md §3.8): the library's background walk opt-in and the
