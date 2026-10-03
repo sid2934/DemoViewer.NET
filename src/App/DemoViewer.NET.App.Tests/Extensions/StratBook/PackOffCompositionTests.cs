@@ -1,17 +1,14 @@
 #region
 
-using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
-using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -47,16 +44,13 @@ public class PackOffCompositionTests
                                 """);
 
     [Test]
-    public async Task PackOff_NoIPackLifecycleRan()
+    public async Task PackOff_PackGateIsOff()
     {
         await WithProvider(async provider =>
         {
-            // IPackLifecycle is registered unconditionally (registrations are free), but OnEnabledAsync
-            // should never be called when the pack is off. The only way to detect this is that
-            // pack-owned startup services are not initialized. This is tested indirectly below
-            // through StratBookPackInstances fields.
-            await Assert.That(provider.GetRequiredService<IPackLifecycle>()).IsNotNull()
-                .Because("the lifecycle is registered unconditionally");
+            IFeatureGate gate = provider.GetRequiredService<IFeatureGate>();
+            await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsFalse()
+                .Because("the pack is disabled in this test's settings");
         });
     }
 
