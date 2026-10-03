@@ -90,6 +90,9 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
     /// <summary>Where the tab sits.</summary>
     public TabPlacement Placement { get; init; } = TabPlacement.Main;
 
+    /// <summary>The feature id the host gates this tab on, or <c>null</c> to always show it.</summary>
+    public string? FeatureId { get; init; }
+
     /// <summary>
     ///     The DataContext assigned to the realized View. For shell-routed built-ins this is the shell
     ///     itself (so the existing <c>{Binding TabVM.X}</c> bindings keep resolving); for module-owned

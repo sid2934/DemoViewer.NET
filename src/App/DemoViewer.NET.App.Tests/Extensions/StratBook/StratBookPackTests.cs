@@ -249,6 +249,41 @@ public class StratBookPackTests
             .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id));
     }
 
+    // Reads the pack's own contributed module list, not a hand-written one, so an id a module declares
+    // but StratBookPack.Features never registered fails the catalog-entry check below, instead of
+    // drifting along as a fail-open tab.
+    [Test]
+    public async Task EveryModule_DeclaresAFeatureId_InTheCatalog_OwnedByThePack()
+    {
+        await WithProvider(null, async provider =>
+        {
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
+            FakeHost host = new();
+            List<string> declaredIds = [];
+
+            foreach (IWorkspaceModule module in pack.Modules)
+            {
+                foreach (WorkspaceTabDescriptor descriptor in module.CreateTabs(host))
+                {
+                    await Assert.That(descriptor.FeatureId).IsNotNull()
+                        .Because($"{module.Id}'s '{descriptor.TabId}' must declare its own feature id");
+
+                    FeatureDescriptor? catalogEntry = FeatureCatalog.ById(descriptor.FeatureId!);
+                    await Assert.That(catalogEntry).IsNotNull()
+                        .Because($"'{descriptor.FeatureId}' (declared by {module.Id}) has no catalog entry");
+                    await Assert.That(catalogEntry!.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
+                        .Because($"'{descriptor.FeatureId}' must be owned by the pack that owns {module.Id}");
+
+                    declaredIds.Add(descriptor.FeatureId!);
+                }
+            }
+
+            string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Scope == FeatureScope.Tab).Select(f => f.Id)];
+            await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
+                .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
+        });
+    }
+
     [Test]
     public async Task ThePack_ResolvesOn_ByDefault_ForEveryCategory()
     {
@@ -543,6 +578,17 @@ public class StratBookPackTests
 
     private static FeatureDescriptor SubFeature(string id, string? parent) =>
         new(id, FeatureScope.SubFeature, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+
+    // CreateTabs never reads Context or logs; this is only here to satisfy the parameter.
+    private sealed class FakeHost : IModuleHost
+    {
+        public IModuleContext Context => null!;
+        public bool HasCapability(string capability) => true;
+
+        public void Log(ModuleLogLevel level, string message)
+        {
+        }
+    }
 
     private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
     {

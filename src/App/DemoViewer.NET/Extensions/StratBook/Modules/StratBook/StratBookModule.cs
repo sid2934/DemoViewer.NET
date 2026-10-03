@@ -30,7 +30,7 @@ public sealed class StratBookModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.stratbook";
 
-    /// <summary>The section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The section's tab id; its descriptor declares <see cref="TabFeatureId" /> directly.</summary>
     public const string BrowserTabId = "stratbook.browser";
 
     private readonly Func<StratBookTabViewModel> _viewModelFactory;
@@ -55,6 +55,7 @@ public sealed class StratBookModule : IWorkspaceModule
             Header = "Strats",
             Order = 0, // first on the rail
             Placement = TabPlacement.StratBook,
+            FeatureId = TabFeatureId,
             ViewModelFactory = () => _viewModel ??= _viewModelFactory(),
             ViewFactory = () => new StratBookTabView()
         };
