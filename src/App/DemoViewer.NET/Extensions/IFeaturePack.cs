@@ -44,6 +44,14 @@ public interface IFeaturePack
     IEnumerable<CommandDescriptor> Commands => Array.Empty<CommandDescriptor>();
 
     /// <summary>
+    ///     The pack's processing-queue job kinds, read by <c>JobKindRegistry</c> with no DI: the queue's
+    ///     own composition-root factory builds the registry straight from the pack list, so resolving the
+    ///     queue can never re-enter the container through a pack's <see cref="Contribute" /> (which may
+    ///     itself resolve a service that depends on the queue). Defaults to none.
+    /// </summary>
+    IEnumerable<JobKindDescriptor> JobKinds => Array.Empty<JobKindDescriptor>();
+
+    /// <summary>
     ///     Adds the pack's registrations. Unconditional: factories are lazy, and a registration that
     ///     depends on the gate would make turning the pack on without a restart impossible.
     /// </summary>
