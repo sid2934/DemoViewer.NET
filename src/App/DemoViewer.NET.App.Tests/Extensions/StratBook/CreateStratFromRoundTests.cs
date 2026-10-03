@@ -5,12 +5,15 @@ using System.Globalization;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Avalonia.Media;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.StratBook;
 
 #endregion
@@ -393,6 +396,20 @@ public class CreateStratFromRoundTests
 
         await Assert.That(asked.Count).IsEqualTo(1);
         await Assert.That(asked[0]).IsSameReferenceAs(round);
+    }
+
+    // The pack-off shape from the 2D tab's own side (item 15): nothing registers IStratCapture, so
+    // GetService returns null and CanCreateStrat is false, without the tab ever naming StratCaptureHost
+    // for this check.
+    [Test]
+    public async Task CanCreateStrat_IsFalse_WhenNothingRegistersTheCaptureService()
+    {
+        Playback2DTabViewModel vm = new();
+        ModuleContext context = new(new PlaybackController(), () => null);
+
+        vm.OnActivated(context);
+
+        await Assert.That(vm.CanCreateStrat).IsFalse();
     }
 
     private static TimelineBandViewModel Band(string track, string label) =>
