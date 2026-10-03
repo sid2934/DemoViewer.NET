@@ -9,6 +9,7 @@ using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -33,11 +34,19 @@ public class ReviewPanelsPlaybackContributionTests
     private const string OtherPath = "/d/other.dem";
     private static readonly string OtherSha = new('b', 64);
 
+    // These bodies run off the UI thread (no RunOnUi), where nothing pumps the dispatcher: the session's
+    // changes, the lane's re-query and the queue's reload are delivered synchronously here, and on the
+    // production post in the tests that run on the UI thread.
+    private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx, ReviewPanelsPlaybackContribution Review) Tab(
+        IFeatureGate? gate = null, Action<Playback2DFakeContext>? configure = null,
+        Func<string, string?, Task<DemoIdentity?>>? identity = null) =>
+        ReviewPanelsHarness.Tab(gate, configure: configure, post: ReviewPanelsHarness.SynchronousPost, identity: identity);
+
     [Test]
     public async Task PackOff_BuildsNothing_AndTheToggleAddsTheSessionTheLanesTheToggleAndThePanels()
     {
         FakeGate gate = new() { On = false };
-        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(gate);
+        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = Tab(gate);
         string[] coreTracks = [.. vm.Timeline.Tracks.Select(t => t.Id)];
 
         using (Assert.Multiple())
@@ -101,7 +110,7 @@ public class ReviewPanelsPlaybackContributionTests
     public async Task TheSession_IsBuiltFromTheContextsServices_AndTheDemoChangeSignalAttachesIt()
     {
         TagStore store = new(null);
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab(
             configure: c =>
             {
                 c.SetService(store);
@@ -142,9 +151,41 @@ public class ReviewPanelsPlaybackContributionTests
     }
 
     [Test]
+    public async Task TheFirstActivation_AttachesTheDemoOnce_WhileItsIdentityIsStillResolving()
+    {
+        TaskCompletionSource<DemoIdentity?> slow = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<string> asked = [];
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab(
+            configure: c => c.DemoPath = DemoPath,
+            identity: (path, _) =>
+            {
+                asked.Add(path);
+                return slow.Task;
+            });
+
+        // Attach and the activation's demo-change signal both asked for this demo; one identity is in flight.
+        await Assert.That(asked).IsEquivalentTo([DemoPath]).Because("the second request sees the first still attaching");
+
+        ctx.RaiseDemoReset(); // the same demo again, still in flight
+        await Assert.That(asked.Count).IsEqualTo(1);
+
+        slow.SetResult(Demo);
+        TagSession session = review.Session!;
+        await AttachedAsync(session, DemoPath);
+        ctx.RaiseDemoReset(); // attached now: the path guard holds
+        using (Assert.Multiple())
+        {
+            await Assert.That(asked.Count).IsEqualTo(1);
+            await Assert.That(session.Document!.Demo.Sha256).IsEqualTo(Sha);
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
     public async Task ThePalettesFocus_IsTheColumnsKeyboard_AndFeedsItsScope()
     {
-        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = Tab();
         await review.Session!.AttachAsync(Demo, Clock, DemoPath);
 
         await Assert.That(ReviewPanelsHarness.Press(vm, Key.C)).IsFalse().Because("outside Review mode the palette is not on screen");
@@ -185,7 +226,7 @@ public class ReviewPanelsPlaybackContributionTests
     [Test]
     public async Task TheNarrowerGates_HideTheirPanel_AndBothOffClosesTheReviewPanelAndHidesTheToggle()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab();
         await review.Session!.AttachAsync(Demo, Clock, DemoPath);
         review.ReviewMode!.IsOn = true;
         ReviewPanelsHarness.Press(vm, Key.C);
@@ -235,7 +276,7 @@ public class ReviewPanelsPlaybackContributionTests
     {
         FakeGate gate = new() { On = true };
         TagStore store = new(null);
-        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(gate, configure: c => c.SetService(store));
+        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = Tab(gate, c => c.SetService(store));
         TagSession session = review.Session!;
         await session.AttachAsync(Demo, Clock, DemoPath);
         review.ReviewMode!.IsOn = true;
@@ -296,13 +337,13 @@ public class ReviewPanelsPlaybackContributionTests
         try
         {
             SettingsService settings = new(dir);
-            (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(configure: c => c.SetService(settings));
+            (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = Tab(configure: c => c.SetService(settings));
             await Assert.That(review.ReviewMode!.IsOn).IsFalse();
 
             review.ReviewMode.IsOn = true;
             await Assert.That(settings.Current.Playback2D.ReviewMode).IsTrue().Because("the mode is persisted where the tab persisted it");
 
-            (Playback2DTabViewModel second, _, ReviewPanelsPlaybackContribution again) = ReviewPanelsHarness.Tab(configure: c => c.SetService(settings));
+            (Playback2DTabViewModel second, _, ReviewPanelsPlaybackContribution again) = Tab(configure: c => c.SetService(settings));
             using (Assert.Multiple())
             {
                 await Assert.That(again.ReviewMode!.IsOn).IsTrue().Because("a new attachment starts as the user left it");
@@ -325,7 +366,7 @@ public class ReviewPanelsPlaybackContributionTests
     [Test]
     public async Task Deactivation_TakesTheKeyboardBack_SoTheNextDigitIsNobodysKey()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab();
         await review.Session!.AttachAsync(Demo, Clock, DemoPath);
         review.ReviewMode!.IsOn = true;
         ReviewPanelsHarness.Press(vm, Key.C);
@@ -347,7 +388,7 @@ public class ReviewPanelsPlaybackContributionTests
     [Test]
     public async Task ADemoSwap_WritesThePendingTagToTheOldDocument_DropsTheNote_AndTakesTheKeyboardBack()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab(
             configure: c =>
             {
                 c.DemoPath = DemoPath;

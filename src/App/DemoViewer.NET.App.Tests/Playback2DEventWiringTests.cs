@@ -54,7 +54,7 @@ public class Playback2DEventWiringTests
     public async Task EveryModuleEvent_HasAProductionRaiser_AndAProductionSubscriber()
     {
         (List<EventContract> contracts, List<string> unanalysable) =
-            Analyse(Playback2DWholeGraph.ModuleTypes, Playback2DWholeGraph.ProductionAssemblies);
+            Analyse(Playback2DWholeGraph.EventContractTypes, Playback2DWholeGraph.ProductionAssemblies);
 
         foreach (EventContract contract in contracts.OrderBy(c => c.Key, StringComparer.Ordinal))
         {
@@ -119,12 +119,12 @@ public class Playback2DEventWiringTests
     public async Task TheModuleSurface_IsActuallyBeingScanned()
     {
         (List<EventContract> contracts, List<string> _) =
-            Analyse(Playback2DWholeGraph.ModuleTypes, Playback2DWholeGraph.ProductionAssemblies);
+            Analyse(Playback2DWholeGraph.EventContractTypes, Playback2DWholeGraph.ProductionAssemblies);
 
-        Console.WriteLine($"[event-wiring] module types={Playback2DWholeGraph.ModuleTypes.Count()} "
+        Console.WriteLine($"[event-wiring] module types={Playback2DWholeGraph.EventContractTypes.Count()} "
                           + $"event contracts={contracts.Count}");
 
-        await Assert.That(Playback2DWholeGraph.ModuleTypes.Count()).IsGreaterThan(100);
+        await Assert.That(Playback2DWholeGraph.EventContractTypes.Count()).IsGreaterThan(100);
         await Assert.That(contracts.Count).IsGreaterThanOrEqualTo(12);
 
         // StatusChanged and MarkersChanged, pinned by key: a rename that silently drops them from the
