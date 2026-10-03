@@ -19,6 +19,9 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<JobKindDescriptor> _jobKinds = [];
     private readonly List<CommandDescriptor> _commands = [];
     private readonly List<RulesetContribution> _rulesets = [];
+    private readonly List<SettingsPageContribution> _settingsPages = [];
+    private readonly List<StatusChipContribution> _statusChips = [];
+    private readonly List<IPackReindexEstimate> _reindexEstimates = [];
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
@@ -40,6 +43,15 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>Commands, in contribution order. Named apart from the <see cref="Commands(IEnumerable{CommandDescriptor})" /> method the interface declares.</summary>
     public IReadOnlyList<CommandDescriptor> ContributedCommands => _commands;
+
+    /// <summary>Settings pages, in contribution order, each stamped with a gate id.</summary>
+    public IReadOnlyList<SettingsPageContribution> SettingsPages => _settingsPages;
+
+    /// <summary>Status-chip slots, in contribution order, each stamped with a gate id.</summary>
+    public IReadOnlyList<StatusChipContribution> StatusChips => _statusChips;
+
+    /// <summary>Re-index estimates, in contribution order.</summary>
+    public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => _reindexEstimates;
 
     /// <inheritdoc />
     public void Module(IWorkspaceModule workspaceModule)
@@ -86,5 +98,31 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rulesetId);
         _rulesets.Add(new RulesetContribution(rulesetId));
+    }
+
+    /// <inheritdoc />
+    public void SettingsPage(SettingsPageContribution page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentException.ThrowIfNullOrWhiteSpace(page.Id);
+        ArgumentNullException.ThrowIfNull(page.ViewModelFactory);
+        ArgumentNullException.ThrowIfNull(page.ViewFactory);
+        _settingsPages.Add(page.FeatureId is null ? page with { FeatureId = Pack.FeatureId } : page);
+    }
+
+    /// <inheritdoc />
+    public void StatusChip(StatusChipContribution chip)
+    {
+        ArgumentNullException.ThrowIfNull(chip);
+        ArgumentException.ThrowIfNullOrWhiteSpace(chip.Id);
+        ArgumentNullException.ThrowIfNull(chip.Source);
+        _statusChips.Add(chip.FeatureId is null ? chip with { FeatureId = Pack.FeatureId } : chip);
+    }
+
+    /// <inheritdoc />
+    public void ReindexEstimate(IPackReindexEstimate estimate)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        _reindexEstimates.Add(estimate);
     }
 }
