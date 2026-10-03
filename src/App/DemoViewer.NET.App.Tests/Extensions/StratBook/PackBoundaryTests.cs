@@ -209,8 +209,9 @@ public class PackBoundaryTests
     /// </summary>
     private static bool ContainsPackReference(string content, string ns)
     {
-        // 1. Using statement: "using Namespace;" or "using Namespace.Sub;"
-        if (Regex.IsMatch(content, @"\busing\s+" + Regex.Escape(ns) + @"\b", RegexOptions.Multiline))
+        // 1. Using statement: exactly "using Namespace;". A using of a child namespace is the child's edge,
+        // not this one's, so each allow-list row names the namespace a file really imports.
+        if (Regex.IsMatch(content, @"\busing\s+" + Regex.Escape(ns) + @"\s*;", RegexOptions.Multiline))
         {
             return true;
         }
@@ -221,9 +222,10 @@ public class PackBoundaryTests
             return true;
         }
 
-        // 3. Fully-qualified type reference: "Namespace.Type" (word boundary on both sides).
-        // Use a heuristic: the namespace followed by a dot and at least one uppercase letter (typical start of a type name).
-        if (Regex.IsMatch(content, Regex.Escape(ns) + @"\.[A-Z][A-Za-z0-9_]*", RegexOptions.None))
+        // 3. Fully-qualified type reference outside the using directives: "Namespace.Type", the namespace
+        // followed by a dot and an uppercase letter (the typical start of a type name).
+        string body = Regex.Replace(content, @"^\s*using\s+[^;]+;\s*$", "", RegexOptions.Multiline);
+        if (Regex.IsMatch(body, Regex.Escape(ns) + @"\.[A-Z][A-Za-z0-9_]*", RegexOptions.None))
         {
             return true;
         }

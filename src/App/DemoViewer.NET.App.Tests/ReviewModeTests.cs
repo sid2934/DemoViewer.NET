@@ -4,19 +4,24 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
-using DemoViewer.NET.Views.Playback2D;
+using Avalonia.VisualTree;
+using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Views.Playback2D;
+using DemoViewer.NET.Views.RoundTagger;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Review mode in 2D Playback: off by default, it hides the labelling panels and lanes and leaves every
-///     tagging key unhandled; Shift+R turns it on, which shows them, collapses the player cards to a strip
-///     and hands the keys back. The lanes are hidden by mode, never by overwriting the user's own toggle.
+///     Review mode in 2D Playback: off by default, it hides the contributed panels and the lanes and leaves
+///     every tagging key unhandled; Shift+R turns it on, which shows them, collapses the player cards to a
+///     strip and hands the keys back. The lanes are hidden by mode, never by overwriting the user's own
+///     toggle. Without a pack the mode has nothing to show and the toggle is not offered.
 /// </summary>
 public class ReviewModeTests
 {
@@ -27,17 +32,17 @@ public class ReviewModeTests
     public async Task OffByDefault_TheTaggingKeysAreUnhandled_AndShiftRTurnsItOn() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
 
             using (Assert.Multiple())
             {
                 await Assert.That(vm.IsReviewMode).IsFalse().Because("plain playback keeps the full player cards");
                 await Assert.That(vm.IsReviewAvailable).IsTrue();
-                await Assert.That(vm.ShowTagPalette).IsFalse();
-                await Assert.That(vm.ShowSuggestionQueue).IsFalse();
+                await Assert.That(review.PalettePanel!.IsShown).IsFalse();
+                await Assert.That(review.QueuePanel!.IsShown).IsFalse();
                 await Assert.That(vm.IsCardStrip).IsFalse();
                 await Assert.That(Press(vm, Key.C)).IsFalse().Because("the palette is not on screen");
-                await Assert.That(vm.IsTagPaletteFocused).IsFalse();
+                await Assert.That(review.IsPaletteFocused).IsFalse();
                 await Assert.That(Press(vm, Key.N)).IsFalse().Because("N must not reject a suggestion no one can see");
                 await Assert.That(Press(vm, Key.Y, KeyModifiers.Control)).IsFalse();
                 await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsTrue();
@@ -48,8 +53,8 @@ public class ReviewModeTests
             using (Assert.Multiple())
             {
                 await Assert.That(vm.IsReviewMode).IsTrue();
-                await Assert.That(vm.ShowTagPalette).IsTrue();
-                await Assert.That(vm.ShowSuggestionQueue).IsTrue();
+                await Assert.That(review.PalettePanel.IsShown).IsTrue();
+                await Assert.That(review.QueuePanel.IsShown).IsTrue();
                 await Assert.That(vm.IsCardStrip).IsTrue();
                 await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsFalse();
                 await Assert.That(vm.Timeline.IsTrackSuppressed(ProposalTrack.TrackId)).IsFalse();
@@ -57,6 +62,24 @@ public class ReviewModeTests
 
             await Assert.That(Press(vm, Key.R, KeyModifiers.Shift)).IsTrue();
             await Assert.That(vm.IsReviewMode).IsFalse().Because("Shift+R toggles back out");
+            vm.Dispose();
+        });
+
+    [Test]
+    public async Task WithoutAPack_TheModeHasNothingToShow_AndTheToggleIsNotOffered() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.IsReviewAvailable).IsFalse();
+                await Assert.That(vm.Surface.Panels).IsEmpty();
+                await Assert.That(Press(vm, Key.R, KeyModifiers.Shift)).IsFalse().Because("nothing contributed a panel");
+                await Assert.That(vm.IsCardStrip).IsFalse();
+            }
+
+            vm.Dispose();
         });
 
     [Test]
@@ -86,22 +109,22 @@ public class ReviewModeTests
         bool offPalette = true, onPalette = false;
         await HeadlessSession.RunOnUi(() =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, _) = ReviewPanelsHarness.Tab();
             ctx.Push(1, 2);
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm, 1280, 800);
             ListBox cards = view.FindControl<ListBox>("PlayerCards")!;
-            Control palette = view.FindControl<Control>("TagPaletteHost")!;
             Playback2DTimelineHarness.Pump();
             offCards = cards.Bounds.Height;
-            offPalette = palette.IsEffectivelyVisible;
+            offPalette = view.GetVisualDescendants().OfType<TagPaletteView>().Any(p => p.IsEffectivelyVisible);
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-off.png"), new PngBitmapEncoderOptions());
 
             vm.IsReviewMode = true;
             Playback2DTimelineHarness.Pump();
             onCards = cards.Bounds.Height;
-            onPalette = palette.IsEffectivelyVisible;
+            onPalette = view.GetVisualDescendants().OfType<TagPaletteView>().Any(p => p.IsEffectivelyVisible);
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-on.png"), new PngBitmapEncoderOptions());
             window.Close();
+            vm.Dispose();
             return Task.CompletedTask;
         });
 
