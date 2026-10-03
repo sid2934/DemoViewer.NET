@@ -615,9 +615,10 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         }
         else
         {
-            // SelectedTeam is reassigned LAST, as RefreshAvailableTeams below also does: a bound
-            // ComboBox nulls SelectedItem the instant Clear() drops the item it was showing, and that
-            // null writes back through the TwoWay binding over an earlier assignment.
+            // SelectedTeam is reassigned LAST, as RefreshAvailableTeams below also does, and in the same
+            // place relative to _suppressApply: a bound ComboBox nulls SelectedItem the instant Clear()
+            // drops the item it was showing, and that null writes back through the TwoWay binding over
+            // an earlier assignment.
             _suppressApply = true;
             AvailableTeams.Clear();
             AvailableTeams.Add(TeamFilterItem.All);
@@ -627,8 +628,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
                 entry.ProvenanceIsOverride = false;
             }
 
-            SelectedTeam = TeamFilterItem.All;
             _suppressApply = false;
+            SelectedTeam = TeamFilterItem.All;
         }
 
         OnPropertyChanged(nameof(HasTeamFilter));
