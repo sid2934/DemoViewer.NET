@@ -46,24 +46,27 @@ public class FindRoundsLikeThisTests
     [Test]
     public async Task CtrlF_IsFindRoundsLikeThis_AndBareFStaysFollow()
     {
+        // FindRoundsLikeThis is a Strat Book extension command: the profile a tab routes through
+        // resolves it, the bare core table (Playback2DKeymap) does not.
+        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {
-            await Assert.That(Playback2DKeymap.TryResolve(Key.F, KeyModifiers.Control, false, out Playback2DAction find))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out Playback2DAction find))
                 .IsTrue();
             await Assert.That(find).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
-            await Assert.That(Playback2DKeymap.TryResolve(Key.F, KeyModifiers.None, false, out Playback2DAction follow))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out Playback2DAction follow))
                 .IsTrue();
             await Assert.That(follow).IsEqualTo(Playback2DAction.CycleFollowNext);
 
             // A drawing tool does not take the chord away: the row is Always-scoped and nothing
             // tool-scoped claims it.
-            await Assert.That(Playback2DKeymap.TryResolve(Key.F, KeyModifiers.Control, true, out Playback2DAction tool))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out Playback2DAction tool))
                 .IsTrue();
             await Assert.That(tool).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
 
             // Not a shell accelerator and not one the browser eats, so a user may keep it on either head.
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.F, KeyModifiers.Control));
-            await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
+            await Assert.That(keymap.GestureText(Playback2DAction.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
         }
     }
 

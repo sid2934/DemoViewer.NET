@@ -42,12 +42,15 @@ public sealed partial class KeybindRow : ObservableObject
     [ObservableProperty]
     private bool _isOverridden;
 
-    internal KeybindRow(SettingsViewModel owner, Playback2DBinding binding)
+    internal KeybindRow(SettingsViewModel owner, Playback2DBinding binding, string? packLabel = null,
+        string? packFeatureId = null)
     {
         _owner = owner;
         Action = binding.Action;
         Label = binding.Description;
         IsReserved = binding.IsReserved;
+        PackLabel = packLabel;
+        PackFeatureId = packFeatureId;
         ScopeLabel = binding.Scope switch
         {
             Playback2DBindingScope.WhenToolActive => "while drawing",
@@ -76,6 +79,22 @@ public sealed partial class KeybindRow : ObservableObject
     /// <summary>Whether the rebind affordance is live (everything except a reserved row).</summary>
     public bool IsBindable => !IsReserved;
 
+    /// <summary>Null for a core row; the owning pack's display label (e.g. "Strat Book extension") otherwise.</summary>
+    public string? PackLabel { get; }
+
+    /// <summary>The owning pack's umbrella gate id, read live by <see cref="IsVisible" />. Null for a core row.</summary>
+    public string? PackFeatureId { get; }
+
+    /// <summary>Whether this row's label chip should show (a pack row only).</summary>
+    public bool HasPackLabel => PackLabel is { Length: > 0 };
+
+    /// <summary>
+    ///     False while this row's pack is off: its chord does nothing and the row has no business in the
+    ///     list. Always true for a core row. Live: re-read on every <see cref="Refresh" />, which the
+    ///     gate's own <c>Changed</c> handler triggers.
+    /// </summary>
+    public bool IsVisible => PackFeatureId is null || _owner.IsPackFeatureEnabled(PackFeatureId);
+
     /// <summary>The capture button's caption: the prompt while armed, otherwise the current gesture.</summary>
     public string CaptureLabel => IsCapturing
         ? "press a key…"
@@ -93,6 +112,7 @@ public sealed partial class KeybindRow : ObservableObject
     {
         Gesture = profile.GestureText(Action);
         IsOverridden = profile.IsOverridden(Action);
+        OnPropertyChanged(nameof(IsVisible));
     }
 
     partial void OnGestureChanged(string value) => OnPropertyChanged(nameof(CaptureLabel));

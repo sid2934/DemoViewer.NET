@@ -1277,6 +1277,16 @@ public class App : Application
                     $"Pack '{pack.Id}' contributed job kinds, which nothing consumes until job-kind descriptors (item 13).");
             }
 
+            // CommandRegistry.Default reads IFeaturePack.Commands directly (no DI, so a bare-constructed
+            // view model resolves pack chords in a headless test too). This is the consumer for the
+            // IPackContributions.Commands(...) call: not a second registration, a check that the two
+            // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
+            if (!CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]))
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed different commands through Contribute than its Commands property declares.");
+            }
+
             foreach (IWorkspaceModule module in contributions.Modules)
             {
                 registry.Register(module);
