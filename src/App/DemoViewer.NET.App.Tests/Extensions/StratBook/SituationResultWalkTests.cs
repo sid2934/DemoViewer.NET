@@ -10,8 +10,9 @@ using DemoViewer.NET.ViewModels.Situations;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     J / K in 2D playback: the keymap rows, the tab's dispatch onto the walk seam (unhandled without
-///     one, and the seam's own answer otherwise), and the shipped seam resolving the tab lazily.
+///     J / K in 2D playback: the keymap rows and the shipped seam resolving the tab lazily. The dispatch
+///     onto the walk seam (unhandled without one, the seam's own answer otherwise, the Situations tab's
+///     feature gate) is <c>SituationsPlaybackContributionTests</c>.
 /// </summary>
 public class SituationResultWalkTests
 {
@@ -38,10 +39,6 @@ public class SituationResultWalkTests
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.K, KeyModifiers.None));
         }
     }
-
-    // The tab's own dispatch of J/K onto the walk seam (gated by the Situations tab's own feature, the
-    // seam's own refusal leaving the key unhandled, no seam leaving it unhandled too) is the pack's
-    // contribution now: SituationsPlaybackContributionTests.
 
     [Test]
     public async Task TheShippedSeam_ResolvesTheTabOnFirstUse_AndWalksItsCards()

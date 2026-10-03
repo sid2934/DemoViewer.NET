@@ -33,6 +33,7 @@ public partial class Playback2DView : UserControl
     private readonly IPlayback2DSurface? _surface;
     private readonly Canvas? _textEditorLayer;
     private readonly TextBox? _textEditor;
+    private readonly Separator? _toolbarItemsSeparator;
 
     // True between the surface asking for a label's text and the editor handing it back. Cleared FIRST
     // on the way out, because hiding the box moves focus, and losing focus is itself a commit.
@@ -83,6 +84,7 @@ public partial class Playback2DView : UserControl
         }
 
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
+        _toolbarItemsSeparator = this.FindControl<Separator>("ToolbarItemsSeparator");
         _modeLabel = this.FindControl<TextBlock>("ModeLabel");
         _mapApproxNote = this.FindControl<TextBlock>("MapApproxNote");
 
@@ -581,6 +583,14 @@ public partial class Playback2DView : UserControl
         }
 
         _toolbarMenuItems.Clear();
+
+        // Set directly rather than bound: this separator is the flyout popup's own content, not reliably
+        // in the visual tree for a data binding before the flyout has opened once.
+        if (_toolbarItemsSeparator is not null)
+        {
+            _toolbarItemsSeparator.IsVisible = vm.Surface.HasToolbarItems;
+        }
+
         foreach (ToolbarItem item in vm.Surface.ToolbarItems)
         {
             MenuItem menuItem = new() { Header = item.Label, Command = item.Command };

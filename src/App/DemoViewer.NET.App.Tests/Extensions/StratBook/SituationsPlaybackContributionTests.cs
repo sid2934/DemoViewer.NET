@@ -59,6 +59,15 @@ public class SituationsPlaybackContributionTests
             await Assert.That(vm.Surface.ToolbarItems).IsEquivalentTo([situations.ToolbarItem]);
         }
 
+        gate.On = false;
+        gate.Raise();
+        using (Assert.Multiple())
+        {
+            await Assert.That(situations.ToolbarItem).IsNull();
+            await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
+            await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
+        }
+
         vm.Dispose();
     }
 
@@ -129,7 +138,7 @@ public class SituationsPlaybackContributionTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(item.Label).IsEqualTo("Find rounds like this (Ctrl+F)");
+            await Assert.That(item.Label).IsEqualTo("Rounds like this (Ctrl+F)");
             await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+F): ");
         }
 
@@ -137,7 +146,7 @@ public class SituationsPlaybackContributionTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(item.Label).IsEqualTo("Find rounds like this (Ctrl+Shift+S)");
+            await Assert.That(item.Label).IsEqualTo("Rounds like this (Ctrl+Shift+S)");
             await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+Shift+S): ");
         }
 
