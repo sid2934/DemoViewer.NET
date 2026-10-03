@@ -189,7 +189,7 @@ public class ReviewPanelTests
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             await review.Session!.AttachAsync(Demo, Clock, DemoPath);
-            vm.IsReviewMode = true;
+            review.ReviewMode!.IsOn = true;
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm, 1280, 800);
             review.Review!.LabelHereCommand.Execute(null);
             Playback2DTimelineHarness.Pump();
@@ -226,7 +226,7 @@ public class ReviewPanelTests
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(vm.Timeline.IsLaneEditable).IsFalse().Because("the lane takes edits in Review mode only");
-            vm.IsReviewMode = true;
+            review.ReviewMode!.IsOn = true;
             await Assert.That(vm.Timeline.IsLaneEditable).IsTrue();
 
             review.Review!.EditTag(tag.Id);
@@ -265,7 +265,7 @@ public class ReviewPanelTests
                 await Assert.That(created.CurrentSpan).IsEqualTo((200, 200 + 10 * 64));
             }
 
-            vm.IsReviewMode = false;
+            review.ReviewMode!.IsOn = false;
             using (Assert.Multiple())
             {
                 await Assert.That(vm.Timeline.IsLaneEditable).IsFalse();
@@ -288,7 +288,7 @@ public class ReviewPanelTests
             await tags.AttachAsync(Demo, Clock, DemoPath);
             tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
             tags.Apply(new TagDelta.Add(Tag("Retake", 800, 900)));
-            vm.IsReviewMode = true;
+            review.ReviewMode!.IsOn = true;
             (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1280, 900);
             review.Review!.ShowLabels();
             review.Review.SelectLabelCommand.Execute(review.Review.Labels[0]);
@@ -316,7 +316,7 @@ public class ReviewPanelTests
             run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
             tags.Apply(new TagDelta.Add(accepted));
             tags.Apply(new TagDelta.Add(run));
-            vm.IsReviewMode = true;
+            review.ReviewMode!.IsOn = true;
             (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1280, 900);
             review.Review!.ShowLabels();
             Playback2DTimelineHarness.Pump();

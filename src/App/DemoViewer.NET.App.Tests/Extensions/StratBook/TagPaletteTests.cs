@@ -333,7 +333,7 @@ public class TagPaletteTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
-            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
+            review.ReviewMode!.IsOn = true; // tagging and its lanes live in Review mode
             TagSession tags = review.Session!;
             await tags.AttachAsync(Demo, Clock, DemoPath);
 
@@ -395,7 +395,7 @@ public class TagPaletteTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
-            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
+            review.ReviewMode!.IsOn = true; // tagging and its lanes live in Review mode
             TagSession tags = review.Session!;
             await tags.AttachAsync(Demo, Clock, DemoPath);
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
