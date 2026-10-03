@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.AppTests.Extensions.StratBook;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Services.DemoCache;
@@ -317,10 +319,9 @@ public class TagPaletteTests
         await Assert.That(palette.TryHandleKey(Key.D1, KeyModifiers.None)).IsFalse();
     }
 
-    // The View's funnel, key for key: the palette first, then the tab's resolved keymap.
+    // The View's funnel, key for key: the contributions first, then the tab's resolved keymap.
     private static bool Press(Playback2DTabViewModel vm, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
-        vm.TryHandleTagPaletteKey(key, modifiers)
-        || vm.Keymap.TryResolve(key, modifiers, false, out Playback2DAction action) && vm.ExecuteAction(action);
+        ReviewPanelsHarness.Press(vm, key, modifiers);
 
     /// <summary>
     ///     The Done criterion, through the tab: focus, three tags with their panels, a note, an undo and a
@@ -331,12 +332,13 @@ public class TagPaletteTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             vm.IsReviewMode = true; // tagging and its lanes live in Review mode
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
 
             await Assert.That(Press(vm, Key.C)).IsTrue();
-            await Assert.That(vm.IsTagPaletteFocused).IsTrue();
+            await Assert.That(review.IsPaletteFocused).IsTrue();
 
             ctx.CurrentTick = 12_000;
             Press(vm, Key.D1); // A execute
@@ -353,32 +355,32 @@ public class TagPaletteTests
             ctx.CurrentTick = 40_000;
             Press(vm, Key.D3); // Default: no panels
             Press(vm, Key.M, KeyModifiers.Control);
-            vm.TagPalette.NoteDraft = "slow default";
-            vm.TagPalette.TryHandleNoteKey(Key.Enter);
+            review.Palette!.NoteDraft = "slow default";
+            review.Palette.TryHandleNoteKey(Key.Enter);
 
-            List<TagInstance> tags = vm.Tags.Document!.Instances;
+            List<TagInstance> written = tags.Document!.Instances;
             using (Assert.Multiple())
             {
-                await Assert.That(tags.Select(t => t.Code)).IsEquivalentTo(ThreeCodes);
-                await Assert.That(tags[0].Labels.Select(l => l.Value)).IsEquivalentTo(WonA);
-                await Assert.That(tags[1].Labels.Single().Value).IsEqualTo("B");
-                await Assert.That(tags[1].FromTick).IsEqualTo(30_000 - 3 * 64);
-                await Assert.That(tags[2].Note).IsEqualTo("slow default");
+                await Assert.That(written.Select(t => t.Code)).IsEquivalentTo(ThreeCodes);
+                await Assert.That(written[0].Labels.Select(l => l.Value)).IsEquivalentTo(WonA);
+                await Assert.That(written[1].Labels.Single().Value).IsEqualTo("B");
+                await Assert.That(written[1].FromTick).IsEqualTo(30_000 - 3 * 64);
+                await Assert.That(written[2].Note).IsEqualTo("slow default");
             }
 
             // Ctrl+Z is the tags' while the palette has focus: the note, then the Default tag.
             await Assert.That(Press(vm, Key.Z, KeyModifiers.Control)).IsTrue();
-            await Assert.That(vm.Tags.Document!.Instances[2].Note).IsNull();
+            await Assert.That(tags.Document!.Instances[2].Note).IsNull();
             Press(vm, Key.Z, KeyModifiers.Control);
-            await Assert.That(vm.Tags.Document!.Instances.Count).IsEqualTo(2);
+            await Assert.That(tags.Document!.Instances.Count).IsEqualTo(2);
             await Assert.That(Press(vm, Key.Z, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
-            await Assert.That(vm.Tags.Document!.Instances.Count).IsEqualTo(3);
+            await Assert.That(tags.Document!.Instances.Count).IsEqualTo(3);
 
             // Esc leaves the palette; the next Esc is the tab's again.
             await Assert.That(Press(vm, Key.Escape)).IsTrue();
-            await Assert.That(vm.IsTagPaletteFocused).IsFalse();
+            await Assert.That(review.IsPaletteFocused).IsFalse();
             await Assert.That(Press(vm, Key.D1)).IsFalse().Because("unfocused, 1 is nobody's key");
-            await Assert.That(vm.Tags.Document!.Instances.Count).IsEqualTo(3);
+            await Assert.That(tags.Document!.Instances.Count).IsEqualTo(3);
 
             vm.OnDeactivated();
             vm.Dispose();
@@ -392,9 +394,10 @@ public class TagPaletteTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             vm.IsReviewMode = true; // tagging and its lanes live in Review mode
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             view.Focus();
             Playback2DTimelineHarness.Pump();
@@ -417,7 +420,7 @@ public class TagPaletteTests
             window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
 
-            TagInstance tag = vm.Tags.Document!.Instances.Single();
+            TagInstance tag = tags.Document!.Instances.Single();
             Console.WriteLine($"[palette-view] {tag.Code} [{tag.FromTick}..{tag.ToTick}] "
                               + $"{string.Join(",", tag.Labels.Select(l => l.Value))} note='{tag.Note}'");
             using (Assert.Multiple())
@@ -425,7 +428,7 @@ public class TagPaletteTests
                 await Assert.That(tag.Code).IsEqualTo("B execute");
                 await Assert.That(tag.Labels.Select(l => l.Value)).IsEquivalentTo(LostB);
                 await Assert.That(tag.Note).IsEqualTo("rotated early");
-                await Assert.That(vm.IsTagPaletteFocused).IsFalse().Because("Esc on the codes leaves the palette");
+                await Assert.That(review.IsPaletteFocused).IsFalse().Because("Esc on the codes leaves the palette");
             }
 
             window.Close();
