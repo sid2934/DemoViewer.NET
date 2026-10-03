@@ -51,14 +51,14 @@ public class StratBookLifecycleTests
                                         }
                                         """;
 
-    // The exact items the lifecycle queues on enable, in order: SituationIndex's own load, GrenadeIndex's
-    // own load, then the attach item, which queues Team Identity's file read and its StartAsync update when
-    // it runs (this recorder never runs a body, so those two are StratBookLiveToggleTests' to pin).
+    // The exact items the lifecycle queues on enable, in order: the attach item first (it queues Team
+    // Identity's file read and its StartAsync update when it runs, and this recorder never runs a body, so
+    // those two are StratBookLiveToggleTests' to pin), then SituationIndex's and GrenadeIndex's own loads.
     private static readonly string[] _expectedStartupLabels =
     [
+        StratBookLifecycle.AttachTitle,
         "Load: situations index",
-        "Load: grenade index",
-        StratBookLifecycle.AttachTitle
+        "Load: grenade index"
     ];
 
     [Test]
@@ -74,7 +74,7 @@ public class StratBookLifecycleTests
             using (Assert.Multiple())
             {
                 await Assert.That(titles).IsEqualTo(string.Join(", ", _expectedStartupLabels))
-                    .Because("the pack's startup loads, in the order App.axaml.cs ran them by hand, then the attach item");
+                    .Because("the attach item first, so Team Identity's read is not behind both loads, then the startup loads in the order App.axaml.cs ran them by hand");
                 await Assert.That(instances.Situations).IsNotNull();
                 await Assert.That(instances.Grenades).IsNotNull();
                 await Assert.That(instances.Teams).IsNotNull();

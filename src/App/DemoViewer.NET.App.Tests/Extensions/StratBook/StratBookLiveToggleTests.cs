@@ -39,14 +39,15 @@ public class StratBookLiveToggleTests
 {
     private const string ReIndexTitle = "Strat Book extension: find demos to re-index";
 
-    // The inline queue runs the attach item on submit, so Team Identity's two items land inside it.
+    // The attach item goes first; the inline queue runs it on submit, so Team Identity's two items land
+    // inside it, ahead of both index loads.
     private static readonly string[] _startupLabels =
     [
-        "Load: situations index",
-        "Load: grenade index",
         StratBookLifecycle.AttachTitle,
         "Load: teams",
-        "Teams: update"
+        "Teams: update",
+        "Load: situations index",
+        "Load: grenade index"
     ];
 
     private static IFeaturePack Pack => FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
@@ -188,7 +189,7 @@ public class StratBookLiveToggleTests
     }
 
     [Test]
-    public async Task AFlipMidLoad_CancelsTheEnableThroughItsToken_ThenReleases()
+    public async Task AFlipMidLoad_ThenReleases_ALateLoadDoesNothing_ByTokenOrEpochAlike()
     {
         await WithContainer(Seed(packOn: false), async (provider, queue, settings) =>
         {
@@ -205,8 +206,10 @@ public class StratBookLiveToggleTests
             await Assert.That(queue.CancelledOwners).Contains("situations");
             await Assert.That(queue.Titles).Contains(StratBookLifecycle.ReleaseTitle);
 
-            // The real queue dropped those by owner; this double runs them anyway to prove the token alone
-            // keeps a load from landing after the flip.
+            // The real queue dropped those by owner; this double runs them anyway. Two guards hold a late load
+            // and this proves their union: the enable's token is cancelled and the disable bumped the epoch,
+            // and the item checks both. PackSwitchTests pins the token; the epoch alone is pinned by the fast
+            // off-on case, where the token is live and only the epoch can stop the stale release.
             queue.RunDeferred();
             await packs.Pending;
             Dispatcher.UIThread.RunJobs();
@@ -216,7 +219,7 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsFalse();
-                await Assert.That(situations.IsReady).IsFalse().Because("the load saw the cancelled token and did nothing");
+                await Assert.That(situations.IsReady).IsFalse().Because("the late load saw a cancelled token and a stale epoch and did nothing");
                 await Assert.That(situations.IndexedDemoCount).IsEqualTo(0);
                 await Assert.That(provider.GetRequiredService<GrenadeIndex>().IsReady).IsFalse();
                 await Assert.That(instances.Situations).IsNull();
@@ -305,6 +308,8 @@ public class StratBookLiveToggleTests
             settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
             settings.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
             await Assert.That(queue.Titles.Skip(before).First()).IsEqualTo(StratBookLifecycle.ReleaseTitle);
+            await Assert.That(queue.Titles.Skip(before).Skip(1).First()).IsEqualTo(StratBookLifecycle.AttachTitle)
+                .Because("the enable's attach item is queued right behind the release, ahead of its loads");
             await Assert.That(queue.CancelledOwners.Skip(cancelsBefore).Count(o => o == StratBookLifecycle.Owner)).IsEqualTo(2)
                 .Because("the disable cancels the pack's own items, and so does the enable, for the release still queued");
 

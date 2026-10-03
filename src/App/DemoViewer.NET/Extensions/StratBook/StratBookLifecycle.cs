@@ -91,21 +91,14 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         // newer epoch and does nothing.
         queue?.CancelOwned(Owner);
 
-        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
-        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
-        SituationIndex situations = _sp.GetRequiredService<SituationIndex>();
-        Task situationsLoad = PackItem(queue, QueueJobKind.StoreLoad, "Load: situations index", "situations", epoch, situations.Load, ct);
-
-        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
-        GrenadeIndex grenadeIndex = _sp.GetRequiredService<GrenadeIndex>();
-        Task grenadesLoad = PackItem(queue, QueueJobKind.StoreLoad, "Load: grenade index", "utility", epoch, grenadeIndex.Load, ct);
-
         // Resolved here, attached in the item below: a first build subscribes in its constructor, every
-        // later enable through Attach, and the item keeps either ordered after a release still queued.
+        // later enable through Attach, and the item keeps either ordered after a release still queued. It
+        // goes first on the serial so Team Identity's file read (the Library team filter) does not wait
+        // behind both index loads.
         LineupClipService lineups = _sp.GetRequiredService<LineupClipService>();
         TeamIdentityService teams = _sp.GetRequiredService<TeamIdentityService>();
         TagFactsRefresher tagFacts = _sp.GetRequiredService<TagFactsRefresher>();
-        // The zone graphs are read per map by the loads above and by nothing outside the pack, so they
+        // The zone graphs are read per map by the loads below and by nothing outside the pack, so they
         // are the pack's to release even though the source is registered by the composition root.
         IPackResident? zones = _sp.GetService<IZonePlaceResolverSource>() as IPackResident;
 
@@ -134,6 +127,15 @@ internal sealed class StratBookLifecycle : IPackLifecycle
             }
         }, ct);
 
+        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
+        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
+        SituationIndex situations = _sp.GetRequiredService<SituationIndex>();
+        Task situationsLoad = PackItem(queue, QueueJobKind.StoreLoad, "Load: situations index", "situations", epoch, situations.Load, ct);
+
+        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
+        GrenadeIndex grenadeIndex = _sp.GetRequiredService<GrenadeIndex>();
+        Task grenadesLoad = PackItem(queue, QueueJobKind.StoreLoad, "Load: grenade index", "utility", epoch, grenadeIndex.Load, ct);
+
         // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
         // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
         // the delay so startup loads are not competing for the disk.
@@ -151,7 +153,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
                 ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
         }
 
-        return Task.WhenAll(situationsLoad, grenadesLoad, attach);
+        return Task.WhenAll(attach, situationsLoad, grenadesLoad);
     }
 
     /// <inheritdoc />
