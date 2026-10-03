@@ -359,6 +359,55 @@ public class SettingsViewModelTests
         }
     }
 
+    // Render: the Extensions section (item 5), master switch and every nested row, fits the real settings
+    // host width (520-560px, design-system.md) with no horizontal overflow. SectionsScroll disables its
+    // horizontal scrollbar, so wider content would silently clip rather than error — Extent > Viewport is
+    // the actual overflow signal, not a visual guess.
+    [Test]
+    public async Task ExtensionsSection_FitsTheRealSettingsHostWidth_NoHorizontalOverflow()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+                using (sp)
+                {
+                    vm.SettingsFilterText = "extension"; // selects and auto-expands the Extensions group
+
+                    SettingsView view = new()
+                    {
+                        DataContext = vm
+                    };
+                    Window window = new()
+                    {
+                        Width = 560,
+                        Height = 900,
+                        Content = view
+                    };
+                    window.Show();
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+
+                    ScrollViewer scroll = view.FindControl<ScrollViewer>("SectionsScroll")
+                                           ?? throw new InvalidOperationException("SectionsScroll is gone from the view.");
+
+                    Console.WriteLine($"[extensions-width] extent={scroll.Extent} viewport={scroll.Viewport}");
+                    await Assert.That(scroll.Extent.Width).IsLessThanOrEqualTo(scroll.Viewport.Width)
+                        .Because("wider content than the viewport would silently clip at the real host width");
+
+                    vm.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
     // Plumbing: the WASM overlay open/close flow. OpenSettings on the browser service routes through the
     // wired shell callback to set MainViewModel.SettingsOverlay; the VM's Close then clears it back to null.
     [Test]
