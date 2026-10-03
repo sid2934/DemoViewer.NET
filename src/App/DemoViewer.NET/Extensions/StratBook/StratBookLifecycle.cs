@@ -97,6 +97,13 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
         _sp.GetRequiredService<TagFactsRefresher>().Attach();
 
+        // The zone graphs are read per map by the loads above and by nothing outside the pack, so they
+        // are the pack's to release even though the source is registered by the composition root.
+        if (_sp.GetService<IZonePlaceResolverSource>() is IPackResident zones)
+        {
+            _instances.Record(zones);
+        }
+
         // After a release the typed view is empty; the residents are the same objects. Everything built
         // lazily before the release (Watched Situations, Strat Mining) re-attaches here too.
         _instances.Restore();
