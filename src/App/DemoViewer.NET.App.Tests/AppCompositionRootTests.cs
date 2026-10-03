@@ -21,7 +21,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Builds the app's REAL composition root (<see cref="DemoViewer.NET.App.BuildServices" />) and proves
+///     Builds the app's REAL composition root (<see cref="DemoViewer.NET.App.BuildServices(IWindowService)" />) and proves
 ///     it resolves. The launch-time container is otherwise untested, so a bad/missing registration would
 ///     surface only as a first-launch crash that the green suite never catches. Each case pins
 ///     <see cref="AppPaths.ConfigDirEnvVar" /> to its own temp dir (so <c>new SettingsService()</c> and the

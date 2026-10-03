@@ -387,6 +387,8 @@ and small, separate seams instead of all queueing on `App.axaml.cs`.
 5. **Settings.** One master switch labelled "Strat Book extension" (decision 4) with the per-section and
    sub-feature switches beneath it; the Suggested Tags tuning and grenade sections sit under it; search
    keywords; and the "N demos will be re-indexed in the background" notice when turning on (section 8).
+   Note: `FeatureGate.HiddenCount` iterates every catalog row, the `Pack` row included, so a user who
+   turns the extension off counts it as one hidden feature plus its tabs.
 6. **First-run prompt (decision 2).** `FirstRunWizardViewModel` asks whether to turn the Strat Book
    extension on and writes the master switch; an upgrade from a settings file without the key keeps it on.
 7. **Guards.** A test that scans core namespaces for pack namespace imports (section 9), a
@@ -522,7 +524,7 @@ app (option a) or in `DemoViewer.NET.Core` (option b); none of it goes into the 
 ```csharp
 public interface IFeaturePack
 {
-    string Id { get; }                       // "net.demoviewer.stratbook"; persisted key
+    string Id { get; }                       // "net.demoviewer.pack.stratbook"; persisted key, distinct from the module id
     string FeatureId { get; }                // "pack.stratbook"; the umbrella gate
     IEnumerable<FeatureDescriptor> Features { get; }   // parented to FeatureId
     void Register(IServiceCollection services);        // all DI, unconditional (factories are lazy)
