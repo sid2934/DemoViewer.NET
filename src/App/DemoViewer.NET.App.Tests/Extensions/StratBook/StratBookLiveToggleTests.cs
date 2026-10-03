@@ -8,13 +8,17 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Setup;
+using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -35,10 +39,12 @@ public class StratBookLiveToggleTests
 {
     private const string ReIndexTitle = "Strat Book extension: find demos to re-index";
 
+    // The inline queue runs the attach item on submit, so Team Identity's two items land inside it.
     private static readonly string[] _startupLabels =
     [
         "Load: situations index",
         "Load: grenade index",
+        StratBookLifecycle.AttachTitle,
         "Load: teams",
         "Teams: update"
     ];
@@ -102,6 +108,9 @@ public class StratBookLiveToggleTests
             await Assert.That(grenades.DemoCount).IsEqualTo(3);
             await Assert.That(teams.IsLoaded).IsTrue();
             int before = queue.Titles.Count;
+            await Assert.That(queue.CancelledOwners).IsEquivalentTo([StratBookLifecycle.Owner])
+                .Because("the enable drops a release still queued, by the pack's own owner tag, and nothing else");
+            int cancelsBefore = queue.CancelledOwners.Count;
 
             settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
             await packs.Pending;
@@ -110,7 +119,7 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsFalse();
-                await Assert.That(queue.CancelledOwners).IsEquivalentTo(StratBookLifecycle.OwnerTags)
+                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore)).IsEquivalentTo(StratBookLifecycle.OwnerTags)
                     .Because("every owner tag a pack job or parse attachment carries is cancelled, once each");
                 await Assert.That(queue.Titles.Skip(before)).IsEquivalentTo([StratBookLifecycle.ReleaseTitle])
                     .Because("the release is the one item the switch-off queues");
@@ -278,33 +287,138 @@ public class StratBookLiveToggleTests
     }
 
     [Test]
-    public async Task ShutdownAfterARelease_FlushesNothing_AndBuildsNothingBack()
+    public async Task AFastOffThenOn_BeforeTheReleaseRan_LeavesEverythingAttached_AndShutdownFlushes()
+    {
+        await WithContainer(Seed(packOn: true), async (provider, queue, settings) =>
+        {
+            SeedLibrary(provider, demos: 2, roundsPerDemo: 2, grenadesPerDemo: 2, indexRounds: true);
+            queue.HoldSaves = true;
+            App.StartPacks(provider);
+            PackSwitch packs = provider.GetRequiredService<PackSwitch>();
+            await packs.Pending;
+            Dispatcher.UIThread.RunJobs();
+            int before = queue.Titles.Count;
+            int cancelsBefore = queue.CancelledOwners.Count;
+
+            // Off, then on again before the queued release has run: the release is stale by the time it does.
+            queue.Defer = true;
+            settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+            settings.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+            await Assert.That(queue.Titles.Skip(before).First()).IsEqualTo(StratBookLifecycle.ReleaseTitle);
+            await Assert.That(queue.CancelledOwners.Skip(cancelsBefore).Count(o => o == StratBookLifecycle.Owner)).IsEqualTo(2)
+                .Because("the disable cancels the pack's own items, and so does the enable, for the release still queued");
+
+            // The real queue dropped the release by owner; this double runs it anyway to prove the epoch alone
+            // keeps it from tearing down what the enable behind it attaches.
+            queue.RunDeferred();
+            await packs.Pending;
+            Dispatcher.UIThread.RunJobs();
+
+            StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
+            SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
+            TeamIdentityService teams = provider.GetRequiredService<TeamIdentityService>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(packs.IsOn(Pack)).IsTrue();
+                await Assert.That(situations.IsReady).IsTrue();
+                await Assert.That(situations.IndexedDemoCount).IsEqualTo(2);
+                await Assert.That(grenades.IsReady).IsTrue();
+                await Assert.That(grenades.DemoCount).IsEqualTo(2);
+                await Assert.That(teams.IsLoaded).IsTrue();
+                await Assert.That(instances.Situations).IsNotNull();
+                await Assert.That(instances.Grenades).IsNotNull().Because("the stale release did not null the live view");
+                await Assert.That(instances.Teams).IsNotNull();
+                await Assert.That(instances.Lineups).IsNotNull();
+                await Assert.That(instances.TagFacts).IsNotNull();
+            }
+
+            // Still live: the lineups the reload minted (their save item is held) reach disk at shutdown.
+            string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
+            await Assert.That(File.Exists(lineups)).IsFalse().Because("every save item is held; only a flush writes");
+            provider.GetRequiredKeyedService<IPackLifecycle>(Pack.Id).OnShutdown(TimeSpan.FromSeconds(5));
+            await Assert.That(File.Exists(lineups)).IsTrue().Because("shutdown flushed a live index, not a released one");
+            queue.HoldSaves = false;
+            queue.RunDeferred();
+
+            // And the index stays subscribed: a removal is seen.
+            provider.GetRequiredService<DemoCacheStore>().Remove("/d/0.dem");
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(situations.IndexedDemoCount).IsEqualTo(1);
+        });
+    }
+
+    [Test]
+    public async Task ADeclinedWizard_InTheShell_LeavesTeamIdentityUnread_AndQueuesNoTeamsLoad()
+    {
+        // The shell resolves Team Identity for the Library filter at build, before the wizard has asked;
+        // its factory must not read the gate then. A fresh dir, so NeedsFirstRun is true.
+        await WithApp(null, async provider =>
+        {
+            SettingsService settings = provider.GetRequiredService<SettingsService>();
+            await Assert.That(settings.NeedsFirstRun).IsTrue();
+            MainViewModel shell = provider.GetRequiredService<MainViewModel>();
+            TeamIdentityService teams = provider.GetRequiredService<TeamIdentityService>();
+            await Assert.That(teams.IsLoaded).IsFalse().Because("built for the Library filter, but unread while the wizard has to ask");
+
+            FirstRunWizardViewModel wizard = new(settings);
+            wizard.PackOptions.Single(p => p.FeatureId == StratBookPack.PackFeatureId).Enabled = false;
+            wizard.FinishCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+
+            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(settings.NeedsFirstRun).IsFalse();
+                await Assert.That(provider.GetRequiredService<PackSwitch>().IsOn(Pack)).IsFalse();
+                await Assert.That(teams.IsLoaded).IsFalse().Because("declined: nothing of the pack's reads its files");
+                await Assert.That(queue.Snapshot().Select(s => s.DisplayName ?? "")).DoesNotContain("Load: teams");
+                await Assert.That(queue.Snapshot().Select(s => s.DisplayName ?? "")).DoesNotContain("Load: situations index");
+                // The shell constructs the indexes for its own surfaces (constructed is not loaded).
+                await Assert.That(provider.GetRequiredService<SituationIndex>().IsReady).IsFalse();
+                await Assert.That(provider.GetRequiredService<GrenadeIndex>().IsReady).IsFalse();
+                await Assert.That(shell).IsNotNull();
+            }
+        });
+    }
+
+    [Test]
+    public async Task ShutdownWhileAReleaseIsQueued_FlushesTheLiveIndex_AndAfterItRan_FlushesAndBuildsNothing()
     {
         await WithContainer(Seed(packOn: true), async (provider, queue, settings) =>
         {
             SeedLibrary(provider, demos: 1, roundsPerDemo: 1, grenadesPerDemo: 2, indexRounds: true);
+            // The load mints the map's lineups; their save item is held, so the flush, not the queue, writes.
+            queue.HoldSaves = true;
             App.StartPacks(provider);
             PackSwitch packs = provider.GetRequiredService<PackSwitch>();
             await packs.Pending;
             GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
-            _ = grenades.Query(new GrenadeQuery("de_nuke")); // mints an anchor: the lineup store is dirty
+            IPackLifecycle lifecycle = provider.GetRequiredKeyedService<IPackLifecycle>(Pack.Id);
+            string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
 
+            // The user quits right after switching off: the cancel ran, the release is still queued.
+            queue.Defer = true;
             settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+            await Assert.That(queue.CancelledOwners).Contains("utility");
+            await Assert.That(File.Exists(lineups)).IsFalse();
+            lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+            await Assert.That(File.Exists(lineups)).IsTrue().Because("the index is still live, so shutdown's flush writes the pending lineup");
+
+            // The release runs after all (the app did not exit): nothing pending, the live view goes.
+            queue.RunDeferred();
             await packs.Pending;
             Dispatcher.UIThread.RunJobs();
-            string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
-            await Assert.That(File.Exists(lineups)).IsTrue().Because("the release wrote the pending lineup before dropping it");
-            DateTime written = File.GetLastWriteTimeUtc(lineups);
+            File.Delete(lineups);
             int before = queue.Titles.Count;
 
-            IPackLifecycle lifecycle = provider.GetRequiredKeyedService<IPackLifecycle>(Pack.Id);
             lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
             Dispatcher.UIThread.RunJobs();
 
             SituationIndex situations = provider.GetRequiredService<SituationIndex>();
             using (Assert.Multiple())
             {
-                await Assert.That(File.GetLastWriteTimeUtc(lineups)).IsEqualTo(written).Because("nothing live, nothing flushed");
+                await Assert.That(File.Exists(lineups)).IsFalse().Because("nothing live, nothing flushed");
                 await Assert.That(queue.Titles.Count).IsEqualTo(before).Because("shutdown queued nothing");
                 await Assert.That(situations.IsReady).IsFalse().Because("shutdown attached and loaded nothing back");
                 await Assert.That(grenades.IsReady).IsFalse();
@@ -338,6 +452,14 @@ public class StratBookLiveToggleTests
             PackSwitch packs = provider.GetRequiredService<PackSwitch>();
             App.StartPacks(provider);
             await packs.Pending;
+            Dispatcher.UIThread.RunJobs();
+
+            // The lazily built residents too: a mine fills the signature cache, a watch fills the new-hit
+            // groups. Both are built now and come back through the attach item on every later enable.
+            await provider.GetRequiredService<StratMiningService>().MineAsync();
+            provider.GetRequiredService<WatchedSituationsService>().Watch("A hold", "de_nuke",
+                [.. Enumerable.Range(0, 5).Select(i => new QueryToken(QuerySide.Ct, i, 600 + i, -400, -416, "BombsiteA"))],
+                SituationTolerance.Exact, SearchFilterValues.None);
             Dispatcher.UIThread.RunJobs();
 
             (long Built, long Left) first = await Cycle(packs, settings, "first");
@@ -471,12 +593,15 @@ public class StratBookLiveToggleTests
     // the fact under test.
     private sealed class InlineQueue : IDemoProcessingQueue
     {
-        private readonly List<(Func<IQueueJobContext, Task> Run, TaskCompletionSource Done)> _deferred = [];
+        private readonly List<(QueueJobKind Kind, Func<IQueueJobContext, Task> Run, TaskCompletionSource Done)> _deferred = [];
 
         public List<string> Titles { get; } = [];
         public List<string> CancelledOwners { get; } = [];
         public List<(string Owner, string Path)> Parses { get; } = [];
         public bool Defer { get; set; }
+
+        /// <summary>Holds every store save (the lineup document's) so a flush, not the queue, is what writes.</summary>
+        public bool HoldSaves { get; set; }
 
         public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
         public int MaxConcurrency { get; set; } = 1;
@@ -517,12 +642,12 @@ public class StratBookLiveToggleTests
             }
 
             Changed?.Invoke();
-            if (Defer)
+            if (Defer || (HoldSaves && request.Kind == QueueJobKind.StoreSave))
             {
                 TaskCompletionSource done = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_deferred)
                 {
-                    _deferred.Add((request.RunAsync, done));
+                    _deferred.Add((request.Kind, request.RunAsync, done));
                 }
 
                 return new DoneHandle(done.Task);
@@ -532,18 +657,18 @@ public class StratBookLiveToggleTests
             return new DoneHandle(Task.CompletedTask);
         }
 
-        /// <summary>Runs every held job, in submission order.</summary>
+        /// <summary>Runs every held job, in submission order; store saves stay held while <see cref="HoldSaves" /> is on.</summary>
         public void RunDeferred()
         {
-            List<(Func<IQueueJobContext, Task> Run, TaskCompletionSource Done)> held;
+            List<(QueueJobKind Kind, Func<IQueueJobContext, Task> Run, TaskCompletionSource Done)> held;
             lock (_deferred)
             {
-                held = [.. _deferred];
-                _deferred.Clear();
+                held = [.. _deferred.Where(d => !(HoldSaves && d.Kind == QueueJobKind.StoreSave))];
+                _deferred.RemoveAll(d => !(HoldSaves && d.Kind == QueueJobKind.StoreSave));
             }
 
             Defer = false;
-            foreach ((Func<IQueueJobContext, Task> run, TaskCompletionSource done) in held)
+            foreach ((_, Func<IQueueJobContext, Task> run, TaskCompletionSource done) in held)
             {
                 run(new Context()).GetAwaiter().GetResult();
                 done.TrySetResult();
@@ -599,6 +724,47 @@ public class StratBookLiveToggleTests
 
             public void Cancel()
             {
+            }
+        }
+    }
+
+    // The real app root (App.BuildServices: real queue, StartPacks already run) over a throwaway config dir.
+    private static async Task WithApp(string? seedSettingsJson, Func<ServiceProvider, Task> body)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvstrattoggleapp_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        if (seedSettingsJson is not null)
+        {
+            File.WriteAllText(Path.Combine(dir, "settings.json"), seedSettingsJson);
+        }
+
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    await body(provider);
+                }
+                finally
+                {
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
             }
         }
     }
