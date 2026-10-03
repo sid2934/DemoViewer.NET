@@ -36,6 +36,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
 
     private readonly Func<bool> _backgroundIndex;
     private readonly DemoCacheStore _demoCache;
+    private readonly Func<bool> _enabled;
 
     // Manual per-demo requests (a Retry on the strip): they submit regardless of the opt-in, but only
     // these paths, and at user priority. Cleared when the demo's Evaluate or OnFailed runs.
@@ -55,13 +56,15 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     /// <param name="backgroundIndex">The live <c>SituationsSettings.BackgroundIndex</c>; forced paths ignore it.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
+    /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>
     public RoundIndexEvaluator(
         DemoCacheStore demoCache,
         RoundIndexStore store,
         RoundIndexPlaceSources sources,
         Func<bool> backgroundIndex,
         Action<Action>? post = null,
-        Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null)
+        Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
+        Func<bool>? enabled = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(store);
@@ -73,6 +76,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
         _backgroundIndex = backgroundIndex;
         _post = post ?? (action => action());
         _walk = walk;
+        _enabled = enabled ?? (() => true);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundIndexLog.Category);
@@ -101,13 +105,13 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     From the index row alone: a parsed demo with Round Facts rows whose index is missing or
-    ///     stale under the fingerprint for its map, and either the background sweep is on or the demo
-    ///     was forced. No sidecar is read; the row carries everything.
+    ///     From the index row alone: the owning pack's gate on, a parsed demo with Round Facts rows whose
+    ///     index is missing or stale under the fingerprint for its map, and either the background sweep is
+    ///     on or the demo was forced. No sidecar is read; the row carries everything.
     /// </remarks>
     public bool Wants(string path)
     {
-        if (!NeedsIndex(_demoCache.TryGetIndex(path)))
+        if (!_enabled() || !NeedsIndex(_demoCache.TryGetIndex(path)))
         {
             return false;
         }
@@ -156,6 +160,11 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
+        if (!_enabled())
+        {
+            return [];
+        }
+
         bool background = _backgroundIndex();
         HashSet<string> forced;
         lock (_gate)
