@@ -52,7 +52,7 @@ public class StratBookShellTests
         return vm;
     }
 
-    // Item 4: the Library's team filter and provenance chip, which NewShell above never wires.
+    // Item 4/22: the Library's team filter and provenance chip, which NewShell above never wires.
     private static MainViewModel NewShellWithTeams(
         IFeatureGate? gate, TeamIdentityService teams, IDemoProvenanceSource provenance,
         params IWorkspaceModule[] modules)
@@ -63,8 +63,19 @@ public class StratBookShellTests
             registry.Register(module);
         }
 
-        MainViewModel vm = new(null, registry, TestLibraries.Empty(), null, gate, null, null,
-            teams: teams, provenance: provenance, hostTabs: [StratBookHubAccess.HubHost()]);
+        // Built directly here (not through StratBookPack.Contribute), so the pack id is named explicitly
+        // rather than left for PackContributions.Library's stamp to supply.
+        ILibraryContribution[] contributions =
+        [
+            new TeamLibraryContribution(() => teams, StratBookPack.PackFeatureId),
+            new ProvenanceLibraryContribution(() => provenance, () => teams, StratBookPack.PackFeatureId)
+        ];
+        // One entry, not Empty(): BadgeFor is per-entry, so a provenance-query assertion needs something
+        // to iterate.
+        MainViewModel vm = new(null, registry, TestLibraries.WithEntry(
+            Path.Combine(Path.GetTempPath(), "dvstratshell_" + Guid.NewGuid().ToString("N") + ".dem")),
+            null, gate, null, null,
+            libraryContributions: contributions, hostTabs: [StratBookHubAccess.HubHost()]);
         vm.RestoreSession();
         return vm;
     }
@@ -515,13 +526,13 @@ public class StratBookShellTests
                 {
                     await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse();
                     await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
-                    await Assert.That(vm.LibraryTab.AvailableTeams).IsEquivalentTo([TeamFilterItem.All])
-                        .Because("no team filter items beyond the sentinel");
+                    await Assert.That(vm.LibraryTab.Filters).IsEmpty()
+                        .Because("no filter contribution while the pack is off");
                     await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
                     await Assert.That(vm.TrySelectTab("stratbook.browser")).IsFalse();
                     await Assert.That(vm.Chips.Contains(status.Chip)).IsFalse()
                         .Because("a strat export attached while the pack is off never joins the strip");
-                    await Assert.That(provenance.ResolveAllCalls).IsEqualTo(0)
+                    await Assert.That(provenance.ResolveCalls).IsEqualTo(0)
                         .Because("the Library must not query provenance while the pack is off");
                 }
             }
@@ -623,7 +634,7 @@ public class StratBookShellTests
                         .Because("the Strat Book tab the user was on just went away");
                     await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse();
                     await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
-                    await Assert.That(vm.LibraryTab.AvailableTeams).IsEquivalentTo([TeamFilterItem.All]);
+                    await Assert.That(vm.LibraryTab.Filters).IsEmpty();
                     await Assert.That(vm.Chips.Contains(status.Chip)).IsFalse()
                         .Because("a running strat export is hidden, not stopped, while the pack is off");
                 }
@@ -667,7 +678,7 @@ public class StratBookShellTests
                 {
                     await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
                     await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
-                    await Assert.That(provenance.ResolveAllCalls).IsGreaterThan(0)
+                    await Assert.That(provenance.ResolveCalls).IsGreaterThan(0)
                         .Because("the pack on is the pre-gating behaviour: nothing new is suppressed");
                 }
             }
@@ -841,25 +852,27 @@ public class StratBookShellTests
         public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    // Counts ResolveAll calls so a test can assert the Library never queries provenance while the pack
-    // is off; everything it returns is unlabeled, which is enough to drive RefreshProvenance.
+    // Counts Resolve calls (ProvenanceLibraryContribution.BadgeFor's per-entry read) so a test can assert
+    // the Library never queries provenance while the pack is off; everything it returns is unlabeled,
+    // which is enough to drive the badge refresh.
     private sealed class CountingProvenanceSource : IDemoProvenanceSource
     {
-        public int ResolveAllCalls { get; private set; }
+        public int ResolveCalls { get; private set; }
 
         public string? LabelFor(string sha256) => null;
 
         public IReadOnlyDictionary<string, string?> LabelsFor(IEnumerable<string> sha256s) =>
             sha256s.ToDictionary(s => s, _ => (string?)null, StringComparer.Ordinal);
 
-        public DemoProvenance? Resolve(string demoPath) => null;
-
-        public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths)
+        public DemoProvenance? Resolve(string demoPath)
         {
-            ResolveAllCalls++;
-            return demoPaths.ToDictionary(p => p,
-                p => new DemoProvenance(p, null, null, null, ProvenanceOrigin.None), StringComparer.Ordinal);
+            ResolveCalls++;
+            return new DemoProvenance(demoPath, null, null, null, ProvenanceOrigin.None);
         }
+
+        public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths) =>
+            demoPaths.ToDictionary(p => p,
+                p => new DemoProvenance(p, null, null, null, ProvenanceOrigin.None), StringComparer.Ordinal);
 
         // Never raised: no test here depends on it, and the interface requires the member regardless.
 #pragma warning disable CS0067
