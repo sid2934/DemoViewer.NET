@@ -30,19 +30,23 @@ namespace DemoViewer.NET.Services.DemoCache;
 /// </summary>
 public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, string? cacheRoot, IDemoProcessingQueue? queue = null)
 {
-    /// <summary>Counts what is on disk right now; never deletes anything. Runs through the queue, user priority.</summary>
+    /// <summary>
+    ///     Counts what is on disk right now; never deletes anything. Runs through the queue, user priority,
+    ///     on serial <paramref name="ownerTag" /> so it never overlaps the pack's own release item (which
+    ///     shares that serial by the same convention, e.g. <c>StratBookLifecycle.Owner</c>).
+    /// </summary>
     /// <param name="descriptors">The pack's declared stores.</param>
-    /// <param name="ownerTag">The queue item's owner (cancelled together with the pack's other work).</param>
+    /// <param name="ownerTag">The queue item's owner and serial (cancelled together with the pack's other work).</param>
     /// <param name="title">The queue list's line for this item.</param>
     public Task<PackDataInventory> InventoryAsync(IReadOnlyList<StoreDescriptor> descriptors, string ownerTag, string title) =>
-        QueueWork.RunAsync(queue, QueueJobKind.SectionCompute, title, ownerTag, () => Inventory(descriptors),
-            PackDataInventory.Empty, DemoJobPriority.UserRequested);
+        RunSerial(title, ownerTag, () => Inventory(descriptors), PackDataInventory.Empty);
 
     /// <summary>
     ///     Deletes every descriptor's files and strips <paramref name="packId" />'s payload and
     ///     <paramref name="facetIds" />'s stamps from the demo cache. Runs through the queue, user priority,
-    ///     owned by <paramref name="ownerTag" /> so a pack re-enabled before this runs drops it instead
-    ///     (<see cref="PackDataRemovalResult.Ran" /> is false, nothing is touched).
+    ///     on serial <paramref name="ownerTag" /> so it never overlaps the pack's own release item; a pack
+    ///     re-enabled before this runs cancels it by owner tag first, so it drops without touching anything
+    ///     (<see cref="PackDataRemovalResult.Ran" /> is false).
     /// </summary>
     public Task<PackDataRemovalResult> DeleteAsync(string packId, IReadOnlyList<StoreDescriptor> descriptors,
         IReadOnlyList<string> facetIds, string ownerTag, string title)
@@ -50,8 +54,30 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
         ArgumentException.ThrowIfNullOrWhiteSpace(packId);
         ArgumentNullException.ThrowIfNull(descriptors);
         ArgumentNullException.ThrowIfNull(facetIds);
-        return QueueWork.RunAsync(queue, QueueJobKind.SectionCompute, title, ownerTag,
-            () => Delete(packId, descriptors, facetIds), PackDataRemovalResult.NotRun, DemoJobPriority.UserRequested);
+        return RunSerial(title, ownerTag, () => Delete(packId, descriptors, facetIds), PackDataRemovalResult.NotRun);
+    }
+
+    // QueueWork.RunAsync has no serial parameter; this is QueueWork.Run plus a captured result, with "ran"
+    // kept apart from the task's own completion so a drop (CancelOwned, before it started) answers the
+    // fallback rather than a cancellation exception.
+    private async Task<T> RunSerial<T>(string title, string ownerTag, Func<T> work, T fallback)
+    {
+        bool ran = false;
+        T result = fallback;
+        Task task = QueueWork.Run(queue, QueueJobKind.SectionCompute, title, ownerTag, _ =>
+        {
+            result = work();
+            ran = true;
+        }, DemoJobPriority.UserRequested, serial: ownerTag);
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        return ran ? result : fallback;
     }
 
     private PackDataInventory Inventory(IReadOnlyList<StoreDescriptor> descriptors) =>
