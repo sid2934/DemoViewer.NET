@@ -710,6 +710,11 @@ public sealed class StratBookPack : IFeaturePack
             contributions.JobKind(kind);
         }
 
+        // Create Strat From Round in 2D Playback (item 16): the round band's entry and the review pane, one
+        // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
+        // gate above decides what the band offers; nothing is constructed here.
+        contributions.Playback(new CreateStratPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
+
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
         // (Contribute runs inside BuildServiceProvider, before App.Services is assigned), and resolving

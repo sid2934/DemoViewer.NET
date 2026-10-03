@@ -91,9 +91,12 @@ public partial class TimelineControl : UserControl
 
     private void OnScrubExited(object? sender, PointerEventArgs e) => ViewModel?.ClearHover();
 
+    /// <summary>The band menu opened by the last right press, or null. For tests; the control keeps no other hold on it.</summary>
+    internal ContextMenu? LastBandMenu { get; private set; }
+
     // A round band seeks to its FIRST frame, not to the pixel under the cursor. The press goes through
-    // the view-model so a tag band can also pick its tag for Label Mode. A right press on a round band is
-    // the menu instead (Create Strat From Round), and does not seek.
+    // the view-model so a tag band can also pick its tag for Label Mode. A right press is the band's menu
+    // instead, whatever the contributors offer for it, and does not seek.
     private void OnBandPressed(object? sender, PointerPressedEventArgs e)
     {
         if (ViewModel is not { } vm || sender is not Control { DataContext: TimelineBandViewModel band } control)
@@ -103,24 +106,20 @@ public partial class TimelineControl : UserControl
 
         if (e.GetCurrentPoint(control).Properties.IsRightButtonPressed)
         {
-            if (vm.CanCreateStrat && Playback2DTimelineViewModel.IsRoundBand(band))
+            IReadOnlyList<MenuEntry> entries = vm.MenuFor(band);
+            if (entries.Count > 0)
             {
-                MenuItem create = new() { Header = "Create strat from this round" };
-                create.Click += (_, _) => vm.RequestCreateStrat(band);
-                new ContextMenu { ItemsSource = new[] { create } }.Open(control);
-            }
-            else if (vm.LaneMenu?.Invoke(band) is { Count: > 0 } entries)
-            {
-                // A lane band: its labels or suggestions, each with what can be done to it.
-                List<MenuItem> items = [];
-                foreach ((string header, Action run) in entries)
+                List<MenuItem> items = new(entries.Count);
+                foreach (MenuEntry entry in entries)
                 {
-                    MenuItem item = new() { Header = header };
-                    item.Click += (_, _) => run();
+                    MenuItem item = new() { Header = entry.Header };
+                    item.Click += (_, _) => entry.Run();
                     items.Add(item);
                 }
 
-                new ContextMenu { ItemsSource = items }.Open(control);
+                ContextMenu menu = new() { ItemsSource = items };
+                LastBandMenu = menu;
+                menu.Open(control);
             }
 
             e.Handled = true;
