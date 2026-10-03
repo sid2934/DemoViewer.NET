@@ -29,13 +29,22 @@ public class Playback2DLaneHostingTests
         FakeLaneTrack a = new("lane-a", (100, 200));
         FakeLaneTrack b = new("lane-b", (300, 400));
         int saves = 0;
+        int trackListChanges = 0;
         vm.Timeline.TrackVisibilityChanged += () => saves++;
+        vm.Timeline.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(Playback2DTimelineViewModel.Tracks))
+            {
+                trackListChanges++;
+            }
+        };
 
         ILaneHandle laneA = vm.Surface.AddLane(a, TimelineBandRow.Lane);
         ILaneHandle laneB = vm.Surface.AddLane(b, TimelineBandRow.Lane);
         using (Assert.Multiple())
         {
             await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. CoreTracks, "lane-a", "lane-b"]);
+            await Assert.That(trackListChanges).IsEqualTo(2).Because("the footer's toggle list learns of a lane added after the build");
             await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo(["lane-a", "lane-b"]);
             await Assert.That(laneA.Track).IsSameReferenceAs(a);
             await Assert.That(vm.Timeline.LaneBands.Select(band => band.TrackId)).IsEquivalentTo(["lane-a", "lane-b"])
@@ -52,6 +61,7 @@ public class Playback2DLaneHostingTests
             await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo(["lane-b"]);
             await Assert.That(vm.Timeline.LaneBands.Select(band => band.TrackId)).IsEquivalentTo(["lane-b"]);
             await Assert.That(a.Subscribers).IsEqualTo(0).Because("the MarkersChanged subscription left with the track");
+            await Assert.That(trackListChanges).IsEqualTo(3);
             await Assert.That(saves).IsEqualTo(0);
         }
 
@@ -226,6 +236,27 @@ public class Playback2DLaneHostingTests
             await Assert.That(flips).IsEqualTo(2);
         }
 
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task OnPlayheadChanged_FiresWithTheTickOnEveryPlayheadUpdate_UntilRemoved()
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+        List<int> ticks = [];
+        IDisposable registration = vm.Surface.OnPlayheadChanged(ticks.Add);
+
+        ctx.Push(10, 20);
+        ctx.Push(30, 60);
+        await Assert.That(ticks).IsEquivalentTo([20, 60]).Because("a clock push moves the playhead");
+
+        ctx.CurrentTick = 90;
+        ctx.RaiseDemoReset();
+        await Assert.That(ticks).IsEquivalentTo([20, 60, 90]).Because("the resync on a demo reset moves it too");
+
+        registration.Dispose();
+        ctx.Push(50, 100);
+        await Assert.That(ticks).IsEquivalentTo([20, 60, 90]);
         vm.Dispose();
     }
 
