@@ -78,6 +78,14 @@ public sealed class SignatureCache(string? path)
         }
     }
 
+    /// <summary>Writes the file when dirty, then drops the entries; the next use reads the file again.</summary>
+    public void Release()
+    {
+        Save();
+        _entries = null;
+        _dirty = false;
+    }
+
     /// <summary>Writes the file when anything changed since it was read or last written.</summary>
     public void Save()
     {

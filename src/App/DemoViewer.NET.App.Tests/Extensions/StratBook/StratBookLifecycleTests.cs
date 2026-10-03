@@ -37,37 +37,44 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 [NotInParallel]
 public class StratBookLifecycleTests
 {
+    // FirstRunCompleted: the wizard has asked, so StartPacks does not wait for it.
+    private const string PackOnSeed = """
+                                       {
+                                         "FirstRunCompleted": true
+                                       }
+                                       """;
+
     private const string PackOffSeed = """
                                         {
+                                          "FirstRunCompleted": true,
                                           "Features": { "Overrides": { "pack.stratbook": false } }
                                         }
                                         """;
 
-    // The exact startup items App.axaml.cs used to submit by hand, in order: SituationIndex's own load,
-    // GrenadeIndex's own load, then Team Identity's ctor-side load and its StartAsync update. Neither
-    // LineupClipService nor TagFactsRefresher submits anything of its own; being resolved is the point.
+    // The exact items the lifecycle queues on enable, in order: the attach item first (it queues Team
+    // Identity's file read and its StartAsync update when it runs, and this recorder never runs a body, so
+    // those two are StratBookLiveToggleTests' to pin), then SituationIndex's and GrenadeIndex's own loads.
     private static readonly string[] _expectedStartupLabels =
     [
+        StratBookLifecycle.AttachTitle,
         "Load: situations index",
-        "Load: grenade index",
-        "Load: teams",
-        "Teams: update"
+        "Load: grenade index"
     ];
 
     [Test]
     public async Task PackOn_StartPacks_EnqueuesTheSameStartupItems_InTheSameOrder()
     {
-        await WithContainer(null, async (provider, recorder) =>
+        await WithContainer(PackOnSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
-            App.StartPacks(provider, FeaturePacks.Default);
+            App.StartPacks(provider);
 
             string titles = string.Join(", ", recorder.Titles.Skip(before));
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
             using (Assert.Multiple())
             {
                 await Assert.That(titles).IsEqualTo(string.Join(", ", _expectedStartupLabels))
-                    .Because("the pack's startup loads, in the order App.axaml.cs ran them by hand");
+                    .Because("the attach item first, so Team Identity's read is not behind both loads, then the startup loads in the order App.axaml.cs ran them by hand");
                 await Assert.That(instances.Situations).IsNotNull();
                 await Assert.That(instances.Grenades).IsNotNull();
                 await Assert.That(instances.Teams).IsNotNull();
@@ -83,7 +90,7 @@ public class StratBookLifecycleTests
         await WithContainer(PackOffSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
-            App.StartPacks(provider, FeaturePacks.Default);
+            App.StartPacks(provider);
 
             List<string> titles = [.. recorder.Titles.Skip(before)];
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
@@ -105,7 +112,7 @@ public class StratBookLifecycleTests
         // Contribute runs regardless of the gate (every module is always registered), so this is the
         // regression guard for the review fix: resolving the registry WITH the pack on must build the
         // badge services again (restoring the pre-item-3, item-1-shaped behaviour), not leave them lazy.
-        await WithContainer(null, async (provider, recorder) =>
+        await WithContainer(PackOnSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
             ModuleRegistry registry = provider.GetRequiredService<ModuleRegistry>();
@@ -333,6 +340,8 @@ public class StratBookLifecycleTests
     {
         public List<string> Titles { get; } = [];
 
+        public List<string> CancelledOwners { get; } = [];
+
         public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
         public int MaxConcurrency { get; set; } = 1;
         public int MaxQueueSize { get; set; } = 200;
@@ -374,6 +383,14 @@ public class StratBookLifecycleTests
 
         public void CancelOwned(string ownerTag, string path)
         {
+        }
+
+        public void CancelOwned(string ownerTag)
+        {
+            lock (Titles)
+            {
+                CancelledOwners.Add(ownerTag);
+            }
         }
 
         public void Pause()

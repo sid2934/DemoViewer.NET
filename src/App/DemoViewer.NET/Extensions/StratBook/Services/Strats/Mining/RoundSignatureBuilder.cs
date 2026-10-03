@@ -69,6 +69,9 @@ public sealed class RoundSignatureBuilder
         _cache = cache;
     }
 
+    /// <summary>Drops the signature cache's in-memory entries (written first when dirty); the next build reads the file.</summary>
+    public void ReleaseCache() => _cache?.Release();
+
     /// <summary>Demos the last <see cref="Build" /> took from the cache, and demos it read files for.</summary>
     public (int Reused, int Built) LastBuild { get; private set; }
 

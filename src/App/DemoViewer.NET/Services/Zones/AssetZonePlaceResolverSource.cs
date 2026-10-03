@@ -2,6 +2,7 @@
 
 using System.Numerics;
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.RoundIndex;
@@ -26,7 +27,7 @@ namespace DemoViewer.NET.Services.Zones;
 ///         not watched.
 ///     </para>
 /// </summary>
-public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource
+public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IPackResident
 {
     private readonly Func<string, string?> _bundleDirFor;
     private readonly Lock _lock = new();
@@ -78,6 +79,22 @@ public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource
 
             _maps[map] = new Entry(overlayDir, stamp, resolver);
             return resolver;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Nothing to subscribe to: a map's graph is read on first use.</remarks>
+    public void Attach()
+    {
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Every loaded graph goes; only the Strat Book reads them, so a pack off has no reader.</remarks>
+    public void Release()
+    {
+        lock (_lock)
+        {
+            _maps.Clear();
         }
     }
 
