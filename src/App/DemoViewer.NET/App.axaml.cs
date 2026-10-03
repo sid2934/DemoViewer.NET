@@ -805,7 +805,13 @@ public class App : Application
         // callback is rooted by the singleton IOptionsMonitor for the app's lifetime; nothing to dispose.
         // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
-        services.AddSingleton(_ => new MergedRulesBuild());
+        // A pack-owned ruleset (round_facts) rides the merged set only while its pack is on; the pack
+        // contributions are read on the first build, never at construction, since Contribute resolves services.
+        services.AddSingleton(sp =>
+        {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            return new MergedRulesBuild(() => sp.GetRequiredService<PackContributionSet>().GatedRulesets(gate));
+        });
         services.AddSingleton(sp =>
         {
             ForwardPassRunner? forward = OperatingSystem.IsBrowser()
@@ -919,23 +925,9 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
-        // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
-        // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
-        // round_facts ruleset's own fingerprint, and the read API over those rows. The row source and the
-        // identity share one read of the rules directories, so the rows are always stored under the
-        // fingerprint of the doc that produced them.
-        services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
-        services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
-        services.AddSingleton<IRoundFactsRowSource>(sp =>
-            new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
-        services.AddSingleton(sp => new RoundFactsEvaluator(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IRoundFactsRowSource>(),
-            sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
-            action => Dispatcher.UIThread.Post(action)));
-        services.AddSingleton<IRoundFactsSource>(sp => new RoundFactsSource(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<RoundFactsEvaluator>()));
+        // Round Facts (the evaluator, its row source and identity, and IRoundFactsSource) is registered by
+        // StratBookPack.Register: decision 1 puts it in the pack. The registrations below that read
+        // IRoundFactsSource resolve it lazily, after the pack has registered.
 
         // The Round Index: one row per (demo, live round, sampled second) with the per-side place-count
         // token, written as a .dvri.json sidecar beside the cache by an evaluator on the same tier-2
@@ -1139,6 +1131,10 @@ public class App : Application
             pack.Register(services);
         }
 
+        // Every pack's Contribute, run once on first resolve: the module registry reads the modules, the
+        // merged rules build the ruleset claims.
+        services.AddSingleton(sp => new PackContributionSet(packs, sp));
+
         // The first-party module registry, built ONCE by BuildRegistry and held by the container (the
         // reconciliation), injected into the shell so there is no stray second construction. The provider is
         // passed so BuildRegistry can DI-resolve module deps (the Highlights cache/scanner) + defer the
@@ -1270,11 +1266,10 @@ public class App : Application
         registry.Register(new HighlightsModule(sp.GetRequiredService<HighlightsTabViewModel>));
 
         // Each pack's modules, in pack order, after the core modules. The pack owns which modules it
-        // contributes and their order.
-        foreach (IFeaturePack pack in packs)
+        // contributes and their order. Rulesets are consumed by MergedRulesBuild.
+        foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
-            PackContributions contributions = new(pack);
-            pack.Contribute(contributions, sp);
+            IFeaturePack pack = contributions.Pack;
             // Nothing reads these yet. Refusing them keeps a pack from contributing into a void.
             if (contributions.Evaluators.Count > 0)
             {

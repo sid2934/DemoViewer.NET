@@ -15,6 +15,8 @@ using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
 
 #endregion
@@ -115,6 +117,61 @@ public class StratBookShellTests
                 vm.Dispose();
             }
         });
+
+    // Item 5's window test: a LIVE FeatureGate over a real SettingsService (not FakeGate, which has no
+    // cascade), the same harness TabFeatureGatingTests.WithGatedShell uses. Flipping the master switch
+    // override cascades off every section's tab id (they are all in MainViewModel._tabFeatureIds,
+    // parented to the pack in the catalog), so the hub tab, synthesized only while some section passes
+    // the gate, vanishes, and clearing the override brings it right back without a rebuild.
+    [Test]
+    public async Task LiveToggle_OfTheMasterSwitch_HidesAndRestoresTheStratBookHubTab()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                ServiceCollection services = new();
+                services.Configure<AppSettings>(svc.Configuration);
+                using ServiceProvider sp = services.BuildServiceProvider();
+                IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
+                using FeatureGate gate = new(monitor, false);
+
+                MainViewModel vm = NewShell(gate, svc, new SectionsModule());
+                try
+                {
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId)
+                        .Because("the pack defaults on, so its sections synthesize the hub tab");
+
+                    svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId)
+                        .Because("every section cascades off with the master switch, leaving nothing to host the hub");
+
+                    svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId)
+                        .Because("clearing the override brings the hub right back, live, with no rebuild");
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
 
     [Test]
     public async Task SelectingTheHub_ActivatesOnlyTheSelectedSection_AndSwitchingMovesIt() =>
