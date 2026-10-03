@@ -766,7 +766,11 @@ public class App : Application
                 sp.GetRequiredService<HeavyJobGate>(),
                 action => Dispatcher.UIThread.Post(action),
                 forwardPass: forward is null ? null : forward.Run,
-                parseReleased: sp.GetRequiredService<MergedRulesBuild>().Forget);
+                parseReleased: sp.GetRequiredService<MergedRulesBuild>().Forget,
+                // DI-free, like CommandRegistry.Build(packs): reads IFeaturePack.JobKinds directly, no
+                // PackContributionSet, so building the queue can never re-enter its own DI resolution
+                // through a pack's Contribute (e.g. ReviewQueue resolves IDemoProcessingQueue eagerly).
+                jobKinds: JobKindRegistry.Build(packs));
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -1252,12 +1256,14 @@ public class App : Application
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
             IFeaturePack pack = contributions.Pack;
-            // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory builds
-            // (item 11). Nothing reads job kinds yet; refusing them keeps a pack from contributing into a void.
-            if (contributions.JobKinds.Count > 0)
+            // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory
+            // builds (item 11); job kinds by JobKindRegistry.Build(packs) (item 13), DI-free like
+            // CommandRegistry.Build. Same drift check as the Commands block below: the Contribute(...)
+            // call and the DI-free property must agree.
+            if (!contributions.JobKinds.SequenceEqual(pack.JobKinds))
             {
                 throw new InvalidOperationException(
-                    $"Pack '{pack.Id}' contributed job kinds, which nothing consumes until job-kind descriptors (item 13).");
+                    $"Pack '{pack.Id}' contributed different job kinds through Contribute than its JobKinds property declares.");
             }
 
             // CommandRegistry.Default reads IFeaturePack.Commands directly (no DI, so a bare-constructed
