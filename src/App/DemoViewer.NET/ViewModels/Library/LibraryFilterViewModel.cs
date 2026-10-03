@@ -25,6 +25,7 @@ public sealed partial class LibraryFilterViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(onSelectionChanged);
         OnSelectionChanged = onSelectionChanged;
         Label = filter.Label;
+        Tooltip = filter.Tooltip ?? filter.Label;
         _matches = filter.Matches;
         Items = [.. filter.Items];
         _selected = Items.Count > 0 ? Items[0] : new LibraryFilterItem("", "All");
@@ -34,6 +35,9 @@ public sealed partial class LibraryFilterViewModel : ObservableObject
 
     /// <summary>The filter's own label (e.g. "Team").</summary>
     public string Label { get; private set; }
+
+    /// <summary>The picker's tooltip; the contribution's own text, or <see cref="Label" /> when it left none.</summary>
+    public string Tooltip { get; private set; }
 
     /// <summary>The choices, item 0 conventionally the "" (no filter) choice.</summary>
     public ObservableCollection<LibraryFilterItem> Items { get; } = [];
@@ -63,6 +67,7 @@ public sealed partial class LibraryFilterViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(filter);
         _matches = filter.Matches;
         Label = filter.Label;
+        Tooltip = filter.Tooltip ?? filter.Label;
         string keepKey = Selected.Key;
 
         _suppress = true;

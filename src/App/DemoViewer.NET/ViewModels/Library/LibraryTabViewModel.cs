@@ -72,6 +72,12 @@ public partial class MapFilterItem(string display, string mapKey) : ObservableOb
 /// </summary>
 public sealed record CardRow(IReadOnlyList<DemoEntry> Items);
 
+/// <summary>One row of the card badge's picker menu, templated by the view (a divider sits above an <see cref="IsReset" /> row).</summary>
+/// <param name="Label">The row's text: a settable label, or the reset entry's own label.</param>
+/// <param name="IsReset">True for the "go back to automatic" row.</param>
+/// <param name="Tooltip">The row's tooltip, or null for none.</param>
+public sealed record LibraryBadgeMenuEntry(string Label, bool IsReset, string? Tooltip);
+
 /// <summary>
 ///     View-model for the demo-library landing tab. Wraps the <see cref="DemoLibraryService" /> indexer and
 ///     exposes a filtered/sorted view (<see cref="FilteredEntries" />) over its discovered demos, plus the
@@ -223,11 +229,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     /// </summary>
     public ObservableCollection<LibraryFilterViewModel> Filters { get; } = [];
 
-    /// <summary>True while any contributed filter is on. Today this is the Team filter.</summary>
-    public bool HasTeamFilter => Filters.Count > 0;
-
     /// <summary>True while a contributed badge is on (the provenance chip).</summary>
-    public bool HasProvenance => ActiveBadgeContribution() is not null;
+    public bool HasBadge => ActiveBadgeContribution() is not null;
 
     /// <summary>The active badge contribution's menu labels, or empty when none is on.</summary>
     public IReadOnlyList<string> BadgeLabels => ActiveBadgeContribution()?.BadgeLabels ?? [];
@@ -237,10 +240,29 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>
     ///     The chip's flyout, flattened for an <c>ItemsSource</c>: <see cref="BadgeLabels" /> then, if the
-    ///     active contribution offers one, <see cref="BadgeResetLabel" />. The view-side click handler
-    ///     treats a picked entry equal to <see cref="BadgeResetLabel" /> as "clear the pin".
+    ///     active contribution offers one, a <see cref="LibraryBadgeMenuEntry.IsReset" /> row carrying its
+    ///     own tooltip. The view-side click handler treats a picked <see cref="LibraryBadgeMenuEntry.IsReset" />
+    ///     row as "clear the pin".
     /// </summary>
-    public IReadOnlyList<string> BadgeMenuEntries => BadgeResetLabel is { } reset ? [.. BadgeLabels, reset] : BadgeLabels;
+    public IReadOnlyList<LibraryBadgeMenuEntry> BadgeMenuEntries
+    {
+        get
+        {
+            ILibraryContribution? active = ActiveBadgeContribution();
+            if (active is null)
+            {
+                return [];
+            }
+
+            List<LibraryBadgeMenuEntry> entries = [.. active.BadgeLabels.Select(l => new LibraryBadgeMenuEntry(l, false, null))];
+            if (active.BadgeResetLabel is { } reset)
+            {
+                entries.Add(new LibraryBadgeMenuEntry(reset, true, active.BadgeResetTooltip));
+            }
+
+            return entries;
+        }
+    }
 
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
     public ObservableCollection<string> AvailablePlayers { get; } = [AllPlayers];
@@ -621,9 +643,10 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             return;
         }
 
+        LibraryFilter? filter = _contributions[i].Filter;
         if (_filterVms[i] is { } vm)
         {
-            if (_contributions[i].Filter is { } filter)
+            if (filter is not null)
             {
                 vm.Rebuild(filter);
             }
@@ -633,8 +656,22 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
                 _filterVms[i] = null;
             }
         }
+        else if (filter is not null)
+        {
+            // The contribution started offering a filter it did not have at construction or its last
+            // transition on (no contribution does this today; kept for a future one that can).
+            LibraryFilterViewModel added = new(filter, ApplyFilter);
+            _filterVms[i] = added;
+            Filters.Add(added);
+        }
 
-        RefreshBadges();
+        // Only the active badge contribution's own data change is worth a refresh: a filter-only
+        // contribution's Changed (e.g. a team rename) must not re-run BadgesFor.
+        if (ReferenceEquals(ActiveBadgeContribution(), _contributions[i]))
+        {
+            RefreshBadges();
+        }
+
         ApplyFilter();
     }
 
@@ -674,8 +711,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         RebuildFilters();
         RefreshBadges();
-        OnPropertyChanged(nameof(HasTeamFilter));
-        OnPropertyChanged(nameof(HasProvenance));
+        OnPropertyChanged(nameof(HasBadge));
         OnPropertyChanged(nameof(BadgeLabels));
         OnPropertyChanged(nameof(BadgeResetLabel));
         OnPropertyChanged(nameof(BadgeMenuEntries));
@@ -762,20 +798,21 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     /// </summary>
     /// <param name="entry">The card.</param>
     /// <param name="label">One of the active contribution's <see cref="ILibraryContribution.BadgeLabels" />, or null for automatic.</param>
-    public void SetProvenance(DemoEntry entry, string? label)
+    public void SetBadgeLabel(DemoEntry entry, string? label)
     {
         ArgumentNullException.ThrowIfNull(entry);
         ActiveBadgeContribution()?.SetLabel(entry, label);
     }
 
-    // One pass over the entries per refresh: BadgeFor must be O(1) per the contract, so this costs no
-    // more than the old per-pass dictionary lookup it replaces.
+    // One BadgesFor call per refresh, not one BadgeFor per entry: a contribution whose per-entry answer
+    // shares state (Team Identity's override list) would otherwise re-scan it once per card.
     private void RefreshBadges()
     {
         ILibraryContribution? active = ActiveBadgeContribution();
+        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries);
         foreach (DemoEntry entry in _library.Entries)
         {
-            LibraryBadge? badge = active?.BadgeFor(entry);
+            LibraryBadge? badge = badges?.GetValueOrDefault(entry.FilePath);
             entry.BadgeLabel = badge?.Label;
             entry.BadgeTooltip = badge?.Tooltip;
             entry.BadgeIsPinned = badge?.IsPinned ?? false;

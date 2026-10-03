@@ -178,9 +178,6 @@ public partial class DemoEntry : ObservableObject
     /// <summary>Card subtitle: the clan matchup on pro demos (e.g. "Vitality vs FUT"), else the server name.</summary>
     public string? SubtitleDisplay => HasClans ? $"{CtClan} vs {TClan}" : ServerName;
 
-    /// <summary>The card badge's text, or "unlabeled" so the chip stays a target while no contribution has set one.</summary>
-    public string BadgeDisplay => BadgeLabel ?? "unlabeled";
-
     /// <summary>True when a byte-identical copy of this demo exists in another registered folder.</summary>
     public bool HasDuplicates => DuplicateFolders.Count > 0;
 
@@ -231,8 +228,6 @@ public partial class DemoEntry : ObservableObject
     partial void OnScoreRepairPendingChanged(bool value) => OnPropertyChanged(nameof(NeedsScoreRepair));
 
     partial void OnServerNameChanged(string? value) => OnPropertyChanged(nameof(SubtitleDisplay));
-
-    partial void OnBadgeLabelChanged(string? value) => OnPropertyChanged(nameof(BadgeDisplay));
 
     partial void OnDuplicateFoldersChanged(IReadOnlyList<string> value)
     {
