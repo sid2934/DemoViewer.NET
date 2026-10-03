@@ -1,9 +1,11 @@
 #region
 
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
@@ -74,6 +76,73 @@ public sealed record HostTabContribution(
     string? FeatureId = null);
 
 /// <summary>
+///     A settings page a pack contributes: rendered under Extensions, beneath the pack's master switch and
+///     feature rows, hidden while <paramref name="FeatureId" /> resolves off. The View is built explicitly
+///     (not through <c>ViewLocator</c>'s reflection), but the VM is still typed <see cref="ViewModelBase" />
+///     so a future bare <c>ContentControl</c> binding falls back to a real view, never a "Not Found" string.
+/// </summary>
+/// <param name="Id">Stable id (e.g. <c>"stratbook.grenade-index"</c>). Never shown; a lookup key for tests.</param>
+/// <param name="Header">The section header text, in the house ALL-CAPS style.</param>
+/// <param name="Order">Sort key among a pack's own contributed pages.</param>
+/// <param name="Keywords">Fed into the existing settings search alongside the built-in section keywords.</param>
+/// <param name="ViewModelFactory">Builds the page's VM once, when Settings opens.</param>
+/// <param name="ViewFactory">Builds the page's View once; its DataContext is set to the built VM.</param>
+/// <param name="FeatureId">The gate id the page shows under; null takes the owning pack's id.</param>
+public sealed record SettingsPageContribution(
+    string Id,
+    string Header,
+    int Order,
+    string Keywords,
+    Func<ViewModelBase> ViewModelFactory,
+    Func<Control> ViewFactory,
+    string? FeatureId = null);
+
+/// <summary>
+///     What a contributed status chip shows right now: the built <see cref="StatusChipViewModel" />, or null
+///     before the owner has anything to mount, and whether it belongs on the strip at all (running, or a
+///     finished result not yet dismissed). The shell adds the owning <see cref="StatusChipContribution.FeatureId" />
+///     on top: a slot that answers true while its owning pack is off still shows nothing.
+/// </summary>
+public interface IContributedStatusChip : INotifyPropertyChanged
+{
+    /// <summary>The chip to show, or null before anything is mounted.</summary>
+    StatusChipViewModel? Chip { get; }
+
+    /// <summary>True while <see cref="Chip" /> belongs on the strip.</summary>
+    bool IsShown { get; }
+}
+
+/// <summary>
+///     A status-chip slot a pack reserves on the strip. Unlike <see cref="HostTabContribution" /> the chip
+///     itself may not exist yet (a 2D export job builds lazily, on the first Export), so the contribution
+///     carries the SLOT, not the chip: <paramref name="Source" /> raises <see cref="INotifyPropertyChanged" />
+///     once something mounts into it.
+/// </summary>
+/// <param name="Id">Stable id (e.g. <c>"stratbook.export"</c>). A lookup key, never shown.</param>
+/// <param name="Order">Sort key among contributed chips. Reserved for a future ordered strip; unread today.</param>
+/// <param name="Source">The pack-owned slot the shell watches.</param>
+/// <param name="FeatureId">The gate id the chip shows under; null takes the owning pack's id.</param>
+public sealed record StatusChipContribution(
+    string Id,
+    int Order,
+    IContributedStatusChip Source,
+    string? FeatureId = null);
+
+/// <summary>
+///     What a pack's Settings "N demos will be re-indexed" notice (architecture doc §8) counts against.
+///     <see cref="PackFeatureId" /> ties the estimate to the one pack toggle Settings watches for the
+///     notice, without <c>SettingsViewModel</c> naming the pack's type.
+/// </summary>
+public interface IPackReindexEstimate
+{
+    /// <summary>The pack id whose toggle this estimate answers for.</summary>
+    string PackFeatureId { get; }
+
+    /// <summary>Counts demos the pack's evaluators would re-index if it came back on right now.</summary>
+    Task<int> CountAsync();
+}
+
+/// <summary>
 ///     What a pack may hand the shell from <see cref="IFeaturePack.Contribute" />. Every contribution
 ///     carries the pack's umbrella id implicitly; the shell shows one only while that id and any narrower
 ///     id it names both resolve on.
@@ -105,6 +174,15 @@ public interface IPackContributions
 
     /// <summary>A ruleset in the rules directories the pack owns; see <see cref="RulesetContribution" />.</summary>
     void Ruleset(string rulesetId);
+
+    /// <summary>A settings page rendered under Extensions; see <see cref="SettingsPageContribution" />.</summary>
+    void SettingsPage(SettingsPageContribution page);
+
+    /// <summary>A status-chip slot on the strip; see <see cref="StatusChipContribution" />.</summary>
+    void StatusChip(StatusChipContribution chip);
+
+    /// <summary>The pack's answer for the Settings re-index notice; see <see cref="IPackReindexEstimate" />.</summary>
+    void ReindexEstimate(IPackReindexEstimate estimate);
 
     /// <summary>
     ///     A 2D Playback contribution: attached to every 2D tab while the pack is on, detached when it goes

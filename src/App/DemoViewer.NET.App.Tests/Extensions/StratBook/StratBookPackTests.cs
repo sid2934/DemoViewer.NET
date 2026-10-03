@@ -109,6 +109,9 @@ public class StratBookPackTests
         "DemoViewer.NET.ViewModels.Dossier.DossierTabViewModel",
         "DemoViewer.NET.Modules.UtilityBook.LineupClipService",
         "DemoViewer.NET.Services.DemoProcessing.DemoEvaluationCoordinator",
+        // Added by item 14: the Strat Book export chip's mount point, shared by the StatusChip
+        // contribution and the IStratExport factory's mount callback.
+        "DemoViewer.NET.Extensions.StratBook.StratBookExportChipSlot",
         "DemoViewer.NET.Extensions.PackSwitch",
         "DemoViewer.NET.Services.RecentFilesStore",
         "DemoViewer.NET.Modules.ModuleRegistry",
@@ -164,6 +167,33 @@ public class StratBookPackTests
             string modules = string.Join(", ", provider.GetRequiredService<ModuleRegistry>().Modules.Select(m => m.Id));
             await Assert.That(modules).IsEqualTo(ModulesBeforeThePack)
                 .Because("the shell's tab order and section order follow registration order");
+        });
+    }
+
+    // Item 14: the two desktop-only settings pages, the one status-chip slot and the one re-index estimate,
+    // every one stamped with the pack's own feature id by the collector.
+    [Test]
+    public async Task ThePack_ContributesTheSettingsPagesTheStatusChipAndTheReindexEstimate()
+    {
+        await WithProvider(null, async provider =>
+        {
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(pack.SettingsPages.Select(p => p.Id)).IsEquivalentTo(
+                    ["stratbook.suggested-tags-tuning", "stratbook.grenade-index"],
+                    TUnit.Assertions.Enums.CollectionOrdering.Matching);
+                await Assert.That(pack.SettingsPages.All(p => p.FeatureId == StratBookPack.PackFeatureId)).IsTrue();
+
+                StatusChipContribution chip = pack.StatusChips.Single();
+                await Assert.That(chip.Id).IsEqualTo("stratbook.export");
+                await Assert.That(chip.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
+                await Assert.That(chip.Source).IsTypeOf<StratBookExportChipSlot>();
+
+                IPackReindexEstimate estimate = pack.ReindexEstimates.Single();
+                await Assert.That(estimate.PackFeatureId).IsEqualTo(StratBookPack.PackFeatureId);
+            }
         });
     }
 
