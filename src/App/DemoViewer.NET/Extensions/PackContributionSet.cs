@@ -45,6 +45,12 @@ internal sealed class PackContributionSet
     /// <summary>Every pack's re-index estimate, in pack order. Settings watches only the first for the toggle notice.</summary>
     public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];
 
+    /// <summary>Every pack's store and cache paths, in pack order then contribution order.</summary>
+    public IReadOnlyList<StoreDescriptor> Stores => [.. Packs.SelectMany(p => p.Stores)];
+
+    /// <summary>Every pack's "delete extension data" action, in pack order. One row per entry in Settings.</summary>
+    public IReadOnlyList<IPackDataRemoval> DataRemovals => [.. Packs.Select(p => p.DataRemovalContribution).OfType<IPackDataRemoval>()];
+
     /// <summary>
     ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,
     ///     the designer and unit-test path; a pack id the gate does not know resolves off, never on.
