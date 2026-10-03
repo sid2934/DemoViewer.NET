@@ -149,6 +149,97 @@ public class AppCompositionRootTests
         });
     }
 
+    // Wired end to end: with the pack off, the real container's own factories (not a test double) leave
+    // every pack-owned evaluator wanting nothing, and the Suggested badge unread, even for a demo that
+    // would otherwise qualify and even for a forced Match Overview request.
+    [Test]
+    public async Task PackOff_NoEvaluatorWantsAnything_AndTheSuggestedBadgeStaysZero()
+    {
+        const string demo = "/d/pack-root.dem";
+        // Every background opt-in ON, so a demo that qualifies does so under the gate's own default
+        // (Situations) and against it (Grenades, Playback2D): the pack-off asserts below are not
+        // vacuously true because nothing else wanted the demo either.
+        const string packOff = """
+                               {
+                                 "Features": { "Overrides": { "pack.stratbook": false } },
+                                 "Situations": { "BackgroundIndex": true },
+                                 "Grenades": { "BackgroundIndex": true },
+                                 "Playback2D": { "SuggestedTagsBackground": true }
+                               }
+                               """;
+        const string packOn = """
+                              {
+                                "Situations": { "BackgroundIndex": true },
+                                "Grenades": { "BackgroundIndex": true },
+                                "Playback2D": { "SuggestedTagsBackground": true }
+                              }
+                              """;
+
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            SeedQualifyingDemo(provider, demo);
+            Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
+            Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
+            Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
+
+            // The Match Overview chip's own path: a forced request must not leave a stale forced path
+            // behind for the pack to pick up unasked once it comes back on.
+            grenades.Request(demo);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(roundIndex.Wants(demo)).IsFalse();
+                await Assert.That(roundIndex.PendingPaths()).IsEmpty();
+                await Assert.That(suggestedTags.Wants(demo)).IsFalse();
+                await Assert.That(suggestedTags.PendingPaths()).IsEmpty();
+                await Assert.That(grenades.Wants(demo)).IsFalse();
+                await Assert.That(grenades.PendingPaths()).IsEmpty();
+                // Wants is gated either way (forced or not); PriorityFor is not, so this is the assertion
+                // that actually proves Request did nothing rather than merely agreeing with Wants.
+                await Assert.That(grenades.PriorityFor(demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.Background)
+                    .Because("a real forced path reads UserRequested; Request must have been a no-op");
+            }
+
+            await Assert.That(SuggestedBadge(provider)).IsNull().Because("the pack is off: the pending suggestions are never read");
+        }, packOff);
+
+        // Control: the same seed and the same demo, pack on (its default). Without this, the asserts
+        // above would pass just as well if the gate wiring were deleted outright.
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            SeedQualifyingDemo(provider, demo);
+            Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
+            Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
+            Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
+
+            grenades.Request(demo);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(roundIndex.Wants(demo)).IsTrue();
+                await Assert.That(suggestedTags.Wants(demo)).IsTrue();
+                await Assert.That(grenades.Wants(demo)).IsTrue();
+                await Assert.That(grenades.PriorityFor(demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
+            }
+
+            await Assert.That(SuggestedBadge(provider)).IsEqualTo("7");
+        }, packOn);
+    }
+
+    // A demo whose row carries everything RoundIndexEvaluator, SuggestedTagsService and
+    // GrenadeIndexEvaluator each need to want it, and 7 pending suggestions for the badge.
+    private static void SeedQualifyingDemo(ServiceProvider provider, string path)
+    {
+        Services.DemoCache.DemoCacheStore cache = provider.GetRequiredService<Services.DemoCache.DemoCacheStore>();
+        cache.Upsert(RoundIndexTestData.ParsedRecord(path, facts: RoundIndexTestData.Facts(RoundIndexTestData.Round(1, 1000, 2000))));
+        cache.UpdateExisting(path, r => r.SuggestionCount = 7);
+    }
+
+    private static string? SuggestedBadge(ServiceProvider provider) =>
+        provider.GetRequiredService<Modules.ModuleRegistry>().Modules
+            .OfType<Modules.SuggestedTags.SuggestedInboxModule>().Single()
+            .CreateTabs(null!).Single().Badge;
+
     // (a2) REGRESSION (v0.5.0 launch hang): restoring a session whose active tab reaches for the shell
     // during activation must not recurse. The shell ctor used to call RestoreSession, which selected the
     // persisted tab, whose activation resolved MainViewModel from the container, but a DI singleton is not
