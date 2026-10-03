@@ -37,6 +37,25 @@ public class ExtensionHostTests
         }
     }
 
+    // The fallback path a trimmed build without the informational attribute takes: the assembly version,
+    // three components, no prerelease, so an exact prerelease pin then fails on purpose.
+    [Test]
+    public async Task ResolveVersion_PrefersTheInformationalVersion_AndFallsBackToTheAssemblyVersion()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(ExtensionHost.ResolveVersion("0.13.0.1-beta0001+9f1e3e3b4a", new Version(0, 13, 0, 1)).ToString())
+                .IsEqualTo("0.13.0-beta0001");
+            await Assert.That(ExtensionHost.ResolveVersion(null, new Version(0, 13, 0, 1)).ToString()).IsEqualTo("0.13.0");
+            await Assert.That(ExtensionHost.ResolveVersion("not a version", new Version(1, 2, 3)).ToString()).IsEqualTo("1.2.3");
+            await Assert.That(ExtensionHost.ResolveVersion(null, new Version(1, 2)).ToString()).IsEqualTo("1.2.0")
+                .Because("a two-part Version reports Build as -1");
+            await Assert.That(ExtensionHost.ResolveVersion(null, null).ToString()).IsEqualTo("0.0.0");
+            await Assert.That(VersionRange.Parse("0.13.0-beta0001").Satisfies(ExtensionHost.ResolveVersion(null, new Version(0, 13, 0, 1)))).IsFalse()
+                .Because("the fallback cannot carry the prerelease, so an exact pin on it does not match");
+        }
+    }
+
     [Test]
     public async Task ContractVersion_IsOneDotX_AndCurrentCarriesAllThree()
     {

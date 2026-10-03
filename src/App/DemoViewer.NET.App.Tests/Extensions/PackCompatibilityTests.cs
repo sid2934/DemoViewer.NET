@@ -107,6 +107,31 @@ public class PackCompatibilityTests
         }
     }
 
+    // A manifest whose range has an empty alternative does not parse, so the pack reads as ManifestInvalid
+    // rather than as one that matches every host.
+    [Test]
+    public async Task Evaluate_ManifestInvalid_WhenARangeHasAnEmptyAlternative()
+    {
+        ParsingPack pack = new("""
+            {
+              "id": "net.demoviewer.pack.parsing",
+              "name": "Parsing",
+              "version": "1.0.0",
+              "assembly": "Parsing.dll",
+              "entryType": "Parsing.Pack",
+              "requiresHost": "^1.0 || ",
+              "requiresCs2DemoKit": "*"
+            }
+            """);
+        PackStatus status = PackStatus.Evaluate(pack, _host);
+        using (Assert.Multiple())
+        {
+            await Assert.That(status.IsCompatible).IsFalse();
+            await Assert.That(status.Compatibility is PackCompatibility.ManifestInvalid).IsTrue();
+            await Assert.That(status.Problem).Contains("requiresHost");
+        }
+    }
+
     [Test]
     public async Task Evaluate_KeepsDeclarationOrder_AndEveryVerdict()
     {
@@ -128,6 +153,23 @@ public class PackCompatibilityTests
         public string Id => "net.demoviewer.pack.throwing";
         public string FeatureId => "pack.throwing";
         public ExtensionManifest Manifest => throw new ExtensionManifestException("no resource");
+        public IEnumerable<FeatureDescriptor> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
+        }
+    }
+
+    // Parses its manifest on every read, the way a real pack reads its embedded copy.
+    private sealed class ParsingPack(string json) : IFeaturePack
+    {
+        public string Id => "net.demoviewer.pack.parsing";
+        public string FeatureId => "pack.parsing";
+        public ExtensionManifest Manifest => ExtensionManifest.Parse(json);
         public IEnumerable<FeatureDescriptor> Features => [];
 
         public void Register(IServiceCollection services)

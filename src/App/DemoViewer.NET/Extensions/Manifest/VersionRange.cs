@@ -54,11 +54,25 @@ public sealed partial class VersionRange : IEquatable<VersionRange>
         }
 
         string trimmed = text.Trim();
+        if (trimmed.Length == 0)
+        {
+            range = Any;
+            return true;
+        }
+
         List<IReadOnlyList<Comparator>> alternatives = [];
         foreach (string alternative in trimmed.Split("||", StringSplitOptions.None))
         {
+            // Only an explicit "*" may yield an empty set (which admits everything); an alternative with no
+            // token at all ("^1.0 ||") is a typo, and a typo must not widen the range.
+            string[] tokens = alternative.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (tokens.Length == 0)
+            {
+                return false;
+            }
+
             List<Comparator> set = [];
-            foreach (string token in alternative.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            foreach (string token in tokens)
             {
                 if (!TryParseComparator(token, set))
                 {
@@ -69,7 +83,7 @@ public sealed partial class VersionRange : IEquatable<VersionRange>
             alternatives.Add(set);
         }
 
-        range = new VersionRange(trimmed.Length == 0 ? "*" : trimmed, alternatives);
+        range = new VersionRange(trimmed, alternatives);
         return true;
     }
 
@@ -174,26 +188,31 @@ public sealed partial class VersionRange : IEquatable<VersionRange>
         }
 
         int major = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-        int? minor = m.Groups[2].Success && m.Groups[2].Value is not ("x" or "X" or "*")
-            ? int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture)
-            : null;
-        int? patch = minor is not null && m.Groups[3].Success && m.Groups[3].Value is not ("x" or "X" or "*")
-            ? int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture)
-            : null;
-        string? prerelease = patch is not null && m.Groups[4].Success ? m.Groups[4].Value : null;
+        bool minorWild = m.Groups[2].Success && IsWildcard(m.Groups[2].Value);
+        bool patchWild = m.Groups[3].Success && IsWildcard(m.Groups[3].Value);
+        // A concrete component after a wildcard ("1.x.3") names nothing a range can mean.
+        if (minorWild && m.Groups[3].Success && !patchWild)
+        {
+            return false;
+        }
+
+        int? minor = m.Groups[2].Success && !minorWild ? int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture) : null;
+        int? patch = minor is not null && m.Groups[3].Success && !patchWild ? int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture) : null;
         if (m.Groups[4].Success && patch is null)
         {
             return false;
         }
 
-        partial = new Partial(major, minor, patch, prerelease);
+        partial = new Partial(major, minor, patch, m.Groups[4].Success ? m.Groups[4].Value : null);
         return true;
     }
+
+    private static bool IsWildcard(string component) => component is "x" or "X" or "*";
 
     [GeneratedRegex(@"^(>=|<=|>|<|=|\^|~)?(.+)$")]
     private static partial Regex Token();
 
-    [GeneratedRegex(@"^(\d+)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$")]
+    [GeneratedRegex(@"^(\d+)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?(?:-(" + SemVersion.PrereleasePattern + @"))?(?:\+[0-9A-Za-z.-]+)?$")]
     private static partial Regex PartialVersion();
 
     private enum Op

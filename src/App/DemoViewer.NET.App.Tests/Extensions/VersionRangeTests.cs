@@ -25,6 +25,11 @@ public class VersionRangeTests
             await Assert.That(SemVersion.Parse("1.0.0-rc.1").Prerelease).IsEqualTo("rc.1");
             await Assert.That(SemVersion.TryParse("1.2", out _)).IsFalse().Because("a version needs three components");
             await Assert.That(SemVersion.TryParse("01.2.3", out _)).IsFalse().Because("no leading zeros");
+            await Assert.That(SemVersion.TryParse("1.0.0-0100", out _)).IsFalse().Because("nor in a numeric prerelease identifier");
+            await Assert.That(SemVersion.TryParse("1.0.0-rc.0100", out _)).IsFalse();
+            await Assert.That(SemVersion.TryParse("1.0.0-0", out _)).IsTrue();
+            await Assert.That(SemVersion.TryParse("1.0.0-beta0001", out _)).IsTrue().Because("alphanumeric identifiers may start with 0");
+            await Assert.That(SemVersion.TryParseInformational("1.0.0.0-0100+abc", out _)).IsFalse();
             await Assert.That(SemVersion.TryParse("1.2.3.4", out _)).IsFalse().Because("four components is not SemVer");
             await Assert.That(SemVersion.TryParse("", out _)).IsFalse();
             await Assert.That(SemVersion.TryParse(null, out _)).IsFalse();
@@ -182,6 +187,24 @@ public class VersionRangeTests
             await Assert.That(VersionRange.TryParse("1.2-beta", out _)).IsFalse().Because("a prerelease needs a full core");
             await Assert.That(VersionRange.TryParse(null, out _)).IsFalse();
             Assert.Throws<FormatException>(() => VersionRange.Parse("~>1.0"));
+
+            // An empty alternative would read as "any"; only a whole-text "" or an explicit "*" may.
+            await Assert.That(VersionRange.TryParse("^1.0 || ", out _)).IsFalse();
+            await Assert.That(VersionRange.TryParse("^1.0||", out _)).IsFalse();
+            await Assert.That(VersionRange.TryParse("|| ^1.0", out _)).IsFalse();
+            await Assert.That(VersionRange.TryParse("||", out _)).IsFalse();
+            await Assert.That(VersionRange.TryParse("^1.0 || ^2.0", out VersionRange? either)).IsTrue();
+            await Assert.That(either!.Satisfies(SemVersion.Parse("2.3.0"))).IsTrue();
+            await Assert.That(either.Satisfies(SemVersion.Parse("3.0.0"))).IsFalse();
+
+            // A concrete component after a wildcard names nothing.
+            await Assert.That(VersionRange.TryParse("1.x.3", out _)).IsFalse();
+            await Assert.That(VersionRange.TryParse("1.x.x", out _)).IsTrue();
+            await Assert.That(VersionRange.TryParse("1.2.x", out _)).IsTrue();
+
+            // Numeric prerelease identifiers have no leading zero (SemVer 2.0).
+            await Assert.That(VersionRange.TryParse("1.0.0-0100", out _)).IsFalse();
+            await Assert.That(VersionRange.TryParse("1.0.0-beta0001", out _)).IsTrue().Because("alphanumeric identifiers may");
         }
     }
 }

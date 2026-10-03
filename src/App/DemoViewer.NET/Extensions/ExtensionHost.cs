@@ -34,24 +34,36 @@ public static class ExtensionHost
     /// <summary>
     ///     The CS2DemoKit version this build references, read from <c>CS2DemoKit.Analysis</c>'s
     ///     informational version so a package bump moves it with no edit here; the assembly version
-    ///     (major.minor.patch, no prerelease) is the fallback when that attribute is missing.
-    ///     <c>ExtensionHostTests</c> pins it to the <c>Directory.Packages.props</c> pin.
+    ///     (major.minor.patch, no prerelease) is the fallback when that attribute is missing, so a build
+    ///     stripped of the attribute reports <c>0.13.0</c> for a <c>0.13.0-beta0001</c> package and an
+    ///     exact prerelease pin then fails to match. <c>ExtensionHostTests</c> pins the value to the
+    ///     <c>Directory.Packages.props</c> pin.
     /// </summary>
     public static SemVersion Cs2DemoKitVersion { get; } = ReadCs2DemoKitVersion();
 
     /// <summary>The three as one value, for <see cref="PackCompatibility.Check" />.</summary>
     public static ExtensionHostInfo Current { get; } = new(ContractVersion, AppVersion, Cs2DemoKitVersion);
 
-    private static SemVersion ReadCs2DemoKitVersion()
+    /// <summary>
+    ///     <see cref="Cs2DemoKitVersion" />'s rule over its two inputs: the informational version when it
+    ///     parses, else <paramref name="assemblyVersion" />'s first three components, else 0.0.0.
+    /// </summary>
+    public static SemVersion ResolveVersion(string? informational, Version? assemblyVersion)
     {
-        Assembly assembly = typeof(DiagnosticsLog).Assembly;
-        string? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         if (SemVersion.TryParseInformational(informational, out SemVersion? version))
         {
             return version;
         }
 
-        Version v = assembly.GetName().Version ?? new Version(0, 0, 0);
-        return new SemVersion(v.Major, Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
+        Version v = assemblyVersion ?? new Version(0, 0, 0);
+        return new SemVersion(Math.Max(v.Major, 0), Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
+    }
+
+    private static SemVersion ReadCs2DemoKitVersion()
+    {
+        Assembly assembly = typeof(DiagnosticsLog).Assembly;
+        return ResolveVersion(
+            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+            assembly.GetName().Version);
     }
 }
