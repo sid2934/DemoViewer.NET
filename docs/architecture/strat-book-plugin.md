@@ -626,12 +626,19 @@ public sealed record CommandDescriptor(
     string Label,
     string Scope,             // "playback2d", "playback2d.palette", "stratbook.canvas"
     KeyGesture? DefaultChord,
-    Action<CommandContext> Run,
+    Func<CommandContext, bool> Run,
     Func<CommandContext, bool>? CanRun = null);
 ```
 
+`Run` returns `bool`, not `void`: the existing dispatch convention (`Playback2DTabViewModel.ExecuteAction`
+returning false means unhandled, so the key falls through to whatever else wants it) has to survive
+through a command, or a resolved key that does nothing would read as handled anyway.
+
 Core `Playback2DAction` values map to command ids one to one, so persisted keybind overrides keep working.
-A command palette, if one is ever built, reads the same registry.
+Item 19 landed ids equal to the action's own enum name (not the `stratbook.step.add` style sketched
+above), since that is what keeps a persisted `KeybindOverrides` row readable unchanged; item 19's own
+report is the place to check before copying the dotted style for a future pack. A command palette, if one
+is ever built, reads the same registry.
 
 ### 7.6 How the gate folds in
 
@@ -665,6 +672,11 @@ A command palette, if one is ever built, reads the same registry.
 Strat Book data" as a separate, confirmed action that removes the paths in the pack's `StoreDescriptor`s;
 cache sidecars are regenerable, `strats/`, `tags/`, `teams.json`, `review-queue.json` and the dossier
 stores are user work and must be called out by name in the confirmation.
+
+**Round Facts while off (item 2).** Both the writer and the reader are gated: `RoundFactsEvaluator` writes
+nothing and `RoundFactsSource` answers "no rows" and forwards no `Updated`, so winner tints, situation joins
+and tag labels go with the pack rather than showing rows written while it was on. The rows stay in the cache
+records and come back with the pack; a bare run cached under one gate state is not served under another.
 
 **Stale cache while off.** Library keeps indexing new demos without pack passes. The pack fields of those
 records are simply absent (or, after Phase 4, the `Packs` entry is missing). Fields of records indexed
@@ -929,6 +941,31 @@ split it out yet, item 2's job), it just never writes the result, so part of Rou
 is already inside this "reduced" baseline; once item 2 lands, the reduced number should drop a little for a
 reason this measurement did not isolate, and the true overhead of turning the pack off is likely a bit
 higher than the 57% here.
+
+### 12.2 Item 2: the merged pass with and without `round_facts`
+
+Item 2 makes `round_facts` a pack contribution, so with the pack off the ruleset leaves the merged set the
+Library and Highlights passes run. This measures that one pass, A/B, on the reference demo
+(`003816248937665266002_0544286934.dem`, 172 MB, read in place from `demos/benchmarks`), with
+`AnalysisBench --bare --no-golden` against the shipped `rules/` directory (A, pack on) and against a copy of
+it without `round_facts.rules.yaml` (B, pack off). Three rounds interleaved A B A B A B per the
+bench-variance note; medians of 3. macOS arm64, Release, head `a1f6b2d2`, 1-minute load average 5 at start
+(an earlier attempt under a load average of 30 to 38 spread 4.6 to 15.3 s across rounds and was discarded).
+
+| Path | Phase | Pack on (A) | Pack off (B) | B vs A |
+|---|---|---|---|---|
+| `--retained` | Parse | 792.5 ms | 756.5 ms | noise |
+| `--retained` | Build | 166.5 ms | 137.9 ms | -17% (every round: 163 to 172 vs 137 to 138) |
+| `--retained` | Eval | 3591.7 ms | 3471.3 ms | -3.4% |
+| `--retained` | Total (parse+build+eval) | 4560.7 ms | 4366.0 ms | -4.3% |
+| forward (default) | Run (open+build+decode+eval) | 3159.8 ms | 3107.2 ms | -1.7% |
+
+Read it as: dropping `round_facts` saves a steady ~30 ms of graph build per demo and a few percent of
+evaluation, both inside the round-to-round spread the bench-variance note warns about, so the eval and run
+deltas are directional, not quotable. The build saving is the one figure that held in every round. The
+rule-chain event table is identical between A and B apart from the `round_facts` stat nodes (B lacks
+`money_reliable`), which is the goldens-do-not-move check at the bench level; the test-level check is
+`ForwardPassRealDemoTests` and `RoundFactsRealDemoTests` on the same corpus (9 passed, 2 skipped by design).
 
 ## 13. Repository layout (decision 5)
 

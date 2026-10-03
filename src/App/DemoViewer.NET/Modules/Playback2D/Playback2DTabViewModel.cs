@@ -675,6 +675,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     internal ISituationResultWalk? SituationResults { get; set; }
 
+    /// <summary>Whether J/K may walk the Situations result set. Ungated (true) without a feature source.</summary>
+    private bool IsSituationResultWalkEnabled => _features?.IsEnabled(SituationsModule.TabFeatureId) ?? true;
+
     /// <summary>The mode menu's entry, with the resolved gesture: "Find rounds like this (Ctrl+F)".</summary>
     public string FindRoundsLikeThisLabel => $"Find rounds like this{GestureHint(Playback2DAction.FindRoundsLikeThis)}";
 
@@ -2317,13 +2320,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 return TryFindRoundsLikeThis();
 
             // The walk seeks through the same shell funnels a card click does, so the shared clock and
-            // LiveSync's observer see it as any other seek. No seam, or no result set, leaves the key
+            // LiveSync's observer see it as any other seek. No seam, no result set, or the Situations
+            // tab (and so the pack, which tab.situations cascades off with) gated off leaves the key
             // unhandled.
             case Playback2DAction.NextSituationResult:
-                return SituationResults?.Walk(+1) ?? false;
+                return IsSituationResultWalkEnabled && (SituationResults?.Walk(+1) ?? false);
 
             case Playback2DAction.PrevSituationResult:
-                return SituationResults?.Walk(-1) ?? false;
+                return IsSituationResultWalkEnabled && (SituationResults?.Walk(-1) ?? false);
 
             case Playback2DAction.FocusTagPalette:
                 return ToggleTagPaletteFocus();

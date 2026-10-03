@@ -1,6 +1,7 @@
 #region
 
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.SuggestedTags;
@@ -379,9 +380,11 @@ public class SuggestedTagsQueueTests
             await Assert.That(Resolve(keymap, Key.N, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionReject);
             await Assert.That(Resolve(keymap, Key.Enter, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionEdit);
             await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.Control)).IsEqualTo(Playback2DAction.SuggestionAcceptAll);
-            await Assert.That(Playback2DKeymap.FindConflicts(Playback2DKeymap.Default, Playback2DKeymap.ReservedGestures(true)))
+            // These six are Strat Book extension commands, checked against the merged table, not core alone.
+            await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ReservedGestures(true)))
                 .IsEmpty().Because("none of the six is a shell or browser gesture");
-            await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.SuggestionEdit)).IsEqualTo("Enter");
+            await Assert.That(keymap.GestureText(Playback2DAction.SuggestionEdit)).IsEqualTo("Enter")
+                .Because("SuggestionEdit is a Strat Book extension command now; the profile resolves it, the bare core table does not");
         }
     }
 

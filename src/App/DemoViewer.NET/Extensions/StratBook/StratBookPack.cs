@@ -19,9 +19,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Strats.Mining;
@@ -46,8 +48,9 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The Strat Book extension as a feature pack. Round Facts, Round Index, Teams, Provenance, the Tag
-///     Store and the Review Queue are registered by the composition root, not here: core surfaces read them.
+///     The Strat Book extension as a feature pack. Round Index, Teams, Provenance, the Tag Store and the
+///     Review Queue are registered by the composition root, not here: core surfaces read them. Round Facts
+///     is registered here (decision 1): its ruleset rides the merged build only while the pack is on.
 /// </summary>
 public sealed class StratBookPack : IFeaturePack
 {
@@ -62,6 +65,9 @@ public sealed class StratBookPack : IFeaturePack
 
     /// <inheritdoc />
     public IEnumerable<FeatureDescriptor> Features => _features;
+
+    /// <inheritdoc />
+    public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
 
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
@@ -181,6 +187,37 @@ public sealed class StratBookPack : IFeaturePack
         TrackBuilt<SituationIndex>(services, (instances, built) => instances.Situations = built);
         TrackBuilt<TeamIdentityService>(services, (instances, built) => instances.Teams = built);
         TrackBuilt<TagFactsRefresher>(services, (instances, built) => instances.TagFacts = built);
+
+        // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
+        // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
+        // round_facts ruleset's own fingerprint, and the read API over those rows. The row source and the
+        // identity share the composition root's merged build, so the rows are always stored under the
+        // fingerprint of the doc that produced them. The evaluator is gated on the pack; the ruleset
+        // itself leaves the merged set through the Contribute claim below.
+        services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
+        services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
+        services.AddSingleton<IRoundFactsRowSource>(sp =>
+            new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
+        services.AddSingleton(sp =>
+        {
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            return new RoundFactsEvaluator(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<IRoundFactsRowSource>(),
+                sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
+                action => Dispatcher.UIThread.Post(action),
+                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+        });
+        // The reader is gated too, so off looks off: rows written while on stop surfacing until the pack
+        // comes back. They stay on disk.
+        services.AddSingleton<IRoundFactsSource>(sp =>
+        {
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            return new RoundFactsSource(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<RoundFactsEvaluator>(),
+                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+        });
 
         services.AddSingleton(sp =>
         {
@@ -586,9 +623,16 @@ public sealed class StratBookPack : IFeaturePack
         ArgumentNullException.ThrowIfNull(contributions);
         ArgumentNullException.ThrowIfNull(sp);
 
+        contributions.Commands(StratBookCommands.All);
+
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here
         // constructs one. The order is the shell's registration order and is pinned by a test.
+
+        // The round_facts ruleset in the rules directories is the pack's: MergedRulesBuild runs it only
+        // while the pack is on and keeps it out of the highlights fingerprint. Not a doc of its own, so
+        // the user overlay and the Workbench keep working on it.
+        contributions.Ruleset(RoundFactsFingerprint.RulesetId);
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
