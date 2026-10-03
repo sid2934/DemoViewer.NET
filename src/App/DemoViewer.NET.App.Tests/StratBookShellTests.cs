@@ -321,6 +321,69 @@ public class StratBookShellTests
             }
         });
 
+    // Item 10: a descriptor's own FeatureId gates it with NO entry in MainViewModel's fallback map at all,
+    // and a descriptor that declares neither still fails open, exactly as an ungated tab always has.
+    [Test]
+    public async Task DescriptorFeatureId_GatesTheTab_WithNoFallbackMapEntry() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new();
+            MainViewModel vm = NewShell(gate, null, new FeatureIdModule());
+            try
+            {
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.featured");
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.unmapped");
+                }
+
+                gate.Answers[FeatureIdModule.FeatureId] = false;
+                gate.RaiseChanged();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("test.featured")
+                        .Because("the descriptor's own FeatureId gates it, with no _tabFeatureIds entry for its TabId");
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.unmapped")
+                        .Because("no FeatureId and no fallback entry fails open");
+                }
+
+                gate.Answers[FeatureIdModule.FeatureId] = true;
+                gate.RaiseChanged();
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("test.featured");
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+        });
+
+    // A built-in tab contributes no FeatureId of its own: MainViewModel's fallback map still gates it by
+    // TabId, exactly as it did before item 10 gave descriptors a FeatureId to declare.
+    [Test]
+    public async Task ABuiltInTab_WithNoDeclaredFeatureId_StillGatesThroughTheFallbackMap() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeGate gate = new();
+            MainViewModel vm = NewShell(gate, null);
+            try
+            {
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("builtin.parser");
+
+                gate.Answers["tab.parser"] = false;
+                gate.RaiseChanged();
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("builtin.parser")
+                    .Because("builtin.parser declares no FeatureId; MainViewModel._tabFeatureIds still gates it");
+
+                gate.Answers["tab.parser"] = true;
+                gate.RaiseChanged();
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("builtin.parser");
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+        });
+
     [Test]
     public async Task Session_PersistsTheSelectedSectionAsTheActiveTab_AndAnOldStripSectionId_LandsOnTheRail()
     {
@@ -671,6 +734,39 @@ public class StratBookShellTests
             {
                 // best-effort cleanup
             }
+        }
+    }
+
+    /// <summary>
+    ///     A strip tab whose descriptor declares its own <see cref="WorkspaceTabDescriptor.FeatureId" />
+    ///     (an id with no entry anywhere in <c>MainViewModel._tabFeatureIds</c>), alongside one that
+    ///     declares neither.
+    /// </summary>
+    private sealed class FeatureIdModule : IWorkspaceModule
+    {
+        public const string FeatureId = "test.featureid";
+
+        public string Id => "net.demoviewer.test.featureid";
+        public string DisplayName => "FeatureId";
+        public Version ContractVersion => new(1, 0, 0);
+
+        public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
+        {
+            yield return new WorkspaceTabDescriptor
+            {
+                TabId = "test.featured",
+                Header = "Featured",
+                Order = 10,
+                FeatureId = FeatureId,
+                ViewFactory = () => new ContentControl()
+            };
+            yield return new WorkspaceTabDescriptor
+            {
+                TabId = "test.unmapped",
+                Header = "Unmapped",
+                Order = 11,
+                ViewFactory = () => new ContentControl()
+            };
         }
     }
 
