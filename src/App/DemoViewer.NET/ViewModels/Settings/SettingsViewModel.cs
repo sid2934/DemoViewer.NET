@@ -6,16 +6,19 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Update;
 using FuzzySharp;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 // Aliased: the release-notes service namespace's short name collides with this VM's `Update`
 // property (the shared UpdateViewModel), which XAML binds by that exact name.
@@ -164,6 +167,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _diagnosticsWriteLogFile = true;
 
     private bool _disposed;
+
+    // Lazy: most sessions never hit the best-effort catch this backs.
+    private ILogger? _diagLog;
 
     /// <summary>Advanced (developer): force an incompatible plugin → <c>AppSettings.LiveSync.ForceIncompatiblePlugin</c>.</summary>
     [ObservableProperty]
@@ -1855,6 +1861,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsStratBookPackEnabled));
     }
 
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Settings");
+
     // Resolves the re-index count off the UI thread (PendingPaths over a large library is not free) and
     // writes the final notice, UNLESS a later toggle already changed the generation: dropping a stale
     // result beats a "12 demos…" note that lands after the user flipped the extension back off.
@@ -1867,12 +1875,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 ? await compute()
                 : await StratBookPendingReindexCount.ComputeAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            count = 0; // best-effort: a bad probe must not leave the toggle itself looking broken.
+            // Best-effort: a bad probe must not leave the toggle itself looking broken, but a silent
+            // zero would read as "nothing pending" when the count simply failed. Logged, not swallowed.
+            AppLog.OperationFailed(DiagLog, "count demos to re-index", ex);
+            count = 0;
         }
 
-        if (generation != _stratBookNoticeGeneration)
+        if (_disposed || generation != _stratBookNoticeGeneration)
         {
             return;
         }
