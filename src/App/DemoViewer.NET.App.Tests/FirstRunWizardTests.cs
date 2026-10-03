@@ -653,7 +653,8 @@ public class FirstRunWizardTests
                     })
             ];
 
-            FirstRunWizardViewModel vm = new(new SettingsService(dir), packs: packs);
+            SettingsService svc = new(dir);
+            FirstRunWizardViewModel vm = new(svc, packs: packs);
 
             await Assert.That(vm.PackOptions.Count).IsEqualTo(2);
             await Assert.That(vm.PackOptions[0].FeatureId).IsEqualTo("pack.testone");
@@ -664,6 +665,16 @@ public class FirstRunWizardTests
             await Assert.That(vm.PackOptions[1].FeatureId).IsEqualTo("pack.testtwo");
             await Assert.That(vm.PackOptions[1].Enabled).IsFalse()
                 .Because("PowerUser (the first-run default category) has no default-on entry for this pack");
+
+            // Category (step 1) is reached before Extensions (step 3): picking Developer reseeds the
+            // untouched, unoverridden pack.testtwo to ITS default for that category.
+            vm.SelectCategoryCommand.Execute(UserCategory.Developer);
+            await Assert.That(vm.PackOptions[1].Enabled).IsTrue()
+                .Because("Developer has a default-on entry for this pack, and the question is not yet answered");
+
+            vm.FinishCommand.Execute(null);
+            await Assert.That(svc.Current.Features.Overrides["pack.testone"]).IsTrue();
+            await Assert.That(svc.Current.Features.Overrides["pack.testtwo"]).IsTrue();
         }
         finally
         {
