@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Shell;
@@ -142,6 +143,90 @@ public interface IPackReindexEstimate
     Task<int> CountAsync();
 }
 
+/// <summary>One choice in a <see cref="LibraryFilter" />. <c>Key == ""</c> is the neutral choice (no filter applied).</summary>
+/// <param name="Key">Stable key the filter's own <see cref="LibraryFilter.Matches" /> recognises. "" means "All".</param>
+/// <param name="Display">The label shown in the picker.</param>
+public sealed record LibraryFilterItem(string Key, string Display);
+
+/// <summary>
+///     A single-select filter the Library hosts generically: a label, the items the pack supplies right
+///     now, and the predicate the Library applies to each <see cref="DemoEntry" /> for every item whose
+///     <see cref="LibraryFilterItem.Key" /> is not "".
+/// </summary>
+/// <param name="Label">The filter's own label (e.g. "Team"), not the picker's placeholder text.</param>
+/// <param name="Items">In display order; item 0 is conventionally the "" (All) choice.</param>
+/// <param name="Matches">Given an entry and a non-"" item key, whether the entry passes.</param>
+/// <param name="Tooltip">The picker's tooltip; null defaults to <paramref name="Label" />.</param>
+public sealed record LibraryFilter(
+    string Label, IReadOnlyList<LibraryFilterItem> Items, Func<DemoEntry, string, bool> Matches, string? Tooltip = null);
+
+/// <summary>A card badge's current value for one entry: the text, its tooltip, and whether it is a user pin.</summary>
+/// <param name="Label">Shown on the chip.</param>
+/// <param name="Tooltip">Shown on hover, or null for none.</param>
+/// <param name="IsPinned">Styles the chip as a user override rather than an automatic default.</param>
+public sealed record LibraryBadge(string Label, string? Tooltip, bool IsPinned);
+
+/// <summary>
+///     A filter and/or a card badge the Library hosts generically (architecture doc §7.4, item 22). A
+///     contribution may supply either half, both, or neither (<see cref="Filter" /> null and
+///     <see cref="HasBadge" /> false). The Library calls into a contribution only while its
+///     <see cref="FeatureId" /> resolves on, so <see cref="Filter" />/<see cref="BadgeFor" /> are the lazy
+///     resolve point: nothing behind them is built while the owning pack is off.
+/// </summary>
+public interface ILibraryContribution
+{
+    /// <summary>The gate id this contribution shows under; null defaults to the owning pack's own id.</summary>
+    string? FeatureId => null;
+
+    /// <summary>Raised when the underlying data changed (a rename, a merge, a pin) and the Library should re-read this contribution.</summary>
+    event Action? Changed;
+
+    /// <summary>This contribution's filter, or null to offer none.</summary>
+    LibraryFilter? Filter { get; }
+
+    /// <summary>
+    ///     Whether this contribution renders a card badge. Checked instead of <see cref="BadgeLabels" />
+    ///     being non-empty, so a read-only badge (no settable menu) still shows.
+    /// </summary>
+    bool HasBadge { get; }
+
+    /// <summary>
+    ///     This entry's badge, or null for none. Must be O(1) and do no I/O: used for a single-entry update
+    ///     (e.g. after <see cref="SetLabel" />), never for a full-library refresh, which calls
+    ///     <see cref="BadgesFor" /> instead.
+    /// </summary>
+    LibraryBadge? BadgeFor(DemoEntry entry);
+
+    /// <summary>
+    ///     Every entry's badge in one call, keyed by <see cref="DemoEntry.FilePath" />; an entry absent from
+    ///     the result has no badge. The Library's full-refresh path, so a contribution whose per-entry answer
+    ///     shares state across entries (a lock, a batch lookup) does that work once here instead of inside
+    ///     <see cref="BadgeFor" /> N times. The default forwards to <see cref="BadgeFor" /> per entry.
+    /// </summary>
+    IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries)
+    {
+        Dictionary<string, LibraryBadge?> result = new(StringComparer.Ordinal);
+        foreach (DemoEntry entry in entries)
+        {
+            result[entry.FilePath] = BadgeFor(entry);
+        }
+
+        return result;
+    }
+
+    /// <summary>Labels the chip's menu offers for <see cref="SetLabel" />; empty hides the menu (a read-only badge, or none).</summary>
+    IReadOnlyList<string> BadgeLabels { get; }
+
+    /// <summary>Label for the menu's "go back to automatic" entry, or null to omit it.</summary>
+    string? BadgeResetLabel { get; }
+
+    /// <summary>Tooltip for the reset entry; null (the default) for none.</summary>
+    string? BadgeResetTooltip => null;
+
+    /// <summary>Pins <paramref name="label" /> on <paramref name="entry" />, or null to clear a pin. No-op when <see cref="BadgeLabels" /> is empty.</summary>
+    void SetLabel(DemoEntry entry, string? label);
+}
+
 /// <summary>
 ///     What a pack may hand the shell from <see cref="IFeaturePack.Contribute" />. Every contribution
 ///     carries the pack's umbrella id implicitly; the shell shows one only while that id and any narrower
@@ -189,4 +274,7 @@ public interface IPackContributions
     ///     off. See <see cref="IPlaybackContribution" />.
     /// </summary>
     void Playback(IPlaybackContribution contribution);
+
+    /// <summary>A Library filter and/or card badge; see <see cref="ILibraryContribution" />.</summary>
+    void Library(ILibraryContribution contribution);
 }

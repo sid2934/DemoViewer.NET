@@ -450,40 +450,39 @@ public class DemoProvenanceTests
                 });
             }
 
+            ProvenanceLibraryContribution contribution = new(() => source, () => teams);
             LibraryTabViewModel vm = new(library, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
-                teams: teams, provenance: source);
+                contributions: [contribution]);
             DemoEntry mm = library.Entries[0];
             DemoEntry nobody = library.Entries[1];
             DemoEntry unknown = library.Entries[2];
             using (Assert.Multiple())
             {
-                await Assert.That(vm.HasProvenance).IsTrue();
-                await Assert.That(mm.ProvenanceLabel).IsEqualTo("matchmaking");
-                await Assert.That(mm.ProvenanceDisplay).IsEqualTo("matchmaking");
-                await Assert.That(mm.ProvenanceIsOverride).IsFalse();
-                await Assert.That(nobody.ProvenanceLabel).IsNull();
-                await Assert.That(nobody.ProvenanceDisplay).IsEqualTo("unlabeled");
-                await Assert.That(unknown.ProvenanceLabel).IsNull().Because("not in the cache yet");
+                await Assert.That(vm.HasBadge).IsTrue();
+                await Assert.That(mm.BadgeLabel).IsEqualTo("matchmaking");
+                await Assert.That(mm.BadgeIsPinned).IsFalse();
+                await Assert.That(nobody.BadgeLabel).IsEqualTo("unlabeled").Because("resolved, but the heuristic had nothing to say");
+                await Assert.That(unknown.BadgeLabel).IsEqualTo("unlabeled").Because("not in the cache yet, but the contribution still answers unlabeled");
             }
 
-            vm.SetProvenance(mm, "our scrim");
+            vm.SetBadgeLabel(mm, "our scrim");
             using (Assert.Multiple())
             {
-                await Assert.That(mm.ProvenanceLabel).IsEqualTo("our scrim").Because("the chip re-reads on the source's Changed");
-                await Assert.That(mm.ProvenanceIsOverride).IsTrue();
-                await Assert.That(mm.ProvenanceTooltip).Contains("set by you");
+                await Assert.That(mm.BadgeLabel).IsEqualTo("our scrim").Because("the chip re-reads on the contribution's Changed");
+                await Assert.That(mm.BadgeIsPinned).IsTrue();
+                await Assert.That(mm.BadgeTooltip).Contains("set by you");
             }
 
-            vm.SetProvenance(mm, null);
+            vm.SetBadgeLabel(mm, null);
             using (Assert.Multiple())
             {
-                await Assert.That(mm.ProvenanceLabel).IsEqualTo("matchmaking");
-                await Assert.That(mm.ProvenanceIsOverride).IsFalse();
-                await Assert.That(mm.ProvenanceTooltip).Contains("automatic");
+                await Assert.That(mm.BadgeLabel).IsEqualTo("matchmaking");
+                await Assert.That(mm.BadgeIsPinned).IsFalse();
+                await Assert.That(mm.BadgeTooltip).Contains("automatic");
             }
 
             LibraryTabViewModel bare = new(library, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]));
-            await Assert.That(bare.HasProvenance).IsFalse().Because("no source, no chip");
+            await Assert.That(bare.HasBadge).IsFalse().Because("no contribution, no chip");
         }
     }
 

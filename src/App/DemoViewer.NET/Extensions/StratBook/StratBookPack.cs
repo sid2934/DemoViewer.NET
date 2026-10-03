@@ -701,6 +701,10 @@ public sealed class StratBookPack : IFeaturePack
         // re-enable backfill polls.
         contributions.ReindexEstimate(new StratBookPendingReindexCount(sp));
 
+        // The Library's Team filter and provenance chip (item 22), each resolving its service lazily on first use.
+        contributions.Library(new TeamLibraryContribution(sp.GetRequiredService<TeamIdentityService>));
+        contributions.Library(new ProvenanceLibraryContribution(sp.GetRequiredService<IDemoProvenanceSource>, sp.GetRequiredService<TeamIdentityService>));
+
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here
         // constructs one. The order is the shell's registration order and is pinned by a test.
