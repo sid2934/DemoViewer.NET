@@ -130,7 +130,7 @@ public class ReviewTabRowsTests
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 100, "one"), Clip("/d/b.dem", 100, "two"), Clip("/d/c.dem", 100, "three")], "S");
         using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
-        WorkspaceTabDescriptor badge = new ReviewQueueModule(() => tab, queue).CreateTabs(null!).Single();
+        WorkspaceTabDescriptor badge = new ReviewQueueModule(() => tab, queue, enabled: () => true).CreateTabs(null!).Single();
 
         tab.Rows[1].ToggleReviewedCommand.Execute(null);
         using (Assert.Multiple())
