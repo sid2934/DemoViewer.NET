@@ -447,8 +447,8 @@ public class StratCanvasTests
     [Arguments(Key.OemCloseBrackets, KeyModifiers.None, Playback2DAction.NextStep)]
     public async Task TheStepAuthoringRows_Resolve_InBothScopes(Key key, KeyModifiers modifiers, Playback2DAction expected)
     {
-        // Step Authoring moved to the Strat Book extension's StratBookCommands: the profile a canvas
-        // actually routes through resolves it, the bare core table (Playback2DKeymap) does not.
+        // Step Authoring is a Strat Book extension command: the profile a canvas routes through
+        // resolves it, the bare core table (Playback2DKeymap) does not.
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         await Assert.That(keymap.TryResolve(key, modifiers, false, out Playback2DAction idle)).IsTrue();
         await Assert.That(idle).IsEqualTo(expected);

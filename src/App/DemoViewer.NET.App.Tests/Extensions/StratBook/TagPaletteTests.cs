@@ -276,8 +276,8 @@ public class TagPaletteTests
         Playback2DAction[] palette =
             [Playback2DAction.FocusTagPalette, Playback2DAction.TagPaletteBack, Playback2DAction.TagNote, Playback2DAction.TagClearSticky];
 
-        // These four are Strat Book extension commands now (StratBookCommands), not core rows; the
-        // merged table is what has to be checked for them to be checked at all.
+        // These four are Strat Book extension commands, not core rows; the merged table is what has to
+        // be checked for them to be checked at all.
         foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.Action)))
         {
             await Assert.That(claimed.Contains((row.Key, row.Modifiers))).IsFalse()

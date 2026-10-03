@@ -1223,8 +1223,11 @@ is what an untouched install routes, not what every install routes.
 
 **Item 19 (command ids) moved every Strat Book extension row out of this file.** `Ctrl+F` and `J`/`K`
 below are two of them: their chord, scope and description now live in `StratBookCommands`
-(`Extensions/StratBook/StratBookCommands.cs`), registered through `IPackContributions.Commands(...)`, not
-in `Playback2DKeymap.BuildDefault()`. `Playback2DAction` keeps every member (every existing switch over
+(`Extensions/StratBook/StratBookCommands.cs`), read by `CommandRegistry` through `IFeaturePack.Commands`
+(DI-free, so a bare-constructed view model resolves them with no composition root), not
+in `Playback2DKeymap.BuildDefault()`. `IPackContributions.Commands(...)` is a separate, parallel
+declaration the composition root cross-checks against `IFeaturePack.Commands` so the two cannot drift;
+it is not what the keymap itself reads. `Playback2DAction` keeps every member (every existing switch over
 it is unchanged), and `CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
 over the core table with no DI, so `Playback2DKeymapProfile` resolves them exactly as before: a bare
 `new Playback2DTabViewModel()` with no container still opens on the full table. The Tag Palette,

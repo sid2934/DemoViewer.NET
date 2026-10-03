@@ -1285,10 +1285,9 @@ public class App : Application
 
             // CommandRegistry.Default reads IFeaturePack.Commands directly (no DI, so a bare-constructed
             // view model resolves pack chords in a headless test too). This is the consumer for the
-            // IPackContributions.Commands(...) call: not a second registration, a check that the pack
-            // declared the same table through both so they cannot drift apart.
-            if (!contributions.ContributedCommands.Select(c => c.Id)
-                    .SequenceEqual(pack.Commands.Select(c => c.Id), StringComparer.Ordinal))
+            // IPackContributions.Commands(...) call: not a second registration, a check that the two
+            // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
+            if (!CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]))
             {
                 throw new InvalidOperationException(
                     $"Pack '{pack.Id}' contributed different commands through Contribute than its Commands property declares.");

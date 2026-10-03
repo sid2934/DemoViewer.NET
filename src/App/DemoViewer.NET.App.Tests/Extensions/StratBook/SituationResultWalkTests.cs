@@ -18,9 +18,8 @@ public class SituationResultWalkTests
     [Test]
     public async Task JAndK_AreTheResultWalk_AlwaysScoped_AndNotReserved()
     {
-        // NextSituationResult/PrevSituationResult are Strat Book extension commands now
-        // (StratBookCommands); the profile a tab actually routes through resolves them, the bare core
-        // table (Playback2DKeymap) does not.
+        // NextSituationResult/PrevSituationResult are Strat Book extension commands: the profile a tab
+        // routes through resolves them, the bare core table (Playback2DKeymap) does not.
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {
@@ -69,6 +68,22 @@ public class SituationResultWalkTests
         // The walk seeks through the seam's own funnel, never through the tab's context.
         await Assert.That(ctx.SeekTicks).IsEmpty();
         await Assert.That(ctx.SeekFrames).IsEmpty();
+    }
+
+    /// <summary>With the Situations tab (and so the pack, which it cascades off with) gated off, the keys stay unhandled and the seam is never asked.</summary>
+    [Test]
+    public async Task WithTheSituationsTabGatedOff_TheKeysAreUnhandled_AndTheSeamIsNeverAsked()
+    {
+        Playback2DFakeContext ctx = new() { Gate = new FakeModuleFeatureGate() };
+        ctx.Gate!.SetEnabled(SituationsModule.TabFeatureId, false);
+        Playback2DTabViewModel vm = new();
+        vm.OnActivated(ctx);
+        RecordingWalk walk = new();
+        vm.SituationResults = walk;
+
+        await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
+        await Assert.That(vm.ExecuteAction(Playback2DAction.PrevSituationResult)).IsFalse();
+        await Assert.That(walk.Directions).IsEmpty().Because("gated off, the seam must not be asked at all");
     }
 
     [Test]

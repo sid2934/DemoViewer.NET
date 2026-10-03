@@ -24,8 +24,8 @@ public class Playback2DKeymapProfileTests
             out IReadOnlyList<string> rejected);
 
         await Assert.That(rejected).IsEmpty();
-        // The shipped table is core (Playback2DKeymap) union the Strat Book extension's commands now
-        // (CommandRegistry): with no overrides, the profile is exactly that, not the bare core table.
+        // The shipped table is core (Playback2DKeymap) union every pack's commands (CommandRegistry):
+        // with no overrides, the profile is exactly that, not the bare core table.
         await Assert.That(profile.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings);
         await Assert.That(profile.IsOverridden(Playback2DAction.NextRound)).IsFalse();
     }
@@ -245,8 +245,8 @@ public class Playback2DKeymapProfileTests
     [Test]
     public async Task EveryShippedGesture_RoundTripsThroughItsPersistedRow()
     {
-        // The full shipped table, core and the Strat Book extension's commands: a rebind round-trips the
-        // same way whichever side of the move an action landed on.
+        // The full shipped table, core and every pack's commands: a core and a pack action round-trip
+        // the same way.
         string[] rows =
         [
             .. CommandRegistry.Default.EffectiveBindings.Where(b => !b.IsReserved)

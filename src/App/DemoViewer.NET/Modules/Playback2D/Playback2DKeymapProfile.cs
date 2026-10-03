@@ -1,5 +1,6 @@
 #region
 
+using System.Text.RegularExpressions;
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
 
@@ -40,10 +41,8 @@ public sealed class Playback2DKeymapProfile
 
     // Ordered, not field initializers: BuildIndex hands _multiBound back through an out parameter, and
     // Default is built from the same shipped table both of them read. _shipped is core (Playback2DKeymap)
-    // union every enabled pack's commands (CommandRegistry): the Strat Book extension's Tag*, Suggestion*,
-    // ToggleReviewMode, FindRoundsLikeThis, the situation-result walk and the step keys resolve from here
-    // exactly as if they still had their own rows in the core table, with the pack always treated as on
-    // (no live gate reaches this static table; a pack-off chord simply has no view surface to act on).
+    // union every pack's commands (CommandRegistry.Default.EffectiveBindings), unconditionally: no live
+    // gate reaches this static table, so a pack-off chord has no view surface to act on instead.
     static Playback2DKeymapProfile()
     {
         _shipped = [.. CommandRegistry.Default.EffectiveBindings];
@@ -162,7 +161,7 @@ public sealed class Playback2DKeymapProfile
                 IReadOnlyList<string> conflicts = Playback2DKeymap.FindConflicts(candidate, reserved);
                 if (conflicts.Count > 0)
                 {
-                    problems.Add($"{row}: {conflicts[0]}");
+                    problems.Add($"{row}: {AnnotatePackOwners(conflicts[0])}");
                     continue;
                 }
 
@@ -341,6 +340,21 @@ public sealed class Playback2DKeymapProfile
             Key = key,
             Modifiers = modifiers
         };
+
+    // A conflict naming a pack-owned action (TagNote, AddStep, …) is otherwise opaque the moment that
+    // pack is off: the Settings list hides its row, so the user reads an action name that appears
+    // nowhere they can see. Named here regardless of the pack's current on/off state, since this is
+    // about which pack a chord belongs to, not whether it is live right now.
+    private static string AnnotatePackOwners(string conflict)
+    {
+        foreach (KeyValuePair<Playback2DAction, PackCommand> entry in CommandRegistry.Default.PackOwnerByAction)
+        {
+            conflict = Regex.Replace(conflict, $@"\b{Regex.Escape(entry.Key.ToString())}\b",
+                $"{entry.Key} ({entry.Value.PackLabel})");
+        }
+
+        return conflict;
+    }
 
     // "Action=Gesture" → the two halves, with every reason a row can be refused. Split at the FIRST '='
     // because no gesture Avalonia parses contains one.

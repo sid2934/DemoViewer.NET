@@ -420,12 +420,9 @@ public static class Playback2DKeymap
             Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture", false),
 
         // Situation Search, result walking, review mode, the Tag Palette, Label Mode, the Suggested Tags
-        // queue and Step Authoring (ToolToken, AddStep, DuplicateStep, DeleteStep, PrevStep, NextStep) are
-        // the Strat Book extension's own commands now: StratBookCommands carries their chords and scopes,
-        // registered through IPackContributions.Commands. Their Playback2DAction members stay (every
-        // existing switch over them is unchanged), but this table, the one the static constructor
-        // conflict-checks eagerly, only ever declares core rows: CommandRegistry composes the two back
-        // into one table for Playback2DKeymapProfile.
+        // queue and Step Authoring belong to the Strat Book extension (StratBookCommands), read by
+        // CommandRegistry through IFeaturePack.Commands. This table stays core-only: its static
+        // constructor conflict-checks eagerly, which a pack's own commands must never be able to trip.
 
         // ── Shape Tools (step-authoring.md §3.7). Bare letters in the Always scope like D and X, each
         //    pressed again to go back to pan. None collides with the shipped rows, the shell list or the

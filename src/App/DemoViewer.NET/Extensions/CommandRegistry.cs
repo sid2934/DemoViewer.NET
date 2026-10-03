@@ -130,6 +130,12 @@ public sealed class CommandRegistry
     /// <summary>
     ///     Resolves a keypress to a command, honouring <paramref name="isPackEnabled" /> for a pack row: a
     ///     chord whose pack is off resolves to nothing, same as an unbound key. A core row always resolves.
+    ///     <para>
+    ///         Reads <see cref="EffectiveBindings" />, not <see cref="PackCommands" /> directly: a pack
+    ///         command that lost a chord collision in <see cref="Build" /> has no row there, so it cannot
+    ///         resolve just because its own <see cref="CommandDescriptor.DefaultChord" /> still names the
+    ///         gesture. The row that WON the slot (core, or an earlier pack) is what resolves.
+    ///     </para>
     /// </summary>
     /// <param name="key">The pressed key.</param>
     /// <param name="modifiers">The active modifiers.</param>
@@ -142,30 +148,24 @@ public sealed class CommandRegistry
         ArgumentNullException.ThrowIfNull(isPackEnabled);
         Playback2DBindingScope parsedScope = ParseScope(scope);
 
-        foreach (PackCommand entry in PackCommands)
-        {
-            if (entry.Command.DefaultChord is not { } chord || chord.Key != key || chord.KeyModifiers != modifiers
-                || ParseScope(entry.Command.Scope) != parsedScope)
-            {
-                continue;
-            }
-
-            if (!isPackEnabled(entry.PackFeatureId))
-            {
-                command = null;
-                return false;
-            }
-
-            command = entry.Command;
-            return true;
-        }
-
-        foreach (Playback2DBinding binding in Playback2DKeymap.Default)
+        foreach (Playback2DBinding binding in EffectiveBindings)
         {
             if (binding.IsReserved || binding.Key != key || binding.Modifiers != modifiers
                 || binding.Scope != parsedScope)
             {
                 continue;
+            }
+
+            if (_packByAction.TryGetValue(binding.Action, out PackCommand? owner))
+            {
+                if (!isPackEnabled(owner.PackFeatureId))
+                {
+                    command = null;
+                    return false;
+                }
+
+                command = owner.Command;
+                return true;
             }
 
             command = CoreCommand(binding);
@@ -174,6 +174,37 @@ public sealed class CommandRegistry
 
         command = null;
         return false;
+    }
+
+    /// <summary>
+    ///     Whether two command lists agree on id, scope and default chord, position by position.
+    ///     <see cref="CommandDescriptor.Run" /> and <see cref="CommandDescriptor.CanRun" /> are delegates
+    ///     and compare by reference, so they are deliberately excluded. This is the check the composition
+    ///     root runs between a pack's <c>Contribute(...)</c> call and its <see cref="IFeaturePack.Commands" />
+    ///     property, so the two channels cannot drift apart.
+    /// </summary>
+    public static bool CommandsMatch(IReadOnlyList<CommandDescriptor> a, IReadOnlyList<CommandDescriptor> b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!string.Equals(a[i].Id, b[i].Id, StringComparison.Ordinal)
+                || !string.Equals(a[i].Scope, b[i].Scope, StringComparison.Ordinal)
+                || a[i].DefaultChord?.Key != b[i].DefaultChord?.Key
+                || a[i].DefaultChord?.KeyModifiers != b[i].DefaultChord?.KeyModifiers)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // A core row has no pack to call back into generically (CommandRegistry is core and may not reference
