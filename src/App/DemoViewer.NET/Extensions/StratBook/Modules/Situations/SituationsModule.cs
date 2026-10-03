@@ -84,6 +84,7 @@ public sealed class SituationsModule : IWorkspaceModule
             Header = "Situations",
             Order = 1, // after Strats (0)
             Placement = TabPlacement.StratBook,
+            FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SituationsTabView()
         };

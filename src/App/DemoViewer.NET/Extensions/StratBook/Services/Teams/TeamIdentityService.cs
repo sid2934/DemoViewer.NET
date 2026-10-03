@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Extensions;
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
@@ -32,7 +33,7 @@ namespace DemoViewer.NET.Services.Teams;
 ///         <b>Browser host.</b> No config root, so both files are session-only and the Teams panel says so.
 ///     </para>
 /// </summary>
-public sealed class TeamIdentityService : IDisposable
+public sealed class TeamIdentityService : IPackResident, IDisposable
 {
     /// <summary>The words the Teams panel shows on the browser host, the annotations panel's shape.</summary>
     public const string BrowserNote = "session only: this browser tab forgets teams when it reloads";
@@ -59,6 +60,9 @@ public sealed class TeamIdentityService : IDisposable
     private readonly IRoundFactsSource? _roundFacts;
     private readonly Func<Action, Task> _run;
     private readonly string? _teamsPath;
+    private readonly Func<Action, Task>? _scheduleLoad;
+    private bool _attached;
+    private bool _loadScheduled;
     private bool _disposed;
     private TeamIndexFile _index = new();
     private TeamsFile _teams = new();
@@ -68,8 +72,8 @@ public sealed class TeamIdentityService : IDisposable
     private Task _work = Task.CompletedTask;
 
     // teams.json and team-index.json, read once; every mutator and every scheduled replay waits for it, so
-    // nothing is written over files that were never read.
-    private readonly LoadOnce _load;
+    // nothing is written over files that were never read. Replaced by Release so the next Attach reads again.
+    private LoadOnce _load;
 
     /// <summary>False until teams.json and the index have been read; the tabs show a loading line meanwhile.</summary>
     public bool IsLoaded => _load.IsDone;
@@ -80,13 +84,18 @@ public sealed class TeamIdentityService : IDisposable
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="run">Runs a replay off the caller's thread; defaults to the thread pool. Tests pass an inline runner.</param>
     /// <param name="scheduleLoad">Runs the file read later: a processing-queue item in the app. Null reads inline.</param>
+    /// <param name="loadAtStart">
+    ///     False leaves the service detached and unread until <see cref="Attach" />: the owning pack is off, so
+    ///     nothing of its index belongs in memory. A mutator still reads the files first.
+    /// </param>
     public TeamIdentityService(
         string? configRoot,
         DemoCacheStore demoCache,
         IRoundFactsSource? roundFacts = null,
         Action<Action>? post = null,
         Func<Action, Task>? run = null,
-        Func<Action, Task>? scheduleLoad = null)
+        Func<Action, Task>? scheduleLoad = null,
+        bool loadAtStart = true)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         _demoCache = demoCache;
@@ -99,29 +108,44 @@ public sealed class TeamIdentityService : IDisposable
             _indexPath = Path.Combine(configRoot, "cache", IndexFileName);
         }
 
-        bool deferred = scheduleLoad is not null;
-        _load = new LoadOnce(() =>
+        _scheduleLoad = scheduleLoad;
+        _load = NewLoad();
+        if (loadAtStart)
+        {
+            Attach();
+        }
+    }
+
+    // The read, under the gate with the attached check: a queued read that passed the generation guard and
+    // then lost the race with a release must not fill a released service. Skipped, it leaves a fresh
+    // LoadOnce behind so the next Attach reads.
+    private LoadOnce NewLoad()
+    {
+        LoadOnce? created = null;
+        created = new LoadOnce(() =>
         {
             lock (_gate)
             {
+                if (!_attached)
+                {
+                    if (ReferenceEquals(_load, created))
+                    {
+                        _load = NewLoad();
+                        _loadScheduled = false;
+                    }
+
+                    return;
+                }
+
                 Load();
             }
 
-            if (deferred)
+            if (_scheduleLoad is not null)
             {
                 _post(() => Changed?.Invoke());
             }
         });
-        if (scheduleLoad is null)
-        {
-            _load.Ensure();
-        }
-        else
-        {
-            _ = scheduleLoad(_load.Ensure);
-        }
-
-        _demoCache.Changed += OnCacheChanged;
+        return created;
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
@@ -444,7 +468,104 @@ public sealed class TeamIdentityService : IDisposable
         }
 
         _disposed = true;
+        Detach();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Also schedules the file read, once: the queue item in the app, inline without a scheduler.</remarks>
+    public void Attach()
+    {
+        lock (_gate)
+        {
+            if (_attached || _disposed)
+            {
+                return;
+            }
+
+            _attached = true;
+        }
+
+        _demoCache.Changed += OnCacheChanged;
+        bool schedule;
+        lock (_gate)
+        {
+            schedule = !_loadScheduled;
+            _loadScheduled = true;
+        }
+
+        if (!schedule)
+        {
+            return;
+        }
+
+        if (_scheduleLoad is null)
+        {
+            _load.Ensure();
+        }
+        else
+        {
+            // A load queued before a release must not read the files back in after it.
+            LoadOnce mine = _load;
+            _ = _scheduleLoad(() =>
+            {
+                if (ReferenceEquals(Volatile.Read(ref _load), mine))
+                {
+                    mine.Ensure();
+                }
+            });
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Every side key, assignment, join and both files leave memory; the files on disk are untouched. A
+    ///     mutator that runs before the next <see cref="Attach" /> reads them again inline first.
+    /// </remarks>
+    public void Release()
+    {
+        if (!Detach())
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _inputs.Clear();
+            _index = new TeamIndexFile();
+            _teams = new TeamsFile();
+            _teamsRefused = false;
+            TeamsFileProblem = null;
+            NeedsRebuild = false;
+            MeSuggestion = null;
+            DismissedMeSuggestion = null;
+            Suggestions = [];
+            DismissedSuggestions = [];
+            _load = NewLoad();
+            _loadScheduled = false;
+        }
+
+        lock (_joinGate)
+        {
+            _joins.Clear();
+        }
+
+        _post(() => Changed?.Invoke());
+    }
+
+    private bool Detach()
+    {
+        lock (_gate)
+        {
+            if (!_attached)
+            {
+                return false;
+            }
+
+            _attached = false;
+        }
+
         _demoCache.Changed -= OnCacheChanged;
+        return true;
     }
 
     // ── Startup and the incremental hook ─────────────────────────────────────────────────────────
@@ -486,6 +607,12 @@ public sealed class TeamIdentityService : IDisposable
         ct.ThrowIfCancellationRequested();
         lock (_gate)
         {
+            // A replay that outlived a release must not refill what the release dropped.
+            if (!_attached)
+            {
+                return;
+            }
+
             _inputs.Clear();
             foreach (DemoSideInput input in inputs)
             {
@@ -549,6 +676,11 @@ public sealed class TeamIdentityService : IDisposable
 
         lock (_gate)
         {
+            if (!_attached)
+            {
+                return;
+            }
+
             bool changed = false;
             foreach (string key in toDrop)
             {
@@ -581,7 +713,7 @@ public sealed class TeamIdentityService : IDisposable
         {
             lock (_gate)
             {
-                if (_inputs.Remove(key))
+                if (_attached && _inputs.Remove(key))
                 {
                     Recompute();
                 }
@@ -603,7 +735,7 @@ public sealed class TeamIdentityService : IDisposable
 
         lock (_gate)
         {
-            if (_inputs.TryGetValue(key, out DemoSideInput? held) && held.SameSides(input))
+            if (!_attached || (_inputs.TryGetValue(key, out DemoSideInput? held) && held.SameSides(input)))
             {
                 return;
             }
@@ -626,9 +758,16 @@ public sealed class TeamIdentityService : IDisposable
             // An idle chain starts the work through the runner directly, so an inline runner (tests)
             // finishes before the caller continues.
             Task previous = _work;
+            // A replay queued before a release is dropped after it: the load it would run reads the index back in.
+            LoadOnce mine = _load;
             Action loaded = () =>
             {
-                _load.Ensure();
+                if (!ReferenceEquals(Volatile.Read(ref _load), mine))
+                {
+                    return;
+                }
+
+                mine.Ensure();
                 work();
             };
             _work = previous.IsCompleted
@@ -1475,7 +1614,8 @@ public sealed class TeamIdentityService : IDisposable
 
     private void SaveTeams()
     {
-        if (_teamsPath is null || _teamsRefused)
+        // Detached, the service read nothing, so nothing it holds may reach the user's file.
+        if (_teamsPath is null || _teamsRefused || !_attached)
         {
             return;
         }
@@ -1492,7 +1632,7 @@ public sealed class TeamIdentityService : IDisposable
 
     private void SaveIndex()
     {
-        if (_indexPath is null)
+        if (_indexPath is null || !_attached)
         {
             return;
         }

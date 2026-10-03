@@ -4309,6 +4309,10 @@ public static partial class Variants
         {
         }
 
+        public void CancelOwned(string ownerTag)
+        {
+        }
+
         public void Seed(params (string Name, string Owners, DemoJobPriority Priority,
             DemoQueueItemState State, string? Error)[] rows)
         {

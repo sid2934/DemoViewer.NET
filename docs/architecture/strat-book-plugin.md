@@ -534,8 +534,14 @@ public interface IFeaturePack
 public interface IPackLifecycle            // optional, resolved from the pack's own registrations
 {
     Task OnEnabledAsync(PackStartReason reason, CancellationToken ct);  // startup loads, subscriptions
-    void OnDisabled();                       // unsubscribe, cancel owned jobs, release resident indexes
+    Task OnDisabledAsync();                  // unsubscribe, cancel owned jobs, release resident indexes (completes when released)
     void OnShutdown(TimeSpan budget);        // flushes
+}
+
+public interface IPackResident              // a pack-built singleton whose state can be dropped and rebuilt (item 8)
+{
+    void Attach();                           // subscribe to the sources that keep it current; loads nothing
+    void Release();                          // unsubscribe, flush what is pending, drop the state
 }
 ```
 
@@ -689,11 +695,60 @@ If Round Facts is in the pack, the highlights fingerprint must be split first (s
 re-scans every demo's highlights. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
 be visible and pausable in the queue, per the standing rule that all background work goes through it.
 
-**Live toggle.** Live in both directions, and turning off releases the pack's memory in session (decision 3,
-item 8). Turning on mid-session is the harder direction: startup loads run from `OnEnabledAsync`, and any
-2D Playback tab already open attaches the pack's contributions on the next demo change or immediately if
-`Attach` supports a live surface (it should; panes are already dynamic). If live attach in 2D Playback
-proves fragile, the fallback is "takes effect on the next demo open", not "restart".
+**Live toggle (item 8, as built).** Live in both directions, and turning off releases the pack's memory in
+session (decision 3). A core `PackSwitch` subscribes to the gate's `Changed` once per pack and acts on real
+transitions only: the resolved `IsEnabled(pack.FeatureId)` against the state the lifecycle was last put in,
+so a settings write that leaves the pack where it was does nothing. `App.StartPacks` is its startup pass.
+
+- *Off to on:* `OnEnabledAsync(EnabledInSession, ct)`, the same code path as startup: one attach item
+  first ("Strat Book: attach services", which attaches the lineup clips, Team Identity (its file read and
+  `StartAsync` are queued from inside it, so the Library team filter is not held behind the index loads),
+  the facts refresher, the zone graphs and every resident built lazily before a release), then the two
+  index loads, all queue items at user priority on the pack's serial; then a user-priority `SectionCompute`
+  item on the same serial, owned by the pack id ("Strat Book extension: find demos to re-index"), re-polls
+  the library through the coordinator, so the pack's evaluators submit every demo whose pack fields are
+  missing or stale and the backfill is visible and pausable in the queue. Open 2D Playback tabs and the
+  shell react through the gate's `Changed` as before.
+- *On to off:* the enable's token is cancelled, every queued pack item goes by owner tag through
+  `IDemoProcessingQueue.CancelOwned(ownerTag)` (a running one finishes its unit; a parse the library co-owns
+  stays), and the release itself is one `SectionCompute` item at user priority, owner the pack id, on the
+  same serial, so a large index never leaves memory on the UI thread and never beside a load still running.
+  `OnDisabledAsync` returns that item's completion.
+- *Ordering.* Every item of the pack's own (loads, attach, release) shares one serial, so nothing of the
+  pack's state changes outside a totally ordered item, and each carries the lifecycle epoch it was queued
+  under: every enable and disable bumps it, an enable also drops a release still queued (by owner), and an
+  item that runs under an older epoch does nothing. So a fast off-on leaves everything attached and the
+  live view intact (shutdown's lineup flush still writes), and a fast on-off leaves nothing loaded.
+- *What release means.* The residents are container singletons that core surfaces hold references to
+  (Team Identity for the Library filter, the situation index for the shell), so the object cannot be
+  replaced; its state can. Each implements `IPackResident`: `Release` unsubscribes from the sources that
+  would refill it (`DemoCacheStore.Changed`, the evaluators' `Written`/`Indexed`, the index's `Changed`),
+  writes anything pending (lineups, the signature cache) and drops the loaded data; `Attach` subscribes
+  again and the next load rebuilds. Released: `SituationIndex`, `GrenadeIndex` (and its lineup document),
+  `TeamIdentityService` (side keys, assignments, joins, both files), `LineupClipService` (plan, ranks,
+  requests), `TagFactsRefresher`, `WatchedSituationsService` (the new-hit groups; the saved watches stay),
+  `StratMiningService` (the quiet timer, the patterns, the `SignatureCache`), and the zone graphs in
+  `AssetZonePlaceResolverSource` (only pack code reads them). `StratBookPackInstances` keeps the built
+  residents across a release and nulls its typed view, so shutdown flushes nothing that was dropped and a
+  re-enable restores and re-attaches everything built lazily before the release. A mine or a lineup render
+  still running in the heavy lane when the release runs (their items set no serial) skips its next step
+  once detached and writes nothing back; the release lets it end (bounded by one batch) before dropping the
+  signature cache, which is not thread-safe.
+- *Not released:* the pack's tab view-models (container singletons the modules hand to the shell; their
+  result lists are bounded by the last query and their map assets by the last map shown) and the pack's
+  small user-truth stores (strats, tags, dossier notes, veto history, proposals, profile, site regions),
+  which are the user's files and cheap. The hub shows no "stopping" state: its tab is gone the instant the
+  gate flips; the release item is visible in the queue instead.
+- *First run.* On a fresh desktop install `StartPacks` waits while `SettingsService.NeedsFirstRun` is true;
+  the wizard's Finish or Skip writes settings, which is a gate change like any other, and the pack starts
+  if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
+  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team
+  Identity, which the shell builds for the Library filter before the wizard has asked, is built detached
+  and unread whatever the gate says at container build; only the attach item reads its files, and a read
+  that reaches a detached service (a queued one that lost the race with a release) reads and writes nothing.
+- *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
+  60 grenades each, a mine and a watch seeded): an enable builds about 21 MB on the GC heap; the release
+  leaves 0.5 MB after the first off-on-off cycle and 0.0 MB after the second, so nothing grows per toggle.
 
 **Session restore.** If the persisted active tab id belongs to a disabled pack, restore lands on Library.
 Pack session blobs of a disabled pack are preserved in the session file untouched, so re-enabling restores

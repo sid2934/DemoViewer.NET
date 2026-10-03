@@ -138,6 +138,10 @@ public class StratLineupPickerTests
         {
         }
 
+        public void CancelOwned(string ownerTag)
+        {
+        }
+
         public void Pause()
         {
         }

@@ -840,6 +840,71 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    public void CancelOwned(string ownerTag)
+    {
+        ArgumentNullException.ThrowIfNull(ownerTag);
+        bool freedQueueSlot = false;
+        bool changed = false;
+        List<CancellationTokenSource> cancels = [];
+        lock (_sync)
+        {
+            foreach (Entry e in _entries)
+            {
+                if (!IsActive(e) || e.Finalizing || e.Kind == QueueJobKind.DemoOpen)
+                {
+                    continue;
+                }
+
+                if (e.Kind == QueueJobKind.DemoProcessing)
+                {
+                    if (e.Attachments.RemoveAll(a => string.Equals(a.OwnerTag, ownerTag, StringComparison.Ordinal)) == 0)
+                    {
+                        continue;
+                    }
+
+                    changed = true;
+                    if (e.Attachments.Count > 0 || e.ForegroundWaiters.Count > 0)
+                    {
+                        continue;
+                    }
+                }
+                else if (!string.Equals(e.JobOwner, ownerTag, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                changed = true;
+                e.CancelRequested = true;
+                if (e.State == DemoQueueItemState.Queued)
+                {
+                    SetTerminalLocked(e, DemoQueueItemState.Cancelled, null);
+                    freedQueueSlot |= e.Kind != QueueJobKind.HeapCompaction;
+                }
+                else if (e.Cancel is { } cancel)
+                {
+                    cancels.Add(cancel);
+                }
+            }
+        }
+
+        foreach (CancellationTokenSource cancel in cancels)
+        {
+            CancelQuietly(cancel);
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        RaiseChanged();
+        if (freedQueueSlot)
+        {
+            RaiseCapacityAvailable();
+            CompactIfDue();
+        }
+    }
+
     public IReadOnlyList<DemoQueueItemSnapshot> Snapshot()
     {
         lock (_sync)
