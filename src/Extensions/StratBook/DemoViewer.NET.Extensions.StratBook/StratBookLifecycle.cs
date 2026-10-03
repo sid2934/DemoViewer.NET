@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
@@ -12,6 +13,7 @@ using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.Diagnostics;
+using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -98,9 +100,20 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         LineupClipService lineups = _sp.GetRequiredService<LineupClipService>();
         TeamIdentityService teams = _sp.GetRequiredService<TeamIdentityService>();
         TagFactsRefresher tagFacts = _sp.GetRequiredService<TagFactsRefresher>();
-        // The zone graphs are read per map by the loads below and by nothing outside the pack, so they
-        // are the pack's to release even though the source is registered by the composition root.
+        // The zone graphs are read per map by the loads below and by nothing outside the pack.
         IPackResident? zones = _sp.GetService<IZonePlaceResolverSource>() as IPackResident;
+
+        // Match Overview's "Index grenades": the grenade walk forced at user priority. Desktop only: the
+        // browser head has no processing queue to run it on, and an absent action beats an inert one. The
+        // evaluator resolves inside the delegates, so a press, not this enable, is what builds it. The
+        // delegates stay set across a switch-off; the gate read hides the chip meanwhile.
+        if (!OperatingSystem.IsBrowser() && _sp.GetService<MainViewModel>()?.MatchOverviewTab is { } overview)
+        {
+            IFeatureGate? gate = _sp.GetService<IFeatureGate>();
+            overview.IndexGrenades = path => _sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
+            overview.AreGrenadesIndexed = path => _sp.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path);
+            overview.PackEnabled = () => gate?.IsEnabled(StratBookPack.PackFeatureId) ?? true;
+        }
 
         Task attach = PackItem(queue, QueueJobKind.SectionCompute, AttachTitle, Owner, epoch, () =>
         {
@@ -231,6 +244,17 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         catch (Exception ex)
         {
             AppLog.OperationFailed(log, "grenade lineup flush on shutdown", ex);
+        }
+
+        // The Tag Store defers its index to shutdown (tag-store.md); idempotent, so a re-fired request
+        // writes nothing new.
+        try
+        {
+            _instances.Tags?.SaveIndex();
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(log, "tag index flush on shutdown", ex);
         }
     }
 
