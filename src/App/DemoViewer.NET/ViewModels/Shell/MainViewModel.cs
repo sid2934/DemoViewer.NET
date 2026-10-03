@@ -33,8 +33,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.Idle;
@@ -148,13 +146,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // the tabs it did before gating existed. Filtering + live reconcile only run when a gate is injected
     // (the real app + the gating tests).
     private readonly IFeatureGate? _gate;
-
-    // The Strat Book's umbrella id. The Library's team filter and provenance chip key off this directly:
-    // neither is a section with a feature id of its own.
-    private const string StratBookPackFeatureId = "pack.stratbook";
-
-    // A null gate fails open, matching every other surface this flag controls.
-    private bool IsStratBookPackEnabled => _gate?.IsEnabled(StratBookPackFeatureId) ?? true;
 
     // ── Heavy-parse coordination + highlights pipeline ──
     // Null on the designer / unit-test path → interactive loads run ungated (pre-gate behavior)
@@ -517,13 +508,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     that demo's cached record on Match Overview without parsing anything. Null (WASM, most tests) →
     ///     the preview is simply inert.
     /// </param>
-    /// <param name="teams">
-    ///     Team Identity, for the Library's Team filter. Null (designer, most tests) → the filter is not
-    ///     offered.
-    /// </param>
-    /// <param name="provenance">
-    ///     Demo Provenance Labels, for the Library card's label chip. Null (designer, most tests) → no
-    ///     chip.
+    /// <param name="libraryContributions">
+    ///     The packs' Library filter/badge contributions (item 22: the Team filter, the provenance chip).
+    ///     Null (designer, most tests) hosts none, so the Library offers neither.
     /// </param>
     /// <param name="hostTabs">
     ///     The host tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
@@ -539,8 +526,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DemoEvaluationCoordinator? evaluationCoordinator = null,
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
-        TeamIdentityService? teams = null,
-        IDemoProvenanceSource? provenance = null,
+        IReadOnlyList<ILibraryContribution>? libraryContributions = null,
         IReadOnlyList<HostTabContribution>? hostTabs = null)
     {
         _hostTabs = hostTabs ?? [];
@@ -887,9 +873,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             OpenFileAsync, // the Library's "Open Demo…" CTA shares the one picker → LoadDemoFromBytesAsync funnel
             _recentFiles,
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
-            teams, // the Team filter: "All teams", "Us", then every visible team
-            provenance, // the card's provenance chip
-            packEnabled: () => IsStratBookPackEnabled);
+            libraryContributions, // the Team filter and the provenance chip, item 22
+            isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
@@ -2603,9 +2588,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // The chrome.processingQueue gate may have flipped: add/remove the Processing chip to match.
         ReconcileQueueChip();
 
-        // The pack id may have flipped: the Library's team filter and provenance chip go with it (the hub
-        // and its sections already went through ReconcileTabs above).
-        LibraryTab.RefreshPackGate();
+        // A contributed filter/badge's own gate id may have flipped (the hub and its sections already
+        // went through ReconcileTabs above).
+        LibraryTab.RefreshContributions();
         ReconcileExportChip();
         // Any contributed chip's own feature id (the Strat export chip's, among others) may have flipped.
         ReconcileContributedChips();
