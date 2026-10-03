@@ -142,6 +142,62 @@ public class QueueJobTests
     }
 
     [Test]
+    public async Task CancelOwned_ByOwnerAlone_DropsEveryQueuedJobOfThatOwner_StopsItsRunningOne_AndLeavesCoOwnedParsesAlive()
+    {
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = NewQueue(gate);
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool otherOwnersJobRan = false;
+        bool packQueuedRan = false;
+
+        // The running job belongs to the pack and parks on its token until cancelled.
+        IDemoQueueHandle running = queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "mine", "pack", DemoJobPriority.Background,
+            async ctx =>
+            {
+                started.SetResult();
+                await Task.Delay(Timeout.Infinite, ctx.CancellationToken);
+            }));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        IDemoQueueHandle packQueued = queue.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips, "clips", "pack", DemoJobPriority.Background,
+            _ =>
+            {
+                packQueuedRan = true;
+                return Task.CompletedTask;
+            }));
+        IDemoQueueHandle other = queue.SubmitJob(new QueueJobRequest(QueueJobKind.SidecarMigration, "migrate", "core", DemoJobPriority.Background,
+            _ =>
+            {
+                otherOwnersJobRan = true;
+                return Task.CompletedTask;
+            }));
+        // One parse, two owners: the pack's attachment leaves, the library keeps the parse.
+        IDemoQueueHandle shared = queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "library", DemoJobPriority.Background, 1, _ => { }));
+        queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "pack", DemoJobPriority.Background, 1, _ => { }));
+        // A parse only the pack wanted goes with it.
+        IDemoQueueHandle packOnly = queue.SubmitBackground(new DemoProcessingRequest("/d/b.dem", "pack", DemoJobPriority.Background, 2, _ => { }));
+
+        queue.CancelOwned("pack");
+
+        await running.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await other.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await shared.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(running.State).IsEqualTo(DemoQueueItemState.Cancelled).Because("the running pack job was told through its token");
+            await Assert.That(packQueued.State).IsEqualTo(DemoQueueItemState.Cancelled);
+            await Assert.That(packQueuedRan).IsFalse();
+            await Assert.That(packOnly.State).IsEqualTo(DemoQueueItemState.Cancelled).Because("no co-owner wanted that parse");
+            await Assert.That(shared.State).IsEqualTo(DemoQueueItemState.Completed).Because("the library still owned the shared parse");
+            await Assert.That(queue.Snapshot().Single(s => s.Path == "/d/a.dem").Owners).IsEquivalentTo(["library"]);
+            await Assert.That(other.State).IsEqualTo(DemoQueueItemState.Completed);
+            await Assert.That(otherOwnersJobRan).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task OneHeavyJobAtATime_AcrossDemoParsesAndJobs()
     {
         using HeavyJobGate gate = new();

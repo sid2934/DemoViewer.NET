@@ -349,6 +349,13 @@ public interface IDemoProcessingQueue
     /// </summary>
     void CancelOwned(string ownerTag, string path);
 
+    /// <summary>
+    ///     A module cancels EVERY submission it owns: its queued jobs are dropped, a running one is told
+    ///     through its token and finishes its current unit, and its attachment leaves every coalesced parse
+    ///     (a co-owner keeps the parse alive). An open is never touched.
+    /// </summary>
+    void CancelOwned(string ownerTag);
+
     /// <summary>Pause background processing (transient; in-flight parses finish; foreground unaffected).</summary>
     void Pause();
 
