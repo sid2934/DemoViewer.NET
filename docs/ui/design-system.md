@@ -1374,14 +1374,11 @@ spectating has no readback. Gated by `playback2d.follow`.
   `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
   other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
   are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
-  and, for the Strat Book, via a generic pack `StatusChip` contribution (item 14):
-  `MainViewModel.AttachStratExportStatus` and its dedicated `StratExportStatus` slot are gone, replaced by
-  `AttachStatusChips(IReadOnlyList<StatusChipContribution>)` and a `_shownContributedChips` map keyed by
-  the contribution's own id. `StratBookExportChipSlot` (`IContributedStatusChip`) is the pack's side of the
-  hand-off: the Strat Book tab's export job mounts into it lazily, on the first Export, the same as before;
-  the shell now watches the slot's `IsShown`/`Chip` through `INotifyPropertyChanged` instead of owning the
-  running/dismissed bookkeeping itself. The 2D export chip was left exactly as it was: core, not a pack
-  concern, so it keeps its own dedicated slot.
+  for the 2D chip, a core, dedicated slot). The Strat Book chip goes through a generic pack `StatusChip`
+  contribution instead (item 14): `MainViewModel.AttachStatusChips(IReadOnlyList<StatusChipContribution>)`
+  watches each contribution's `IContributedStatusChip` (`StratBookExportChipSlot` for this one) via
+  `INotifyPropertyChanged`, keyed by the contribution's own id in a `_shownContributedChips` map. The Strat
+  Book tab's export job mounts into the slot lazily, on the first Export.
   - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
     `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
     `TextValue` values, never tinted, per the contrast rule above.
@@ -2319,22 +2316,23 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   off still counts (it is still rendered, under Extensions, disabled).
 - **The two pack-only settings blocks are contributed pages now** (`IPackContributions.SettingsPage`,
   item 14), content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades
-  in the background`, `Render lineup clips`). `SettingsViewModel.BuildContributedSettingsPages` builds
-  each page's VM and View exactly once, at construction, and sets the View's `DataContext` to the VM
-  itself (the `WorkspaceTabDescriptor.Activate` convention, not `ViewLocator`); `SettingsView.axaml` hosts
-  the built list through one `ItemsControl ItemsSource="{Binding ContributedSettingsPages}"` beneath the
-  row list, each item a header `Border` plus a `ContentControl` over the page's `Content`.
-  `MountedSettingsPage.IsVisible` is the only thing recomputed later (on a filter keystroke AND on a gate
-  change, both now route through `RefreshContributedPageVisibility`): gate-off OR no keyword match hides a
-  page entirely, same "gone, not dark" rule as before. `SuggestedTagsTuningViewModel` moved under
-  `Extensions/StratBook/ViewModels/Settings/` (namespace unchanged: `ViewModels.Settings`, so it is not a
-  pack-boundary edge) and now derives from `ViewModelBase` instead of bare `ObservableObject`, matching the
-  contribution's `Func<ViewModelBase> ViewModelFactory` typing. `GrenadeIndexSettingsViewModel` is new,
-  beside it, with its own `Persist`/`Reflect` echo-guard pair over the same `SettingsService` singleton (it
-  left `SettingsViewModel` entirely: no more `GrenadesBackgroundIndex`/`GrenadesRenderLineupClips` there).
-  `SettingsViewModel`'s public ctor dropped `SuggestedTagsTuningViewModel suggestedTagsTuning` and gained
-  `IReadOnlyList<SettingsPageContribution>? settingsPages` instead; `App.axaml.cs`'s `Func<SettingsViewModel>`
-  factory now passes `PackContributionSet.SettingsPages`.
+  in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
+  construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
+  `FeatureId` resolves on: a page must never construct whatever its VM pulls in while its pack is off
+  (plan doc §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
+  gate change alike) before setting `IsVisible`, so a page builds at most once and stays built once its
+  pack has been on. `SettingsView.axaml` hosts the list through one
+  `ItemsControl ItemsSource="{Binding ContributedSettingsPages}"` beneath the row list, each item a header
+  `Border` plus a `ContentControl` over the page's (possibly still-null) `Content`.
+  `SuggestedTagsTuningViewModel` and the new `GrenadeIndexSettingsViewModel` live under
+  `DemoViewer.NET.Extensions.StratBook.ViewModels.Settings` (their Views under `...Views.Settings`), not
+  the core `ViewModels.Settings`/`Views.Settings` namespaces, so `PackBoundaryTests`' scan polices the
+  edge; both VMs derive from `ViewModelBase`, matching the contribution's `Func<ViewModelBase> ViewModelFactory`
+  typing. `GrenadeIndexSettingsViewModel` owns its own `Persist`/`Reflect` echo-guard pair over the shared
+  `SettingsService`; `GrenadesBackgroundIndex`/`GrenadesRenderLineupClips` left `SettingsViewModel`
+  entirely. `SettingsViewModel`'s public ctor dropped `SuggestedTagsTuningViewModel suggestedTagsTuning`
+  and gained `IReadOnlyList<SettingsPageContribution>? settingsPages` instead; `App.axaml.cs`'s
+  `Func<SettingsViewModel>` factory now passes `PackContributionSet.SettingsPages`.
 - **Search**: `ExtensionsSectionMatches` ORs the generic `_sectionKeywords` entry ("extension", "pack",
   "plugin", …) with a scan of every BUILT row's own `Label` (fuzzy `PartialRatio >= 80`, same threshold the
   rest of findability uses), so a pack's name and its tabs'/sub-features' names are searchable without
