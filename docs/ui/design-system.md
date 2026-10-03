@@ -1221,6 +1221,20 @@ resolutions below individually, so a later edit that re-introduces a collision f
 user's hands. It is also **the shipped default the user's overrides are composed over**. The table below
 is what an untouched install routes, not what every install routes.
 
+**Item 19 (command ids) moved every Strat Book extension row out of this file.** `Ctrl+F` and `J`/`K`
+below are two of them: their chord, scope and description now live in `StratBookCommands`
+(`Extensions/StratBook/StratBookCommands.cs`), registered through `IPackContributions.Commands(...)`, not
+in `Playback2DKeymap.BuildDefault()`. `Playback2DAction` keeps every member (every existing switch over
+it is unchanged), and `CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
+over the core table with no DI, so `Playback2DKeymapProfile` resolves them exactly as before: a bare
+`new Playback2DTabViewModel()` with no container still opens on the full table. The Tag Palette,
+Suggested Tags, Review Mode and Step Authoring rows (`FocusTagPalette`/`TagNote`/`TagClearSticky`/
+`TagLabelMode`/`TagLabelGroupNext`, the six-key Suggested Tags queue, `ToggleReviewMode`, and
+`ToolToken`/`AddStep`/`DuplicateStep`/`DeleteStep`/`PrevStep`/`NextStep`) moved the same way; they were
+never listed in this table and still are not, see tag-store.md, suggested-tags.md and step-authoring.md
+§3.7 for those. The keybind settings list groups a pack's rows under its label and hides them while the
+Strat Book extension's master switch is off.
+
 <a id="playback2d-keybind-profile"></a>
 #### The gestures are configurable (D1): `Playback2DKeymapProfile`
 The table above stays static, stays conflict-checked, and **still throws**: it is a compile-time contract
@@ -1263,7 +1277,10 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 - **Pinned by** `Playback2DKeymapProfileTests` (every refusal reason, the swap, scope-aware duplicates,
   the persisted-row round trip), `Playback2DKeybindSettingsTests` (persistence including the fileless WASM
   path, and the whole Settings rebind/reset/refuse flow) and `Playback2DKeybindRoutingTests` (real
-  headless key events through the real view, including the `OnKeyUp` hazard above).
+  headless key events through the real view, including the `OnKeyUp` hazard above). The core/pack split
+  itself is `CommandRegistryTests` (the registry in isolation: a fake pack's chord, a reported collision,
+  pack-off resolving to nothing) and `StratBookCommandsTests` (the real 22-row table pinned against its
+  pre-move gestures, and the keybind settings list's pack label and gate).
 
 | Gesture | Scope | Action | Notes |
 |---|---|---|---|
@@ -1280,8 +1297,8 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 | `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
 | `Esc` | Always | Clear follow + re-fit the camera | |
 | `Esc` | WhenToolActive | Cancel the in-progress gesture | |
-| `Ctrl+F` | Always | Find rounds like this | Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling (Strat Room plan D7). Also on the mode menu and the `⌕ Rounds like this` button beside the kill nav. Unhandled with nobody alive, no demo, or the Situations tab gated off. |
-| `J` / `K` | Always | Next / previous situation result | Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
+| `Ctrl+F` | Always | Find rounds like this | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling (Strat Room plan D7). Also on the mode menu and the `⌕ Rounds like this` button beside the kill nav. Unhandled with nobody alive, no demo, or the Situations tab gated off. |
+| `J` / `K` | Always | Next / previous situation result | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
 | `Home` | Always | Fit the camera (**reserved**, unbound) | Declared so the conflict checker guards the gesture before anything claims it. |
 
 **Text-input suppression is one global rule, not a per-binding flag.** The tunnelling handler bails
