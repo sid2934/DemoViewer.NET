@@ -17,7 +17,10 @@ namespace DemoViewer.NET.Features;
 ///         <b>Resolution</b> (see <see cref="Resolve" />): (1) a Required descriptor is on; (2) an explicit
 ///         <c>Overrides[id]</c> wins; (3) otherwise the category default; (4) a grouped feature adopts the
 ///         group LEADER's own-state (the first catalog member of the group) so a group toggles atomically;
-///         (5) a feature whose parent resolves disabled is implicitly off (cascade: sub-feature to tab to pack).
+///         (5) a feature whose parent resolves disabled is implicitly off (cascade: sub-feature to tab to pack);
+///         (6) a feature whose owning pack (<see cref="FeatureDescriptor.OwnerPackId" />) resolves disabled is
+///         implicitly off too, whatever its <see cref="FeatureDescriptor.ParentId" /> chain says: a sub-feature
+///         docked in a core tab still goes off with the pack that contributed it.
 ///         An id not in the catalog fails open unless it is a <c>pack.*</c> id, which resolves off.
 ///         Group (horizontal, "toggle together") and cascade (vertical, "parent hides child") are
 ///         orthogonal: a chrome member follows its leader even while the leader is itself cascade-hidden.
@@ -146,6 +149,17 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             // Composition rejects a parent the catalog lacks, so the null check is only a guard.
             FeatureDescriptor? parent = FeatureCatalog.ById(parentId);
             if (parent is not null && !Resolve(parent, category, overrides, visiting))
+            {
+                enabled = false;
+            }
+        }
+
+        // (6) OWNING PACK: independent of ParentId, so a sub-feature docked in a core tab (2D Playback's
+        // tagger and suggested-tags tracks) still goes off with the pack that contributed it.
+        if (enabled && descriptor.OwnerPackId is { } ownerPackId)
+        {
+            FeatureDescriptor? owner = FeatureCatalog.ById(ownerPackId);
+            if (owner is not null && !Resolve(owner, category, overrides, visiting))
             {
                 enabled = false;
             }

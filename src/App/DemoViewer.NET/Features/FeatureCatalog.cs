@@ -275,9 +275,12 @@ public static class FeatureCatalog
                     throw new InvalidOperationException(
                         $"Pack feature '{f.Id}' may not join core group '{groupId}'.");
                 }
-            }
 
-            fromPacks.AddRange(features);
+                // Every contribution carries its pack's id implicitly (7.2), independent of ParentId: the
+                // gate cascades it off with the pack even when it is parented to a core tab. The pack's own
+                // Pack-scope row is not owned by itself.
+                fromPacks.Add(f.Scope == FeatureScope.Pack ? f : f with { OwnerPackId = pack.FeatureId });
+            }
         }
 
         FeatureDescriptor[] all = [.. _core, .. fromPacks];
