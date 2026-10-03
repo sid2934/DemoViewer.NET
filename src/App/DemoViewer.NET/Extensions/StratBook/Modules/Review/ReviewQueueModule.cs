@@ -1,10 +1,13 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.ViewModels.Review;
 using DemoViewer.NET.Views.Review;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -16,9 +19,8 @@ namespace DemoViewer.NET.Modules.Review;
 ///     <see cref="ReviewQueue" /> that the Reels tray, Result Cards, a Matrix cell and a
 ///     pick at the playhead all send clips to.
 ///     <para>
-///         <b>The ids are persisted keys.</b> <c>TabId "review.queue"</c> and the feature id
-///         <c>"tab.review"</c> key the user's per-tab session state and feature overrides; the header
-///         "Review" is display text.
+///         <b>The ids are persisted keys.</b> <c>TabId "review.queue"</c> and <see cref="TabFeatureId" />
+///         key the user's per-tab session state and feature overrides; the header "Review" is display text.
 ///     </para>
 ///     <para>
 ///         <b>Wiring contract.</b> <see cref="WorkspaceTabDescriptor.ViewModelFactory" /> (lazy and
@@ -26,10 +28,11 @@ namespace DemoViewer.NET.Modules.Review;
 ///         the composition root supplies the queue and the seek seam; the module references no shell.
 ///     </para>
 ///     <para>
-///         <b>The badge</b> is the count of clips nobody has marked reviewed. Subscribed on first
-///         activation, through the queue accessor, not at registration: this module is contributed
-///         regardless of the pack's gate, so an unconditional resolve here ran on every launch. The
-///         module holds no queue reference until then.
+///         <b>The badge</b> is the count of clips nobody has marked reviewed, driven by the queue rather than
+///         the VM, so clips sent from another surface show on the rail item before the Review section is ever
+///         opened. <see cref="StratBookPack.Contribute" /> resolves the queue only while <see cref="TabFeatureId" />
+///         is on; a live toggle (the gate's own <c>Changed</c>) clears a stale count going off and recomputes
+///         going on, the same shape item 1 gave <c>SuggestedInboxModule</c>.
 ///     </para>
 /// </summary>
 public sealed class ReviewQueueModule : IWorkspaceModule
@@ -40,16 +43,32 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.review";
 
-    private readonly Func<ReviewQueue>? _queue;
+    private readonly ReviewQueue? _queue;
     private readonly Func<ReviewQueueTabViewModel> _viewModelFactory;
+    private readonly Func<bool> _enabled;
+    private readonly IFeatureGate? _gate;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
-    /// <param name="queue">The shared queue, for the badge; called only after first activation. Null shows none.</param>
-    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, Func<ReviewQueue>? queue = null)
+    /// <param name="queue">The shared queue, for the badge; null when the pack was off at composition.</param>
+    /// <param name="enabled">
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack;
+    ///     null resolves <see cref="IFeatureGate" /> from <see cref="App.Services" /> live, failing CLOSED
+    ///     (not the usual fail-open default) since this is a pack-owned id: <see cref="StratBookPack.Contribute" />
+    ///     always passes its own delegate, so the fallback here only matters when nothing has resolved.
+    /// </param>
+    /// <param name="gate">
+    ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
+    ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
+    ///     value stale until the next unrelated <c>queue.Changed</c>. Null skips that push.
+    /// </param>
+    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, ReviewQueue? queue = null,
+        Func<bool>? enabled = null, IFeatureGate? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _queue = queue;
+        _gate = gate;
+        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
     }
 
     /// <summary>"12", or null with nothing to review.</summary>
@@ -62,36 +81,39 @@ public sealed class ReviewQueueModule : IWorkspaceModule
 
     public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
     {
-        // ViewModelFactory is init-only, so the closure below cannot assign it after construction; it
-        // reaches the descriptor through this ref, assigned once construction completes.
-        WorkspaceTabDescriptor? tabRef = null;
-        bool subscribed = false;
-
         WorkspaceTabDescriptor tab = new()
         {
             TabId = TabId,
             Header = "Review",
             Order = 4, // after Utility (3)
             Placement = TabPlacement.StratBook,
-            ViewFactory = () => new ReviewQueueTabView(),
-            ViewModelFactory = () =>
-            {
-                ReviewQueueTabViewModel vm = _viewModelFactory();
-
-                // Guarded so a re-activation (the VM is retained) never double-subscribes. The queue outlives
-                // the tab (both are container singletons), so there is nothing to unsubscribe.
-                if (!subscribed && _queue is { } queueAccessor)
-                {
-                    subscribed = true;
-                    ReviewQueue queue = queueAccessor();
-                    tabRef!.Badge = BadgeFor(queue.UnreviewedCount);
-                    queue.Changed += () => tabRef!.Badge = BadgeFor(queue.UnreviewedCount);
-                }
-
-                return vm;
-            }
+            ViewModelFactory = _viewModelFactory,
+            ViewFactory = () => new ReviewQueueTabView()
         };
-        tabRef = tab;
+
+        if (_queue is { } queue)
+        {
+            if (_enabled())
+            {
+                tab.Badge = BadgeFor(queue.UnreviewedCount);
+            }
+
+            // Read live: a toggle mid-session stops this recompute without a restart.
+            queue.Changed += () =>
+            {
+                if (_enabled())
+                {
+                    tab.Badge = BadgeFor(queue.UnreviewedCount);
+                }
+            };
+
+            // The gate's own Changed, not just queue.Changed: going off clears a stale count rather than
+            // leaving it until the next unrelated queue write; going on recomputes without waiting for one.
+            if (_gate is { } gate)
+            {
+                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(queue.UnreviewedCount) : null;
+            }
+        }
 
         yield return tab;
     }
