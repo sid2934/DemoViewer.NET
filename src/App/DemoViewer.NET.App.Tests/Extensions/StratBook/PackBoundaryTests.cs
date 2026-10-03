@@ -58,10 +58,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.Services.Teams", "item 22"),
         ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.ViewModels.Teams", "item 22"),
         ("src/App/DemoViewer.NET/Views/Playback2D/Playback2DView.axaml", "DemoViewer.NET.Modules.RoundTagger", "item 17"),
-        ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 21"),
-        ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Modules.UtilityBook", "item 21"),
-        ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Services.RoundFacts", "item 21"),
-        ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Services.RoundIndex", "item 21"),
     ];
 
     [Test]

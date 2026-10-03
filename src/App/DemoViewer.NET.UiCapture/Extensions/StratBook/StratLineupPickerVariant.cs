@@ -2,6 +2,7 @@
 
 using Avalonia.Controls;
 using Avalonia.Threading;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Strats;
@@ -97,10 +98,7 @@ public static partial class Variants
                 Grenades = rows
             };
             cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-            DemoCacheStore.StampGrenades(record);
-            record.GrenadeState = DemoAnalysisState.Indexed;
-            record.GrenadeCount = rows.Count;
-            record.GrenadeWalker = GrenadeWalker.Version;
+            record.SetGrenades(GrenadeWalker.Version, rows.Count);
             cache.Upsert(record);
         }
 

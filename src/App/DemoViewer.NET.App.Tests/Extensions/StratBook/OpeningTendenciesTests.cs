@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Numerics;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
@@ -68,7 +69,7 @@ public class OpeningTendenciesTests
     // Round 5: contact at 61 s.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = DemoCacheRecord.RoundFactsSchema,
+        Schema = StratBookCache.RoundFactsSchema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [
@@ -112,9 +113,13 @@ public class OpeningTendenciesTests
             Size = 1000,
             ModifiedTicks = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(day).Ticks,
             Map = map,
-            Sha256 = rows is null ? null : "abc123",
-            RoundFacts = rows
+            Sha256 = rows is null ? null : "abc123"
         };
+        if (rows is not null)
+        {
+            record.SetRoundFacts(rows, "rf-A");
+        }
+
         for (int slot = 0; slot < 10; slot++)
         {
             record.Players.Add(new CachedPlayerInfo
@@ -386,10 +391,7 @@ public class OpeningTendenciesTests
                     Grenades = Grenades()
                 };
                 cache.WriteSibling(Demo, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-                DemoCacheStore.StampGrenades(record);
-                record.GrenadeState = DemoAnalysisState.Indexed;
-                record.GrenadeCount = document.Grenades.Count;
-                record.GrenadeWalker = GrenadeWalker.Version;
+                record.StampGrenades(document.Grenades.Count);
             }
 
             using (cache.BeginBatch())

@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Features;
@@ -211,7 +212,7 @@ public class WatchedSituationsTests
             // Mark as seen: the watermark moves past every counted stamp (the pinned clock is behind
             // them), the badge clears, and the file holds the new watermark.
             service.MarkSeen(watch.Id);
-            long newest = h.Cache.TryGetIndex("/d/e.dem")!.RoundIndexComputedAtTicks;
+            long newest = h.Cache.TryGetIndex("/d/e.dem")!.RoundIndexComputedAtTicks();
             using (Assert.Multiple())
             {
                 await Assert.That(service.NewCount).IsEqualTo(0);

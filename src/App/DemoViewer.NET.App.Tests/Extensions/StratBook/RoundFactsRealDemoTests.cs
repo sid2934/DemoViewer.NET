@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
@@ -33,7 +34,7 @@ public class RoundFactsRealDemoTests
         DemoCacheStore store = new(null);
         RoundFactsEvaluator evaluator = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         evaluator.OnParsedOpportunistically(path, parsed);
-        return store.TryLoadRecord(path)?.RoundFacts
+        return store.RoundFactsOf(path)
                ?? throw new InvalidOperationException("the evaluator wrote no rows");
     }
 
