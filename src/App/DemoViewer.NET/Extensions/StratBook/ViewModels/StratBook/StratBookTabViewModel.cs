@@ -158,6 +158,11 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// </param>
     /// <param name="canvasPlaces">The canvas's zone loader; the app's zone source through the processing queue when omitted.</param>
     /// <param name="canvasRouting">Whether the canvas routes tokens; the <c>stratbook.routing</c> feature when omitted.</param>
+    /// <param name="canvasServices">
+    ///     The gate, zone resolver and settings the canvas (and the Detected preview's) fall back on when
+    ///     <paramref name="canvasPlaces" /> / <paramref name="canvasRouting" /> are not supplied; null gives both
+    ///     canvases nothing to fall back on.
+    /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
@@ -165,7 +170,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
         StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
-        Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null)
+        Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null,
+        StratCanvasServices? canvasServices = null)
     {
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
@@ -218,7 +224,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         // A branch into another strat plays that strat's steps read from the store; it is not checked out,
         // since the canvas does not write it.
         Canvas = new StratCanvasViewModel(Session, canvasMapLoader, lookup: id => _store.Load(id).Document, lineupOrigins: _lineupOrigins,
-            placesFor: canvasPlaces, post: post, routing: canvasRouting, spawnsFor: _spawns is { } spawnSource ? spawnSource.ForAsync : null);
+            placesFor: canvasPlaces, post: post, routing: canvasRouting, spawnsFor: _spawns is { } spawnSource ? spawnSource.ForAsync : null,
+            lookups: canvasServices);
         Editor.Spawns = () => Canvas.CurrentSpawns;
         Editor.LegacyCarriedFor = Canvas.LegacyCarried;
         Editor.StartRefusal = Canvas.StartRefusal;
@@ -234,7 +241,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas.PlacesLoaded += OnPlacesLoaded;
 
         Detected = new DetectedStratsViewModel(mining, playback ?? (() => null),
-            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader, _lineupOrigins);
+            id => _teams?.AllTeams.FirstOrDefault(t => t.Id == id)?.Name, () => SelectedOwner?.Owner, ShowStratFromDetected, _post, canvasMapLoader, _lineupOrigins,
+            canvasServices);
         Detected.PropertyChanged += OnDetectedChanged;
 
         Session.Changed += OnSessionChanged;
@@ -333,7 +341,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context is ModuleContext { StratExportHost: not null } &&
+        _context?.GetService<IStratExport>() is not null &&
         HasOpenStrat;
 
     /// <summary>
@@ -351,7 +359,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>
     ///     Makes the export job. The production job when unset; a test swaps in one with a fixed ffmpeg answer.
     /// </summary>
-    internal Func<StratExportHost, StratExportJob>? ExportJobFactory { get; set; }
+    internal Func<IStratExport, StratExportJob>? ExportJobFactory { get; set; }
 
     /// <inheritdoc />
     public void OnActivated(IModuleContext context)
@@ -551,7 +559,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     [RelayCommand(CanExecute = nameof(CanExport))]
     private void OpenExport()
     {
-        if (!CanExport || _context is not ModuleContext { StratExportHost: { } host }
+        if (!CanExport || _context?.GetService<IStratExport>() is not { } host
                        || Canvas.Projection is not { } projection || Session.Document is not { } document)
         {
             return;
@@ -631,7 +639,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
     private void OnExportStarted()
     {
-        if (ExportDialog is { } dialog && _context is ModuleContext { StratExportHost: { } host }
+        if (ExportDialog is { } dialog && _context?.GetService<IStratExport>() is { } host
                                        && Path.GetDirectoryName(dialog.OutputPath) is { Length: > 0 } folder)
         {
             host.PersistSettings(settings => settings.Playback2D.ExportOutputDirectory = folder);

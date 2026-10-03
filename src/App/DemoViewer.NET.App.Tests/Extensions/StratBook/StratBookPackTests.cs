@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,6 +90,8 @@ public class StratBookPackTests
         "DemoViewer.NET.Services.Provenance.IDemoProvenanceSource",
         "DemoViewer.NET.ViewModels.Teams.TeamsTabViewModel",
         "DemoViewer.NET.Services.Strats.StratStore",
+        "DemoViewer.NET.Modules.IStratCapture | Transient",
+        "DemoViewer.NET.Modules.StratBook.IStratExport | Transient",
         "DemoViewer.NET.Services.Strats.CalloutResolverSource",
         "DemoViewer.NET.Services.Strats.StratEvidenceService",
         "DemoViewer.NET.Services.Strats.Mining.StratMiningService",
@@ -158,6 +161,25 @@ public class StratBookPackTests
             string modules = string.Join(", ", provider.GetRequiredService<ModuleRegistry>().Modules.Select(m => m.Id));
             await Assert.That(modules).IsEqualTo(ModulesBeforeThePack)
                 .Because("the shell's tab order and section order follow registration order");
+        });
+    }
+
+    // End to end through the real container (item 15): GetService<IStratCapture> resolves with the pack
+    // on, and a live toggle (no provider rebuild) is enough to make it resolve null again, because the
+    // pack's registration reads the gate fresh on every call rather than caching the first answer.
+    [Test]
+    public async Task TheCaptureService_ResolvesWithThePackOn_AndStopsResolvingOnceToggledOffLive()
+    {
+        await WithProvider(null, async provider =>
+        {
+            MainViewModel vm = provider.GetRequiredService<MainViewModel>();
+            IModuleContext? context = vm.ModuleContext;
+
+            await Assert.That(context?.GetService<IStratCapture>()).IsNotNull();
+
+            provider.GetRequiredService<SettingsService>().Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+
+            await Assert.That(context?.GetService<IStratCapture>()).IsNull();
         });
     }
 

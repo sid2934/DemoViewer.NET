@@ -223,4 +223,13 @@ public interface IModuleContext
     void RequestSpeed(double speed)
     {
     }
+
+    /// <summary>
+    ///     Typed lookup for a first-party capability not on this interface: a host or service an
+    ///     extension pack wires in (Create Strat From Round's capture host, a strat export host), or a
+    ///     core host the concrete context exposes under its own type (a video export host). Null when
+    ///     nothing is wired for <typeparamref name="T" />, including when the owning pack is off. Default
+    ///     null for hosts / doubles that wire nothing.
+    /// </summary>
+    T? GetService<T>() where T : class => null;
 }
