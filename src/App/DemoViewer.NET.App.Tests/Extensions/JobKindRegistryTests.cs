@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,6 +106,7 @@ public class JobKindRegistryTests
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
+        public ExtensionManifest Manifest => FakeManifests.For(Id);
 
         public IEnumerable<FeatureDescriptor> Features =>
         [

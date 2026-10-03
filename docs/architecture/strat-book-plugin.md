@@ -507,6 +507,13 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
 33. **Contract version.** The app exposes `ExtensionHostVersion` (the pack contracts) and its CS2DemoKit
     version; the extension carries a manifest (`extension.json`: id, version, `requiresHost` range,
     `requiresCs2DemoKit`). A mismatch disables the extension with a settings-page message.
+    *As built (2026-10-03):* the host is `ExtensionHost` (`ContractVersion` 1.0.0, `AppVersion`,
+    `Cs2DemoKitVersion` read from the referenced assembly and pinned by test to the package pin); the
+    manifest is `src/Extensions/StratBook/extension.json`, embedded and copied beside the DLL, surfaced
+    as `IFeaturePack.Manifest`; the check runs inside `FeaturePacks.Configure`, and the catalog, the
+    registries, the composition root and the ViewLocator read `FeaturePacks.Compatible`; Settings reads
+    `FeaturePacks.Statuses` for the version on each row and the locked row with the reason. Section 7.7
+    has the schema, the version rule and the rest.
 34. **Loader.** At startup the Desktop head loads first-party extension assemblies from
     `<config root>/extensions/<id>/<version>/` when present, else the copy shipped in the installer. Loads
     into the default context (no unload: "off" is the Phase 1 switch, not an unload). Browser head
@@ -1067,6 +1074,103 @@ is ever built, reads the same registry.
 - The gate becomes the one authority for background work too, not just visibility: evaluators and pack
   lifecycle read the same answer. That requires one new rule in the gate's contract: **a pack id never
   fails open.** An unknown `pack.*` id resolves off, so a typo cannot silently enable background work.
+
+### 7.7 Manifest and compatibility (as built by item 33)
+
+Everything here lives in the app under `DemoViewer.NET.Extensions` (`ExtensionHost.cs`) and
+`DemoViewer.NET.Extensions.Manifest` (`SemVersion`, `VersionRange`, `ExtensionManifest`,
+`ExtensionHostInfo`, `PackCompatibility`, `PackStatus`). Core references no extension; the extension
+references these.
+
+**The manifest.** `src/Extensions/StratBook/extension.json`, one file embedded in the extension assembly
+under the logical name `extension.json` and copied beside the DLL on build (`None` with
+`CopyToOutputDirectory`, which flows through every project reference, so a head's publish output and the
+test binary's directory both carry it). The loader (item 34) reads the on-disk copy before loading the
+assembly; the pack reports the embedded copy in process through `IFeaturePack.Manifest`.
+
+```json
+{
+  "id": "net.demoviewer.pack.stratbook",
+  "name": "Strat Book",
+  "version": "1.0.0",
+  "assembly": "DemoViewer.NET.Extensions.StratBook.dll",
+  "entryType": "DemoViewer.NET.Extensions.StratBook.StratBookPack",
+  "requiresHost": "^1.0",
+  "requiresCs2DemoKit": "0.13.0-beta0001"
+}
+```
+
+| Member | Required | Meaning |
+|---|---|---|
+| `id` | yes | The pack id; must equal `IFeaturePack.Id` or the status is `ManifestInvalid`. Reverse-DNS, no whitespace. |
+| `name` | yes | The user-facing name. |
+| `version` | yes | The extension's own SemVer 2.0 version. |
+| `assembly` | yes | A bare `.dll` file name; a path is refused so a manifest cannot point outside its own directory. |
+| `entryType` | yes | The full name of the `IFeaturePack` type the loader instantiates. |
+| `requiresHost` | yes | A range over `ExtensionHost.ContractVersion`. |
+| `requiresCs2DemoKit` | yes | A range over `ExtensionHost.Cs2DemoKitVersion`. Exact by default: the extension uses CS2DemoKit types directly, so only the same version is known good. |
+| `minAppVersion` | no | The oldest app release the extension runs on. |
+
+Parsing is strict about the required members (absent, null or blank fails) and ignores members it does
+not know, so a newer manifest loads on an older app, which judges it by the fields it understands.
+Comments and trailing commas are accepted.
+
+**Ranges.** `VersionRange` covers the npm syntax: comparator sets (`>=1.0.0 <2.0.0`), caret (`^1.0`:
+same major, and below 1.0 same minor), tilde (`~1.2`: same minor), a bare version (exact, or an X-range
+when partial: `1.2` is `>=1.2.0 <1.3.0`), `*` for any, and `||` between alternatives. A prerelease
+satisfies a set only when a comparator in it names a prerelease of the same major.minor.patch, so
+`^1.0` never admits `1.5.0-rc1` while `0.13.0-beta0001` matches itself exactly; `*` alone admits
+everything, prereleases included, because a pre-1.0 CS2DemoKit is the normal case. Two ranges are equal
+when written the same.
+
+**The host.** `ExtensionHost` exposes three values and `Current` as one `ExtensionHostInfo`:
+
+- `ContractVersion`, 1.0.0 today, a constant bumped by hand with the change that needs it. **Major** on a
+  breaking change to any type under `DemoViewer.NET.Extensions`, or to `IModuleContext`,
+  `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a changed signature,
+  a new abstract member on an interface a pack implements. **Minor** on an additive change: a new
+  contribution kind, a new optional member with a default. Never patch; a contract has no behaviour of
+  its own to fix.
+- `AppVersion`, from `AppVersionInfo.CurrentReleaseVersion`; null on an unstamped build.
+- `Cs2DemoKitVersion`, read at runtime from `CS2DemoKit.Analysis`'s informational version. NBGV stamps
+  `0.13.0.1-beta0001+9f1e3e3b4a`; the fourth component and the metadata are dropped so the value equals
+  the package version it was restored from. The assembly version is the fallback when the attribute is
+  missing. The string is nowhere else in code: `ExtensionHostTests` pins the value to the
+  `Directory.Packages.props` pin, so a bump that leaves the manifest behind fails a test, not a user.
+
+**The check.** `PackCompatibility.Check(manifest, host)` returns `Compatible` or the first failing
+reason, in this order: `HostContractMismatch(required, actual)`, `Cs2DemoKitMismatch(required, actual)`,
+`AppTooOld(required, actual)`. An unstamped app skips the app-version check (a developer build, not an
+old release). `PackStatus.Evaluate(pack, host)` wraps it for a configured pack and adds the two manifest
+failures a check never sees: a `Manifest` getter that throws `ExtensionManifestException`, and a manifest
+whose `id` is not the pack's; both read as `ManifestInvalid(reason)`. Nothing in the path throws for a bad
+pack, since the point is to keep it out rather than take the app down with it.
+
+**Where it runs.** Inside `FeaturePacks.Configure` (and `ConfigureIfUnset`): the head's list is judged as
+it is set, and the frozen value is the list of `PackStatus`, so no reader can see a pack before its
+verdict exists. The static exposes three views of that one value: `Default` (every declared pack, as
+before), `Compatible` (the declared packs that passed) and `Statuses`. The composition root
+(`App.BuildServices(windowService)`), `FeatureCatalog` (its lazy `Composed` fallback), `JobKindRegistry.Default`,
+`CommandRegistry.Default`, the `ViewLocator`'s pack-assembly search and the shutdown flush loop all read
+`Compatible`. So an incompatible pack never runs `Register` or `Contribute`, never puts a descriptor in
+the catalog (the gate then reads its id as unknown and resolves it off, section 7.6), and never resolves
+a view. This is the only point that is before every one of those readers: `FeatureCatalog.Composed` and
+the two registries build from the static on first touch, which can happen before `BuildServices`, so a
+check inside `BuildServices` would already be too late for them.
+
+**The status surface.** Settings reads `FeaturePacks.Statuses` (injected, so tests and UiCapture pass a
+fake). Every pack master row shows its manifest version beside the scope badge. A pack that failed has
+no catalog row, so Settings synthesizes one from its status: a `FeatureScope.Pack` row named from the
+manifest (or the pack id when the manifest did not parse), locked through the row's existing lock-hint
+path (`incompatible`), the switch off and disabled, and the reason in user terms beneath the
+description, for example "Strat Book 1.2.0 needs app contract ^2.0; this app provides 1.0.0". A stray
+set of the row writes no override. The first-run wizard asks only about catalog packs, so an
+incompatible extension is absent from its Extensions step. Copy says "extension", never "pack". The
+UiCapture variant `settings-extensions-incompatible` renders the Strat Book row with its version and a
+fake second extension in that state.
+
+**The browser head** is unchanged: it compile-links the extension, the same check runs at configuration
+and passes.
 
 ---
 
@@ -1654,7 +1758,7 @@ src/Extensions/StratBook/
     Playback2D/Hud/StratHudDataSource.cs            item 26: moved in, namespace ...Playback2D.Hud
     Playback2D/Keyframes/StepSchedule.cs, TokenKeyframe.cs, TokenTrack*.cs   item 26: moved in, namespace UNCHANGED (DemoViewer.NET.Playback2D.Core.Keyframes; nothing in Core used it)
   DemoViewer.NET.Extensions.StratBook.Tests/        item 28
-  extension.json                                    Phase 6 manifest
+  extension.json                                    the manifest (item 33, section 7.7); embedded and copied beside the DLL
 src/App/DemoViewer.NET.App.Tests/Extensions/StratBook/      the pack's tests, until item 28
 src/App/DemoViewer.NET.App.Tests/Extensions/StratBook/Playback2D/   item 26: the moved Playback2D.Tests files (TokenToolTests, StepScheduleTests, TokenTrackTests, StratFrameSourceTests)
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants, until item 28
@@ -1678,13 +1782,16 @@ Rules as built:
   Browser), `DemoViewer.NET.App.Tests` and `DemoViewer.NET.UiCapture` reference both.
 - **Composition.** `FeaturePacks.Default` is empty until the head calls
   `FeaturePacks.Configure([new StratBookPack()])`, which both heads do before Avalonia starts, UiCapture does
-  on its first line and the test assembly does from a module initializer (`CompiledInPacks`). The list
-  freezes on first read because `FeatureCatalog`, `JobKindRegistry.Default` and `CommandRegistry.Default`
-  build from it once; a second or late `Configure` throws (`FrozenList<T>`, pinned by `FeaturePacksTests`).
-  Each head's `BuildAvaloniaApp` also calls `FeaturePacks.ConfigureIfUnset` with the same list, a no-op
-  after Main, because the XAML previewer calls that method without running Main. `App.BuildServices(windowService)` still reads it, so the
-  tests that build the composition root are unchanged, and the pack-off tests override the gate rather than
-  the list.
+  on its first line and the test assembly does from a module initializer (`CompiledInPacks`). Since item 33
+  `Configure` judges each pack against `ExtensionHost.Current` as it sets the list (section 7.7), and the
+  readers take the subset that passed: `FeatureCatalog`, `JobKindRegistry.Default`, `CommandRegistry.Default`,
+  the `ViewLocator` and `App.BuildServices(windowService)` all read `FeaturePacks.Compatible`; `Default` is the
+  declared list and `Statuses` the verdicts, which Settings reads. The list freezes on first read of any of
+  the three because the registries build from it once; a second or late `Configure` throws (`FrozenList<T>`,
+  pinned by `FeaturePacksTests`). Each head's `BuildAvaloniaApp` also calls `FeaturePacks.ConfigureIfUnset`
+  with the same list, a no-op after Main, because the XAML previewer calls that method without running Main.
+  The tests that build the composition root are unchanged, and the pack-off tests override the gate rather
+  than the list.
 - **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (decision 5 option (b): a
   first-party extension composes over the same internal seams the app's own composition root uses; Phase
   6's loader loads only first-party signed assemblies, so this exposes nothing to third parties). The
@@ -1694,7 +1801,7 @@ Rules as built:
   refill pattern `SceneFrameBuilder` itself uses; `Scene2DHost.AddTool`/`AddLayer`/`FrameHost` stay covered
   by the app's existing grant. No core member was widened to public for the split.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
-  assembly, asks each compiled-in pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
+  assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 7.4).
 - **Shared namespaces.** `DemoViewer.NET.Services.RoundFacts` (models and `IRoundFactsSource` in core,
   `RoundFactsSource` and the evaluator in the pack), `DemoViewer.NET.Services.RoundIndex`
