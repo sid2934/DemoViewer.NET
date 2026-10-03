@@ -52,7 +52,7 @@ public class StratBookPackBaselineTests
     // ── Probe 1: the real composition root's resident set after its startup loads settle ──────────────
 
     /// <summary>
-    ///     Boots the REAL composition root (<see cref="App.BuildServices" />) against
+    ///     Boots the REAL composition root (<see cref="App.BuildServices(IWindowService)" />) against
     ///     <see cref="ConfigEnvVar" />, waits for the startup loads <c>App.axaml.cs</c> runs unconditionally
     ///     (situations index, grenade index, Team Identity) to settle, then reports the process's resident
     ///     footprint. This IS the "Pack on" row in §12: everything the app does at launch today, nothing
@@ -197,7 +197,7 @@ public class StratBookPackBaselineTests
     // ── Probe 2: the pack's two resident indexes plus Team Identity, built directly ─────────────────────
 
     /// <summary>
-    ///     <see cref="App.BuildServices" /> runs the pack's startup loads unconditionally (no gate exists
+    ///     <see cref="App.BuildServices(IWindowService)" /> runs the pack's startup loads unconditionally (no gate exists
     ///     yet; that is item 1/3/8's job), so there is no seam to boot "with the loads skipped" without
     ///     editing <c>App.axaml.cs</c>, a file item 0 owns this wave. This probe is the narrower,
     ///     exact substitute: it constructs <see cref="SituationIndex" />, <see cref="GrenadeIndex" /> and
