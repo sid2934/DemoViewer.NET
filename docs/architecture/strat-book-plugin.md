@@ -651,6 +651,52 @@ public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IR
 Theme tokens are not a contribution in (a) or (b): they stay in the core dictionaries, which cost nothing
 when unused. A pack token manifest only matters for third-party add-ons.
 
+**As built by item 24.** `StoreDescriptor` gained a fifth field, `IsUserWork`, read by the Settings
+confirmation; `IPackContributions` gained `Store(StoreDescriptor)` and `DataRemoval(IPackDataRemoval)`,
+aggregated on `PackContributionSet` as `Stores` and `DataRemovals`. `PackDataRemover`
+(`Services/DemoCache/PackDataRemover.cs`) resolves a descriptor's paths against `AppPaths.ConfigRoot` or
+`AppPaths.DemoCacheDir`, refuses anything rooted, carrying a `..` segment, or resolving to the root itself,
+never follows a reparse point or deletes a `.dem` file, and strips a pack's `Packs` entry and matching
+`PackStamps` from every demo cache record and index row. A demo-sidecar family (the grenade walk's
+siblings under `cache/demos/`) is declared as `"demos/*<suffix>"`: the directory is listed once and the
+suffix matched by ordinal string comparison in managed code, never handed to a filesystem glob, so it
+cannot widen to match the core record sidecars beside it. Both of `PackDataRemover`'s public methods run
+through `QueueWork.Run` on serial `ownerTag` (`QueueWork.RunAsync` has no serial parameter), so a delete
+never overlaps the pack's own release item on the same serial.
+
+`StratBookStores.All` is the pack's descriptor list, corrected against the real writers rather than this
+section's original table: `grenade-lineups.json.gz` and `grenades-v3.attempts.json` are under the CACHE
+root (`GrenadeLineupStore`/`GrenadeStoreMigration` both combine with `DemoCacheStore.CacheRoot`, never
+`AppPaths.ConfigRoot`), and `review-queue.json` is dropped (decision 10.1: Review Queue is core, shared
+with Reels, live with the pack off; deleting it would take Reels' own queue with it). Facet ids for the
+record strip are the pack's four evaluator ids (`StratBookDataRemoval.FacetIds`), not a separate list: a
+`PackStamp.Id` is a facet, not a pack id, and the convention every writer follows is that a stamp always
+rides with the payload it describes.
+
+**Release path, as decided:** turn the pack off first, delete, leave it off. `StratBookDataRemoval.DeleteAsync`
+writes the gate override off through `SettingsService.Write` (the same write the Extensions master switch
+makes) and awaits `PackSwitch.Pending`. That wait is never stale: `FeatureGate.RaiseChanged` fires inline,
+synchronously, for a self-write made from the UI thread, so by the time the override write returns,
+`PackSwitch.Disable` has already queued the release and updated `Pending`. Only once that release has run
+(residents dropped, the lineup flush and the signature cache's own write done) does the delete touch any
+file, so nothing the release still owns is deleted out from under it. The alternative the plan offered —
+call a lifecycle release directly and stay on — was not taken: it would need its own synchronization with
+whatever queue item is draining the release, which `PackSwitch.Pending` already gives for free from the
+existing switch-off path, with no new seam.
+
+**The blocker this surfaced:** `StratStore`, `TagStore`, `DossierNotesStore`, `VetoHistoryStore`,
+`WatchedSituationsService` and `StratMiningService`'s state file are explicitly NOT released on disable
+(§8: "the pack's small user-truth stores... are not released"), so deleting their files while they stay
+resident in memory would leave the deleted content on screen if the pack were re-enabled in the same
+session, and the next edit would save it straight back. `DeleteAsync` closes this by calling each store's
+own recovery after a successful delete: `StratStore.RebuildIndexFromDisk` and `TagStore.RebuildIndexFromDisk`
+already existed (the lost-index recovery); `DossierNotesStore.Reload`, `VetoHistoryStore.Reload` and
+`WatchedSituationsService.Reload` are new, each clearing exactly what the store's own `Load`/`Refuse` pair
+already touches; `StratMiningService.ResetState` is new for the same reason, and matters more than the
+others because `LoadState`'s own retry logic merges a fresh read with whatever is still in memory, which
+would otherwise fold the deleted dismissed/promoted keys back in on the next attach. `TagPaletteStore.Reload`
+and `ProfileStore.Reload` (both pre-existing) cover `palettes/` and `suggested-tags/` the same way.
+
 ### 7.5 Commands and keybindings
 
 ```csharp
