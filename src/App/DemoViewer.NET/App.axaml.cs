@@ -1188,10 +1188,8 @@ public class App : Application
                 // The unified demo cache: what a Library single-click renders on Match Overview without
                 // parsing anything.
                 sp.GetRequiredService<DemoCacheStore>(),
-                // Team Identity, for the Library's team filter.
-                sp.GetRequiredService<TeamIdentityService>(),
-                // Demo Provenance Labels, for the Library card's label chip.
-                sp.GetRequiredService<IDemoProvenanceSource>(),
+                // The Library's filter/badge contributions (item 22: the Team filter, the provenance chip).
+                sp.GetRequiredService<PackContributionSet>().LibraryContributions,
                 // The host tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
                 sp.GetRequiredService<PackContributionSet>().HostTabs);
 
