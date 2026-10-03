@@ -15,6 +15,7 @@ namespace DemoViewer.NET.AppTests;
 internal sealed class Playback2DFakeContext : IModuleContext
 {
     private readonly List<IPlayerState> _players = [];
+    private readonly Dictionary<Type, object?> _services = new();
 
     public List<PlayerRosterEntry> Roster { get; } = [];
     public Dictionary<string, List<GameEventView>> Timelines { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -77,6 +78,11 @@ internal sealed class Playback2DFakeContext : IModuleContext
         Timelines.TryGetValue(eventName, out List<GameEventView>? views)
             ? views
             : Array.Empty<GameEventView>();
+
+    /// <summary>Wires a value <see cref="GetService{T}" /> returns for <typeparamref name="T" />; null unregisters it.</summary>
+    public void SetService<T>(T? value) where T : class => _services[typeof(T)] = value;
+
+    public T? GetService<T>() where T : class => _services.TryGetValue(typeof(T), out object? value) ? (T?)value : null;
 
     public void RequestSeekToFrame(int frameIndex) => SeekFrames.Add(frameIndex);
     public void RequestSeekToTick(int tick) => SeekTicks.Add(tick);

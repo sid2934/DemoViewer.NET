@@ -25,6 +25,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <summary>Seconds a member round opens before the take, so the approach is on screen.</summary>
     public const int ExecuteLeadSeconds = 10;
 
+    private readonly StratCanvasServices? _canvasServices;
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
     private readonly StratMiningService? _mining;
@@ -62,10 +63,13 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <param name="post">UI-thread marshal.</param>
     /// <param name="mapLoader">The preview canvas's map loader; the baked assets when null.</param>
     /// <param name="lineupOrigins">The preview canvas's throw origins; null projects none.</param>
+    /// <param name="canvasServices">The preview canvas's gate, zone resolver and settings fallback; see <see cref="StratCanvasServices" />.</param>
     public DetectedStratsViewModel(StratMiningService? mining, Func<ISituationPlayback?> playback, Func<Guid, string?> teamName,
         Func<StratOwner?> targetBook, Action<Guid> openStrat, Action<Action>? post = null,
-        Func<string?, LoadedMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null)
+        Func<string?, LoadedMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null,
+        StratCanvasServices? canvasServices = null)
     {
+        _canvasServices = canvasServices;
         _lineupOrigins = lineupOrigins;
         _mining = mining;
         _mapLoader = mapLoader;
@@ -164,7 +168,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
         ClosePreview();
         StratOwner owner = _targetBook() ?? StratOwner.Me();
-        StratPreviewViewModel preview = new(pattern, row.Title, _mapLoader, _post, _lineupOrigins) { Notice = notice };
+        StratPreviewViewModel preview = new(pattern, row.Title, _mapLoader, _post, _lineupOrigins, _canvasServices) { Notice = notice };
         CancellationTokenSource cancel = new();
         _previewCancel = cancel;
         Preview = preview;

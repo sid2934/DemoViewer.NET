@@ -27,4 +27,4 @@ public sealed record StratCaptureHost(
     Func<ParsedDemo?> Demo,
     StratStore Store,
     TeamIdentityService? Teams,
-    Action<Guid>? OpenStrat = null);
+    Action<Guid>? OpenStrat = null) : IStratCapture;
