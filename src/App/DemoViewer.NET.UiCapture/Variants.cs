@@ -18,13 +18,17 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
+using DemoViewer.NET.Extensions.StratBook.Views.Settings;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -1316,7 +1320,36 @@ public static partial class Variants
         ServiceProvider sp = services.BuildServiceProvider();
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         FeatureGate gate = new(monitor);
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry());
+
+        // The two contributed pages (item 14), built the same way StratBookSettingsPages.* would, over an
+        // empty library under the same redirected temp dir: real content (detector rows, the two toggles),
+        // just nothing indexed yet, so "settings-extensions-on" still shows both cards, not two blanks.
+        DemoCacheStore cache = new(null);
+        // Keywords deliberately just "extension": the capture's own filter below is the only thing that
+        // ever reads them, and these two cards must stay in frame alongside the master switch. FeatureId
+        // is the real pack's, so the OFF variant hides them exactly as the real app does.
+        SettingsPageContribution[] settingsPages =
+        [
+            new(
+                "stratbook.suggested-tags-tuning", "SUGGESTED TAGS TUNING", 0, "extension",
+                () => new SuggestedTagsTuningViewModel(
+                    new SuggestedTagsTuningService(
+                        cache,
+                        new SuggestedTagsService(cache, new ProposalStore(null, cache), null, new SiteRegionStore(null),
+                            () => new ProfileStore(null).Current, () => true, () => false),
+                        null,
+                        new SiteRegionStore(null)),
+                    new ProfileStore(null)),
+                () => new SuggestedTagsTuningView(),
+                StratBookPack.PackFeatureId),
+            new(
+                "stratbook.grenade-index", "GRENADE INDEX", 1, "extension",
+                () => new GrenadeIndexSettingsViewModel(svc, monitor),
+                () => new GrenadeIndexSettingsView(),
+                StratBookPack.PackFeatureId)
+        ];
+
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages);
         if (packOff is not null)
         {
             vm.SettingsFilterText = "extension";

@@ -1372,7 +1372,13 @@ spectating has no readback. Gated by `playback2d.follow`.
   `Views/Highlights/HighlightScanStatusView`: the home the retired card grid's `ScanQueueSummary` badge and
   its per-card scanning animation were re-assigned to. It **extended, did not fork**: zero changes to
   `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
-  other three. Four consumers now share the control.
+  other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
+  are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
+  for the 2D chip, a core, dedicated slot). The Strat Book chip goes through a generic pack `StatusChip`
+  contribution instead (item 14): `MainViewModel.AttachStatusChips(IReadOnlyList<StatusChipContribution>)`
+  watches each contribution's `IContributedStatusChip` (`StratBookExportChipSlot` for this one) via
+  `INotifyPropertyChanged`, keyed by the contribution's own id in a `_shownContributedChips` map. The Strat
+  Book tab's export job mounts into the slot lazily, on the first Export.
   - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
     `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
     `TextValue` values, never tinted, per the contrast rule above.
@@ -2308,27 +2314,45 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **`FeatureGate.HiddenCount` excludes a `Pack`-scope row.** It renders as its own live master switch, not
   a hidden feature; counting it too would double against the switch itself. Everything the master cascades
   off still counts (it is still rendered, under Extensions, disabled).
-- **Two existing pack-only settings blocks moved under this section**, content unchanged, each gated by
-  `IsStratBookPackEnabled` on top of whatever platform gate it already had: Suggested Tags tuning (was in
-  GENERAL) and a new GRENADE INDEX card (`Walk library grenades in the background`, `Render lineup clips`;
-  was embedded inside HIGHLIGHTS, riding that section's desktop-only gate incidentally: kept as
-  `CanManageGrenadeIndex`). These are hidden entirely while the pack is off, not merely disabled: they are
-  dedicated custom UI, not generic toggle rows, so "gone" reads better than "present and dark". No settings
-  contribution seam yet (item 14); the XAML is grouped under one Expander so that item can lift it later.
+- **The two pack-only settings blocks are contributed pages now** (`IPackContributions.SettingsPage`,
+  item 14), content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades
+  in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
+  construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
+  `FeatureId` resolves on: a page must never construct whatever its VM pulls in while its pack is off
+  (plan doc §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
+  gate change alike) before setting `IsVisible`, so a page builds at most once and stays built once its
+  pack has been on. `SettingsView.axaml` hosts the list through one
+  `ItemsControl ItemsSource="{Binding ContributedSettingsPages}"` beneath the row list, each item a header
+  `Border` plus a `ContentControl` over the page's (possibly still-null) `Content`.
+  `SuggestedTagsTuningViewModel` and the new `GrenadeIndexSettingsViewModel` live under
+  `DemoViewer.NET.Extensions.StratBook.ViewModels.Settings` (their Views under `...Views.Settings`), not
+  the core `ViewModels.Settings`/`Views.Settings` namespaces, so `PackBoundaryTests`' scan polices the
+  edge; both VMs derive from `ViewModelBase`, matching the contribution's `Func<ViewModelBase> ViewModelFactory`
+  typing. `GrenadeIndexSettingsViewModel` owns its own `Persist`/`Reflect` echo-guard pair over the shared
+  `SettingsService`; `GrenadesBackgroundIndex`/`GrenadesRenderLineupClips` left `SettingsViewModel`
+  entirely. `SettingsViewModel`'s public ctor dropped `SuggestedTagsTuningViewModel suggestedTagsTuning`
+  and gained `IReadOnlyList<SettingsPageContribution>? settingsPages` instead; `App.axaml.cs`'s
+  `Func<SettingsViewModel>` factory now passes `PackContributionSet.SettingsPages`.
 - **Search**: `ExtensionsSectionMatches` ORs the generic `_sectionKeywords` entry ("extension", "pack",
   "plugin", …) with a scan of every BUILT row's own `Label` (fuzzy `PartialRatio >= 80`, same threshold the
   rest of findability uses), so a pack's name and its tabs'/sub-features' names are searchable without
-  listing them by hand. A second pack costs nothing here either.
+  listing them by hand. A contributed page's own `Keywords` string feeds the same fuzzy match
+  (`RefreshContributedPageVisibility`), so the "Suggested Tags Tuning" and "Grenade Index" rows dropped
+  from `_sectionKeywords`: a pack's page carries its own now. A second pack costs nothing here either.
 - **The in-session toggle notice** (`StratBookToggleNotice`, architecture doc §8): null until a flip
   happens in THIS vm's lifetime (seeded from the gate before the ctor's first refresh, so plain startup
   shows nothing). On a transition detected in `RefreshFeatureRows` (so a self-write, Reset-to-defaults and
-  an external edit all catch it): off → "The Strat Book extension stops its background work. Its data
-  stays on disk."; on → "Counting…" then `"{N} demos will be re-indexed in the background."` once
-  `StratBookPendingReindexCount.ComputeAsync()` lands (the union of `RoundIndexEvaluator`,
-  `GrenadeIndexEvaluator` and `SuggestedTagsService`'s own `PendingPaths()`, resolved through `App.Services`
-  since the VM's constructor cannot take them (the public ctor shape is unchanged); a `Func<Task<int>>?`
-  test seam is the INTERNAL ctor's 8th, all-optional parameter). A generation counter drops a result that
-  lands after a later flip rather than overwriting a more recent notice.
+  an external edit all catch it): off → `"{Label} stops its background work. Its data stays on disk."`
+  (`Label` read off the watched pack's own `FeatureCatalog` descriptor, "Strat Book extension" today, so
+  the string is never hand-typed); on → "Counting…" then `"{N} demos will be re-indexed in the
+  background."` once `IPackReindexEstimate.CountAsync()` lands. The notice is generic now (item 14):
+  `SettingsViewModel` watches `IReadOnlyList<IPackReindexEstimate>? reindexEstimates`'s first entry rather
+  than importing `Extensions.StratBook` for `StratBookPack.PackFeatureId` and a static
+  `StratBookPendingReindexCount.ComputeAsync()`. The pack's own `StratBookPendingReindexCount` class
+  implements `IPackReindexEstimate` and captures the real `IServiceProvider` (not `App.Services`) when
+  `StratBookPack.Contribute` builds it, over the same `RoundIndexEvaluator`/`GrenadeIndexEvaluator`/
+  `SuggestedTagsService` union as before. A generation counter still drops a result that lands after a
+  later flip rather than overwriting a more recent notice.
 - **Fits the real host width** (520-560px desktop/WASM, §settings-layout above) with no horizontal
   overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
   UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
