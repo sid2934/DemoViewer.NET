@@ -49,6 +49,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     private ProposalTrack? _proposalTrack;
     private SettingsService? _settings;
     private TagEditorViewModel? _spanEditor;
+    private SuggestionQueueView? _queueView;
     private IPlaybackSurface? _surface;
     private TagTrack? _tagTrack;
 
@@ -118,8 +119,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         PalettePanel = surface.AddPanel(PaletteOrder, () => palette,
             () => new TagPaletteView { Margin = new Thickness(0, 0, 0, 2) }, RoundTaggerModule.PaletteFeatureId);
         ReviewPanel = surface.AddPanel(ReviewOrder, BuildReview, () => new ReviewPanelView());
-        QueuePanel = surface.AddPanel(QueueOrder, () => Queue,
-            () => new SuggestionQueueView { Margin = new Thickness(0, 0, 0, 2) }, SuggestedTagsService.FeatureId);
+        QueuePanel = surface.AddPanel(QueueOrder, () => Queue, BuildQueueView, SuggestedTagsService.FeatureId);
         ReviewPanel.Closed += OnReviewClosed;
         PalettePanel.ShownChanged += RefreshLaneEditing;
         PalettePanel.Open();
@@ -202,6 +202,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         ReviewPanel?.Dispose();
         PalettePanel?.Dispose();
         QueuePanel?.Dispose();
+        _queueView = null;
         if (Review is { } panel)
         {
             panel.PropertyChanged -= OnReviewChanged;
@@ -235,7 +236,25 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         };
         panel.PropertyChanged += OnReviewChanged;
         Review = panel;
+        FollowSuggestedTab();
         return panel;
+    }
+
+    // The queue is the review panel's Suggested tab: its own panel in the column, shown only while that
+    // tab is selected, and the panel stays open so the queue keeps its demo and selection across the tabs.
+    private Avalonia.Controls.Control BuildQueueView()
+    {
+        _queueView = new SuggestionQueueView { Margin = new Thickness(0, 0, 0, 2) };
+        FollowSuggestedTab();
+        return _queueView;
+    }
+
+    private void FollowSuggestedTab()
+    {
+        if (_queueView is { } view)
+        {
+            view.IsVisible = Review?.IsSuggestedTab ?? true;
+        }
     }
 
     private void OnReviewClosed()
@@ -248,6 +267,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
         HookSpanEditor(null);
         UpdateEditSpan();
+        FollowSuggestedTab();
     }
 
     // The review panel hosts the editor both lists share, so it exists while either gate is on.
@@ -460,10 +480,16 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
     private void OnReviewChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ReviewPanelViewModel.ActiveEditor))
+        switch (e.PropertyName)
         {
-            HookSpanEditor(Review?.ActiveEditor);
-            UpdateEditSpan();
+            case nameof(ReviewPanelViewModel.ActiveEditor):
+                HookSpanEditor(Review?.ActiveEditor);
+                UpdateEditSpan();
+                break;
+
+            case nameof(ReviewPanelViewModel.IsSuggestedTab):
+                FollowSuggestedTab();
+                break;
         }
     }
 
