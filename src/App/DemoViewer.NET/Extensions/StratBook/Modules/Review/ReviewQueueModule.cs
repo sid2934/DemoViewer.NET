@@ -26,9 +26,10 @@ namespace DemoViewer.NET.Modules.Review;
 ///         the composition root supplies the queue and the seek seam; the module references no shell.
 ///     </para>
 ///     <para>
-///         <b>The badge</b> is the count of clips nobody has marked reviewed, driven by the queue rather than
-///         the VM, so clips sent from another surface show on the rail item before the Review section is ever
-///         opened.
+///         <b>The badge</b> is the count of clips nobody has marked reviewed. Subscribed on first
+///         activation, through the queue accessor, not at registration: this module is contributed
+///         regardless of the pack's gate, so an unconditional resolve here ran on every launch. The
+///         module holds no queue reference until then.
 ///     </para>
 /// </summary>
 public sealed class ReviewQueueModule : IWorkspaceModule
@@ -39,12 +40,12 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.review";
 
-    private readonly ReviewQueue? _queue;
+    private readonly Func<ReviewQueue>? _queue;
     private readonly Func<ReviewQueueTabViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
-    /// <param name="queue">The shared queue, for the badge; null shows none.</param>
-    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, ReviewQueue? queue = null)
+    /// <param name="queue">The shared queue, for the badge; called only after first activation. Null shows none.</param>
+    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, Func<ReviewQueue>? queue = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
@@ -61,23 +62,36 @@ public sealed class ReviewQueueModule : IWorkspaceModule
 
     public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
     {
+        // ViewModelFactory is init-only, so the closure below cannot assign it after construction; it
+        // reaches the descriptor through this ref, assigned once construction completes.
+        WorkspaceTabDescriptor? tabRef = null;
+        bool subscribed = false;
+
         WorkspaceTabDescriptor tab = new()
         {
             TabId = TabId,
             Header = "Review",
             Order = 4, // after Utility (3)
             Placement = TabPlacement.StratBook,
-            ViewModelFactory = _viewModelFactory,
-            ViewFactory = () => new ReviewQueueTabView()
-        };
+            ViewFactory = () => new ReviewQueueTabView(),
+            ViewModelFactory = () =>
+            {
+                ReviewQueueTabViewModel vm = _viewModelFactory();
 
-        // The queue outlives the tab (both are container singletons), so the subscription is for the
-        // descriptor's life and needs no unsubscribe.
-        if (_queue is { } queue)
-        {
-            tab.Badge = BadgeFor(queue.UnreviewedCount);
-            queue.Changed += () => tab.Badge = BadgeFor(queue.UnreviewedCount);
-        }
+                // Guarded so a re-activation (the VM is retained) never double-subscribes. The queue outlives
+                // the tab (both are container singletons), so there is nothing to unsubscribe.
+                if (!subscribed && _queue is { } queueAccessor)
+                {
+                    subscribed = true;
+                    ReviewQueue queue = queueAccessor();
+                    tabRef!.Badge = BadgeFor(queue.UnreviewedCount);
+                    queue.Changed += () => tabRef!.Badge = BadgeFor(queue.UnreviewedCount);
+                }
+
+                return vm;
+            }
+        };
+        tabRef = tab;
 
         yield return tab;
     }

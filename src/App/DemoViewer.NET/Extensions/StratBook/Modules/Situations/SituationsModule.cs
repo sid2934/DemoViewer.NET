@@ -25,18 +25,20 @@ namespace DemoViewer.NET.Modules.Situations;
 ///     </para>
 ///     <para>
 ///         <b>The badge.</b> Watched Situations' "N new" sits on the rail item through
-///         <see cref="WorkspaceTabDescriptor.Badge" />, driven by the service rather than the VM: the
-///         VM is built on first activation, and the badge has to show before the tab is ever opened.
+///         <see cref="WorkspaceTabDescriptor.Badge" />. Subscribed on first activation, not at
+///         registration: this module is contributed regardless of the pack's gate, so resolving the
+///         service here would build the situation index and Team Identity on every launch. The accessor
+///         costs nothing once activation happens, because the tab VM's own construction already built it.
 ///     </para>
 /// </summary>
 public sealed class SituationsModule : IWorkspaceModule
 {
     private readonly Func<SituationsTabViewModel> _viewModelFactory;
-    private readonly WatchedSituationsService? _watched;
+    private readonly Func<WatchedSituationsService>? _watched;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
-    /// <param name="watched">Watched Situations, for the badge; null shows none.</param>
-    public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, WatchedSituationsService? watched = null)
+    /// <param name="watched">Watched Situations, for the badge; called only after first activation. Null shows none.</param>
+    public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, Func<WatchedSituationsService>? watched = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
@@ -53,23 +55,36 @@ public sealed class SituationsModule : IWorkspaceModule
 
     public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
     {
+        // ViewModelFactory is init-only, so the closure below cannot assign it after construction; it
+        // reaches the descriptor through this ref, assigned once construction completes.
+        WorkspaceTabDescriptor? tabRef = null;
+        bool subscribed = false;
+
         WorkspaceTabDescriptor tab = new()
         {
             TabId = "situations.search",
             Header = "Situations",
             Order = 1, // after Strats (0)
             Placement = TabPlacement.StratBook,
-            ViewModelFactory = _viewModelFactory,
-            ViewFactory = () => new SituationsTabView()
-        };
+            ViewFactory = () => new SituationsTabView(),
+            ViewModelFactory = () =>
+            {
+                SituationsTabViewModel vm = _viewModelFactory();
 
-        // The service outlives the tab (both are container singletons), so the subscription is for the
-        // descriptor's life and needs no unsubscribe.
-        if (_watched is { } watched)
-        {
-            tab.Badge = BadgeFor(watched.NewCount);
-            watched.Changed += () => tab.Badge = BadgeFor(watched.NewCount);
-        }
+                // Guarded so a re-activation (the VM is retained) never double-subscribes. The service
+                // outlives the tab (both are container singletons), so there is nothing to unsubscribe.
+                if (!subscribed && _watched is { } watchedAccessor)
+                {
+                    subscribed = true;
+                    WatchedSituationsService watched = watchedAccessor();
+                    tabRef!.Badge = BadgeFor(watched.NewCount);
+                    watched.Changed += () => tabRef!.Badge = BadgeFor(watched.NewCount);
+                }
+
+                return vm;
+            }
+        };
+        tabRef = tab;
 
         yield return tab;
     }
