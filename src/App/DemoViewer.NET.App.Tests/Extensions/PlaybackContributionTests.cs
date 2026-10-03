@@ -201,12 +201,23 @@ public class PlaybackContributionTests
     }
 
     [Test]
-    public async Task TheRightColumn_IsNotHostedYet()
+    public async Task TheRightColumn_IsAPanel_NotASidePane()
     {
         (Playback2DTabViewModel vm, _) = Tab();
 
-        Assert.Throws<NotSupportedException>(() => vm.Surface.AddPane(PanePlacement.RightColumn, 0, () => new FakePaneViewModel()));
-        await Assert.That(vm.Surface.Panes).IsEmpty();
+        IPaneHandle handle = vm.Surface.AddPane(PanePlacement.RightColumn, 0, () => new FakePaneViewModel());
+        using (Assert.Multiple())
+        {
+            await Assert.That(handle).IsAssignableTo<IPanelHandle>();
+            await Assert.That(vm.Surface.Panes).IsEmpty().Because("a right-column pane is not a side pane");
+        }
+
+        handle.Open();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.Panels.Count).IsEqualTo(1);
+            await Assert.That(vm.Surface.SidePane).IsNull();
+        }
 
         vm.Dispose();
     }

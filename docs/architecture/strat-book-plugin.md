@@ -585,8 +585,20 @@ public interface IPlaybackContribution
 public interface IPlaybackSurface
 {
     IReadOnlyList<MapLevel> MapLevels { get; }                     // the mounted viewport's levels; empty without one
+    Playback2DKeymapProfile Keymap { get; }                        // the tab's resolved keymap, replaced whole on a rebind
+    event Action? KeymapChanged;
     IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items);
-    IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);  // Side hosted; RightColumn at item 17
+    IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);  // Side; RightColumn forwards to AddPanel
+    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null);
+    IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
+    IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
+    // Temporary, each named for the item that removes it:
+    bool IsReviewMode { get; }                                     // item 18 makes the mode the pack's
+    event Action? ReviewModeChanged;                               // item 18
+    Playback2DTimelineViewModel Timeline { get; }                  // item 18: lane events, edit span, registered tracks
+    Scene2DFrame CurrentFrame { get; }                             // item 20: Click To Tag resolves against the frame
+    PlaceResolver? Zones { get; }                                  // item 20
+    IDisposable AddMapClickHandler(Func<MapLevel, double, double, bool> handler);  // item 20 replaces with AddPointerPreHandler
     // Not built yet, in the order the items need them:
     void AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);  // item 18
     void AddToolbarItem(ToolbarItem item);                                                      // item 20
@@ -599,9 +611,16 @@ public interface IPlaybackSurface
 public interface IPaneHandle : IDisposable   // Dispose removes the pane; Close only hides it
 {
     bool IsOpen { get; }
-    void Open();     // builds a fresh view model from the factory; an open pane is rebuilt, another Side pane closes
+    void Open();     // Side: a fresh view model, an open pane is rebuilt, the other Side pane closes. RightColumn: no-op when open
     void Close();    // disposes the view model when it is IDisposable
     event Action? Closed;
+}
+
+public interface IPanelHandle : IPaneHandle   // a right-column panel; several open at once
+{
+    bool IsShown { get; }            // open, gate on, and the column showing contributed panels (Review mode)
+    event Action? ShownChanged;
+    bool HasKeyboard { get; set; }   // the focus scope: the contribution mirrors its own focus here
 }
 
 public sealed record MenuEntry(string Header, Action Run);
@@ -625,6 +644,61 @@ The Create Strat contribution (`Extensions/StratBook/Modules/StratBook/CreateStr
 adds a band-menu entry for round bands whose action opens a pane it added (`AddPane(PanePlacement.Side,
 ...)`), using `IStratCapture` resolved from `context.GetService<T>()` at every band press, which is how the
 gate reaches it. That pairing is the PoC finding in section 6 (item 16).
+
+As built by item 17 (`Extensions/IPlaybackSurface.cs`, `Modules/Playback2D/Playback2DSurface.cs`): the right
+column is hosted. `AddPanel(order, viewModel, view, featureId)` adds a panel; `AddPane(PanePlacement.RightColumn,
+...)` is the same call with no gate and the ViewLocator's view, and returns the same `IPanelHandle`. Right-column
+handles differ from side-pane handles in three ways: several panels are open at once and `Open` on an open
+panel is a no-op (the view models are long-lived, built once at attach, so a panel keeps its state across the
+mode); a panel has a gate, the `featureId` read through the tab's `IModuleContext.Features`, and `IsShown`
+folds the gate, the open state and the mode together, so a gated-off panel hides without closing; and a panel
+has a focus scope, `HasKeyboard`, which the contribution sets from its own focus state (the palette's
+`IsFocused`). `Playback2DSurface.Panels` is the ordered list of open panels the view's `ItemsControl` binds; each
+item presents either the contributed control with the view model as its DataContext or the view model itself
+for the ViewLocator, under a 6 px gutter, and follows `IsShown`. The core column content (game info, the player
+cards) keeps its rows; the panels fill the third row as the inline views did, so the follow-card render test
+passes unchanged.
+
+Keys and actions route through the surface rather than the tab naming a panel. `AddKeyHandler` is asked by the
+view before the tab's keymap, in registration order, which is how the `WhenPaletteFocused` and
+`WhenSuggestionSelected` rows shadow the always rows (the handler resolves its scope against `Keymap`);
+`AddActionHandler` is asked for every action the tab does not handle itself, and for every action first while
+a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the palette has the keyboard. The
+tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
+Review toggle and never collapses the cards.
+
+Three members are temporary and named for the items that remove them. `IsReviewMode` and `ReviewModeChanged`
+(item 18): the mode is still the tab's, persisted and toggled there; the surface shows contributed panels only
+while it is on, and the contribution hears the flip to clear the palette, the queue's selection and the editor.
+`Timeline` (item 18): the lanes are still registered by the tab, so the contribution reads the `TagTrack` and
+`ProposalTrack` from `Timeline.RegisteredTracks` (the session comes from `TagTrack.Session`, the colour bridge
+goes back through `TagTrack.CodeColour`) and carries the lane behaviour the tab used to carry, the band menu
+through `AddBandMenu` and the press, drag and label handlers through the timeline's events; item 18 turns those
+into lane contributions with their own `ILaneBehaviour`. `CurrentFrame`, `Zones` and `AddMapClickHandler`
+(item 20): Click To Tag Position resolves the clicked point in the pack against the frame on screen and the
+map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer. `OnDemoChanged` was
+not needed. The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus
+off) on two signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which
+the tab raises before it flushes its documents, and `TagSession.Detaching`, raised before a swap inside
+`AttachAsync` or a `Detach` lets go of the document, while the old document is still current. So the tab
+calls nothing on the palette by name, and neither focus nor a half-typed note survives a tab switch or a
+demo swap.
+
+One behaviour changed on purpose. Undo and redo while the palette has the keyboard report handled (true)
+even when the tag history is empty; before, the tab returned the real `TagSession.Undo()` result, which made
+an empty tag history leave the key unhandled. Returning true is what keeps an empty tag history from falling
+through to the annotations' undo now that the focused panel is asked first; the annotations' history stays
+the unfocused case's.
+
+The contribution (`Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs`)
+builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over the lane's session
+with `TagPaletteStore`, `SuggestedTagsService` and `SettingsService` from `context.GetService<T>()`, and
+registers them as three panels: the palette (order 0, gate `playback2d.tagger`), the review panel (order 1,
+`ReviewPanelView` in the pack: the Suggested / Labels toggle, the shared editor and the Labels list the core
+view used to carry inline; open while either gate is on) and the queue (order 2, gate
+`playback2d.suggestedtags`, its view shown while the Suggested tab is selected). The persisted palette choice
+and the background-sweep opt-in move with it. Pack off builds nothing; the host attaches and detaches it live,
+and `Detach` disposes the three view models after writing the palette's pending tag.
 
 `AddLayer` and `AddTool` exist for completeness and for (b). For (a), the token tool and guides layer can
 stay core-registered: they are inert without a strat frame host and cost nothing. Code keeps the word

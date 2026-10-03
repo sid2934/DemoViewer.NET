@@ -391,19 +391,22 @@ public class SuggestedTagsQueueTests
     [Test]
     public async Task TheTab_LeavesTheKeysUnhandled_WithNoSelection_AndHidesTheQueueWhenGatedOff()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActionDispatchTests.Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) =
+            AppTests.Extensions.StratBook.ReviewPanelsHarness.Tab();
+        vm.IsReviewMode = true;
 
         using (Assert.Multiple())
         {
-            await Assert.That(vm.IsSuggestedTagsEnabled).IsTrue();
+            await Assert.That(review.QueuePanel!.IsShown).IsTrue();
             await Assert.That(vm.ExecuteAction(Playback2DAction.SuggestionAccept)).IsFalse();
-            await Assert.That(vm.TryHandleSuggestionKey(Key.J, KeyModifiers.None)).IsFalse();
+            await Assert.That(vm.Surface.TryHandleKey(Key.J, KeyModifiers.None)).IsFalse();
             await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == ProposalTrack.TrackId)).IsTrue();
         }
 
         ctx.Gate!.SetEnabled(SuggestedTagsService.FeatureId, false);
-        await Assert.That(vm.IsSuggestedTagsEnabled).IsFalse();
-        await Assert.That(vm.SuggestionQueue.DemoPath).IsNull();
+        await Assert.That(review.QueuePanel.IsShown).IsFalse();
+        await Assert.That(review.Queue!.DemoPath).IsNull();
+        vm.Dispose();
     }
 
     private static Playback2DAction Resolve(Playback2DKeymapProfile keymap, Key key, KeyModifiers modifiers) =>

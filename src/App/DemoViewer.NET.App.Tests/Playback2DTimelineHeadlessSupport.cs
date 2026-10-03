@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Views.Playback2D;
@@ -20,7 +21,8 @@ namespace DemoViewer.NET.AppTests;
 internal static class Playback2DTimelineHarness
 {
     /// <summary>Builds an activated tab over a recording context carrying rounds, kills and bomb events.</summary>
-    public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab(int totalFrames = 1000)
+    public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab(int totalFrames = 1000,
+        PlaybackContributionHost? contributions = null)
     {
         Playback2DFakeContext ctx = new()
         {
@@ -38,7 +40,7 @@ internal static class Playback2DTimelineHarness
         ];
         ctx.Timelines["bomb_planted"] = [Bomb("bomb_planted", 700)];
 
-        Playback2DTabViewModel vm = new();
+        Playback2DTabViewModel vm = new() { Contributions = contributions };
         vm.OnActivated(ctx);
         return (vm, ctx);
     }
