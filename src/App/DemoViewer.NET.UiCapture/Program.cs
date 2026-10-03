@@ -3,6 +3,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Styling;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.UiCapture;
 
 #endregion
@@ -16,6 +18,9 @@ using DemoViewer.NET.UiCapture;
 //
 // --out defaults to %TEMP%/demoviewer-uitests/<variant>.png; --size defaults to the variant's own size
 // (the WxH override sizes the render window, e.g. 800x600).
+
+// The same compiled-in pack list as the heads, so a variant's CommandRegistry and job-kind lookups resolve.
+FeaturePacks.Configure([new StratBookPack()]);
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 {

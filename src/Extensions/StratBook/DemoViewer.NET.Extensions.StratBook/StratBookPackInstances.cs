@@ -46,6 +46,10 @@ internal sealed class StratBookPackInstances
     public SuggestedTagsService? SuggestedTags { get; set; }
     public GrenadeIndexEvaluator? GrenadeWalk { get; set; }
 
+    // The Tag Store, same rule: set by its factory, never cleared. Shutdown flushes its index only when
+    // something built it, so a never-opened pack reads no tags directory at exit.
+    public TagStore? Tags { get; set; }
+
     /// <summary>Every resident built this session, in build order; survives a release.</summary>
     public IReadOnlyList<IPackResident> Residents
     {

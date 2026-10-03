@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -19,10 +21,14 @@ internal sealed class Program
     // Avalonia configuration, don't remove; also used by visual designer.
     /// <summary>Build avalonia app.</summary>
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        // The XAML previewer calls this without Main, so it declares the same packs; a no-op after Main.
+        FeaturePacks.ConfigureIfUnset([new StratBookPack()]);
+        return AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+    }
 
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
@@ -51,6 +57,11 @@ internal sealed class Program
         }
 
         builder.Run();
+
+        // The extensions this build ships (strat-book-plugin.md §13). The app assembly references none of
+        // them; the composition root and the static registries read this list, so it is declared before
+        // anything Avalonia-side runs.
+        FeaturePacks.Configure([new StratBookPack()]);
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack.

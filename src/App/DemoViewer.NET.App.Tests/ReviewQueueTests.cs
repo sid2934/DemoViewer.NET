@@ -153,8 +153,8 @@ public class ReviewQueueTests
     public async Task ATagRef_BecomesAClip_ThroughTheCacheIndex_OrNothingForAnUnknownHash()
     {
         TagInstanceRef instance = new("abc", Guid.NewGuid(), "exec-a", 2000, 2640, 7);
-        ReviewEntry? clip = ReviewQueue.FromTag(instance, sha => sha == "abc" ? "/d/a.dem" : null, 64);
-        ReviewEntry? missing = ReviewQueue.FromTag(instance with { Sha256 = "zzz" }, sha => sha == "abc" ? "/d/a.dem" : null);
+        ReviewEntry? clip = TagClips.FromTag(instance, sha => sha == "abc" ? "/d/a.dem" : null, 64);
+        ReviewEntry? missing = TagClips.FromTag(instance with { Sha256 = "zzz" }, sha => sha == "abc" ? "/d/a.dem" : null);
 
         using (Assert.Multiple())
         {
