@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Services.DemoCache;
 
 namespace DemoViewer.NET.Models;
 
@@ -61,8 +60,10 @@ public sealed record TabSessionState(
 /// </param>
 /// <param name="Packs">
 ///     Per-pack session state, keyed by pack id (e.g. <c>"net.demoviewer.pack.stratbook"</c>), opaque to
-///     the shell. A pack whose gate is off is never asked for its state and never restored into, so its
-///     entry here is carried through unread and unwritten; turning the pack back on restores it.
+///     the shell. A pack that has never been enabled this session is never asked for its state, so its
+///     entry here is carried through unread and unwritten. A pack that HAS been enabled (at startup or by
+///     a live toggle) is restored into once and its live value is trusted from then on, even after the
+///     pack goes off again, so a value set while it was on is never lost to a later disable.
 /// </param>
 public sealed record SessionPayload(
     TabSessionState? Parser,
@@ -76,16 +77,20 @@ public sealed record SessionPayload(
     Dictionary<string, JsonElement>? Packs = null) : IJsonOnDeserialized
 {
     // Redeclares the positional property with a setter: OnDeserialized below needs to fold into it, which
-    // an init-only property (the compiler's default for a positional parameter) does not allow.
-    public Dictionary<string, JsonElement>? Packs { get; set; } = Packs;
+    // an init-only property (the compiler's default for a positional parameter) does not allow. Private:
+    // nothing outside this type writes Packs after construction.
+    public Dictionary<string, JsonElement>? Packs { get; private set; } = Packs;
 
     /// <summary>A pre-<see cref="Packs" /> file's top-level members, held only until <c>OnDeserialized</c> folds them.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
 
+    // The Strat Book pack's id (StratBookPack.PackId), literal because Models must not depend on
+    // Services or the pack, and because this is the shape the PACK wrote, not a core concept.
+    private const string LegacyStratBookPackId = "net.demoviewer.pack.stratbook";
+
     // A file written before Packs existed carried the Strat Book pack's layout flat as "StratBook". Folded
-    // once, keyed under LegacyPackFields.PackId (core cannot name the pack's own id constant); an existing
-    // Packs entry for that id wins.
+    // once, keyed under LegacyStratBookPackId; an existing Packs entry for that id wins.
     void IJsonOnDeserialized.OnDeserialized()
     {
         if (UnknownMembers is { Count: > 0 } members
@@ -93,9 +98,9 @@ public sealed record SessionPayload(
             && legacy.ValueKind == JsonValueKind.Object)
         {
             Packs ??= new(StringComparer.Ordinal);
-            if (!Packs.ContainsKey(LegacyPackFields.PackId))
+            if (!Packs.ContainsKey(LegacyStratBookPackId))
             {
-                Packs[LegacyPackFields.PackId] = legacy.Clone();
+                Packs[LegacyStratBookPackId] = legacy.Clone();
             }
         }
 
