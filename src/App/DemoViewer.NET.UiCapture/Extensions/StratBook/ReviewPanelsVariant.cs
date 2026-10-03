@@ -15,10 +15,11 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.UiCapture;
 
 /// <summary>
-///     The 2D Playback tab in Review mode with the Strat Book's right-column panels attached as the pack
-///     attaches them (item 17): the Tag Palette, the review panel on its Labels tab with an editor open,
-///     and the Suggestion Queue under it, over two tags on a session-only document. The pack-off twin
-///     attaches the same contribution behind an off gate, so the column shows the core content alone.
+///     The 2D Playback tab in Review mode with the Strat Book's contribution attached as the pack attaches
+///     it (items 17 and 18): the Review toggle on the toolbar, the tag lane on the timeline, the Tag Palette,
+///     the review panel on its Labels tab with an editor open, and the Suggestion Queue under it, over two
+///     tags on a session-only document. The pack-off twin attaches the same contribution behind an off gate,
+///     so the toolbar, the timeline and the column show the core content alone.
 /// </summary>
 public static partial class Variants
 {
@@ -33,10 +34,10 @@ public static partial class Variants
         PlaybackContributionHost host = new([(new StratBookPack(), [review])], packOn ? null : new OffGate());
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
-        vm.IsReviewMode = true;
 
-        if (packOn && review.Session is { } session)
+        if (packOn && review is { Session: { } session, ReviewMode: { } mode })
         {
+            mode.IsOn = true;
             // A session-only document (no store in this process) with a hand-made label and an accepted one.
             DemoIdentity demo = new("ab", "match730_capture_dust2.dem", 549_715_968);
             ClockIdentity clock = new(ClockIdentity.DvFrameClock, 64, 180_000, 0, 0);
