@@ -150,9 +150,12 @@ public class WatchedSituationsTests
             int raised = 0;
             service.Changed += () => raised++;
 
-            // The tab header's badge, before the tab's VM exists: the module drives it from the service.
-            WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service)
-                .CreateTabs(null!).Single();
+            // The tab header's badge subscribes on first activation (item 3): the module calls the
+            // accessor only once its own VM factory has already run.
+            using SituationsTabViewModel vm = new(h.Index, h.Evaluator, h.Cache, h.Sources,
+                () => RoundIndexTokenSource.Pawn, isBrowser: false, watched: service);
+            WorkspaceTabDescriptor tab = new SituationsModule(() => vm, () => service).CreateTabs(null!).Single();
+            tab.ViewModelFactory!.Invoke();
 
             WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
             int afterWatch = raised;

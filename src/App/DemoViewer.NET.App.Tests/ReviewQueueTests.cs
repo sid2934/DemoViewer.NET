@@ -447,8 +447,13 @@ public class ReviewQueueTests
     public async Task TheModule_ContributesTheReviewSection_UnderThePersistedIds_WithTheClipCountAsBadge()
     {
         ReviewQueue queue = new(null);
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue);
+        ReviewQueueTabViewModel vm = new(queue);
+        ReviewQueueModule module = new(() => vm, () => queue);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
+        await Assert.That(tab.Badge).IsNull().Because("the badge subscribes on first activation, not at registration");
+
+        // First activation: builds the VM and, with it, subscribes the badge to the queue.
+        tab.ViewModelFactory!.Invoke();
         await Assert.That(tab.Badge).IsNull();
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
 
