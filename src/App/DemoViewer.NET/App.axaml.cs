@@ -178,12 +178,13 @@ public class App : Application
 
             // Match Overview's "Index grenades": the grenade walk forced at user priority. Desktop only: the
             // browser head has no processing queue to run it on, and an absent action beats an inert one.
+            // Resolved lazily, inside the delegates: constructing GrenadeIndexEvaluator here, unconditionally,
+            // would build it even with the pack off, regardless of whether the user ever presses the action.
             if (!OperatingSystem.IsBrowser())
             {
-                GrenadeIndexEvaluator grenades = services.GetRequiredService<GrenadeIndexEvaluator>();
                 IFeatureGate? grenadeGate = services.GetService<IFeatureGate>();
-                viewModel.MatchOverviewTab.IndexGrenades = grenades.Request;
-                viewModel.MatchOverviewTab.AreGrenadesIndexed = grenades.IsCurrent;
+                viewModel.MatchOverviewTab.IndexGrenades = path => services.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
+                viewModel.MatchOverviewTab.AreGrenadesIndexed = path => services.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path);
                 viewModel.MatchOverviewTab.PackEnabled = () => grenadeGate?.IsEnabled("pack.stratbook") ?? true;
             }
 
@@ -650,8 +651,10 @@ public class App : Application
         });
         QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
         // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
-        // any rescan, independent of ValidateOnBuild's eager-construction behavior.
-        provider.GetRequiredService<DemoEvaluationCoordinator>();
+        // any rescan, independent of ValidateOnBuild's eager-construction behavior. ValidateEvaluators
+        // populates and sorts the evaluator registry right away, so a cycle or an unknown After id fails
+        // here, loudly, at startup, instead of waiting for the first real poll to find it.
+        provider.GetRequiredService<DemoEvaluationCoordinator>().ValidateEvaluators();
         // Each pack whose feature id resolves on gets its lifecycle's startup loads. A pack that is off
         // never resolves its lifecycle, so none of this runs: no index load, no Team Identity rebuild, no
         // queue item.
@@ -894,7 +897,7 @@ public class App : Application
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             IFeatureGate? features = sp.GetService<IFeatureGate>();
-            return new RoundIndexEvaluator(
+            RoundIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
@@ -903,6 +906,11 @@ public class App : Application
                 // The literal id, not StratBookPack.PackFeatureId: this is core code, and a pack id fails
                 // off on a typo (FeatureCatalog.IsPackId), never silently on.
                 enabled: () => features?.IsEnabled("pack.stratbook") ?? true);
+            // Set here, not by the evaluator registry's lazy wrapper: SituationIndex resolves this
+            // directly at StartPacks time, before anything has polled the coordinator, so a wrapper-only
+            // assignment would leave Coordinator null and Request/RebuildAll silently no-op until then.
+            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
+            return built;
         });
         services.AddSingleton(sp => new SituationIndex(
             sp.GetRequiredService<DemoCacheStore>(),
@@ -1021,39 +1029,54 @@ public class App : Application
             post: action => Dispatcher.UIThread.Post(action)));
 
         // The "one parse, many evaluators" coordinator: the single submitter
-        // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
-        // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
-        // CapacityAvailable is the UNION of each evaluator's worker-readable pending snapshot (never the
-        // UI-bound Entries collection). Setting .Coordinator on each flips it off its inline/feeder path
-        // onto the coordinator; the construction side-effect runs under ValidateOnBuild (+ the explicit
-        // force-resolve below). The ORDER is a contract (the round index, when it lands, reads the round
-        // facts written in the same pass) and is pinned by AppCompositionRootTests.
+        // that polls the registered IDemoEvaluators for a demo and coalesces their queue submissions onto
+        // ONE parse. Library and Highlights are core, always in the fan-out; a pack's evaluators come from
+        // an EvaluatorRegistry built over its Evaluator contributions, ordered by declared After ids rather
+        // than a hand-written array (item 11). The registry reads PackContributionSet lazily, on the
+        // coordinator's first poll, not here: resolving it during this factory would run every pack's
+        // Contribute() during container build, well before anything needs it. A disabled pack's evaluator
+        // factories are never invoked here, so those services are not constructed by THIS path while the
+        // pack is off (a resident like SituationIndex or GrenadeIndex may still resolve one directly at
+        // StartPacks time; each such evaluator sets its own .Coordinator in its own factory, below). The
+        // candidate universe re-polled on CapacityAvailable is the UNION of the CURRENTLY resolved
+        // evaluators' PendingPaths. The ORDER is a contract (the round index reads the round facts written
+        // in the same pass) and is pinned by AppCompositionRootTests.
         services.AddSingleton(sp =>
         {
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
-            HighlightScanService highlights =
-                sp.GetRequiredService<HighlightScanService>();
-            RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
-            RoundIndexEvaluator roundIndex = sp.GetRequiredService<RoundIndexEvaluator>();
-            SuggestedTagsService suggestedTags = sp.GetRequiredService<SuggestedTagsService>();
-            GrenadeIndexEvaluator grenades = sp.GetRequiredService<GrenadeIndexEvaluator>();
+            HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
+
+            EvaluatorRegistry registry = new();
+            registry.AddCore(library.Id, () => library);
+            registry.AddCore(highlights.Id, () => highlights);
+
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights, roundFacts, roundIndex, suggestedTags, grenades],
+                registry.Resolve,
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                () => library.Tier2Backlog()
-                    .Concat(highlights.PendingPaths())
-                    .Concat(roundFacts.PendingPaths())
-                    .Concat(roundIndex.PendingPaths())
-                    .Concat(suggestedTags.PendingPaths())
-                    .Concat(grenades.PendingPaths())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-                sp.GetRequiredService<MergedRulesBuild>().Forget);
+                () => registry.Resolve().SelectMany(e => e.PendingPaths()).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                sp.GetRequiredService<MergedRulesBuild>().Forget,
+                registry.Validate);
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
-            roundIndex.Coordinator = coordinator;
-            suggestedTags.Coordinator = coordinator;
-            grenades.Coordinator = coordinator;
+
+            registry.AddPacksLazily(() =>
+            {
+                IFeatureGate? features = sp.GetService<IFeatureGate>();
+                foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
+                {
+                    IFeaturePack pack = contributions.Pack;
+                    foreach (EvaluatorContribution contribution in contributions.Evaluators)
+                    {
+                        // .Coordinator (where the evaluator type has one) is set by the evaluator's own DI
+                        // factory, not here: a wrapper assignment only runs once something has already
+                        // polled, but GrenadeIndexEvaluator can also be built earlier, through GrenadeIndex
+                        // at StartPacks time.
+                        registry.AddPackEvaluator(contribution.Id, contribution.Factory, contribution.After,
+                            () => features?.IsEnabled(pack.FeatureId) ?? true);
+                    }
+                }
+            });
+
             return coordinator;
         });
 
@@ -1229,13 +1252,8 @@ public class App : Application
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
             IFeaturePack pack = contributions.Pack;
-            // Nothing reads these yet. Refusing them keeps a pack from contributing into a void.
-            if (contributions.Evaluators.Count > 0)
-            {
-                throw new InvalidOperationException(
-                    $"Pack '{pack.Id}' contributed evaluators, which nothing consumes until the evaluator registry (item 11).");
-            }
-
+            // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory builds
+            // (item 11). Nothing reads job kinds yet; refusing them keeps a pack from contributing into a void.
             if (contributions.JobKinds.Count > 0)
             {
                 throw new InvalidOperationException(

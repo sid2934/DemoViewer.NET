@@ -7,6 +7,7 @@ using Avalonia.Reactive;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Library;
@@ -136,6 +137,19 @@ public class AppCompositionRootTests
             await Assert.That(coordinator.EvaluatorIds[4]).IsEqualTo("suggestedtags");
             // The grenade walk reads nothing the others write; last so it never delays one that does.
             await Assert.That(coordinator.EvaluatorIds[5]).IsEqualTo("grenades");
+
+            // The order came from the registry's resolve: confirm it actually built the four pack
+            // evaluators, not merely listed their ids.
+            StratBookPackInstances instances =
+                provider.GetRequiredService<StratBookPackInstances>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(instances.RoundFacts).IsNotNull();
+                await Assert.That(instances.RoundIndex).IsNotNull();
+                await Assert.That(instances.SuggestedTags).IsNotNull();
+                await Assert.That(instances.GrenadeWalk).IsNotNull();
+            }
+
             await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
                 .IsSameReferenceAs(coordinator);
             await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Coordinator)
@@ -146,6 +160,55 @@ public class AppCompositionRootTests
             await Assert.That(provider.GetRequiredService<Services.Tags.TagFactsRefresher>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
                 .IsSameReferenceAs(coordinator);
+        });
+    }
+
+    // The converse: with the pack off, the registry's gate keeps the four pack evaluators out of the
+    // resolved order, and their factories are never invoked. Never GetRequiredService a pack evaluator
+    // directly here, which would construct it regardless of the gate.
+    [Test]
+    public async Task EvaluatorFanOutOrder_WithThePackOff_IsOnlyLibraryAndHighlights_AndBuildsNothingPackOwned()
+    {
+        const string packOff = """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            Services.DemoProcessing.DemoEvaluationCoordinator coordinator =
+                provider.GetRequiredService<Services.DemoProcessing.DemoEvaluationCoordinator>();
+
+            await Assert.That(coordinator.EvaluatorIds).IsEquivalentTo(["library", "highlights"])
+                .Because("the pack is off: its four evaluators are never in the fan-out");
+
+            StratBookPackInstances instances =
+                provider.GetRequiredService<StratBookPackInstances>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(instances.RoundFacts).IsNull()
+                    .Because("the pack is off: Round Facts evaluator was never constructed, not merely excluded");
+                await Assert.That(instances.RoundIndex).IsNull()
+                    .Because("the pack is off: Round Index evaluator was never constructed, not merely excluded");
+                await Assert.That(instances.SuggestedTags).IsNull()
+                    .Because("the pack is off: Suggested Tags service was never constructed, not merely excluded");
+                await Assert.That(instances.GrenadeWalk).IsNull()
+                    .Because("the pack is off: Grenade Index evaluator was never constructed, not merely excluded");
+            }
+        }, packOff);
+    }
+
+    // RoundIndexEvaluator and GrenadeIndexEvaluator can be built through SituationIndex/GrenadeIndex, at
+    // StartPacks time, before the coordinator has ever polled. Their own factory must set .Coordinator;
+    // the registry's lazy wrapper is too late for this path.
+    [Test]
+    public async Task SituationIndexAndGrenadeIndex_SetTheirEvaluatorsCoordinator_WithoutEverPollingTheCoordinator()
+    {
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            Services.RoundIndex.SituationIndex _ = provider.GetRequiredService<Services.RoundIndex.SituationIndex>();
+            Modules.UtilityBook.GrenadeIndex __ = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>();
+
+            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
+                .IsNotNull();
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
+                .IsNotNull();
         });
     }
 

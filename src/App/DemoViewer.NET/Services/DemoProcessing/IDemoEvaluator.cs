@@ -83,6 +83,14 @@ public interface IDemoEvaluator
     long OrderHint(string path) => 0;
 
     /// <summary>
+    ///     Paths this evaluator still wants, read from the worker-readable backlog (never the UI-bound
+    ///     Entries collection). The coordinator's candidate universe on <see cref="IDemoProcessingQueue.CapacityAvailable" />
+    ///     is the union of every registered evaluator's snapshot. Default empty for an evaluator with no
+    ///     backlog of its own.
+    /// </summary>
+    IReadOnlyList<string> PendingPaths() => [];
+
+    /// <summary>
     ///     Opportunistic hand-off of a demo that is ALREADY parsed elsewhere (an interactive open, or
     ///     another evaluator's tier-2), routed via <see cref="DemoEvaluationCoordinator.FanOutParsed" />.
     ///     Unlike <see cref="Evaluate" /> this is NOT gated on <see cref="Wants" />: it is the "here is a

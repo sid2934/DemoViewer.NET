@@ -19,9 +19,13 @@ namespace DemoViewer.NET.Extensions;
 public sealed record JobKindDescriptor(string Id, string Label, int Rank, bool IsLight);
 
 /// <summary>An evaluator a pack adds to the demo fan-out, ordered after the evaluator ids it reads from.</summary>
-/// <param name="Factory">Builds or resolves the evaluator; invoked once when the fan-out is composed.</param>
+/// <param name="Id">
+///     The id the built evaluator reports through <see cref="IDemoEvaluator.Id" />. Declared up front so the
+///     fan-out order can be sorted and validated without constructing a disabled pack's evaluators.
+/// </param>
+/// <param name="Factory">Builds or resolves the evaluator; invoked only while the owning pack is enabled.</param>
 /// <param name="After">Evaluator ids whose writes this one reads in the same pass.</param>
-public sealed record EvaluatorContribution(Func<IDemoEvaluator> Factory, IReadOnlyList<string> After);
+public sealed record EvaluatorContribution(string Id, Func<IDemoEvaluator> Factory, IReadOnlyList<string> After);
 
 /// <summary>
 ///     A ruleset in the rules directories that a pack owns. The merged background build runs it only while
@@ -49,8 +53,11 @@ public interface IPackContributions
         Justification = "Module is the extension design's name for a workspace module contribution.")]
     void Module(IWorkspaceModule workspaceModule);
 
-    /// <summary>An evaluator on the demo fan-out, ordered after <paramref name="after" />.</summary>
-    void Evaluator(Func<IDemoEvaluator> factory, params string[] after);
+    /// <summary>
+    ///     An evaluator on the demo fan-out, reporting <paramref name="id" /> through
+    ///     <see cref="IDemoEvaluator.Id" />, ordered after <paramref name="after" />.
+    /// </summary>
+    void Evaluator(string id, Func<IDemoEvaluator> factory, params string[] after);
 
     /// <summary>A processing-queue job kind the pack owns.</summary>
     void JobKind(JobKindDescriptor kind);
