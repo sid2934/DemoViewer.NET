@@ -5,6 +5,7 @@ using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Settings;
 
@@ -14,8 +15,10 @@ namespace DemoViewer.NET.ViewModels.Setup;
 
 /// <summary>
 ///     Backs the first-run setup wizard: a short stepped flow (Welcome → pick a
-///     <b>category</b> → add demo <b>folders</b> → Done) that runs once on a fresh desktop install (no
-///     persisted <c>settings.json</c>) and is relaunchable from Settings. Derives from
+///     <b>category</b> → add demo <b>folders</b> → optional <b>extensions</b> → Done) that runs once on a
+///     fresh desktop install (no persisted <c>settings.json</c>) and is relaunchable from Settings. The
+///     Extensions step is OMITTED on a re-run from Settings (see <see cref="_includeExtensionsStep" />): an
+///     existing install never gets asked a question it already answered. Derives from
 ///     <see cref="ViewModelBase" /> so the app's <c>ViewLocator</c> resolves
 ///     <c>Views.Setup.FirstRunWizardView</c> for it (desktop window <em>and</em> the WASM overlay).
 ///     <para>
@@ -34,16 +37,43 @@ namespace DemoViewer.NET.ViewModels.Setup;
 /// </summary>
 public sealed partial class FirstRunWizardViewModel : ViewModelBase
 {
-    // 0 = Welcome, 1 = Category, 2 = Folders, 3 = Done. The last index is the Finish step.
-    private const int LastStep = 3;
+    // Welcome → Category → Folders → (Extensions, first run only) → Done. Extensions is left out of the
+    // list entirely for a re-run (see _includeExtensionsStep), which is what keeps every index before it
+    // stable: CurrentStep == 2 is always Folders, with or without the pack question after it.
+    private enum WizardStep
+    {
+        Welcome,
+        Category,
+        Folders,
+        Extensions,
+        Done
+    }
+
+    // Bespoke "what it adds / what it costs" copy for a known pack id. An id with no entry here falls
+    // back to its own catalog Description, so a second pack gets a question with no new code.
+    private static readonly Dictionary<string, string> _packCopy = new(StringComparer.Ordinal)
+    {
+        ["pack.stratbook"] =
+            "Strat Book adds strats, situations, tags, a utility book, team identity and round-facts "
+            + "indexing on top of the viewer. With it on, the app holds a few hundred MB of memory on a "
+            + "large library, and background indexing of your library takes noticeably longer. You can "
+            + "turn it off anytime in Settings."
+    };
 
     // The CS2 demos-folder lookup, run once at construction: the found "replays" folder (or null) plus the
     // Steam libraries actually searched. Drives the folders-step suggestion (found) or the not-found notice.
     private readonly Cs2DemosLookup _cs2Lookup;
 
+    // True only for a genuine first run (SettingsService.NeedsFirstRun at construction, before Finish/Skip
+    // can flip it) with at least one pack row to ask about. Captured once: a re-run from Settings must
+    // never show the step again (decision 2), whatever Finish/Skip does afterwards in THIS session.
+    private readonly bool _includeExtensionsStep;
+
+    private readonly WizardStep[] _steps;
+
     private readonly SettingsService _settings;
 
-    /// <summary>The current step index (0..3). Bound to the view's step-panel visibility + progress.</summary>
+    /// <summary>The current step index (0..the last step). Bound to the view's step-panel visibility + progress.</summary>
     [ObservableProperty]
     private int _currentStep;
 
@@ -71,7 +101,15 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     ///     Looks up the CS2 downloaded-demos folder (and what was searched) to offer on the folders step.
     ///     Defaults to the real <see cref="Cs2InstallLocator" />; injected in tests.
     /// </param>
-    public FirstRunWizardViewModel(SettingsService settings, Func<Cs2DemosLookup>? cs2DemosProbe = null)
+    /// <param name="packs">
+    ///     The <see cref="FeatureScope.Pack" /> rows the Extensions step asks about. Defaults to every such
+    ///     row in the live <see cref="FeatureCatalog" />; injected in tests so a case can exercise two
+    ///     questions without a second pack actually existing in the catalog.
+    /// </param>
+    public FirstRunWizardViewModel(
+        SettingsService settings,
+        Func<Cs2DemosLookup>? cs2DemosProbe = null,
+        IEnumerable<FeatureDescriptor>? packs = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
@@ -87,6 +125,30 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
             Folders.Add(folder);
         }
 
+        // Seeded from any existing override, else the catalog default for the user's CURRENT category
+        // (true for every category for pack.stratbook today). Built regardless of whether the step shows,
+        // since it is cheap and harmless when unused.
+        FeatureDescriptor[] packRows = [.. packs ?? FeatureCatalog.All.Where(d => d.Scope == FeatureScope.Pack)];
+        Dictionary<string, bool> overrides = current.Features.Overrides;
+        PackOptions =
+        [
+            .. packRows.Select(d => new PackOptionViewModel(
+                d.Id,
+                d.Label,
+                PackCopyFor(d),
+                overrides.TryGetValue(d.Id, out bool overridden) ? overridden : DefaultEnabled(d, current.UserCategory)))
+        ];
+
+        _includeExtensionsStep = settings.NeedsFirstRun && packRows.Length > 0;
+        List<WizardStep> steps = [WizardStep.Welcome, WizardStep.Category, WizardStep.Folders];
+        if (_includeExtensionsStep)
+        {
+            steps.Add(WizardStep.Extensions);
+        }
+
+        steps.Add(WizardStep.Done);
+        _steps = [.. steps];
+
         // Run the CS2 lookup once. The suggestion's added/addable state tracks the Folders list.
         _cs2Lookup = (cs2DemosProbe ?? Cs2InstallLocator.FindDemos)();
         SearchedDirectories = _cs2Lookup.SearchedDirectories;
@@ -96,6 +158,14 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
             OnPropertyChanged(nameof(CanAddDetectedFolder));
         };
     }
+
+    // An unlisted pack id falls back to its own catalog Description (generic, one-line), so a second
+    // pack still gets a question with no new code here.
+    private static string PackCopyFor(FeatureDescriptor pack) =>
+        _packCopy.TryGetValue(pack.Id, out string? copy) ? copy : pack.Description;
+
+    private static bool DefaultEnabled(FeatureDescriptor pack, UserCategory category) =>
+        pack.Defaults.TryGetValue(category, out bool enabled) && enabled;
 
     /// <summary>The auto-detected CS2 downloaded-demos folder, or null when none was found.</summary>
     public string? DetectedDemosFolder => _cs2Lookup.DemosDirectory;
@@ -135,6 +205,13 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     public ObservableCollection<string> Folders { get; } = [];
 
     /// <summary>
+    ///     One row per <see cref="FeatureScope.Pack" /> descriptor in the catalog, each a bindable
+    ///     on/off answer for the Extensions step. Applied to <c>AppSettings.Features.Overrides</c> on
+    ///     <see cref="Finish" /> only when <see cref="IsExtensionsStep" /> is reachable this run.
+    /// </summary>
+    public IReadOnlyList<PackOptionViewModel> PackOptions { get; }
+
+    /// <summary>
     ///     Whether the folder picker is available. The browser sandbox has no OS folder picker, so Add is
     ///     disabled there (the folders step is optional anyway).
     /// </summary>
@@ -144,17 +221,27 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     public UserCategory SelectedCategory => SelectedCategoryOption.Value;
 
     // ── Step-driven view state (raised together in OnCurrentStepChanged) ──────────────────────────
-    /// <summary>True on the Welcome step (0).</summary>
-    public bool IsWelcomeStep => CurrentStep == 0;
+    /// <summary>True on the Welcome step (always index 0).</summary>
+    public bool IsWelcomeStep => CurrentStepKind == WizardStep.Welcome;
 
-    /// <summary>True on the pick-your-category step (1).</summary>
-    public bool IsCategoryStep => CurrentStep == 1;
+    /// <summary>True on the pick-your-category step (always index 1).</summary>
+    public bool IsCategoryStep => CurrentStepKind == WizardStep.Category;
 
-    /// <summary>True on the add-your-folders step (2).</summary>
-    public bool IsFoldersStep => CurrentStep == 2;
+    /// <summary>True on the add-your-folders step (always index 2).</summary>
+    public bool IsFoldersStep => CurrentStepKind == WizardStep.Folders;
 
-    /// <summary>True on the Done step (3).</summary>
-    public bool IsDoneStep => CurrentStep == LastStep;
+    /// <summary>
+    ///     True on the optional-extensions step, present only on a genuine first run with at least one
+    ///     <see cref="FeatureScope.Pack" /> row (see <see cref="_includeExtensionsStep" />).
+    /// </summary>
+    public bool IsExtensionsStep => CurrentStepKind == WizardStep.Extensions;
+
+    /// <summary>True on the Done step (the last index, wherever Extensions landed it).</summary>
+    public bool IsDoneStep => CurrentStepKind == WizardStep.Done;
+
+    private int LastStep => _steps.Length - 1;
+
+    private WizardStep CurrentStepKind => _steps[Math.Clamp(CurrentStep, 0, _steps.Length - 1)];
 
     /// <summary>Back is offered on every step past the first.</summary>
     public bool CanGoBack => CurrentStep > 0;
@@ -195,6 +282,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsWelcomeStep));
         OnPropertyChanged(nameof(IsCategoryStep));
         OnPropertyChanged(nameof(IsFoldersStep));
+        OnPropertyChanged(nameof(IsExtensionsStep));
         OnPropertyChanged(nameof(IsDoneStep));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(ShowNext));
@@ -292,6 +380,17 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         {
             s.UserCategory = SelectedCategoryOption.Value;
             s.Library.Folders = Folders.ToArray();
+            if (_includeExtensionsStep)
+            {
+                // Written explicitly either way, the same as the two lines above: an accepted default
+                // lands as an explicit "on" override rather than an absent key, so a later change to the
+                // pack's own catalog default can never flip an install that already answered this.
+                foreach (PackOptionViewModel option in PackOptions)
+                {
+                    s.Features.Overrides[option.FeatureId] = option.Enabled;
+                }
+            }
+
             s.FirstRunCompleted = true;
         });
         // Honour the Done-page opt-in only on Finish; the host reads this after Completed to start the tour.
@@ -324,5 +423,34 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         }
 
         return Categories[1]; // PowerUser: the default tier
+    }
+}
+
+/// <summary>
+///     One <see cref="FeatureScope.Pack" /> catalog row the Extensions step asks about: a bindable
+///     on/off answer for its CheckBox, seeded from the current override (else the catalog default) and
+///     written to <c>AppSettings.Features.Overrides[FeatureId]</c> on <see cref="FirstRunWizardViewModel.Finish" />.
+/// </summary>
+public sealed partial class PackOptionViewModel : ObservableObject
+{
+    /// <summary>The pack's umbrella gate id (e.g. <c>"pack.stratbook"</c>), the persisted override key.</summary>
+    public string FeatureId { get; }
+
+    /// <summary>The pack's catalog label, shown as the question's title.</summary>
+    public string Title { get; }
+
+    /// <summary>One paragraph of what-it-adds / what-it-costs copy.</summary>
+    public string Copy { get; }
+
+    /// <summary>The user's answer: on turns the pack on. Bound TwoWay to the step's CheckBox.</summary>
+    [ObservableProperty]
+    private bool _enabled;
+
+    public PackOptionViewModel(string featureId, string title, string copy, bool enabled)
+    {
+        FeatureId = featureId;
+        Title = title;
+        Copy = copy;
+        _enabled = enabled;
     }
 }
