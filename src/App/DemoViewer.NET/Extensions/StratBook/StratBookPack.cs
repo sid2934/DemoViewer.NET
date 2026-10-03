@@ -537,18 +537,29 @@ public sealed class StratBookPack : IFeaturePack
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here
         // constructs one. The order is the shell's registration order and is pinned by a test.
 
-        // The Situations tab. The badge reads Watched Situations through a lazy accessor: Contribute runs
-        // regardless of the pack's gate, so an eager resolve here would build the index and Team Identity
-        // every launch. The module calls the accessor only once its own VM factory has run.
+        // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
+        // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
+        // (Contribute runs inside BuildServiceProvider, before App.Services is assigned), and resolving
+        // WatchedSituationsService unconditionally would build it (and, through its own ctor, the
+        // situation index and Team Identity) on every launch regardless of the pack's gate.
+        IFeatureGate? situationsGate = sp.GetService<IFeatureGate>();
+        bool situationsOn = situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false;
         contributions.Module(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
-            sp.GetRequiredService<WatchedSituationsService>));
+            situationsOn ? sp.GetRequiredService<WatchedSituationsService>() : null,
+            enabled: () => situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false,
+            gate: situationsGate));
 
         // The Teams tab, hosted inside the Library.
         contributions.Module(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
 
-        // The Review tab. Same lazy-accessor shape as Situations, so Contribute never forces the queue.
+        // The Review tab. Same gated-resolve shape as Situations: ReviewQueue is core (Reels uses it too),
+        // but resolving it here regardless of the gate still queued its startup load on every launch.
+        IFeatureGate? reviewGate = sp.GetService<IFeatureGate>();
+        bool reviewOn = reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false;
         contributions.Module(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
-            sp.GetRequiredService<ReviewQueue>));
+            reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
+            enabled: () => reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false,
+            gate: reviewGate));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.
         // enabled/gate read sp directly, not the App.Services locator: Contribute runs inside
