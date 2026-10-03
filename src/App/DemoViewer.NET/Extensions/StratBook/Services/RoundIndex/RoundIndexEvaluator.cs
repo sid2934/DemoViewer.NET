@@ -329,13 +329,18 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             _store.WritePositions(path, build.Positions);
             _store.Write(path, document);
 
-            long computedAt = DateTime.UtcNow.Ticks;
-            _demoCache.UpdateExisting(path, r => r.SetStamp(
-                new PackStamp(EvaluatorId, StratBookCache.RoundIndexSchema, fingerprint)
+            // Stamped inside the mutate, under the store's read-modify-write lock, so the time is the persist time.
+            long computedAt = 0;
+            _demoCache.UpdateExisting(path, r =>
+            {
+                PackStamp stamp = new(EvaluatorId, StratBookCache.RoundIndexSchema, fingerprint)
                 {
-                    ComputedAtTicks = computedAt,
+                    ComputedAtTicks = DateTime.UtcNow.Ticks,
                     Count = document.RowCount
-                }));
+                };
+                r.SetStamp(stamp);
+                computedAt = stamp.ComputedAtTicks;
+            });
             _demoCache.SaveIndex();
 
             RoundIndexedEvent indexed = new(path, document.Demo.StableKey, record.Sha256, document.Map, computedAt);
