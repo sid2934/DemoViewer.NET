@@ -598,15 +598,24 @@ public interface IPlaybackSurface
         ModeToggle? mode = null);                                  // shown while open, gate on and the mode on
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
     IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
-    // Temporary, each named for the item that removes it:
-    Scene2DFrame CurrentFrame { get; }                             // item 20: Click To Tag resolves against the frame
-    PlaceResolver? Zones { get; }                                  // item 20
-    IDisposable AddMapClickHandler(Func<MapLevel, double, double, bool> handler);  // item 20 replaces with AddPointerPreHandler
+    IDisposable AddToolbarItem(ToolbarItem item);                                 // the toolbar and the overflow menu both list it
+    IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);           // before the tool router, on a primary press not diverted to pan
+    string GestureHint(Playback2DAction action);                                  // " (Ctrl+F)" under Keymap, or "" unbound
     // Not built yet, in the order the items need them:
-    void AddToolbarItem(ToolbarItem item);                                                      // item 20
-    void AddPointerPreHandler(Func<ScenePointer, bool> handler);                                // item 20, Click To Tag
     void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
     void AddTool(IPointerTool tool);                                                            // later; token
+}
+
+public sealed record ScenePointer(MapLevel Level, double WorldX, double WorldY, SKPoint Screen,
+    ToolModifiers Modifiers, Scene2DFrame Frame, Func<PlaceResolver?> Zones);   // Zones is lazy: read only if a handler asks
+
+public sealed class ToolbarItem   // a button a contribution adds; also an overflow-menu entry
+{
+    public ToolbarItem(string id, string label, string tooltip, Func<Scene2DFrame, bool> run,
+        Playback2DAction? action = null, int order = 0, string? icon = null);
+    public string Label { get; set; }        // mutable: the owner refreshes it on KeymapChanged
+    public string Tooltip { get; set; }
+    public ICommand? Command { get; }         // wired by AddToolbarItem; what the view binds
 }
 
 public interface ILaneBehaviour   // what a lane does; the timeline dispatches to the lane whose track made the band
@@ -692,9 +701,6 @@ a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the 
 tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
 Review toggle and never collapses the cards.
 
-Three members are temporary and named for the item that removes them: `CurrentFrame`, `Zones` and
-`AddMapClickHandler` (item 20). Click To Tag Position resolves the clicked point in the pack against the frame
-on screen and the map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer.
 The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus off) on two
 signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which the tab
 raises before it flushes its documents (the contribution flushes its own session there), and
@@ -772,6 +778,41 @@ view used to carry inline; open while either gate is on) and the queue (order 2,
 `playback2d.suggestedtags`, its view shown while the Suggested tab is selected). The persisted palette choice
 and the background-sweep opt-in move with it. Pack off builds nothing; the host attaches and detaches it live,
 and `Detach` disposes the three view models after writing the palette's pending tag.
+
+As built by item 20 (`Extensions/ScenePointer.cs`, `Extensions/ToolbarItem.cs`, `Extensions/IPlaybackSurface.cs`,
+`Modules/Playback2D/ISceneFrameHost.cs`, `Modules/Playback2D/Scene2DHost.cs`): `CurrentFrame`, `Zones` and
+`AddMapClickHandler` are gone from the surface, and so is the tab's `TryTagPositionAt` forwarder to
+`Surface.TryHandleMapClick`. `ISceneFrameHost` itself keeps `CurrentFrame` and `Zones` (the zone-outline overlay
+and the strat canvas's own `TryTagPositionAt` still read them) but trades its one-off `TryTagPositionAt(level,
+x, y)` for a default-`false` `TryPointerPreHandler(ScenePointer pointer)`; `Scene2DHost.OnPointerPressed` builds
+one `ScenePointer` per primary press not diverted to pan (Space, Ctrl, the middle button) and offers it to the
+bound host before the router. `Playback2DTabViewModel` forwards its `TryPointerPreHandler` to
+`Surface.TryHandlePointerPress`, which tries every `AddPointerPreHandler` registration in order; the strat
+canvas implements it as `ISceneFrameHost.TryPointerPreHandler(pointer) => TryTagPositionAt(pointer.Level,
+pointer.WorldX, pointer.WorldY)`, an explicit forwarder that keeps its own public `TryTagPositionAt` (Set On
+Map) exactly as the ~30 strat canvas tests call it. `ScenePointer.Zones` is a `Func<PlaceResolver?>`, not a
+value: the review contribution's old `OnMapClick` read `surface.Zones` only after the focus checks passed, and
+an eager field would force `LoadedMapAsset.ZoneLoad` on every pan click instead.
+
+`AddToolbarItem` and the overflow menu's entries read the same `Surface.ToolbarItems` list
+(`Playback2DSurface`, ordered by `ToolbarItem.Order`); `Playback2DView.axaml` renders it in the slot the
+static "Rounds like this" `Button` held, and `Playback2DView.axaml.cs` rebuilds the overflow `MenuItem`s from
+it on every open, after the divider `Separator` (`IsVisible="{Binding Surface.HasToolbarItems}"`, as the toolbar
+row's own divider is). `TryExecute` tries a `ModeToggle` whose `Action` matches first, then a `ToolbarItem`
+whose `Action` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
+and the keymap action are one funnel. The Situations contribution
+(`Extensions/StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers "Find rounds like this"
+with that funnel (`Playback2DAction.FindRoundsLikeThis`), its `Run` resolving `IFindRoundsLikeThis` through
+`context.GetService<T>()` as `TryFindRoundsLikeThis` used to from `App.Services`; the item is added only while
+`IModuleContext.MapName` is non-empty (checked at attach, for a live pack toggle with a demo already open, and
+on every `OnDemoChanged`) and removed when it closes, so "available only with a demo and a map name" is now
+presence, not just a silent refusal. Its label and tooltip read `IPlaybackSurface.GestureHint`, the same text
+`FindRoundsLikeThisLabel`/`FindRoundsLikeThisToolTip` built, and refresh on `KeymapChanged`. J/K
+(`NextSituationResult`/`PrevSituationResult`) move to the same contribution through `AddActionHandler` (item
+17's seam), gated by the Situations tab's own feature exactly as the tab gated them. The tab's `FindRounds`,
+`SituationResults`, `IsSituationResultWalkEnabled`, the two label/tooltip properties, `FindRoundsLikeThisCommand`,
+`TryFindRoundsLikeThis`, the tab's private `GestureHint` and `using DemoViewer.NET.Modules.Situations` are gone;
+`PackBoundaryTests` lists no item-20 edge for `Playback2DTabViewModel.cs`.
 
 `AddLayer` and `AddTool` exist for completeness and for (b). For (a), the token tool and guides layer can
 stay core-registered: they are inert without a strat frame host and cost nothing. Code keeps the word
