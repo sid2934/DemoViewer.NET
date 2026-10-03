@@ -132,6 +132,104 @@ public class SessionPackStateTests
     }
 
     [Test]
+    public async Task OldFile_AfterSave_WritesThePacksShapeAndKeepsOtherSessionFields()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), """
+                {
+                  "Session": {
+                    "DebuggerVisible": true,
+                    "OutputVisible": true,
+                    "ActiveTabId": "stratbook.browser",
+                    "ModuleTabs": { "builtin.parser": { "Hex": true } },
+                    "Window": { "Width": 1280.0, "Height": 720.0, "X": null, "Y": null, "Maximized": false },
+                    "StratBook": { "RailCollapsed": true, "ListCollapsed": false }
+                  }
+                }
+                """);
+
+            SettingsService svc = new(dir);
+            SessionPayload? loaded = svc.LoadSession();
+            svc.SaveSession(loaded!);
+
+            using JsonDocument doc = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(dir, "settings.json")));
+            JsonElement session = doc.RootElement.GetProperty("Session");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.TryGetProperty("StratBook", out _)).IsFalse()
+                    .Because("a re-save after the fold writes the new shape, never the legacy one");
+                await Assert.That(session.GetProperty("Packs").GetProperty(StratBookPack.PackId)
+                    .GetProperty("RailCollapsed").GetBoolean()).IsTrue();
+                await Assert.That(session.GetProperty("ActiveTabId").GetString()).IsEqualTo("stratbook.browser");
+                await Assert.That(session.GetProperty("ModuleTabs").GetProperty("builtin.parser")
+                    .GetProperty("Hex").GetBoolean()).IsTrue();
+                await Assert.That(session.GetProperty("Window").GetProperty("Width").GetDouble()).IsEqualTo(1280.0);
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task OldFile_WithTopLevelStratBookAsNull_FoldsNothing_AndDoesNotThrow()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), """
+                {
+                  "Session": {
+                    "DebuggerVisible": false,
+                    "OutputVisible": false,
+                    "StratBook": null
+                  }
+                }
+                """);
+
+            SessionPayload? loaded = new SettingsService(dir).LoadSession();
+
+            await Assert.That(loaded).IsNotNull();
+            await Assert.That(loaded!.Packs).IsNull();
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task OldFile_WithTopLevelStratBookAsANumber_FoldsNothing_AndDoesNotThrow()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), """
+                {
+                  "Session": {
+                    "DebuggerVisible": false,
+                    "OutputVisible": false,
+                    "StratBook": 42
+                  }
+                }
+                """);
+
+            SessionPayload? loaded = new SettingsService(dir).LoadSession();
+
+            await Assert.That(loaded).IsNotNull();
+            await Assert.That(loaded!.Packs).IsNull();
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
     public async Task UnreadablePackBlob_RoundTripsWithoutThrowing()
     {
         string dir = NewTempDir();
