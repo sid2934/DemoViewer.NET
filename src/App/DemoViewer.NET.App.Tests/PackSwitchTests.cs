@@ -1,7 +1,9 @@
 #region
 
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -163,6 +165,7 @@ public class PackSwitchTests
     {
         public string Id => "net.demoviewer.pack.fake";
         public string FeatureId => "pack.fake";
+        public ExtensionManifest Manifest => FakeManifests.For(Id);
         public IEnumerable<FeatureDescriptor> Features => [];
 
         public void Register(IServiceCollection services)

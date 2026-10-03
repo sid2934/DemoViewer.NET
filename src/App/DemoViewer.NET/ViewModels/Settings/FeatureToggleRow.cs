@@ -73,9 +73,19 @@ public sealed partial class FeatureToggleRow : ObservableObject
     [NotifyPropertyChangedFor(nameof(LockHint))]
     private bool _isDeleteBusy;
 
+    /// <param name="owner">The settings view model that persists this row's overrides.</param>
+    /// <param name="gate">The live gate; the source of truth for <see cref="IsEnabled" />.</param>
+    /// <param name="descriptor">The catalog row.</param>
+    /// <param name="indentLevel">Nesting depth for the indent.</param>
+    /// <param name="platformUnavailable">True when the feature cannot exist on this host.</param>
+    /// <param name="version">The extension's version from its manifest; a pack master row only.</param>
+    /// <param name="incompatibility">
+    ///     Why the extension cannot load on this app (<c>PackStatus.Problem</c>), or null. A row with one is
+    ///     locked off: its pack composed nothing, so no override could take effect.
+    /// </param>
     internal FeatureToggleRow(
         SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
-        bool platformUnavailable = false)
+        bool platformUnavailable = false, string? version = null, string? incompatibility = null)
     {
         _owner = owner;
         _gate = gate;
@@ -87,6 +97,8 @@ public sealed partial class FeatureToggleRow : ObservableObject
         IsRequired = descriptor.Required;
         IsPlatformUnavailable = platformUnavailable;
         OwnerPackId = descriptor.OwnerPackId;
+        Version = version;
+        Incompatibility = incompatibility;
 
         // A grouped feature toggles atomically from its LEADER (the gate resolves every member's own-state
         // from the leader). So a NON-leader member's own override is inert. The row must not offer an
@@ -149,31 +161,52 @@ public sealed partial class FeatureToggleRow : ObservableObject
     /// </summary>
     public string? OwnerPackId { get; }
 
+    /// <summary>The extension's version (its manifest's), shown beside a pack master row's label; null elsewhere.</summary>
+    public string? Version { get; }
+
+    /// <summary>Whether <see cref="Version" /> is set.</summary>
+    public bool HasVersion => Version is not null;
+
+    /// <summary>
+    ///     Why this extension cannot load on this app, in user terms, or null when it can. Set only on the
+    ///     master row of a pack that failed the compatibility check (item 33), which Settings synthesizes
+    ///     since such a pack has no catalog row.
+    /// </summary>
+    public string? Incompatibility { get; }
+
+    /// <summary>Whether <see cref="Incompatibility" /> is set.</summary>
+    public bool IsIncompatible => Incompatibility is not null;
+
     /// <summary>
     ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor
-    ///     unavailable on this platform, nor a pack child whose pack is currently off.
+    ///     unavailable on this platform, nor an incompatible extension, nor a pack child whose pack is
+    ///     currently off.
     /// </summary>
-    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable && IsPackEnabled && !IsDeleteBusy;
+    public bool IsInteractive =>
+        !IsRequired && !IsGroupFollower && !IsPlatformUnavailable && !IsIncompatible && IsPackEnabled && !IsDeleteBusy;
 
     /// <summary>Whether a locked-state hint chip should show.</summary>
-    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable || !IsPackEnabled || IsDeleteBusy;
+    public bool HasLockHint =>
+        IsRequired || IsGroupFollower || IsPlatformUnavailable || IsIncompatible || !IsPackEnabled || IsDeleteBusy;
 
     /// <summary>
     ///     The locked-state hint text. The platform answer comes FIRST: it is the one the user cannot
     ///     change from anywhere, so telling them "required" or "follows X" would send them looking for a
-    ///     lever that would not help.
+    ///     lever that would not help. An incompatible extension is the same kind of answer.
     /// </summary>
     public string LockHint => IsPlatformUnavailable
         ? "unavailable in the browser"
-        : IsRequired
-            ? "required"
-            : IsGroupFollower
-                ? $"follows {FollowsLabel}"
-                : !IsPackEnabled
-                    ? "extension is off"
-                    : IsDeleteBusy
-                        ? "deleting extension data"
-                        : string.Empty;
+        : IsIncompatible
+            ? "incompatible"
+            : IsRequired
+                ? "required"
+                : IsGroupFollower
+                    ? $"follows {FollowsLabel}"
+                    : !IsPackEnabled
+                        ? "extension is off"
+                        : IsDeleteBusy
+                            ? "deleting extension data"
+                            : string.Empty;
 
     /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome" / "Extension").</summary>
     public string ScopeLabel => Scope switch
@@ -199,7 +232,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
             // A platform-unavailable row shows OFF regardless of what the raw gate answers: the gate
             // resolves catalog + override and does not know the host, and this row has to agree with
             // what the module will actually see through ShellModuleFeatureGate.
-            IsEnabled = !IsPlatformUnavailable && gate.IsEnabled(FeatureId);
+            IsEnabled = !IsPlatformUnavailable && !IsIncompatible && gate.IsEnabled(FeatureId);
             IsOverridden = overrides is not null && overrides.ContainsKey(FeatureId);
             IsPackEnabled = OwnerPackId is null || gate.IsEnabled(OwnerPackId);
         }
@@ -216,11 +249,12 @@ public sealed partial class FeatureToggleRow : ObservableObject
             return; // a gate-driven refresh, not a user toggle: never persist it back.
         }
 
-        if (IsPlatformUnavailable)
+        if (IsPlatformUnavailable || IsIncompatible)
         {
             // Locked the hardest of the three: no override the user could write would make the module's
             // own gate answer true here, so persisting one would be a preference that can never take
-            // effect and would then follow them to a desktop head where they never asked for it.
+            // effect and would then follow them to a desktop head where they never asked for it. An
+            // incompatible extension composed nothing, so an override for it is just as inert.
             _applyingRefresh = true;
             try
             {

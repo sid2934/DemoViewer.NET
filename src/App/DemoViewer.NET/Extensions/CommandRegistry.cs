@@ -56,8 +56,8 @@ public sealed class CommandRegistry
     /// </summary>
     public IReadOnlyList<string> Conflicts { get; }
 
-    /// <summary>Built once from the compiled-in pack list (<see cref="FeaturePacks.Default" />).</summary>
-    public static CommandRegistry Default { get; } = Build(FeaturePacks.Default);
+    /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
+    public static CommandRegistry Default { get; } = Build(FeaturePacks.Compatible);
 
     /// <summary>
     ///     Looks up a pack command by the <see cref="Playback2DAction" /> its id parses to. Used by the

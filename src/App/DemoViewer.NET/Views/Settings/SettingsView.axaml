@@ -22,6 +22,11 @@
                                        Foreground="{DynamicResource TextChainBadge}"
                                        Text="{Binding ScopeLabel}" />
                         </Border>
+                        <TextBlock Classes="mono" Text="{Binding Version}" FontSize="9"
+                                   Foreground="{DynamicResource TextDim}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding HasVersion}"
+                                   ToolTip.Tip="The extension's version, from its manifest." />
                         <TextBlock Text="{Binding LockHint}" FontSize="9"
                                    Foreground="{DynamicResource TextDim}"
                                    VerticalAlignment="Center"
@@ -35,6 +40,12 @@
                     <TextBlock Text="{Binding Description}"
                                Foreground="{DynamicResource TextDim}" FontSize="10"
                                TextWrapping="Wrap" />
+                    <!-- Item 33: why an extension did not load. Only a pack master row that failed the
+                         compatibility check sets it; the toggle above it is locked off. -->
+                    <TextBlock Text="{Binding Incompatibility}"
+                               Foreground="{DynamicResource AccentError}" FontSize="10"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding IsIncompatible}" />
                 </StackPanel>
                 <Button Grid.Column="1" Classes="icon-btn" Content="↺"
                         VerticalAlignment="Center"

@@ -7,8 +7,10 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
@@ -61,7 +63,8 @@ public class SettingsViewModelTests
     // registered in the container so the provider disposes it. reindexEstimate is the item 14 test seam
     // for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
-        string dir, IPackReindexEstimate? reindexEstimate = null, IPackDataRemoval? dataRemoval = null)
+        string dir, IPackReindexEstimate? reindexEstimate = null, IPackDataRemoval? dataRemoval = null,
+        IReadOnlyList<PackStatus>? packStatuses = null)
     {
         SettingsService svc = new(dir);
         ServiceCollection services = new();
@@ -72,7 +75,8 @@ public class SettingsViewModelTests
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
-            null, null, reindexEstimate is null ? null : [reindexEstimate], dataRemoval is null ? null : [dataRemoval]);
+            null, null, reindexEstimate is null ? null : [reindexEstimate], dataRemoval is null ? null : [dataRemoval],
+            packStatuses);
         return (vm, svc, gate, sp);
     }
 
@@ -988,6 +992,92 @@ public class SettingsViewModelTests
 
                 await Assert.That(child.IsInteractive).IsTrue().Because("unlocked live once the pack is back on");
                 await Assert.That(child.IsEnabled).IsTrue();
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Item 33: the master row carries the manifest version (from FeaturePacks.Statuses by default), its
+    // children none.
+    [Test]
+    public async Task ExtensionMasterRow_ShowsTheManifestVersion()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                FeatureToggleRow child = Row(vm, "tab.situations");
+                using (Assert.Multiple())
+                {
+                    await Assert.That(master.Version).IsEqualTo(new StratBookPack().Manifest.Version.ToString());
+                    await Assert.That(master.HasVersion).IsTrue();
+                    await Assert.That(master.IsIncompatible).IsFalse();
+                    await Assert.That(master.IsInteractive).IsTrue();
+                    await Assert.That(child.HasVersion).IsFalse();
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Item 33: a pack that failed the compatibility check has no catalog row, so Settings synthesizes a
+    // locked master row from its status: off, not interactive, the "incompatible" lock hint, the reason in
+    // user terms, searchable by name, and a stray set writes no override.
+    [Test]
+    public async Task IncompatibleExtension_GetsALockedRow_WithTheReason()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+            PackCompatibilityTests.ManifestPack pack = new("net.demoviewer.pack.future",
+                FakeManifests.For("net.demoviewer.pack.future", "Future Book", "1.2.0", "^2.0", "*"));
+            PackStatus status = PackStatus.Evaluate(pack, host);
+            PackStatus[] statuses = [.. FeaturePacks.Statuses, status];
+
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, packStatuses: statuses);
+            using (sp)
+            {
+                FeatureToggleRow row = Row(vm, pack.FeatureId);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(row.Label).IsEqualTo("Future Book");
+                    await Assert.That(row.Version).IsEqualTo("1.2.0");
+                    await Assert.That(row.Scope).IsEqualTo(FeatureScope.Pack);
+                    await Assert.That(row.IsIncompatible).IsTrue();
+                    await Assert.That(row.Incompatibility).IsEqualTo("Future Book 1.2.0 needs app contract ^2.0; this app provides 1.0.0");
+                    await Assert.That(row.IsEnabled).IsFalse();
+                    await Assert.That(row.IsInteractive).IsFalse();
+                    await Assert.That(row.HasLockHint).IsTrue();
+                    await Assert.That(row.LockHint).IsEqualTo("incompatible");
+                    await Assert.That(Row(vm, StratBookPack.PackFeatureId).IsInteractive).IsTrue()
+                        .Because("the compatible extension is unaffected");
+                }
+
+                row.IsEnabled = true; // stray programmatic set while locked: must not persist
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(row.IsEnabled).IsFalse();
+                    await Assert.That(svc.Current.Features.Overrides.ContainsKey(pack.FeatureId)).IsFalse()
+                        .Because("an override for an extension that composed nothing is inert");
+                }
+
+                vm.SettingsFilterText = "Future Book";
+                await Assert.That(vm.ShowSectionExtensions).IsTrue().Because("the synthesized row is searchable by its name");
 
                 vm.Dispose();
             }

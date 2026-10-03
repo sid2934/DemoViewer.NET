@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Features;
 /// <summary>
 ///     The single source of truth for the set of gatable features and their per-category default
 ///     visibility: the core descriptors below plus every <see cref="IFeaturePack.Features" />, composed once
-///     by <see cref="Compose" /> (or from <see cref="FeaturePacks.Default" /> on first use) and immutable
+///     by <see cref="Compose" /> (or from <see cref="FeaturePacks.Compatible" /> on first use) and immutable
 ///     after. <see cref="IFeatureGate" /> resolves a live on/off decision from these descriptors plus the
 ///     user's category and explicit overrides; nothing else defines a feature.
 ///     <para>
@@ -345,7 +345,7 @@ public static class FeatureCatalog
         return all;
     }
 
-    // The composed catalog, composing from the default pack list when nothing composed it first.
+    // The composed catalog, composing from the compatible pack list when nothing composed it first.
     private static FeatureDescriptor[] Composed
     {
         get
@@ -355,7 +355,7 @@ public static class FeatureCatalog
                 return all;
             }
 
-            Compose(FeaturePacks.Default);
+            Compose(FeaturePacks.Compatible);
             return _all!;
         }
     }
