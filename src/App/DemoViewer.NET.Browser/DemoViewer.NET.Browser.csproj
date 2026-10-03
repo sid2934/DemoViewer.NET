@@ -62,5 +62,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
+        <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
     </ItemGroup>
 </Project>
