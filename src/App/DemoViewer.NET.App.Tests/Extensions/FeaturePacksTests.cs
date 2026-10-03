@@ -1,7 +1,12 @@
 #region
 
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Features;
+using DemoViewer.NET.Services.DemoProcessing;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -100,6 +105,116 @@ public class FeaturePacksTests
             Assert.Throws<InvalidOperationException>(() => FeaturePacks.Configure([]));
             await Assert.That(FeaturePacks.ConfigureIfUnset([])).IsFalse();
             await Assert.That(FeaturePacks.Default.Select(p => p.FeatureId)).IsEquivalentTo([StratBookPack.PackFeatureId]);
+        }
+    }
+
+    // ── Item 33: the compatibility check runs at configuration ─────────────────────────────────────
+
+    [Test]
+    public async Task TheShippedPack_IsCompatibleWithThisBuild_SoCompatibleEqualsDefault()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(FeaturePacks.Statuses.Count).IsEqualTo(1);
+            await Assert.That(FeaturePacks.Statuses[0].IsCompatible).IsTrue().Because(FeaturePacks.Statuses[0].Problem ?? "compatible");
+            await Assert.That(FeaturePacks.Statuses[0].Manifest!.Id).IsEqualTo(StratBookPack.PackId);
+            await Assert.That(FeaturePacks.Compatible).IsEquivalentTo(FeaturePacks.Default);
+        }
+    }
+
+    // The check is pure over (packs, host), so it is proven here on fakes against a fixed host; the static
+    // only applies it inside Configure. An incompatible pack stays in the declared list (so Settings can
+    // name it) and leaves the compatible one, which is all the catalog, the registries and the composition
+    // root read: none of them sees its descriptors, job kinds or commands. The real Strat Book pack rides
+    // along because the job-kind registry must cover every QueueJobKind to build at all.
+    [Test]
+    public async Task AnIncompatiblePack_IsDeclaredButNotCompatible_AndNothingBuiltFromCompatibleSeesIt()
+    {
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        IncompatibleFakePack incompatible = new();
+        StratBookPack stratBook = new();
+
+        IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, stratBook], host);
+        IReadOnlyList<IFeaturePack> declared = [.. statuses.Select(s => s.Pack)];
+        IReadOnlyList<IFeaturePack> compatible = [.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(declared.Select(p => p.Id)).IsEquivalentTo([incompatible.Id, stratBook.Id]);
+            await Assert.That(compatible.Select(p => p.Id)).IsEquivalentTo([stratBook.Id]);
+            await Assert.That(statuses[0].Compatibility is PackCompatibility.HostContractMismatch).IsTrue();
+            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.0.0");
+
+            FeatureDescriptor[] catalog = FeatureCatalog.Build(compatible);
+            await Assert.That(catalog.Any(d => d.Id == IncompatibleFakePack.PackFeatureId)).IsFalse()
+                .Because("the gate then reads the pack id as unknown and resolves it off");
+            await Assert.That(catalog.Any(d => d.Id == StratBookPack.PackFeatureId)).IsTrue();
+
+            // Its job kind collides with a core kind and its command names no action, so either registry
+            // built over the declared list throws, and built over the compatible list does not: neither
+            // ever saw it.
+            Assert.Throws<InvalidOperationException>(() => JobKindRegistry.Build(declared));
+            _ = JobKindRegistry.Build(compatible);
+            Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build(declared));
+            _ = CommandRegistry.Build(compatible);
+        }
+    }
+
+    // Whichever derived view a consumer reads first, the verdicts were fixed by Set, so the two views
+    // agree and a configuration after either read is refused as before.
+    [Test]
+    public async Task TheDerivedViews_AgreeInEitherReadOrder_AndFreezeOnFirstRead()
+    {
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        IncompatibleFakePack incompatible = new();
+        PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
+
+        FrozenList<PackStatus> compatibleFirst = new();
+        compatibleFirst.Set(PackStatus.Evaluate([incompatible, fine], host));
+        IReadOnlyList<IFeaturePack> c1 = [.. compatibleFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IFeaturePack> d1 = [.. compatibleFirst.Value.Select(s => s.Pack)];
+
+        FrozenList<PackStatus> defaultFirst = new();
+        defaultFirst.Set(PackStatus.Evaluate([incompatible, fine], host));
+        IReadOnlyList<IFeaturePack> d2 = [.. defaultFirst.Value.Select(s => s.Pack)];
+        IReadOnlyList<IFeaturePack> c2 = [.. defaultFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo(c2.Select(p => p.Id));
+            await Assert.That(d1.Select(p => p.Id)).IsEquivalentTo(d2.Select(p => p.Id));
+            await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo([fine.Id]);
+            Assert.Throws<InvalidOperationException>(() => compatibleFirst.Set([]));
+            Assert.Throws<InvalidOperationException>(() => defaultFirst.Set([]));
+        }
+    }
+
+    // A pack built against contract 2.x on a 1.x host, with a job kind and a command each registry would
+    // refuse, so the checks above can tell whether a registry saw it.
+    private sealed class IncompatibleFakePack : IFeaturePack
+    {
+        public const string PackFeatureId = "pack.incompatible";
+
+        public string Id => "net.demoviewer.pack.incompatible";
+        public string FeatureId => PackFeatureId;
+
+        public ExtensionManifest Manifest => FakeManifests.For(Id, "Incompatible", "2.0.0", "^2.0", "*");
+
+        public IEnumerable<FeatureDescriptor> Features =>
+        [
+            new(PackFeatureId, FeatureScope.Pack, "Incompatible", "d", null, null, false, new Dictionary<UserCategory, bool>())
+        ];
+
+        public IEnumerable<CommandDescriptor> Commands => [new CommandDescriptor("incompatible.cmd", "Cmd", "playback2d", null, _ => true)];
+
+        public IEnumerable<JobKindDescriptor> JobKinds => [new JobKindDescriptor(QueueJobKind.StoreSave, "collides", 9, false)];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
         }
     }
 }

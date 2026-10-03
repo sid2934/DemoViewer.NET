@@ -2,6 +2,7 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
@@ -164,6 +165,7 @@ public class CommandRegistryTests
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
+        public ExtensionManifest Manifest => FakeManifests.For(Id);
 
         public IEnumerable<FeatureDescriptor> Features =>
         [

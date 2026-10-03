@@ -41,11 +41,12 @@ public class ViewLocator : IDataTemplate
     }
 
     // A pack's views live in the pack's assembly under the same naming convention, so the search
-    // continues through the compiled-in packs' assemblies (FeaturePacks.Default). Type.GetType above
-    // sees only this assembly and the core library.
+    // continues through the compatible packs' assemblies (FeaturePacks.Compatible; an incompatible pack
+    // composed nothing, so none of its view models exist). Type.GetType above sees only this assembly
+    // and the core library.
     private static Type? PackViewType(string name)
     {
-        foreach (IFeaturePack pack in FeaturePacks.Default)
+        foreach (IFeaturePack pack in FeaturePacks.Compatible)
         {
             if (pack.GetType().Assembly.GetType(name) is { } type)
             {
