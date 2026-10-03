@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -59,6 +60,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
+    private readonly JobKindRegistry _jobKinds;
     private readonly Action<ParsedDemo>? _parseReleased;
     private readonly Action<Action> _post;
     private readonly CancellationTokenSource _shutdown = new();
@@ -106,6 +108,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     The forward read for an entry whose every owner can take one. Null keeps every entry on the
     ///     retained parse.
     /// </param>
+    /// <param name="jobKinds">
+    ///     Resolves a kind's scheduling rank and light-slot flag (item 13). Defaults to
+    ///     <see cref="JobKindRegistry.Default" />, the core table plus the one compiled-in pack's kinds,
+    ///     so a test or a bare construction sees the same scheduling every kind had before the registry.
+    /// </param>
     public DemoProcessingQueue(
         HeavyJobGate gate,
         Action<Action>? post = null,
@@ -115,7 +122,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         TimeProvider? timeProvider = null,
         Func<string, DecodePlan, ParsedDemo>? parseFileWithPlan = null,
         Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? forwardPass = null,
-        Action<ParsedDemo>? parseReleased = null)
+        Action<ParsedDemo>? parseReleased = null,
+        JobKindRegistry? jobKinds = null)
     {
         _gate = gate;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
@@ -125,6 +133,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _parseReleased = parseReleased;
         _compactHeap = compactHeap ?? HeapCompactor.CompactAsync;
         _time = timeProvider ?? TimeProvider.System;
+        _jobKinds = jobKinds ?? JobKindRegistry.Default;
         _shutdownToken = _shutdown.Token;
         Items = new ReadOnlyObservableCollection<DemoQueueItem>(_items);
         _gate.MaxConcurrency = _maxConcurrency;
@@ -1012,8 +1021,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // Light items a user is waiting on that may run at once; the pool gave a Dossier's four builds this.
     private const int MaxUserLight = 4;
 
-    private static bool IsLight(QueueJobKind kind) =>
-        kind is QueueJobKind.StoreSave or QueueJobKind.StoreLoad or QueueJobKind.SectionCompute or QueueJobKind.TeamsCommand;
+    private bool IsLight(QueueJobKind kind) => _jobKinds.IsLight(kind);
 
     // Under _sync. A user's item stops the Background job or forward pass running in its lane; that item goes
     // back in the queue, first within its priority, so it runs again once the user's item is done. A retained
@@ -1735,17 +1743,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         return false;
     }
 
-    private static int KindRank(QueueJobKind kind) => kind switch
-    {
-        QueueJobKind.DemoProcessing or QueueJobKind.PackExport => 0,
-        QueueJobKind.SidecarMigration => 1,
-        QueueJobKind.StratMining or QueueJobKind.StratPreview or QueueJobKind.SuggestionsInbox => 2,
-        QueueJobKind.LineupClips => 3,
-        _ => 4
-    };
-
     // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting.
-    private static int Compare(Entry a, Entry b)
+    private int Compare(Entry a, Entry b)
     {
         bool aCompacts = a.Kind == QueueJobKind.HeapCompaction, bCompacts = b.Kind == QueueJobKind.HeapCompaction;
         if (aCompacts != bCompacts)
@@ -1770,7 +1769,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return a.Requeued ? -1 : 1;
         }
 
-        int rank = KindRank(a.Kind).CompareTo(KindRank(b.Kind));
+        int rank = _jobKinds.Rank(a.Kind).CompareTo(_jobKinds.Rank(b.Kind));
         if (rank != 0)
         {
             return rank;
