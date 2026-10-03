@@ -777,17 +777,19 @@ src/App/DemoViewer.NET.App.Tests/Extensions/StratBook/
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/
 ```
 
-Item 0b's actual move list differs from the draft above it replaced in two ways. `Services/Provenance`
-moved whole: decision 1 names it explicitly, even though `MainViewModel` and `LibraryTabViewModel` keep
-forward references into it, the same shape as the Teams and Round Facts edges the decision also accepts
-as pre-existing and left for items 2, 4 and 22 to cut. `Services/Review` did not move at all:
-`ReviewQueue` and `ReviewQueueMigration` are both core (Highlights is a consumer), so nothing in that
-folder is pack-owned; the pack side of Review is `Modules/Review`, `ViewModels/Review` and
-`Views/Review` (the hub section and its tab), which did move. `Services/Zones` stays core, confirmed by
-grep: its only consumers outside its own folder are `RuleWorkbenchTabViewModel` and
-`Playback2DTabViewModel`, both ring G. `ViewModels/Settings/SuggestedTagsTuningViewModel.cs` also stays
-where it is for now, even though it is pack-owned by the ring table: `SettingsViewModel`'s constructor
-takes it, and that seam is item 14's to cut, not a rename item's.
+Item 0b's actual move list differs from the draft above it replaced. `Services/Provenance` moved whole:
+decision 1 names it explicitly, even though `MainViewModel` and `LibraryTabViewModel` keep forward
+references into it, the same shape as the Teams and Round Facts edges the decision also accepts as
+pre-existing and leaves for items 2, 4 and 22 to cut. `Services/Review` did not move at all: `ReviewQueue`
+and `ReviewQueueMigration` are both core (Highlights is a consumer), so nothing in that folder is
+pack-owned; the pack side of Review is `Modules/Review`, `ViewModels/Review` and `Views/Review` (the hub
+section and its tab), which did move. The ViewModels and Views lists grew from the draft's partial set to
+the full eight sections, matching Modules. `Services/Zones` stays core: core code outside the Strat Book
+set consumes it (`RuleWorkbenchTabViewModel`, `Playback2DTabViewModel`, and `App.axaml.cs`'s composition
+root), not only the two ring-G viewmodels a narrower grep would suggest.
+`ViewModels/Settings/SuggestedTagsTuningViewModel.cs` also stays where it is for now, even though it is
+pack-owned by the ring table: `SettingsViewModel`'s constructor takes it, and that seam is item 14's to
+cut, not a rename item's.
 
 After Phase 5, the same tree moved up:
 
