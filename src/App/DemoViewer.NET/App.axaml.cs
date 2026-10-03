@@ -925,23 +925,9 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
-        // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
-        // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
-        // round_facts ruleset's own fingerprint, and the read API over those rows. The row source and the
-        // identity share one read of the rules directories, so the rows are always stored under the
-        // fingerprint of the doc that produced them.
-        services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
-        services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
-        services.AddSingleton<IRoundFactsRowSource>(sp =>
-            new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
-        services.AddSingleton(sp => new RoundFactsEvaluator(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IRoundFactsRowSource>(),
-            sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
-            action => Dispatcher.UIThread.Post(action)));
-        services.AddSingleton<IRoundFactsSource>(sp => new RoundFactsSource(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<RoundFactsEvaluator>()));
+        // Round Facts (the evaluator, its row source and identity, and IRoundFactsSource) is registered by
+        // StratBookPack.Register: decision 1 puts it in the pack. The registrations below that read
+        // IRoundFactsSource resolve it lazily, after the pack has registered.
 
         // The Round Index: one row per (demo, live round, sampled second) with the per-side place-count
         // token, written as a .dvri.json sidecar beside the cache by an evaluator on the same tier-2

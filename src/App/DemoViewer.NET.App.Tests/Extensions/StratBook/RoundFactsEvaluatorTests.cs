@@ -111,6 +111,42 @@ public class RoundFactsEvaluatorTests
     }
 
     [Test]
+    public async Task PackOff_NothingIsWanted_AndTheOpportunisticHooksWriteNothing()
+    {
+        DemoCacheStore store = StoreWithParsedDemo();
+        CountingSource source = new(TwoRoundTable());
+        bool packOn = false;
+        RoundFactsEvaluator evaluator = new(store, source, new FakeIdentity("rf-A"), enabled: () => packOn);
+        int updates = 0;
+        evaluator.Updated += _ => updates++;
+
+        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+        evaluator.Evaluate(Demo, TwoRoundDemo());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse();
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+            await Assert.That(source.Calls).IsEqualTo(0).Because("off means the engine seam is never asked, whatever the ruleset says");
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts).IsNull();
+            await Assert.That(updates).IsEqualTo(0);
+        }
+
+        // Back on: the same demo is stale under the live identity, so it is wanted and written.
+        packOn = true;
+        await Assert.That(evaluator.Wants(Demo)).IsTrue();
+        await Assert.That(evaluator.PendingPaths()).Contains(Demo);
+        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(source.Calls).IsEqualTo(1);
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFactsFingerprint).IsEqualTo("rf-A");
+            await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task ASourceWithNoRows_WritesNothing_AndIsNotRetriedThisSession()
     {
         DemoCacheStore store = StoreWithParsedDemo();
