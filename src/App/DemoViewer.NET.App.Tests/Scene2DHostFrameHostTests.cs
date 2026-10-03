@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -148,6 +149,7 @@ public class Scene2DHostFrameHostTests
             fake.Publish(Frame(1, true, TenTokens()));
 
             (Window window, Scene2DHost host) = Mount(fake);
+            host.AddTool(new TokenTool());
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
             host.SetActiveTool(ToolKind.Token);
@@ -172,8 +174,9 @@ public class Scene2DHostFrameHostTests
     }
 
     /// <summary>
-    ///     The 2D Playback tab is a frame host with no token editor, so the token tool falls through there
-    ///     and the press opens nothing.
+    ///     The 2D Playback tab is a frame host with no tokens: nobody calls <c>Scene2DHost.AddTool</c> for
+    ///     it (item 26), so <c>ToolKind.Token</c> is not registered on its host at all, and selecting it
+    ///     falls back to pan, as any unregistered kind does.
     /// </summary>
     [Test]
     public async Task TabViewModel_HasNoTokenEditor_AndTheTokenToolFallsThrough()
@@ -188,12 +191,12 @@ public class Scene2DHostFrameHostTests
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(host.FrameHost).IsSameReferenceAs(vm);
-            await Assert.That(((ISceneFrameHost)vm).TokenEditor).IsNull();
+            await Assert.That(host.FrameHost is ITokenEditingHost).IsFalse()
+                .Because("the 2D Playback tab offers no tokens to drag");
 
             host.SetActiveTool(ToolKind.Token);
-            window.MouseDown(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
-            await Assert.That(host.Router.IsGestureOpen).IsFalse();
-            window.MouseUp(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
+            await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.PanZoom)
+                .Because("nothing registered a tool under Token on this host");
 
             window.Close();
         });
@@ -299,6 +302,7 @@ public class Scene2DHostFrameHostTests
             fake.Publish(Frame(1, true, TenTokens()));
 
             (Window window, Scene2DHost host) = Mount(fake);
+            host.AddTool(new TokenTool());
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
             host.SetActiveTool(ToolKind.Token);
@@ -545,7 +549,7 @@ public class Scene2DHostFrameHostTests
     ///     level rebuild the host forwarded. Vision is off for the same reason it is on the strat canvas:
     ///     there is no demo to solve against.
     /// </summary>
-    private sealed class FakeSceneFrameHost : ISceneFrameHost
+    private sealed class FakeSceneFrameHost : ISceneFrameHost, ITokenEditingHost
     {
         public List<IReadOnlyDictionary<double, double>> Rebuilds { get; } = [];
         public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;

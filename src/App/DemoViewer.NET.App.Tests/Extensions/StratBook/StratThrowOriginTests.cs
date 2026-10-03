@@ -7,7 +7,7 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Strats;
 using SkiaSharp;

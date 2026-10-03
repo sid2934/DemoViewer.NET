@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
@@ -412,7 +413,7 @@ public class StratRoutingTests
 
     private static void StratFrameSourceProbe(StratExportCapture capture, int tick, out int routes)
     {
-        Playback2D.Pipeline.Frames.StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, tick, tick, 64, 1.0));
+        StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, tick, tick, 64, 1.0));
         routes = source.FrameAt(0).Routes.Count;
     }
 

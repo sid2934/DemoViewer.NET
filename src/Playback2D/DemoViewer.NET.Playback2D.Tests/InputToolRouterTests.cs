@@ -41,7 +41,7 @@ public class InputToolRouterTests
         router.Register(new ShapeTool(ToolKind.Rect));
         router.Register(new ShapeTool(ToolKind.Ellipse));
         router.Register(new TextTool());
-        router.Register(new TokenTool());
+        router.Register(new InertTool(ToolKind.Token));
         router.Register(new InertTool(ToolKind.QueryToken));
 
         List<string> wrong = [];

@@ -5,7 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2DTests;
+namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The keyframe track's sampling table (step-authoring.md §3.3), row by row, plus the two approved
