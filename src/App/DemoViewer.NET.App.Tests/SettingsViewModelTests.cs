@@ -87,7 +87,8 @@ public class SettingsViewModelTests
     // The "delete extension data" test seam (item 24): canned inventory/delete results and a call count
     // for each, so a test can assert Confirm reached the remover without a real PackDataRemover, queue or
     // filesystem. No gate/PackSwitch coupling: a real IPackDataRemoval owns that, this fake does not.
-    private sealed class FakePackDataRemoval(PackDataInventory inventory, PackDataRemovalResult result) : IPackDataRemoval
+    private sealed class FakePackDataRemoval(PackDataInventory inventory, PackDataRemovalResult result,
+        TaskCompletionSource<PackDataRemovalResult>? deleteGate = null) : IPackDataRemoval
     {
         public int InventoryCalls { get; private set; }
         public int DeleteCalls { get; private set; }
@@ -100,10 +101,13 @@ public class SettingsViewModelTests
             return Task.FromResult(inventory);
         }
 
+        // With deleteGate set, DeleteAsync counts the call and then waits for the test to release it, so a
+        // test can observe state (IsBusy, a locked row, a second concurrent call) while the delete is
+        // still "in flight". Without it, completes immediately with result.
         public Task<PackDataRemovalResult> DeleteAsync()
         {
             DeleteCalls++;
-            return Task.FromResult(result);
+            return deleteGate?.Task ?? Task.FromResult(result);
         }
     }
 
@@ -1268,6 +1272,91 @@ public class SettingsViewModelTests
                     await Assert.That(row.IsConfirming).IsFalse();
                     await Assert.That(row.StatusText).IsEqualTo("Nothing to delete.");
                 }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>
+    ///     While a delete is in flight the pack's own master switch locks (item 24 review): flipping it
+    ///     mid-delete is exactly the race <c>StratBookDataRemoval</c>'s own gate re-checks guard against,
+    ///     so the row must not even offer the toggle meanwhile.
+    /// </summary>
+    [Test]
+    public async Task DeleteExtensionData_WhileBusy_LocksTheExtensionsMasterRow()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            TaskCompletionSource<PackDataRemovalResult> gate = new();
+            FakePackDataRemoval fake = new(PackDataInventory.Empty, PackDataRemovalResult.NotRun, gate);
+            (SettingsViewModel vm, _, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                ExtensionDataActionViewModel row = vm.ExtensionDataActions.Single();
+                await Assert.That(master.IsInteractive).IsTrue().Because("idle: the switch is usable");
+
+                Task confirm = row.ConfirmCommand.ExecuteAsync(null);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(row.IsBusy).IsTrue();
+                    await Assert.That(master.IsDeleteBusy).IsTrue();
+                    await Assert.That(master.IsInteractive).IsFalse().Because("the switch must not race the delete");
+                    await Assert.That(master.HasLockHint).IsTrue();
+                }
+
+                gate.SetResult(PackDataRemovalResult.NotRun);
+                await confirm;
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(master.IsDeleteBusy).IsFalse();
+                    await Assert.That(master.IsInteractive).IsTrue().Because("back to normal once the delete finishes");
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>
+    ///     Two ConfirmCommand executions landing before the UI has a chance to disable the button must
+    ///     delete exactly once: the command's own IsBusy guard, not the XAML binding, is what makes this
+    ///     safe (item 24 review).
+    /// </summary>
+    [Test]
+    public async Task DeleteExtensionData_TwoConcurrentConfirms_DeleteExactlyOnce()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            TaskCompletionSource<PackDataRemovalResult> gate = new();
+            FakePackDataRemoval fake = new(PackDataInventory.Empty, PackDataRemovalResult.NotRun, gate);
+            (SettingsViewModel vm, _, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
+            using (sp)
+            {
+                ExtensionDataActionViewModel row = vm.ExtensionDataActions.Single();
+
+                Task first = row.ConfirmCommand.ExecuteAsync(null);
+                Task second = row.ConfirmCommand.ExecuteAsync(null);
+
+                await Assert.That(fake.DeleteCalls).IsEqualTo(1).Because("the second call sees IsBusy already true and no-ops");
+
+                gate.SetResult(new PackDataRemovalResult(true, PackDataInventory.Empty, 0));
+                await Task.WhenAll(first, second);
+
+                await Assert.That(fake.DeleteCalls).IsEqualTo(1);
 
                 vm.Dispose();
             }
