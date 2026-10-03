@@ -743,17 +743,36 @@ plan's "N badges" is the contribution list, not the card UI, which renders one c
 second badge-granting pack would need to lift. `LibraryTabViewModel`/`MainViewModel` lost `TeamIdentityService`
 and `IDemoProvenanceSource` entirely (ctor params and `using`s both); `MainViewModel` no longer force-builds
 either service at shell construction when the pack is off, since the old code's two `sp.GetRequiredService<T>()`
-ctor arguments are gone. `DemoEntry` (`Modules/Library/DemoLibraryModels.cs`) traded `ProvenanceLabel`/
+ctor arguments are gone. With the pack on, the default, the resolve still happens at construction, just
+inside `LibraryTabViewModel`'s own `RebuildFilters` rather than `MainViewModel`'s ctor argument, so the
+timing is unchanged from before item 22; only the off case is actually lazier now (see §8's First Run note).
+`DemoEntry` (`Modules/Library/DemoLibraryModels.cs`) traded `ProvenanceLabel`/
 `ProvenanceIsOverride`/`ProvenanceDisplay`/`ProvenanceTooltip` for generic `BadgeLabel`/`BadgeTooltip`/
-`BadgeIsPinned`/`BadgeDisplay`; the "unlabeled" and the three-state tooltip text moved into
-`ProvenanceLibraryContribution.BadgeFor`, which now always returns a badge once its service resolves (an
-entry the cache has not indexed yet also reads "unlabeled", collapsing a distinction the old field-level
-null preserved but the display never showed). The pack's two contributions,
+`BadgeIsPinned`; the "unlabeled" fallback and the three-state tooltip text both moved into
+`ProvenanceLibraryContribution.BadgeFor`/`BadgesFor`, which always returns a badge once the service
+resolves (an entry the cache has not indexed yet also reads "unlabeled", collapsing a distinction the old
+field-level null preserved but the display never showed). The pack's two contributions,
 `Extensions/StratBook/Services/Teams/TeamLibraryContribution.cs` and
 `.../Services/Provenance/ProvenanceLibraryContribution.cs`, each take a `Func<T>` resolver (no DI
 registration of their own, matching item 16's `CreateStratPlaybackContribution`) and an optional
 `featureId` constructor parameter so a caller outside `StratBookPack.Contribute` (a shell test) can name
 the pack id explicitly instead of relying on the stamp.
+
+Review pass: `BadgeFor` stayed for a single-entry read, but a full refresh calls a second interface member,
+`BadgesFor(IEnumerable<DemoEntry>)` (default forwards to `BadgeFor` per entry), so
+`ProvenanceLibraryContribution` can call `IDemoProvenanceSource.ResolveAll` once for the whole card grid
+instead of once per card (`Resolve` re-reads and copies Team Identity's override list on every call).
+`LibraryTabViewModel.OnContributionChanged` only calls `RefreshBadges` when the changed contribution is the
+current `ActiveBadgeContribution`, so the Team filter's own `Changed` (a rename) never re-runs the badge
+batch; it also now adds a `LibraryFilterViewModel` for a contribution whose `Filter` goes from null to
+non-null via `Changed`, not only on a gate transition. `LibraryFilter` gained `Tooltip` (null defaults to
+`Label`); `TeamLibraryContribution` sets it to "Filter by team" to keep the pre-refactor text.
+`ILibraryContribution` gained `BadgeResetTooltip` (default null) so the reset row's own tooltip ("Let the
+clan tags, the header and Team Identity decide") comes from the contribution, not a hardcoded string in the
+host; `LibraryTabViewModel.BadgeMenuEntries` is `IReadOnlyList<LibraryBadgeMenuEntry>` (`Label`, `IsReset`,
+`Tooltip`), not a flat string list, and the view styles a top border on the `IsReset` row's `MenuItem`
+rather than mixing a literal `Separator` into the `ItemsSource`. `HasTeamFilter` (unbound) was dropped;
+`HasProvenance`/`SetProvenance` renamed `HasBadge`/`SetBadgeLabel`.
 
 Theme tokens are not a contribution in (a) or (b): they stay in the core dictionaries, which cost nothing
 when unused. A pack token manifest only matters for third-party add-ons.
@@ -876,11 +895,14 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
 - *First run.* On a fresh desktop install `StartPacks` waits while `SettingsService.NeedsFirstRun` is true;
   the wizard's Finish or Skip writes settings, which is a gate change like any other, and the pack starts
   if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
-  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team Identity
-  is no longer built at shell construction for the Library filter (item 22 moved that to a lazy resolve
-  inside the Team filter contribution, reached only once the pack's gate is on); the enable's attach item
-  is now the first thing that resolves and reads it, and a read that reaches a detached service (a queued
-  one that lost the race with a release) reads and writes nothing.
+  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Item 22 moved
+  the Library filter's and the provenance chip's resolve of Team Identity and the provenance source off
+  the shell's own constructor and into the two contributions, reached only while each one's gate is on.
+  With the pack explicitly off that means neither service is built at shell construction at all. With the
+  pack on, the default, the Library's own constructor reaches the same resolve at the same moment the old
+  eager constructor injection did (its first `RebuildFilters`), so the enable's attach item is still only
+  the first thing to READ Team Identity's files, as before item 22; a read that reaches a detached service
+  (a queued one that lost the race with a release) reads and writes nothing.
 - *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
   60 grenades each, a mine and a watch seeded): an enable builds about 21 MB on the GC heap; the release
   leaves 0.5 MB after the first off-on-off cycle and 0.0 MB after the second, so nothing grows per toggle.
