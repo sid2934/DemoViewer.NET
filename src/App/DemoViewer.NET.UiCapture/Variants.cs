@@ -33,6 +33,8 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Commands;
@@ -154,6 +156,7 @@ public static partial class Variants
             ["library-landing"] = () => Library(LibraryState.Landing),
             ["library-populated"] = () => Library(LibraryState.Populated),
             ["library-dropover"] = () => Library(LibraryState.DragOver),
+            ["library-populated-pack-on"] = () => Library(LibraryState.PopulatedPackOn),
             ["workbench"] = Workbench,
             ["framelist"] = FrameList,
             // v0.6.0 fit-and-finish surfaces: the code-color-promotion consumers (severity ramps,
@@ -632,7 +635,11 @@ public static partial class Variants
     ///     path → dimmed grey-out), with back-dated open times so the relative-date labels ("2d ago" / "6d
     ///     ago") render. <see cref="LibraryState.Populated" /> also seeds folders + a few demo entries so the
     ///     browser + the persistent header actions render; <see cref="LibraryState.DragOver" /> forces the
-    ///     drop overlay visible (a real file drag can't be synthesized off-display).
+    ///     drop overlay visible (a real file drag can't be synthesized off-display);
+    ///     <see cref="LibraryState.PopulatedPackOn" /> additionally wires the pack's Team filter and
+    ///     provenance chip (item 22) over a real <see cref="TeamIdentityService" />, so the toolbar and the
+    ///     card both render exactly as they do with the Strat Book extension on. <see cref="LibraryState.Populated" />
+    ///     stays unwired (no contributions): the pack-off render.
     /// </summary>
     private static LibraryTabView Library(LibraryState state)
     {
@@ -658,7 +665,8 @@ public static partial class Variants
         string libJson = Path.Combine(dir, "library.json");
         DemoLibraryService lib = new(a => a(), libJson);
 
-        if (state == LibraryState.Populated)
+        IReadOnlyList<ILibraryContribution>? contributions = null;
+        if (state is LibraryState.Populated or LibraryState.PopulatedPackOn)
         {
             lib.Folders.Add("/demos/pro-matches");
             lib.Entries.Add(SampleDemo("de_mirage", "ZywOo, apEX, flameZ, Spinx, mezii", "mirage_vs_faze.dem"));
@@ -666,12 +674,18 @@ public static partial class Variants
             lib.Entries.Add(SampleDemo("de_dust2", "s1mple, b1t, Aleksib, iM, jL", "dust2_navi.dem"));
         }
 
+        if (state == LibraryState.PopulatedPackOn)
+        {
+            contributions = LibraryPackContributions(lib);
+        }
+
         LibraryTabViewModel vm = new(
             lib,
             _ => Task.CompletedTask,
             () => Task.FromResult<IReadOnlyList<string>>([]),
             () => Task.CompletedTask,
-            recents)
+            recents,
+            contributions: contributions)
         {
             IsDragOver = state == LibraryState.DragOver
         };
@@ -680,6 +694,59 @@ public static partial class Variants
         {
             DataContext = vm
         };
+    }
+
+    // Item 22: a real TeamIdentityService + DemoProvenanceSource over cache rows mirroring the sample
+    // entries, so the Team filter and the provenance chip render as they do with the pack on. One demo
+    // carries clan tags (→ "official"); the others resolve "unlabeled". Unique synthetic SteamIDs per
+    // entry, so the three unrelated rosters never cluster into a team.
+    private static IReadOnlyList<ILibraryContribution> LibraryPackContributions(DemoLibraryService lib)
+    {
+        DemoCacheStore cache = new(null);
+        TeamIdentityService teams = new(null, cache, run: a =>
+        {
+            a();
+            return Task.CompletedTask;
+        });
+        teams.StartAsync().GetAwaiter().GetResult();
+
+        int steamId = 0;
+        using (cache.BeginBatch())
+        {
+            foreach (DemoEntry entry in lib.Entries)
+            {
+                bool isMirage = entry.FilePath.EndsWith("mirage_vs_faze.dem", StringComparison.Ordinal);
+                DemoCacheRecord record = new()
+                {
+                    Path = entry.FilePath,
+                    Size = entry.FileSizeBytes,
+                    ModifiedTicks = entry.Modified.Ticks,
+                    Map = entry.MapName,
+                    SourceKind = "HltvPro",
+                    TClan = isMirage ? "Vitality" : null,
+                    CtClan = isMirage ? "FaZe" : null
+                };
+                foreach (string name in entry.Players)
+                {
+                    record.Players.Add(new CachedPlayerInfo
+                    {
+                        Slot = record.Players.Count,
+                        Name = name,
+                        SteamId64 = $"76561198{++steamId:D9}",
+                        Team = 2
+                    });
+                }
+
+                DemoCacheStore.StampParse(record);
+                cache.Upsert(record);
+            }
+        }
+
+        return
+        [
+            new TeamLibraryContribution(() => teams),
+            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(cache, teams), () => teams)
+        ];
     }
 
     /// <summary>
@@ -4276,7 +4343,8 @@ public static partial class Variants
     {
         Landing, // no folders → the landing hero (Open Demo + recents + drop hint)
         Populated, // folders + demos → the folder browser + persistent Open Demo / Recent ▾ actions bar
-        DragOver // the landing with the drag-over overlay forced on (can't synthesize a real drag headlessly)
+        DragOver, // the landing with the drag-over overlay forced on (can't synthesize a real drag headlessly)
+        PopulatedPackOn // Populated, plus the pack's Team filter and provenance chip wired (item 22)
     }
 
     /// <summary>The three semantic-JUMP treatments the redesign options differ by.</summary>

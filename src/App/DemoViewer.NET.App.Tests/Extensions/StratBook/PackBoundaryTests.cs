@@ -42,11 +42,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/Services/Review/ReviewQueue.cs", "DemoViewer.NET.Services.Tags", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.RoundIndex", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.Strats", "item 25"),
-        ("src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs", "DemoViewer.NET.Services.Provenance", "item 22"),
-        ("src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs", "DemoViewer.NET.Services.Teams", "item 22"),
-        ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.Services.Provenance", "item 22"),
-        ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.Services.Teams", "item 22"),
-        ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.ViewModels.Teams", "item 22"),
     ];
 
     [Test]
