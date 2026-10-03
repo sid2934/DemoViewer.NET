@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
@@ -60,7 +61,7 @@ public class SituationalBehaviourTests
     // Team A (slots 0..4) is T for rounds 1 to 5 and CT for 6 to 7.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = DemoCacheRecord.RoundFactsSchema,
+        Schema = StratBookCache.RoundFactsSchema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [
@@ -87,9 +88,13 @@ public class SituationalBehaviourTests
             Size = 1000,
             ModifiedTicks = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc).Ticks,
             Map = map,
-            Sha256 = rows is null ? null : "abc123",
-            RoundFacts = rows
+            Sha256 = rows is null ? null : "abc123"
         };
+        if (rows is not null)
+        {
+            record.SetRoundFacts(rows, "rf-A");
+        }
+
         for (int slot = 0; slot < 10; slot++)
         {
             record.Players.Add(new CachedPlayerInfo

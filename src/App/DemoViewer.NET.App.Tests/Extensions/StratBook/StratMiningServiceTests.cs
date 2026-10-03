@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
@@ -46,10 +47,11 @@ public class StratMiningServiceTests
             Size = 1000 + n,
             ModifiedTicks = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(n).Ticks,
             Map = Map,
-            Sha256 = Sha(n),
-            RoundFacts = new RoundFactsRows
+            Sha256 = Sha(n)
+        };
+        record.SetRoundFacts(new RoundFactsRows
             {
-                Schema = DemoCacheRecord.RoundFactsSchema,
+                Schema = StratBookCache.RoundFactsSchema,
                 Clock = new RoundFactsClock { TickRate = Rate, FrameCount = 100_000, LastTick = 100_000 },
                 Rounds =
                 [
@@ -67,8 +69,7 @@ public class StratMiningServiceTests
                         T = new SideFacts { Side = 2, Slots = [0, 1, 2, 3, 4], BuyType = BuyType.Full }
                     }
                 ]
-            }
-        };
+            }, "rf-A");
         for (int slot = 0; slot < 10; slot++)
         {
             record.Players.Add(new CachedPlayerInfo { Slot = slot, Name = $"p{slot}", SteamId64 = $"7656{n}{slot:D3}", Team = slot < 5 ? 2 : 3 });
@@ -257,7 +258,7 @@ public class StratMiningServiceTests
     public async Task ACachedGrenade_BecomesAThrowStep_WithItsLandingAndAnArrow()
     {
         RoundPositionsDocument positions = Positions(1, BombSite.A, 0);
-        RoundFacts facts = Record(1, BombSite.A).RoundFacts!.Rounds[0];
+        RoundFacts facts = Record(1, BombSite.A).RoundFacts()!.Rounds[0];
         GrenadeRow incendiary = new()
         {
             Id = "g1",

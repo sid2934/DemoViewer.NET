@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -117,7 +118,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
             }
 
             return loaded.Count(d =>
-                !string.Equals(_demoCache.TryGetIndex(d.Path)?.RoundIndexFingerprint,
+                !string.Equals(_demoCache.TryGetIndex(d.Path)?.RoundIndexStamp()?.Fingerprint,
                     _sources.FingerprintFor(d.Map.Name), StringComparison.Ordinal));
         }
     }
@@ -295,7 +296,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
 
     // Stamped Indexed at the current schema; the fingerprint is not checked here on purpose (see Load).
     private static bool IsLoadable(DemoCacheIndexEntry? entry) =>
-        entry is { RoundIndexState: RoundIndexState.Indexed, RoundIndexSchema: DemoCacheRecord.RoundIndexSchema };
+        entry?.RoundIndexStamp() is { State: DemoAnalysisState.Indexed, Schema: StratBookCache.RoundIndexSchema };
 
     // Reads one sidecar and replaces whatever the demo contributed before. Returns the merged event, or
     // null when the file is missing, unreadable, or belongs to another demo.
@@ -309,7 +310,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
             return null;
         }
 
-        if (document.SchemaVersion != DemoCacheRecord.RoundIndexSchema)
+        if (document.SchemaVersion != StratBookCache.RoundIndexSchema)
         {
             string reason = $"schema {document.SchemaVersion}";
             RoundIndexLog.SidecarIgnored(Log, fileName, reason);
@@ -339,7 +340,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
         }
 
         RoundIndexedEvent indexed = new(entry.Path, DemoCacheStore.StableKey(entry.Path), entry.Sha256,
-            document.Map, entry.RoundIndexComputedAtTicks);
+            document.Map, entry.RoundIndexComputedAtTicks());
         lock (_gate)
         {
             // A merge posted before a release lands after it: released means empty.
@@ -645,7 +646,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
 
         public long ModifiedTicks { get; } = entry.ModifiedTicks;
 
-        public long ComputedAtTicks { get; } = entry.RoundIndexComputedAtTicks;
+        public long ComputedAtTicks { get; } = entry.RoundIndexComputedAtTicks();
 
         public int TickRate { get; } = tickRate;
 

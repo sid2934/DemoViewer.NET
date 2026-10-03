@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
@@ -518,7 +519,7 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
                     foreach (IGrouping<string, SituationHit> demo in _index.Query(ToQuery(watch, indexedAfter: watch.WatermarkTicks))
                                  .GroupBy(h => h.DemoStableKey, StringComparer.Ordinal))
                     {
-                        long stamp = _demoCache.TryGetIndex(demo.First().DemoPath)?.RoundIndexComputedAtTicks ?? 0;
+                        long stamp = _demoCache.TryGetIndex(demo.First().DemoPath)?.RoundIndexComputedAtTicks() ?? 0;
                         next[demo.Key] = new NewGroup(stamp, [.. demo]);
                     }
                 }

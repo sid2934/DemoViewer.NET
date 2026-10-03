@@ -331,10 +331,7 @@ public class StratThrowOriginTests
                 Grenades = [row]
             };
             cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-            DemoCacheStore.StampGrenades(record);
-            record.GrenadeState = DemoAnalysisState.Indexed;
-            record.GrenadeCount = 1;
-            record.GrenadeWalker = GrenadeWalker.Version;
+            record.StampGrenades(1);
             cache.Upsert(record);
         }
 

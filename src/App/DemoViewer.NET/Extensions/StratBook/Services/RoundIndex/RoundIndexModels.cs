@@ -8,19 +8,6 @@ using DemoViewer.NET.Services.RoundFacts;
 
 namespace DemoViewer.NET.Services.RoundIndex;
 
-/// <summary>The outcome of the last index attempt for a demo: the <see cref="DemoCache.DemoAnalysisState" /> shape.</summary>
-public enum RoundIndexState
-{
-    /// <summary>Never run, or invalidated by a fingerprint change.</summary>
-    Pending,
-
-    /// <summary>Ran successfully under <c>DemoCacheRecord.RoundIndexFingerprint</c>.</summary>
-    Indexed,
-
-    /// <summary>Ran and threw. Excluded from the backlog until the user retries it.</summary>
-    Failed
-}
-
 /// <summary>Which string a row's place comes from. A setting; changing it re-indexes the library.</summary>
 public enum RoundIndexTokenSource
 {

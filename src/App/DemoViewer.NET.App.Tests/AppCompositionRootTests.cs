@@ -313,7 +313,7 @@ public class AppCompositionRootTests
     {
         Services.DemoCache.DemoCacheStore cache = provider.GetRequiredService<Services.DemoCache.DemoCacheStore>();
         cache.Upsert(RoundIndexTestData.ParsedRecord(path, facts: RoundIndexTestData.Facts(RoundIndexTestData.Round(1, 1000, 2000))));
-        cache.UpdateExisting(path, r => r.SuggestionCount = 7);
+        cache.UpdateExisting(path, r => r.SetSuggestionCount(7));
     }
 
     private static string? SuggestedBadge(ServiceProvider provider) =>

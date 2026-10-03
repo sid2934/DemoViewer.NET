@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
@@ -114,7 +115,7 @@ public class RoundFactsSourceTests
     private static DemoCacheStore Store()
     {
         DemoCacheStore store = new(null);
-        store.Upsert(new DemoCacheRecord
+        DemoCacheRecord a = new()
         {
             Path = DemoA,
             Size = 1,
@@ -123,20 +124,20 @@ public class RoundFactsSourceTests
             {
                 Schema = 1,
                 ComputedAtTicks = 1
-            },
-            RoundFactsFingerprint = "rf",
-            RoundFacts = new RoundFactsRows
-            {
-                Schema = DemoCacheRecord.RoundFactsSchema,
-                Rounds =
-                [
-                    Round(1, 1000, 3, BuyType.Pistol, BuyType.Pistol),
-                    Round(2, 5000, 2, BuyType.Full, BuyType.Eco, site: BombSite.B),
-                    Round(3, 9000, 0, BuyType.Semi, BuyType.Force, false)
-                ]
             }
-        });
-        store.Upsert(new DemoCacheRecord
+        };
+        a.SetRoundFacts(new RoundFactsRows
+        {
+            Schema = StratBookCache.RoundFactsSchema,
+            Rounds =
+            [
+                Round(1, 1000, 3, BuyType.Pistol, BuyType.Pistol),
+                Round(2, 5000, 2, BuyType.Full, BuyType.Eco, site: BombSite.B),
+                Round(3, 9000, 0, BuyType.Semi, BuyType.Force, false)
+            ]
+        }, "rf");
+        store.Upsert(a);
+        DemoCacheRecord b = new()
         {
             Path = DemoB,
             Size = 1,
@@ -145,14 +146,14 @@ public class RoundFactsSourceTests
             {
                 Schema = 1,
                 ComputedAtTicks = 1
-            },
-            RoundFactsFingerprint = "rf",
-            RoundFacts = new RoundFactsRows
-            {
-                Schema = DemoCacheRecord.RoundFactsSchema,
-                Rounds = [Round(1, 1000, 2, BuyType.Pistol, BuyType.Pistol), Round(2, 5000, 3, BuyType.Full, BuyType.Full)]
             }
-        });
+        };
+        b.SetRoundFacts(new RoundFactsRows
+        {
+            Schema = StratBookCache.RoundFactsSchema,
+            Rounds = [Round(1, 1000, 2, BuyType.Pistol, BuyType.Pistol), Round(2, 5000, 3, BuyType.Full, BuyType.Full)]
+        }, "rf");
+        store.Upsert(b);
         store.Upsert(new DemoCacheRecord
         {
             Path = "/d/no-rows.dem",
@@ -172,7 +173,7 @@ public class RoundFactsSourceTests
             await Assert.That(source.TryGet(DemoA)?.Rounds.Count).IsEqualTo(3);
             await Assert.That(source.TryGet("/d/no-rows.dem")).IsNull();
             await Assert.That(source.TryGet("/d/unknown.dem")).IsNull();
-            await Assert.That(source.Schema).IsEqualTo(DemoCacheRecord.RoundFactsSchema);
+            await Assert.That(source.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
         }
     }
 

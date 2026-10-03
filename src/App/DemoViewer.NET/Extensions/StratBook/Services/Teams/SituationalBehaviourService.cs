@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -80,7 +81,7 @@ public sealed class SituationalBehaviourService
             QueueWork.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
             if (!seen.Add(demo.Path)
                 || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
-                || _demoCache.TryLoadRecord(demo.Path) is not { RoundFacts: { } rows } record)
+                || _demoCache.TryLoadWithRoundFacts(demo.Path) is not ({ } record, { } rows))
             {
                 continue;
             }

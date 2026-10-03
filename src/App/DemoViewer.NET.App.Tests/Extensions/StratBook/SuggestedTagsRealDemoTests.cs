@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -93,7 +94,7 @@ public class SuggestedTagsRealDemoTests
         DemoCacheStore store = new(null);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("the evaluator wrote no rows");
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
         List<PositionSample> samples = [.. PositionSampler.Walk(parsed, RoundOccupancyBuilder.FrameStride)];
         OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, rows, samples: samples);

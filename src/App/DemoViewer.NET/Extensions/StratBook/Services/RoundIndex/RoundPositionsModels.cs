@@ -39,7 +39,7 @@ public sealed class RoundPositionsDocument
     ///     the fingerprint is theirs together: a version 1 <c>.dvri.json</c> counted <c>""</c> as a place
     ///     in its summaries and transitions and gated its tokens on the Round Facts kill tick. The
     ///     sidecar's own <c>schemaVersion</c> stays 1, because its shape did not change and
-    ///     <c>SituationIndex</c> holds it equal to <c>DemoCacheRecord.RoundIndexSchema</c>.
+    ///     <c>SituationIndex</c> holds it equal to <c>StratBookCache.RoundIndexSchema</c>.
     /// </summary>
     public const int PositionSchema = 2;
 
