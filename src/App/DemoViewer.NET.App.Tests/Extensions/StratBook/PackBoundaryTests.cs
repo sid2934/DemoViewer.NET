@@ -34,7 +34,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.StratBook", "composition root"),
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.SuggestedTags", "composition root"),
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.Teams", "composition root"),
-        ("src/App/DemoViewer.NET/Modules/ModuleContext.cs", "DemoViewer.NET.Modules.StratBook", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Palette", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Review", "item 15"),

@@ -2465,12 +2465,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     // The zone source reads files under a lock the first time, so it runs as a queue item, at the front: a user
     // opened the strat or clicked for a place.
-    // One read in flight per map across every canvas (the editor's and a Detected preview's), so the queue shows one.
+    // One read in flight per (map, source) across every canvas (the editor's and a Detected preview's) that
+    // shares the same source, so the queue shows one; a different source never waits on another's read.
     private static Task<IZonePlaceResolver?> QueuedPlaces(string map, IZonePlaceResolverSource? resolverSource)
     {
+        (string Map, IZonePlaceResolverSource? Source) key = (map.ToLowerInvariant(), resolverSource);
         lock (_placesGate)
         {
-            if (_placesInFlight.TryGetValue(map, out Task<IZonePlaceResolver?>? running) && !running.IsCompleted)
+            if (_placesInFlight.TryGetValue(key, out Task<IZonePlaceResolver?>? running) && !running.IsCompleted)
             {
                 return running;
             }
@@ -2479,13 +2481,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 "Strat places: " + map, "Strat Book",
                 () => (resolverSource ?? NoZonePlaceResolverSource.Instance).TryGet(map),
                 null, DemoJobPriority.UserRequested);
-            _placesInFlight[map] = read;
+            _placesInFlight[key] = read;
             return read;
         }
     }
 
     private static readonly Lock _placesGate = new();
-    private static readonly Dictionary<string, Task<IZonePlaceResolver?>> _placesInFlight = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<(string Map, IZonePlaceResolverSource? Source), Task<IZonePlaceResolver?>> _placesInFlight = new();
 
     private void RaiseSetPlace()
     {

@@ -433,14 +433,12 @@ public sealed class StratBookPack : IFeaturePack
                 canvasServices: canvasServices);
         });
 
-        // Create Strat From Round (step-authoring.md §3.9): registered so ModuleContext.GetService
-        // resolves it without the 2D tab naming this pack. Transient: the gate is read fresh on every
-        // resolve, so a live pack toggle takes effect without a restart (a Singleton would cache a null
-        // forever) and so the capture host (and the StratStore it would touch) is never built while off.
+        // Create Strat From Round (step-authoring.md §3.9). Transient: the gate is read fresh on every
+        // resolve. A Singleton would cache a null from a startup-time off state forever.
         services.AddTransient<IStratCapture>(sp =>
         {
             IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            if (gate?.IsEnabled(PackFeatureId) != true)
+            if (!(gate?.IsEnabled(PackFeatureId) ?? true))
             {
                 return null!;
             }
@@ -457,13 +455,11 @@ public sealed class StratBookPack : IFeaturePack
                 });
         });
 
-        // Strat Export (step-authoring.md §3.6): the same gate, interlocks and settings as the 2D export,
-        // no frame list (a strat is its own scene), its own chip slot. No export at all on the browser
-        // (no ffmpeg, no files), same as the 2D export.
+        // Strat Export (step-authoring.md §3.6). No export on the browser: no ffmpeg, no files.
         services.AddTransient<IStratExport>(sp =>
         {
             IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            if (gate?.IsEnabled(PackFeatureId) != true || OperatingSystem.IsBrowser())
+            if (!(gate?.IsEnabled(PackFeatureId) ?? true) || OperatingSystem.IsBrowser())
             {
                 return null!;
             }
