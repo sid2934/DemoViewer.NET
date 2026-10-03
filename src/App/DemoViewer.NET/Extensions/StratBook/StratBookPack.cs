@@ -43,11 +43,8 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The Strat Book extension as a feature pack: its gate descriptors under one umbrella id, the
-///     registrations the composition root used to make by hand, and the eight modules it contributes to
-///     the shell. Round Facts, Round Index, Teams, Provenance, the Tag Store and the Review Queue stay in
-///     the composition root for now: core surfaces read them, and the seams that let them move are later
-///     items.
+///     The Strat Book extension as a feature pack. Round Facts, Round Index, Teams, Provenance, the Tag
+///     Store and the Review Queue are registered by the composition root, not here: core surfaces read them.
 /// </summary>
 public sealed class StratBookPack : IFeaturePack
 {
@@ -55,7 +52,7 @@ public sealed class StratBookPack : IFeaturePack
     public const string PackFeatureId = "pack.stratbook";
 
     /// <inheritdoc />
-    public string Id => "net.demoviewer.stratbook";
+    public string Id => "net.demoviewer.pack.stratbook";
 
     /// <inheritdoc />
     public string FeatureId => PackFeatureId;

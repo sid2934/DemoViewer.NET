@@ -26,13 +26,13 @@ public sealed record EvaluatorContribution(Func<IDemoEvaluator> Factory, IReadOn
 /// <summary>
 ///     What a pack may hand the shell from <see cref="IFeaturePack.Contribute" />. Every contribution
 ///     carries the pack's umbrella id implicitly; the shell shows one only while that id and any narrower
-///     id it names both resolve on. Members land here as the item that first needs them arrives.
+///     id it names both resolve on.
 /// </summary>
 public interface IPackContributions
 {
     /// <summary>A workspace module: strip tabs and hosted sections.</summary>
     [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords",
-        Justification = "Module, Evaluator and JobKind are the contribution vocabulary of the extension design.")]
+        Justification = "Module is the extension design's name for a workspace module contribution.")]
     void Module(IWorkspaceModule workspaceModule);
 
     /// <summary>An evaluator on the demo fan-out, ordered after <paramref name="after" />.</summary>

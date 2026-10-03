@@ -26,14 +26,15 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 [NotInParallel]
 public class StratBookPackTests
 {
-    // Every ServiceType the composition root registered before the pack, as Type.ToString() prints it.
+    // Every registration the composition root made before the pack: Type.ToString() and its lifetime.
+    // Every row is a singleton apart from the two options rows marked otherwise.
     private static readonly string[] _serviceTypesBeforeThePack =
     [
         "DemoViewer.NET.Configuration.SettingsService",
         "Microsoft.Extensions.Options.IOptions`1[TOptions]",
-        "Microsoft.Extensions.Options.IOptionsSnapshot`1[TOptions]",
+        "Microsoft.Extensions.Options.IOptionsSnapshot`1[TOptions] | Scoped",
         "Microsoft.Extensions.Options.IOptionsMonitor`1[TOptions]",
-        "Microsoft.Extensions.Options.IOptionsFactory`1[TOptions]",
+        "Microsoft.Extensions.Options.IOptionsFactory`1[TOptions] | Transient",
         "Microsoft.Extensions.Options.IOptionsMonitorCache`1[TOptions]",
         "Microsoft.Extensions.Options.IOptionsChangeTokenSource`1[DemoViewer.NET.Configuration.AppSettings]",
         "Microsoft.Extensions.Options.IConfigureOptions`1[DemoViewer.NET.Configuration.AppSettings]",
@@ -134,10 +135,14 @@ public class StratBookPackTests
         {
             ServiceCollection services = App.ComposeServices(new DesktopWindowService(() => null), FeaturePacks.Default);
             // Compared as sorted text: registration order changed (the pack registers last), the set must not.
-            string registered = string.Join("\n", services.Select(d => d.ServiceType.ToString()).Order(StringComparer.Ordinal));
-            string expected = string.Join("\n", _serviceTypesBeforeThePack.Order(StringComparer.Ordinal));
+            string registered = string.Join("\n", services
+                .Select(d => d.ServiceType + " | " + d.Lifetime)
+                .Order(StringComparer.Ordinal));
+            string expected = string.Join("\n", _serviceTypesBeforeThePack
+                .Select(row => row.Contains(" | ", StringComparison.Ordinal) ? row : row + " | Singleton")
+                .Order(StringComparer.Ordinal));
             await Assert.That(registered).IsEqualTo(expected)
-                .Because("moving a registration into the pack must not add, drop or retype a service");
+                .Because("moving a registration into the pack must not add, drop, retype or re-scope a service");
         });
     }
 
@@ -270,6 +275,62 @@ public class StratBookPackTests
     }
 
     [Test]
+    public async Task ThePackId_IsNotTheModuleId()
+    {
+        StratBookPack pack = new();
+        await Assert.That(pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
+        await Assert.That(pack.Id).IsNotEqualTo(new Modules.StratBook.StratBookModule(() => null!).Id)
+            .Because("the pack and its Strats module are different persisted keys");
+    }
+
+    [Test]
+    public async Task Build_RefusesAPack_WhoseFeatureIdIsNotExactlyOnePackRow()
+    {
+        FakePack none = new("pack.none", [Tab("tab.none", "pack.none")]);
+        FakePack two = new("pack.two", [Pack("pack.two"), Pack("pack.two")]);
+        FakePack wrongScope = new("pack.scope", [Tab("pack.scope", null)]);
+
+        await Assert.That(Message(() => FeatureCatalog.Build([none]))).Contains("exactly one Pack-scope descriptor");
+        await Assert.That(Message(() => FeatureCatalog.Build([two]))).Contains("exactly one Pack-scope descriptor");
+        await Assert.That(Message(() => FeatureCatalog.Build([wrongScope]))).Contains("exactly one Pack-scope descriptor");
+    }
+
+    [Test]
+    public async Task Build_RefusesRequired_OnAPackRow_OrOnATabUnderAPack()
+    {
+        FakePack requiredPack = new("pack.req", [Pack("pack.req") with { Required = true }]);
+        FakePack requiredTab = new("pack.reqtab", [Pack("pack.reqtab"), Tab("tab.reqtab", "pack.reqtab") with { Required = true }]);
+
+        await Assert.That(Message(() => FeatureCatalog.Build([requiredPack]))).Contains("may not be Required");
+        await Assert.That(Message(() => FeatureCatalog.Build([requiredTab]))).Contains("may not be Required");
+    }
+
+    [Test]
+    public async Task Build_RefusesAPackRow_InACoreGroup()
+    {
+        FakePack grouped = new("pack.grp",
+            [Pack("pack.grp"), Tab("tab.grp", "pack.grp") with { GroupId = FeatureCatalog.GroupParserDeepDive }]);
+
+        await Assert.That(Message(() => FeatureCatalog.Build([grouped]))).Contains("may not join core group");
+        // The shipped pack passes every rule, and its rows keep the core leaders where they are.
+        await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Count(d => d.Scope == FeatureScope.Pack)).IsEqualTo(1);
+        await Assert.That(FeatureCatalog.GroupLeader(FeatureCatalog.GroupParserDeepDive)!.Id).IsEqualTo("parser.hex");
+    }
+
+    [Test]
+    public async Task Build_RefusesTheParentRules_ATabUnderATab_AndASubFeatureUnderAPack()
+    {
+        FakePack tabUnderTab = new("pack.tt", [Pack("pack.tt"), Tab("tab.tt", "tab.library")]);
+        FakePack subUnderPack = new("pack.sp",
+            [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Scope = FeatureScope.SubFeature }]);
+        FakePack unknownParent = new("pack.up", [Pack("pack.up"), Tab("tab.up", "pack.missing")]);
+
+        await Assert.That(Message(() => FeatureCatalog.Build([tabUnderTab]))).Contains("may not have 'tab.library'");
+        await Assert.That(Message(() => FeatureCatalog.Build([subUnderPack]))).Contains("may not have 'pack.sp'");
+        await Assert.That(Message(() => FeatureCatalog.Build([unknownParent]))).Contains("unknown parent");
+    }
+
+    [Test]
     public void TheCatalog_IsComposedOnce_AndRefusesADifferentSet()
     {
         // The default composition is idempotent; a different pack list is a programming error.
@@ -350,6 +411,30 @@ public class StratBookPackTests
         catch
         {
             // best-effort cleanup
+        }
+    }
+
+    private static string Message(Func<object> build) =>
+        Assert.Throws<InvalidOperationException>(() => build()).Message;
+
+    private static FeatureDescriptor Pack(string id) =>
+        new(id, FeatureScope.Pack, id, id, null, null, false, FeatureCatalog.Defaults(true, true, true));
+
+    private static FeatureDescriptor Tab(string id, string? parent) =>
+        new(id, FeatureScope.Tab, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+
+    private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
+    {
+        public string Id => "net.demoviewer.test." + featureId;
+        public string FeatureId => featureId;
+        public IEnumerable<FeatureDescriptor> Features => features;
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
         }
     }
 }

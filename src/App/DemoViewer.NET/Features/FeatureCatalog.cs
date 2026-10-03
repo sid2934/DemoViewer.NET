@@ -222,8 +222,8 @@ public static class FeatureCatalog
     ];
 
     private static readonly Lock _composeLock = new();
-    private static FeatureDescriptor[]? _all;
-    private static Dictionary<string, FeatureDescriptor>? _byId;
+    private static volatile FeatureDescriptor[]? _all;
+    private static volatile Dictionary<string, FeatureDescriptor>? _byId;
 
     /// <summary>
     ///     Composes the catalog from the core descriptors plus <paramref name="packs" />' descriptors, in
@@ -251,11 +251,36 @@ public static class FeatureCatalog
         }
     }
 
-    // Validates the composed set: unique ids, a parent that exists, and the parent rules per scope. A pack
-    // may parent a tab; a tab parents a sub-feature; chrome and packs have none.
-    private static FeatureDescriptor[] Build(IEnumerable<IFeaturePack> packs)
+    // Validates the composed set: unique ids, a parent that exists, the parent rule per scope (a pack may
+    // parent a tab; a tab parents a sub-feature; chrome and packs have none), nothing under a pack is
+    // Required (Required would defeat the pack switch), no pack row in a core group (it could become the
+    // leader), and each pack's FeatureId names exactly one Pack-scope row of its own.
+    internal static FeatureDescriptor[] Build(IEnumerable<IFeaturePack> packs)
     {
-        FeatureDescriptor[] all = [.. _core, .. packs.SelectMany(p => p.Features)];
+        List<FeatureDescriptor> fromPacks = [];
+        foreach (IFeaturePack pack in packs)
+        {
+            FeatureDescriptor[] features = [.. pack.Features];
+            int umbrellas = features.Count(f => f.Id == pack.FeatureId && f.Scope == FeatureScope.Pack);
+            if (umbrellas != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' must declare exactly one Pack-scope descriptor with id '{pack.FeatureId}'; found {umbrellas}.");
+            }
+
+            foreach (FeatureDescriptor f in features)
+            {
+                if (f.GroupId is { } groupId && GroupIds.Contains(groupId, StringComparer.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"Pack feature '{f.Id}' may not join core group '{groupId}'.");
+                }
+            }
+
+            fromPacks.AddRange(features);
+        }
+
+        FeatureDescriptor[] all = [.. _core, .. fromPacks];
         Dictionary<string, FeatureDescriptor> byId = new(StringComparer.Ordinal);
         foreach (FeatureDescriptor d in all)
         {
@@ -267,9 +292,17 @@ public static class FeatureCatalog
 
         foreach (FeatureDescriptor d in all)
         {
-            if (d.Scope == FeatureScope.Pack && !IsPackId(d.Id))
+            if (d.Scope == FeatureScope.Pack)
             {
-                throw new InvalidOperationException($"Pack feature '{d.Id}' must start with '{PackIdPrefix}'.");
+                if (!IsPackId(d.Id))
+                {
+                    throw new InvalidOperationException($"Pack feature '{d.Id}' must start with '{PackIdPrefix}'.");
+                }
+
+                if (d.Required)
+                {
+                    throw new InvalidOperationException($"Pack feature '{d.Id}' may not be Required.");
+                }
             }
 
             if (d.ParentId is null)
@@ -292,6 +325,11 @@ public static class FeatureCatalog
             {
                 throw new InvalidOperationException(
                     $"Feature '{d.Id}' ({d.Scope}) may not have '{d.ParentId}' ({parent.Scope}) as its parent.");
+            }
+
+            if (parent.Scope == FeatureScope.Pack && d.Required)
+            {
+                throw new InvalidOperationException($"Feature '{d.Id}' under pack '{d.ParentId}' may not be Required.");
             }
         }
 

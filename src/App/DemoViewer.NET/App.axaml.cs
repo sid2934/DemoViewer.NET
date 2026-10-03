@@ -1239,6 +1239,19 @@ public class App : Application
         {
             PackContributions contributions = new(pack);
             pack.Contribute(contributions, sp);
+            // Nothing reads these yet. Refusing them keeps a pack from contributing into a void.
+            if (contributions.Evaluators.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed evaluators, which nothing consumes until the evaluator registry (item 11).");
+            }
+
+            if (contributions.JobKinds.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed job kinds, which nothing consumes until job-kind descriptors (item 13).");
+            }
+
             foreach (IWorkspaceModule module in contributions.Modules)
             {
                 registry.Register(module);

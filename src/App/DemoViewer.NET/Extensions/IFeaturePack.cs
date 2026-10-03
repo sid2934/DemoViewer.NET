@@ -26,9 +26,10 @@ public interface IFeaturePack
     string FeatureId { get; }
 
     /// <summary>
-    ///     The pack's gate descriptors: one <see cref="FeatureScope.Pack" /> entry for
-    ///     <see cref="FeatureId" /> plus every tab and sub-feature it owns, parented to it directly or
-    ///     through a tab. Appended to the core catalog once, at startup.
+    ///     The pack's gate descriptors: exactly one <see cref="FeatureScope.Pack" /> entry for
+    ///     <see cref="FeatureId" /> plus every tab and sub-feature it owns, each parented to it, to one of
+    ///     its own tabs, or (until item 1 reparents) to a core tab. Appended to the core catalog once, at
+    ///     startup.
     /// </summary>
     IEnumerable<FeatureDescriptor> Features { get; }
 

@@ -143,11 +143,9 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         // parent is its pack, so the walk runs sub-feature → tab → pack.
         if (enabled && descriptor.ParentId is { } parentId)
         {
+            // Composition rejects a parent the catalog lacks, so the null check is only a guard.
             FeatureDescriptor? parent = FeatureCatalog.ById(parentId);
-            bool parentEnabled = parent is null
-                ? !FeatureCatalog.IsPackId(parentId)
-                : Resolve(parent, category, overrides, visiting);
-            if (!parentEnabled)
+            if (parent is not null && !Resolve(parent, category, overrides, visiting))
             {
                 enabled = false;
             }

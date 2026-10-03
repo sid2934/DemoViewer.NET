@@ -11,8 +11,8 @@ public enum PackStartReason
 }
 
 /// <summary>
-///     Optional pack lifecycle, resolved from the pack's own registrations. The host calls it only while
-///     the pack's umbrella id resolves on. Declared ahead of its wiring: nothing invokes it yet.
+///     Optional pack lifecycle, resolved from the pack's own registrations. Called only while the pack's
+///     umbrella id resolves on.
 /// </summary>
 public interface IPackLifecycle
 {
