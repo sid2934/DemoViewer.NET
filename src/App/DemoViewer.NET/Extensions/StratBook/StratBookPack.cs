@@ -505,8 +505,13 @@ public sealed class StratBookPack : IFeaturePack
             sp.GetRequiredService<ReviewQueue>()));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.
+        // enabled/gate read sp directly, not the App.Services locator: Contribute runs inside
+        // BuildServiceProvider, before App.Services is assigned, so the static fallback would see null here.
+        IFeatureGate? suggestedGate = sp.GetService<IFeatureGate>();
         contributions.Module(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
-            sp.GetService<DemoCacheStore>()));
+            sp.GetService<DemoCacheStore>(),
+            enabled: () => suggestedGate?.IsEnabled(SuggestedInboxModule.TabFeatureId) ?? false,
+            gate: suggestedGate));
 
         // The Round Tagger's Matrix tab.
         contributions.Module(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));

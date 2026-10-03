@@ -27,6 +27,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
 
     private readonly DemoCacheStore? _cache;
     private readonly Func<bool> _enabled;
+    private readonly IFeatureGate? _gate;
     private readonly Func<SuggestedInboxViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
@@ -34,14 +35,24 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     /// <param name="enabled">
     ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack
     ///     (its ParentId is the pack directly); null resolves <see cref="IFeatureGate" /> from
-    ///     <see cref="App.Services" /> live.
+    ///     <see cref="App.Services" /> live, failing CLOSED (not the usual fail-open default) since this is
+    ///     a pack-owned id: StratBookPack.Contribute always passes its own delegate, so the fallback here
+    ///     only matters when nothing has resolved.
     /// </param>
-    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null, Func<bool>? enabled = null)
+    /// <param name="gate">
+    ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
+    ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
+    ///     value stale until the next unrelated <c>cache.Changed</c>. Null skips that push and keeps the
+    ///     poll-on-read behaviour.
+    /// </param>
+    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null, Func<bool>? enabled = null,
+        IFeatureGate? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _cache = cache;
-        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? true);
+        _gate = gate;
+        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
     }
 
     public string Id => "net.demoviewer.suggested";
@@ -78,6 +89,13 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
                     tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
                 }
             };
+
+            // The gate's own Changed, not just cache.Changed: going off clears a stale count rather than
+            // leaving it until the next unrelated cache write; going on recomputes without waiting for one.
+            if (_gate is { } gate)
+            {
+                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount)) : null;
+            }
         }
 
         yield return tab;
