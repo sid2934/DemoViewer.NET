@@ -498,6 +498,73 @@ csproj has no `Extensions` project reference; its allow-list is empty). Item 31 
 Browser head builds in Release). Item 32 needs nothing until item 28 creates the test project:
 `scripts/test.sh` lists test projects only, and CI builds the solution. Section 13 has the layout and rules.
 
+**Item 28 as built (2026-10-03).** The project is
+`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests/DemoViewer.NET.Extensions.StratBook.Tests.csproj`,
+mirroring `DemoViewer.NET.App.Tests.csproj` (TUnit, Avalonia.Headless/Skia/Fonts.Inter, the same
+`System.GC.ConserveMemory` option, `RootNamespace` set to `DemoViewer.NET.AppTests` rather than its own
+name). `git mv` moved the 172 files under `App.Tests/Extensions/StratBook/` whole, plus eight files that
+lived at the App.Tests root but tested pack types directly rather than core behaviour with the pack as a
+fixture: `AppCompositionRootTests` (its composition-root assertions reach into
+`Modules.SuggestedTags.SuggestedTagsService` and `Modules.UtilityBook.GrenadeIndexEvaluator`, not just the
+pack root), `ReviewModeTests`, `StratBookShellTests`, `StratBookShellRenderTests`, `StratBookHubAccess`,
+`SuggestedTagsTuningViewModelTests` (its subject, `SuggestedTagsTuningViewModel`, is itself in the
+extension), `GeneratedInboxTests` and `DeferredStoreLoadTests` (both render or drive pack viewmodels
+directly: `Views.SuggestedTags`, `ViewModels.Teams`). The rule applied uniformly: a root file moves when
+its assertions reach a pack-owned type beyond the pack's own root namespace; it stays when a core
+mechanism (feature gating, the cache record's pack-payload seam, the deferred-store-load pattern, the
+Review Queue, the generated-items inbox rule, the UI-thread audit) is tested with a pack type only as a
+concrete fixture. `PackOffCompositionTests` and `StratBookPackBaselineTests`, already inside
+`Extensions/StratBook/`, moved with the batch for the same reason (both construct `GrenadeIndexEvaluator`
+and `SuggestedTagsService` instances directly). `PackBoundaryTests` is the one exception pulled back out:
+it has no pack-owned using anywhere in its body (it scans csproj XML and namespace text), so it moved to
+`App.Tests/Extensions/PackBoundaryTests.cs`, beside the other pack-agnostic contribution tests, instead of
+into the extension project. `ReviewQueueTests` was split rather than moved or kept whole: its "Review tab"
+section drove `ReviewQueueTabViewModel` and `ReviewQueueModule` (both pack-owned) directly, so those three
+tests became `ReviewQueueTabTests` in the extension project; the rest of the file, which exercises
+`ReviewQueue` itself (core, per section 13), stayed. Namespaces are untouched everywhere: the 160 files
+already in the flat `DemoViewer.NET.AppTests` namespace and the 13 in
+`DemoViewer.NET.AppTests.Extensions.StratBook` kept whatever they had, because the project's own namespace
+convention was already inconsistent before this item and fixing that was not this item's job.
+
+Shared test support is compile-linked, not a `ProjectReference` to `App.Tests`: both assemblies'
+`[ModuleInitializer]`s would run in one process when the ext suite touches an App.Tests type
+(`CompiledInPacks` calling `FeaturePacks.Configure` a second time throws on the `FrozenList`;
+`SessionIsolation` would repoint `DEMOVIEWER_CONFIG_DIR` out from under the first assembly), and TUnit would
+likely register App.Tests' own tests a second time in the ext process. Nine files stay physically in
+App.Tests and are linked into the extension project's compilation (`GlobalUsings.cs`, `CompiledInPacks.cs`,
+`SessionIsolation.cs`, `HeadlessSession.cs`, `Playback2DFakeContext.cs`,
+`Playback2DTimelineHeadlessSupport.cs`, `SyntheticParsedDemo.cs`, `QueuedPost.cs`, and two helpers pulled out
+of test classes that have their own tests so linking the whole file would double-register them:
+`FakeTimelineData.cs` out of `TimelineTrackTests.cs`, `Playback2DActivation.cs` out of
+`Playback2DActionDispatchTests.cs`). Three files moved to the extension project with the batch and are
+linked back into App.Tests, because core-mechanism tests that stayed need them as fixtures:
+`RoundIndexTestData.cs` and `CacheRecordTestExtensions.cs` (used by `DemoCachePackPayloadTests`,
+`DemoCacheRoundIndexStampTests`, `PackDataRemoverTests`, `ReviewQueueTests`, `SidecarFormatTests`,
+`BackgroundPlanRealDemoTests`, `ForwardPassRealDemoTests`, `ForwardQueueTests`) and `StratBookHubAccess.cs`
+(used by `UiThreadAuditTests`, which walks the StratBook hub the same way it walks every other section). A
+fourth, `ToleranceSliderHarness.cs`, was extracted from `ToleranceSliderTests.cs` (which has its own tests)
+for the same reason, needed by `ZonePlaceResolverSourceTests`. `src/Testing/DemoViewer.NET.TestSupport`
+(the `DemoTestHelper`/`GameEventPayloadExtensions` project) is referenced by both projects as before; it
+needed no change. `tests/shared/*.cs` (the test-tier contract) is picked up automatically, the same
+`Directory.Build.props` rule that reaches every `*.Tests` project.
+
+Both AssemblyInfo.cs files (the app's and the extension's) gained
+`InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook.Tests")` beside their existing App.Tests and
+UiCapture grants. `DemoViewer.NET.UiCapture` needed no change: it has no reference to App.Tests or to any
+file that moved. Section 13 has the as-built layout.
+
+**Item 31, confirmed.** `.github/workflows/ci.yml`'s `wasm-build` job already runs
+`dotnet publish src/App/DemoViewer.NET.Browser -c Release`, and the Browser head's csproj has referenced
+the extension since item 25. No workflow change was needed.
+
+**Item 32 as built.** `scripts/test.sh`'s project table gained
+`"ext|src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests"` after `app`; the tier filter,
+the default (`all`) selection and the per-project timing line are generic over the table, so nothing else
+in the script changed. `ci.yml`'s `app-tests` job gained one step, `Extensions (Strat Book) suite, full
+tier`, running `scripts/test.sh -t full -p ext` after the batched App suite step, in the same job rather
+than a new one. `scripts/test-app-suite.sh` (the batched runner) was not touched: it is hardcoded to
+`DemoViewer.NET.App.Tests` by design, and the extension suite has not needed batching on its first run.
+
 ### Phase 6: independent release cadence (about 6 items)
 
 The extension ships and updates separately from the app. Bounded by one hard fact: the extension uses
@@ -1750,10 +1817,13 @@ src/Extensions/StratBook/
     StratBookPack.cs, StratBookLifecycle.cs, ...    the pack root files
     Modules/ Services/ ViewModels/ Views/ Controls/ Assets/   the Phase 0b tree, moved whole, namespaces unchanged
     Services/Zones/AssetZonePlaceResolverSource.cs  the one file that moved in from core (it implements a pack interface)
-  DemoViewer.NET.Extensions.StratBook.Tests/        item 28
+  DemoViewer.NET.Extensions.StratBook.Tests/        item 28: RootNamespace DemoViewer.NET.AppTests (the App.Tests one)
+    *.cs                                             172 moved files plus 8 that lived at App.Tests' root
+    RoundIndexTestData.cs, CacheRecordTestExtensions.cs, StratBookHubAccess.cs, ToleranceSliderHarness.cs
+                                                       linked back into App.Tests: core tests use them as fixtures
   extension.json                                    Phase 6 manifest
-src/App/DemoViewer.NET.App.Tests/Extensions/StratBook/      the pack's tests, until item 28
-src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants, until item 28
+src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the item 28 move
+src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; item 28 did not touch this
 ```
 
 Rules as built:
@@ -1773,9 +1843,10 @@ Rules as built:
   the list.
 - **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (decision 5 option (b): a
   first-party extension composes over the same internal seams the app's own composition root uses; Phase
-  6's loader loads only first-party signed assemblies, so this exposes nothing to third parties). The
-  extension grants `DemoViewer.NET.App.Tests` and `DemoViewer.NET.UiCapture`. No core member was widened to
-  public for the split.
+  6's loader loads only first-party signed assemblies, so this exposes nothing to third parties) and, since
+  item 28, `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal seams App.Tests reaches). The
+  extension grants `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and
+  `DemoViewer.NET.Extensions.StratBook.Tests`. No core member was widened to public for the split.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compiled-in pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 7.4).
