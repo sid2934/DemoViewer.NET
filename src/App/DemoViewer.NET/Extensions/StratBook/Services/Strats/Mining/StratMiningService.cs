@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
@@ -44,7 +45,7 @@ public sealed record PromoteResult(StratDocument? Document, bool PatternChanged)
 ///         inputs changed (<see cref="SignatureCache" />).
 ///     </para>
 /// </summary>
-public sealed class StratMiningService : IDisposable
+public sealed class StratMiningService : IPackResident, IDisposable
 {
     /// <summary>The detected file's shape version.</summary>
     public const int SchemaVersion = 1;
@@ -78,6 +79,8 @@ public sealed class StratMiningService : IDisposable
     private readonly StratStore _strats;
     private readonly TagStore? _tags;
     private readonly TeamIdentityService? _teams;
+    private bool _attached;
+    private bool _released;
     private bool _deferred;
     private Timer? _quiet;
     private bool _rerun;
@@ -131,17 +134,7 @@ public sealed class StratMiningService : IDisposable
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
             new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
         Load();
-        _strats.Deleted += OnStratDeleted;
-        _demoCache.Changed += OnSourceChanged;
-        if (_grenadeIndex is not null)
-        {
-            _grenadeIndex.Changed += OnSourceChanged;
-        }
-
-        if (_queue is not null)
-        {
-            _queue.Changed += OnQueueChanged;
-        }
+        Attach();
     }
 
     /// <summary>The builder, for its cache counts.</summary>
@@ -180,6 +173,90 @@ public sealed class StratMiningService : IDisposable
 
     public void Dispose()
     {
+        Detach();
+        lock (_gate)
+        {
+            _quiet?.Dispose();
+            _quiet = null;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Reads the detected file again when a release dropped the patterns.</remarks>
+    public void Attach()
+    {
+        bool reload;
+        lock (_gate)
+        {
+            if (_attached)
+            {
+                return;
+            }
+
+            _attached = true;
+            reload = _released;
+            _released = false;
+        }
+
+        if (reload)
+        {
+            Load();
+        }
+
+        _strats.Deleted += OnStratDeleted;
+        _demoCache.Changed += OnSourceChanged;
+        if (_grenadeIndex is not null)
+        {
+            _grenadeIndex.Changed += OnSourceChanged;
+        }
+
+        if (_queue is not null)
+        {
+            _queue.Changed += OnQueueChanged;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     The quiet timer, the detected patterns and the signature cache go (the cache is written first when
+    ///     dirty); a mine in flight is the pack's to cancel by owner.
+    /// </remarks>
+    public void Release()
+    {
+        if (!Detach())
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _released = true;
+            _quiet?.Dispose();
+            _quiet = null;
+            _deferred = false;
+            _rerun = false;
+        }
+
+        _signatures.ReleaseCache();
+        _post(() =>
+        {
+            Patterns = [];
+            Changed?.Invoke();
+        });
+    }
+
+    private bool Detach()
+    {
+        lock (_gate)
+        {
+            if (!_attached)
+            {
+                return false;
+            }
+
+            _attached = false;
+        }
+
         _strats.Deleted -= OnStratDeleted;
         _demoCache.Changed -= OnSourceChanged;
         if (_grenadeIndex is not null)
@@ -192,7 +269,7 @@ public sealed class StratMiningService : IDisposable
             _queue.Changed -= OnQueueChanged;
         }
 
-        _quiet?.Dispose();
+        return true;
     }
 
     /// <summary>Raised on the UI thread when the patterns or their flags change.</summary>
