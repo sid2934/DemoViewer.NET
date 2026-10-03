@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
@@ -217,7 +218,7 @@ public class RoundIndexStoreTests
         using (Assert.Multiple())
         {
             await Assert.That(loaded).IsNotNull();
-            await Assert.That(loaded!.SchemaVersion).IsEqualTo(DemoCacheRecord.RoundIndexSchema);
+            await Assert.That(loaded!.SchemaVersion).IsEqualTo(StratBookCache.RoundIndexSchema);
             await Assert.That(loaded.Clock.Kind).IsEqualTo("dv-frame-clock");
             await Assert.That(loaded.Demo.Sha256).IsNull();
             await Assert.That(loaded.RowCount).IsEqualTo(11);

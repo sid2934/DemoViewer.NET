@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
@@ -29,7 +30,7 @@ public class QueryCanvasRealDemoTests
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
+        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
 
         using RoundIndexStore sidecars = new(null, cache);
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);

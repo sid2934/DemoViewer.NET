@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
@@ -22,7 +23,7 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///         Per demo the work is one position walk (1 to 3 s on top of the parse the queue already
 ///         paid), the positions file and the sidecar written in that order, and one record stamp, the
 ///         stamp last so a crash between them leaves "not indexed" and never a stamp without both
-///         files. A throw stamps <see cref="RoundIndexState.Failed" />,
+///         files. A throw stamps <see cref="DemoAnalysisState.Failed" />,
 ///         which the derived backlog excludes until the user retries; the parse itself failing is not
 ///         this evaluator's to mark.
 ///     </para>
@@ -184,7 +185,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     /// <summary>Every row that carries an index built under another fingerprint than its map's current one.</summary>
     public int StaleCount() =>
         _demoCache.Index.Count(e =>
-            e.RoundIndexSchema > 0 && e.RoundIndexState == RoundIndexState.Indexed
+            e.RoundIndexStamp() is { Schema: > 0, State: DemoAnalysisState.Indexed }
             && !e.IsRoundIndexCurrent(_sources.FingerprintFor(e.Map)));
 
     /// <summary>
@@ -196,9 +197,9 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     {
         try
         {
-            if (_demoCache.TryGetIndex(path) is { RoundIndexState: RoundIndexState.Failed })
+            if (_demoCache.TryGetIndex(path)?.RoundIndexStamp() is { State: DemoAnalysisState.Failed })
             {
-                _demoCache.UpdateExisting(path, r => r.RoundIndexState = RoundIndexState.Pending);
+                _demoCache.UpdateExisting(path, r => r.ClearFailed(EvaluatorId));
             }
         }
         catch (Exception)
@@ -219,7 +220,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     {
         List<string> failed =
         [
-            .. _demoCache.Index.Where(e => e.RoundIndexState == RoundIndexState.Failed).Select(e => e.Path)
+            .. _demoCache.Index.Where(e => e.RoundIndexStamp() is { State: DemoAnalysisState.Failed }).Select(e => e.Path)
         ];
         foreach (string path in failed)
         {
@@ -237,7 +238,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
         List<string> indexed =
         [
             .. _demoCache.Index
-                .Where(e => e.RoundIndexSchema > 0 || e.RoundIndexState == RoundIndexState.Failed)
+                .Where(e => e.RoundIndexStamp() is { } s && (s.Schema > 0 || s.State == DemoAnalysisState.Failed))
                 .Select(e => e.Path)
         ];
         using (_demoCache.BeginBatch())
@@ -246,10 +247,13 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             {
                 _demoCache.UpdateExisting(path, r =>
                 {
-                    r.RoundIndexFingerprint = null;
-                    if (r.RoundIndexState == RoundIndexState.Failed)
+                    if (r.RoundIndexStamp() is { } stamp)
                     {
-                        r.RoundIndexState = RoundIndexState.Pending;
+                        r.SetStamp(stamp with
+                        {
+                            Fingerprint = null,
+                            State = stamp.State == DemoAnalysisState.Failed ? DemoAnalysisState.Pending : stamp.State
+                        });
                     }
                 });
             }
@@ -260,7 +264,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     }
 
     private bool NeedsIndex(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0, RoundFactsSchema: > 0, RoundFactsFingerprint: not null }
+        entry is { ParseSchema: > 0 } && entry.HasRoundFacts()
         && entry.NeedsRoundIndex(_sources.FingerprintFor(entry.Map));
 
     private void Refresh(string path, ParsedDemo parsed)
@@ -275,13 +279,13 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
         try
         {
             DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-            if (record?.RoundFacts is not { } facts || facts.Schema != DemoCacheRecord.RoundFactsSchema)
+            if (record is null || _demoCache.RoundFactsOf(record) is not { Schema: StratBookCache.RoundFactsSchema } facts)
             {
                 // The row said Round Facts was written (that is why Wants picked this demo) but the
                 // sidecar has none: index.json was saved before a later write replaced the record. Left
                 // alone, Wants stays true and the coordinator re-parses this demo forever. Re-project the
                 // row from the sidecar so it stops claiming facts and Round Facts re-wants the demo.
-                if (record is not null && _demoCache.TryGetIndex(path) is { RoundFactsSchema: > 0 })
+                if (record is not null && _demoCache.TryGetIndex(path)?.RoundFactsStamp() is { Schema: > 0 })
                 {
                     RoundIndexLog.RowClaimedMissingFacts(Log, fileName);
                     _demoCache.UpdateExisting(path, _ => { });
@@ -325,14 +329,17 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             _store.WritePositions(path, build.Positions);
             _store.Write(path, document);
 
+            // Stamped inside the mutate, under the store's read-modify-write lock, so the time is the persist time.
             long computedAt = 0;
             _demoCache.UpdateExisting(path, r =>
             {
-                DemoCacheStore.StampRoundIndex(r);
-                r.RoundIndexState = RoundIndexState.Indexed;
-                r.RoundIndexFingerprint = fingerprint;
-                r.RoundIndexRowCount = document.RowCount;
-                computedAt = r.RoundIndex.ComputedAtTicks;
+                PackStamp stamp = new(EvaluatorId, StratBookCache.RoundIndexSchema, fingerprint)
+                {
+                    ComputedAtTicks = DateTime.UtcNow.Ticks,
+                    Count = document.RowCount
+                };
+                r.SetStamp(stamp);
+                computedAt = stamp.ComputedAtTicks;
             });
             _demoCache.SaveIndex();
 
@@ -345,7 +352,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             RoundIndexLog.BuildFailed(Log, fileName, ex);
             try
             {
-                _demoCache.UpdateExisting(path, r => r.RoundIndexState = RoundIndexState.Failed);
+                _demoCache.UpdateExisting(path, r => r.MarkFailed(EvaluatorId));
             }
             catch (Exception)
             {

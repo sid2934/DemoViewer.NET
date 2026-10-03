@@ -586,10 +586,7 @@ public class StratBookLiveToggleTests
         };
         cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
         DemoCacheRecord record = cache.TryLoadRecord(path) ?? RoundIndexTestData.ParsedRecord(path, "de_nuke", sha);
-        DemoCacheStore.StampGrenades(record);
-        record.GrenadeState = DemoAnalysisState.Indexed;
-        record.GrenadeCount = document.Grenades.Count;
-        record.GrenadeWalker = GrenadeWalker.Version;
+        record.StampGrenades(document.Grenades.Count);
         cache.Upsert(record);
     }
 

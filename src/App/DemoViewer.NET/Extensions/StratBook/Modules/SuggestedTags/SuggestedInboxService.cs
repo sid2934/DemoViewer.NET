@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 
@@ -68,7 +69,7 @@ public sealed class SuggestedInboxService : IDisposable
     }
 
     /// <summary>Pending proposals across the library, from the index rows alone: the rail badge.</summary>
-    public int PendingCount => _cache.Index.Sum(e => e.SuggestionCount);
+    public int PendingCount => _cache.Index.Sum(e => e.SuggestionCount());
 
     /// <summary>Raised on the UI thread when <see cref="Items" /> changed.</summary>
     public event Action? Changed;
@@ -122,7 +123,7 @@ public sealed class SuggestedInboxService : IDisposable
     private void ReadAll()
     {
         Dictionary<string, IReadOnlyList<SuggestedInboxItem>> all = new(StringComparer.OrdinalIgnoreCase);
-        foreach (DemoCacheIndexEntry row in _cache.Index.Where(r => r.SuggestionsFingerprint is not null))
+        foreach (DemoCacheIndexEntry row in _cache.Index.Where(r => r.SuggestionsStamp()?.Fingerprint is not null))
         {
             all[row.Path] = Read(row);
         }

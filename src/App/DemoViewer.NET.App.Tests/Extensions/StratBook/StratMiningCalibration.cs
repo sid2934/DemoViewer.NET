@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Diagnostics;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
@@ -199,7 +200,7 @@ public class StratMiningCalibration
     {
         public int Schema => 0;
 
-        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts;
+        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts();
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
 

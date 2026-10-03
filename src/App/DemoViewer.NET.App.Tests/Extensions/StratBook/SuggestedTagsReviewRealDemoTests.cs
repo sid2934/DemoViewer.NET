@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
@@ -55,6 +56,6 @@ public class SuggestedTagsReviewRealDemoTests
         await Assert.That(service.Accept(path, set.Pending[0].Proposal.Id)).IsTrue();
         await Assert.That(service.Reject(path, set.Pending[1].Proposal.Id)).IsTrue();
         await Assert.That(tags.TryLoad(new string('c', 64))!.Instances.Single().Source).IsEqualTo(TagSources.Suggested);
-        await Assert.That(cache.TryGetIndex(path)!.SuggestionCount).IsEqualTo(set.Pending.Count - 2);
+        await Assert.That(cache.TryGetIndex(path)!.SuggestionCount()).IsEqualTo(set.Pending.Count - 2);
     }
 }

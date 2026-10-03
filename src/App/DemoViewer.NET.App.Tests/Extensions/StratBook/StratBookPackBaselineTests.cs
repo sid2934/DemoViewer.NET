@@ -379,7 +379,7 @@ public class StratBookPackBaselineTests
     {
         public int Schema => 0;
 
-        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts;
+        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts();
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
 
@@ -557,9 +557,14 @@ public class StratBookPackBaselineTests
     private static void InvalidateForReindex(DemoCacheStore demoCache, string path) =>
         demoCache.UpdateExisting(path, r =>
         {
-            r.RoundFactsFingerprint = null;
-            r.RoundIndexFingerprint = null;
-            r.SuggestionsFingerprint = null;
+            foreach (string id in new[] { RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId })
+            {
+                if (r.Stamp(id) is { } stamp)
+                {
+                    r.SetStamp(stamp with { Fingerprint = null });
+                }
+            }
+
             r.AnalysisState = DemoAnalysisState.Pending;
         });
 

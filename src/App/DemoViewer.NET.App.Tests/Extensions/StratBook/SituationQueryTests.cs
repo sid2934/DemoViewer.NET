@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -469,7 +470,7 @@ public class SituationQueryTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => DemoCacheRecord.RoundFactsSchema;
+        public int Schema => StratBookCache.RoundFactsSchema;
 
         public event Action<string>? Updated
         {

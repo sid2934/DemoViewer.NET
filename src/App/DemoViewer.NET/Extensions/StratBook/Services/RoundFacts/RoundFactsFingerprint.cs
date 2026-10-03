@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
@@ -92,7 +93,7 @@ public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
                 return null;
             }
 
-            return RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema,
+            return RoundFactsFingerprint.Combine(StratBookCache.RoundFactsSchema,
                 Rules.RulesetIdentity(RoundFactsFingerprint.RulesetId, tickRate));
         }
         catch (Exception ex)

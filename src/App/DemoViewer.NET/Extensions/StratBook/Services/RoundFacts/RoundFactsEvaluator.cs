@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
@@ -17,7 +18,8 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     The evaluator that writes round facts: an <see cref="IDemoEvaluator" /> on the tier-2 fan-out, so
 ///     it runs on the Library's pass (retained or forward) and costs no second parse. It reads the
 ///     <c>round_facts</c> table out of the merged rules run through its <see cref="IRoundFactsRowSource" />,
-///     projects it onto the record and stores the rows in the Analysis tier under <see cref="RoundFactsFingerprint" />.
+///     projects it onto the record and stores the rows in the pack's payload, stamped under the
+///     <see cref="RoundFactsFingerprint" /> (<see cref="StratBookCache.SetRoundFacts" />).
 ///     <para>
 ///         Registered after the highlight scanner and before the round index (overview correction 19):
 ///         the index reads these rows in the same pass.
@@ -215,8 +217,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             _demoCache.UpdateExisting(path, record =>
             {
                 rows.DemoSha256 = record.Sha256;
-                record.RoundFacts = rows;
-                record.RoundFactsFingerprint = fingerprint;
+                _demoCache.SetRoundFacts(record, rows, fingerprint);
             });
             _demoCache.SaveIndex();
             _post(() => Updated?.Invoke(path));
