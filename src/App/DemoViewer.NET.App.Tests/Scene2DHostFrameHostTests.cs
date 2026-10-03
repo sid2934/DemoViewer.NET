@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -194,6 +195,54 @@ public class Scene2DHostFrameHostTests
             await Assert.That(host.Router.IsGestureOpen).IsFalse();
             window.MouseUp(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
 
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     A primary press offers itself to the host's pointer pre-handler before the router (item 20): one
+    ///     that consumes it stops there, so the pan tool never opens a gesture; one that does not falls
+    ///     through, and the press is the pan tool's as if there were no pre-handler at all.
+    /// </summary>
+    [Test]
+    public async Task PointerPreHandler_Consuming_StopsTheRouter_NonConsuming_FallsThrough()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSceneFrameHost fake = new();
+            fake.Publish(Frame(1, true, TenTokens()));
+
+            (Window window, Scene2DHost host) = Mount(fake);
+            host.FitToExtent();
+            Playback2DTimelineHarness.Pump();
+
+            List<ScenePointer> seen = [];
+            fake.PointerPreHandler = p =>
+            {
+                seen.Add(p);
+                return true;
+            };
+
+            Point down = Playback2DTimelineHarness.ToWindow(host, window, 300, 300);
+            Point moved = Playback2DTimelineHarness.ToWindow(host, window, 320, 320);
+            window.MouseDown(down, MouseButton.Left);
+            window.MouseMove(moved);
+            using (Assert.Multiple())
+            {
+                await Assert.That(seen.Count).IsEqualTo(1);
+                await Assert.That(host.Router.IsGestureOpen).IsFalse()
+                    .Because("a consuming pre-handler stops the press before the pan tool ever sees it");
+            }
+
+            window.MouseUp(moved, MouseButton.Left);
+
+            fake.PointerPreHandler = _ => false;
+            window.MouseDown(down, MouseButton.Left);
+            window.MouseMove(moved);
+            await Assert.That(host.Router.IsGestureOpen).IsTrue()
+                .Because("a non-consuming pre-handler falls through: the press is the pan tool's");
+
+            window.MouseUp(moved, MouseButton.Left);
             window.Close();
         });
     }
@@ -513,12 +562,15 @@ public class Scene2DHostFrameHostTests
         public PlaceResolver? Zones => null;
         public ITokenEditor? TokenEditor { get; init; }
 
+        /// <summary>Settable override for <see cref="TryPointerPreHandler" />; null falls through (the default answer).</summary>
+        public Func<ScenePointer, bool>? PointerPreHandler { get; set; }
+
         public event Action? FrameUpdated;
 
         public void ApplyAnnotationLevelRebuild(IReadOnlyDictionary<double, double> zMinMap) =>
             Rebuilds.Add(new Dictionary<double, double>(zMinMap));
 
-        public bool TryTagPositionAt(MapLevel level, double worldX, double worldY) => false;
+        public bool TryPointerPreHandler(ScenePointer pointer) => PointerPreHandler?.Invoke(pointer) ?? false;
 
         // A fresh frame per publish, never a mutated one: the render thread replays the submitted frame.
         public void Publish(Scene2DFrame frame)

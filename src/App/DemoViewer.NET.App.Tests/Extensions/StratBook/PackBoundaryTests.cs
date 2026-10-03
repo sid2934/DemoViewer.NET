@@ -36,7 +36,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.Teams", "composition root"),
         // The default pack list the heads hand the composition root; the heads name the packs themselves at item 29.
         ("src/App/DemoViewer.NET/Extensions/FeaturePacks.cs", "DemoViewer.NET.Extensions.StratBook", "composition root"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.Situations", "item 20"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.RoundFacts", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Timeline/RoundTrack.cs", "DemoViewer.NET.Services.RoundFacts", "item 2"),
         ("src/App/DemoViewer.NET/Services/Review/ReviewQueue.cs", "DemoViewer.NET.Services.Tags", "item 25"),
