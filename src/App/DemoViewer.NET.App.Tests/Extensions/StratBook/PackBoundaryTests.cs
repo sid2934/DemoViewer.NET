@@ -51,7 +51,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/Services/Review/ReviewQueue.cs", "DemoViewer.NET.Services.Tags", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.RoundIndex", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.Strats", "item 25"),
-        ("src/App/DemoViewer.NET/ViewModels/AnalysisViewModel.cs", "DemoViewer.NET.Services.RoundFacts", "item 2"),
         ("src/App/DemoViewer.NET/ViewModels/Settings/SuggestedTagsTuningViewModel.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 14"),
         ("src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs", "DemoViewer.NET.Modules.StratBook", "item 12"),
         ("src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs", "DemoViewer.NET.Views.StratBook", "item 12"),
@@ -70,7 +69,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Modules.UtilityBook", "item 21"),
         ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Services.RoundFacts", "item 21"),
         ("src/App/DemoViewer.NET/Services/DemoCache/DemoCacheModels.cs", "DemoViewer.NET.Services.RoundIndex", "item 21"),
-        ("src/App/DemoViewer.NET/Modules/Highlights/MergedRulesBuild.cs", "DemoViewer.NET.Services.RoundFacts", "item 2"),
     ];
 
     [Test]
