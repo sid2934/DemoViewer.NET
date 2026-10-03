@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -201,6 +202,26 @@ public class FeatureGateTests
             svc.Write(s => s.Features.DeveloperMode = true);
             await Assert.That(gate.Category).IsEqualTo(UserCategory.Developer);
             await Assert.That(gate.HiddenCount).IsEqualTo(0).Because("DeveloperMode escalates to the full set");
+        });
+    }
+
+    // (f2) A pack's own row never counts itself: overriding it off under Developer hides exactly its
+    // non-Required descriptors (OwnerPackId stamped), never the pack row plus one more for itself. The
+    // expected number is derived from the catalog so a future pack row never needs a literal updated here.
+    [Test]
+    public async Task HiddenCount_ExcludesThePackRowItself_CountingOnlyWhatItCascadesOff()
+    {
+        await WithGate(async (svc, gate) =>
+        {
+            svc.Write(s => s.UserCategory = UserCategory.Developer);
+            await Assert.That(gate.HiddenCount).IsEqualTo(0);
+
+            svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+
+            int expected = FeatureCatalog.All.Count(d => d.OwnerPackId == StratBookPack.PackFeatureId && !d.Required);
+            await Assert.That(expected).IsGreaterThan(0).Because("the catalog pins at least one pack-owned row");
+            await Assert.That(gate.HiddenCount).IsEqualTo(expected)
+                .Because("the pack row itself is excluded; only its cascaded children count");
         });
     }
 
