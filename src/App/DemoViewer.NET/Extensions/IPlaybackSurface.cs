@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
@@ -46,14 +47,13 @@ public interface IPaneHandle : IDisposable
 
 /// <summary>
 ///     A right-column panel a contribution added. Several panels are open at once and show in order, each
-///     while its gate is on and the column shows contributed panels (Review mode until item 18 makes the
-///     mode the pack's). A panel can hold the keyboard (<see cref="HasKeyboard" />): its focus scope, under
-///     which the contribution's key handlers run before the tab's keymap and its action handlers see every
-///     action first.
+///     while its gate is on and the <see cref="ModeToggle" /> it was bound to, if any, is on. A panel can
+///     hold the keyboard (<see cref="HasKeyboard" />): its focus scope, under which the contribution's key
+///     handlers run before the tab's keymap and its action handlers see every action first.
 /// </summary>
 public interface IPanelHandle : IPaneHandle
 {
-    /// <summary>Open, gate on and the column showing contributed panels. What the user sees.</summary>
+    /// <summary>Open, gate on and the panel's mode on. What the user sees.</summary>
     bool IsShown { get; }
 
     /// <summary><see cref="IsShown" /> changed: the gate, the mode or the panel's own open state moved.</summary>
@@ -93,20 +93,29 @@ public interface IPlaybackSurface
     event Action? Deactivated;
 
     /// <summary>
-    ///     Review mode, the tab's. The right column shows contributed panels only while it is on. Temporary:
-    ///     item 18 makes the mode a pack-owned toggle the timeline exposes, and this leaves with it.
+    ///     The demo the tab shows changed: raised on activation and on a demo reset while active, after the
+    ///     tab has resynced to it. A contribution that keeps per-demo state attaches it here; the context's
+    ///     <c>DemoPath</c> is the demo now current, and may be the one already attached.
     /// </summary>
-    bool IsReviewMode { get; }
-
-    /// <summary><see cref="IsReviewMode" /> flipped. Temporary with it (item 18).</summary>
-    event Action? ReviewModeChanged;
+    /// <returns>Removes the handler.</returns>
+    IDisposable OnDemoChanged(Action handler);
 
     /// <summary>
-    ///     The tab's timeline, for a contribution whose lanes the tab still registers: the lane's edit span,
-    ///     its label and drag events, the registered tracks. Temporary: item 18 replaces this with lane
-    ///     contributions that carry their own behaviour.
+    ///     A lane on the timeline with its own behaviour: the track's bands and markers, and the press, menu,
+    ///     label and drag handling for them. The handle carries the lane's suppression, editability and edit
+    ///     span; disposing it unregisters the track.
     /// </summary>
-    Playback2DTimelineViewModel Timeline { get; }
+    /// <param name="track">The track.</param>
+    /// <param name="row">Which band row the track's bands draw in.</param>
+    /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
+    ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
+
+    /// <summary>
+    ///     A mode of the tab the contribution owns: the toolbar shows its toggle while it is available, and
+    ///     its keymap action flips it. Panels bound to it through <see cref="AddPanel" /> show while it is on.
+    /// </summary>
+    /// <returns>Removes the toggle.</returns>
+    IDisposable AddModeToggle(ModeToggle toggle);
 
     /// <summary>
     ///     The frame on screen, for a contribution that resolves a map click against it. Temporary: item 20
@@ -136,8 +145,8 @@ public interface IPlaybackSurface
     IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);
 
     /// <summary>
-    ///     A right-column panel. The column shows every open panel whose gate is on, lowest order first,
-    ///     while it shows contributed panels at all.
+    ///     A right-column panel. The column shows every open panel whose gate and mode are on, lowest order
+    ///     first; the player cards collapse to a strip while any panel shows.
     /// </summary>
     /// <param name="order">Among right-column panels, lower first.</param>
     /// <param name="viewModel">Builds the view model on <see cref="IPaneHandle.Open" />; disposed on close when it is <see cref="IDisposable" />.</param>
@@ -146,7 +155,9 @@ public interface IPlaybackSurface
     ///     ViewLocator convention, which needs a <c>ViewModelBase</c> with a <c>…View</c>.
     /// </param>
     /// <param name="featureId">The gate the panel shows under, read through the tab's features; null for the owning pack's alone.</param>
-    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null);
+    /// <param name="mode">The mode the panel shows under; null shows it whenever it is open with its gate on.</param>
+    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
+        ModeToggle? mode = null);
 
     /// <summary>
     ///     A key handler asked before the tab's keymap, in registration order, for every key the view gets
