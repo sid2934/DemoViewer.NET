@@ -156,7 +156,9 @@ public sealed record LibraryFilterItem(string Key, string Display);
 /// <param name="Label">The filter's own label (e.g. "Team"), not the picker's placeholder text.</param>
 /// <param name="Items">In display order; item 0 is conventionally the "" (All) choice.</param>
 /// <param name="Matches">Given an entry and a non-"" item key, whether the entry passes.</param>
-public sealed record LibraryFilter(string Label, IReadOnlyList<LibraryFilterItem> Items, Func<DemoEntry, string, bool> Matches);
+/// <param name="Tooltip">The picker's tooltip; null defaults to <paramref name="Label" />.</param>
+public sealed record LibraryFilter(
+    string Label, IReadOnlyList<LibraryFilterItem> Items, Func<DemoEntry, string, bool> Matches, string? Tooltip = null);
 
 /// <summary>A card badge's current value for one entry: the text, its tooltip, and whether it is a user pin.</summary>
 /// <param name="Label">Shown on the chip.</param>
@@ -188,14 +190,38 @@ public interface ILibraryContribution
     /// </summary>
     bool HasBadge { get; }
 
-    /// <summary>This entry's badge, or null for none. Must be O(1) and do no I/O: the Library calls it once per entry on every refresh.</summary>
+    /// <summary>
+    ///     This entry's badge, or null for none. Must be O(1) and do no I/O: used for a single-entry update
+    ///     (e.g. after <see cref="SetLabel" />), never for a full-library refresh, which calls
+    ///     <see cref="BadgesFor" /> instead.
+    /// </summary>
     LibraryBadge? BadgeFor(DemoEntry entry);
+
+    /// <summary>
+    ///     Every entry's badge in one call, keyed by <see cref="DemoEntry.FilePath" />; an entry absent from
+    ///     the result has no badge. The Library's full-refresh path, so a contribution whose per-entry answer
+    ///     shares state across entries (a lock, a batch lookup) does that work once here instead of inside
+    ///     <see cref="BadgeFor" /> N times. The default forwards to <see cref="BadgeFor" /> per entry.
+    /// </summary>
+    IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries)
+    {
+        Dictionary<string, LibraryBadge?> result = new(StringComparer.Ordinal);
+        foreach (DemoEntry entry in entries)
+        {
+            result[entry.FilePath] = BadgeFor(entry);
+        }
+
+        return result;
+    }
 
     /// <summary>Labels the chip's menu offers for <see cref="SetLabel" />; empty hides the menu (a read-only badge, or none).</summary>
     IReadOnlyList<string> BadgeLabels { get; }
 
     /// <summary>Label for the menu's "go back to automatic" entry, or null to omit it.</summary>
     string? BadgeResetLabel { get; }
+
+    /// <summary>Tooltip for the reset entry; null (the default) for none.</summary>
+    string? BadgeResetTooltip => null;
 
     /// <summary>Pins <paramref name="label" /> on <paramref name="entry" />, or null to clear a pin. No-op when <see cref="BadgeLabels" /> is empty.</summary>
     void SetLabel(DemoEntry entry, string? label);

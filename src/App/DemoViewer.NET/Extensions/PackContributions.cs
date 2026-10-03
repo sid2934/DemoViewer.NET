@@ -164,8 +164,10 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
         public LibraryFilter? Filter => inner.Filter;
         public bool HasBadge => inner.HasBadge;
         public LibraryBadge? BadgeFor(DemoEntry entry) => inner.BadgeFor(entry);
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries) => inner.BadgesFor(entries);
         public IReadOnlyList<string> BadgeLabels => inner.BadgeLabels;
         public string? BadgeResetLabel => inner.BadgeResetLabel;
+        public string? BadgeResetTooltip => inner.BadgeResetTooltip;
         public void SetLabel(DemoEntry entry, string? label) => inner.SetLabel(entry, label);
     }
 }
