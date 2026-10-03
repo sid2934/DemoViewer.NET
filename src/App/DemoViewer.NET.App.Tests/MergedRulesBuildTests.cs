@@ -1,10 +1,14 @@
 #region
 
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.TestSupport;
 
 #endregion
 
@@ -149,6 +153,38 @@ public class MergedRulesBuildTests
         finally
         {
             user.Delete(true);
+        }
+    }
+
+    // The bare run is cached per held parse. A run from before a pack toggle is not the merged set's run:
+    // kept, the row source would read an empty table off it and pin the demo as "no rows" for the session.
+    [Test]
+    public async Task ABareRunCachedUnderOneGate_IsNotServedUnderAnother()
+    {
+        bool packOn = false;
+        MergedRulesBuild build = new(ShippedRules, () => [new GatedRuleset(RoundFacts, () => packOn)]);
+        ParsedDemo parsed = SyntheticParsedDemo.Create(
+            [
+                new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 0, ServerTick = 1, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false },
+                new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 1, ServerTick = 500, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false }
+            ],
+            [TestGameEvents.RoundFreezeEnd(frameNumber: 1, serverTick: 500, gameTick: 500)],
+            tickCount: 500);
+
+        AnalysisRun off = build.BareRun(parsed);
+        AnalysisRun offAgain = build.BareRun(parsed);
+        packOn = true;
+        AnalysisRun on = build.BareRun(parsed);
+        AnalysisRun onAgain = build.BareRun(parsed);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(offAgain).IsSameReferenceAs(off).Because("same gate: the cached run");
+            await Assert.That(on).IsNotSameReferenceAs(off).Because("the gate moved: a fresh run over the merged set");
+            await Assert.That(onAgain).IsSameReferenceAs(on);
+            await Assert.That(off.Build.Outputs?.Select(o => o.Id) ?? []).DoesNotContain(RoundFacts);
+            await Assert.That(on.Build.Outputs?.Select(o => o.Id) ?? []).Contains(RoundFacts)
+                .Because("the bare build keeps the round_facts output, and only that one");
         }
     }
 

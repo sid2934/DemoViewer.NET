@@ -31,7 +31,8 @@ public sealed class MergedRulesBuild
     private static ILogger? _diagLog;
 
     // One bare run per held parse: the highlight scan and round facts read the same run on a retained entry.
-    private readonly ConditionalWeakTable<ParsedDemo, AnalysisRun> _runs = new();
+    // Stamped with the gate mask it ran under; a run from before a pack toggle is not the merged set's run.
+    private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
     private readonly object _gate = new();
@@ -77,48 +78,63 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>The pack-owned rulesets this build knows, gated by their owners.</summary>
-    public IReadOnlyList<GatedRuleset> PackRulesets => _packRulesets.Value;
+    public IReadOnlyList<GatedRuleset> PackRulesets
+    {
+        get
+        {
+            IReadOnlyList<GatedRuleset> packs = _packRulesets.Value;
+            // The gate snapshot is one bit per pack ruleset in a ulong.
+            if (packs.Count > 64)
+            {
+                throw new InvalidOperationException($"{packs.Count} pack-owned rulesets; the gate mask holds 64.");
+            }
+
+            return packs;
+        }
+    }
 
     /// <summary>
     ///     Every ruleset the background passes run now: the core rulesets plus the pack-owned ones whose
     ///     pack is on, in the order the directories were read. Re-derived when a gate answer changes.
     /// </summary>
-    public IReadOnlyList<RulesetDoc> Docs
+    public IReadOnlyList<RulesetDoc> Docs => MergedDocs().Docs;
+
+    // The merged set under one gate snapshot, with the snapshot it was derived from. Each gate is read
+    // once, outside the lock: a gate may be any object, and the first read also resolves the contributions.
+    private (ulong Mask, IReadOnlyList<RulesetDoc> Docs) MergedDocs()
     {
-        get
+        IReadOnlyList<GatedRuleset> packs = PackRulesets;
+        ulong mask = 0;
+        HashSet<string>? off = null;
+        for (int i = 0; i < packs.Count; i++)
         {
-            // The gates are read outside the lock: a gate may be any object, and the first read also
-            // resolves the pack contributions.
-            IReadOnlyList<GatedRuleset> packs = PackRulesets;
-            ulong mask = 0;
-            for (int i = 0; i < packs.Count; i++)
+            if (packs[i].Enabled())
             {
-                if (packs[i].Enabled())
-                {
-                    mask |= 1UL << (i & 63);
-                }
+                mask |= 1UL << i;
+            }
+            else
+            {
+                (off ??= new HashSet<string>(StringComparer.Ordinal)).Add(packs[i].RulesetId);
+            }
+        }
+
+        RuleConfigLoadResult rules = Rules;
+        lock (_gate)
+        {
+            if (ReferenceEquals(rules, _rules) && _merged is { } hit && hit.Mask == mask)
+            {
+                return hit;
             }
 
-            RuleConfigLoadResult rules = Rules;
-            lock (_gate)
+            IReadOnlyList<RulesetDoc> docs = off is null
+                ? rules.Rulesets
+                : [.. rules.Rulesets.Where(r => !off.Contains(r.Id))];
+            if (ReferenceEquals(rules, _rules))
             {
-                if (ReferenceEquals(rules, _rules) && _merged is { } hit && hit.Mask == mask)
-                {
-                    return hit.Docs;
-                }
-
-                HashSet<string> off = new(
-                    packs.Where(p => !p.Enabled()).Select(p => p.RulesetId), StringComparer.Ordinal);
-                IReadOnlyList<RulesetDoc> docs = off.Count == 0
-                    ? rules.Rulesets
-                    : [.. rules.Rulesets.Where(r => !off.Contains(r.Id))];
-                if (ReferenceEquals(rules, _rules))
-                {
-                    _merged = (mask, docs);
-                }
-
-                return docs;
+                _merged = (mask, docs);
             }
+
+            return (mask, docs);
         }
     }
 
@@ -224,20 +240,21 @@ public sealed class MergedRulesBuild
     /// </summary>
     public AnalysisRun BareRun(ParsedDemo parsed)
     {
+        (ulong mask, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
         lock (_gate)
         {
-            if (_runs.TryGetValue(parsed, out AnalysisRun? cached))
+            if (_runs.TryGetValue(parsed, out CachedRun? cached) && cached.Mask == mask)
             {
-                return cached;
+                return cached.Run;
             }
         }
 
-        BuildResult build = ForwardDemoPass.Build(parsed, Docs);
+        BuildResult build = ForwardDemoPass.Build(parsed, docs);
         RulesetExclusionReport.Report(Log, build);
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         lock (_gate)
         {
-            _runs.AddOrUpdate(parsed, run);
+            _runs.AddOrUpdate(parsed, new CachedRun(mask, run));
         }
 
         return run;
@@ -279,6 +296,8 @@ public sealed class MergedRulesBuild
             _runs.Clear();
         }
     }
+
+    private sealed record CachedRun(ulong Mask, AnalysisRun Run);
 
     private static IReadOnlyList<RulesetDoc> WithoutPackRulesets(IReadOnlyList<RulesetDoc> rulesets, IReadOnlyList<GatedRuleset> packs)
     {
