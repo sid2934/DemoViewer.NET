@@ -3,9 +3,11 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.StratBook;
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
@@ -18,19 +20,41 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The pack's startup loads and shutdown flushes, run only while <c>pack.stratbook</c> resolves on.
-///     <see cref="OnEnabledAsync" /> is the explicit startup block <c>App.axaml.cs</c> used to run by
-///     hand; resolving each service here is itself the subscription (the index loads once, the facts
-///     refresher starts watching writes), so there is nothing further to await.
+///     The pack's startup loads, its in-session release and its shutdown flushes. <see cref="OnEnabledAsync" />
+///     is the explicit startup block <c>App.axaml.cs</c> used to run by hand and runs the same way for a
+///     switch-on mid-session: resolving a service is itself the subscription on first build, and
+///     <see cref="IPackResident.Attach" /> is the subscription on every later enable. <see cref="OnDisabledAsync" />
+///     cancels the pack's queue items by owner and releases every resident as one queue item, so a large
+///     index never leaves memory on the UI thread.
 /// </summary>
 internal sealed class StratBookLifecycle : IPackLifecycle
 {
+    /// <summary>The owner tag of the pack's own queue items; also the serial its loads and release share.</summary>
+    internal const string Owner = StratBookPack.PackFeatureId;
+
+    /// <summary>The release item's title, pinned by a test.</summary>
+    internal const string ReleaseTitle = "Strat Book: release memory";
+
+    /// <summary>
+    ///     Every owner tag a pack job or parse attachment carries, cancelled together on disable. No
+    ///     user-truth store saves travel under these: the Tag Store and the Strat Store write inline, the
+    ///     Review Queue ("review") is core. "demo-cache" is the sidecar migrations, submitted only here.
+    /// </summary>
+    internal static readonly string[] OwnerTags =
+    [
+        "situations", "utility", "lineup-clips", "strat-mining", "strats", "suggested", "suggested-inbox", "tags", "dossier",
+        "teams", "demo-cache",
+        RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId,
+        GrenadeIndexEvaluator.EvaluatorId,
+        Owner
+    ];
+
     private readonly IServiceProvider _sp;
     private readonly StratBookPackInstances _instances;
     private readonly TimeSpan _migrationDelay;
 
     /// <param name="sp">The composition root, resolved from the same container <see cref="StratBookPack.Register" /> fed.</param>
-    /// <param name="instances">The pack's was-built tracker, so shutdown never constructs a store that nothing opened.</param>
+    /// <param name="instances">The pack's live-state tracker, so shutdown never constructs a store that nothing opened.</param>
     /// <param name="migrationDelay">
     ///     How long after enabling the one-off sidecar migrations wait; 30 seconds in production, overridable
     ///     so a test can pin their labels without waiting.
@@ -45,53 +69,100 @@ internal sealed class StratBookLifecycle : IPackLifecycle
     }
 
     /// <inheritdoc />
+    /// <remarks>Completes when the loads have run (or were cancelled). The migrations are not awaited.</remarks>
     public Task OnEnabledAsync(PackStartReason reason, CancellationToken ct)
     {
+        IDemoProcessingQueue? queue = _sp.GetService<IDemoProcessingQueue>();
+
         // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
         // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
         SituationIndex situations = _sp.GetRequiredService<SituationIndex>();
-        _ = StartupLoad(_sp, "Load: situations index", "situations", situations.Load);
+        Task situationsLoad = StartupLoad(queue, "Load: situations index", "situations", situations.Load, ct);
 
         // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
         GrenadeIndex grenadeIndex = _sp.GetRequiredService<GrenadeIndex>();
-        _ = StartupLoad(_sp, "Load: grenade index", "utility", grenadeIndex.Load);
+        Task grenadesLoad = StartupLoad(queue, "Load: grenade index", "utility", grenadeIndex.Load, ct);
 
         // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
-        _sp.GetRequiredService<LineupClipService>();
+        _sp.GetRequiredService<LineupClipService>().Attach();
 
-        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
-        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
-        _ = _sp.GetRequiredService<TeamIdentityService>().StartAsync();
+        // Team Identity's startup: its file read as a queue item (Attach schedules it once; the first build
+        // already did when the pack was on at startup), then a rebuild from the sidecars when team-index.json
+        // is missing or behind, else the index-versus-cache diff. Off the UI thread; the tab reads whatever
+        // is there meanwhile.
+        TeamIdentityService teams = _sp.GetRequiredService<TeamIdentityService>();
+        teams.Attach();
+        Task teamsStart = teams.StartAsync();
 
         // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
-        _sp.GetRequiredService<TagFactsRefresher>();
+        _sp.GetRequiredService<TagFactsRefresher>().Attach();
+
+        // After a release the typed view is empty; the residents are the same objects. Everything built
+        // lazily before the release (Watched Situations, Strat Mining) re-attaches here too.
+        _instances.Restore();
+        foreach (IPackResident resident in _instances.Residents)
+        {
+            resident.Attach();
+        }
 
         // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
         // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
         // the delay so startup loads are not competing for the disk.
-        if (!OperatingSystem.IsBrowser())
+        if (!OperatingSystem.IsBrowser() && queue is not null)
         {
             DemoCacheStore demoCache = _sp.GetRequiredService<DemoCacheStore>();
-            IDemoProcessingQueue queue = _sp.GetRequiredService<IDemoProcessingQueue>();
-            GrenadeIndex grenades = _sp.GetRequiredService<GrenadeIndex>();
             _ = Task.Delay(_migrationDelay, ct).ContinueWith(_ =>
                 {
                     SidecarFormatMigration.Submit(queue, demoCache,
                         [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
 
                     // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
-                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
+                    GrenadeStoreMigration.Submit(queue, demoCache, grenadeIndex);
                 },
                 ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
         }
 
-        return Task.CompletedTask;
+        return Task.WhenAll(situationsLoad, grenadesLoad, teamsStart);
     }
 
     /// <inheritdoc />
-    public void OnDisabled()
+    /// <remarks>
+    ///     The evaluators already stop by predicate. Every queued pack item goes by owner tag (a running one
+    ///     finishes its unit); the release itself is a user-priority queue item sharing the loads' serial, so
+    ///     it runs after a load still in flight and never beside one.
+    /// </remarks>
+    public Task OnDisabledAsync()
     {
-        // Item 8 fills this in: unsubscribe, cancel owned jobs, release resident indexes.
+        IDemoProcessingQueue? queue = _sp.GetService<IDemoProcessingQueue>();
+        if (queue is not null)
+        {
+            foreach (string owner in OwnerTags)
+            {
+                queue.CancelOwned(owner);
+            }
+        }
+
+        return QueueWork.Run(queue, QueueJobKind.SectionCompute, ReleaseTitle, Owner, _ => Release(),
+            DemoJobPriority.UserRequested, serial: Owner);
+    }
+
+    // Dependents first (reverse build order): a watcher leaves the index before the index empties and raises.
+    private void Release()
+    {
+        ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+        foreach (IPackResident resident in _instances.Residents.Reverse())
+        {
+            try
+            {
+                resident.Release();
+            }
+            catch (Exception ex)
+            {
+                AppLog.OperationFailed(log, "strat book release", ex);
+            }
+        }
+
+        _instances.Clear();
     }
 
     /// <inheritdoc />
@@ -127,7 +198,14 @@ internal sealed class StratBookLifecycle : IPackLifecycle
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
     // Mirrors App.StartupLoad; kept local so the pack does not reach back into App for a private helper.
-    private static Task StartupLoad(IServiceProvider sp, string title, string owner, Action load) =>
-        QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner,
-            _ => load(), DemoJobPriority.UserRequested);
+    // The serial keeps a release from running beside it. The token is the enable's: cancelled, the item
+    // does nothing when the queue did not drop it first.
+    private static Task StartupLoad(IDemoProcessingQueue? queue, string title, string owner, Action load, CancellationToken ct) =>
+        QueueWork.Run(queue, QueueJobKind.StoreLoad, title, owner, _ =>
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                load();
+            }
+        }, DemoJobPriority.UserRequested, serial: Owner);
 }

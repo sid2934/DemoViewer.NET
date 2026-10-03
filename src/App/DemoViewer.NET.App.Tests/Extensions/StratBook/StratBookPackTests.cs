@@ -104,6 +104,7 @@ public class StratBookPackTests
         "DemoViewer.NET.ViewModels.Dossier.DossierTabViewModel",
         "DemoViewer.NET.Modules.UtilityBook.LineupClipService",
         "DemoViewer.NET.Services.DemoProcessing.DemoEvaluationCoordinator",
+        "DemoViewer.NET.Extensions.PackSwitch",
         "DemoViewer.NET.Services.RecentFilesStore",
         "DemoViewer.NET.Modules.ModuleRegistry",
         "DemoViewer.NET.ViewModels.Shell.MainViewModel"
