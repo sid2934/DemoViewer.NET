@@ -88,7 +88,7 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         }
 
         Dictionary<string, bool> overrides = _monitor.CurrentValue.Features.Overrides ?? _emptyOverrides;
-        return Resolve(descriptor, Category, overrides, NewVisiting());
+        return Resolve(descriptor, Category, overrides, null);
     }
 
     /// <inheritdoc />
@@ -108,8 +108,8 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
                 }
 
                 // The Developer-full baseline: what a developer with default settings sees (no overrides).
-                bool developerBaseline = Resolve(descriptor, UserCategory.Developer, _emptyOverrides, NewVisiting());
-                bool current = Resolve(descriptor, category, overrides, NewVisiting());
+                bool developerBaseline = Resolve(descriptor, UserCategory.Developer, _emptyOverrides, null);
+                bool current = Resolve(descriptor, category, overrides, null);
                 if (developerBaseline && !current)
                 {
                     hidden++;
@@ -120,16 +120,18 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         }
     }
 
-    // Full resolution of one descriptor: group-leader own-state, then parent-tab cascade. The visiting set
-    // guards against a malformed catalog cycle (never happens with the shipped catalog); a re-entry
-    // fail-opens rather than recursing forever.
+    // Full resolution of one descriptor: group-leader own-state, then parent-tab and owning-pack cascade.
+    // The visiting set guards against a malformed catalog cycle (never happens with the shipped catalog); a
+    // re-entry fail-opens rather than recursing forever. Lazily allocated: null on every top-level call, and
+    // most descriptors (chrome, the pack row itself, a leaf tab with neither ParentId nor OwnerPackId) never
+    // recurse, so the common case allocates nothing.
     private static bool Resolve(
         FeatureDescriptor descriptor,
         UserCategory category,
         IReadOnlyDictionary<string, bool> overrides,
-        HashSet<string> visiting)
+        HashSet<string>? visiting)
     {
-        if (!visiting.Add(descriptor.Id))
+        if (visiting is not null && !visiting.Add(descriptor.Id))
         {
             return true;
         }
@@ -141,10 +143,19 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             : descriptor;
         bool enabled = ResolveOwn(stateSource, category, overrides);
 
+        if (!enabled || (descriptor.ParentId is null && descriptor.OwnerPackId is null))
+        {
+            return enabled;
+        }
+
+        // Only allocated once a cascade is actually possible; seeded with this id since visiting may still
+        // be null here (the top-level call never pre-adds it).
+        visiting ??= new HashSet<string>(StringComparer.Ordinal) { descriptor.Id };
+
         // (5) CASCADE: a feature under a parent that resolves disabled is implicitly off, regardless of its
         // own/group state. Uses THIS feature's ParentId (chrome and packs have none → no cascade). A tab's
         // parent is its pack, so the walk runs sub-feature → tab → pack.
-        if (enabled && descriptor.ParentId is { } parentId)
+        if (descriptor.ParentId is { } parentId)
         {
             // Composition rejects a parent the catalog lacks, so the null check is only a guard.
             FeatureDescriptor? parent = FeatureCatalog.ById(parentId);
@@ -183,8 +194,6 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
 
         return descriptor.Defaults.TryGetValue(category, out bool byDefault) && byDefault;
     }
-
-    private static HashSet<string> NewVisiting() => new(StringComparer.Ordinal);
 
     private void RaiseChanged()
     {
