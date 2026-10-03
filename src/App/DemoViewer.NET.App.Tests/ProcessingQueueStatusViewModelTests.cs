@@ -216,6 +216,10 @@ public class ProcessingQueueStatusViewModelTests
         {
         }
 
+        public void CancelOwned(string ownerTag)
+        {
+        }
+
         public void Add(string name, string owners, DemoJobPriority priority, DemoQueueItemState state)
         {
             _items.Add(new DemoQueueItem

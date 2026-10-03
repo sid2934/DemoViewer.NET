@@ -438,6 +438,10 @@ public class StratMiningCacheTests
         {
         }
 
+        public void CancelOwned(string ownerTag)
+        {
+        }
+
         public void Pause()
         {
         }

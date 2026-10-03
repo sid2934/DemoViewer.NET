@@ -333,6 +333,8 @@ public class StratBookLifecycleTests
     {
         public List<string> Titles { get; } = [];
 
+        public List<string> CancelledOwners { get; } = [];
+
         public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
         public int MaxConcurrency { get; set; } = 1;
         public int MaxQueueSize { get; set; } = 200;
@@ -374,6 +376,14 @@ public class StratBookLifecycleTests
 
         public void CancelOwned(string ownerTag, string path)
         {
+        }
+
+        public void CancelOwned(string ownerTag)
+        {
+            lock (Titles)
+            {
+                CancelledOwners.Add(ownerTag);
+            }
         }
 
         public void Pause()
