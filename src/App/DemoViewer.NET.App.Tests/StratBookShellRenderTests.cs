@@ -10,9 +10,10 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.Views;
-using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
 
 #endregion
 
@@ -36,7 +37,7 @@ public class StratBookShellRenderTests
         {
             ModuleRegistry registry = new();
             registry.Register(new LabelledSectionsModule());
-            MainViewModel vm = new(null, registry, TestLibraries.Empty());
+            MainViewModel vm = new(null, registry, TestLibraries.Empty(), hostTabs: [StratBookHubAccess.HubHost()]);
             vm.RestoreSession();
             try
             {
@@ -101,20 +102,20 @@ public class StratBookShellRenderTests
         {
             ModuleRegistry registry = new();
             registry.Register(new LabelledSectionsModule());
-            MainViewModel vm = new(null, registry, TestLibraries.Empty());
+            MainViewModel vm = new(null, registry, TestLibraries.Empty(), hostTabs: [StratBookHubAccess.HubHost()]);
             vm.RestoreSession();
             try
             {
                 Window window = new() { Width = 1280, Height = 800, Content = new MainView { DataContext = vm } };
                 window.Show();
-                vm.StratBookHub.Layout.IsRailCollapsed = true;
+                vm.StratBookHub().Layout.IsRailCollapsed = true;
                 foreach (string id in ids)
                 {
                     vm.TrySelectTab(id);
                     Dispatcher.UIThread.RunJobs();
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                     Dispatcher.UIThread.RunJobs();
-                    Control? content = vm.StratBookHub.Sections.SelectedSection?.ActiveContent as Control;
+                    Control? content = vm.StratBookHub().Sections.SelectedSection?.ActiveContent as Control;
                     seen.Add((id, content?.IsEffectivelyVisible ?? false, content?.Bounds.Width ?? 0));
                     if (id == "review.queue" && window.CaptureRenderedFrame() is { } frame)
                     {
@@ -171,22 +172,22 @@ public class StratBookShellRenderTests
 
         public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
         {
-            yield return Section("stratbook.browser", "Strats", 0, TabPlacement.StratBook, null);
-            yield return Section("situations.search", "Situations", 1, TabPlacement.StratBook, "3 new");
-            yield return Section("tagger.matrix", "Tags", 2, TabPlacement.StratBook, null);
-            yield return Section("utilitybook.browser", "Utility", 3, TabPlacement.StratBook, null);
-            yield return Section("review.queue", "Review", 4, TabPlacement.StratBook, "12");
-            yield return Section("dossier.browser", "Dossier", 5, TabPlacement.StratBook, null);
-            yield return Section("teams.browser", "Teams", 0, TabPlacement.Library, null);
+            yield return Section("stratbook.browser", "Strats", 0, StratBookHubViewModel.HostId, null);
+            yield return Section("situations.search", "Situations", 1, StratBookHubViewModel.HostId, "3 new");
+            yield return Section("tagger.matrix", "Tags", 2, StratBookHubViewModel.HostId, null);
+            yield return Section("utilitybook.browser", "Utility", 3, StratBookHubViewModel.HostId, null);
+            yield return Section("review.queue", "Review", 4, StratBookHubViewModel.HostId, "12");
+            yield return Section("dossier.browser", "Dossier", 5, StratBookHubViewModel.HostId, null);
+            yield return Section("teams.browser", "Teams", 0, LibraryTabViewModel.HostId, null);
         }
 
-        private static WorkspaceTabDescriptor Section(string id, string header, int order, TabPlacement placement, string? badge) =>
+        private static WorkspaceTabDescriptor Section(string id, string header, int order, string hostId, string? badge) =>
             new()
             {
                 TabId = id,
                 Header = header,
                 Order = order,
-                Placement = placement,
+                HostId = hostId,
                 Badge = badge,
                 ViewModelFactory = () => new PlaceholderTabViewModel(),
                 ViewFactory = () => new Border

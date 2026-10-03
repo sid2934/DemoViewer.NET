@@ -82,7 +82,7 @@ public class TeamsModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.teams");
             await Assert.That(tab.TabId).IsEqualTo("teams.browser");
             await Assert.That(tab.Header).IsEqualTo("Teams");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Library);
+            await Assert.That(tab.HostId).IsEqualTo(LibraryTabViewModel.HostId);
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
         }

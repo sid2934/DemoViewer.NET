@@ -86,7 +86,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
             TabId = TabId,
             Header = "Review",
             Order = 4, // after Utility (3)
-            Placement = TabPlacement.StratBook,
+            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new ReviewQueueTabView()
