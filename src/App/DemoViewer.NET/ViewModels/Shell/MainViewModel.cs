@@ -385,6 +385,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private SessionPayload? _pendingRestore;
 
+    /// <summary>
+    ///     The pack session blobs loaded at startup, kept for the life of the session (unlike
+    ///     <see cref="_pendingRestore" />, which clears on the first demo load). A pack whose gate is off
+    ///     right now is never asked to snapshot, so this is the only source for carrying its blob through
+    ///     unchanged on the next save.
+    /// </summary>
+    private Dictionary<string, JsonElement>? _loadedPackSessions;
+
     // ── 2D export chip ─────────────────────────────────────────────────────────
     // The FIFTH StatusChip consumer, and the only one attached from a tab rather than at composition:
     // the 2D tab builds its export job lazily, on the first Export, and the shell exists long before any
@@ -4547,10 +4555,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        foreach (SectionHostEntry host in _hosts)
-        {
-            host.ViewModel?.RestoreLayout(p.StratBook);
-        }
+        _loadedPackSessions = p.Packs;
+        RestorePackSessions(p.Packs);
 
         RestoreActiveTab(p);
         // Never restore an owned panel OPEN when its chrome is gated off for the current
@@ -4585,6 +4591,37 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SelectedTab = Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId) ?? Tabs[0];
         }
     }
+
+    // Hands each host's pack-keyed blob to its view model, by the host's own FeatureId (the pack's
+    // umbrella gate, as PackContributions.HostTab stamps it): a pack that is off right now is never
+    // restored into, so its blob stays exactly what was loaded until SnapshotPackSessions carries it
+    // through on the next save. Runs through every host regardless of gate, unlike RestoreModuleTabs
+    // (TabsAndSections), because the rail/list state must be in place before any tab activates.
+    private void RestorePackSessions(Dictionary<string, JsonElement>? packs)
+    {
+        if (packs is null)
+        {
+            return;
+        }
+
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel?.SessionPackId is not { } packId || !IsPackSessionEnabled(host))
+            {
+                continue;
+            }
+
+            if (packs.TryGetValue(packId, out JsonElement state))
+            {
+                host.ViewModel.RestorePackState(state);
+            }
+        }
+    }
+
+    // Whether the host's own umbrella gate is on; fail-open with no gate or no FeatureId, matching
+    // every other gate read in this file.
+    private bool IsPackSessionEnabled(SectionHostEntry host) =>
+        host.Tab.FeatureId is not { } featureId || (_gate?.IsEnabled(featureId) ?? true);
 
     /// <summary>
     ///     Switches to the Entity Tracking tab and reveals <paramref name="className" /> by setting the
@@ -4655,8 +4692,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PersistedActiveTabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
         WindowBounds,
-        // The one pane-layout slot the file has; the host that owns it answers, the rest answer null.
-        _hosts.Select(h => h.ViewModel?.SnapshotLayout()).FirstOrDefault(s => s is not null));
+        SnapshotPackSessions());
+
+    // Snapshots every host's pack session state under its pack id. Starts from what was loaded (so an
+    // id with no host today, or a host whose pack is off, carries through byte for byte) and overwrites
+    // only the hosts that are both present and enabled.
+    private Dictionary<string, JsonElement>? SnapshotPackSessions()
+    {
+        Dictionary<string, JsonElement> packs = _loadedPackSessions is { } loaded
+            ? new(loaded, StringComparer.Ordinal)
+            : new(StringComparer.Ordinal);
+
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel?.SessionPackId is not { } packId || !IsPackSessionEnabled(host))
+            {
+                continue;
+            }
+
+            if (host.ViewModel.SnapshotPackState() is { } state)
+            {
+                packs[packId] = state;
+            }
+            else
+            {
+                packs.Remove(packId);
+            }
+        }
+
+        return packs.Count > 0 ? packs : null;
+    }
 
     /// <summary>
     ///     Collects session state from MODULE-contributed tabs. The framework has always declared
