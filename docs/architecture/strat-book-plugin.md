@@ -666,6 +666,11 @@ Strat Book data" as a separate, confirmed action that removes the paths in the p
 cache sidecars are regenerable, `strats/`, `tags/`, `teams.json`, `review-queue.json` and the dossier
 stores are user work and must be called out by name in the confirmation.
 
+**Round Facts while off (item 2).** Both the writer and the reader are gated: `RoundFactsEvaluator` writes
+nothing and `RoundFactsSource` answers "no rows" and forwards no `Updated`, so winner tints, situation joins
+and tag labels go with the pack rather than showing rows written while it was on. The rows stay in the cache
+records and come back with the pack; a bare run cached under one gate state is not served under another.
+
 **Stale cache while off.** Library keeps indexing new demos without pack passes. The pack fields of those
 records are simply absent (or, after Phase 4, the `Packs` entry is missing). Fields of records indexed
 before the switch stay as they were.
