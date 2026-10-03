@@ -46,8 +46,8 @@ public class FindRoundsLikeThisTests
     [Test]
     public async Task CtrlF_IsFindRoundsLikeThis_AndBareFStaysFollow()
     {
-        // FindRoundsLikeThis is a Strat Book extension command now (StratBookCommands); the profile a
-        // tab actually routes through resolves it, the bare core table (Playback2DKeymap) does not.
+        // FindRoundsLikeThis is a Strat Book extension command: the profile a tab routes through
+        // resolves it, the bare core table (Playback2DKeymap) does not.
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {

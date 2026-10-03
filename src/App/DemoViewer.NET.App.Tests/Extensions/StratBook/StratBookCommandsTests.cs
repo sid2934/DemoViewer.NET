@@ -16,52 +16,74 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     Item 19: the Strat Book extension's commands moved out of <c>Playback2DKeymap</c>'s own table into
-///     <see cref="StratBookCommands" />, registered through <c>StratBookPack.Contribute</c>. This pins the
-///     full table of 22 moved actions against the gestures and scopes they shipped with when they were
-///     still rows in that file, so a diff here is a deliberate rebind, not a refactor accident.
+///     The Strat Book extension's 22 keymap commands, declared in <see cref="StratBookCommands" /> and
+///     read by <c>CommandRegistry</c> through <c>IFeaturePack.Commands</c>. Pins each one's gesture and
+///     scope, so a diff here is a deliberate rebind, not a refactor accident.
 /// </summary>
 [NotInParallel]
 public class StratBookCommandsTests
 {
-    // One row per moved action: (action, key, modifiers, scope string). Transcribed from the table this
-    // item removed from Playback2DKeymap.BuildDefault() before the move, in the same order.
-    private static readonly (Playback2DAction Action, Key Key, KeyModifiers Modifiers, string Scope)[] _expected =
-    [
-        (Playback2DAction.FindRoundsLikeThis, Key.F, KeyModifiers.Control, "playback2d"),
-        (Playback2DAction.NextSituationResult, Key.J, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.PrevSituationResult, Key.K, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.FocusTagPalette, Key.C, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.TagPaletteBack, Key.Escape, KeyModifiers.None, "playback2d.palette"),
-        (Playback2DAction.TagNote, Key.M, KeyModifiers.Control, "playback2d.palette"),
-        (Playback2DAction.TagClearSticky, Key.Back, KeyModifiers.Control, "playback2d.palette"),
-        (Playback2DAction.TagLabelMode, Key.L, KeyModifiers.Control, "playback2d.palette"),
-        (Playback2DAction.TagLabelGroupNext, Key.G, KeyModifiers.Control, "playback2d.palette"),
-        (Playback2DAction.SuggestionNext, Key.J, KeyModifiers.None, "playback2d.suggestion"),
-        (Playback2DAction.SuggestionPrev, Key.K, KeyModifiers.None, "playback2d.suggestion"),
-        (Playback2DAction.SuggestionAccept, Key.Y, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.SuggestionReject, Key.N, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.SuggestionEdit, Key.Enter, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.SuggestionAcceptAll, Key.Y, KeyModifiers.Control, "playback2d"),
-        (Playback2DAction.ToggleReviewMode, Key.R, KeyModifiers.Shift, "playback2d"),
-        (Playback2DAction.ToolToken, Key.V, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.AddStep, Key.N, KeyModifiers.Shift, "playback2d"),
-        (Playback2DAction.DuplicateStep, Key.D, KeyModifiers.Control, "playback2d"),
-        (Playback2DAction.DeleteStep, Key.Delete, KeyModifiers.Control, "playback2d"),
-        (Playback2DAction.PrevStep, Key.OemOpenBrackets, KeyModifiers.None, "playback2d"),
-        (Playback2DAction.NextStep, Key.OemCloseBrackets, KeyModifiers.None, "playback2d")
-    ];
+    // One row per Strat Book extension action: (action, key, modifiers, scope string, label).
+    private static readonly (Playback2DAction Action, Key Key, KeyModifiers Modifiers, string Scope, string Label)[]
+        _expected =
+        [
+            (Playback2DAction.FindRoundsLikeThis, Key.F, KeyModifiers.Control, "playback2d",
+                "Find rounds like this: snapshot the alive players onto the Situations query"),
+            (Playback2DAction.NextSituationResult, Key.J, KeyModifiers.None, "playback2d",
+                "Next situation result: seek to the next card of the Situations search"),
+            (Playback2DAction.PrevSituationResult, Key.K, KeyModifiers.None, "playback2d",
+                "Previous situation result: seek to the previous card of the Situations search"),
+            (Playback2DAction.FocusTagPalette, Key.C, KeyModifiers.None, "playback2d",
+                "Tag palette: focus it so its hotkeys tag (press again to leave)"),
+            (Playback2DAction.TagPaletteBack, Key.Escape, KeyModifiers.None, "playback2d.palette",
+                "Tag palette: finish the tag and go back to the codes, or leave the palette"),
+            (Playback2DAction.TagNote, Key.M, KeyModifiers.Control, "playback2d.palette",
+                "Tag palette: write a note on the tag just made"),
+            (Playback2DAction.TagClearSticky, Key.Back, KeyModifiers.Control, "playback2d.palette",
+                "Tag palette: clear the sticky labels"),
+            (Playback2DAction.TagLabelMode, Key.L, KeyModifiers.Control, "playback2d.palette",
+                "Tag palette: label mode, adding labels to the tag under the playhead instead of making tags"),
+            (Playback2DAction.TagLabelGroupNext, Key.G, KeyModifiers.Control, "playback2d.palette",
+                "Tag palette: in label mode, show the next label group"),
+            (Playback2DAction.SuggestionNext, Key.J, KeyModifiers.None, "playback2d.suggestion",
+                "Suggested tags: select the next pending proposal and seek to it"),
+            (Playback2DAction.SuggestionPrev, Key.K, KeyModifiers.None, "playback2d.suggestion",
+                "Suggested tags: select the previous pending proposal and seek to it"),
+            (Playback2DAction.SuggestionAccept, Key.Y, KeyModifiers.None, "playback2d",
+                "Suggested tags: accept the selected proposal as a tag and go to the next"),
+            (Playback2DAction.SuggestionReject, Key.N, KeyModifiers.None, "playback2d",
+                "Suggested tags: reject the selected proposal and go to the next"),
+            (Playback2DAction.SuggestionEdit, Key.Enter, KeyModifiers.None, "playback2d",
+                "Suggested tags: edit the selected proposal before accepting it"),
+            (Playback2DAction.SuggestionAcceptAll, Key.Y, KeyModifiers.Control, "playback2d",
+                "Suggested tags: accept every pending proposal the queue's filter shows, after a confirm"),
+            (Playback2DAction.ToggleReviewMode, Key.R, KeyModifiers.Shift, "playback2d",
+                "Review mode: show the tag palette, the suggestions and the tag lanes, or hide them"),
+            (Playback2DAction.ToolToken, Key.V, KeyModifiers.None, "playback2d",
+                "Strat canvas: token tool (press again for pan)"),
+            (Playback2DAction.AddStep, Key.N, KeyModifiers.Shift, "playback2d",
+                "Strat canvas: insert a step after the active one at the playhead's round-clock time"),
+            (Playback2DAction.DuplicateStep, Key.D, KeyModifiers.Control, "playback2d",
+                "Strat canvas: copy the active step's positions and strokes into a new step 5 s later"),
+            (Playback2DAction.DeleteStep, Key.Delete, KeyModifiers.Control, "playback2d",
+                "Strat canvas: delete the active step"),
+            (Playback2DAction.PrevStep, Key.OemOpenBrackets, KeyModifiers.None, "playback2d",
+                "Strat canvas: seek to the previous step and make it active"),
+            (Playback2DAction.NextStep, Key.OemCloseBrackets, KeyModifiers.None, "playback2d",
+                "Strat canvas: seek to the next step and make it active")
+        ];
 
     [Test]
     public async Task AllCommands_MatchTheShippedTableBeforeTheMove_IdLabelScopeAndChord()
     {
         await Assert.That(StratBookCommands.All.Count).IsEqualTo(_expected.Length);
 
-        foreach ((Playback2DAction action, Key key, KeyModifiers modifiers, string scope) in _expected)
+        foreach ((Playback2DAction action, Key key, KeyModifiers modifiers, string scope, string label) in _expected)
         {
             CommandDescriptor command = StratBookCommands.All.Single(c => c.Id == action.ToString());
             using (Assert.Multiple())
             {
+                await Assert.That(command.Label).IsEqualTo(label);
                 await Assert.That(command.Scope).IsEqualTo(scope);
                 await Assert.That(command.DefaultChord).IsNotNull();
                 await Assert.That(command.DefaultChord!.Key).IsEqualTo(key);
@@ -73,7 +95,7 @@ public class StratBookCommandsTests
     [Test]
     public async Task Playback2DKeymap_NoLongerDeclaresTheMovedActions()
     {
-        foreach ((Playback2DAction action, _, _, _) in _expected)
+        foreach ((Playback2DAction action, _, _, _, _) in _expected)
         {
             await Assert.That(Playback2DKeymap.Default.Any(b => b.Action == action)).IsFalse()
                 .Because($"{action} moved to StratBookCommands; Playback2DKeymap's own table must not carry it twice");
@@ -81,16 +103,15 @@ public class StratBookCommandsTests
     }
 
     /// <summary>
-    ///     With the pack compiled in (every real build), <c>CommandRegistry.Default</c> composes the moved
-    ///     rows back in with no conflicts and no loss: resolving through it reproduces exactly what
-    ///     resolving through the old, single table used to.
+    ///     With the pack compiled in (every real build), <c>CommandRegistry.Default</c> resolves every
+    ///     one of these 22 actions to its chord and scope, with no conflicts.
     /// </summary>
     [Test]
     public async Task CommandRegistry_Default_ComposesThePackBackIn_WithNoConflicts()
     {
         await Assert.That(CommandRegistry.Default.Conflicts).IsEmpty();
 
-        foreach ((Playback2DAction action, Key key, KeyModifiers modifiers, string scope) in _expected)
+        foreach ((Playback2DAction action, Key key, KeyModifiers modifiers, string scope, _) in _expected)
         {
             bool resolved = CommandRegistry.Default.TryResolve(key, modifiers, scope, _ => true,
                 out CommandDescriptor? command);
@@ -112,7 +133,7 @@ public class StratBookCommandsTests
     [Test]
     public async Task CommandRegistry_Default_TryResolve_PackOff_ResolvesToNothing()
     {
-        foreach ((Playback2DAction _, Key key, KeyModifiers modifiers, string scope) in _expected)
+        foreach ((Playback2DAction _, Key key, KeyModifiers modifiers, string scope, _) in _expected)
         {
             bool resolved = CommandRegistry.Default.TryResolve(key, modifiers, scope, _ => false,
                 out CommandDescriptor? command);
@@ -130,7 +151,7 @@ public class StratBookCommandsTests
     [Test]
     public async Task Playback2DKeymapProfile_Default_StillResolvesEveryMovedAction()
     {
-        foreach ((Playback2DAction action, Key key, KeyModifiers modifiers, string scope) in _expected)
+        foreach ((Playback2DAction action, Key key, KeyModifiers modifiers, string scope, _) in _expected)
         {
             Playback2DBindingScope expectedScope = CommandRegistry.ParseScope(scope);
             bool toolActive = expectedScope == Playback2DBindingScope.WhenToolActive;
@@ -157,6 +178,20 @@ public class StratBookCommandsTests
         await Assert.That(rejected).IsEmpty();
         await Assert.That(profile.GestureText(Playback2DAction.TagNote)).IsEqualTo("Ctrl+Shift+M");
         await Assert.That(profile.IsOverridden(Playback2DAction.TagNote)).IsTrue();
+    }
+
+    /// <summary>
+    ///     A core rebind refused because a pack row already holds the gesture names the owning pack, so
+    ///     the refusal means something even while that row is hidden (the Strat Book extension off and
+    ///     its keybind row gone from the list).
+    /// </summary>
+    [Test]
+    public async Task CoreRebind_RefusedByAPackRow_NamesTheOwningPackInTheMessage()
+    {
+        Playback2DKeymapProfile.FromOverrides(["NextRound=Ctrl+F"], out IReadOnlyList<string> rejected);
+
+        await Assert.That(rejected).IsNotEmpty();
+        await Assert.That(rejected.Single()).Contains("FindRoundsLikeThis (Strat Book extension)");
     }
 
     /// <summary>The keybind settings list: a moved action's row carries the pack's label and is gated by its switch.</summary>

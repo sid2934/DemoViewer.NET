@@ -380,8 +380,7 @@ public class SuggestedTagsQueueTests
             await Assert.That(Resolve(keymap, Key.N, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionReject);
             await Assert.That(Resolve(keymap, Key.Enter, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionEdit);
             await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.Control)).IsEqualTo(Playback2DAction.SuggestionAcceptAll);
-            // The six are Strat Book extension commands now (StratBookCommands); the merged table is
-            // what they are actually checked against.
+            // These six are Strat Book extension commands, checked against the merged table, not core alone.
             await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ReservedGestures(true)))
                 .IsEmpty().Because("none of the six is a shell or browser gesture");
             await Assert.That(keymap.GestureText(Playback2DAction.SuggestionEdit)).IsEqualTo("Enter")

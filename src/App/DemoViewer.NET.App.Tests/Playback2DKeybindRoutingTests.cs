@@ -218,9 +218,9 @@ public class Playback2DKeybindRoutingTests
             await Assert.That(vm.KeymapRejections).IsEmpty();
             await Assert.That(vm.Keymap.GestureText(Playback2DAction.NextRound)).IsEqualTo("E");
 
-            // The shipped table a bare, no-DI VM opens on is core union the Strat Book extension's
-            // commands (CommandRegistry), not Playback2DKeymap.Default alone: those rows moved to
-            // StratBookCommands, and CommandRegistry.Default composes them with no DI either.
+            // The shipped table a bare, no-DI VM opens on is core union every pack's commands
+            // (CommandRegistry.Default), not Playback2DKeymap.Default alone; CommandRegistry composes
+            // them with no DI either, so a bare VM sees the same table a composed app does.
             await Assert.That(vm.Keymap.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings);
         }
         finally

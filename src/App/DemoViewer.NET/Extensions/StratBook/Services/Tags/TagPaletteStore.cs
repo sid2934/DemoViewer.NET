@@ -402,9 +402,9 @@ public static class TagPaletteValidator
             return;
         }
 
-        // The full table, core and every enabled pack's commands, not the bare core one: the palette's
-        // own rows (Tag*, Suggestion*, step keys) moved out of Playback2DKeymap's table into
-        // StratBookCommands, and this guard must still catch a button that collides with one of them.
+        // The full table, core and every pack's commands, not the bare core one: the palette's own rows
+        // (Tag*, Suggestion*, step keys) moved out of Playback2DKeymap's table into StratBookCommands,
+        // and this guard must still catch a button that collides with one of them.
         foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
         {
             if (binding.Key != key || binding.Modifiers != modifiers)

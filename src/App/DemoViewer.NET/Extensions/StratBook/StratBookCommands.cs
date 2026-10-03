@@ -10,19 +10,17 @@ using DemoViewer.NET.Modules.StratBook.Canvas;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The Strat Book extension's keymap commands: the chords, scopes and labels that used to be rows in
-///     <c>Playback2DKeymap.BuildDefault()</c>. Every id equals its <see cref="Playback2DAction" />'s enum
-///     name, so a persisted <c>KeybindOverrides</c> row written before this table existed still resolves.
+///     The Strat Book extension's keymap commands. Every id equals its <see cref="Playback2DAction" />'s
+///     enum name, so a persisted <c>KeybindOverrides</c> row keyed by that name still resolves.
 ///     <para>
-///         <see cref="CommandRegistry" /> composes this table over the core one with no DI, so the chord,
-///         scope and resolution order are exactly what they were when these rows lived in the core file.
-///         The handlers are unchanged too: each <c>Run</c> calls the same <c>ExecuteAction</c> the keymap
-///         dispatch site called before the move.
+///         <see cref="CommandRegistry" /> composes this table over the core one with no DI. Each
+///         <c>Run</c> calls <c>ExecuteAction</c> on the view model the key resolved against, the same
+///         handler the core dispatch already calls for every other action.
 ///     </para>
 /// </summary>
 internal static class StratBookCommands
 {
-    /// <summary>Every command this extension contributes, in the shipped table's original order.</summary>
+    /// <summary>Every command this extension contributes, in a stable, declared order.</summary>
     public static IReadOnlyList<CommandDescriptor> All { get; } = Build();
 
     private static CommandDescriptor[] Build() =>
