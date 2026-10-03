@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services.DemoCache;
@@ -105,7 +106,7 @@ public class RoundFactsEvaluatorTests
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
             await Assert.That(source.Calls).IsEqualTo(0).Because("no ruleset to run means the engine seam is never asked");
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts).IsNull();
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts()).IsNull();
             await Assert.That(updates).IsEqualTo(0);
         }
     }
@@ -128,7 +129,7 @@ public class RoundFactsEvaluatorTests
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
             await Assert.That(source.Calls).IsEqualTo(0).Because("off means the engine seam is never asked, whatever the ruleset says");
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts).IsNull();
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts()).IsNull();
             await Assert.That(updates).IsEqualTo(0);
         }
 
@@ -141,7 +142,7 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(1);
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFactsFingerprint).IsEqualTo("rf-A");
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFactsFingerprint()).IsEqualTo("rf-A");
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
         }
     }
@@ -161,8 +162,8 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(1);
-            await Assert.That(record.RoundFacts).IsNull().Because("an empty payload would mark the demo current and hide that nothing ran");
-            await Assert.That(record.RoundFactsFingerprint).IsNull();
+            await Assert.That(record.RoundFacts()).IsNull().Because("an empty payload would mark the demo current and hide that nothing ran");
+            await Assert.That(record.RoundFactsFingerprint()).IsNull();
             await Assert.That(updates).IsEqualTo(0);
             await Assert.That(evaluator.Wants(Demo)).IsFalse()
                 .Because("retrying the same fingerprint would re-parse the demo forever (the live stall)");
@@ -195,22 +196,23 @@ public class RoundFactsEvaluatorTests
         {
             await Assert.That(source.Calls).IsEqualTo(1).Because("the second pass sees current rows and stops at the fingerprint compare");
             await Assert.That(updates).IsEquivalentTo([Demo]);
-            await Assert.That(record.RoundFacts).IsNotNull();
-            await Assert.That(record.RoundFacts!.Rounds.Count).IsEqualTo(2);
-            await Assert.That(record.RoundFacts.Rounds[0].FreezeEndTick).IsEqualTo(1000)
+            RoundFactsRows rows = record.RoundFacts()!;
+            await Assert.That(rows).IsNotNull();
+            await Assert.That(rows.Rounds.Count).IsEqualTo(2);
+            await Assert.That(rows.Rounds[0].FreezeEndTick).IsEqualTo(1000)
                 .Because("ClipRounds.Derive is the round authority, on the frame clock");
-            await Assert.That(record.RoundFacts.Rounds[1].WinnerSide).IsEqualTo(2);
-            await Assert.That(record.RoundFacts.DemoSha256).IsEqualTo("abc");
-            await Assert.That(record.RoundFacts.Schema).IsEqualTo(DemoCacheRecord.RoundFactsSchema);
-            await Assert.That(record.RoundFactsFingerprint).IsEqualTo("rf-A");
+            await Assert.That(rows.Rounds[1].WinnerSide).IsEqualTo(2);
+            await Assert.That(rows.DemoSha256).IsEqualTo("abc");
+            await Assert.That(rows.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
+            await Assert.That(record.RoundFactsFingerprint()).IsEqualTo("rf-A");
             await Assert.That(record.Parse.IsPresent).IsTrue().Because("the Library's tier is left as it was");
             await Assert.That(record.Analysis.IsPresent).IsFalse().Because("round facts never claim the highlight scan's stamp");
-            await Assert.That(entry.RoundFactsFingerprint).IsEqualTo("rf-A");
-            await Assert.That(entry.RoundFactsSchema).IsEqualTo(DemoCacheRecord.RoundFactsSchema);
+            await Assert.That(entry.RoundFactsFingerprint()).IsEqualTo("rf-A");
+            await Assert.That(entry.RoundFactsSchema()).IsEqualTo(StratBookCache.RoundFactsSchema);
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
 
-            RoundFactsClock clock = record.RoundFacts.Clock!;
+            RoundFactsClock clock = rows.Clock!;
             await Assert.That(clock.Kind).IsEqualTo("dv-frame-clock");
             await Assert.That(clock.TickRate).IsEqualTo(64);
             await Assert.That(clock.FrameCount).IsEqualTo(5);
@@ -244,7 +246,7 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(2);
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFactsFingerprint).IsEqualTo("rf-B");
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFactsFingerprint()).IsEqualTo("rf-B");
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
         }
     }
@@ -263,7 +265,7 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(1);
-            await Assert.That(store.TryLoadRecord(Demo)?.RoundFacts?.Rounds.Count).IsEqualTo(2);
+            await Assert.That(store.TryLoadRecord(Demo)?.RoundFacts()?.Rounds.Count).IsEqualTo(2);
         }
     }
 
@@ -277,7 +279,7 @@ public class RoundFactsEvaluatorTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts).IsNull();
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts()).IsNull();
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
         }
     }

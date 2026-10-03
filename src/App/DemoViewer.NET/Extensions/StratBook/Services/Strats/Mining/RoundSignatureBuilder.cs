@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -218,7 +219,7 @@ public sealed class RoundSignatureBuilder
         }
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"{SignatureVersion}|{entry.Sha256}|{entry.Size}|{entry.ModifiedTicks}|{entry.RoundFactsSchema}|{entry.RoundFactsFingerprint}|{entry.RoundIndexComputedAtTicks}|{_fingerprintFor(map)}|{FileStamp(_demoCache.SidecarPathFor(entry.Path))}|{FileStamp(_positions.PositionsPathFor(entry.Path))}|{teams}");
+            $"{SignatureVersion}|{entry.Sha256}|{entry.Size}|{entry.ModifiedTicks}|{entry.RoundFactsStamp()?.Schema ?? 0}|{entry.RoundFactsStamp()?.Fingerprint}|{entry.RoundIndexComputedAtTicks()}|{_fingerprintFor(map)}|{FileStamp(_demoCache.SidecarPathFor(entry.Path))}|{FileStamp(_positions.PositionsPathFor(entry.Path))}|{teams}");
     }
 
     private static string FileStamp(string? file)
@@ -235,7 +236,7 @@ public sealed class RoundSignatureBuilder
     // Null when the record has no Round Facts rows or the positions file is missing or stale.
     private DemoSignatures? Read(string path, string map)
     {
-        if (_demoCache.TryLoadRecord(path) is not { RoundFacts: { } rows } record
+        if (_demoCache.TryLoadWithRoundFacts(path) is not ({ } record, { } rows)
             || _positions.TryReadPositions(path, _fingerprintFor(map), record.Sha256) is not { } positions)
         {
             return null;

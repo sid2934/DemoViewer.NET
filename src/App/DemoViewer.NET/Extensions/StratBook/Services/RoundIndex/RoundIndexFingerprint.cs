@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
@@ -28,8 +28,8 @@ public static class RoundIndexFingerprint
         ArgumentNullException.ThrowIfNull(source);
 
         string fingerprint =
-            $"ri{DemoCacheRecord.RoundIndexSchema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
-            + $";token={PlaceCountToken.TokenVersion};rf={DemoCacheRecord.RoundFactsSchema};src={source.SourceId}";
+            $"ri{StratBookCache.RoundIndexSchema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
+            + $";token={PlaceCountToken.TokenVersion};rf={StratBookCache.RoundFactsSchema};src={source.SourceId}";
         if (source.ZonesVersion is { } version)
         {
             fingerprint = $"{fingerprint};zv={version}";

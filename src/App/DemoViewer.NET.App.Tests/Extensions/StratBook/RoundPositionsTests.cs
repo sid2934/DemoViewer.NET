@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -120,13 +121,7 @@ public class RoundPositionsTests
     {
         string current = RoundIndexFingerprint.Compose(RoundIndexOptions.Default, PawnPlaceSource.Instance);
         DemoCacheRecord record = ParsedRecord(Demo);
-        record.RoundIndex = new TierStamp
-        {
-            Schema = DemoCacheRecord.RoundIndexSchema,
-            ComputedAtTicks = 1
-        };
-        record.RoundIndexState = RoundIndexState.Indexed;
-        record.RoundIndexFingerprint = "ri1;cadence=1;token=1;rf=1;src=pawn";
+        record.StampRoundIndex("ri1;cadence=1;token=1;rf=1;src=pawn", 1);
 
         using (Assert.Multiple())
         {
@@ -229,7 +224,7 @@ public class RoundPositionsTests
             await Assert.That(positions.Demo.StableKey).IsEqualTo(index.Demo.StableKey);
             await Assert.That(positions.Demo.Sha256).IsEqualTo("abc");
             await Assert.That(positions.Rounds.Single().At(1).Count).IsEqualTo(10);
-            await Assert.That(record.RoundIndexFingerprint).IsEqualTo(positions.Fingerprint);
+            await Assert.That(record.RoundIndexFingerprint()).IsEqualTo(positions.Fingerprint);
             await Assert.That(record.IsRoundIndexCurrent(sources.FingerprintFor("de_nuke"))).IsTrue();
         }
     }

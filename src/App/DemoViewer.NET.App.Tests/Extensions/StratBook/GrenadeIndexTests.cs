@@ -77,10 +77,7 @@ public class GrenadeIndexTests
         cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
         if (stamp)
         {
-            DemoCacheStore.StampGrenades(record);
-            record.GrenadeState = DemoAnalysisState.Indexed;
-            record.GrenadeCount = document.Grenades.Count;
-            record.GrenadeWalker = GrenadeWalker.Version;
+            record.StampGrenades(document.Grenades.Count);
         }
 
         cache.Upsert(record);

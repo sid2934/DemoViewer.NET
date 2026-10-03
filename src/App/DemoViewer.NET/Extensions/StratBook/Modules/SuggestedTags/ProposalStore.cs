@@ -180,7 +180,7 @@ public sealed partial class SuggestedTagsJsonContext : JsonSerializerContext;
 ///     The proposals files: one per demo under <c>&lt;config&gt;/cache/suggestions/</c>, beside
 ///     <c>demos/</c>, named by <see cref="DemoCacheStore.StableKey" /> (suggested-tags.md §3.4, the
 ///     owner's store-location decision). The stamp that says whether a file is current lives on the cache
-///     record (<see cref="DemoCacheRecord.SuggestionsFingerprint" />); this store only holds the payloads.
+///     record (<see cref="Extensions.StratBook.StratBookCache.SetSuggestions" />); this store only holds the payloads.
 ///     <para>
 ///         The Round Index's sibling-directory rules, for the same reasons: atomic writes, in memory when
 ///         there is no cache root (the browser host, tests), a corrupt file reads as absent so its demo
