@@ -38,7 +38,9 @@ namespace DemoViewer.NET.Modules.RoundTagger.Review;
 ///     keymap actions and Click To Tag Position. Nothing here exists while the pack is off.
 /// </summary>
 /// <param name="post">Marshals change notifications onto the UI thread; synchronous when omitted (tests).</param>
-public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null) : IPlaybackContribution, IDisposable
+/// <param name="identity">Resolves a demo's identity for the session's attach; <see cref="TagSession.IdentityForAsync" /> when omitted (tests).</param>
+public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null,
+    Func<string, string?, Task<DemoIdentity?>>? identity = null) : IPlaybackContribution, IDisposable
 {
     /// <summary>The Review mode toggle's id.</summary>
     public const string ReviewModeId = "stratbook.review";
@@ -52,8 +54,10 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     /// <summary>The queue's order in the column.</summary>
     public const int QueueOrder = 2;
 
+    private readonly Func<string, string?, Task<DemoIdentity?>> _identity = identity ?? TagSession.IdentityForAsync;
     private readonly Action<Action> _post = post ?? (action => action());
     private readonly List<IDisposable> _registrations = [];
+    private string? _attachingPath;
     private IModuleContext? _context;
     private ILaneHandle? _proposalLane;
     private ProposalTrack? _proposalTrack;
@@ -156,6 +160,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         _registrations.Add(surface.AddActionHandler(OnAction));
         _registrations.Add(surface.AddMapClickHandler(OnMapClick));
         _registrations.Add(surface.OnDemoChanged(AttachTagsToCurrentDemo));
+        _registrations.Add(surface.OnPlayheadChanged(OnPlayheadChanged));
         surface.KeymapChanged += OnKeymapChanged;
         surface.Deactivated += OnDeactivated;
         session.Changed += OnSessionChanged;
@@ -252,6 +257,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         _tagTrack = null;
         _proposalTrack = null;
         _session = null;
+        _attachingPath = null;
         _settings = null;
         _surface = null;
         _context = null;
@@ -269,30 +275,47 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     // Binds the session to whatever demo the context is on. Fire-and-forget like the annotations: the hash
     // may have to be computed off the UI thread (a demo Content Identity has not reached), and an activation
     // must not wait on it. The demo already attached keeps the in-memory document; a swap raises Detaching
-    // and flushes the old one inside AttachAsync.
+    // and flushes the old one inside AttachAsync. The attach and the first activation's demo-change signal
+    // both land here, so a path already being attached is not attached twice: the session's DemoPath moves
+    // only after AttachAsync's first await.
     private void AttachTagsToCurrentDemo()
     {
         if (_context is not { } ctx || _session is not { } session || string.IsNullOrEmpty(ctx.DemoPath)
-            || string.Equals(session.DemoPath, ctx.DemoPath, StringComparison.OrdinalIgnoreCase))
+            || string.Equals(session.DemoPath, ctx.DemoPath, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(_attachingPath, ctx.DemoPath, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
+        _attachingPath = ctx.DemoPath;
         _ = AttachTagsAsync(ctx, session, ctx.DemoPath).ContinueWith(static _ => { }, TaskScheduler.Default);
     }
 
     private async Task AttachTagsAsync(IModuleContext ctx, TagSession session, string demoPath)
     {
-        // Resumes on the calling (UI) context: the session is UI-thread affine.
-        DemoIdentity? demo = await TagSession.IdentityForAsync(demoPath, ctx.DemoSha256);
-        if (demo is null || !ReferenceEquals(_session, session)
-                         || !string.Equals(ctx.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            return; // unreadable, detached, or the user moved on while it hashed
-        }
+            // Resumes on the calling (UI) context: the session is UI-thread affine.
+            DemoIdentity? demo = await _identity(demoPath, ctx.DemoSha256);
+            if (demo is null || !ReferenceEquals(_session, session)
+                             || !string.Equals(ctx.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return; // unreadable, detached, or the user moved on while it hashed
+            }
 
-        await session.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
+            await session.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
+        }
+        finally
+        {
+            if (string.Equals(_attachingPath, demoPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _attachingPath = null;
+            }
+        }
     }
+
+    // Label Mode's tag is the one under the playhead unless one is picked.
+    private void OnPlayheadChanged(int tick) => Palette?.RefreshLabelTarget();
 
     private object BuildReview()
     {

@@ -192,11 +192,13 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         _trackHandlers.Add(handler);
         track.MarkersChanged += handler;
 
-        // A track registered after the build (a pack turned on in session) shows without waiting for a re-query.
+        // A track registered after the build (a pack turned on in session) shows without waiting for a
+        // re-query, and the footer's toggle list learns of it.
         if (_data is { } data && TotalFrames > 0)
         {
             BuildTrack(_tracks.Count - 1, data);
             Recombine();
+            OnPropertyChanged(nameof(Tracks));
         }
     }
 

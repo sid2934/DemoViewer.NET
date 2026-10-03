@@ -101,6 +101,14 @@ public interface IPlaybackSurface
     IDisposable OnDemoChanged(Action handler);
 
     /// <summary>
+    ///     The playhead moved: raised with the tick on every playhead update, after the timeline has it (a
+    ///     clock push, a seek, the resync on activation and demo reset). For a contribution whose state
+    ///     follows the playhead, such as Label Mode's target tag.
+    /// </summary>
+    /// <returns>Removes the handler.</returns>
+    IDisposable OnPlayheadChanged(Action<int> handler);
+
+    /// <summary>
     ///     A lane on the timeline with its own behaviour: the track's bands and markers, and the press, menu,
     ///     label and drag handling for them. The handle carries the lane's suppression, editability and edit
     ///     span; disposing it unregisters the track.

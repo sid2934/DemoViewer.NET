@@ -589,6 +589,7 @@ public interface IPlaybackSurface
     event Action? KeymapChanged;
     event Action? Deactivated;                                     // before the tab flushes its documents
     IDisposable OnDemoChanged(Action handler);                     // on activation and on a demo reset, after the resync
+    IDisposable OnPlayheadChanged(Action<int> handler);            // the tick, on every playhead update
     IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items);
     ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
     IDisposable AddModeToggle(ModeToggle toggle);                  // the toolbar renders it; its action flips it
@@ -727,9 +728,12 @@ the mode and the session are the pack's, and the three hooks item 17 left (`IsRe
   open state and the mode; a panel bound to none shows whenever it is open with its gate on. The tab's
   `IsReviewAvailable` is still an open panel whose gate is on, and `IsCardStrip` is now any panel shown
   (`Surface.HasShownPanels`), which the view's panel host and the strip rows bind.
-- *The demo.* `OnDemoChanged` is raised by the tab at the two moments it attached its tag session before: the
-  end of `OnActivated` and of `OnDemoReset`, after the resync. A contribution attaches per-demo state there;
-  the context's `DemoPath` may be the demo already attached.
+- *The demo and the playhead.* `OnDemoChanged` is raised by the tab at the two moments it attached its tag
+  session before: the end of `OnActivated` and of `OnDemoReset`, after the resync. A contribution attaches
+  per-demo state there; the context's `DemoPath` may be the demo already attached. `OnPlayheadChanged` is
+  raised with the tick wherever the tab calls `Timeline.UpdatePlayhead` (a clock push, the resync), which is
+  how Label Mode's target follows the playhead without a click now that the contribution has no `Timeline`
+  to watch.
 
 The contribution (`ReviewPanelsPlaybackContribution`, now `IDisposable` because it owns the track) builds the
 `TagSession` on attach from `context.GetService<T>()`: `TagStore` (null for session-only tags), `DemoCacheStore`
@@ -742,8 +746,11 @@ confidence tints come from the theme tokens the tab used to supply. It registers
 every flip back to the same key, suppresses both lanes while the mode is off, binds the three panels to it,
 and sets `IsAvailable` from the two tagging gates, which is what hides the toolbar toggle when both are off.
 On `OnDemoChanged` and at attach it binds the session to `context.DemoPath` (fire and forget, the hash from
-`DemoSha256` or the file); the demo already attached is kept, a swap runs through `AttachAsync`, whose
-`Detaching` lets the palette write its pending tag to the old document first. `Detach` writes the palette's
+`DemoSha256` or the file; the identity resolver is a constructor seam for tests); the demo already attached
+is kept, a path still being attached is not attached twice (the first activation reaches both the attach
+and the demo-change signal before the session's `DemoPath` moves), and a swap runs through `AttachAsync`,
+whose `Detaching` lets the palette write its pending tag to the old document first. The playhead hook calls
+the palette's `RefreshLabelTarget`. `Detach` writes the palette's
 pending tag, disposes the panels, disposes the lane handles (the tracks leave the timeline), then the track
 and the session (which flushes to the store), so a pack turned off with a tag pending loses nothing, and a
 pack turned off leaves the tab with no session, no lane, no toggle and no handler. Pack off at startup builds
