@@ -1749,20 +1749,23 @@ Rules as built:
   Browser), `DemoViewer.NET.App.Tests` and `DemoViewer.NET.UiCapture` reference both.
 - **Composition.** `FeaturePacks.Default` is empty until the head calls
   `FeaturePacks.Configure([new StratBookPack()])`, which both heads do before Avalonia starts, UiCapture does
-  on its first line and the test assembly does from a module initializer (`CompiledInPacks`). The list
-  freezes on first read because `FeatureCatalog`, `JobKindRegistry.Default` and `CommandRegistry.Default`
-  build from it once; a second or late `Configure` throws (`FrozenList<T>`, pinned by `FeaturePacksTests`).
-  Each head's `BuildAvaloniaApp` also calls `FeaturePacks.ConfigureIfUnset` with the same list, a no-op
-  after Main, because the XAML previewer calls that method without running Main. `App.BuildServices(windowService)` still reads it, so the
-  tests that build the composition root are unchanged, and the pack-off tests override the gate rather than
-  the list.
+  on its first line and the test assembly does from a module initializer (`CompiledInPacks`). Since item 33
+  `Configure` judges each pack against `ExtensionHost.Current` as it sets the list (section 7.7), and the
+  readers take the subset that passed: `FeatureCatalog`, `JobKindRegistry.Default`, `CommandRegistry.Default`,
+  the `ViewLocator` and `App.BuildServices(windowService)` all read `FeaturePacks.Compatible`; `Default` is the
+  declared list and `Statuses` the verdicts, which Settings reads. The list freezes on first read of any of
+  the three because the registries build from it once; a second or late `Configure` throws (`FrozenList<T>`,
+  pinned by `FeaturePacksTests`). Each head's `BuildAvaloniaApp` also calls `FeaturePacks.ConfigureIfUnset`
+  with the same list, a no-op after Main, because the XAML previewer calls that method without running Main.
+  The tests that build the composition root are unchanged, and the pack-off tests override the gate rather
+  than the list.
 - **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (decision 5 option (b): a
   first-party extension composes over the same internal seams the app's own composition root uses; Phase
   6's loader loads only first-party signed assemblies, so this exposes nothing to third parties). The
   extension grants `DemoViewer.NET.App.Tests` and `DemoViewer.NET.UiCapture`. No core member was widened to
   public for the split.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
-  assembly, asks each compiled-in pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
+  assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 7.4).
 - **Shared namespaces.** `DemoViewer.NET.Services.RoundFacts` (models and `IRoundFactsSource` in core,
   `RoundFactsSource` and the evaluator in the pack), `DemoViewer.NET.Services.RoundIndex`

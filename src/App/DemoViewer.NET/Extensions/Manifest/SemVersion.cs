@@ -161,9 +161,12 @@ public sealed partial record SemVersion(int Major, int Minor, int Patch, string?
         return a.Length.CompareTo(b.Length);
     }
 
-    [GeneratedRegex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")]
+    // Dot-separated identifiers; a purely numeric one has no leading zero (SemVer 2.0 item 9).
+    internal const string PrereleasePattern = @"(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*";
+
+    [GeneratedRegex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(" + PrereleasePattern + @"))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")]
     private static partial Regex Strict();
 
-    [GeneratedRegex(@"^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+.*)?$")]
+    [GeneratedRegex(@"^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?(?:-(" + PrereleasePattern + @"))?(?:\+.*)?$")]
     private static partial Regex Informational();
 }
