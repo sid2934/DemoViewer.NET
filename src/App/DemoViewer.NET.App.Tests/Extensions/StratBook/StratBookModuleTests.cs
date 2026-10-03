@@ -56,7 +56,7 @@ public class StratBookModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.stratbook");
             await Assert.That(tab.TabId).IsEqualTo("stratbook.browser");
             await Assert.That(tab.Header).IsEqualTo("Strats");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.StratBook);
+            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
             await Assert.That(tab.Order).IsEqualTo(0).Because("first on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
