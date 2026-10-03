@@ -40,6 +40,19 @@ public sealed partial class FeatureToggleRow : ObservableObject
     private bool _isEnabled;
 
     /// <summary>
+    ///     True while this row's owning pack (<see cref="OwnerPackId" />) resolves on. Always true for a row
+    ///     with no owning pack (including a pack's own master row: a pack is not owned by itself). A pack
+    ///     CHILD row is interactive only while its pack is on, "enabled only while the master is on", even
+    ///     though the cascade already resolves <see cref="IsEnabled" /> off by itself; the row's own stored
+    ///     override is untouched either way, so it keeps its value for when the pack comes back.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInteractive))]
+    [NotifyPropertyChangedFor(nameof(HasLockHint))]
+    [NotifyPropertyChangedFor(nameof(LockHint))]
+    private bool _isPackEnabled = true;
+
+    /// <summary>
     ///     Whether an explicit override exists for this feature (it differs from the category default), drives
     ///     the subtle "overridden" indicator and the per-row clear-override affordance.
     /// </summary>
@@ -59,6 +72,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
         IndentLevel = indentLevel;
         IsRequired = descriptor.Required;
         IsPlatformUnavailable = platformUnavailable;
+        OwnerPackId = descriptor.OwnerPackId;
 
         // A grouped feature toggles atomically from its LEADER (the gate resolves every member's own-state
         // from the leader). So a NON-leader member's own override is inert. The row must not offer an
@@ -116,13 +130,19 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public bool IsPlatformUnavailable { get; }
 
     /// <summary>
-    ///     The toggle is interactive only when the feature is neither Required, nor a group follower,
-    ///     nor unavailable on this platform.
+    ///     The pack that owns this row (<see cref="FeatureDescriptor.OwnerPackId" />), or null for a row not
+    ///     contributed by any pack, including a pack's own master row. Drives <see cref="IsPackEnabled" />.
     /// </summary>
-    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable;
+    public string? OwnerPackId { get; }
+
+    /// <summary>
+    ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor
+    ///     unavailable on this platform, nor a pack child whose pack is currently off.
+    /// </summary>
+    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable && IsPackEnabled;
 
     /// <summary>Whether a locked-state hint chip should show.</summary>
-    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable;
+    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable || !IsPackEnabled;
 
     /// <summary>
     ///     The locked-state hint text. The platform answer comes FIRST: it is the one the user cannot
@@ -135,14 +155,17 @@ public sealed partial class FeatureToggleRow : ObservableObject
             ? "required"
             : IsGroupFollower
                 ? $"follows {FollowsLabel}"
-                : string.Empty;
+                : !IsPackEnabled
+                    ? "extension is off"
+                    : string.Empty;
 
-    /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome").</summary>
+    /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome" / "Extension").</summary>
     public string ScopeLabel => Scope switch
     {
         FeatureScope.Tab => "Tab",
         FeatureScope.SubFeature => "Sub",
         FeatureScope.Chrome => "Chrome",
+        FeatureScope.Pack => "Extension",
         _ => Scope.ToString()
     };
 
@@ -162,6 +185,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
             // what the module will actually see through ShellModuleFeatureGate.
             IsEnabled = !IsPlatformUnavailable && gate.IsEnabled(FeatureId);
             IsOverridden = overrides is not null && overrides.ContainsKey(FeatureId);
+            IsPackEnabled = OwnerPackId is null || gate.IsEnabled(OwnerPackId);
         }
         finally
         {
@@ -194,10 +218,12 @@ public sealed partial class FeatureToggleRow : ObservableObject
             return;
         }
 
-        if (IsRequired || IsGroupFollower)
+        if (IsRequired || IsGroupFollower || !IsPackEnabled)
         {
             // Locked row. Required can never be disabled; a group FOLLOWER's own override is inert (the gate
-            // resolves the whole group from the leader), so persisting one would be a phantom that snaps
+            // resolves the whole group from the leader); a pack CHILD while its pack is off is locked the
+            // same way, so a stray programmatic set never writes a new override here: the row's EXISTING
+            // override (if any) is untouched, which is how it "keeps its own value" for when the pack comes
             // back. Bounce the setter to the authoritative gate state WITHOUT writing (the toggle is also
             // disabled in the UI; this guards the programmatic path). Guarded so the bounce is not a toggle.
             _applyingRefresh = true;

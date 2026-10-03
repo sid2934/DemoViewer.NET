@@ -1550,6 +1550,37 @@ for every audience; first-run + skippable.
   tracks window height: keep the capture `--size` (1280x800) and `_transportRect` in sync. NOT wired into
   MainView/MainViewModel yet (engine phase owns integration).
 
+### FirstRunWizardView Extensions step: one card per FeatureScope.Pack row (feature/strat-book-ext-6-first-run, 2026-10-02)
+Item 6 of the Strat Book extension plan (`docs/architecture/strat-book-plugin.md` section 6, section 8,
+section 10 decision 2, section 11.1). Asks whether to turn each installed extension on, generically over
+the catalog rather than a hardcoded Strat Book reference.
+- **Placement.** A new step inserted before Done (`FirstRunWizardViewModel.WizardStep`: Welcome, Category,
+  Folders, **Extensions**, Done), so every earlier index (`IsCategoryStep` = 1, `IsFoldersStep` = 2) stays
+  stable whether or not the Extensions step exists this run.
+- **Generic, not Strat Book specific.** The VM takes an optional `IEnumerable<FeatureDescriptor> packs`
+  ctor param (default: `FeatureCatalog.All.Where(d => d.Scope == FeatureScope.Pack)`) and builds one
+  `PackOptionViewModel` per row: `FeatureId`, `Title` (the descriptor's `Label`), `Copy`, `Enabled`
+  (seeded from any existing override, else the catalog default for the current category). A second pack
+  gets its own card from the same loop, with no new VM or view code.
+- **Copy.** A small `_packCopy` lookup in the VM keyed by pack id supplies a richer "what it adds, what it
+  costs" paragraph for a known pack (Strat Book's cites the M0 memory figure in round terms, "a few hundred
+  MB of memory on a large library", `docs/architecture/strat-book-plugin.md` section 12); an id with no
+  entry falls back to the descriptor's own one-line `Description`, which is what keeps a future pack's
+  question working before anyone writes bespoke copy for it.
+- **Visibility.** The step exists only when `SettingsService.NeedsFirstRun` is true at construction
+  (captured once, before `Finish`/`Skip` can flip it) and at least one pack row exists. An upgrade whose
+  settings.json predates a pack's key never sees the question: the gate's override-or-default resolution
+  already lands on for a missing key, so the step would be asking something already answered.
+- **Writes.** `Finish` writes every answer explicitly into `Features.Overrides[FeatureId]`, on or off, the
+  same unconditional pattern as `UserCategory` and `Library.Folders` above it; `Skip` never touches pack
+  overrides, so a skipped first run leaves every pack at its catalog default (on), matching `Skip`'s
+  basis-preserving contract for the rest of the wizard.
+- **Layout.** One `Border.card` per pack (title + wrapped copy left, a `CheckBox` right), inside an
+  `ItemsControl` bound to `PackOptions`. No new tokens: `TextValue`/`TextMid`/`TextDim`/`card` reused as is.
+- **Verified** in `UiCapture/Variants.cs` as `wizard-extensions` (`--size 1280x800`, a fresh temp-dir
+  `SettingsService` parked on `CurrentStep=3`) and in `FirstRunWizardTests` (headless window render plus
+  accept/decline/skip/upgrade coverage against a live `FeatureGate`).
+
 <a id="stats-components"></a>
 ### Stats component library (`Controls/Stats/`, v0.8.1)
 
@@ -2202,6 +2233,58 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
   but the refresh re-reads `gate.IsEnabled` = false (cascade), so the switch snaps back with the overridden
   dot showing against an off toggle. This is *faithful* (the override is stored and takes effect once the
   parent is enabled), not thrash, toggle-disabling is scoped to `IsRequired` only, per the P2a-ii spec.
+
+### Settings Extensions section (strat-book-plugin.md item 5, 2026-10-02)
+
+New top-level group between FEATURES and LIVE CS2, `Expander IsVisible="{Binding ShowGroupExtensions}"`,
+starting **expanded** (unlike FEATURES, which starts collapsed): the section is one master switch plus
+today's two small relocated cards, not a wall of rows, so the switch is worth surfacing without a click.
+
+- **The row list is `ExtensionsFeatureRows`**, one `ObservableCollection<FeatureToggleRow>` built from
+  `FeatureCatalog.All` by scope and `OwnerPackId`, reusing the P2a-ii `FeatureRowTemplate` resource: every
+  `FeatureScope.Pack` descriptor's own row (indent 0), then the tabs it parents directly (indent 1, each
+  immediately followed by ITS `SubFeature` children at indent 2), then any sub-feature the pack docks in a
+  CORE tab instead of one of its own (2D Playback's tag palette and Suggested Tags), flat at indent 1. A
+  second pack's rows appear with no code change: nothing here names "Strat Book". These rows leave
+  `TabFeatureRows` and `ChromeFeatureRows` (`BuildFeatureRows` now skips any descriptor `OwnerPackId` tags,
+  at both the top-level Tab loop and the per-tab `Children` loop), so a pack is never listed twice.
+- **`ScopeLabel` reads "Extension"** for a `Pack`-scope row (falls through to the enum name otherwise).
+- **A pack child row locks while its pack is off**, not just cascades: `FeatureToggleRow.IsPackEnabled`
+  (default `true`; mirrored from `OwnerPackId is {} p && gate.IsEnabled(p)` on every `Refresh`) joins
+  `IsInteractive`/`HasLockHint`/`LockHint` (`NotifyPropertyChangedFor`, since unlike `IsRequired` this one
+  changes live). The lock hint reads "extension is off". A stray programmatic set while locked bounces back
+  without writing, the same treatment `IsRequired` and a group follower get: the row's own override (if
+  any) is untouched either way, so it is honoured again once the pack is back on. The master row's own
+  `IsPackEnabled` is never set (a pack does not own itself via `OwnerPackId`), so the switch that turns a
+  pack off is never itself locked by that state.
+- **`FeatureGate.HiddenCount` excludes a `Pack`-scope row.** It renders as its own live master switch, not
+  a hidden feature; counting it too would double against the switch itself. Everything the master cascades
+  off still counts (it is still rendered, under Extensions, disabled).
+- **Two existing pack-only settings blocks moved under this section**, content unchanged, each gated by
+  `IsStratBookPackEnabled` on top of whatever platform gate it already had: Suggested Tags tuning (was in
+  GENERAL) and a new GRENADE INDEX card (`Walk library grenades in the background`, `Render lineup clips`;
+  was embedded inside HIGHLIGHTS, riding that section's desktop-only gate incidentally: kept as
+  `CanManageGrenadeIndex`). These are hidden entirely while the pack is off, not merely disabled: they are
+  dedicated custom UI, not generic toggle rows, so "gone" reads better than "present and dark". No settings
+  contribution seam yet (item 14); the XAML is grouped under one Expander so that item can lift it later.
+- **Search**: `ExtensionsSectionMatches` ORs the generic `_sectionKeywords` entry ("extension", "pack",
+  "plugin", …) with a scan of every BUILT row's own `Label` (fuzzy `PartialRatio >= 80`, same threshold the
+  rest of findability uses), so a pack's name and its tabs'/sub-features' names are searchable without
+  listing them by hand. A second pack costs nothing here either.
+- **The in-session toggle notice** (`StratBookToggleNotice`, architecture doc §8): null until a flip
+  happens in THIS vm's lifetime (seeded from the gate before the ctor's first refresh, so plain startup
+  shows nothing). On a transition detected in `RefreshFeatureRows` (so a self-write, Reset-to-defaults and
+  an external edit all catch it): off → "The Strat Book extension stops its background work. Its data
+  stays on disk."; on → "Counting…" then `"{N} demos will be re-indexed in the background."` once
+  `StratBookPendingReindexCount.ComputeAsync()` lands (the union of `RoundIndexEvaluator`,
+  `GrenadeIndexEvaluator` and `SuggestedTagsService`'s own `PendingPaths()`, resolved through `App.Services`
+  since the VM's constructor cannot take them (the public ctor shape is unchanged); a `Func<Task<int>>?`
+  test seam is the INTERNAL ctor's 8th, all-optional parameter). A generation counter drops a result that
+  lands after a later flip rather than overwriting a more recent notice.
+- **Fits the real host width** (520-560px desktop/WASM, §settings-layout above) with no horizontal
+  overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
+  UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
+  decisions above).
 
 ---
 
