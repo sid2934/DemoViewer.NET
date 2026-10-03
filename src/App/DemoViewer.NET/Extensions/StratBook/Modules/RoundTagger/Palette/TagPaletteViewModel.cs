@@ -149,7 +149,6 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         ShowPanel(Palette.Root);
 
         _session.Changed += OnSessionChanged;
-        _session.Flushing += Finish; // a tag still being made belongs to the document going out, not to the next one
         _store.Reloaded += OnStoreReloaded;
     }
 
@@ -237,7 +236,6 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _session.Changed -= OnSessionChanged;
-        _session.Flushing -= Finish;
         _store.Reloaded -= OnStoreReloaded;
     }
 

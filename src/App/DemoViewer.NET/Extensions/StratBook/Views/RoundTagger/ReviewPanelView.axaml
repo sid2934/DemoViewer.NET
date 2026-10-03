@@ -16,7 +16,8 @@
         </Style>
     </UserControl.Styles>
 
-    <StackPanel>
+    <!-- The trailing 2 px matches the palette's and the queue's, so the three panels gap alike. -->
+    <StackPanel Margin="0,0,0,2">
         <!-- The two review lists: the suggestions still waiting for a verdict, and the labels written. -->
         <Grid Margin="0,2,0,4" ColumnDefinitions="*,*" ColumnSpacing="4">
             <ToggleButton Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
@@ -38,7 +39,7 @@
             </ContentControl.ContentTemplate>
         </ContentControl>
 
-        <StackPanel Spacing="4" Margin="0,0,0,2" IsVisible="{Binding IsLabelsListShown}">
+        <StackPanel Spacing="4" IsVisible="{Binding IsLabelsListShown}">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <Button Content="Label this round" Padding="6,1" FontSize="11" Focusable="False"
                         Command="{Binding LabelRoundCommand}" IsEnabled="{Binding CanLabel}"

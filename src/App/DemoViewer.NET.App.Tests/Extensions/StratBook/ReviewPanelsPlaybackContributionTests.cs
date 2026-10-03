@@ -9,6 +9,7 @@ using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -192,6 +193,61 @@ public class ReviewPanelsPlaybackContributionTests
             Id = Guid.NewGuid(), Code = "Default", FromTick = 100, ToTick = 200, CreatedUtc = Created, ModifiedUtc = Created
         }));
         await Assert.That(session.Document!.Instances.Count).IsEqualTo(1);
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task Deactivation_TakesTheKeyboardBack_SoTheNextDigitIsNobodysKey()
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+        await review.Session!.AttachAsync(Demo, Clock, DemoPath);
+        vm.IsReviewMode = true;
+        ReviewPanelsHarness.Press(vm, Key.C);
+        await Assert.That(vm.Surface.HasKeyboard).IsTrue();
+
+        vm.OnDeactivated();
+        vm.OnActivated(ctx);
+        using (Assert.Multiple())
+        {
+            await Assert.That(review.IsPaletteFocused).IsFalse();
+            await Assert.That(vm.Surface.HasKeyboard).IsFalse();
+            await Assert.That(vm.Surface.TryHandleKey(Key.D1, KeyModifiers.None)).IsFalse().Because("unfocused, 1 is nobody's key");
+            await Assert.That(review.Session.Document!.Instances).IsEmpty();
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task ADemoSwap_WritesThePendingTagToTheOldDocument_DropsTheNote_AndTakesTheKeyboardBack()
+    {
+        (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+        TagSession session = review.Session!;
+        await session.AttachAsync(Demo, Clock, DemoPath);
+        vm.IsReviewMode = true;
+        ReviewPanelsHarness.Press(vm, Key.C);
+        ReviewPanelsHarness.Press(vm, Key.D1); // A execute: pending until its labels or a Finish
+        ReviewPanelsHarness.Press(vm, Key.M, KeyModifiers.Control);
+        review.Palette!.NoteDraft = "half a note";
+        TagDocument old = session.Document!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(review.Palette.IsEditingNote).IsTrue();
+            await Assert.That(old.Instances).IsEmpty().Because("the tag is still being made");
+        }
+
+        await session.AttachAsync(new DemoIdentity(new string('b', 64), "other.dem", 1), Clock, "/d/other.dem");
+        using (Assert.Multiple())
+        {
+            await Assert.That(old.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"]).Because("written before the swap");
+            await Assert.That(old.Instances[0].Note).IsNull().Because("the note was never kept");
+            await Assert.That(session.Document!.Instances).IsEmpty().Because("the new document starts clean");
+            await Assert.That(review.Palette.IsEditingNote).IsFalse();
+            await Assert.That(review.IsPaletteFocused).IsFalse();
+            await Assert.That(vm.Surface.HasKeyboard).IsFalse();
+            await Assert.That(vm.Surface.TryHandleKey(Key.D1, KeyModifiers.None)).IsFalse().Because("unfocused, 1 is nobody's key");
+        }
 
         vm.Dispose();
     }

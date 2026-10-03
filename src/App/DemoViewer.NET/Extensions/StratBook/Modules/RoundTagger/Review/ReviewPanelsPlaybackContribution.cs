@@ -132,11 +132,13 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         _registrations.Add(surface.AddBandMenu(LaneMenuFor));
         surface.KeymapChanged += OnKeymapChanged;
         surface.ReviewModeChanged += OnReviewModeChanged;
+        surface.Deactivated += LeavePalette;
         surface.Timeline.EditSpanDragged += OnEditSpanDragged;
         surface.Timeline.LaneLabelRequested += OnLaneLabelRequested;
         surface.Timeline.BandPressed += OnBandPressed;
         surface.Timeline.PropertyChanged += OnTimelineChanged;
         session.Changed += OnSessionChanged;
+        session.Detaching += LeavePalette;
         if (context.Features is { } features)
         {
             features.Changed += OnFeaturesChanged;
@@ -156,6 +158,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
         surface.KeymapChanged -= OnKeymapChanged;
         surface.ReviewModeChanged -= OnReviewModeChanged;
+        surface.Deactivated -= LeavePalette;
         surface.Timeline.EditSpanDragged -= OnEditSpanDragged;
         surface.Timeline.LaneLabelRequested -= OnLaneLabelRequested;
         surface.Timeline.BandPressed -= OnBandPressed;
@@ -168,6 +171,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         if (_tagTrack is { } tagTrack)
         {
             tagTrack.Session.Changed -= OnSessionChanged;
+            tagTrack.Session.Detaching -= LeavePalette;
             tagTrack.CodeColour = null;
         }
 
@@ -321,6 +325,10 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         RefreshReviewPanel();
         RefreshLaneEditing();
     }
+
+    // The keyboard is the tab's again when the tab goes (deactivation) or the document goes (a swap or a
+    // detach): the pending tag is written to the document still current, the note is dropped, focus is off.
+    private void LeavePalette() => Palette?.Leave();
 
     private void OnKeymapChanged()
     {
