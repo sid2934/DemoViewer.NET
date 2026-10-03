@@ -75,6 +75,39 @@ public class PackOffCompositionTests
                     .Because("the pack is off: Tag Facts Refresher does not start");
                 await Assert.That(instances.Watched).IsNull()
                     .Because("the pack is off: Watched Situations service does not start");
+                await Assert.That(instances.RoundFacts).IsNull()
+                    .Because("the pack is off: Round Facts evaluator is not constructed at startup");
+                await Assert.That(instances.RoundIndex).IsNull()
+                    .Because("the pack is off: Round Index evaluator is not constructed at startup");
+                await Assert.That(instances.SuggestedTags).IsNull()
+                    .Because("the pack is off: Suggested Tags service is not constructed at startup");
+                await Assert.That(instances.GrenadeWalk).IsNull()
+                    .Because("the pack is off: Grenade Index evaluator is not constructed at startup");
+            }
+        });
+    }
+
+    // The evaluator registry is what is actually responsible for the four fields above staying null
+    // (item 11): it reads PackContributionSet lazily and never invokes a disabled pack's evaluator
+    // factory. Forcing a poll here (EvaluatorIds), something the test above never does, proves the
+    // gate itself rather than merely "nothing happened to construct them yet".
+    [Test]
+    public async Task PackOff_PollingTheCoordinator_StillNeverConstructsThePacksFourEvaluators()
+    {
+        await WithProvider(async provider =>
+        {
+            DemoEvaluationCoordinator coordinator = provider.GetRequiredService<DemoEvaluationCoordinator>();
+
+            await Assert.That(coordinator.EvaluatorIds).IsEquivalentTo(["library", "highlights"])
+                .Because("the pack is off: its four evaluators are never in the fan-out");
+
+            StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(instances.RoundFacts).IsNull();
+                await Assert.That(instances.RoundIndex).IsNull();
+                await Assert.That(instances.SuggestedTags).IsNull();
+                await Assert.That(instances.GrenadeWalk).IsNull();
             }
         });
     }
