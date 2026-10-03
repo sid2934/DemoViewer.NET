@@ -1923,9 +1923,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(Keymap));
         OnPropertyChanged(nameof(KeymapRejections));
 
-        // Surface.SetKeymap raises KeymapChanged, which is how a contribution's gesture-hinted label or
-        // tooltip (IPlaybackSurface.GestureHint) reaches the rebind at the same moment it reaches the router.
+        // Pushed rather than pulled through a $parent binding: the annotation toolbar's DataContext is
+        // the panel, and a five-deep ancestor cast that silently yields "" on a standalone mount is a
+        // worse contract than one assignment.
         Annotations.ApplyKeymap(Keymap);
+
+        // Raises KeymapChanged, which is how a contribution's gesture-hinted label or tooltip
+        // (IPlaybackSurface.GestureHint) reaches the rebind at the same moment it reaches the router.
         Surface.SetKeymap(Keymap);
     }
 

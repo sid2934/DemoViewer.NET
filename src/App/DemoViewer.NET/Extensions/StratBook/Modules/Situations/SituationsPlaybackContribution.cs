@@ -45,7 +45,7 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
         _situationResults = context.GetService<ISituationResultWalk>();
 
         _item = new ToolbarItem(ToolbarItemId, Label(surface), ToolTip(surface), RunFindRoundsLikeThis,
-            Playback2DAction.FindRoundsLikeThis);
+            Playback2DAction.FindRoundsLikeThis, icon: "⌕");
         surface.KeymapChanged += OnKeymapChanged;
         _demoChanged = surface.OnDemoChanged(RefreshAvailability);
         _actionHandler = surface.AddActionHandler(OnAction);
@@ -123,8 +123,10 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
         item.Tooltip = ToolTip(surface);
     }
 
+    // "Rounds like this", not "Find rounds like this": the button's own text today, distinct from its
+    // tooltip and the menu header's "Find rounds like this", which the tooltip keeps.
     private static string Label(IPlaybackSurface surface) =>
-        $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}";
+        $"Rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}";
 
     private static string ToolTip(IPlaybackSurface surface) =>
         $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}: snapshot the alive players by "

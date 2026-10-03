@@ -293,10 +293,13 @@
                                 </MenuItem>
                                 <Separator />
                                 <MenuItem x:Name="FollowMenuItem" Header="Follow Player" />
-                                <!-- The contributions' toolbar items (Surface.ToolbarItems), e.g. "Find rounds like
+                                <!-- The contributions' toolbar items (Surface.ToolbarItems), e.g. "Rounds like
                                      this": rebuilt in code-behind on every open (OnModeMenuOpened), after this
-                                     separator; none while the owning pack is off. -->
-                                <Separator IsVisible="{Binding Surface.HasToolbarItems}" />
+                                     separator; none while the owning pack is off. IsVisible is set there too,
+                                     not bound here: this separator lives inside the flyout's own popup content,
+                                     which is not reliably in the visual tree for a data binding before the
+                                     flyout has opened once. -->
+                                <Separator x:Name="ToolbarItemsSeparator" />
                             </MenuFlyout>
                         </SplitButton.Flyout>
                     </SplitButton>
@@ -325,7 +328,8 @@
                          lists the same items). None while the owning pack is off, or the pack has nothing to show. -->
                     <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
                             IsVisible="{Binding Surface.HasToolbarItems}" />
-                    <ItemsControl x:Name="ToolbarItemsList" ItemsSource="{Binding Surface.ToolbarItems}">
+                    <ItemsControl x:Name="ToolbarItemsList" ItemsSource="{Binding Surface.ToolbarItems}"
+                                  IsVisible="{Binding Surface.HasToolbarItems}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" Spacing="10" />
@@ -333,9 +337,14 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="ext:ToolbarItem">
-                                <Button Content="{Binding Label}" Padding="8,2" VerticalAlignment="Center"
+                                <Button Padding="8,2" VerticalAlignment="Center"
                                         Command="{Binding Command}"
-                                        ToolTip.Tip="{Binding Tooltip}" />
+                                        ToolTip.Tip="{Binding Tooltip}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding Icon}" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <TextBlock Text="{Binding Label}" />
+                                    </StackPanel>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

@@ -22,8 +22,10 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Find Rounds Like This: the key (plan D7), the snapshot's round-trip with the index builder (one
-///     function applied twice, in both token modes), the canvas load, the 2D tab's funnel onto the seam
-///     and the shipped seam's tab switch. The real-demo half is <c>FindRoundsLikeThisRealDemoTests</c>.
+///     function applied twice, in both token modes), the canvas load, and the shipped seam's tab switch.
+///     The view's route onto the seam through a real <c>SituationsPlaybackContribution</c> is
+///     <c>CtrlF_RoutesThroughTheView_ToTheSeam</c>; the contribution's own wiring is
+///     <c>SituationsPlaybackContributionTests</c>. The real-demo half is <c>FindRoundsLikeThisRealDemoTests</c>.
 /// </summary>
 public class FindRoundsLikeThisTests
 {
@@ -221,10 +223,6 @@ public class FindRoundsLikeThisTests
             await Assert.That(h.Vm.ResultCount).IsNull();
         }
     }
-
-    // The tab's own dispatch of Ctrl+F onto the seam (the toolbar item's Run, the overflow menu entry and
-    // Ctrl+F sharing one funnel, the gesture-hinted label and tooltip following a rebind) is the pack's
-    // contribution now: SituationsPlaybackContributionTests.
 
     [Test]
     public async Task TheShippedSeam_LoadsTheCanvas_AndShowsTheTab_OrRefusesWhenTheTabIsGone()
