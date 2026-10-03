@@ -6,6 +6,14 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Modules.RoundTagger;
+using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.StratBook;
+using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Modules.Teams;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -246,6 +254,42 @@ public class StratBookPackTests
             .IsEquivalentTo([StratBookPack.PackFeatureId, .. _movedIds.Select(m => m.Id)]);
         await Assert.That(FeatureCatalog.Children(StratBookPack.PackFeatureId).Select(d => d.Id))
             .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id));
+    }
+
+    // Item 10: every module's descriptor declares a FeatureId, and that id is the one StratBookPack.Features
+    // actually registered, with the catalog's own OwnerPackId stamp to prove it. A module that declared an
+    // id the pack forgot would fail here on the IsNotNull, not drift along as a fail-open tab.
+    [Test]
+    public async Task EveryModule_DeclaresAFeatureId_InTheCatalog_OwnedByThePack()
+    {
+        FakeHost host = new();
+        IWorkspaceModule[] modules =
+        [
+            new SituationsModule(() => null!),
+            new TeamsModule(() => null!),
+            new ReviewQueueModule(() => null!),
+            new SuggestedInboxModule(() => null!),
+            new RoundTaggerModule(() => null!),
+            new StratBookModule(() => null!),
+            new UtilityBookModule(() => null!),
+            new DossierModule(() => null!)
+        ];
+
+        foreach (IWorkspaceModule module in modules)
+        {
+            foreach (WorkspaceTabDescriptor descriptor in module.CreateTabs(host))
+            {
+                await Assert.That(descriptor.FeatureId).IsNotNull()
+                    .Because($"{module.Id}'s '{descriptor.TabId}' must declare its own feature id");
+
+                FeatureDescriptor? catalogEntry = FeatureCatalog.ById(descriptor.FeatureId!);
+                await Assert.That(catalogEntry).IsNotNull()
+                    .Because($"'{descriptor.FeatureId}' (declared by {module.Id}) is missing from the catalog: "
+                        + "a module cannot declare an id the pack forgot");
+                await Assert.That(catalogEntry!.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
+                    .Because($"'{descriptor.FeatureId}' must be owned by the pack that owns {module.Id}");
+            }
+        }
     }
 
     [Test]
@@ -542,6 +586,17 @@ public class StratBookPackTests
 
     private static FeatureDescriptor SubFeature(string id, string? parent) =>
         new(id, FeatureScope.SubFeature, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+
+    // CreateTabs never reads Context or logs; this is only here to satisfy the parameter.
+    private sealed class FakeHost : IModuleHost
+    {
+        public IModuleContext Context => null!;
+        public bool HasCapability(string capability) => true;
+
+        public void Log(ModuleLogLevel level, string message)
+        {
+        }
+    }
 
     private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
     {
