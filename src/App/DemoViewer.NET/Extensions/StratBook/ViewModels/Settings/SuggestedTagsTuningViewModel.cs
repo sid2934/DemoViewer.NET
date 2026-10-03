@@ -100,7 +100,7 @@ public sealed partial class TuningParameterRow : ObservableObject
 ///         hides, per §3.8: "no tuning view" there.
 ///     </para>
 /// </summary>
-public sealed partial class SuggestedTagsTuningViewModel : ObservableObject
+public sealed partial class SuggestedTagsTuningViewModel : ViewModelBase
 {
     private readonly ProfileStore? _profiles;
     private readonly SuggestedTagsTuningService? _tuning;
