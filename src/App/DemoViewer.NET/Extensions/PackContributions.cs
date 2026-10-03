@@ -16,6 +16,7 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<EvaluatorContribution> _evaluators = [];
     private readonly List<JobKindDescriptor> _jobKinds = [];
+    private readonly List<CommandDescriptor> _commands = [];
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
@@ -28,6 +29,9 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>Job kinds, in contribution order.</summary>
     public IReadOnlyList<JobKindDescriptor> JobKinds => _jobKinds;
+
+    /// <summary>Commands, in contribution order. Named apart from the <see cref="Commands(IEnumerable{CommandDescriptor})" /> method the interface declares.</summary>
+    public IReadOnlyList<CommandDescriptor> ContributedCommands => _commands;
 
     /// <inheritdoc />
     public void Module(IWorkspaceModule workspaceModule)
@@ -48,5 +52,12 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(kind);
         _jobKinds.Add(kind);
+    }
+
+    /// <inheritdoc />
+    public void Commands(IEnumerable<CommandDescriptor> commands)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        _commands.AddRange(commands);
     }
 }
