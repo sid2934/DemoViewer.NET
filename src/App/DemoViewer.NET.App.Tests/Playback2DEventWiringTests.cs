@@ -89,8 +89,8 @@ public class Playback2DEventWiringTests
     public async Task TheScan_DetectsAnUnsubscribedEvent_AndClearsAWiredOne()
     {
         SysAssembly self = typeof(Playback2DEventWiringTests).Assembly;
-        (List<EventContract> contracts, List<string> _) = Analyse(
-            [typeof(EventGuardCanary)],
+        (List<EventContract> contracts, List<string> unanalysable) = Analyse(
+            [typeof(EventGuardCanary), typeof(EventGuardCanaryForwarder), typeof(EventGuardCanaryOpaque)],
             [.. Playback2DWholeGraph.ProductionAssemblies, self]);
 
         Dictionary<string, EventContract> byName = contracts.ToDictionary(
@@ -101,7 +101,10 @@ public class Playback2DEventWiringTests
             Console.WriteLine($"[event-canary] {contract.Describe()}");
         }
 
-        await Assert.That(byName.Count).IsEqualTo(3);
+        await Assert.That(byName.Count).IsEqualTo(3)
+            .Because("a forwarder is no contract of its own and an opaque accessor is reported, not counted");
+        await Assert.That(unanalysable).IsEquivalentTo([typeof(EventGuardCanaryOpaque).FullName + ".OpaqueCanary"])
+            .Because("the forwarder is seen through to its inner event; the opaque accessor is not");
         await Assert.That(byName["WiredCanary"].IsWired).IsTrue()
             .Because("raised in Raise() and subscribed from a different type — the shape a real event has");
         await Assert.That(byName["RaisedNeverSubscribedCanary"].Raisers).IsNotEmpty();
@@ -165,7 +168,13 @@ public class Playback2DEventWiringTests
                         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance |
                         BindingFlags.Static | BindingFlags.DeclaredOnly) is null)
                 {
-                    unanalysable.Add($"{type.FullName}.{evt.Name}");
+                    // A forwarder (add_X is a call to another type's add_X) has no raise of its own: its
+                    // contract is the inner event's. Anything else without a backing field is invisible.
+                    if (!Forwards(type, evt.Name, scope))
+                    {
+                        unanalysable.Add($"{type.FullName}.{evt.Name}");
+                    }
+
                     continue;
                 }
 
@@ -242,6 +251,18 @@ public class Playback2DEventWiringTests
         return (contracts, unanalysable);
     }
 
+    // True when the type's own add_<name> calls add_<name> on another type: the event forwards, and the
+    // inner type is where a raise and a backing field live.
+    private static bool Forwards(Type type, string name, IEnumerable<SysAssembly> scope)
+    {
+        string add = "add_" + name;
+        return Playback2DWholeGraph.Scan(scope, (_, member) => string.Equals(member, add, StringComparison.Ordinal))
+            .Any(site => site.Access == IlAccess.Call
+                         && string.Equals(site.Type, type.FullName, StringComparison.Ordinal)
+                         && string.Equals(site.Method, add, StringComparison.Ordinal)
+                         && !string.Equals(site.TargetType, type.FullName, StringComparison.Ordinal));
+    }
+
     // The interface whose event THIS event implements, or null. Resolved through the interface map rather
     // than by name, so a coincidental name match on an unrelated interface cannot merge two contracts.
     private static Type? InterfaceDeclaring(Type type, EventInfo evt)
@@ -300,6 +321,34 @@ internal sealed class EventGuardCanary
         WiredCanary?.Invoke();
         RaisedNeverSubscribedCanary?.Invoke();
     }
+}
+
+/// <summary>
+///     The forwarder shape (<c>PackContributions.StampedLibraryContribution.Changed</c>): hand-written
+///     accessors that forward to another type's event of the same name, so no backing field and no raise of
+///     its own. The scan must see through it rather than report it.
+/// </summary>
+internal sealed class EventGuardCanaryForwarder(EventGuardCanary inner)
+{
+    public event Action? WiredCanary
+    {
+        add => inner.WiredCanary += value;
+        remove => inner.WiredCanary -= value;
+    }
+}
+
+/// <summary>Hand-written accessors that forward nowhere: the one shape the scan cannot see, and must say so.</summary>
+internal sealed class EventGuardCanaryOpaque
+{
+    private int _subscribers;
+
+    public event Action? OpaqueCanary
+    {
+        add => _subscribers++;
+        remove => _subscribers--;
+    }
+
+    public int Subscribers => _subscribers;
 }
 
 /// <summary>
