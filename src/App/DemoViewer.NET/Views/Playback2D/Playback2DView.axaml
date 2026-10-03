@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
+             xmlns:ext="using:DemoViewer.NET.Extensions"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
@@ -153,13 +154,25 @@
                              flyout so the toggles stay inside the viewport column, where the layout suite
                              can still measure and hit-test them, and inside the keymap's tunnel, where
                              Space still means play. -->
-                        <!-- Review mode (Shift+R): the labelling panels, the tag lanes and the tagging keys. Off,
-                             the right column is the full player cards. Hidden when both tagging gates are off. -->
-                        <ToggleButton x:Name="ReviewToggle" DockPanel.Dock="Right" Focusable="False"
-                                      Padding="8,2" FontSize="11" Content="Review" Margin="6,0,0,0"
-                                      IsChecked="{Binding IsReviewMode, Mode=TwoWay}"
-                                      IsVisible="{Binding IsReviewAvailable}"
-                                      ToolTip.Tip="Review mode (Shift+R): label rounds and review the suggested labels" />
+                        <!-- The contributions' mode toggles (Surface.ModeToggles): the Strat Book's Review mode, whose
+                             panels, lanes and tagging keys come and go with it. Each hides while its mode has
+                             nothing to show; none exist with the extension off. -->
+                        <ItemsControl x:Name="ModeToggles" DockPanel.Dock="Right" ItemsSource="{Binding Surface.ModeToggles}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="ext:ModeToggle">
+                                    <ToggleButton Focusable="False" Padding="8,2" FontSize="11" Margin="6,0,0,0"
+                                                  Content="{Binding Label}"
+                                                  IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                                  IsVisible="{Binding IsAvailable}"
+                                                  ToolTip.Tip="{Binding Tooltip}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
                         <ToggleButton x:Name="OverlaysToggle" DockPanel.Dock="Right" Focusable="False"
                                       Padding="8,2" FontSize="11" Content="Overlays ▾"
@@ -585,10 +598,10 @@
                 </StackPanel>
             </Border>
 
-            <!-- Review mode's panels: the packs' right-column contributions (Surface.Panels), in order, each shown
-                 while its own gate is on. The Strat Book's are the Tag Palette, the review panel and the
-                 Suggestion Queue; the tab knows none of them. -->
-            <ScrollViewer Grid.Row="2" IsVisible="{Binding IsReviewMode}" HorizontalScrollBarVisibility="Disabled">
+            <!-- The packs' right-column contributions (Surface.Panels), in order, each shown while its own gate
+                 and mode are on. The Strat Book's are the Tag Palette, the review panel and the Suggestion
+                 Queue under its Review mode; the tab knows none of them. -->
+            <ScrollViewer Grid.Row="2" IsVisible="{Binding IsCardStrip}" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="ReviewPanels" ItemsSource="{Binding Surface.Panels}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:Playback2DPanel">
