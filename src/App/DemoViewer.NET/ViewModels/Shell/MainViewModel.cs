@@ -150,8 +150,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IFeatureGate? _gate;
 
     // The Strat Book's umbrella id. The Library's team filter and provenance chip key off this directly:
-    // neither is a section with a feature id of its own. (The strat export chip used to as well; it now
-    // goes through its own StatusChipContribution.FeatureId, item 14.)
+    // neither is a section with a feature id of its own.
     private const string StratBookPackFeatureId = "pack.stratbook";
 
     // A null gate fails open, matching every other surface this flag controls.

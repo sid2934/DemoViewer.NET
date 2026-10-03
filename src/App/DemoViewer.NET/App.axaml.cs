@@ -726,8 +726,8 @@ public class App : Application
             // The settings pages the packs contribute (item 14): the Suggested Tags tuning card and the
             // Grenade Index card. Read fresh on every Settings open, same as the pages' own VMs.
             sp.GetRequiredService<PackContributionSet>().SettingsPages,
-            // The Extensions "N demos will be re-indexed" notice's count (item 14), summed over whichever
-            // packs contributed one.
+            // The Extensions "N demos will be re-indexed" notice's count (item 14); SettingsViewModel
+            // watches only the first entry.
             sp.GetRequiredService<PackContributionSet>().ReindexEstimates));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
