@@ -35,6 +35,7 @@ using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.ViewModels.Teams;
 using DemoViewer.NET.ViewModels.UtilityBook;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -167,6 +168,18 @@ public sealed class StratBookPack : IFeaturePack
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // The was-built tracker (item 3): one instance, read by StratBookLifecycle.OnShutdown and by the
+        // pack-off composition-root test. Set only by the factories below, never by a caller asking for it.
+        services.AddSingleton<StratBookPackInstances>();
+
+        // SituationIndex, TeamIdentityService and TagFactsRefresher are registered by the composition root
+        // (core: other surfaces read them), so their factories are wrapped here rather than written here.
+        // The wrap changes nothing about what is registered (same type, same Singleton lifetime), only
+        // which object is told it was built.
+        TrackBuilt<SituationIndex>(services, (instances, built) => instances.Situations = built);
+        TrackBuilt<TeamIdentityService>(services, (instances, built) => instances.Teams = built);
+        TrackBuilt<TagFactsRefresher>(services, (instances, built) => instances.TagFacts = built);
+
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
@@ -250,13 +263,18 @@ public sealed class StratBookPack : IFeaturePack
         // over one demo on the index's Indexed hook and over the library at the watermark on every
         // other change. A container singleton so the module's badge and the tab's list share one
         // state; null config root (the browser) keeps the list for the session.
-        services.AddSingleton(sp => new WatchedSituationsService(
-            AppPaths.ConfigRoot,
-            sp.GetRequiredService<ISituationIndex>(),
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<IDemoProvenanceSource>(),
-            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp =>
+        {
+            WatchedSituationsService watched = new(
+                AppPaths.ConfigRoot,
+                sp.GetRequiredService<ISituationIndex>(),
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<TeamIdentityService>(),
+                sp.GetRequiredService<IDemoProvenanceSource>(),
+                action => Dispatcher.UIThread.Post(action));
+            sp.GetRequiredService<StratBookPackInstances>().Watched = watched;
+            return watched;
+        });
 
         // The Matrix: tag instances pivoted over the store, a container singleton resolved lazily on first
         // activation. The cache index is the hash-to-path join a cell's clips need, Team Identity the scope
@@ -405,13 +423,18 @@ public sealed class StratBookPack : IFeaturePack
         // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the
         // origins deduplicated, the landing place through the same zone resolver source the round index
         // uses. It loads once at startup off the UI thread and merges each demo as the evaluator writes it.
-        services.AddSingleton(sp => new GrenadeIndex(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IZonePlaceResolverSource>(),
-            sp.GetRequiredService<GrenadeIndexEvaluator>(),
-            action => Dispatcher.UIThread.Post(action),
-            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups", "utility",
-                "save:grenade-lineups")));
+        services.AddSingleton(sp =>
+        {
+            GrenadeIndex index = new(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<IZonePlaceResolverSource>(),
+                sp.GetRequiredService<GrenadeIndexEvaluator>(),
+                action => Dispatcher.UIThread.Post(action),
+                scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups",
+                    "utility", "save:grenade-lineups"));
+            sp.GetRequiredService<StratBookPackInstances>().Grenades = index;
+            return index;
+        });
         services.AddSingleton(sp => UtilityBookFor(sp, null, null));
 
         // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
@@ -479,8 +502,29 @@ public sealed class StratBookPack : IFeaturePack
                 maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
                 processing: sp.GetRequiredService<IDemoProcessingQueue>());
             index.Changed += () => clips.PlanSoon();
+            sp.GetRequiredService<StratBookPackInstances>().Lineups = clips;
             return clips;
         });
+
+        // The pack's lifecycle (item 3): resolved by the app only while pack.stratbook resolves on,
+        // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
+        services.AddKeyedSingleton<IPackLifecycle, StratBookLifecycle>(Id);
+    }
+
+    // Wraps an existing registration's factory so the built instance is also recorded on the tracker,
+    // without adding, dropping or re-scoping the registration itself (StratBookPackTests pins the set).
+    private static void TrackBuilt<T>(IServiceCollection services, Action<StratBookPackInstances, T> record)
+        where T : class
+    {
+        ServiceDescriptor original = services.First(d => d.ServiceType == typeof(T));
+        Func<IServiceProvider, object> factory = original.ImplementationFactory
+            ?? throw new InvalidOperationException($"{typeof(T)} must be registered with a factory to track it.");
+        services.Replace(ServiceDescriptor.Singleton(typeof(T), sp =>
+        {
+            T built = (T)factory(sp);
+            record(sp.GetRequiredService<StratBookPackInstances>(), built);
+            return built;
+        }));
     }
 
     /// <inheritdoc />
@@ -493,16 +537,29 @@ public sealed class StratBookPack : IFeaturePack
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here
         // constructs one. The order is the shell's registration order and is pinned by a test.
 
-        // The Situations tab. The badge reads Watched Situations, so the service resolves now.
+        // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
+        // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
+        // (Contribute runs inside BuildServiceProvider, before App.Services is assigned), and resolving
+        // WatchedSituationsService unconditionally would build it (and, through its own ctor, the
+        // situation index and Team Identity) on every launch regardless of the pack's gate.
+        IFeatureGate? situationsGate = sp.GetService<IFeatureGate>();
+        bool situationsOn = situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false;
         contributions.Module(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
-            sp.GetRequiredService<WatchedSituationsService>()));
+            situationsOn ? sp.GetRequiredService<WatchedSituationsService>() : null,
+            enabled: () => situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false,
+            gate: situationsGate));
 
         // The Teams tab, hosted inside the Library.
         contributions.Module(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
 
-        // The Review tab. The badge reads the queue, so clips sent from another tab count before it opens.
+        // The Review tab. Same gated-resolve shape as Situations: ReviewQueue is core (Reels uses it too),
+        // but resolving it here regardless of the gate still queued its startup load on every launch.
+        IFeatureGate? reviewGate = sp.GetService<IFeatureGate>();
+        bool reviewOn = reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false;
         contributions.Module(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
-            sp.GetRequiredService<ReviewQueue>()));
+            reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
+            enabled: () => reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false,
+            gate: reviewGate));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.
         // enabled/gate read sp directly, not the App.Services locator: Contribute runs inside
