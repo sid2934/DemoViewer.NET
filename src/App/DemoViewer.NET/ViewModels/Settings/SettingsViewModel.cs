@@ -414,9 +414,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null)
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null)
         : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
-            reindexEstimates)
+            reindexEstimates, dataRemovals)
     {
     }
 
@@ -441,11 +441,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     The packs' answers for the Extensions "N demos will be re-indexed" notice (§8); the first one
     ///     is used (today, at most one pack exists). Null (most tests) shows no notice.
     /// </param>
+    /// <param name="dataRemovals">
+    ///     Each pack's "delete extension data" action (item 24), one <see cref="ExtensionDataActionViewModel" />
+    ///     row per entry under Extensions, available whether its pack is on or off. Null (most tests) shows no row.
+    /// </param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Func<bool> isBrowser, Action? replayWalkthrough = null,
         IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null)
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null,
+        IReadOnlyList<IPackDataRemoval>? dataRemovals = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -458,6 +463,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
         _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
+        foreach (IPackDataRemoval removal in dataRemovals ?? [])
+        {
+            string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == removal.PackFeatureId)?.Label ?? removal.PackFeatureId;
+            ExtensionDataActions.Add(new ExtensionDataActionViewModel(removal, label));
+        }
 
         Categories = BuildCategoryOptions();
         // Populate the theme list from the registry. Held in an ObservableCollection so "Reload themes" can
@@ -638,6 +648,13 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     <see cref="MountedSettingsPage.IsBuilt" /> stays false until its gate first resolves on.
     /// </summary>
     public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
+
+    /// <summary>
+    ///     One "delete extension data" row per pack that declared one (item 24), rendered under Extensions
+    ///     beneath <see cref="ContributedSettingsPages" />. Unlike a contributed page, available whether its
+    ///     pack is on or off: deleting while off is the main use.
+    /// </summary>
+    public ObservableCollection<ExtensionDataActionViewModel> ExtensionDataActions { get; } = [];
 
     /// <summary>
     ///     How many non-Required features the current user has hidden versus the developer-full baseline (from

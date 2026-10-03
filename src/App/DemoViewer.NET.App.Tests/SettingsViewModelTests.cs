@@ -61,7 +61,7 @@ public class SettingsViewModelTests
     // registered in the container so the provider disposes it. reindexEstimate is the item 14 test seam
     // for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
-        string dir, IPackReindexEstimate? reindexEstimate = null)
+        string dir, IPackReindexEstimate? reindexEstimate = null, IPackDataRemoval? dataRemoval = null)
     {
         SettingsService svc = new(dir);
         ServiceCollection services = new();
@@ -72,7 +72,7 @@ public class SettingsViewModelTests
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
-            null, null, reindexEstimate is null ? null : [reindexEstimate]);
+            null, null, reindexEstimate is null ? null : [reindexEstimate], dataRemoval is null ? null : [dataRemoval]);
         return (vm, svc, gate, sp);
     }
 
@@ -82,6 +82,29 @@ public class SettingsViewModelTests
     {
         public string PackFeatureId => StratBookPack.PackFeatureId;
         public Task<int> CountAsync() => count();
+    }
+
+    // The "delete extension data" test seam (item 24): canned inventory/delete results and a call count
+    // for each, so a test can assert Confirm reached the remover without a real PackDataRemover, queue or
+    // filesystem. No gate/PackSwitch coupling: a real IPackDataRemoval owns that, this fake does not.
+    private sealed class FakePackDataRemoval(PackDataInventory inventory, PackDataRemovalResult result) : IPackDataRemoval
+    {
+        public int InventoryCalls { get; private set; }
+        public int DeleteCalls { get; private set; }
+
+        public string PackFeatureId => StratBookPack.PackFeatureId;
+
+        public Task<PackDataInventory> InventoryAsync()
+        {
+            InventoryCalls++;
+            return Task.FromResult(inventory);
+        }
+
+        public Task<PackDataRemovalResult> DeleteAsync()
+        {
+            DeleteCalls++;
+            return Task.FromResult(result);
+        }
     }
 
     // Find a feature row by its catalog id across every grouped collection, Extensions included.
@@ -1154,6 +1177,97 @@ public class SettingsViewModelTests
                 probeB.SetResult(3);
 
                 await Assert.That(vm.StratBookToggleNotice).IsEqualTo("3 demos will be re-indexed in the background.");
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>
+    ///     The "delete extension data" row (item 24): available with the pack off (the master switch
+    ///     override sits off throughout; the row names nothing about the gate), Arm's confirmation names
+    ///     the user-work stores by label and size and leaves out the regenerable one, Cancel calls the
+    ///     remover for neither InventoryAsync's result nor a delete, and Confirm calls DeleteAsync exactly
+    ///     once and reports the count.
+    /// </summary>
+    [Test]
+    public async Task DeleteExtensionData_Arm_ListsUserWorkStores_CancelTouchesNothing_ConfirmDeletes()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            PackDataInventory inventory = new(
+            [
+                new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 3, 4096),
+                new StoreInventoryItem(new StoreDescriptor("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false), 10, 1_048_576)
+            ]);
+            PackDataRemovalResult result = new(true, inventory, 1);
+            FakePackDataRemoval fake = new(inventory, result);
+            (SettingsViewModel vm, SettingsService svc, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
+            using (sp)
+            {
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false); // the pack stays off throughout
+                ExtensionDataActionViewModel row = vm.ExtensionDataActions.Single();
+
+                await row.ArmCommand.ExecuteAsync(null);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(fake.InventoryCalls).IsEqualTo(1);
+                    await Assert.That(row.IsConfirming).IsTrue();
+                    await Assert.That(row.ConfirmationText).Contains("Strats: 4.0 KB");
+                    await Assert.That(row.ConfirmationText).DoesNotContain("Round Index")
+                        .Because("only the user-work stores are named; the regenerable one is just \"caches will be rebuilt\"");
+                }
+
+                row.CancelCommand.Execute(null);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(row.IsConfirming).IsFalse();
+                    await Assert.That(fake.DeleteCalls).IsEqualTo(0).Because("Cancel must never reach the remover's delete");
+                }
+
+                await row.ArmCommand.ExecuteAsync(null);
+                await row.ConfirmCommand.ExecuteAsync(null);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(fake.DeleteCalls).IsEqualTo(1);
+                    await Assert.That(row.IsConfirming).IsFalse();
+                    await Assert.That(row.StatusText).Contains("Deleted 13 files");
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task DeleteExtensionData_Arm_WithNothingOnDisk_ShowsNothingToDelete_NoConfirmation()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FakePackDataRemoval fake = new(PackDataInventory.Empty, PackDataRemovalResult.NotRun);
+            (SettingsViewModel vm, _, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
+            using (sp)
+            {
+                ExtensionDataActionViewModel row = vm.ExtensionDataActions.Single();
+                await row.ArmCommand.ExecuteAsync(null);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(row.IsConfirming).IsFalse();
+                    await Assert.That(row.StatusText).IsEqualTo("Nothing to delete.");
+                }
 
                 vm.Dispose();
             }

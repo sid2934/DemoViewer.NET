@@ -666,6 +666,55 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- Delete extension data (item 24): one row per pack's IPackDataRemoval, available
+                     whether the pack is on or off (deleting while off is the main use), so it is NOT
+                     gated by a FeatureId the way a contributed page is. Arm counts what is there and
+                     shows the confirmation inline (no modal dialog exists in this app to reuse); Confirm
+                     turns the extension off first if it is still on, deletes, and reports a count. -->
+                        <ItemsControl ItemsSource="{Binding ExtensionDataActions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="settings:ExtensionDataActionViewModel">
+                                    <Border Classes="card" Margin="12,10">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Spacing="1">
+                                                    <TextBlock Text="{Binding Label, StringFormat='Delete {0} data'}"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                                    <TextBlock
+                                                        Text="Removes everything this extension wrote, on and off disk alike. Regenerable caches are rebuilt automatically; anything you wrote by hand is gone."
+                                                        Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
+                                                        Content="Delete extension data" Foreground="{DynamicResource AccentError}"
+                                                        Command="{Binding ArmCommand}" IsEnabled="{Binding !IsBusy}"
+                                                        IsVisible="{Binding !IsConfirming}" />
+                                            </Grid>
+
+                                            <Border IsVisible="{Binding IsConfirming}" Classes="card"
+                                                    Background="{DynamicResource PanelHeaderHoverDeep}">
+                                                <StackPanel Spacing="8" Margin="10">
+                                                    <TextBlock Text="{Binding ConfirmationText}"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                                        <Button Classes="ghost" Padding="10,4" Content="Cancel"
+                                                                Command="{Binding CancelCommand}" />
+                                                        <Button Classes="ghost" Padding="10,4" Content="Delete"
+                                                                Foreground="{DynamicResource AccentError}"
+                                                                Command="{Binding ConfirmCommand}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextMid}"
+                                                       FontSize="11" TextWrapping="Wrap"
+                                                       IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
                     </StackPanel>
                 </Expander>
 

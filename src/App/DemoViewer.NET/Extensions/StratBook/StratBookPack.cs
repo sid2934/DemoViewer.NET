@@ -732,13 +732,16 @@ public sealed class StratBookPack : IFeaturePack
         }
 
         // Every store and cache path the pack owns (item 24), and the "delete extension data" action over
-        // them. Built with the real sp, not App.Services, for the same reason the modules below are.
-        foreach (StoreDescriptor store in StratBookStores.All)
+        // them: no filesystem on the browser, the same gate the two settings pages above take.
+        if (!OperatingSystem.IsBrowser())
         {
-            contributions.Store(store);
-        }
+            foreach (StoreDescriptor store in StratBookStores.All)
+            {
+                contributions.Store(store);
+            }
 
-        contributions.DataRemoval(new StratBookDataRemoval(sp));
+            contributions.DataRemoval(new StratBookDataRemoval(sp));
+        }
 
         // Create Strat From Round in 2D Playback (item 16): the round band's entry and the review pane, one
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
