@@ -36,6 +36,15 @@ internal sealed class PackContributionSet
     /// <summary>Every pack's host tabs, in pack order then contribution order. The shell builds its strip from this.</summary>
     public IReadOnlyList<HostTabContribution> HostTabs => [.. Packs.SelectMany(p => p.HostTabs)];
 
+    /// <summary>Every pack's settings pages, in pack order then contribution order. Settings renders them under Extensions.</summary>
+    public IReadOnlyList<SettingsPageContribution> SettingsPages => [.. Packs.SelectMany(p => p.SettingsPages)];
+
+    /// <summary>Every pack's status-chip slots, in pack order then contribution order. The shell fills its chip strip from this.</summary>
+    public IReadOnlyList<StatusChipContribution> StatusChips => [.. Packs.SelectMany(p => p.StatusChips)];
+
+    /// <summary>Every pack's re-index estimate, in pack order. Settings sums these for the toggle notice.</summary>
+    public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];
+
     /// <summary>
     ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,
     ///     the designer and unit-test path; a pack id the gate does not know resolves off, never on.
