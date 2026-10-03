@@ -9,14 +9,20 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
-///     A processing-queue job kind a pack owns: how its rows label, rank and schedule. The owning pack is
-///     implicit (the pack registered it).
+///     A processing-queue job kind's label, scheduling rank, light-slot flag and owner tag, resolved by
+///     <see cref="JobKindRegistry" />. The kind's identity stays the <see cref="QueueJobKind" /> enum
+///     member (what a job carries); this is only its metadata.
 /// </summary>
-/// <param name="Id">Stable kind id, e.g. <c>"stratbook.mining"</c>.</param>
+/// <param name="Kind">The kind this describes.</param>
 /// <param name="Label">Row label in the queue UI.</param>
 /// <param name="Rank">Scheduling rank among kinds; lower runs first.</param>
 /// <param name="IsLight">True when the job needs no heavy slot and may run beside a parse.</param>
-public sealed record JobKindDescriptor(string Id, string Label, int Rank, bool IsLight);
+/// <param name="Owner">
+///     The owner tag every job of this kind carries, so <see cref="IDemoProcessingQueue.CancelOwned(string)" />
+///     and a future owner column agree with the kind. Null for a core kind, whose jobs carry whichever
+///     owner tag the submitting module names.
+/// </param>
+public sealed record JobKindDescriptor(QueueJobKind Kind, string Label, int Rank, bool IsLight, string? Owner = null);
 
 /// <summary>An evaluator a pack adds to the demo fan-out, ordered after the evaluator ids it reads from.</summary>
 /// <param name="Id">
