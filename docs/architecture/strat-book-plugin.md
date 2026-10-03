@@ -30,9 +30,10 @@ Users see it as an **extension** ("Strat Book extension"), decided 2026-10-02 (s
   later move to a separate assembly (b) is mechanical.** Option (c), runtime-loaded plugins, is ruled out
   for the Strat Book by the add-on design's own rule: 33 Strat Book files reference CS2DemoKit, and add-ons
   must never do so.
-- **Effort:** about 20 items for (a) across four phases, the first of which (real "off") is 4
-  items and ships value on its own. Splitting into an assembly (b) is about 8 more items after that.
-  Details in section 6.
+- **Effort:** 24 items for (a) across five phases (0 to 4). Phase 0 (contracts and the pack
+  skeleton) unblocks parallel work; Phase 1 (real "off", in-session release, first-run prompt) ships value
+  on its own. Splitting into an assembly (b) is about 8 more items after that. Items in section 6, the
+  parallel schedule in section 11.
 
 ---
 
@@ -256,7 +257,7 @@ Every Strat Book module stays in `DemoViewer.NET.dll`. A `StratBookPack` class o
 modules, evaluators, startup work, settings pages and 2D Playback contributions, and the shell enumerates
 packs instead of hardcoding them. One umbrella feature id, with the existing per-section ids under it.
 
-- **Effort:** about 20 items (section 6). Phase 1 alone (real "off") is 5, with in-session memory release.
+- **Effort:** 24 items (section 6). Phases 0 and 1 (real "off", with in-session memory release) are 10.
 - **Risk:** low. No new loading, no type-identity problems, no XAML resource resolution across assemblies.
   The main risk is regression in 2D Playback while inverting its dependencies, which has good headless
   coverage (`Playback2D*Tests`, `SceneLayerListParityTests`, follow-card render tests). Owner-facing risk:
@@ -321,115 +322,145 @@ an interface assembly), registered through the same pack contract. Still one ins
 |---|---|---|---|
 | Real "off" (no UI, jobs, indexing) | Yes | Yes | Yes |
 | Memory when off | Indexes and services gone; IL mapped | Same, assembly not loaded | Same |
-| Live toggle without restart | UI and jobs yes; resident memory on restart | Same | Unload unreliable; restart |
+| Live toggle without restart | Yes, with in-session release (item 8) | Same | Unload unreliable; restart |
 | Boundary enforced by compiler | No (analyzer or test can approximate) | Yes | Yes |
 | WASM | Works | Works | Lost |
-| Effort (items) | ~20 | ~28 | far more, blocked on CS2DemoKit rule |
+| Effort (items) | 24 | ~32 | far more, blocked on CS2DemoKit rule |
 | Risk | Low | Medium | High |
 
 ---
 
 ## 6. Recommended path
 
-Do (a), in this order, and keep every new seam shaped so that (b) is a move rather than a redesign. Each
-item below is sized for one agent and one commit set. Phase 1 has value on its own and should land before
-anything else.
+Do (a), and keep every new seam shaped so that (b) is a move rather than a redesign. Each item below is
+sized for one branch and one commit set. Item ids are stable; section 11 gives the build order. Phase 0 exists so
+that the rest can run in parallel: once the contracts and the pack class are in, later items edit the pack
+and small, separate seams instead of all queueing on `App.axaml.cs`.
 
-### Phase 1: "off" means off (5 items)
+### Phase 0: contracts and the pack skeleton (1 item, plus the baseline measurement)
 
-1. **Umbrella id and pack scope in the catalog.** Add `pack.stratbook` (scope `Pack`, defaults on, or per
-   Q2) and set it as the parent of every Strat Book tab and sub-feature. The resolver already walks
-   `ParentId` generically; the descriptor contract ("tabs have no parent") and the settings UI grouping are
-   what change. Settings page shows one master switch with the sections beneath it.
-2. **Gate every evaluator.** Thread `Func<bool> enabled` into `RoundIndexEvaluator`, `GrenadeIndexEvaluator`,
-   `RoundFactsEvaluator` (if pack-owned, Q1) and `StratMiningService`, the `SuggestedTagsService` pattern.
-   `Wants()` and `PendingPaths()` return nothing when off; opportunistic hooks return early.
-3. **Gate startup and shutdown work.** The explicit list at `App.axaml.cs:1373-1402`: skip `SituationIndex`
-   and `GrenadeIndex` loads, `LineupClipService`, `TagFactsRefresher`, the grenade migration and, if Teams
-   is in the pack, `TeamIdentityService.StartAsync`. Stop `BuildRegistry` resolving `WatchedSituationsService`
-   and `ReviewQueue` eagerly. Shutdown currently constructs unbuilt stores: `GetService<TagStore>()` and
-   `GetService<ReviewQueue>()` at :314-315 build the singleton if nothing has. Move the flushes into the
-   pack lifecycle with a "was built" check.
-4. **Turning on and off mid-session.** On `Changed` to on: run the deferred startup loads once and nudge
-   the coordinator (`CapacityAvailable`) so pending paths are reconsidered. On `Changed` to off: evaluators
-   stop by predicate; queued pack jobs are cancelled by owner tag (the queue has `CancelOwned(ownerTag,
-   path)` per path; a cancel-all-for-owner is a small addition); every resident index, cache and store the
-   pack built is released in session (owner decision 3: no "reclaimed on restart"). That pulls the memory
-   release work of item 15 into this phase. Test: composition root with the pack off resolves no pack store
-   and registers no startup loads; turning it off releases what turning it on built (measured, not
-   assumed).
-5. **Measure first and after.** Before item 1, record RAM and indexing time on a copy of the owner's
-   library with the pack on; after item 4, the same with it off and after an on-to-off toggle. The memory
-   claim for v1.0.0 rests on these numbers.
+0. **Contracts and `StratBookPack`.** `IFeaturePack`, `IPackLifecycle`, `IPackContributions` (section 7;
+   only `Module`, `Evaluator` and `JobKind` need bodies now, the rest can be added by the item that first
+   uses them), `FeatureScope.Pack`, the catalog accepting pack-contributed descriptors (static core plus
+   pack lists, immutable after composition), the rule that a `pack.*` id never fails open, and the rule
+   that a `Tab` may have a `Pack` parent. `StratBookPack.Register` moves the ~50 registrations out of
+   `App.BuildServices` unchanged; `StratBookPack.Features` lists every Strat Book id (3.1, 3.2) with
+   `ParentId = "pack.stratbook"`; `BuildRegistry` asks each pack for its modules. Behaviour is identical
+   when on. Test: the composition root resolves the same services and modules as before, and
+   `IsEnabled("pack.stratbook")` false cascades every section off and hides the hub.
+   M0. **Baseline measurement.** On a copy of the owner's library (never the live config dir): resident set
+   after startup, and library index time, at the current head with everything on. Record the numbers in
+   section 12 of this doc. Runs alongside item 0; it is the only heavy parse at the time.
+
+### Phase 1: "off" means off (9 items)
+
+1. **Gate the evaluators.** Thread `Func<bool> enabled` into `RoundIndexEvaluator`,
+   `GrenadeIndexEvaluator` and `StratMiningService`, the `SuggestedTagsService` pattern; reparent the
+   Suggested Tags id. `Wants()` and `PendingPaths()` return nothing when off; opportunistic hooks (the
+   grenade walk on open, mining after cache quiet, the inbox badge) return early and unsubscribe.
+2. **Round Facts into the pack (decision 1).** Exclude `round_facts` from the highlights fingerprint
+   (`MergedRulesBuild.Fingerprint`; it already has `RoundFactsIdentity`), make `MergedRulesBuild` take the
+   ruleset as a pack contribution so it leaves every forward pass when off, gate `RoundFactsEvaluator`,
+   and make `RoundTrack` draw without winner tints and `AnalysisViewModel` not assume the ruleset. Bench
+   A/B with `AnalysisBench --retained`, interleaved, on Library and Highlights passes; the goldens must
+   not move with the pack on.
+3. **Startup and shutdown through the lifecycle.** `StratBookPack`'s `IPackLifecycle.OnEnabledAsync` runs
+   the loads that `App.axaml.cs` lists today (`SituationIndex`, `GrenadeIndex`, `LineupClipService`,
+   `TeamIdentityService.StartAsync`, `TagFactsRefresher`, the sidecar and grenade migrations) and
+   `OnShutdown` does the flushes with a "was built" check, so shutdown never constructs a store. The app
+   calls the lifecycle only when the pack resolves on. `BuildRegistry` stops resolving
+   `WatchedSituationsService` and `ReviewQueue` eagerly (the badge subscribes lazily).
+4. **Shared surfaces under the pack id.** The Library team filter, provenance chip and Teams section
+   (decision 1), the strat export status chip, and the hub all go when `pack.stratbook` is off; session
+   restore lands on Library when the persisted active tab is a pack section. Visibility only; the
+   contribution seams come in items 12 and 22.
+5. **Settings.** One master switch labelled "Strat Book extension" (decision 4) with the per-section and
+   sub-feature switches beneath it; the Suggested Tags tuning and grenade sections sit under it; search
+   keywords; and the "N demos will be re-indexed in the background" notice when turning on (section 8).
+6. **First-run prompt (decision 2).** `FirstRunWizardViewModel` asks whether to turn the Strat Book
+   extension on and writes the master switch; an upgrade from a settings file without the key keeps it on.
+7. **Guards.** A test that scans core namespaces for pack namespace imports (section 9), a
+   composition-root test for the pack-off state (no pack store resolved, no startup load registered, no
+   pack job kind in the queue), and the `theme-token-catalog.md` drift (`RouteGhost*`, `DropTarget`).
+8. **Live toggle, both directions.** On `Changed` to on: `OnEnabledAsync` once, then nudge the coordinator
+   (`CapacityAvailable`) so pending paths are reconsidered, and attach to any open 2D Playback tab. On
+   `Changed` to off: evaluators stop by predicate; a new `CancelOwned(ownerTag)` cancels every queued pack
+   job; `OnDisabled` releases every resident index, cache, service and store the pack built
+   (`SituationIndex`, `GrenadeIndex`, `SignatureCache`, `TeamIdentityService`, `LineupClipService`,
+   `TagFactsRefresher`, the pack stores and cached VMs; the first four already implement `IDisposable` or
+   can) and unsubscribes from `DemoCacheStore.Changed` (decision 3: no "reclaimed on restart"). Test:
+   turning it off releases what turning it on built, measured with `GC.GetTotalMemory` after a full
+   collect, not assumed.
+9. **Measure after.** The same numbers as M0 with the pack off at startup, and after an on-to-off toggle
+   in session; record them in section 12. The v1.0.0 memory claim rests on M0 versus item 9.
 
 ### Phase 2: registries instead of hardcoded lists (5 items)
 
-5. **`IFeaturePack` and pack registration.** `StratBookPack.Register(IServiceCollection)` moves the ~50
-   registrations out of `App.BuildServices` unchanged. `BuildRegistry` asks each pack for its modules.
-6. **Module-declared feature ids.** Descriptors carry `FeatureId`; `_tabFeatureIds` shrinks to the
-   built-ins. Packs contribute their `FeatureDescriptor`s to the catalog at startup (catalog becomes
-   static core plus pack lists, still immutable after composition).
-7. **Evaluator registry.** Ordered by declared `After` ids instead of array position; pending-path union
-   built from the registry. `AppCompositionRootTests` pins the resolved order instead of the literal.
-8. **Host contributions.** Replace `TabPlacement.StratBook` and the shell's hub synthesis with a pack-
-   declared host tab (`HostId = "stratbook.hub"`) and sections that name their host. `MainViewModel` loses
-   its `StratBookHubViewModel` field. Library keeps `TabPlacement.Library` or moves to the same mechanism.
-9. **Settings pages, queue job kinds, status chips.** Settings page contributions (section list in
-   `SettingsView` driven by a collection), job kind descriptors (label, rank, light), the strat export
-   chip as a contributed status chip.
+10. **Module-declared feature ids.** Descriptors carry `FeatureId`; `_tabFeatureIds` shrinks to the
+    built-ins; the pack's descriptors come from `StratBookPack.Features` (item 0).
+11. **Evaluator registry.** Ordered by declared `After` ids instead of array position; the pending-path
+    union is built from the registry. `AppCompositionRootTests` pins the resolved order, not the literal.
+12. **Host-tab contributions.** Replace `TabPlacement.StratBook` and the shell's hub synthesis with a
+    pack-declared host tab (`HostId = "stratbook.hub"`) and sections that name their host; `MainViewModel`
+    loses its `StratBookHubViewModel` field. Library keeps `TabPlacement.Library` or moves to the same
+    mechanism.
+13. **Job-kind descriptors.** Label, rank, light and owner registered per kind; the enum keeps the core
+    kinds; `KindRank`, `IsLight` and `KindLabel` read the registry. (Small.)
+14. **Settings-page and status-chip contributions.** The settings section list is driven by a collection;
+    the strat export chip becomes a contributed chip.
 
 ### Phase 3: 2D Playback inversions (6 items)
 
-10. **Band and lane menus.** `Playback2DTimelineViewModel` gets a list of band-menu contributors in place of
-    `CanCreateStrat` and the single `LaneMenu` slot. Create Strat becomes the first contributor.
-11. **Side-pane and right-column panels.** The Create Strat review pane, Tag Palette, Tag Editor, Suggestion
-    Queue and Review panel become panel contributions with a placement, order, gate and focus scope. This
-    is the largest item; it may split in two (side pane, then right column).
-12. **Typed services on the context.** Replace the five `ModuleContext` downcasts and the `App.Services`
-    locator in `Playback2DTabViewModel` and `StratCanvasViewModel` with `IModuleContext.GetService<T>()`
-    (first-party only) so the tab VM depends on interfaces the pack supplies or does not.
-13. **Lane contributions with behaviour.** Tag and proposal lanes register through the pack with their own
+15. **Typed services on the context.** `IModuleContext.GetService<T>()` (first-party only) replaces the
+    five `ModuleContext` downcasts and the `App.Services` locator in `Playback2DTabViewModel` and
+    `StratCanvasViewModel`; `ModuleContext` stops importing `Modules.StratBook`.
+16. **Band menus and the side pane.** `Playback2DTimelineViewModel` gets band-menu contributors in place of
+    `CanCreateStrat` and the single `LaneMenu` slot, and the Create Strat review pane becomes a side-pane
+    contribution. One design, two commits (the PoC finding below).
+17. **Right-column panels.** Tag Palette, Tag Editor, Suggestion Queue and Review panel become panel
+    contributions with placement, order, gate and focus scope. The follow-card render test locates cards
+    by position, so capture before and after.
+18. **Lane contributions with behaviour.** Tag and proposal lanes register through the pack with their own
     press, drag and label handlers; the tab stops special-casing `TagTrack.TrackId` and
-    `ProposalTrack.TrackId`. Review mode becomes a pack-owned toggle the timeline exposes.
-14. **Command ids for keybinds.** String-keyed command ids with default chords and scopes, registered by
-    packs; the closed `Playback2DAction` enum keeps core actions. Keybind settings list reads the registry.
-    Persisted overrides are `"Action=Gesture"` rows keyed by the `Playback2DAction` name
-    (`AppSettings.KeybindOverrides`), so command ids that reuse those names keep every override.
-15. **Pointer pre-handlers, toolbar items, resident memory release.** Click To Tag as a pointer pre-handler
-    contribution; "Rounds like this" as a toolbar item; `SituationIndex`, `GrenadeIndex` and
-    `SignatureCache` implement release-on-disable so the live toggle also returns memory.
+    `ProposalTrack.TrackId`; review mode becomes a pack-owned toggle the timeline exposes.
+19. **Command ids for keybinds.** String-keyed command ids with default chords and scopes, registered by
+    packs; the closed `Playback2DAction` enum keeps core actions; the keybind settings list reads the
+    registry. Persisted overrides are `"Action=Gesture"` rows keyed by the action name
+    (`AppSettings.KeybindOverrides`), so ids that reuse those names keep every override.
+20. **Pointer pre-handler and toolbar item.** Click To Tag as a pointer pre-handler contribution; "Rounds
+    like this" as a toolbar item.
 
-### Phase 4: data seams (2 items)
+### Phase 4: data seams (4 items)
 
-16. **Opaque pack payloads in the demo cache record.** `DemoCacheModels` stops importing pack types:
+21. **Opaque pack payloads in the demo cache record.** `DemoCacheModels` stops importing pack types: the
     Round Facts, Round Index, Suggestions and Grenade fields move into a `Packs` dictionary of
-    `JsonElement` keyed by pack id, with the fingerprints the coordinator needs promoted to a small
-    neutral `PackStamp(Id, Schema, Fingerprint)`. Read old records by mapping the old fields once.
-17. **Pack session state.** `SessionPayload.StratBook` becomes a per-pack blob through the existing
-    `RestoreState` path; session restore falls back to Library when the active tab id belongs to an
-    off pack.
+    `JsonElement` keyed by pack id, with the fingerprints the coordinator needs promoted to a neutral
+    `PackStamp(Id, Schema, Fingerprint)`. Old records are read by mapping the old fields once.
+22. **Library contributions.** The team filter and provenance chip become `ILibraryContribution`s;
+    `MainViewModel` and `LibraryTabViewModel` stop taking `TeamIdentityService` and
+    `IDemoProvenanceSource`.
+23. **Pack session state.** `SessionPayload.StratBook` becomes a per-pack blob through the existing
+    `RestoreState` path.
+24. **Delete Strat Book data.** `StoreDescriptor`s for every pack store and cache path, and a confirmed
+    settings action that names the user-work stores (section 8).
 
 ### Phase 5 (optional): separate assembly, option (b) (about 8 items)
 
-18. Extract a `DemoViewer.NET.Core` (or `.Host`) assembly with the services packs consume (`DemoCacheStore`,
+25. Extract a `DemoViewer.NET.Core` (or `.Host`) assembly with the services packs consume (`DemoCacheStore`,
     queue, `QueueWork`, `MergedRulesBuild`, `MapSceneHost`, `Scene2DHost`, `ISceneFrameHost`, `FrameClock`,
-    `AppPaths`). 19. Move the Strat Book folders into `DemoViewer.NET.StratBook`. 20. Move strat-only types
-    out of Playback2D Core and Pipeline. 21. ViewLocator and `avares` resources across assemblies.
-    22. UiCapture variants and tests reference the pack. 23. Heads register the pack. 24. A build-time
-    check that core does not reference the pack. 25. WASM publish check.
-
-Phases 1 to 4: about 17 items, which is the "about 20" in the summary once the inevitable split of
-item 11 and a review pass are counted.
+    `AppPaths`). 26. Move the Strat Book folders into `DemoViewer.NET.StratBook`. 27. Move strat-only types
+    out of Playback2D Core and Pipeline. 28. ViewLocator and `avares` resources across assemblies.
+    29. UiCapture variants and tests reference the pack. 30. Heads register the pack. 31. A build-time
+    check that core does not reference the pack. 32. WASM publish check.
 
 ### Proof of concept
 
-Not built on this spike. The cheapest seam to prototype, item 10, does not stand alone: the menu item's
-action opens the Create Strat review pane at `Playback2DView.axaml:525-540`, which is bound to a property
-on the tab VM. A menu contribution without a pane contribution would still need the tab VM to know about
-`CreateStratDialogViewModel`, which proves nothing about the boundary. So the finding the PoC would have
-produced is recorded instead: **a 2D Playback contribution is a pair (an entry point plus the surface it
-opens), and the contribution API must carry both** (section 7.3, `IPlaybackContribution`). Items 10 and
-11 should be one design even if they are two commits.
+Not built on this spike. The cheapest seam to prototype, item 16's menu, does not stand alone: the menu
+item's action opens the Create Strat review pane at `Playback2DView.axaml:525-540`, which is bound to a
+property on the tab VM. A menu contribution without a pane contribution would still need the tab VM to
+know about `CreateStratDialogViewModel`, which proves nothing about the boundary. So the finding the PoC
+would have produced is recorded instead: **a 2D Playback contribution is a pair (an entry point plus the
+surface it opens), and the contribution API must carry both** (section 7.3, `IPlaybackContribution`).
 
 ---
 
@@ -511,10 +542,11 @@ public interface IPlaybackSurface
 
 The Create Strat contribution would add a band-menu entry for round bands whose action opens a pane it
 added (`AddPane(PanePlacement.Side, ...)`), using `IStratCapture` resolved from `context.GetService<T>()`.
-That pairing is the PoC finding in section 6.
+That pairing is the PoC finding in section 6 (item 16).
 
 `AddLayer` and `AddTool` exist for completeness and for (b). For (a), the token tool and guides layer can
-stay core-registered: they are inert without a strat frame host and cost nothing.
+stay core-registered: they are inert without a strat frame host and cost nothing. Code keeps the word
+"pack" for the type names; user-facing copy says "extension" (decision 4).
 
 ### 7.4 Library, settings, session, stores
 
@@ -596,12 +628,11 @@ If Round Facts is in the pack, the highlights fingerprint must be split first (s
 re-scans every demo's highlights. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
 be visible and pausable in the queue, per the standing rule that all background work goes through it.
 
-**Live toggle versus restart.** Recommend live for UI and work in both directions, and accept that memory
-is only reclaimed on restart until item 15 lands. Turning on mid-session is the harder direction: startup
-loads run from `OnEnabledAsync`, and any 2D Playback tab already open attaches the pack's contributions on
-the next demo change or immediately if `Attach` supports a live surface (it should; panes are already
-dynamic). If live attach in 2D Playback proves fragile, the fallback is "takes effect on the next demo
-open", not "restart".
+**Live toggle.** Live in both directions, and turning off releases the pack's memory in session (decision 3,
+item 8). Turning on mid-session is the harder direction: startup loads run from `OnEnabledAsync`, and any
+2D Playback tab already open attaches the pack's contributions on the next demo change or immediately if
+`Attach` supports a live surface (it should; panes are already dynamic). If live attach in 2D Playback
+proves fragile, the fallback is "takes effect on the next demo open", not "restart".
 
 **Session restore.** If the persisted active tab id belongs to a disabled pack, restore lands on Library.
 Pack session blobs of a disabled pack are preserved in the session file untouched, so re-enabling restores
@@ -621,9 +652,9 @@ data for the session only.
   ruleset, `round_facts` included (`MergedRulesBuild.Fingerprint`, :72-84), so dropping the ruleset from the
   merged set on toggle would mark every demo's highlights stale and force a library-wide Reels re-scan in
   both directions. Either exclude `round_facts` from that fingerprint first (it already has its own,
-  `RoundFactsIdentity`) or keep the ruleset in the merged set and gate only the evaluator's writes; Library and Highlights forward passes change shape and need a
-  bench A/B (`AnalysisBench` with `--retained`, interleaved per the bench-variance note). If it stays core,
-  the pack is not fully "no indexing" when off. Q1 decides.
+  `RoundFactsIdentity`) or keep the ruleset in the merged set and gate only the evaluator's writes; Library
+  and Highlights forward passes change shape and need a bench A/B (`AnalysisBench` with `--retained`,
+  interleaved per the bench-variance note). Decision 1 puts it in the pack, so the split is item 2.
 - **Team Identity in the Library.** `Services/Teams`, the Library team filter and the provenance chip are
   all new on this branch (nothing under `Services/Teams` at the merge base), so putting Teams in the pack
   takes away nothing main's users have today. Keeping it core instead means its factory must stop
@@ -631,13 +662,12 @@ data for the session only.
 - **2D Playback regressions.** Phase 3 rewires the busiest tab VM (3,560 lines). The follow-card render
   test locates cards by list position and will break on any panel reordering. Land Phase 3 one item at a
   time with UiCapture before and after.
-- **Concurrent work.** The Strat Book editor is under active development on this branch. Phases 1 and 2
-  barely touch its files; Phase 3 items 12 and 14 touch `StratCanvasViewModel` and the keymap and should
-  wait for the editor's start-block and clock work to land.
-- **Evidence gaps.** No measurement exists of what the pack costs in RAM or index time when on. Before
-  Phase 1 is sold as a v1.0.0 memory win, measure: resident set after startup on a large library with the
-  pack on versus with the startup loads skipped, and library index time with and without the Round Index
-  and Round Facts passes. Also unverified: what session restore does after `TrySelectTab` returns false.
+- **Concurrent work.** The editor's start-block and clock work landed on 2026-10-02. Phase 3 items 15 and
+  19 touch `StratCanvasViewModel` and the keymap; any further editor item should avoid those two files
+  while they are in flight (section 11 lists the hot files).
+- **Evidence gaps.** No measurement exists of what the pack costs in RAM or index time when on. M0 and
+  item 9 close that; section 12 holds the numbers. Also unverified: what session restore does after
+  `TrySelectTab` returns false (item 4 covers it).
 - **Scope creep toward (c).** The add-on doc's security and distribution work is a separate decision. None
   of this plan depends on it, and none of it should be pulled forward on the Strat Book's account.
 
@@ -653,3 +683,27 @@ data for the session only.
    restart" fallback.
 4. **Name:** users see it as an **extension** ("Strat Book extension"). The per-section switches stay under
    the master switch.
+
+
+---
+
+## 11. Build order
+
+The items in section 6 are the units. Each was built on its own branch
+(`feature/strat-book-ext-<item>-<slug>`, cut from `feature/strat-book` when the item started), reviewed
+before its merge, and followed by the standard tier; the Browser head was built in Release after each
+group of merges. Items were merged in the order their dependencies allow.
+
+Two items in flight never shared a hot file. The hot files are `App.axaml.cs`, `MainViewModel.cs`, `LibraryTabViewModel.cs`, `SettingsView.axaml` and `SettingsViewModel.cs`, `FeatureCatalog.cs`, `Playback2DTabViewModel.cs` and `Playback2DView.axaml`, `Playback2DKeymap.cs`, `DemoProcessingQueue.cs`, `MergedRulesBuild.cs`, `DemoCacheModels.cs`, `StratCanvasViewModel.cs`, and `StratBookPack.cs` once it exists. The environmental items (M0, 2,
+9) parse demos or run the bench and never overlapped each other.
+
+## 12. Measurements
+
+Filled in by M0 and item 9. Resident set after startup and library index time, on a copy of the owner's
+library, with the pack on (M0), off at startup (9), and after an on-to-off toggle in session (9).
+
+| State | Resident set after startup | Library index time | Notes |
+|---|---|---|---|
+| Pack on (M0, head at the time) | | | |
+| Pack off at startup (9) | | | |
+| On, then off in session (9) | | | |
