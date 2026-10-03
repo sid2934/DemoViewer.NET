@@ -44,11 +44,11 @@ public class GrenadeIndexEvaluatorTests
 
     private static (DemoCacheStore Cache, GrenadeIndexEvaluator Evaluator) Wire(
         bool background = false, string? open = null, string? sha = "abc", Func<ParsedDemo, GrenadeWalk>? walk = null,
-        string? root = null)
+        string? root = null, Func<bool>? enabled = null)
     {
         DemoCacheStore cache = new(root);
         cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: sha));
-        GrenadeIndexEvaluator evaluator = new(cache, () => background, () => open, walk: walk ?? OneSmoke);
+        GrenadeIndexEvaluator evaluator = new(cache, () => background, () => open, walk: walk ?? OneSmoke, enabled: enabled);
         return (cache, evaluator);
     }
 
@@ -67,6 +67,72 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(on.Wants("/d/unparsed.dem")).IsFalse();
             await Assert.That(on.PendingPaths()).IsEquivalentTo(new[] { Demo });
             await Assert.That(on.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background);
+        }
+    }
+
+    [Test]
+    public async Task WithThePackOff_NothingIsWanted_AndTheOpenDemoIsNotWalkedEither()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: "abc"));
+        GrenadeIndexEvaluator evaluator = new(cache, () => true, () => Demo, walk: OneSmoke, enabled: () => false);
+
+        await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.PendingPaths()).IsEmpty();
+
+        evaluator.OnParsedOpportunistically(Demo, Parse());
+        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull()
+            .Because("the open-demo walk is one of the opportunistic hooks the pack gate forces off");
+    }
+
+    // Match Overview's "Index grenades" chip is core and the view model hides it when the pack is off
+    // (MatchOverviewGrenadeActionTests), but the evaluator must refuse the request on its own too: a forced
+    // path left behind here would walk unasked the moment the pack came back on.
+    [Test]
+    public async Task WithThePackOff_Request_IsANoOp_AndLeavesNoForcedPathBehind()
+    {
+        (_, GrenadeIndexEvaluator evaluator) = Wire(enabled: () => false);
+
+        evaluator.Request(Demo);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse();
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background)
+                .Because("Request must not have added a forced path");
+        }
+    }
+
+    [Test]
+    public async Task WithThePackOff_Request_DoesNotLiftAFailedRowBackToPending()
+    {
+        (DemoCacheStore cache, GrenadeIndexEvaluator evaluator) = Wire(enabled: () => false);
+        cache.UpdateExisting(Demo, r => r.GrenadeState = DemoAnalysisState.Failed);
+
+        evaluator.Request(Demo);
+
+        await Assert.That(cache.TryGetIndex(Demo)!.GrenadeState).IsEqualTo(DemoAnalysisState.Failed)
+            .Because("a no-op Request clears nothing, not even a stamp a retry would normally lift");
+    }
+
+    // The coordinator's exact scenario: a click while the pack is off, then the pack comes back on
+    // without a restart. Background is off by default (Wire), so only a leftover forced path could
+    // make Wants true here.
+    [Test]
+    public async Task WithThePackOff_Request_LeavesNothingForWhenThePackComesBackOn()
+    {
+        bool on = false;
+        (_, GrenadeIndexEvaluator evaluator) = Wire(enabled: () => on);
+
+        evaluator.Request(Demo);
+        on = true;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse()
+                .Because("the demo must not be walked unasked now that the pack is back on");
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
         }
     }
 
