@@ -1,6 +1,7 @@
 #region
 
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -28,6 +29,7 @@ public sealed class Playback2DKeymapProfile
     // authored order the Settings list and the docs table both read top-to-bottom. An action bound twice
     // by a future table edit lands in _multiBound instead: "which row did you mean" has no answer a
     // settings file can express, so those rows stay un-rebindable rather than silently picking one.
+    private static readonly Playback2DBinding[] _shipped;
     private static readonly Dictionary<Playback2DAction, int> _indexByAction;
     private static readonly HashSet<Playback2DAction> _multiBound;
     private static readonly (Key Key, KeyModifiers Modifiers)[] _shell;
@@ -37,13 +39,18 @@ public sealed class Playback2DKeymapProfile
     private readonly HashSet<Playback2DAction> _overridden;
 
     // Ordered, not field initializers: BuildIndex hands _multiBound back through an out parameter, and
-    // Default is built from the same shipped table both of them read.
+    // Default is built from the same shipped table both of them read. _shipped is core (Playback2DKeymap)
+    // union every enabled pack's commands (CommandRegistry): the Strat Book extension's Tag*, Suggestion*,
+    // ToggleReviewMode, FindRoundsLikeThis, the situation-result walk and the step keys resolve from here
+    // exactly as if they still had their own rows in the core table, with the pack always treated as on
+    // (no live gate reaches this static table; a pack-off chord simply has no view surface to act on).
     static Playback2DKeymapProfile()
     {
+        _shipped = [.. CommandRegistry.Default.EffectiveBindings];
         _indexByAction = BuildIndex(out _multiBound);
         _shell = [.. Playback2DKeymap.ReservedGestures(false)];
         _shellAndBrowser = [.. Playback2DKeymap.ReservedGestures(true)];
-        Default = new Playback2DKeymapProfile([.. Playback2DKeymap.Default], [], []);
+        Default = new Playback2DKeymapProfile([.. _shipped], [], []);
     }
 
     private Playback2DKeymapProfile(Playback2DBinding[] bindings, HashSet<Playback2DAction> overridden,
@@ -133,7 +140,7 @@ public sealed class Playback2DKeymapProfile
         // Apply the whole accepted set FIRST. A swap (PrevRound=E together with NextRound=Q) is clean
         // only as a batch: checked row by row, its first half collides with the second half's not-yet-
         // replaced default. This pass is what lets a user exchange two keys at all.
-        Playback2DBinding[] table = [.. Playback2DKeymap.Default];
+        Playback2DBinding[] table = [.. _shipped];
         foreach ((string _, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
         {
             table[_indexByAction[action]] = Rebind(table[_indexByAction[action]], key, modifiers);
@@ -145,7 +152,7 @@ public sealed class Playback2DKeymapProfile
         {
             // The batch does not stand up. Re-apply row by row and drop only the rows that actually
             // collide, so the report names the offending row instead of condemning the whole file.
-            table = [.. Playback2DKeymap.Default];
+            table = [.. _shipped];
             overridden = [];
             foreach ((string row, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
             {
@@ -371,7 +378,7 @@ public sealed class Playback2DKeymapProfile
             return false;
         }
 
-        Playback2DBinding shipped = Playback2DKeymap.Default[at];
+        Playback2DBinding shipped = _shipped[at];
         if (shipped.IsReserved)
         {
             error = $"{action} is reserved and not bindable";
@@ -435,8 +442,8 @@ public sealed class Playback2DKeymapProfile
         Dictionary<Playback2DAction, int> index = new();
         multiBound = [];
 
-        IReadOnlyList<Playback2DBinding> shipped = Playback2DKeymap.Default;
-        for (int i = 0; i < shipped.Count; i++)
+        Playback2DBinding[] shipped = _shipped;
+        for (int i = 0; i < shipped.Length; i++)
         {
             if (!index.TryAdd(shipped[i].Action, i))
             {
