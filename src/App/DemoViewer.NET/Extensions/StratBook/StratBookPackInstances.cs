@@ -1,7 +1,9 @@
 #region
 
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
@@ -25,4 +27,11 @@ internal sealed class StratBookPackInstances
     public LineupClipService? Lineups { get; set; }
     public TagFactsRefresher? TagFacts { get; set; }
     public WatchedSituationsService? Watched { get; set; }
+
+    // The four evaluator-registry contributions (item 11): tracked so a test can prove a disabled
+    // pack's evaluator was never constructed, the same way the fields above prove it for the rest.
+    public RoundFactsEvaluator? RoundFacts { get; set; }
+    public RoundIndexEvaluator? RoundIndex { get; set; }
+    public SuggestedTagsService? SuggestedTags { get; set; }
+    public GrenadeIndexEvaluator? GrenadeWalk { get; set; }
 }

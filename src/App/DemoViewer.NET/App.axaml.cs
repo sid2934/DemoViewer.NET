@@ -1039,39 +1039,51 @@ public class App : Application
             post: action => Dispatcher.UIThread.Post(action)));
 
         // The "one parse, many evaluators" coordinator: the single submitter
-        // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
-        // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
-        // CapacityAvailable is the UNION of each evaluator's worker-readable pending snapshot (never the
-        // UI-bound Entries collection). Setting .Coordinator on each flips it off its inline/feeder path
-        // onto the coordinator; the construction side-effect runs under ValidateOnBuild (+ the explicit
-        // force-resolve below). The ORDER is a contract (the round index, when it lands, reads the round
-        // facts written in the same pass) and is pinned by AppCompositionRootTests.
+        // that polls the registered IDemoEvaluators for a demo and coalesces their queue submissions onto
+        // ONE parse. Library and Highlights are core, always in the fan-out; a pack's evaluators come from
+        // an EvaluatorRegistry built over its Evaluator contributions, ordered by declared After ids rather
+        // than a hand-written array (item 11). The registry reads PackContributionSet lazily, on the
+        // coordinator's first poll, not here: resolving it during this factory would run every pack's
+        // Contribute() during container build, well before anything needs it. A disabled pack's evaluator
+        // factories are never invoked, so those services are never constructed while the pack is off. The
+        // candidate universe re-polled on CapacityAvailable is the UNION of the CURRENTLY resolved
+        // evaluators' PendingPaths. The ORDER is a contract (the round index reads the round facts written
+        // in the same pass) and is pinned by AppCompositionRootTests.
         services.AddSingleton(sp =>
         {
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
-            HighlightScanService highlights =
-                sp.GetRequiredService<HighlightScanService>();
-            RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
-            RoundIndexEvaluator roundIndex = sp.GetRequiredService<RoundIndexEvaluator>();
-            SuggestedTagsService suggestedTags = sp.GetRequiredService<SuggestedTagsService>();
-            GrenadeIndexEvaluator grenades = sp.GetRequiredService<GrenadeIndexEvaluator>();
+            HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
+
+            EvaluatorRegistry registry = new();
+            registry.AddCore(library.Id, () => library);
+            registry.AddCore(highlights.Id, () => highlights);
+
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights, roundFacts, roundIndex, suggestedTags, grenades],
+                registry.Resolve,
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                () => library.Tier2Backlog()
-                    .Concat(highlights.PendingPaths())
-                    .Concat(roundFacts.PendingPaths())
-                    .Concat(roundIndex.PendingPaths())
-                    .Concat(suggestedTags.PendingPaths())
-                    .Concat(grenades.PendingPaths())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
+                () => registry.Resolve().SelectMany(e => e.PendingPaths()).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 sp.GetRequiredService<MergedRulesBuild>().Forget);
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
-            roundIndex.Coordinator = coordinator;
-            suggestedTags.Coordinator = coordinator;
-            grenades.Coordinator = coordinator;
+
+            registry.AddPacksLazily(() =>
+            {
+                IFeatureGate? features = sp.GetService<IFeatureGate>();
+                foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
+                {
+                    IFeaturePack pack = contributions.Pack;
+                    foreach (EvaluatorContribution contribution in contributions.Evaluators)
+                    {
+                        registry.AddPackEvaluator(contribution.Id, () =>
+                        {
+                            IDemoEvaluator built = contribution.Factory();
+                            WireCoordinator(built, coordinator);
+                            return built;
+                        }, contribution.After, () => features?.IsEnabled(pack.FeatureId) ?? true);
+                    }
+                }
+            });
+
             return coordinator;
         });
 
@@ -1237,13 +1249,8 @@ public class App : Application
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
             IFeaturePack pack = contributions.Pack;
-            // Nothing reads these yet. Refusing them keeps a pack from contributing into a void.
-            if (contributions.Evaluators.Count > 0)
-            {
-                throw new InvalidOperationException(
-                    $"Pack '{pack.Id}' contributed evaluators, which nothing consumes until the evaluator registry (item 11).");
-            }
-
+            // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory builds
+            // (item 11). Nothing reads job kinds yet; refusing them keeps a pack from contributing into a void.
             if (contributions.JobKinds.Count > 0)
             {
                 throw new InvalidOperationException(
@@ -1267,6 +1274,25 @@ public class App : Application
         }
 
         return registry;
+    }
+
+    // Wires a pack evaluator's own Coordinator link (Consider/ConsiderAll/HasOutstanding) the first time
+    // the registry builds it, mirroring today's library/highlights wiring. RoundFactsEvaluator has no
+    // such link; the switch below is exhaustive over the ones that do.
+    private static void WireCoordinator(IDemoEvaluator evaluator, DemoEvaluationCoordinator coordinator)
+    {
+        switch (evaluator)
+        {
+            case RoundIndexEvaluator e:
+                e.Coordinator = coordinator;
+                break;
+            case SuggestedTagsService e:
+                e.Coordinator = coordinator;
+                break;
+            case GrenadeIndexEvaluator e:
+                e.Coordinator = coordinator;
+                break;
+        }
     }
 
     // v0.6.0: applies a persisted geometry snapshot to the still-unshown MainWindow. Width/Height

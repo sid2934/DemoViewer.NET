@@ -40,6 +40,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     private readonly Func<IEnumerable<string>> _candidatePaths;
     private readonly IReadOnlyList<IDemoEvaluator> _evaluators;
 
+    // Set only by the live-registry constructor. Re-read on every poll so an evaluator whose pack just
+    // came on is included on the next Consider/ConsiderAll, with no separate refresh step.
+    private readonly Func<IReadOnlyList<IDemoEvaluator>>? _liveEvaluators;
+
     private readonly object _lock = new();
 
     // (evaluatorId, path) currently submitted and not yet terminal, never re-submitted while present.
@@ -69,6 +73,29 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         _queue.CapacityAvailable += OnCapacityAvailable;
     }
 
+    /// <param name="evaluators">
+    ///     Read fresh on every poll (an <see cref="EvaluatorRegistry" />'s <c>Resolve</c>, typically), not
+    ///     snapshotted once: a pack evaluator is never constructed until the pack is enabled AND something
+    ///     actually polls, and an enable mid-session is picked up on the very next poll.
+    /// </param>
+    /// <param name="queue">The shared processing queue that owns the workers + gate + coalescing.</param>
+    /// <param name="candidatePaths">
+    ///     Yields the current universe of demo paths to (re-)poll: typically the
+    ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
+    /// </param>
+    /// <param name="parseReleased">Called after <see cref="FanOutParsed" /> has handed a parse to every evaluator.</param>
+    public DemoEvaluationCoordinator(
+        Func<IReadOnlyList<IDemoEvaluator>> evaluators,
+        IDemoProcessingQueue queue,
+        Func<IEnumerable<string>> candidatePaths,
+        Action<ParsedDemo>? parseReleased = null)
+        : this([], queue, candidatePaths, parseReleased)
+    {
+        _liveEvaluators = evaluators;
+    }
+
+    private IReadOnlyList<IDemoEvaluator> CurrentEvaluators => _liveEvaluators?.Invoke() ?? _evaluators;
+
     /// <summary>Detaches the capacity handler.</summary>
     public void Dispose()
     {
@@ -86,13 +113,13 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     build on (an evaluator may read what the one before it wrote in the same pass), so the
     ///     composition root's list is pinned by a test through this.
     /// </summary>
-    public IReadOnlyList<string> EvaluatorIds => [.. _evaluators.Select(e => e.Id)];
+    public IReadOnlyList<string> EvaluatorIds => [.. CurrentEvaluators.Select(e => e.Id)];
 
     /// <summary>Polls every evaluator for one path and submits for each interested, not-outstanding one.</summary>
     public void Consider(string path)
     {
         List<IDemoEvaluator> wanting = [];
-        foreach (IDemoEvaluator evaluator in _evaluators)
+        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
         {
             bool wants;
             try
@@ -183,7 +210,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// </param>
     public void FanOutParsed(string path, ParsedDemo parsed, IReadOnlySet<string>? skip = null)
     {
-        foreach (IDemoEvaluator evaluator in _evaluators)
+        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
         {
             if (skip is not null && skip.Contains(evaluator.Id))
             {
@@ -262,7 +289,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// </summary>
     public void FanOutForward(string path, ForwardDemoResult pass, IReadOnlySet<string>? skip = null)
     {
-        foreach (IDemoEvaluator evaluator in _evaluators)
+        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
         {
             if (skip is not null && skip.Contains(evaluator.Id))
             {

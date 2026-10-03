@@ -639,6 +639,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
     }
 
+    /// <inheritdoc />
+    IReadOnlyList<string> IDemoEvaluator.PendingPaths() => Tier2Backlog();
+
     // Removes a path from the tier-2 backlog (worker thread, under the lock) and, when the backlog drains,
     // persists the tail (parity with the inline path's final Save, the every-12 Save in IndexTier2Core
     // can leave <12 demos only in the in-memory cache).
