@@ -298,7 +298,21 @@ public sealed partial class ReviewPanelViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(IsSuggestedTab));
         OnPropertyChanged(nameof(IsLabelsTab));
+        OnPropertyChanged(nameof(IsLabelsListShown));
     }
+
+    /// <summary>The Suggested tab's gate (<c>playback2d.suggestedtags</c>) is on; the toggle shows only then.</summary>
+    [ObservableProperty]
+    private bool _isSuggestedAvailable = true;
+
+    /// <summary>The Labels tab's gate (<c>playback2d.tagger</c>) is on; the toggle and the list show only then.</summary>
+    [ObservableProperty]
+    private bool _isLabelsAvailable = true;
+
+    /// <summary>The Labels list is on screen: its tab is selected and its gate is on.</summary>
+    public bool IsLabelsListShown => IsLabelsTab && IsLabelsAvailable;
+
+    partial void OnIsLabelsAvailableChanged(bool value) => OnPropertyChanged(nameof(IsLabelsListShown));
 
     private void OpenEditor(TagInstance instance)
     {

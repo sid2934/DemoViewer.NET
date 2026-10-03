@@ -36,19 +36,17 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.Teams", "composition root"),
         // The default pack list the heads hand the composition root; the heads name the packs themselves at item 29.
         ("src/App/DemoViewer.NET/Extensions/FeaturePacks.cs", "DemoViewer.NET.Extensions.StratBook", "composition root"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Palette", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Review", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Timeline", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.Situations", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 15"),
+        // The tag and proposal lanes (TagTrack, ProposalTrack, the TagSession they read) stay registered by
+        // the tab until item 18 moves them into lane contributions.
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Timeline", "item 18"),
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 18"),
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Tags", "item 18"),
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.Situations", "item 20"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.RoundFacts", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Tags", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Timeline/RoundTrack.cs", "DemoViewer.NET.Services.RoundFacts", "item 2"),
         ("src/App/DemoViewer.NET/Services/Review/ReviewQueue.cs", "DemoViewer.NET.Services.Tags", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.RoundIndex", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.Strats", "item 25"),
-        ("src/App/DemoViewer.NET/Views/Playback2D/Playback2DView.axaml", "DemoViewer.NET.Modules.RoundTagger", "item 17"),
     ];
 
     [Test]
@@ -202,8 +200,9 @@ public class PackBoundaryTests
     /// </summary>
     private static bool ContainsPackReference(string content, string ns)
     {
-        // 1. Using statement: "using Namespace;" or "using Namespace.Sub;"
-        if (Regex.IsMatch(content, @"\busing\s+" + Regex.Escape(ns) + @"\b", RegexOptions.Multiline))
+        // 1. Using statement: exactly "using Namespace;". A using of a child namespace is the child's edge,
+        // not this one's, so each allow-list row names the namespace a file really imports.
+        if (Regex.IsMatch(content, @"\busing\s+" + Regex.Escape(ns) + @"\s*;", RegexOptions.Multiline))
         {
             return true;
         }
@@ -214,9 +213,10 @@ public class PackBoundaryTests
             return true;
         }
 
-        // 3. Fully-qualified type reference: "Namespace.Type" (word boundary on both sides).
-        // Use a heuristic: the namespace followed by a dot and at least one uppercase letter (typical start of a type name).
-        if (Regex.IsMatch(content, Regex.Escape(ns) + @"\.[A-Z][A-Za-z0-9_]*", RegexOptions.None))
+        // 3. Fully-qualified type reference outside the using directives: "Namespace.Type", the namespace
+        // followed by a dot and an uppercase letter (the typical start of a type name).
+        string body = Regex.Replace(content, @"^\s*using\s+[^;]+;\s*$", "", RegexOptions.Multiline);
+        if (Regex.IsMatch(body, Regex.Escape(ns) + @"\.[A-Z][A-Za-z0-9_]*", RegexOptions.None))
         {
             return true;
         }
