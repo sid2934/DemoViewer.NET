@@ -149,6 +149,51 @@ public class AppCompositionRootTests
         });
     }
 
+    // Wired end to end: with the pack off, the real container's own factories (not a test double) leave
+    // every pack-owned evaluator wanting nothing, and the Suggested badge unread, even for a demo that
+    // would otherwise qualify and even for a forced Match Overview request.
+    [Test]
+    public async Task PackOff_NoEvaluatorWantsAnything_AndTheSuggestedBadgeStaysZero()
+    {
+        const string seed = """
+                            {
+                              "Features": {
+                                "Overrides": { "pack.stratbook": false }
+                              }
+                            }
+                            """;
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            const string demo = "/d/pack-off-root.dem";
+            Services.DemoCache.DemoCacheStore cache = provider.GetRequiredService<Services.DemoCache.DemoCacheStore>();
+            cache.Upsert(RoundIndexTestData.ParsedRecord(demo, facts: RoundIndexTestData.Facts(RoundIndexTestData.Round(1, 1000, 2000))));
+            cache.UpdateExisting(demo, r => r.SuggestionCount = 7);
+
+            Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
+            Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
+            Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
+
+            // The Match Overview chip's own path: a forced request must not leave a stale forced path
+            // behind for the pack to pick up unasked once it comes back on.
+            grenades.Request(demo);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(roundIndex.Wants(demo)).IsFalse();
+                await Assert.That(roundIndex.PendingPaths()).IsEmpty();
+                await Assert.That(suggestedTags.Wants(demo)).IsFalse();
+                await Assert.That(suggestedTags.PendingPaths()).IsEmpty();
+                await Assert.That(grenades.Wants(demo)).IsFalse().Because("Request above must have been a no-op");
+                await Assert.That(grenades.PendingPaths()).IsEmpty();
+            }
+
+            Modules.SuggestedTags.SuggestedInboxModule suggestedModule = provider.GetRequiredService<Modules.ModuleRegistry>()
+                .Modules.OfType<Modules.SuggestedTags.SuggestedInboxModule>().Single();
+            Modules.Abstractions.WorkspaceTabDescriptor suggestedTab = suggestedModule.CreateTabs(null!).Single();
+            await Assert.That(suggestedTab.Badge).IsNull().Because("the pack is off: the 7 pending suggestions are never read");
+        }, seed);
+    }
+
     // (a2) REGRESSION (v0.5.0 launch hang): restoring a session whose active tab reaches for the shell
     // during activation must not recurse. The shell ctor used to call RestoreSession, which selected the
     // persisted tab, whose activation resolved MainViewModel from the container, but a DI singleton is not
