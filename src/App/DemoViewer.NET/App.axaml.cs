@@ -271,7 +271,7 @@ public class App : Application
                         // not whether there is anything to flush now (a pack turned on and off in session,
                         // or one whose tab was opened and written to). Each lifecycle's own "is live" guards
                         // decide what, if anything, to touch; one lifecycle's failure must not skip the others.
-                        foreach (IFeaturePack pack in FeaturePacks.Default)
+                        foreach (IFeaturePack pack in FeaturePacks.Compatible)
                         {
                             if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
                             {
@@ -599,7 +599,7 @@ public class App : Application
     ///     </para>
     /// </summary>
     internal static ServiceProvider BuildServices(IWindowService windowService) =>
-        BuildServices(windowService, FeaturePacks.Default);
+        BuildServices(windowService, FeaturePacks.Compatible);
 
     /// <summary>
     ///     <see cref="BuildServices(IWindowService)" /> over an explicit pack list. The packs' descriptors
@@ -701,7 +701,10 @@ public class App : Application
             // watches only the first entry.
             sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
             // Each pack's "delete extension data" action (item 24), one row per entry.
-            sp.GetRequiredService<PackContributionSet>().DataRemovals));
+            sp.GetRequiredService<PackContributionSet>().DataRemovals,
+            // Every declared pack's compatibility verdict (item 33): versions, and the locked row with
+            // the reason for a pack that did not compose.
+            FeaturePacks.Statuses));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
