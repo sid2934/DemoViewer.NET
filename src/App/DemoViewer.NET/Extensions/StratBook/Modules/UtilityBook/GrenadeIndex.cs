@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
@@ -150,7 +151,7 @@ public sealed record GrenadeCluster(
 ///         leaves the place empty (zone-baking.md §3.5): the grid still clusters, a place filter finds nothing.
 ///     </para>
 /// </summary>
-public sealed class GrenadeIndex : IDisposable
+public sealed class GrenadeIndex : IPackResident, IDisposable
 {
     /// <summary>World units per landing cell in X and Y: about a doorway and its approach.</summary>
     public const float LandingCellSize = 256f;
@@ -170,9 +171,10 @@ public sealed class GrenadeIndex : IDisposable
     private readonly Action<Action> _post;
     private readonly IZonePlaceResolverSource _zones;
     private readonly GrenadeLineupStore _lineups;
-    private readonly TaskCompletionSource _loadedOnce = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource _loadedOnce = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Dictionary<string, Dictionary<string, Guid>> _assignments = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<Guid, List<Guid>>> _reverseAliases = new(StringComparer.OrdinalIgnoreCase);
+    private bool _attached;
     private bool _disposed;
     private bool _ready;
     private readonly CoalescedWriter<GrenadeLineupDocument> _lineupWriter;
@@ -197,12 +199,7 @@ public sealed class GrenadeIndex : IDisposable
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
         _evaluator = evaluator;
         _post = post ?? (a => a());
-        if (_evaluator is not null)
-        {
-            _evaluator.Indexed += OnIndexed;
-        }
-
-        _demoCache.Changed += OnCacheChanged;
+        Attach();
     }
 
     /// <summary>True once the startup load finished; a query before then answers from what is loaded.</summary>
@@ -263,13 +260,76 @@ public sealed class GrenadeIndex : IDisposable
         }
 
         _disposed = true;
+        Detach();
+        FlushLineups(TimeSpan.FromSeconds(10));
+    }
+
+    /// <inheritdoc />
+    public void Attach()
+    {
+        lock (_gate)
+        {
+            if (_attached || _disposed)
+            {
+                return;
+            }
+
+            _attached = true;
+        }
+
+        if (_evaluator is not null)
+        {
+            _evaluator.Indexed += OnIndexed;
+        }
+
+        _demoCache.Changed += OnCacheChanged;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Pending lineup saves are written first. Every loaded demo, assignment and the lineup document go;
+    ///     <see cref="IsReady" /> is false and <see cref="WhenLoaded" /> pending again until the next <see cref="Load" />.
+    /// </remarks>
+    public void Release()
+    {
+        if (!Detach())
+        {
+            return;
+        }
+
+        FlushLineups(TimeSpan.FromSeconds(10));
+        lock (_gate)
+        {
+            _loaded.Clear();
+            _assignments.Clear();
+            _reverseAliases.Clear();
+            _lineups.Unload();
+            _ready = false;
+            _loadedOnce = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        _post(() => Changed?.Invoke());
+    }
+
+    private bool Detach()
+    {
+        lock (_gate)
+        {
+            if (!_attached)
+            {
+                return false;
+            }
+
+            _attached = false;
+        }
+
         if (_evaluator is not null)
         {
             _evaluator.Indexed -= OnIndexed;
         }
 
         _demoCache.Changed -= OnCacheChanged;
-        FlushLineups(TimeSpan.FromSeconds(10));
+        return true;
     }
 
     /// <summary>The startup load on a worker: the composition root calls this and never awaits it on the UI thread.</summary>
@@ -278,6 +338,7 @@ public sealed class GrenadeIndex : IDisposable
     /// <summary>Loads every demo whose index row says its grenades are current. Synchronous; call it off the UI thread.</summary>
     public void Load()
     {
+        Attach();
         Stopwatch watch = Stopwatch.StartNew();
         foreach (DemoCacheIndexEntry entry in _demoCache.Index)
         {
@@ -301,12 +362,21 @@ public sealed class GrenadeIndex : IDisposable
         }
 
         GrenadeIndexLog.Loaded(Log, demos, watch.ElapsedMilliseconds);
-        _loadedOnce.TrySetResult();
+        WhenLoadedSource().TrySetResult();
         _post(() => Changed?.Invoke());
     }
 
     /// <summary>Completes when the first <see cref="Load" /> has finished.</summary>
-    public Task WhenLoaded => _loadedOnce.Task;
+    public Task WhenLoaded
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _loadedOnce.Task;
+            }
+        }
+    }
 
     /// <summary>The maps with at least one loaded grenade, sorted.</summary>
     public IReadOnlyList<string> Maps()
@@ -975,8 +1045,25 @@ public sealed class GrenadeIndex : IDisposable
 
     // Reads one rows sibling and replaces whatever the demo contributed before. False when the file is
     // missing, unreadable, or another demo's (the sidecar reader's rules).
+    private TaskCompletionSource WhenLoadedSource()
+    {
+        lock (_gate)
+        {
+            return _loadedOnce;
+        }
+    }
+
     private bool Merge(DemoCacheIndexEntry entry, IReadOnlyDictionary<string, List<TrajectoryPoint>>? flights = null)
     {
+        lock (_gate)
+        {
+            // A merge posted before a release lands after it: released means empty.
+            if (!_attached)
+            {
+                return false;
+            }
+        }
+
         if (GrenadeSidecar.TryReadRows(_demoCache, entry.Path) is not { } document)
         {
             string fileName = Path.GetFileName(entry.Path);

@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -26,7 +27,7 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///         so a stale sidecar keeps answering until its replacement arrives and then leaves exactly.
 ///     </para>
 /// </summary>
-public sealed class SituationIndex : ISituationIndex, IDisposable
+public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
 {
     private static ILogger? _diagLog;
 
@@ -41,6 +42,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
     private readonly RoundIndexStore _store;
     private readonly IZonePlaceResolverSource _zones;
 
+    private bool _attached;
     private bool _disposed;
     private bool _ready;
 
@@ -70,13 +72,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
         _evaluator = evaluator;
         _post = post ?? (action => action());
-
-        if (_evaluator is not null)
-        {
-            _evaluator.Written += OnWritten;
-        }
-
-        _demoCache.Changed += OnCacheChanged;
+        Attach();
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundIndexLog.Category);
@@ -141,12 +137,69 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
         }
 
         _disposed = true;
+        Detach();
+    }
+
+    /// <inheritdoc />
+    public void Attach()
+    {
+        lock (_gate)
+        {
+            if (_attached || _disposed)
+            {
+                return;
+            }
+
+            _attached = true;
+        }
+
+        if (_evaluator is not null)
+        {
+            _evaluator.Written += OnWritten;
+        }
+
+        _demoCache.Changed += OnCacheChanged;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Every loaded demo goes; <see cref="IsReady" /> is false again until the next <see cref="Load" />.</remarks>
+    public void Release()
+    {
+        if (!Detach())
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _loaded.Clear();
+            _maps.Clear();
+            _ready = false;
+        }
+
+        _post(() => Changed?.Invoke());
+    }
+
+    // False when nothing was attached.
+    private bool Detach()
+    {
+        lock (_gate)
+        {
+            if (!_attached)
+            {
+                return false;
+            }
+
+            _attached = false;
+        }
+
         if (_evaluator is not null)
         {
             _evaluator.Written -= OnWritten;
         }
 
         _demoCache.Changed -= OnCacheChanged;
+        return true;
     }
 
     /// <summary>The startup load on a worker: the composition root calls this and never awaits it on the UI thread.</summary>
@@ -160,6 +213,7 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
     /// </summary>
     public void Load()
     {
+        Attach();
         Stopwatch watch = Stopwatch.StartNew();
         int orphans = _store.SweepOrphans();
         foreach (DemoCacheIndexEntry entry in _demoCache.Index)
@@ -288,6 +342,12 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
             document.Map, entry.RoundIndexComputedAtTicks);
         lock (_gate)
         {
+            // A merge posted before a release lands after it: released means empty.
+            if (!_attached)
+            {
+                return null;
+            }
+
             RemoveLocked(entry.Path);
             MapIndex map = MapFor(document.Map);
             LoadedDemo demo = map.Add(entry, document);

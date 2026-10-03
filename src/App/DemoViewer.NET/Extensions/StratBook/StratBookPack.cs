@@ -184,9 +184,9 @@ public sealed class StratBookPack : IFeaturePack
         // (core: other surfaces read them), so their factories are wrapped here rather than written here.
         // The wrap changes nothing about what is registered (same type, same Singleton lifetime), only
         // which object is told it was built.
-        TrackBuilt<SituationIndex>(services, (instances, built) => instances.Situations = built);
-        TrackBuilt<TeamIdentityService>(services, (instances, built) => instances.Teams = built);
-        TrackBuilt<TagFactsRefresher>(services, (instances, built) => instances.TagFacts = built);
+        TrackBuilt<SituationIndex>(services);
+        TrackBuilt<TeamIdentityService>(services);
+        TrackBuilt<TagFactsRefresher>(services);
 
         // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
         // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
@@ -311,7 +311,7 @@ public sealed class StratBookPack : IFeaturePack
                 sp.GetRequiredService<TeamIdentityService>(),
                 sp.GetRequiredService<IDemoProvenanceSource>(),
                 action => Dispatcher.UIThread.Post(action));
-            sp.GetRequiredService<StratBookPackInstances>().Watched = watched;
+            sp.GetRequiredService<StratBookPackInstances>().Record(watched);
             return watched;
         });
 
@@ -392,7 +392,7 @@ public sealed class StratBookPack : IFeaturePack
         services.AddSingleton(sp =>
         {
             IFeatureGate? features = sp.GetService<IFeatureGate>();
-            return new StratMiningService(
+            StratMiningService mining = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
@@ -405,6 +405,8 @@ public sealed class StratBookPack : IFeaturePack
                 action => Dispatcher.UIThread.Post(action),
                 queue: sp.GetRequiredService<IDemoProcessingQueue>(),
                 enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+            sp.GetRequiredService<StratBookPackInstances>().Record(mining);
+            return mining;
         });
         services.AddSingleton<StratBookLayout>();
         services.AddSingleton(sp =>
@@ -518,7 +520,7 @@ public sealed class StratBookPack : IFeaturePack
                 action => Dispatcher.UIThread.Post(action),
                 scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups",
                     "utility", "save:grenade-lineups"));
-            sp.GetRequiredService<StratBookPackInstances>().Grenades = index;
+            sp.GetRequiredService<StratBookPackInstances>().Record(index);
             return index;
         });
         services.AddSingleton(sp => UtilityBookFor(sp, null, null));
@@ -588,7 +590,7 @@ public sealed class StratBookPack : IFeaturePack
                 maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
                 processing: sp.GetRequiredService<IDemoProcessingQueue>());
             index.Changed += () => clips.PlanSoon();
-            sp.GetRequiredService<StratBookPackInstances>().Lineups = clips;
+            sp.GetRequiredService<StratBookPackInstances>().Record(clips);
             return clips;
         });
 
@@ -599,8 +601,8 @@ public sealed class StratBookPack : IFeaturePack
 
     // Wraps an existing registration's factory so the built instance is also recorded on the tracker,
     // without adding, dropping or re-scoping the registration itself (StratBookPackTests pins the set).
-    private static void TrackBuilt<T>(IServiceCollection services, Action<StratBookPackInstances, T> record)
-        where T : class
+    private static void TrackBuilt<T>(IServiceCollection services)
+        where T : class, IPackResident
     {
         ServiceDescriptor original = services.First(d => d.ServiceType == typeof(T));
         Func<IServiceProvider, object> factory = original.ImplementationFactory
@@ -608,7 +610,7 @@ public sealed class StratBookPack : IFeaturePack
         services.Replace(ServiceDescriptor.Singleton(typeof(T), sp =>
         {
             T built = (T)factory(sp);
-            record(sp.GetRequiredService<StratBookPackInstances>(), built);
+            sp.GetRequiredService<StratBookPackInstances>().Record(built);
             return built;
         }));
     }
