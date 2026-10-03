@@ -45,7 +45,30 @@ public sealed class ProvenanceLibraryContribution(
     public LibraryBadge? BadgeFor(DemoEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        DemoProvenance? p = ResolveProvenance().Resolve(entry.FilePath);
+        return BuildBadge(ResolveProvenance().Resolve(entry.FilePath));
+    }
+
+    /// <summary>
+    ///     One <see cref="IDemoProvenanceSource.ResolveAll" /> call for the whole batch, not a
+    ///     <see cref="IDemoProvenanceSource.Resolve" /> per entry: <c>Resolve</c> re-reads and copies Team
+    ///     Identity's override list on every call, which a per-card loop would do once per card.
+    /// </summary>
+    public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        List<DemoEntry> list = [.. entries];
+        IReadOnlyDictionary<string, DemoProvenance> resolved = ResolveProvenance().ResolveAll(list.Select(e => e.FilePath));
+        Dictionary<string, LibraryBadge?> badges = new(list.Count, StringComparer.Ordinal);
+        foreach (DemoEntry entry in list)
+        {
+            badges[entry.FilePath] = BuildBadge(resolved.GetValueOrDefault(entry.FilePath));
+        }
+
+        return badges;
+    }
+
+    private static LibraryBadge BuildBadge(DemoProvenance? p)
+    {
         bool pinned = p?.IsOverride ?? false;
         string tooltip = pinned
             ? "Provenance: set by you. Click to change it or go back to automatic."
@@ -60,6 +83,9 @@ public sealed class ProvenanceLibraryContribution(
 
     /// <inheritdoc />
     public string? BadgeResetLabel => "Automatic";
+
+    /// <inheritdoc />
+    public string? BadgeResetTooltip => "Let the clan tags, the header and Team Identity decide";
 
     /// <inheritdoc />
     public void SetLabel(DemoEntry entry, string? label)
