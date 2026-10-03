@@ -37,8 +37,16 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 [NotInParallel]
 public class StratBookLifecycleTests
 {
+    // FirstRunCompleted: the wizard has asked, so StartPacks does not wait for it.
+    private const string PackOnSeed = """
+                                       {
+                                         "FirstRunCompleted": true
+                                       }
+                                       """;
+
     private const string PackOffSeed = """
                                         {
+                                          "FirstRunCompleted": true,
                                           "Features": { "Overrides": { "pack.stratbook": false } }
                                         }
                                         """;
@@ -57,10 +65,10 @@ public class StratBookLifecycleTests
     [Test]
     public async Task PackOn_StartPacks_EnqueuesTheSameStartupItems_InTheSameOrder()
     {
-        await WithContainer(null, async (provider, recorder) =>
+        await WithContainer(PackOnSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
-            App.StartPacks(provider, FeaturePacks.Default);
+            App.StartPacks(provider);
 
             string titles = string.Join(", ", recorder.Titles.Skip(before));
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
@@ -83,7 +91,7 @@ public class StratBookLifecycleTests
         await WithContainer(PackOffSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
-            App.StartPacks(provider, FeaturePacks.Default);
+            App.StartPacks(provider);
 
             List<string> titles = [.. recorder.Titles.Skip(before)];
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
@@ -105,7 +113,7 @@ public class StratBookLifecycleTests
         // Contribute runs regardless of the gate (every module is always registered), so this is the
         // regression guard for the review fix: resolving the registry WITH the pack on must build the
         // badge services again (restoring the pre-item-3, item-1-shaped behaviour), not leave them lazy.
-        await WithContainer(null, async (provider, recorder) =>
+        await WithContainer(PackOnSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
             ModuleRegistry registry = provider.GetRequiredService<ModuleRegistry>();
