@@ -75,7 +75,7 @@ public class StratBookModuleTests
         {
             await Assert.That(feature).IsNotNull();
             await Assert.That(feature!.Scope).IsEqualTo(FeatureScope.Tab);
-            await Assert.That(feature.ParentId).IsNull();
+            await Assert.That(feature.ParentId).IsEqualTo("pack.stratbook").Because("the tab cascades off with the Strat Book extension");
             await Assert.That(feature.GroupId).IsNull();
             foreach (UserCategory category in Enum.GetValues<UserCategory>())
             {

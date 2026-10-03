@@ -1,15 +1,18 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
 namespace DemoViewer.NET.Features;
 
 /// <summary>
-///     The single, code-defined source of truth for the set of gatable features and their per-category
-///     default visibility. <see cref="IFeatureGate" /> resolves a live on/off decision from these
-///     descriptors plus the user's category and explicit overrides; nothing else defines a feature.
+///     The single source of truth for the set of gatable features and their per-category default
+///     visibility: the core descriptors below plus every <see cref="IFeaturePack.Features" />, composed once
+///     by <see cref="Compose" /> (or from <see cref="FeaturePacks.Default" /> on first use) and immutable
+///     after. <see cref="IFeatureGate" /> resolves a live on/off decision from these descriptors plus the
+///     user's category and explicit overrides; nothing else defines a feature.
 ///     <para>
 ///         The default matrix below encodes the category-visibility matrix from
 ///         docs/ui/design-system.md: the consumer surface is the viewing tabs (Library + Stats +
@@ -31,11 +34,15 @@ public static class FeatureCatalog
     /// <summary>Strat tokens follow the map's nav round walls; off moves them in straight lines.</summary>
     public const string StratRoutingFeatureId = "stratbook.routing";
 
+    /// <summary>The prefix every pack umbrella id carries. The gate never fails open on it.</summary>
+    public const string PackIdPrefix = "pack.";
+
     // The catalog order is load-bearing: a group's LEADER is its FIRST member in All (see GroupLeader).
     // parser.hex precedes parser.parseChain + chrome.parseChain → parserDeepDive leader = parser.hex.
     // analysis.breakpoints precedes chrome.debugger + chrome.breakpointNav → graphDebug leader =
-    // analysis.breakpoints. Do not reorder without re-checking the leader-lock test.
-    private static readonly FeatureDescriptor[] _catalog =
+    // analysis.breakpoints. Do not reorder without re-checking the leader-lock test. Pack descriptors are
+    // appended after this array, so a pack row can never become a leader of a core group.
+    private static readonly FeatureDescriptor[] _core =
     [
         // ---------------- TABS ----------------
         new(
@@ -66,70 +73,6 @@ public static class FeatureCatalog
             "tab.highlights", FeatureScope.Tab, "Reels",
             "Build and customise highlight reels — stage clips from any match and render them to video. "
             + "Explore a match's own highlights on Match Overview.",
-            null, null, false, Defaults(true, true, true)),
-        // The Situations tab: Situation Search over the round index. Default-visible to every category
-        // like Reels, for the same reason: the flagship's payoff must not hide from the audience that
-        // wants it. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.situations", FeatureScope.Tab, "Situations",
-            "Find rounds by where the players stood — search the library's round index for a setup, "
-            + "an execute or a retake and walk the hits.",
-            null, null, false, Defaults(true, true, true)),
-        // The Teams tab: who played in which demo, which team is us, the opponent per demo. Default-visible
-        // like Situations: the Library's team filter and every "our / their" surface read what is decided
-        // here. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.teams", FeatureScope.Tab, "Teams",
-            "The teams found across your demos: name them, say which one is you, merge or split rosters, "
-            + "and confirm your own accounts so every demo knows which side is ours.",
-            null, null, false, Defaults(true, true, true)),
-        // The Review tab: the Review Queue every surface sends clips to, the Reels tray's included.
-        // Default-visible like Teams: the Reels tray stages into it whether or not it shows. Only the id
-        // is a persisted key; the label is display text.
-        new(
-            "tab.review", FeatureScope.Tab, "Review",
-            "One queue of clips from any demo: staged highlights, situation search results and picks at the "
-            + "playhead, in sections with a question per clip.",
-            null, null, false, Defaults(true, true, true)),
-        // The Strat Book's Suggested section: every demo's tag suggestions in one inbox. Default-visible like
-        // Review. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.suggested", FeatureScope.Tab, "Suggested",
-            "Every demo's tag suggestions in one list: accept them into the demo's tags, dismiss them, or open "
-            + "one in 2D Playback.",
-            null, null, false, Defaults(true, true, true)),
-        // The Round Tagger's Matrix tab: codes by labels across the library's tags. Default-visible like
-        // Situations and Teams. The module ships ahead of the tab, so until The Matrix lands this row
-        // gates nothing it can show. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.tagger", FeatureScope.Tab, "Round Tagger",
-            "Tag stretches of a round with your own codes and labels, then pivot them across every demo "
-            + "in the Matrix.",
-            null, null, false, Defaults(true, true, true)),
-        // The Strat Book tab: strats per book (a team or you) on the round clock, with slots, steps and
-        // branches. Default-visible like the Matrix, and on both hosts: the browser keeps strats for the
-        // session and says so. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.stratbook", FeatureScope.Tab, "Strat Book",
-            "Write your team's strats on the round clock: five slots, the steps each one takes, and the "
-            + "branches when the plan changes.",
-            null, null, false, Defaults(true, true, true)),
-        // The Utility Book tab: the Grenade Index, every indexed grenade clustered by where it landed.
-        // Default-visible like the Strat Book, and on both hosts: the browser indexes the open demo for the
-        // session and says so. Only the id is a persisted key; the label is display text.
-        new(
-            "tab.utilitybook", FeatureScope.Tab, "Utility Book",
-            "Every grenade in your indexed demos, grouped by where it landed: pick a map, a grenade and a "
-            + "landing place to see every position it was thrown from.",
-            null, null, false, Defaults(true, true, true)),
-        // The Opponent Dossier tab: the Map Pool Record and, later, the rest of the Dossier sections,
-        // keyed by a Team Identity team. Default-visible like the Strat Book and the Utility Book, and
-        // on both hosts: the browser keeps teams for the session and the Teams tab already says so. Only
-        // the id is a persisted key; the label is display text.
-        new(
-            "tab.dossier", FeatureScope.Tab, "Dossier",
-            "A scouting page per team: maps played, win rate, side wins and the decider record where "
-            + "it is inferable, plus a veto history you enter by hand.",
             null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
@@ -208,7 +151,8 @@ public static class FeatureCatalog
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
         // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
-        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export · tagger · suggestedtags): the ids
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export; the Strat Book pack
+        // appends tagger · suggestedtags): the ids
         // are persisted override keys and must never be renamed.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
@@ -234,32 +178,6 @@ public static class FeatureCatalog
             "playback2d.export", FeatureScope.SubFeature, "Video export",
             "Render the 2D playback to webm/mp4/gif. Desktop only.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
-        // The Round Tagger's palette docked in the 2D tab (tag-store.md §3.11). Works on both hosts: the
-        // browser keeps tags for the session and the palette says so.
-        new(
-            "playback2d.tagger", FeatureScope.SubFeature, "Tag palette",
-            "Tag the round you are watching with a hotkey palette; tags are saved per demo.",
-            "tab.playback2d", null, false, Defaults(true, true, true)),
-        // Suggested Tags (suggested-tags.md §3.6): the Suggested track, the proposal queue and the
-        // evaluator. On for both hosts; the browser keeps proposals and verdicts for the session.
-        new(
-            "playback2d.suggestedtags", FeatureScope.SubFeature, "Suggested tags",
-            "Offer tags found by detectors (execute, default, fake, opener, retake) to accept, edit or reject.",
-            "tab.playback2d", null, false, Defaults(true, true, true)),
-        // Strat Export (step-authoring.md §3.6): the open strat to GIF or video with no demo behind it. Desktop
-        // only for playback2d.export's reason, through the same ShellModuleFeatureGate.DesktopOnlyIds. Only
-        // the ID is a persisted key.
-        new(
-            "stratbook.export", FeatureScope.SubFeature, "Strat export",
-            "Render a strat to gif/webm/mp4 from the Strat Book canvas. Desktop only.",
-            "tab.stratbook", null, false, Defaults(true, true, true)),
-        // Token routing (docs/strat-book/token-pathing.md): strat tokens walk the map's nav round walls instead of in
-        // straight lines, on the canvas, the Detected preview and an export. On by default; off is the straight lines
-        // and timing strats had before. Both hosts: the graph is built from the map's zones.json.
-        new(
-            StratRoutingFeatureId, FeatureScope.SubFeature, "Token routing",
-            "Move strat tokens along the map's walkways instead of in straight lines through walls.",
-            "tab.stratbook", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------
         new(
@@ -303,37 +221,177 @@ public static class FeatureCatalog
             null, null, false, Defaults(true, true, true))
     ];
 
-    private static readonly Dictionary<string, FeatureDescriptor> _byId =
-        _catalog.ToDictionary(d => d.Id, StringComparer.Ordinal);
+    private static readonly Lock _composeLock = new();
+    private static volatile FeatureDescriptor[]? _all;
+    private static volatile Dictionary<string, FeatureDescriptor>? _byId;
+
+    /// <summary>
+    ///     Composes the catalog from the core descriptors plus <paramref name="packs" />' descriptors, in
+    ///     that order. The first call fixes the catalog; a later call with the same ids is a no-op and one
+    ///     with a different set throws, so the catalog never changes under a live gate.
+    /// </summary>
+    public static void Compose(IEnumerable<IFeaturePack> packs)
+    {
+        ArgumentNullException.ThrowIfNull(packs);
+        lock (_composeLock)
+        {
+            FeatureDescriptor[] composed = Build(packs);
+            if (_all is null)
+            {
+                _byId = composed.ToDictionary(d => d.Id, StringComparer.Ordinal);
+                _all = composed;
+                return;
+            }
+
+            if (!_all.Select(d => d.Id).SequenceEqual(composed.Select(d => d.Id), StringComparer.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "FeatureCatalog is already composed with a different set of feature ids; it is composed once per process.");
+            }
+        }
+    }
+
+    // Validates the composed set: unique ids, a parent that exists, the parent rule per scope (a pack may
+    // parent a tab; a tab parents a sub-feature; chrome and packs have none), nothing under a pack is
+    // Required (Required would defeat the pack switch), no pack row in a core group (it could become the
+    // leader), and each pack's FeatureId names exactly one Pack-scope row of its own.
+    internal static FeatureDescriptor[] Build(IEnumerable<IFeaturePack> packs)
+    {
+        List<FeatureDescriptor> fromPacks = [];
+        foreach (IFeaturePack pack in packs)
+        {
+            FeatureDescriptor[] features = [.. pack.Features];
+            int umbrellas = features.Count(f => f.Id == pack.FeatureId && f.Scope == FeatureScope.Pack);
+            if (umbrellas != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' must declare exactly one Pack-scope descriptor with id '{pack.FeatureId}'; found {umbrellas}.");
+            }
+
+            foreach (FeatureDescriptor f in features)
+            {
+                if (f.GroupId is { } groupId && GroupIds.Contains(groupId, StringComparer.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"Pack feature '{f.Id}' may not join core group '{groupId}'.");
+                }
+            }
+
+            fromPacks.AddRange(features);
+        }
+
+        FeatureDescriptor[] all = [.. _core, .. fromPacks];
+        Dictionary<string, FeatureDescriptor> byId = new(StringComparer.Ordinal);
+        foreach (FeatureDescriptor d in all)
+        {
+            if (!byId.TryAdd(d.Id, d))
+            {
+                throw new InvalidOperationException($"Duplicate feature id '{d.Id}' in the composed catalog.");
+            }
+        }
+
+        foreach (FeatureDescriptor d in all)
+        {
+            if (d.Scope == FeatureScope.Pack)
+            {
+                if (!IsPackId(d.Id))
+                {
+                    throw new InvalidOperationException($"Pack feature '{d.Id}' must start with '{PackIdPrefix}'.");
+                }
+
+                if (d.Required)
+                {
+                    throw new InvalidOperationException($"Pack feature '{d.Id}' may not be Required.");
+                }
+            }
+
+            if (d.ParentId is null)
+            {
+                continue;
+            }
+
+            if (!byId.TryGetValue(d.ParentId, out FeatureDescriptor? parent))
+            {
+                throw new InvalidOperationException($"Feature '{d.Id}' names an unknown parent '{d.ParentId}'.");
+            }
+
+            bool allowed = d.Scope switch
+            {
+                FeatureScope.SubFeature => parent.Scope == FeatureScope.Tab,
+                FeatureScope.Tab => parent.Scope == FeatureScope.Pack,
+                _ => false
+            };
+            if (!allowed)
+            {
+                throw new InvalidOperationException(
+                    $"Feature '{d.Id}' ({d.Scope}) may not have '{d.ParentId}' ({parent.Scope}) as its parent.");
+            }
+
+            if (parent.Scope == FeatureScope.Pack && d.Required)
+            {
+                throw new InvalidOperationException($"Feature '{d.Id}' under pack '{d.ParentId}' may not be Required.");
+            }
+        }
+
+        return all;
+    }
+
+    // The composed catalog, composing from the default pack list when nothing composed it first.
+    private static FeatureDescriptor[] Composed
+    {
+        get
+        {
+            if (_all is { } all)
+            {
+                return all;
+            }
+
+            Compose(FeaturePacks.Default);
+            return _all!;
+        }
+    }
+
+    private static Dictionary<string, FeatureDescriptor> Index
+    {
+        get
+        {
+            _ = Composed;
+            return _byId!;
+        }
+    }
 
     /// <summary>Every gate descriptor, in a stable order (which also fixes each group's leader).</summary>
-    public static IReadOnlyList<FeatureDescriptor> All => _catalog;
+    public static IReadOnlyList<FeatureDescriptor> All => Composed;
 
     /// <summary>The group ids this catalog defines.</summary>
     public static IReadOnlyList<string> GroupIds { get; } = [GroupParserDeepDive, GroupGraphDebug];
 
     /// <summary>Looks up a descriptor by its stable id, or <c>null</c> if the id is not in the catalog.</summary>
     public static FeatureDescriptor? ById(string id) =>
-        id is not null && _byId.TryGetValue(id, out FeatureDescriptor? d) ? d : null;
+        id is not null && Index.TryGetValue(id, out FeatureDescriptor? d) ? d : null;
 
-    /// <summary>The sub-features owned by <paramref name="tabId" /> (its cascade children), in catalog order.</summary>
-    public static IEnumerable<FeatureDescriptor> Children(string tabId) =>
-        _catalog.Where(d => d.ParentId == tabId);
+    /// <summary>True for an id that names a pack, known or not: such an id never fails open.</summary>
+    public static bool IsPackId(string? id) =>
+        id is not null && id.StartsWith(PackIdPrefix, StringComparison.Ordinal);
+
+    /// <summary>The features whose parent is <paramref name="parentId" /> (its cascade children), in catalog order.</summary>
+    public static IEnumerable<FeatureDescriptor> Children(string parentId) =>
+        Composed.Where(d => d.ParentId == parentId);
 
     /// <summary>The members of <paramref name="groupId" />, in catalog order (first = the leader).</summary>
     public static IEnumerable<FeatureDescriptor> GroupMembers(string groupId) =>
-        _catalog.Where(d => d.GroupId == groupId);
+        Composed.Where(d => d.GroupId == groupId);
 
     /// <summary>
     ///     The deterministic leader of <paramref name="groupId" />, its FIRST member in <see cref="All" />
     ///     order, whose resolved own-state every member of the group adopts. <c>null</c> for an unknown group.
     /// </summary>
     public static FeatureDescriptor? GroupLeader(string groupId) =>
-        _catalog.FirstOrDefault(d => d.GroupId == groupId);
+        Composed.FirstOrDefault(d => d.GroupId == groupId);
 
     // Builds a category→default map without a constant-array argument (CA1861-clean) and reads left-to-right.
     // Concrete return type per CA1859; the descriptor's IReadOnlyDictionary param accepts it directly.
-    private static Dictionary<UserCategory, bool> Defaults(bool consumer, bool power, bool dev) =>
+    internal static Dictionary<UserCategory, bool> Defaults(bool consumer, bool power, bool dev) =>
         new()
         {
             [UserCategory.Consumer] = consumer,

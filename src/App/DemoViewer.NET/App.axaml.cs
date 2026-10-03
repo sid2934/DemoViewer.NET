@@ -1,6 +1,5 @@
 #region
 
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -11,52 +10,42 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
-using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
-using DemoViewer.NET.ViewModels.Dossier;
 using DemoViewer.NET.ViewModels.Highlights;
-using DemoViewer.NET.ViewModels.Review;
 using DemoViewer.NET.ViewModels.SuggestedTags;
-using DemoViewer.NET.ViewModels.RoundTagger;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.Situations;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.ViewModels.Teams;
-using DemoViewer.NET.ViewModels.UtilityBook;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.RuleWorkbench;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,7 +69,7 @@ public class App : Application
     private static bool _shellUnderConstruction;
 
     /// <summary>
-    ///     The application's composition-root service provider, set once by <see cref="BuildServices" />
+    ///     The application's composition-root service provider, set once by <see cref="BuildServices(IWindowService, IReadOnlyList{IFeaturePack})" />
     ///     during framework init. A deliberate service-locator seam so later Settings / first-run-wizard
     ///     commands can resolve the long-lived <see cref="SettingsService" /> /
     ///     <c>IOptionsMonitor&lt;AppSettings&gt;</c> without threading them through every view-model.
@@ -631,6 +620,11 @@ public class App : Application
         Current.RequestedThemeVariant = active;
     }
 
+    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
+        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
+            DemoJobPriority.UserRequested);
+
     /// <summary>
     ///     Builds the app's single composition root: a bare Microsoft.Extensions DI container (NO
     ///     Microsoft.Extensions.Hosting). It owns the long-lived <see cref="SettingsService" />, a live
@@ -647,13 +641,77 @@ public class App : Application
     ///         starts a <c>DispatcherTimer</c>) at build time.
     ///     </para>
     /// </summary>
-    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
-    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
-        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
-            DemoJobPriority.UserRequested);
+    internal static ServiceProvider BuildServices(IWindowService windowService) =>
+        BuildServices(windowService, FeaturePacks.Default);
 
-    internal static ServiceProvider BuildServices(IWindowService windowService)
+    /// <summary>
+    ///     <see cref="BuildServices(IWindowService)" /> over an explicit pack list. The packs' descriptors
+    ///     join the <see cref="FeatureCatalog" /> here, once; each pack then registers its services and,
+    ///     in <see cref="BuildRegistry" />, contributes its modules.
+    /// </summary>
+    internal static ServiceProvider BuildServices(IWindowService windowService, IReadOnlyList<IFeaturePack> packs)
     {
+        ArgumentNullException.ThrowIfNull(packs);
+        FeatureCatalog.Compose(packs);
+        ServiceCollection services = ComposeServices(windowService, packs);
+
+        // ValidateOnBuild: a missing/broken registration fails HERE (a loud construction error on the UI
+        // thread at framework-init) instead of silently at the first GetRequiredService<MainViewModel>().
+        // It eagerly constructs the singletons, all of which the shell resolves immediately anyway, so
+        // there is no extra side-effect beyond building them a few lines earlier, on the same UI thread.
+        ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true
+        });
+        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
+        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
+        // any rescan, independent of ValidateOnBuild's eager-construction behavior.
+        provider.GetRequiredService<DemoEvaluationCoordinator>();
+        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
+        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
+        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
+        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
+        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
+        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
+        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
+        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
+        provider.GetRequiredService<LineupClipService>();
+        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
+        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
+        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
+        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
+        provider.GetRequiredService<TagFactsRefresher>();
+        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
+        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
+        // 30 s so startup loads are not competing for the disk.
+        if (!OperatingSystem.IsBrowser())
+        {
+            DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
+            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
+            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
+                {
+                    SidecarFormatMigration.Submit(queue, demoCache,
+                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
+
+                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
+                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
+                },
+                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        }
+        Services = provider;
+        return provider;
+    }
+
+    /// <summary>
+    ///     Every registration of the composition root, before the provider is built: the core services,
+    ///     then each pack's <see cref="IFeaturePack.Register" />. Kept apart from
+    ///     <see cref="BuildServices(IWindowService, IReadOnlyList{IFeaturePack})" /> so a test can enumerate
+    ///     what is registered without constructing the singletons.
+    /// </summary>
+    internal static ServiceCollection ComposeServices(IWindowService windowService, IReadOnlyList<IFeaturePack> packs)
+    {
+        ArgumentNullException.ThrowIfNull(packs);
         ServiceCollection services = new();
 
         // SINGLETON via a constructed instance: SettingsService holds a live reloadOnChange
@@ -909,103 +967,12 @@ public class App : Application
             },
             tick => Services?.GetService<MainViewModel>()?.Playback.SeekToTick(tick),
             tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            return new SituationsTabViewModel(
-                sp.GetRequiredService<ISituationIndex>(),
-                sp.GetRequiredService<RoundIndexEvaluator>(),
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<RoundIndexPlaceSources>(),
-                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
-                playback: () => sp.GetService<ISituationPlayback>(),
-                sidecars: sp.GetRequiredService<RoundIndexStore>(),
-                // The filter rail's opponent and our-side fields join through Team Identity; its source
-                // field through Demo Provenance Labels.
-                teams: sp.GetRequiredService<TeamIdentityService>(),
-                provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
-                watched: sp.GetRequiredService<WatchedSituationsService>(),
-                review: sp.GetRequiredService<ReviewQueue>(),
-                // The canvas shows the "us" team's callouts (Callout Aliases, strat-model.md §3.7) over
-                // the stored canonical place names; no team marked falls back to the me book, same as the
-                // Strat Book's own default.
-                callouts: sp.GetRequiredService<CalloutResolverSource>(),
-                run: part => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
-                    QueueJobKind.SectionCompute, "Situations: " + part, "situations", _ => work(), key: "section:situations:" + part,
-                    preemptible: true));
-        });
-
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
         services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
             scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
-        // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
-        // through the same seek seam the Result Cards use.
-        // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
-        // saved ink, one encode for the whole pack. A user-requested processing queue item that marks an export
-        // session on the heavy-job gate for its run, as a 2D export does; the browser has no ffmpeg and no
-        // files, so it gets no pack row.
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
-            IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
-            TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
-            Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
-            if (!OperatingSystem.IsBrowser())
-            {
-                ILogger log = DiagnosticsLog.CreateLogger(PackExportLog.Category);
-                exportPack = (plan, progress, ct) => PackExportQueue.RunAsync(queue,
-                    string.Create(CultureInfo.InvariantCulture,
-                        $"Pack export: {plan.Segments.Count} segments to {Path.GetFileName(plan.Settings.OutputPath)}"),
-                    plan.Settings.OutputPath, async (relay, token) =>
-                    {
-                        using IDisposable session = await gate.EnterExportSessionAsync(token).ConfigureAwait(false);
-                        using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
-                            log: line => PackExportLog.Line(log, line));
-                        PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
-                            log: line => PackExportLog.Line(log, line));
-                        return await exporter.ExportAsync(plan, relay, token).ConfigureAwait(false);
-                    }, progress, ct);
-            }
-
-            return new ReviewQueueTabViewModel(
-                sp.GetRequiredService<ReviewQueue>(),
-                () => sp.GetService<ISituationPlayback>(),
-                exportPack: exportPack,
-                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory,
-                mapOf: clip => (clip.Sha256 is { } sha ? cache.TryGetIndexBySha256(sha) : null)?.Map
-                               ?? cache.TryGetIndex(clip.DemoPath)?.Map,
-                teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
-        });
-
-        // The Strat Book's Suggested section: every demo's tag suggestions in one inbox, read as a queue item.
-        services.AddSingleton(sp => new SuggestedInboxService(
-            sp.GetRequiredService<SuggestedTagsService>(),
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IDemoProcessingQueue>(),
-            run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
-                "Suggested: read a demo", "suggested", _ => work()),
-            post: action => Dispatcher.UIThread.Post(action)));
-        services.AddSingleton(sp => new SuggestedInboxViewModel(
-            sp.GetService<SuggestedInboxService>(),
-            () => sp.GetService<ISituationPlayback>()));
-
-        // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
-        // over one demo on the index's Indexed hook and over the library at the watermark on every
-        // other change. A container singleton so the module's badge and the tab's list share one
-        // state; null config root (the browser) keeps the list for the session.
-        services.AddSingleton(sp => new WatchedSituationsService(
-            AppPaths.ConfigRoot,
-            sp.GetRequiredService<ISituationIndex>(),
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<IDemoProvenanceSource>(),
-            action => Dispatcher.UIThread.Post(action)));
-
         // The Round Tagger's store: per-demo tag documents keyed by content hash under <config>/tags. One
         // per process, because CheckOut's single-writer guarantee is only as wide as the instance that
         // holds it. Null root (the browser) keeps tags in memory for the session.
@@ -1023,63 +990,6 @@ public class App : Application
                 background: work => _ = QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreSave,
                     "Tags: round facts", "tags", _ => work()));
         });
-
-        // The Matrix: tag instances pivoted over the store, a container singleton resolved lazily on first
-        // activation. The cache index is the hash-to-path join a cell's clips need, Team Identity the scope
-        // of the multi-demo mode, and the tab switch after a send reaches the shell at call time.
-        services.AddSingleton(sp =>
-        {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
-            return new TagMatrixTabViewModel(
-                sp.GetRequiredService<TagStore>(),
-                sp.GetRequiredService<ReviewQueue>(),
-                cache.TryGetIndexBySha256,
-                sp.GetRequiredService<TeamIdentityService>(),
-                tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                action => Dispatcher.UIThread.Post(action),
-                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
-                    "Tags: matrix", "tags", _ => work(), key: "section:tag-matrix", preemptible: true));
-        });
-
-        // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
-        // it wrote in the same pass (overview correction 19). Proposals go to cache/suggestions/ beside
-        // demos/, verdicts to the Tag Store under the tags root (correction 2); the learned site regions
-        // come from <config>/suggested-tags/. The library sweep is its own opt-in, off by default
-        // (correction 20); the open demo, resolved at call time, is always built. Null roots (the
-        // browser) keep all of it for the session.
-        services.AddSingleton(sp => new ProposalStore(AppPaths.DemoCacheDir, sp.GetRequiredService<DemoCacheStore>()));
-        services.AddSingleton(_ => new SiteRegionStore(AppPaths.SuggestedTagsDirectory));
-        // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
-        // on first read the way a theme drop-in folder is (§3.7). A singleton so the evaluator's Func
-        // and the tuning view's save reach the same in-memory Current.
-        services.AddSingleton(_ => new ProfileStore(AppPaths.SuggestedTagsDirectory));
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
-            return new SuggestedTagsService(
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<ProposalStore>(),
-                sp.GetRequiredService<TagStore>(),
-                sp.GetRequiredService<SiteRegionStore>(),
-                () => sp.GetRequiredService<ProfileStore>().Current,
-                () => features?.IsEnabled(SuggestedTagsService.FeatureId) ?? true,
-                () => monitor?.CurrentValue.Playback2D.SuggestedTagsBackground ?? false,
-                sp.GetRequiredService<RoundIndexStore>(),
-                sp.GetRequiredService<RoundIndexPlaceSources>(),
-                sp.GetRequiredService<IZonePlaceResolverSource>(),
-                map => sp.GetRequiredService<ISituationIndex>().Places(map),
-                () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-                action => Dispatcher.UIThread.Post(action));
-        });
-        // The tuning view's harness: stored counts for free, an in-memory re-run over a candidate
-        // profile for recall/precision (§3.7). Shares the evaluator's store and region table so a
-        // preview scores exactly what the queue already built.
-        services.AddSingleton(sp => new SuggestedTagsTuningService(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<SuggestedTagsService>(),
-            sp.GetRequiredService<TagStore>(),
-            sp.GetRequiredService<SiteRegionStore>()));
 
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
         // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
@@ -1142,166 +1052,6 @@ public class App : Application
                 serial: TeamIdentityService.QueueSerial),
             post: action => Dispatcher.UIThread.Post(action)));
 
-        // The Strat Book's store: one folder per book under <config>/strats. One per process, because CheckOut's
-        // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
-        // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
-        // activation; its books are Team Identity's teams plus me.
-        services.AddSingleton(_ => new StratStore(AppPaths.StratsDir, action => Dispatcher.UIThread.Post(action)));
-        // Callout Aliases (strat-model.md §3.7): one resolver builder over the store's tables and the map's
-        // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
-        // a nav place.
-        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
-        // Strat Record Panel (strat-model.md §3.6): the evidence rule over the Tag Store and Demo
-        // Provenance Labels, one instance so the panel's live rebuild and any other future reader of a
-        // strat's record agree on what "run / won / aborted" means.
-        services.AddSingleton(sp => new StratEvidenceService(
-            sp.GetRequiredService<TagStore>(),
-            sp.GetRequiredService<IDemoProvenanceSource>()));
-        // Strat Mining: repeated setups and executes found from cached files, offered in the Strats
-        // section's Detected inbox and written to a book only when the user adds one.
-        services.AddSingleton(sp => new StratMiningService(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<RoundIndexStore>(),
-            sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
-            sp.GetRequiredService<GrenadeIndex>(),
-            sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<StratStore>(),
-            sp.GetRequiredService<TagStore>(),
-            AppPaths.DemoCacheDir,
-            AppPaths.ConfigRoot,
-            action => Dispatcher.UIThread.Post(action),
-            queue: sp.GetRequiredService<IDemoProcessingQueue>()));
-        services.AddSingleton<StratBookLayout>();
-        services.AddSingleton(sp =>
-        {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
-            return new StratBookTabViewModel(
-                sp.GetRequiredService<StratStore>(),
-                sp.GetRequiredService<TeamIdentityService>(),
-                action => Dispatcher.UIThread.Post(action),
-                calloutResolvers: sp.GetRequiredService<CalloutResolverSource>(),
-                tags: sp.GetRequiredService<TagStore>(),
-                evidence: sp.GetRequiredService<StratEvidenceService>(),
-                review: sp.GetRequiredService<ReviewQueue>(),
-                indexBySha: cache.TryGetIndexBySha256,
-                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                grenades: sp.GetRequiredService<GrenadeIndex>(),
-                mining: sp.GetRequiredService<StratMiningService>(),
-                playback: () => sp.GetService<ISituationPlayback>(),
-                spawns: new StratSpawnSource(),
-                layout: sp.GetRequiredService<StratBookLayout>(),
-                lineupMap: (map, asset) => UtilityBookFor(sp, map, asset));
-        });
-
-        // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
-        // Like This, so the set the keys walk is the set the tab shows.
-        services.AddSingleton<ISituationResultWalk>(sp => new SituationResultWalk(
-            sp.GetRequiredService<SituationsTabViewModel>));
-
-        // Find Rounds Like This: the 2D tab's Ctrl+F hands its current tick through this seam. The tab
-        // VM resolves lazily (the same container singleton the module activates, so the canvas the key
-        // fills is the one the tab shows), and the tab switch reaches the shell at call time, the way
-        // the Settings factory reaches StartWalkthrough, never at construction.
-        services.AddSingleton<IFindRoundsLikeThis>(sp => new FindRoundsLikeThis(
-            sp.GetRequiredService<SituationsTabViewModel>,
-            sp.GetRequiredService<RoundIndexPlaceSources>(),
-            tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
-
-        // The Grenade Walk (grenade-walk.md §3.8): every throw in a demo as one row, written as two siblings of
-        // the demo's cache record. An evaluator on the same fan-out, last because it reads nothing the others
-        // write. The library sweep is its own opt-in, off by default (D4); the open demo, resolved at call
-        // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
-        // rows in memory for the session.
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            return new GrenadeIndexEvaluator(
-                sp.GetRequiredService<DemoCacheStore>(),
-                () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
-                () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4);
-        });
-
-        // The Grenade Index: every current rows sibling in the library, clustered by landing cell with the
-        // origins deduplicated, the landing place through the same zone resolver source the round index
-        // uses. It loads once at startup off the UI thread and merges each demo as the evaluator writes it.
-        services.AddSingleton(sp => new GrenadeIndex(
-            sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IZonePlaceResolverSource>(),
-            sp.GetRequiredService<GrenadeIndexEvaluator>(),
-            action => Dispatcher.UIThread.Post(action),
-            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups", "utility",
-                "save:grenade-lineups")));
-        services.AddSingleton(sp => UtilityBookFor(sp, null, null));
-
-        // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
-        // config root (the browser) keeps entries in memory for the session.
-        services.AddSingleton(_ => new VetoHistoryStore(AppPaths.ConfigRoot));
-        // Dossier Editing And Export: the user's stars, rewritten lines, notes and summary per team, beside
-        // the veto history; session-only on the browser the same way.
-        services.AddSingleton(_ => new DossierNotesStore(AppPaths.ConfigRoot));
-        // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
-        // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
-        // the round index's positions files under the same fingerprint the Situations tab trusts, and
-        // open their rounds in the Review Queue. The Opening Tendencies join the Grenade Index to Round
-        // Facts and read the same positions files for the lurk; the Post-Plant And Retake read them for the
-        // plant spots, the holds and the retakes. The Situational Behaviour reads Round Facts alone.
-        services.AddSingleton(sp =>
-        {
-            RoundIndexPlaceSources sources = sp.GetRequiredService<RoundIndexPlaceSources>();
-            return new DossierTabViewModel(
-                sp.GetRequiredService<TeamIdentityService>(),
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<VetoHistoryStore>(),
-                heatmaps: new SetupHeatmapService(
-                    sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>(),
-                    sp.GetRequiredService<RoundIndexStore>(),
-                    sources.FingerprintFor),
-                review: sp.GetRequiredService<ReviewQueue>(),
-                selectTab: tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                openings: new OpeningTendenciesService(
-                    sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>(),
-                    sp.GetRequiredService<GrenadeIndex>(),
-                    sp.GetRequiredService<RoundIndexStore>(),
-                    sources.FingerprintFor),
-                postPlant: new PostPlantService(
-                    sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>(),
-                    sp.GetRequiredService<RoundIndexStore>(),
-                    sources.FingerprintFor),
-                situational: new SituationalBehaviourService(
-                    sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>()),
-                notes: sp.GetRequiredService<DossierNotesStore>(),
-                grenades: sp.GetRequiredService<GrenadeIndex>(),
-                runSection: section => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
-                    QueueJobKind.SectionCompute, "Dossier: " + section, "dossier", _ => work(), key: "section:dossier:" + section,
-                    preemptible: true));
-        });
-
-        // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,
-        // rendered one demo at a time as processing queue items and shown on the Utility Book's position card.
-        // Planned whenever the index changes; a null directory (the browser) plans nothing.
-        services.AddSingleton(sp =>
-        {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            GrenadeIndex index = sp.GetRequiredService<GrenadeIndex>();
-            ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
-            LineupClipService clips = new(
-                () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
-                () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
-                new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
-                log: line => GrenadeIndexLog.LineupClip(log, line),
-                complete: () => index.IsReady,
-                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
-                processing: sp.GetRequiredService<IDemoProcessingQueue>());
-            index.Changed += () => clips.PlanSoon();
-            return clips;
-        });
-
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
         // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
@@ -1346,65 +1096,26 @@ public class App : Application
         // ctor param.
         services.AddSingleton(sp => new RecentFilesStore(sp.GetRequiredService<SettingsService>()));
 
+        // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
+        // not what is registered.
+        foreach (IFeaturePack pack in packs)
+        {
+            pack.Register(services);
+        }
+
         // The first-party module registry, built ONCE by BuildRegistry and held by the container (the
         // reconciliation), injected into the shell so there is no stray second construction. The provider is
         // passed so BuildRegistry can DI-resolve module deps (the Highlights cache/scanner) + defer the
         // shell-bound delegates (never eagerly resolving MainViewModel here, which would recurse through
         // ModuleRegistry).
-        services.AddSingleton(sp => BuildRegistry(sp));
+        services.AddSingleton(sp => BuildRegistry(sp, packs));
 
         // The shell, constructed by an explicit factory so DI does not auto-fill every optional ctor param:
         // only the deps it needs are supplied; the rest default. The feature gate is
         // handed in so the shell FILTERS the workspace tab strip per user category (and reconciles live on
         // IFeatureGate.Changed). A null gate (the designer / unit-test path) fails open: no tab filtering.
         services.AddSingleton(BuildShell);
-
-        // ValidateOnBuild: a missing/broken registration fails HERE (a loud construction error on the UI
-        // thread at framework-init) instead of silently at the first GetRequiredService<MainViewModel>().
-        // It eagerly constructs the singletons, all of which the shell resolves immediately anyway, so
-        // there is no extra side-effect beyond building them a few lines earlier, on the same UI thread.
-        ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
-        {
-            ValidateOnBuild = true
-        });
-        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
-        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
-        // any rescan, independent of ValidateOnBuild's eager-construction behavior.
-        provider.GetRequiredService<DemoEvaluationCoordinator>();
-        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
-        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
-        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
-        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
-        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
-        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
-        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
-        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
-        provider.GetRequiredService<LineupClipService>();
-        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
-        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
-        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
-        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
-        provider.GetRequiredService<TagFactsRefresher>();
-        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
-        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
-        // 30 s so startup loads are not competing for the disk.
-        if (!OperatingSystem.IsBrowser())
-        {
-            DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
-            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
-            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
-            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
-                {
-                    SidecarFormatMigration.Submit(queue, demoCache,
-                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
-
-                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
-                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
-                },
-                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
-        }
-        Services = provider;
-        return provider;
+        return services;
     }
 
     /// <summary>
@@ -1481,34 +1192,15 @@ public class App : Application
         }
     }
 
-    // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
-    // clip directory and queue section, so the picker shows what the tab shows. The picker draws the strat
-    // canvas's bundle instead of decoding its own; the canvas keeps it.
-    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, Playback2D.Pipeline.Assets.LoadedMapAsset? sharedAsset)
-    {
-        DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
-        return new UtilityBookTabViewModel(
-            sp.GetRequiredService<GrenadeIndex>(),
-            sp.GetRequiredService<ISituationPlayback>(),
-            demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
-            clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, LineupClipDirectoryName) : null,
-            background: lockedMap is null
-                ? QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility", "section:utility")
-                : QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Lineup picker", "utility", "section:lineup-picker"),
-            post: work => Dispatcher.UIThread.Post(work),
-            lockedMap: lockedMap,
-            loadMapAsset: lockedMap is null ? null : _ => sharedAsset,
-            ownsMapAsset: lockedMap is null);
-    }
-
     // The first-party module registry. BuiltInTabsModule is auto-registered by the
     // shell (it needs the shell + Diagnostics VM as DataContexts), so the composition root only adds
     // additional modules here. DELIBERATE: the production shell stays built-ins-only. PlaceholderModule
     // is NOT registered here (it would show an empty "Sandbox" tab to users; it exists to prove the
     // framework end-to-end and is registered by the test that exercises it). This path registers the
-    // real 2D pilot. Both hosts use this path (only first-party modules on WASM). This
-    // is now invoked exactly once, by the DI factory that HOLDS the resulting registry (see BuildServices).
-    private static ModuleRegistry BuildRegistry(IServiceProvider sp)
+    // real 2D pilot, then asks each pack for its modules. Both hosts use this path (only first-party
+    // modules on WASM). This is now invoked exactly once, by the DI factory that HOLDS the resulting
+    // registry (see BuildServices).
+    private static ModuleRegistry BuildRegistry(IServiceProvider sp, IReadOnlyList<IFeaturePack> packs)
     {
         IOptionsMonitor<AppSettings>? settings = sp.GetService<IOptionsMonitor<AppSettings>>();
         ModuleRegistry registry = new();
@@ -1541,37 +1233,31 @@ public class App : Application
         // itself share ONE tray. Still resolved lazily. The module only invokes this on first activation.
         registry.Register(new HighlightsModule(sp.GetRequiredService<HighlightsTabViewModel>));
 
-        // The Situations tab. Registered on both hosts: the browser renders the strip and says there is
-        // no library index there. The VM is a container singleton resolved lazily on first activation.
-        registry.Register(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
-            sp.GetRequiredService<WatchedSituationsService>()));
+        // Each pack's modules, in pack order, after the core modules. The pack owns which modules it
+        // contributes and their order.
+        foreach (IFeaturePack pack in packs)
+        {
+            PackContributions contributions = new(pack);
+            pack.Contribute(contributions, sp);
+            // Nothing reads these yet. Refusing them keeps a pack from contributing into a void.
+            if (contributions.Evaluators.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed evaluators, which nothing consumes until the evaluator registry (item 11).");
+            }
 
-        // The Teams tab. Registered on both hosts: the browser keeps teams for the session and says so.
-        registry.Register(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
+            if (contributions.JobKinds.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed job kinds, which nothing consumes until job-kind descriptors (item 13).");
+            }
 
-        // The Review tab. Registered on both hosts: the browser keeps the queue for the session and says
-        // so. The badge reads the queue, so clips sent from another tab count before the tab is opened.
-        registry.Register(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
-            sp.GetRequiredService<ReviewQueue>()));
+            foreach (IWorkspaceModule module in contributions.Modules)
+            {
+                registry.Register(module);
+            }
+        }
 
-        // The Strat Book's Suggested section. The badge reads the demo index, so it counts before the section opens.
-        registry.Register(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
-            sp.GetService<DemoCacheStore>()));
-
-        // The Round Tagger's Matrix tab. Registered on both hosts: the browser pivots the session's
-        // in-memory tag documents and says so. The VM is a container singleton resolved lazily.
-        registry.Register(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));
-
-        // The Strat Book tab. Registered on both hosts: the browser keeps strats for the session and says so.
-        registry.Register(new StratBookModule(sp.GetRequiredService<StratBookTabViewModel>));
-
-        // The Utility Book tab. Registered on both hosts: the browser indexes the open demo for the session
-        // and says so. The VM is a container singleton resolved lazily on first activation.
-        registry.Register(new UtilityBookModule(sp.GetRequiredService<UtilityBookTabViewModel>));
-
-        // The Opponent Dossier tab. Registered on both hosts: the browser keeps teams and veto entries
-        // for the session and both say so.
-        registry.Register(new DossierModule(sp.GetRequiredService<DossierTabViewModel>));
         return registry;
     }
 
