@@ -159,8 +159,8 @@ public class DemoCachePackPayloadTests
             RoundFactsRows rows = Facts(Round(1, 1000, 2000), Round(2, 3000, 4000));
             string key = DemoCacheStore.StableKey(Demo);
             Directory.CreateDirectory(Path.Combine(root, "demos"));
-            await File.WriteAllTextAsync(Path.Combine(root, "demos", key + ".json.gz"),
-                OldRecordJson(rows, roundIndexFingerprint, suggestionsFingerprint));
+            await File.WriteAllBytesAsync(Path.Combine(root, "demos", key + ".json.gz"),
+                SidecarJson.Gzip(Encoding.UTF8.GetBytes(OldRecordJson(rows, roundIndexFingerprint, suggestionsFingerprint))));
             await File.WriteAllTextAsync(Path.Combine(root, "index.json"),
                 OldIndexJson(roundIndexFingerprint, suggestionsFingerprint));
 
