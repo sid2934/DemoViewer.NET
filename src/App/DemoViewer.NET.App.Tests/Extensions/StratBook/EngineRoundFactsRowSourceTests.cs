@@ -70,8 +70,11 @@ public class EngineRoundFactsRowSourceTests
     public async Task TheWholeDirectoryHosts_LeaveRoundFactsOut()
     {
         RulesetDoc doc = ShippedDoc();
+        DemoViewer.NET.Modules.Highlights.MergedRulesBuild build = new(
+            () => throw new InvalidOperationException("the filter needs no read"),
+            () => [new DemoViewer.NET.Extensions.GatedRuleset(RoundFactsFingerprint.RulesetId, () => true)]);
 
-        await Assert.That(RoundFactsFingerprint.WithoutRoundFacts([doc])).IsEmpty();
+        await Assert.That(build.WithoutPackRulesets([doc])).IsEmpty();
     }
 
     [Test]

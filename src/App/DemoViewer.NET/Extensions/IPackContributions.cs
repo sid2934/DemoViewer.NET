@@ -24,6 +24,20 @@ public sealed record JobKindDescriptor(string Id, string Label, int Rank, bool I
 public sealed record EvaluatorContribution(Func<IDemoEvaluator> Factory, IReadOnlyList<string> After);
 
 /// <summary>
+///     A ruleset in the rules directories that a pack owns. The merged background build runs it only while
+///     the owning pack is on, and it never enters the highlights fingerprint: the pack stamps its own rows
+///     with its own identity, so toggling the pack re-runs nothing of the core's.
+/// </summary>
+/// <param name="RulesetId">The <c>id:</c> of the ruleset as the rules directories spell it.</param>
+public sealed record RulesetContribution(string RulesetId);
+
+/// <summary>
+///     A pack-owned ruleset as <see cref="DemoViewer.NET.Modules.Highlights.MergedRulesBuild" /> reads it: the
+///     id and the live answer to "is the owning pack on".
+/// </summary>
+public sealed record GatedRuleset(string RulesetId, Func<bool> Enabled);
+
+/// <summary>
 ///     What a pack may hand the shell from <see cref="IFeaturePack.Contribute" />. Every contribution
 ///     carries the pack's umbrella id implicitly; the shell shows one only while that id and any narrower
 ///     id it names both resolve on.
@@ -40,4 +54,13 @@ public interface IPackContributions
 
     /// <summary>A processing-queue job kind the pack owns.</summary>
     void JobKind(JobKindDescriptor kind);
+
+    /// <summary>
+    ///     The pack's keymap commands. The composition root checks this against <see cref="IFeaturePack.Commands" />
+    ///     (the DI-free source every non-composed consumer reads) so the two cannot drift.
+    /// </summary>
+    void Commands(IEnumerable<CommandDescriptor> commands);
+
+    /// <summary>A ruleset in the rules directories the pack owns; see <see cref="RulesetContribution" />.</summary>
+    void Ruleset(string rulesetId);
 }

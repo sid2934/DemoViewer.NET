@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Views.Playback2D;
@@ -216,7 +217,11 @@ public class Playback2DKeybindRoutingTests
         {
             await Assert.That(vm.KeymapRejections).IsEmpty();
             await Assert.That(vm.Keymap.GestureText(Playback2DAction.NextRound)).IsEqualTo("E");
-            await Assert.That(vm.Keymap.Bindings).IsEquivalentTo(Playback2DKeymap.Default);
+
+            // The shipped table a bare, no-DI VM opens on is core union every pack's commands
+            // (CommandRegistry.Default), not Playback2DKeymap.Default alone; CommandRegistry composes
+            // them with no DI either, so a bare VM sees the same table a composed app does.
+            await Assert.That(vm.Keymap.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings);
         }
         finally
         {
