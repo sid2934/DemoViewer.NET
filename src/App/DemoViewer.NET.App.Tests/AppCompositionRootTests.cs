@@ -109,7 +109,7 @@ public class AppCompositionRootTests
         {
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
             ViewModels.StratBook.StratBookTabViewModel strats = provider.GetRequiredService<ViewModels.StratBook.StratBookTabViewModel>();
-            await Assert.That(strats.Layout).IsSameReferenceAs(vm.StratBookHub.Layout);
+            await Assert.That(strats.Layout).IsSameReferenceAs(vm.StratBookHub().Layout);
         });
     }
 
