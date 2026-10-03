@@ -87,14 +87,31 @@ public class LibraryContributionsTests
     [Test]
     public async Task TeamContribution_NothingIsResolved_UntilFilterIsRead()
     {
-        bool resolved = false;
-        TeamLibraryContribution contribution = new(() =>
+        (_, TeamIdentityService teams) = await Library();
+        using (teams)
         {
-            resolved = true;
-            throw new InvalidOperationException("must not resolve before Filter is read");
-        });
+            int resolveCalls = 0;
+            TeamLibraryContribution contribution = new(() =>
+            {
+                resolveCalls++;
+                return teams;
+            });
 
-        await Assert.That(resolved).IsFalse().Because("constructing the contribution must not resolve TeamIdentityService");
+            await Assert.That(resolveCalls).IsEqualTo(0).Because("constructing the contribution must not resolve TeamIdentityService");
+
+            LibraryFilter? filter = contribution.Filter;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(resolveCalls).IsEqualTo(1).Because("reading Filter is the lazy resolve point");
+                await Assert.That(filter).IsNotNull();
+            }
+
+            // Resolved once and cached: a second read does not resolve again.
+            LibraryFilter? second = contribution.Filter;
+            await Assert.That(resolveCalls).IsEqualTo(1);
+            await Assert.That(second).IsNotNull();
+        }
     }
 
     [Test]
@@ -112,6 +129,8 @@ public class LibraryContributionsTests
                 await Assert.That(filter!.Items.Count).IsEqualTo(4).Because("All, Us, and two teams");
                 await Assert.That(filter.Items[0]).IsEqualTo(new LibraryFilterItem("", "All teams"));
                 await Assert.That(filter.Items[1]).IsEqualTo(new LibraryFilterItem("us", "Us"));
+                await Assert.That(filter.Tooltip).IsEqualTo("Filter by team");
+                await Assert.That(contribution.HasBadge).IsFalse();
                 await Assert.That(contribution.BadgeFor(Entry("/d/a.dem"))).IsNull().Because("the Team filter offers no badge");
                 await Assert.That(contribution.BadgeLabels).IsEmpty();
             }
@@ -137,21 +156,46 @@ public class LibraryContributionsTests
     [Test]
     public async Task ProvenanceContribution_NothingIsResolved_UntilBadgeForOrSetLabelIsCalled()
     {
-        bool resolved = false;
-        ProvenanceLibraryContribution contribution = new(
-            () =>
-            {
-                resolved = true;
-                throw new InvalidOperationException("must not resolve before used");
-            },
-            () =>
-            {
-                resolved = true;
-                throw new InvalidOperationException("must not resolve before used");
-            });
+        (DemoCacheStore cache, TeamIdentityService teams) = await Library();
+        using (teams)
+        {
+            int provenanceResolves = 0;
+            int teamsResolves = 0;
+            DemoProvenanceSource? source = null;
+            ProvenanceLibraryContribution contribution = new(
+                () =>
+                {
+                    provenanceResolves++;
+                    return source = new DemoProvenanceSource(cache, teams);
+                },
+                () =>
+                {
+                    teamsResolves++;
+                    return teams;
+                });
 
-        await Assert.That(resolved).IsFalse().Because("constructing the contribution must not resolve either service");
-        await Assert.That(contribution.Filter).IsNull().Because("the provenance chip offers no filter");
+            await Assert.That(provenanceResolves).IsEqualTo(0).Because("constructing the contribution must not resolve either service");
+            await Assert.That(teamsResolves).IsEqualTo(0);
+            await Assert.That(contribution.Filter).IsNull().Because("the provenance chip offers no filter");
+            await Assert.That(provenanceResolves).IsEqualTo(0).Because("reading Filter must not resolve anything either");
+
+            DemoEntry a = Entry("/d/a.dem");
+            contribution.BadgeFor(a);
+            using (Assert.Multiple())
+            {
+                await Assert.That(provenanceResolves).IsEqualTo(1).Because("BadgeFor is a lazy resolve point");
+                await Assert.That(teamsResolves).IsEqualTo(0).Because("BadgeFor never needs the override store");
+            }
+
+            contribution.SetLabel(a, "scrim");
+            using (Assert.Multiple())
+            {
+                await Assert.That(teamsResolves).IsEqualTo(1).Because("SetLabel is the other lazy resolve point");
+                await Assert.That(provenanceResolves).IsEqualTo(1).Because("resolved once and cached");
+            }
+
+            source?.Dispose();
+        }
     }
 
     [Test]
@@ -165,9 +209,74 @@ public class LibraryContributionsTests
 
             using (Assert.Multiple())
             {
+                await Assert.That(contribution.HasBadge).IsTrue();
                 await Assert.That(contribution.BadgeLabels).IsEquivalentTo(["official", "scrim", "our scrim", "matchmaking"]);
                 await Assert.That(contribution.BadgeResetLabel).IsEqualTo("Automatic");
+                await Assert.That(contribution.BadgeResetTooltip).IsEqualTo("Let the clan tags, the header and Team Identity decide");
             }
+        }
+    }
+
+    [Test]
+    public async Task ProvenanceContribution_BadgesFor_CallsResolveAllOnce_NotResolvePerEntry()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams) = await Library();
+        using (teams)
+        {
+            DemoProvenanceSource real = new(cache, teams);
+            CountingProvenanceSource counting = new(real);
+            ProvenanceLibraryContribution contribution = new(() => counting, () => teams);
+
+            DemoEntry[] entries = [Entry("/d/a.dem"), Entry("/d/b.dem"), Entry("/d/c.dem")];
+            IReadOnlyDictionary<string, LibraryBadge?> badges = contribution.BadgesFor(entries);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(badges.Count).IsEqualTo(3);
+                await Assert.That(counting.ResolveAllCalls).IsEqualTo(1)
+                    .Because("a 400-card refresh must be one lock+copy scan of the override list, not 400");
+                await Assert.That(counting.ResolveCalls).IsEqualTo(0);
+            }
+
+            // A single-entry update still goes through Resolve, not ResolveAll.
+            counting.ResolveAllCalls = 0;
+            LibraryBadge? single = contribution.BadgeFor(entries[0]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(single).IsNotNull();
+                await Assert.That(counting.ResolveCalls).IsEqualTo(1);
+                await Assert.That(counting.ResolveAllCalls).IsEqualTo(0);
+            }
+
+            real.Dispose();
+        }
+    }
+
+    // Counts calls so a test can assert BadgesFor costs one ResolveAll, not N Resolve calls.
+    private sealed class CountingProvenanceSource(IDemoProvenanceSource inner) : IDemoProvenanceSource
+    {
+        public int ResolveCalls { get; private set; }
+        public int ResolveAllCalls { get; set; }
+
+        public string? LabelFor(string sha256) => inner.LabelFor(sha256);
+        public IReadOnlyDictionary<string, string?> LabelsFor(IEnumerable<string> sha256s) => inner.LabelsFor(sha256s);
+
+        public DemoProvenance? Resolve(string demoPath)
+        {
+            ResolveCalls++;
+            return inner.Resolve(demoPath);
+        }
+
+        public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths)
+        {
+            ResolveAllCalls++;
+            return inner.ResolveAll(demoPaths);
+        }
+
+        public event Action? Changed
+        {
+            add => inner.Changed += value;
+            remove => inner.Changed -= value;
         }
     }
 
