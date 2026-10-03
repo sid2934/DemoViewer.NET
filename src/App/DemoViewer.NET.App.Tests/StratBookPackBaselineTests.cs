@@ -54,9 +54,11 @@ public class StratBookPackBaselineTests
     /// <summary>
     ///     Boots the REAL composition root (<see cref="App.BuildServices" />) against
     ///     <see cref="ConfigEnvVar" />, waits for the startup loads <c>App.axaml.cs</c> runs unconditionally
-    ///     (situations index, grenade index, Team Identity, the 30s-delayed sidecar migrations) to settle,
-    ///     then reports the process's resident footprint. This IS the "Pack on" row in §12: everything the
-    ///     app does at launch today, nothing skipped, nothing stubbed.
+    ///     (situations index, grenade index, Team Identity) to settle, then reports the process's resident
+    ///     footprint. This IS the "Pack on" row in §12: everything the app does at launch today, nothing
+    ///     skipped, nothing stubbed. The 30s-delayed sidecar migrations never run in this configuration
+    ///     (see <see cref="SettleStartupLoads" />), which is fine: the copy already carries their "done"
+    ///     markers, so production would find them a no-op too.
     /// </summary>
     [Test]
     [Category("Environmental")]
@@ -99,9 +101,21 @@ public class StratBookPackBaselineTests
         }
     }
 
-    // Waits for the situation index, grenade index and Team Identity to report ready, the queue to drain,
-    // and T+36s past boot (the sidecar/grenade migrations are scheduled at T+30s in App.axaml.cs), then
-    // forces a full blocking, compacting collection so the snapshot is not mid-GC.
+    // Waits for the situation index, grenade index and Team Identity to report ready and Team Identity's
+    // own rebuild-or-sync job (QueueJobKind.TeamsCommand, submitted by StartAsync) to finish, then forces a
+    // full blocking, compacting collection so the snapshot is not mid-GC.
+    //
+    // Deliberately does NOT wait for the whole queue to drain. With Highlights.BackgroundScan and
+    // ProcessingQueue.BackgroundProcessingEnabled off in the copy's settings (so this probe's own numbers
+    // are not polluted by the library opportunistically reprocessing demos while it measures), any demo in
+    // the copy that still needs an ordinary library tier-2 pass sits QUEUED forever: BackgroundProcessingEnabled
+    // stops Background-priority DemoProcessing jobs from ever starting, and that has nothing to do with
+    // whether the pack's own startup work settled. An earlier version of this method waited on
+    // QueuedCount/RunningCount reaching zero and fell through its 90s deadline silently every run, on
+    // exactly that backlog, while the actual pack readiness flags had long since gone true.
+    //
+    // Throws instead of falling through a deadline: a silent fall-through would measure a snapshot that
+    // never actually settled and report it as if it had, which is worse than a loud failure.
     private static async Task SettleStartupLoads(ServiceProvider provider)
     {
         SituationIndex situations = provider.GetRequiredService<SituationIndex>();
@@ -110,17 +124,20 @@ public class StratBookPackBaselineTests
         IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
 
         DateTime deadline = DateTime.UtcNow.AddSeconds(90);
-        while (DateTime.UtcNow < deadline
-               && !(situations.IsReady && grenades.IsReady && teams.IsLoaded
-                    && queue.QueuedCount == 0 && queue.RunningCount == 0))
+        while (!(situations.IsReady && grenades.IsReady && teams.IsLoaded
+                 && queue.ActiveCount(QueueJobKind.TeamsCommand) == 0
+                 && queue.ActiveCount(QueueJobKind.StoreLoad) == 0))
         {
-            await Task.Delay(200);
-        }
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new InvalidOperationException(
+                    $"startup did not settle within 90s: situationsReady={situations.IsReady} "
+                    + $"grenadesReady={grenades.IsReady} teamsLoaded={teams.IsLoaded} "
+                    + $"teamsCommandActive={queue.ActiveCount(QueueJobKind.TeamsCommand)} "
+                    + $"storeLoadActive={queue.ActiveCount(QueueJobKind.StoreLoad)} "
+                    + $"items=[{string.Join(", ", queue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.State}"))}]");
+            }
 
-        await Task.Delay(TimeSpan.FromSeconds(36));
-        deadline = DateTime.UtcNow.AddSeconds(60);
-        while (DateTime.UtcNow < deadline && (queue.QueuedCount != 0 || queue.RunningCount != 0))
-        {
             await Task.Delay(200);
         }
 
@@ -224,6 +241,18 @@ public class StratBookPackBaselineTests
     ///     read pulls a warm OS page cache and times several times faster for reasons that have nothing to
     ///     do with the evaluator list, so the measured demos split into two disjoint groups by position
     ///     (odd index full, even index reduced) instead. Demos are read in place, never copied or moved.
+    ///     <para>
+    ///         Round Facts, Round Index and Suggested Tags each check a fingerprint against the cache
+    ///         record and silently do nothing when it already matches, which it does for every demo in an
+    ///         indexed library: an early build of this probe measured all three doing effectively zero work
+    ///         on the full pass, for the same reason <see cref="DemoLibraryService.Wants" /> would already
+    ///         say no to them. Before a demo's full pass, this clears those three fingerprints on its cache
+    ///         record (<see cref="DemoCacheStore.UpdateExisting" />) so all three actually recompute, the
+    ///         scenario this number needs to answer: what re-indexing a demo costs, not what re-checking an
+    ///         already-current one costs. Grenades has no such check (it always walks); library and
+    ///         highlights are gated by a separate "pending" membership this probe does not force, so they do
+    ///         the same (near nothing) in both modes and do not bias the full-versus-reduced delta.
+    ///     </para>
     /// </summary>
     [Test]
     [Category("Environmental")]
@@ -252,6 +281,7 @@ public class StratBookPackBaselineTests
             HighlightScanService highlights = null!;
             ForwardPassRunner forward = null!;
             IDemoEvaluator[] full = null!;
+            DemoCacheStore demoCache = null!;
             await HeadlessSession.RunOnUi(async () =>
             {
                 provider = App.BuildServices(new DesktopWindowService(() => null));
@@ -264,6 +294,7 @@ public class StratBookPackBaselineTests
                 SuggestedTagsService suggestedTags = provider.GetRequiredService<SuggestedTagsService>();
                 GrenadeIndexEvaluator grenades = provider.GetRequiredService<GrenadeIndexEvaluator>();
                 forward = new ForwardPassRunner(provider.GetRequiredService<MergedRulesBuild>());
+                demoCache = provider.GetRequiredService<DemoCacheStore>();
                 full = [library, highlights, roundFacts, roundIndex, suggestedTags, grenades];
             });
 
@@ -273,6 +304,7 @@ public class StratBookPackBaselineTests
                 // with the other mode reads a warm OS page cache and times artificially fast (measured: a
                 // same-demo full-then-reduced pair showed the SECOND mode 5x to 7x faster purely from that),
                 // so each measured demo below runs under exactly ONE mode, never both.
+                InvalidatePackFingerprints(demoCache, lines[0]);
                 TimeFull(lines[0], full);
                 TimeReduced(lines[0], forward, library, highlights);
 
@@ -287,6 +319,7 @@ public class StratBookPackBaselineTests
                     // taken first or last (guards against a steady drift over the course of the run).
                     if (i % 2 == 1)
                     {
+                        InvalidatePackFingerprints(demoCache, path);
                         double ms = TimeFull(path, full);
                         fullResults.Add((name, ms));
                         Console.WriteLine("@M0_INDEXMS " + JsonSerializer.Serialize(new { demo = name, sizeMb, mode = "full", ms }));
@@ -337,6 +370,19 @@ public class StratBookPackBaselineTests
         int mid = sorted.Length / 2;
         return sorted.Length % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2.0 : sorted[mid];
     }
+
+    // Round Facts, Round Index and Suggested Tags each gate their real work on a fingerprint already
+    // matching the cache record; clearing the three fingerprints is what RoundIndexEvaluator.Request and
+    // SuggestedTagsService.Request do via their own forced-path sets, but those ALSO call
+    // Coordinator.Consider, which would submit an async queue job racing this probe's own direct Evaluate
+    // call. Mutating the record directly forces the same recompute with no concurrent submission.
+    private static void InvalidatePackFingerprints(DemoCacheStore demoCache, string path) =>
+        demoCache.UpdateExisting(path, r =>
+        {
+            r.RoundFactsFingerprint = null;
+            r.RoundIndexFingerprint = null;
+            r.SuggestionsFingerprint = null;
+        });
 
     // Verbatim copy of DemoProcessingQueue.RunEntry's retained path: a single mmap-or-bytes parse with
     // DecodePlan.Everything (user commands kept, since GrenadeIndexEvaluator defaults ReadsUserCommands to
