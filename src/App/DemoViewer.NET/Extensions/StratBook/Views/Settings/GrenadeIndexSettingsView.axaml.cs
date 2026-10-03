@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.Settings;
+namespace DemoViewer.NET.Extensions.StratBook.Views.Settings;
 
 /// <summary>The Grenade Index settings card. Bindings only; every behaviour lives on the VM.</summary>
 public partial class GrenadeIndexSettingsView : UserControl

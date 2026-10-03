@@ -1,10 +1,10 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
+using DemoViewer.NET.Extensions.StratBook.Views.Settings;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.ViewModels.Settings;
-using DemoViewer.NET.Views.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 

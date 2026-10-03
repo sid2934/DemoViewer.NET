@@ -20,6 +20,8 @@ using DemoViewer.NET.Controls;
 using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
+using DemoViewer.NET.Extensions.StratBook.Views.Settings;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;

@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:settings="using:DemoViewer.NET.ViewModels.Settings"
-             x:Class="DemoViewer.NET.Views.Settings.SuggestedTagsTuningView"
+             xmlns:settings="using:DemoViewer.NET.Extensions.StratBook.ViewModels.Settings"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.Settings.SuggestedTagsTuningView"
              x:DataType="settings:SuggestedTagsTuningViewModel">
 
     <!-- Suggested Tags tuning (suggested-tags.md §3.7, step 6). Content unchanged by the move to a
