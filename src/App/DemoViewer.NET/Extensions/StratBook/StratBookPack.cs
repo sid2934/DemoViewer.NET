@@ -70,6 +70,9 @@ public sealed class StratBookPack : IFeaturePack
     /// <inheritdoc />
     public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
 
+    /// <inheritdoc />
+    public IEnumerable<JobKindDescriptor> JobKinds => StratBookJobKinds.All;
+
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
     // Playback cascade from tab.playback2d, not from the pack, until they are reparented.
@@ -681,6 +684,12 @@ public sealed class StratBookPack : IFeaturePack
             RoundIndexEvaluator.EvaluatorId);
         contributions.Evaluator(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             libraryId);
+
+        // The pack's five job kinds (item 13), from the same array JobKinds below exposes DI-free.
+        foreach (JobKindDescriptor kind in StratBookJobKinds.All)
+        {
+            contributions.JobKind(kind);
+        }
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
