@@ -64,14 +64,17 @@ public partial class DemoEntry : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<string> _players = [];
 
-    // ── Provenance (Demo Provenance Labels) ──
-    // The label in force, or null for unlabeled, and whether the user pinned it. Filled by the Library VM
-    // from IDemoProvenanceSource on its Changed; the entry never decides a label itself.
+    // ── Badge (a pack's card-badge contribution, item 22) ──
+    // The active contribution's LibraryBadge for this entry, or all null/false when no contribution is on.
+    // Filled by the Library VM on refresh; the entry never computes a badge itself.
     [ObservableProperty]
-    private string? _provenanceLabel;
+    private string? _badgeLabel;
 
     [ObservableProperty]
-    private bool _provenanceIsOverride;
+    private string? _badgeTooltip;
+
+    [ObservableProperty]
+    private bool _badgeIsPinned;
 
     [ObservableProperty]
     private int _roundCount;
@@ -175,15 +178,8 @@ public partial class DemoEntry : ObservableObject
     /// <summary>Card subtitle: the clan matchup on pro demos (e.g. "Vitality vs FUT"), else the server name.</summary>
     public string? SubtitleDisplay => HasClans ? $"{CtClan} vs {TClan}" : ServerName;
 
-    /// <summary>The provenance chip's text: the label, or "unlabeled" so the chip stays a target for the menu.</summary>
-    public string ProvenanceDisplay => ProvenanceLabel ?? "unlabeled";
-
-    /// <summary>The chip's tooltip: says whether the label is the user's pin or the heuristic's guess, text-carried.</summary>
-    public string ProvenanceTooltip => ProvenanceIsOverride
-        ? "Provenance: set by you. Click to change it or go back to automatic."
-        : ProvenanceLabel is null
-            ? "Provenance: nothing decided it yet. Click to set one."
-            : "Provenance: automatic, from the clan tags, the header and Team Identity. Click to pin one.";
+    /// <summary>The card badge's text, or "unlabeled" so the chip stays a target while no contribution has set one.</summary>
+    public string BadgeDisplay => BadgeLabel ?? "unlabeled";
 
     /// <summary>True when a byte-identical copy of this demo exists in another registered folder.</summary>
     public bool HasDuplicates => DuplicateFolders.Count > 0;
@@ -236,13 +232,7 @@ public partial class DemoEntry : ObservableObject
 
     partial void OnServerNameChanged(string? value) => OnPropertyChanged(nameof(SubtitleDisplay));
 
-    partial void OnProvenanceLabelChanged(string? value)
-    {
-        OnPropertyChanged(nameof(ProvenanceDisplay));
-        OnPropertyChanged(nameof(ProvenanceTooltip));
-    }
-
-    partial void OnProvenanceIsOverrideChanged(bool value) => OnPropertyChanged(nameof(ProvenanceTooltip));
+    partial void OnBadgeLabelChanged(string? value) => OnPropertyChanged(nameof(BadgeDisplay));
 
     partial void OnDuplicateFoldersChanged(IReadOnlyList<string> value)
     {

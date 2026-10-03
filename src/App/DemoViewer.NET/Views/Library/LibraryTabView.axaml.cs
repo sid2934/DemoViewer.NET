@@ -47,10 +47,11 @@ public partial class LibraryTabView : UserControl
         }
     }
 
-    // The provenance chip's menu: the item's Tag is the label (null on "Automatic") and its DataContext is
-    // the card's entry, inherited through the flyout from the chip. Walks up when a presenter in between
-    // has not inherited it yet, so a click never lands on nothing.
-    private void OnProvenancePicked(object? sender, RoutedEventArgs e)
+    // The badge chip's menu (item 22): the item's Tag is the picked label, and its DataContext is the
+    // card's entry, inherited through the flyout from the chip. Walks up when a presenter in between has
+    // not inherited it yet, so a click never lands on nothing. A tag equal to the active contribution's
+    // own reset label means "go back to automatic", the same as the old hardcoded "Automatic" entry.
+    private void OnBadgeLabelPicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item || DataContext is not LibraryTabViewModel vm)
         {
@@ -65,7 +66,8 @@ public partial class LibraryTabView : UserControl
 
         if (node?.DataContext is DemoEntry entry)
         {
-            vm.SetProvenance(entry, item.Tag as string);
+            string? tag = item.Tag as string;
+            vm.SetProvenance(entry, tag == vm.BadgeResetLabel ? null : tag);
         }
     }
 
