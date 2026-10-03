@@ -377,8 +377,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 ### Hosted tab sections (the Strat Book rail, the Library's Teams view)
 - **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle) and
   `ViewModels/Shell/IHostTabViewModel.cs` (what a host tab's VM exposes) in the shell; the Strat Book hub is
-  pack-owned: `Extensions/StratBook/ViewModels/StratBook/StratBookHubViewModel.cs`,
-  `Extensions/StratBook/Views/StratBook/StratBookHubView.axaml` (the rail) and `StratBookPack.HubHostTab`
+  pack-owned: `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookHubViewModel.cs`,
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail) and `StratBookPack.HubHostTab`
   (the contribution); the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
 - **Purpose:** a module tab that belongs to a workflow rather than the strip. A descriptor names its host by
   id in `WorkspaceTabDescriptor.HostId`: `"stratbook.hub"` puts it on the Strat Book tab's left rail (164px,
@@ -400,9 +400,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   member for a new host; contribute a host tab and name it.
 
 ### Collapsible side pane (the Strat Book rail and the strat list)
-- **Files:** `Extensions/StratBook/ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle
-  commands), `Extensions/StratBook/Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the
-  `StratPicker` header in `Extensions/StratBook/Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in
+- **Files:** `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle
+  commands), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the
+  `StratPicker` header in `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in
   `Styles/Primitives.axaml`.
 - **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
   1280 wide with the rail (164) and the strat list (280) open.
@@ -864,8 +864,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the toolbar's mode toggles, the right column's rows
   and the panel host), `Extensions/ModeToggle.cs` (a contributed mode: label, tooltip, keymap action, on/off),
   `Modules/Playback2D/Timeline/ILaneBehaviour.cs` (a contributed lane's handlers and its handle),
-  `Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the mode, the lanes, the
-  session, the panels and their behaviour), `Extensions/StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle,
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the mode, the lanes, the
+  session, the panels and their behaviour), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle,
   editor, Labels list), `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
   `Modules/RoundTagger/Review/TagEditorViewModel.cs`, `Views/Playback2D/TimelineControl.axaml` (the lane's edit band).
 - **Purpose:** labelling and suggestion review are a mode, off by default (the `Review` toolbar toggle, Shift+R,
@@ -1276,7 +1276,7 @@ is what an untouched install routes, not what every install routes.
 
 **Item 19 (command ids) moved every Strat Book extension row out of this file.** `Ctrl+F` and `J`/`K`
 below are two of them: their chord, scope and description now live in `StratBookCommands`
-(`Extensions/StratBook/StratBookCommands.cs`), read by `CommandRegistry` through `IFeaturePack.Commands`
+(`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/StratBookCommands.cs`), read by `CommandRegistry` through `IFeaturePack.Commands`
 (DI-free, so a bare-constructed view model resolves them with no composition root), not
 in `Playback2DKeymap.BuildDefault()`. `IPackContributions.Commands(...)` is a separate, parallel
 declaration the composition root cross-checks against `IFeaturePack.Commands` so the two cannot drift;
