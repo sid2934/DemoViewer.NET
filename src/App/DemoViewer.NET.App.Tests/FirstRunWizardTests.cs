@@ -544,6 +544,29 @@ public class FirstRunWizardTests
         }
     }
 
+    // Regression: a category change must never undo a decline. pack.stratbook defaults on for every
+    // category, so a Reseed that ignored the "already answered" guard would flip this back to true.
+    [Test]
+    public async Task ExtensionsStep_Decline_ThenChangeCategory_StaysDeclined()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FirstRunWizardViewModel vm = new(new SettingsService(dir));
+            PackOptionViewModel stratbook = vm.PackOptions.Single(p => p.FeatureId == "pack.stratbook");
+
+            stratbook.Enabled = false;
+            vm.SelectCategoryCommand.Execute(UserCategory.Developer);
+
+            await Assert.That(stratbook.Enabled).IsFalse()
+                .Because("the question is already answered; a later category change must not reseed it");
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
     // Accepting (the default, unchanged) writes an explicit "on" override and the gate resolves on.
     [Test]
     public async Task ExtensionsStep_Accept_ResolvesOn()
