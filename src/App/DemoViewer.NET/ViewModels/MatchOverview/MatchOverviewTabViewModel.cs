@@ -499,6 +499,13 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// <summary>Whether a demo's grenades are walked and current, by path. Null reads as "not walked".</summary>
     public Func<string, bool>? AreGrenadesIndexed { get; set; }
 
+    /// <summary>
+    ///     The live <c>pack.stratbook</c> gate: the evaluator <see cref="IndexGrenades" /> calls is pack-owned,
+    ///     and off, a press would queue nothing. Set by the composition root; null (tests, and any host that
+    ///     wires no gate) reads as enabled.
+    /// </summary>
+    public Func<bool>? PackEnabled { get; set; }
+
     // The subject the action was last pressed for: the button steps aside until the record changes or
     // the page moves to another demo, so a second press does not read as "nothing happened".
     private string? _grenadesRequestedFor;
@@ -509,6 +516,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     public bool HasIndexGrenadesAction =>
         IndexGrenades is not null
+        && (PackEnabled?.Invoke() ?? true)
         && Mode == OverviewMode.Cached
         && SubjectKey is { } key
         && !string.Equals(_grenadesRequestedFor, key, StringComparison.OrdinalIgnoreCase)
@@ -1590,6 +1598,15 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     [RelayCommand]
     private void RequestGrenadeIndex()
     {
+        if (!(PackEnabled?.Invoke() ?? true))
+        {
+            // The chip can still be showing from before the pack went off this session (nothing pushes a
+            // refresh on the gate flip). A press must not mark the demo requested: IndexGrenades.Request
+            // is a no-op now, and _grenadesRequestedFor would wrongly hide the chip once the pack returns.
+            OnPropertyChanged(nameof(HasIndexGrenadesAction));
+            return;
+        }
+
         if (SubjectKey is { } key && IndexGrenades is { } index)
         {
             index(key);

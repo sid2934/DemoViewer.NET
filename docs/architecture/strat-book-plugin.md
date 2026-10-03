@@ -875,9 +875,179 @@ library, with the pack on (M0), off at startup (9), and after an on-to-off toggl
 
 | State | Resident set after startup | Library index time | Notes |
 |---|---|---|---|
-| Pack on (M0, head at the time) | | | |
+| Pack on (M0, head at the time) | GC heap 368.7 MB immediately after settling (median of 5); drops to 323.5 MB after 90s more idle with no queue activity to explain it (median of 5), likely a .NET buffer-pool trim rather than app or pack behavior, since the isolated probe drops by the same amount with no app, no queue and no Avalonia at all | full 6-evaluator pass 14.5 s versus library+highlights-only 9.3 s, pooled median of 3 runs x 4 demos each (about 57% slower, a floor: see §12.1 on library's own asymmetry; run medians ranged 44 to 87%) | macOS arm64, Release, head f48f6695, 382-demo copy. `PrivateMemorySize64` reads 0 on this OS; see §12.1. |
 | Pack off at startup (9) | | | |
 | On, then off in session (9) | | | |
+
+### 12.1 M0 method and numbers
+
+Reproduced by `tools/strat-book-baseline/run.sh` (also usable directly: the three `StratBookPackBaselineTests`
+probes in `DemoViewer.NET.App.Tests`, each `[Category("Environmental")]` and skipped unless its env var is
+set, so the standard tier never runs them). Machine: a 16 GB macOS arm64 dev machine. Build: Release. Head:
+`f48f6695`. The copy: the owner's live config dir (`~/Library/Application Support/DemoViewer.NET/`), minus
+`lineup-clips/` (1.0 GB of rendered GIFs, no measurement reads them), `logs/`, `crash.log` and `*.bak`; 79 MB
+copied, 382 demos indexed. In the copy's `settings.json`: `Highlights.BackgroundScan`,
+`ProcessingQueue.BackgroundProcessingEnabled`, `Situations.BackgroundIndex`, `Grenades.BackgroundIndex` and
+`Grenades.RenderLineupClips` all forced to `false`, so the only work at boot is the fixed startup-load list
+`App.axaml.cs` runs today, nothing opportunistic layered on top.
+
+**Bugs found and fixed while measuring.** Two passes before this one produced numbers that looked plausible
+and were wrong, both recorded here because item 9 is about to point the same harness at a gated-off build
+and would hit them again blind.
+
+1. The resident-set wait loop checked `queue.QueuedCount == 0 && queue.RunningCount == 0` as part of
+   "settled". With `ProcessingQueue.BackgroundProcessingEnabled` off, any ordinary library demo still owed a
+   tier-2 pass sits `Queued` forever (Background-priority `DemoProcessing` jobs never start; that is what
+   the setting means), so the loop always ran its full 90s deadline, silently, on backlog that has nothing
+   to do with the pack. The pack's own readiness flags (`SituationIndex.IsReady`, `GrenadeIndex.IsReady`,
+   `TeamIdentityService.IsLoaded`, and `TeamIdentityService.StartAsync`'s own `QueueJobKind.TeamsCommand`
+   job, which the method had not been checking at all) were actually true within a few seconds. Fixed by
+   waiting on the specific readiness flags plus `ActiveCount(QueueJobKind.TeamsCommand)` and
+   `ActiveCount(QueueJobKind.StoreLoad)`, and by throwing instead of silently continuing past a deadline.
+   This is NOT the whole story; see the resident-set entry below, which the fix exposed rather than closed.
+2. The indexing-time probe called `Evaluate`/`EvaluateForward` directly on already-indexed demos, bypassing
+   `Wants()`. Round Facts, Round Index, Suggested Tags and Highlights each separately check a fingerprint or
+   state field against the cache record first and return immediately when it already matches, which it does
+   for every demo in an indexed library: the second pass's "full" timing was still measuring mostly Grenade
+   Index's walk (the one evaluator with no such check) plus the retained parse itself, not the combined cost
+   of the four pack evaluators plus Highlights. Fixed by clearing the three fingerprints and the analysis
+   state on each timed demo's cache record immediately before timing it, in BOTH modes
+   (`DemoCacheStore.UpdateExisting`), forcing a genuine recompute either way, the scenario "library index
+   time" actually needs to answer (what re-indexing a demo costs, not what re-checking a current one costs).
+   Library's own gate (membership in a private, un-forceable "pending" dictionary, populated only by its
+   own `RescanAsync` reconcile, which nothing calls here) is still not forced in either mode, and that is
+   NOT symmetric the way the paragraph above first claimed. In the full arm, `library.Evaluate` returns at
+   the membership miss before doing anything, so the retained parse never pays for library's final-score
+   entity-tracker replay. In the reduced arm, that replay still runs: it is driven by the forward pass's own
+   `ForwardNeeds.FinalState` flag (requested because `library.ForwardFor` always asks for it), not by
+   whether `library.EvaluateForward` goes on to use the result, so the `Tap` inside `ForwardPassRunner.Run`
+   does the replay regardless. The reduced arm is therefore carrying a real cost (library's own replay) that
+   the full arm skips, which UNDERSTATES the full-versus-reduced delta below by some amount. Forcing library
+   symmetrically would need reflection into its private membership dictionary (no public per-path force
+   exists, unlike the other three) plus reading what `IndexTier2Core`'s fan-out argument does to the other
+   evaluators first, to avoid double-counting; not attempted at M0's size. Treat the delta below as a floor,
+   not a ceiling: the true cost of turning the four pack evaluators (plus Grenade Index's walk, which the
+   full arm alone pays) off is at least what is measured here, and probably somewhat more.
+
+**Resident set after startup** (`ResidentSetAfterStartup`, one process per trial, since a second boot in the
+same process carries the first one's JIT and GC committed high-water): boots the real composition root
+(`App.BuildServices`) against the copy, waits for the situation index, grenade index and Team Identity to
+report ready and Team Identity's own update job to finish (bug 1 above), forces three full
+blocking/compacting collections, then reads `Process.WorkingSet64`, `Process.PrivateMemorySize64` and
+`GC.GetTotalMemory(true)`. Settling now takes 3 to 4 seconds, not ~190. An "early" snapshot is taken there;
+the probe then subscribes to the processing queue's `Changed` event from right after `App.BuildServices`
+returns (so a job that starts and finishes between two polls, invisible to a periodic `Items` snapshot, is
+still logged) and keeps that subscription through 90 more seconds, then takes a "late" snapshot. Five
+trials of each:
+
+| Trial | Early working set | Early GC heap | Late working set | Late GC heap | Committed (same both) |
+|---|---|---|---|---|---|
+| 1 | 416.4 MB | 369.0 MB | 277.0 MB | 323.8 MB | 227.7 MB |
+| 2 | 374.4 MB | 368.7 MB | 275.1 MB | 322.9 MB | 227.6 MB |
+| 3 | 415.9 MB | 368.6 MB | 267.5 MB | 322.9 MB | 227.5 MB |
+| 4 | 376.7 MB | 369.0 MB | 269.2 MB | 323.8 MB | 227.7 MB |
+| 5 | 411.1 MB | 368.7 MB | 359.2 MB | 323.5 MB | 227.6 MB |
+| **median** | **411.1 MB** | **368.7 MB** | **275.1 MB** | **323.5 MB** | **227.6 MB** |
+
+Within "early" and within "late" the GC heap is tight (each within 0.4 MB across trials); working set is
+noisier in both (trial 5's late figure is an outlier at 359.2 MB against the other four clustered 267 to
+277 MB), matching a scar already on record for this machine for a different tool (`bench-run-variance.md`:
+AnalysisBench drifts 27 to 31% between sessions). `PrivateMemorySize64` is 0 in every trial on this OS, not
+a measurement error; committed bytes are identical between early and late in every trial, to five figures,
+so the GC is not returning segments to the OS.
+
+**The ~90s drop is real and not queue work, confirmed two ways now.** The GC heap drops about 45 MB between
+the two snapshots in every trial. The `Changed` log (stronger evidence than the periodic `Items` poll this
+doc originally relied on, which cannot see a job that starts and finishes between polls) shows exactly what
+runs: the situation and grenade index `StoreLoad`s and Team Identity's `TeamsCommand` complete within about
+2.6s of boot; a `SectionCompute` titled "Lineup clips: plan" (from `GrenadeIndex`'s `Changed` subscription in
+`LineupClipService`) fires once around t=3.1s and is gone the very next event, right at the early snapshot;
+the 9 demos `RoundFactsEvaluator` still wants sit `Queued` the whole time (confirming §1's "Round Facts runs
+on every library index with no switch at all" in practice, and incidentally answering who: it is Round
+Facts, not Library, holding them). After that single lineup-clips blip, the log is SILENT for the full ~90s
+to the late snapshot in all five trials: no further `Changed` event at all. A plan-only `SectionCompute` is
+far too small and far too quick (one event, not a sustained run) to account for 45 MB.
+
+To find out whether the drop is an app-layer effect or something generic, the isolated probe below (no DI
+container, no Avalonia, no processing queue, nothing event-driven) got the same 90s-idle-then-resnapshot
+treatment. It drops too, by almost exactly the same amount (see below). That rules out anything specific to
+this app's queue, Avalonia's dispatcher, or `App.BuildServices`' wiring: whatever is releasing memory does
+it to a bare `DemoCacheStore`/`SituationIndex`/`GrenadeIndex`/`TeamIdentityService` graph sitting untouched
+in a console-style test host just as readily as to the full app. The likeliest mechanism, not independently
+confirmed (that needs a memory profiler, past M0's size): .NET's shared buffer pools
+(`System.Buffers.ArrayPool<T>.Shared`, which gzip decompression and JSON deserialization both rent large
+scratch arrays from) trim their buckets on an internal timer when a bucket has gone unused for a while,
+independent of any GC.Collect call and independent of anything the app's own code does. Both probes decode
+gzipped JSON sidecars for 382 demos right before the drop, which fits. Use the EARLY figure as "Pack on"
+above: it is the one taken the same way (immediately after settling, no idle period) as the isolated probe's
+own first figure, so the two are the comparable pair. The late figure is reported too because it is a real,
+reproducible number and item 9 should capture both: if the ~90s drop is this same runtime-level effect
+regardless of the pack, it should show up (and by about the same amount) whether the pack is on or off.
+
+**Pack resident cost, isolated** (`PackResidentCostDirect`, no DI container, no `App.BuildServices`): there
+is no seam yet to boot with the startup loads skipped, since `App.axaml.cs` runs them unconditionally and
+owns that file this wave (item 0). As a narrower, exact substitute, `SituationIndex`, `GrenadeIndex` and
+`TeamIdentityService` are constructed directly over a fresh `DemoCacheStore` on the copy (the same
+construction `StratMiningCalibration` already uses), each measured by a `GC.GetTotalMemory(true)` delta
+around its own load, immediately (no idle period, matching the full-boot probe's "early"); the probe then
+takes the same 90s-idle-then-resnapshot second reading, a bare total only (not split per index):
+
+| Trial | SituationIndex | GrenadeIndex | TeamIdentityService | Total (immediate) | Total (after 90s idle) |
+|---|---|---|---|---|---|
+| 1 | 86.1 MB | 251.8 MB | 4.8 MB | 342.6 MB | 291.3 MB |
+| 2 | 86.1 MB | 251.8 MB | 4.8 MB | 342.6 MB | n/a |
+| 3 | 86.1 MB | 251.8 MB | 4.8 MB | 342.6 MB | n/a |
+| 4 | 86.1 MB | 251.8 MB | 5.0 MB | 342.8 MB | 291.5 MB |
+| **median** | **86.1 MB** | **251.8 MB** | **4.8 MB** | **342.6 MB** | **291.4 MB** |
+
+(Trials 1 to 3 predate the late-idle reading, added after the second review round below; trial 4 is the
+first run with it. Two late readings is thin for a median, but the two agree to 0.2 MB.) Grenade Index
+dominates: `cache/grenade-lineups.json.gz` is 12 MB gzipped, so the live structure runs well over 20x its
+compressed size, worth a look if memory becomes a line item later. Immediate-to-immediate, this total is
+properly a subset of the full boot's early figure (342.6 MB versus 368.7 MB). After 90s idle, it is ALSO
+properly a subset of the full boot's late figure (291.4 MB versus 323.5 MB): the inversion an earlier pass
+of this doc reported (342.6 MB "isolated" versus 315.9 MB "full boot", backwards) was comparing an immediate
+reading against a reading that had already idled; comparing like with like, in either timing, resolves it.
+It still excludes Team Identity's three sibling stores (Strats, Dossier, Veto History; wired by the DI
+factory that builds `TeamIdentityService`, not the service itself) and Tag Facts and the Lineup Clip service
+(event-driven / render work, not a bulk load), so treat it as a lower bound on the pack's resident cost, not
+the whole of it, and prefer the full-boot delta once item 9 can actually toggle the pack off.
+
+**Library index time** (`IndexingTimePerDemo`, 8 of the copy's demos: a discarded warm-up plus 4 timed under
+each mode): one retained parse evaluated by all six registered evaluators (library, highlights, round facts,
+round index, suggested tags, grenades, the roster `AppCompositionRootTests` pins), each demo's cache record
+cleared of its Round Facts, Round Index and Suggested Tags fingerprints and its Highlights analysis state
+before timing (bug 2 above, applied in BOTH modes), against one forward parse evaluated by library and
+highlights alone, which is the shape the real coordinator already produces (round index, suggested tags and
+grenades have no `ForwardFor`, so their presence is what forces the retained parse). Each of the 8 demos
+runs under exactly one mode, never both: an early attempt ran both modes on every demo, back to back, and
+whichever mode ran second on a given demo came out 5x to 7x faster purely because the OS page cache was
+already warm for that file, nothing to do with the evaluator list, so the two modes never share a demo here.
+Demos are read in place from the library, never copied or moved; all 8 are within the `match730_*` cluster
+at the library's size median (283 to 284 MB). `df ~/Demos` reports an SMB mount (`192.168.1.7:/mnt/user/Demos`,
+96% full, 2.1 TB free), not local disk, which is the likely source of most of the per-demo cold-read
+variance below: a network share's read latency varies far more than a local SSD's. Three independent
+runs on the same copy (each full pass re-forces and rewrites its demos' round index, round facts and
+suggested-tags sidecars, so by run 3 those demos are on their third genuine recompute, not a progressively
+staler one):
+
+| Run | Full (6 evaluators) median | Reduced (library+highlights) median | Full's overhead over reduced |
+|---|---|---|---|
+| 1 | 14.38 s | 9.96 s | 4.41 s (44%) |
+| 2 | 14.98 s | 8.45 s | 6.53 s (77%) |
+| 3 | 16.81 s | 8.97 s | 7.84 s (87%) |
+| **pooled median (12 demos/mode)** | **14.53 s** | **9.26 s** | **5.27 s (57%)** |
+
+Per-demo figures, run 1: full 15.35 s, 14.69 s, 14.07 s, 13.32 s; reduced 10.37 s, 9.56 s, 11.21 s, 9.26 s.
+Read the pooled figures as "full costs roughly half again as much wall-clock time per demo as reduced", not
+as a precise multiplier: the per-run spread (44 to 87%) is wide, dominated by a few individual demos taking
+12 to 15s longer than their siblings in the same run and mode, consistent with ordinary cold-read variance
+on this machine rather than anything systematic; more runs would narrow it but M0's budget does not cover
+that. The reduced pass still evaluates the `round_facts` ruleset internally (`MergedRulesBuild` has not
+split it out yet, item 2's job), it just never writes the result, so part of Round Facts' own compute cost
+is already inside this "reduced" baseline; once item 2 lands, the reduced number should drop a little for a
+reason this measurement did not isolate, and the true overhead of turning the pack off is likely a bit
+higher than the 57% here.
 
 ## 13. Repository layout (decision 5)
 

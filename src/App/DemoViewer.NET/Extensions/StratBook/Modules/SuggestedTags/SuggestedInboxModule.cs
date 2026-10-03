@@ -1,10 +1,12 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.Views.SuggestedTags;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -24,15 +26,33 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     public const string TabFeatureId = "tab.suggested";
 
     private readonly DemoCacheStore? _cache;
+    private readonly Func<bool> _enabled;
+    private readonly IFeatureGate? _gate;
     private readonly Func<SuggestedInboxViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
     /// <param name="cache">The demo index, for the badge; null shows none.</param>
-    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null)
+    /// <param name="enabled">
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack
+    ///     (its ParentId is the pack directly); null resolves <see cref="IFeatureGate" /> from
+    ///     <see cref="App.Services" /> live, failing CLOSED (not the usual fail-open default) since this is
+    ///     a pack-owned id: StratBookPack.Contribute always passes its own delegate, so the fallback here
+    ///     only matters when nothing has resolved.
+    /// </param>
+    /// <param name="gate">
+    ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
+    ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
+    ///     value stale until the next unrelated <c>cache.Changed</c>. Null skips that push and keeps the
+    ///     poll-on-read behaviour.
+    /// </param>
+    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null, Func<bool>? enabled = null,
+        IFeatureGate? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _cache = cache;
+        _gate = gate;
+        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
     }
 
     public string Id => "net.demoviewer.suggested";
@@ -56,8 +76,26 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
 
         if (_cache is { } cache)
         {
-            tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
-            cache.Changed += _ => tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+            if (_enabled())
+            {
+                tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+            }
+
+            // Read live: a toggle mid-session stops this recompute without a restart.
+            cache.Changed += _ =>
+            {
+                if (_enabled())
+                {
+                    tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount));
+                }
+            };
+
+            // The gate's own Changed, not just cache.Changed: going off clears a stale count rather than
+            // leaving it until the next unrelated cache write; going on recomputes without waiting for one.
+            if (_gate is { } gate)
+            {
+                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount)) : null;
+            }
         }
 
         yield return tab;

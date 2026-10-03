@@ -28,8 +28,10 @@ public interface IFeaturePack
     /// <summary>
     ///     The pack's gate descriptors: exactly one <see cref="FeatureScope.Pack" /> entry for
     ///     <see cref="FeatureId" /> plus every tab and sub-feature it owns, each parented to it, to one of
-    ///     its own tabs, or (until item 1 reparents) to a core tab. Appended to the core catalog once, at
-    ///     startup.
+    ///     its own tabs, or to a core tab (2D Playback's docked Strat Book surfaces); every non-Pack row is
+    ///     stamped with <see cref="FeatureId" /> as its <see cref="FeatureDescriptor.OwnerPackId" /> on
+    ///     composition, so it cascades off with the pack whatever its <c>ParentId</c> says. Appended to the
+    ///     core catalog once, at startup.
     /// </summary>
     IEnumerable<FeatureDescriptor> Features { get; }
 
