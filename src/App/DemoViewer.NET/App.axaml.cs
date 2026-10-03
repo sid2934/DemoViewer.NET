@@ -195,8 +195,10 @@ public class App : Application
             if (!OperatingSystem.IsBrowser())
             {
                 GrenadeIndexEvaluator grenades = services.GetRequiredService<GrenadeIndexEvaluator>();
+                IFeatureGate? grenadeGate = services.GetService<IFeatureGate>();
                 viewModel.MatchOverviewTab.IndexGrenades = grenades.Request;
                 viewModel.MatchOverviewTab.AreGrenadesIndexed = grenades.IsCurrent;
+                viewModel.MatchOverviewTab.PackEnabled = () => grenadeGate?.IsEnabled("pack.stratbook") ?? true;
             }
 
             // Session restore runs HERE, not in the shell ctor: it activates the persisted tab, and tab

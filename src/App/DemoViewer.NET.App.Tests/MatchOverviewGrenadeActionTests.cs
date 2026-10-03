@@ -70,4 +70,34 @@ public class MatchOverviewGrenadeActionTests
             await Assert.That(browser.HasIndexGrenadesAction).IsFalse().Because("absent rather than inert");
         }
     }
+
+    // The chip is core, but the evaluator behind it is pack-owned. With the pack off,
+    // GrenadeIndexEvaluator.Wants rejects even a forced path, so a click that queued nothing would still
+    // look successful without this: the chip must hide instead.
+    [Test]
+    public async Task WithThePackOff_TheChipIsHidden_EvenOnAnOtherwiseEligiblePage()
+    {
+        MatchOverviewTabViewModel vm = new()
+        {
+            IndexGrenades = _ => { },
+            AreGrenadesIndexed = _ => false,
+            PackEnabled = () => false
+        };
+        vm.SetCachedRecord(Parsed());
+
+        await Assert.That(vm.HasIndexGrenadesAction).IsFalse();
+    }
+
+    [Test]
+    public async Task PackEnabled_Null_ReadsAsEnabled_LikeEveryExistingCallSite()
+    {
+        MatchOverviewTabViewModel vm = new()
+        {
+            IndexGrenades = _ => { },
+            AreGrenadesIndexed = _ => false
+        };
+        vm.SetCachedRecord(Parsed());
+
+        await Assert.That(vm.HasIndexGrenadesAction).IsTrue();
+    }
 }

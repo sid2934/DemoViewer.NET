@@ -44,11 +44,11 @@ public class GrenadeIndexEvaluatorTests
 
     private static (DemoCacheStore Cache, GrenadeIndexEvaluator Evaluator) Wire(
         bool background = false, string? open = null, string? sha = "abc", Func<ParsedDemo, GrenadeWalk>? walk = null,
-        string? root = null)
+        string? root = null, Func<bool>? enabled = null)
     {
         DemoCacheStore cache = new(root);
         cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: sha));
-        GrenadeIndexEvaluator evaluator = new(cache, () => background, () => open, walk: walk ?? OneSmoke);
+        GrenadeIndexEvaluator evaluator = new(cache, () => background, () => open, walk: walk ?? OneSmoke, enabled: enabled);
         return (cache, evaluator);
     }
 
@@ -83,6 +83,37 @@ public class GrenadeIndexEvaluatorTests
         evaluator.OnParsedOpportunistically(Demo, Parse());
         await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull()
             .Because("the open-demo walk is one of the opportunistic hooks the pack gate forces off");
+    }
+
+    // Match Overview's "Index grenades" chip is core and the view model hides it when the pack is off
+    // (MatchOverviewGrenadeActionTests), but the evaluator must refuse the request on its own too: a forced
+    // path left behind here would walk unasked the moment the pack came back on.
+    [Test]
+    public async Task WithThePackOff_Request_IsANoOp_AndLeavesNoForcedPathBehind()
+    {
+        (_, GrenadeIndexEvaluator evaluator) = Wire(enabled: () => false);
+
+        evaluator.Request(Demo);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse();
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background)
+                .Because("Request must not have added a forced path");
+        }
+    }
+
+    [Test]
+    public async Task WithThePackOff_Request_DoesNotLiftAFailedRowBackToPending()
+    {
+        (DemoCacheStore cache, GrenadeIndexEvaluator evaluator) = Wire(enabled: () => false);
+        cache.UpdateExisting(Demo, r => r.GrenadeState = DemoAnalysisState.Failed);
+
+        evaluator.Request(Demo);
+
+        await Assert.That(cache.TryGetIndex(Demo)!.GrenadeState).IsEqualTo(DemoAnalysisState.Failed)
+            .Because("a no-op Request clears nothing, not even a stamp a retry would normally lift");
     }
 
     [Test]

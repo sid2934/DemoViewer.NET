@@ -191,11 +191,18 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     /// <summary>
     ///     Walks one demo at user priority regardless of the opt-in and of an earlier failure: Match
-    ///     Overview's "Index grenades". A failed row is lifted back to Pending first.
+    ///     Overview's "Index grenades". A failed row is lifted back to Pending first. A no-op while the
+    ///     owning pack's gate is off: Match Overview hides the chip for this reason too, but a forced path
+    ///     left behind here would walk unasked the moment the pack came back on.
     /// </summary>
     /// <param name="path">The demo's path.</param>
     public void Request(string path)
     {
+        if (!_enabled())
+        {
+            return;
+        }
+
         try
         {
             if (_demoCache.TryGetIndex(path) is { GrenadeState: DemoAnalysisState.Failed })
