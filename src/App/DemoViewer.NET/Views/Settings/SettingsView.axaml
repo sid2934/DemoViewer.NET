@@ -648,11 +648,9 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Contributed settings pages (item 14): each pack's VM and View, already built
-                     and DataContext-bound (SettingsViewModel.BuildContributedSettingsPages), hosted
-                     through a plain ContentControl per the existing WorkspaceTabDescriptor convention of
-                     setting a realized View's DataContext explicitly rather than resolving it through
-                     ViewLocator. Hidden while its own gate or the search filter says no. -->
+                        <!-- Contributed settings pages (item 14): Content is null until the page's own
+                     gate first resolves on, so ContentControl shows nothing for an unbuilt page; its
+                     DataContext is set explicitly when built, not resolved through ViewLocator. -->
                         <ItemsControl ItemsSource="{Binding ContributedSettingsPages}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="settings:MountedSettingsPage">

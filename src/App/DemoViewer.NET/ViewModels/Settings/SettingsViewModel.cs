@@ -517,9 +517,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip (§8), not state.
         _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.PackFeatureId);
 
-        // Mount every contributed settings page once: its VM reads whatever it needs to read (the tuning
-        // VM its stored report) at construction, same as the rest of this screen's sections do, and its
-        // View's DataContext is set to that VM, the same convention WorkspaceTabDescriptor.Activate uses.
+        // Registers every contributed page; none is built yet (BuildContributedSettingsPages).
         BuildContributedSettingsPages(settingsPages);
 
         // Build the feature-toggle rows (grouped: Tabs each followed by their SubFeatures, then Chrome),
@@ -636,8 +634,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Settings pages the packs contribute (item 14), rendered under Extensions beneath
     ///     <see cref="ExtensionsFeatureRows" />, each hidden while its own <see cref="SettingsPageContribution.FeatureId" />
-    ///     resolves off or the search filter does not match. Mounted once, at construction: each page's VM
-    ///     and View are built exactly once per Settings open, never rebuilt by a gate or filter change.
+    ///     resolves off or the search filter does not match. Every entry exists from construction, but
+    ///     <see cref="MountedSettingsPage.IsBuilt" /> stays false until its gate first resolves on.
     /// </summary>
     public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
 
@@ -851,16 +849,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         return false;
     }
 
-    // Re-checks every contributed page's own gate id against (filter × its own keywords). Called from
-    // ApplySectionFilter (a filter keystroke) and from RefreshFeatureRows (a gate change, so a pack toggle
-    // hides or shows its pages live, which the 3.5-era ShowSectionSuggestedTagsTuning/ShowSectionGrenadeIndex
-    // this replaces never actually did outside a filter keystroke).
+    // Called from ApplySectionFilter (a filter keystroke) and from RefreshFeatureRows (a gate change).
+    // A page not yet built is built here, the first time its gate is seen on, never before: building it
+    // while off would construct whatever its VM pulls in regardless of the pack's gate (plan doc §8).
     private bool RefreshContributedPageVisibility(string filter)
     {
         bool anyVisible = false;
         foreach (MountedSettingsPage page in ContributedSettingsPages)
         {
             bool gateOn = page.FeatureId is null || _gate.IsEnabled(page.FeatureId);
+            if (gateOn)
+            {
+                page.EnsureBuilt();
+            }
+
             page.IsVisible = gateOn && KeywordsMatch(page.Keywords, filter);
             anyVisible |= page.IsVisible;
         }
@@ -868,10 +870,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         return anyVisible;
     }
 
-    // Builds every contributed page exactly once, at construction: each page's VM is resolved/constructed
-    // then (the tuning VM reads its stored report at that moment, same as the rest of this screen's
-    // sections), and its View's DataContext is set to that VM, the convention
-    // WorkspaceTabDescriptor.Activate uses for a module tab's realized view.
+    // Registers every contributed page at construction, unbuilt: RefreshContributedPageVisibility (called
+    // from the ctor's own trailing ApplySectionFilter) builds only the ones whose gate is already on.
     private void BuildContributedSettingsPages(IReadOnlyList<SettingsPageContribution>? pages)
     {
         if (pages is null)
@@ -881,10 +881,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         foreach (SettingsPageContribution contribution in pages.OrderBy(p => p.Order))
         {
-            ViewModelBase viewModel = contribution.ViewModelFactory();
-            Control view = contribution.ViewFactory();
-            view.DataContext = viewModel;
-            ContributedSettingsPages.Add(new MountedSettingsPage(contribution, viewModel, view));
+            ContributedSettingsPages.Add(new MountedSettingsPage(contribution));
         }
     }
 

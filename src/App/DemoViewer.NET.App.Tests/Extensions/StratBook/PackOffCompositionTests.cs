@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -83,6 +84,30 @@ public class PackOffCompositionTests
                     .Because("the pack is off: Suggested Tags service is not constructed at startup");
                 await Assert.That(instances.GrenadeWalk).IsNull()
                     .Because("the pack is off: Grenade Index evaluator is not constructed at startup");
+            }
+        });
+    }
+
+    // Item 14: opening Settings must not build a pack-off page's VM. SuggestedTagsTuningViewModel pulls
+    // SuggestedTagsService (which the pack's factory records onto StratBookPackInstances.SuggestedTags),
+    // so that field staying null here is the proof the page's factory never ran.
+    [Test]
+    public async Task PackOff_OpeningSettings_DoesNotBuildTheContributedPages()
+    {
+        await WithProvider(async provider =>
+        {
+            SettingsViewModel vm = provider.GetRequiredService<Func<SettingsViewModel>>()();
+            try
+            {
+                StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
+                await Assert.That(instances.SuggestedTags).IsNull()
+                    .Because("the pack is off: Settings must not have resolved SuggestedTagsService");
+                await Assert.That(vm.ContributedSettingsPages.Any(p => p.IsBuilt)).IsFalse()
+                    .Because("no contributed page builds while its own gate is off");
+            }
+            finally
+            {
+                vm.Dispose();
             }
         });
     }
