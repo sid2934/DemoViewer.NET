@@ -698,10 +698,10 @@
                                                                TextWrapping="Wrap" />
                                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                                                         <Button Classes="ghost" Padding="10,4" Content="Cancel"
-                                                                Command="{Binding CancelCommand}" />
+                                                                Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}" />
                                                         <Button Classes="ghost" Padding="10,4" Content="Delete"
                                                                 Foreground="{DynamicResource AccentError}"
-                                                                Command="{Binding ConfirmCommand}" />
+                                                                Command="{Binding ConfirmCommand}" IsEnabled="{Binding !IsBusy}" />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>

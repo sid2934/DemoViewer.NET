@@ -1,9 +1,16 @@
 #region
 
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.RoundIndex;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -128,6 +135,35 @@ public class PackDataRemoverTests
         {
             Directory.Delete(root, true);
             File.Delete(outsideFile);
+        }
+    }
+
+    [Test]
+    public async Task Inventory_ResolvesATrailingSlashAndForwardSlashSeparators_RegardlessOfPlatform()
+    {
+        string root = TempRoot("separators");
+        Directory.CreateDirectory(Path.Combine(root, "nested", "inner"));
+        await File.WriteAllTextAsync(Path.Combine(root, "nested", "inner", "file.json"), "x");
+        try
+        {
+            // A trailing slash on a directory entry, and a nested entry written with a forward slash
+            // whatever the platform's own separator is: both must resolve under root, never be refused.
+            StoreDescriptor trailing = new("trailing", "Trailing", StoreRoot.Config, ["nested/"], false);
+            StoreDescriptor nested = new("nested", "Nested", StoreRoot.Config, ["nested/inner"], false);
+            PackDataRemover remover = new(new DemoCacheStore(null), root, null);
+
+            PackDataInventory inventory = await remover.InventoryAsync([trailing, nested], "fake", "count");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(inventory.Items[0].FileCount).IsEqualTo(1).Because("a trailing slash must still resolve the directory");
+                await Assert.That(inventory.Items[1].FileCount).IsEqualTo(1)
+                    .Because("a forward-slash nested path must resolve regardless of the platform's own separator");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
         }
     }
 
@@ -349,6 +385,198 @@ public class PackDataRemoverTests
         finally
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     The second of the blocker's two checks (strat-book-plugin.md §7.4): a re-enable landing after the
+    ///     delete job was already submitted, while it still sits behind another item on the same serial,
+    ///     must still abort before touching a file. <c>stillOff</c> is flipped false while the job is held
+    ///     behind a blocker, proving the predicate is read at job-start time, not capture time.
+    /// </summary>
+    [Test]
+    public async Task DeleteAsync_StillOffFalseWhenTheJobActuallyRuns_AbortsWithoutTouchingFiles()
+    {
+        string root = TempRoot("stillOff");
+        Directory.CreateDirectory(Path.Combine(root, "strats"));
+        await File.WriteAllTextAsync(Path.Combine(root, "strats", "index.json"), "{}");
+        try
+        {
+            using ManualResetEventSlim blockerStarted = new(false);
+            using ManualResetEventSlim release = new(false);
+            const string serial = "fake";
+            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a());
+            queue.SubmitJob(new QueueJobRequest(QueueJobKind.SectionCompute, "blocker", "test", DemoJobPriority.UserRequested,
+                _ =>
+                {
+                    blockerStarted.Set();
+                    release.Wait(TimeSpan.FromSeconds(5));
+                    return Task.CompletedTask;
+                }, Serial: serial));
+            await Task.Run(() => blockerStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            bool stillOff = true;
+            StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
+            PackDataRemover remover = new(new DemoCacheStore(null), root, null, queue);
+            Task<PackDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete", stillOff: () => stillOff);
+
+            await Task.Delay(150);
+            stillOff = false; // the pack was re-enabled while the job still sat behind the blocker
+            release.Set();
+            PackDataRemovalResult result = await delete;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Ran).IsFalse();
+                await Assert.That(Directory.Exists(Path.Combine(root, "strats"))).IsTrue();
+                await Assert.That(File.Exists(Path.Combine(root, "strats", "index.json"))).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task Delete_ALockedFile_IsSkippedNotThrown_AndCountedInTheResult()
+    {
+        string root = TempRoot("locked");
+        string dir = Path.Combine(root, "strats");
+        Directory.CreateDirectory(dir);
+        string locked = Path.Combine(dir, "locked.json");
+        await File.WriteAllTextAsync(locked, "{}");
+        try
+        {
+            StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
+            PackDataRemover remover = new(new DemoCacheStore(null), root, null);
+
+            PackDataRemovalResult result = await DeleteWithTheFileUnremovable(remover, descriptor, dir, locked);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Ran).IsTrue().Because("the rest of the store still goes");
+                await Assert.That(result.Skipped).IsEqualTo(1);
+                await Assert.That(result.FirstSkippedPath).IsEqualTo(locked);
+                await Assert.That(File.Exists(locked)).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    // An open handle does not stop File.Delete on Unix (unlink succeeds regardless; POSIX governs removal
+    // through the CONTAINING directory's write permission, not the file's own or an open reader's).
+    // Windows refuses a delete of a file open without FileShare.Delete; Unix refuses a delete inside a
+    // directory whose own write bit is off. Either way the directory's permissions are restored before the
+    // caller's own cleanup runs, win or lose.
+    private static async Task<PackDataRemovalResult> DeleteWithTheFileUnremovable(
+        PackDataRemover remover, StoreDescriptor descriptor, string dir, string locked)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            await using FileStream open = File.Open(locked, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+        }
+
+        UnixFileMode original = File.GetUnixFileMode(dir);
+        File.SetUnixFileMode(dir, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            return await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+        }
+        finally
+        {
+            File.SetUnixFileMode(dir, original);
+        }
+    }
+
+    /// <summary>
+    ///     A legacy-shape record (flat pack fields, folded into <see cref="DemoCacheRecord.Packs" /> and
+    ///     <see cref="DemoCacheRecord.PackStamps" /> on read, item 21) must strip clean in the very read
+    ///     that folds it: no stamp, no payload, and the fold must not resurrect the flat fields on the next
+    ///     load (there is no sidecar write between the fold and the strip to re-derive from if it did).
+    /// </summary>
+    [Test]
+    public async Task Delete_FoldsAndStripsAnOldShapeRecord_InTheSameRead()
+    {
+        string cacheRoot = TempRoot("legacy");
+        try
+        {
+            RoundFactsRows rows = Facts(Round(1, 1000, 2000), Round(2, 3000, 4000));
+            Directory.CreateDirectory(Path.Combine(cacheRoot, "demos"));
+            string key = DemoCacheStore.StableKey("/d/legacy.dem");
+
+            JsonObject record = new()
+            {
+                ["Path"] = "/d/legacy.dem",
+                ["Size"] = 10,
+                ["ModifiedTicks"] = 20,
+                ["Parse"] = new JsonObject { ["Schema"] = 1, ["ComputedAtTicks"] = 5 },
+                ["RoundFacts"] = JsonSerializer.SerializeToNode(rows),
+                ["RoundFactsFingerprint"] = "rf-A",
+                ["RoundIndex"] = new JsonObject { ["Schema"] = 1, ["ComputedAtTicks"] = 100 },
+                ["RoundIndexState"] = 1,
+                ["RoundIndexFingerprint"] = "fp",
+                ["RoundIndexRowCount"] = 12,
+                ["SuggestionsFingerprint"] = null,
+                ["SuggestionCount"] = 0,
+                ["Grenades"] = new JsonObject { ["Schema"] = 0, ["ComputedAtTicks"] = 0 },
+                ["GrenadeState"] = 0,
+                ["GrenadeCount"] = 0,
+                ["GrenadeWalker"] = null,
+                ["GrenadeInputCoverage"] = 0
+            };
+            await File.WriteAllBytesAsync(Path.Combine(cacheRoot, "demos", key + ".json.gz"),
+                SidecarJson.Gzip(Encoding.UTF8.GetBytes(record.ToJsonString())));
+
+            JsonObject indexRow = new()
+            {
+                ["Path"] = "/d/legacy.dem",
+                ["Size"] = 10,
+                ["ModifiedTicks"] = 20,
+                ["ParseSchema"] = 1,
+                ["RoundFactsSchema"] = rows.Schema,
+                ["RoundFactsFingerprint"] = "rf-A",
+                ["RoundIndexSchema"] = 1,
+                ["RoundIndexComputedAtTicks"] = 100,
+                ["RoundIndexState"] = 1,
+                ["RoundIndexFingerprint"] = "fp",
+                ["RoundIndexRowCount"] = 12
+            };
+            await File.WriteAllTextAsync(Path.Combine(cacheRoot, "index.json"),
+                new JsonObject { ["Version"] = 2, ["LegacyMigrationVersion"] = 1, ["Entries"] = new JsonArray(indexRow) }.ToJsonString());
+
+            DemoCacheStore store = new(cacheRoot);
+            PackDataRemover remover = new(store, null, null);
+            string[] facetIds =
+            [
+                RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId,
+                SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId
+            ];
+
+            // The legacy fold always writes the payload under LegacyPackFields.PackId: the literal the old
+            // Strat Book sidecars carried, not whatever pack id a caller happens to pass.
+            PackDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], facetIds, "fake", "strip");
+
+            await Assert.That(result.RecordsUpdated).IsEqualTo(1).Because("the fold on read already promoted the flat fields to a payload and stamps");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            DemoCacheRecord reloaded = reopened.TryLoadRecord("/d/legacy.dem")!;
+            DemoCacheIndexEntry entry = reopened.TryGetIndex("/d/legacy.dem")!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(reloaded.PackStamps).IsEmpty();
+                await Assert.That(reloaded.Packs).IsEmpty().Because("the fold's payload must not come back on the next load");
+                await Assert.That(entry.PackStamps).IsEmpty();
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
         }
     }
 }

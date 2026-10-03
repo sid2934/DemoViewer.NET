@@ -18,6 +18,9 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
     /// <summary>The extension's name, read off its own <c>FeatureCatalog</c> row.</summary>
     public string Label { get; } = label;
 
+    /// <summary>The pack this row belongs to, so <see cref="SettingsViewModel" /> can find its master row.</summary>
+    public string PackFeatureId { get; } = removal.PackFeatureId;
+
     /// <summary>True while counting or deleting; every command is disabled meanwhile.</summary>
     [ObservableProperty]
     private bool _isBusy;
@@ -38,6 +41,11 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
     [RelayCommand]
     private async Task Arm()
     {
+        if (IsBusy)
+        {
+            return; // a second click landing before the UI disables the button must not start a second count
+        }
+
         IsBusy = true;
         StatusText = "Counting…";
         try
@@ -73,6 +81,11 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
     [RelayCommand]
     private async Task Confirm()
     {
+        if (IsBusy)
+        {
+            return; // two near-simultaneous clicks must delete once, not twice
+        }
+
         IsConfirming = false;
         IsBusy = true;
         StatusText = "Deleting…";
@@ -81,6 +94,9 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
             PackDataRemovalResult result = await removal.DeleteAsync();
             StatusText = result.Ran
                 ? $"Deleted {result.Removed.Items.Sum(i => i.FileCount)} files ({FormatBytes(result.Removed.TotalBytes)})."
+                      + (result.Skipped > 0
+                          ? $" {result.Skipped} file{(result.Skipped == 1 ? "" : "s")} could not be removed (first: {result.FirstSkippedPath})."
+                          : "")
                 : "Cancelled: the extension was turned back on before this ran.";
         }
         finally

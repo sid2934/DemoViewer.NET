@@ -753,10 +753,15 @@ makes) and awaits `PackSwitch.Pending`. That wait is never stale: `FeatureGate.R
 synchronously, for a self-write made from the UI thread, so by the time the override write returns,
 `PackSwitch.Disable` has already queued the release and updated `Pending`. Only once that release has run
 (residents dropped, the lineup flush and the signature cache's own write done) does the delete touch any
-file, so nothing the release still owns is deleted out from under it. The alternative the plan offered —
-call a lifecycle release directly and stay on — was not taken: it would need its own synchronization with
-whatever queue item is draining the release, which `PackSwitch.Pending` already gives for free from the
-existing switch-off path, with no new seam.
+file, so nothing the release still owns is deleted out from under it. The alternative the plan offered,
+calling a lifecycle release directly and staying on, was not taken: it would need its own synchronization
+with whatever queue item is draining the release, which `PackSwitch.Pending` already gives for free from
+the existing switch-off path, with no new seam.
+
+A re-check guards the gap `Pending` cannot: `DeleteAsync` reads `IsEnabled(PackFeatureId)` again right
+after the wait, before calling the remover, and the remover itself evaluates a `stillOff` predicate inside
+the queued job, right before it touches a file, so a re-enable landing between the wait and the job
+actually running aborts cleanly on either side rather than deleting against a live pack.
 
 **The blocker this surfaced:** `StratStore`, `TagStore`, `DossierNotesStore`, `VetoHistoryStore`,
 `WatchedSituationsService` and `StratMiningService`'s state file are explicitly NOT released on disable

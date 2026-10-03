@@ -195,13 +195,16 @@ public sealed record PackDataInventory(IReadOnlyList<StoreInventoryItem> Items)
 /// <summary>What <see cref="IPackDataRemoval.DeleteAsync" /> did.</summary>
 /// <param name="Ran">
 ///     False when the queue dropped the item before it ran (the pack was switched back on first, which
-///     cancels every item owned by its feature id): nothing was touched.
+///     cancels every item owned by its feature id), or the delete's own re-check found the pack back on
+///     right as the job started: nothing was touched either way.
 /// </param>
 /// <param name="Removed">What was actually deleted, one entry per store.</param>
 /// <param name="RecordsUpdated">Demo cache records whose pack payload and stamps were stripped.</param>
-public sealed record PackDataRemovalResult(bool Ran, PackDataInventory Removed, int RecordsUpdated)
+/// <param name="Skipped">Files that could not be removed (locked, permission denied); 0 when everything named went.</param>
+/// <param name="FirstSkippedPath">The first skipped file's path, for the status line; null when <paramref name="Skipped" /> is 0.</param>
+public sealed record PackDataRemovalResult(bool Ran, PackDataInventory Removed, int RecordsUpdated, int Skipped = 0, string? FirstSkippedPath = null)
 {
-    /// <summary>The queue dropped the item: nothing ran.</summary>
+    /// <summary>The queue dropped the item, or the pack was back on by the time the job ran: nothing was touched.</summary>
     public static readonly PackDataRemovalResult NotRun = new(false, PackDataInventory.Empty, 0);
 }
 

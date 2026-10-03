@@ -1,7 +1,10 @@
 #region
 
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -27,9 +30,17 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///         touched only when at least one of its stamps matches, which assumes every pack writer stamps
 ///         whatever it writes to <see cref="DemoCacheRecord.Packs" /> (true of every existing writer).
 ///     </para>
+///     <para>
+///         <b>A file that will not delete</b> (locked, permission denied) is skipped, not thrown: the rest
+///         of the pack's stores still go. <see cref="PackDataRemovalResult.Skipped" /> and
+///         <see cref="PackDataRemovalResult.FirstSkippedPath" /> carry the count and the first path, and
+///         each skip is logged once.
+///     </para>
 /// </summary>
 public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, string? cacheRoot, IDemoProcessingQueue? queue = null)
 {
+    private static ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+
     /// <summary>
     ///     Counts what is on disk right now; never deletes anything. Runs through the queue, user priority,
     ///     on serial <paramref name="ownerTag" /> so it never overlaps the pack's own release item (which
@@ -48,13 +59,25 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
     ///     re-enabled before this runs cancels it by owner tag first, so it drops without touching anything
     ///     (<see cref="PackDataRemovalResult.Ran" /> is false).
     /// </summary>
+    /// <param name="packId">The pack's own id: the key its payload rides <see cref="DemoCacheRecord.Packs" /> under.</param>
+    /// <param name="descriptors">The pack's declared stores.</param>
+    /// <param name="facetIds">The pack's evaluator ids: which <see cref="DemoCacheRecord.PackStamps" /> entries are its to strip.</param>
+    /// <param name="ownerTag">The queue item's owner and serial.</param>
+    /// <param name="title">The queue list's line for this item.</param>
+    /// <param name="stillOff">
+    ///     Evaluated once, inside the queued job, right before any file is touched. False aborts with
+    ///     <see cref="PackDataRemovalResult.NotRun" /> and deletes nothing: the caller's own pre-check
+    ///     (immediately before calling this) closes the gap before the job is submitted, this one closes
+    ///     the gap between submission and the job actually running (it may have sat behind another item on
+    ///     the same serial). Null (most callers, every test that does not care) never aborts.
+    /// </param>
     public Task<PackDataRemovalResult> DeleteAsync(string packId, IReadOnlyList<StoreDescriptor> descriptors,
-        IReadOnlyList<string> facetIds, string ownerTag, string title)
+        IReadOnlyList<string> facetIds, string ownerTag, string title, Func<bool>? stillOff = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packId);
         ArgumentNullException.ThrowIfNull(descriptors);
         ArgumentNullException.ThrowIfNull(facetIds);
-        return RunSerial(title, ownerTag, () => Delete(packId, descriptors, facetIds), PackDataRemovalResult.NotRun);
+        return RunSerial(title, ownerTag, () => Delete(packId, descriptors, facetIds, stillOff), PackDataRemovalResult.NotRun);
     }
 
     // QueueWork.RunAsync has no serial parameter; this is QueueWork.Run plus a captured result, with "ran"
@@ -80,66 +103,92 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
         return ran ? result : fallback;
     }
 
-    private PackDataInventory Inventory(IReadOnlyList<StoreDescriptor> descriptors) =>
-        new([.. descriptors.Select(d => Measure(d, actuallyDelete: false))]);
-
-    private PackDataRemovalResult Delete(string packId, IReadOnlyList<StoreDescriptor> descriptors, IReadOnlyList<string> facetIds)
+    private PackDataInventory Inventory(IReadOnlyList<StoreDescriptor> descriptors)
     {
-        PackDataInventory removed = new([.. descriptors.Select(d => Measure(d, actuallyDelete: true))]);
-        int recordsUpdated = StripRecords(packId, facetIds);
-        return new PackDataRemovalResult(true, removed, recordsUpdated);
+        List<StoreInventoryItem> items = [];
+        foreach (StoreDescriptor descriptor in descriptors)
+        {
+            Tally tally = new();
+            Measure(descriptor, actuallyDelete: false, tally);
+            items.Add(new StoreInventoryItem(descriptor, tally.Count, tally.Bytes));
+        }
+
+        return new PackDataInventory(items);
     }
 
-    private StoreInventoryItem Measure(StoreDescriptor descriptor, bool actuallyDelete)
+    private PackDataRemovalResult Delete(string packId, IReadOnlyList<StoreDescriptor> descriptors, IReadOnlyList<string> facetIds,
+        Func<bool>? stillOff)
+    {
+        if (stillOff?.Invoke() == false)
+        {
+            return PackDataRemovalResult.NotRun;
+        }
+
+        List<StoreInventoryItem> items = [];
+        Tally totals = new();
+        foreach (StoreDescriptor descriptor in descriptors)
+        {
+            Tally tally = new();
+            Measure(descriptor, actuallyDelete: true, tally);
+            items.Add(new StoreInventoryItem(descriptor, tally.Count, tally.Bytes));
+            totals.Skipped += tally.Skipped;
+            totals.FirstSkippedPath ??= tally.FirstSkippedPath;
+        }
+
+        int recordsUpdated = StripRecords(packId, facetIds);
+        return new PackDataRemovalResult(true, new PackDataInventory(items), recordsUpdated, totals.Skipped, totals.FirstSkippedPath);
+    }
+
+    private void Measure(StoreDescriptor descriptor, bool actuallyDelete, Tally tally)
     {
         string? root = descriptor.Root == StoreRoot.Config ? configRoot : cacheRoot;
         if (root is null)
         {
-            return new StoreInventoryItem(descriptor, 0, 0);
+            return;
         }
 
-        int count = 0;
-        long bytes = 0;
         foreach (string entry in descriptor.Paths)
         {
             int star = entry.IndexOf('*', StringComparison.Ordinal);
-            (int c, long b) = star < 0
-                ? MeasureAndDeletePath(ResolveSafe(root, entry), actuallyDelete)
-                : MeasureAndDeleteSuffixMatches(ResolveSafe(root, entry[..star]), entry[(star + 1)..], actuallyDelete);
-            count += c;
-            bytes += b;
+            if (star < 0)
+            {
+                MeasureAndDeletePath(ResolveSafe(root, entry), actuallyDelete, tally);
+            }
+            else
+            {
+                MeasureAndDeleteSuffixMatches(ResolveSafe(root, entry[..star]), entry[(star + 1)..], actuallyDelete, tally);
+            }
         }
-
-        return new StoreInventoryItem(descriptor, count, bytes);
     }
 
     // A literal file or directory. Recurses by hand (never Directory.Delete(path, recursive: true)) so a
     // reparse point is skipped rather than followed, at every level, and a directory is removed only after
     // everything inside it that could be deleted has been.
-    private static (int Count, long Bytes) MeasureAndDeletePath(string? path, bool actuallyDelete)
+    private static void MeasureAndDeletePath(string? path, bool actuallyDelete, Tally tally)
     {
         if (path is null || IsReparsePoint(path))
         {
-            return (0, 0);
+            return;
         }
 
         if (File.Exists(path))
         {
-            return path.EndsWith(".dem", StringComparison.OrdinalIgnoreCase) ? (0, 0) : MeasureAndDeleteFile(path, actuallyDelete);
+            if (!path.EndsWith(".dem", StringComparison.OrdinalIgnoreCase))
+            {
+                MeasureAndDeleteFile(path, actuallyDelete, tally);
+            }
+
+            return;
         }
 
         if (!Directory.Exists(path))
         {
-            return (0, 0);
+            return;
         }
 
-        int count = 0;
-        long bytes = 0;
         foreach (string child in Directory.EnumerateFileSystemEntries(path))
         {
-            (int c, long b) = MeasureAndDeletePath(child, actuallyDelete);
-            count += c;
-            bytes += b;
+            MeasureAndDeletePath(child, actuallyDelete, tally);
         }
 
         if (actuallyDelete)
@@ -156,22 +205,18 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
             {
             }
         }
-
-        return (count, bytes);
     }
 
     // Every file directly under dir (never a subdirectory: the demo sidecars are flat) whose name ends
     // with suffix by ordinal comparison. The directory's own file list comes from the filesystem with no
     // pattern argument; the suffix match happens here, in managed code, not in a glob.
-    private static (int Count, long Bytes) MeasureAndDeleteSuffixMatches(string? dir, string suffix, bool actuallyDelete)
+    private static void MeasureAndDeleteSuffixMatches(string? dir, string suffix, bool actuallyDelete, Tally tally)
     {
         if (dir is null || IsReparsePoint(dir) || !Directory.Exists(dir))
         {
-            return (0, 0);
+            return;
         }
 
-        int count = 0;
-        long bytes = 0;
         foreach (string file in Directory.EnumerateFiles(dir))
         {
             string name = Path.GetFileName(file);
@@ -180,24 +225,26 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
                 continue;
             }
 
-            (int c, long b) = MeasureAndDeletePath(file, actuallyDelete);
-            count += c;
-            bytes += b;
+            MeasureAndDeletePath(file, actuallyDelete, tally);
         }
-
-        return (count, bytes);
     }
 
-    private static (int Count, long Bytes) MeasureAndDeleteFile(string path, bool actuallyDelete)
+    private static void MeasureAndDeleteFile(string path, bool actuallyDelete, Tally tally)
     {
         long length;
         try
         {
             length = new FileInfo(path).Length;
         }
-        catch (IOException)
+        catch (IOException ex)
         {
-            return (0, 0);
+            Skip(path, "read", ex, tally);
+            return;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Skip(path, "read", ex, tally);
+            return;
         }
 
         if (actuallyDelete)
@@ -206,17 +253,27 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
             {
                 File.Delete(path);
             }
-            catch (IOException)
+            catch (IOException ex)
             {
-                return (0, 0);
+                Skip(path, "delete", ex, tally);
+                return;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                return (0, 0);
+                Skip(path, "delete", ex, tally);
+                return;
             }
         }
 
-        return (1, length);
+        tally.Count++;
+        tally.Bytes += length;
+    }
+
+    private static void Skip(string path, string verb, Exception ex, Tally tally)
+    {
+        tally.Skipped++;
+        tally.FirstSkippedPath ??= path;
+        AppLog.OperationFailed(Log, verb + " '" + path + "'", ex);
     }
 
     private static bool IsReparsePoint(string path)
@@ -291,5 +348,15 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
 
         store.SaveIndex();
         return updated;
+    }
+
+    // Mutable accumulator threaded through the recursive walk: count and bytes of what moved (or would),
+    // plus how many entries were skipped and the first one's path, for the status line.
+    private sealed class Tally
+    {
+        public int Count;
+        public long Bytes;
+        public int Skipped;
+        public string? FirstSkippedPath;
     }
 }

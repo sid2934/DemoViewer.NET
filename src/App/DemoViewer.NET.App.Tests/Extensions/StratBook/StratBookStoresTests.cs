@@ -97,64 +97,64 @@ public class StratBookStoresTests
 
     private static void WriteOneItemPerStore(string configRoot, string cacheRoot)
     {
-        // strats/ — real API.
+        // strats/: real API.
         new StratStore(Path.Combine(configRoot, "strats")).Create(StratOwner.Me(), "de_dust2", "T", "default", "test");
 
-        // tags/ — the store's own path, written directly rather than through a live TagSession.
+        // tags/: the store's own path, written directly rather than through a live TagSession.
         TagStore tags = new(Path.Combine(configRoot, "tags"));
         string tagSidecar = tags.PathFor("a" + new string('b', 63))!;
         Directory.CreateDirectory(Path.GetDirectoryName(tagSidecar)!);
         File.WriteAllText(tagSidecar, "{}");
 
-        // palettes/ — a user drop-in; TagPaletteStore only reads this directory, nothing in the app writes to it.
+        // palettes/: a user drop-in; TagPaletteStore only reads this directory, nothing in the app writes to it.
         Directory.CreateDirectory(Path.Combine(configRoot, "palettes"));
         File.WriteAllText(Path.Combine(configRoot, "palettes", "custom" + TagPaletteStore.FileExtension), "{}");
 
-        // suggested-tags/ — real API (the tuned detector profile).
+        // suggested-tags/: real API (the tuned detector profile).
         new ProfileStore(Path.Combine(configRoot, "suggested-tags")).Save(DetectorProfile.Default);
 
-        // lineup-clips/ — LineupClipService needs a built GrenadeIndex to render anything; one placed file
+        // lineup-clips/: LineupClipService needs a built GrenadeIndex to render anything; one placed file
         // is enough to prove the directory name.
         Directory.CreateDirectory(Path.Combine(configRoot, "lineup-clips"));
         File.WriteAllText(Path.Combine(configRoot, "lineup-clips", "sample.gif"), "gif bytes");
 
-        // teams.json — TeamIdentityService needs a DemoCacheStore/RoundFacts/queue graph; its own doc
+        // teams.json: TeamIdentityService needs a DemoCacheStore/RoundFacts/queue graph; its own doc
         // comment fixes this path (beside settings.json).
         File.WriteAllText(Path.Combine(configRoot, "teams.json"), "{}");
 
-        // watched-situations.json — WatchedSituationsService.FileName is public; same heavy-graph reason.
+        // watched-situations.json: WatchedSituationsService.FileName is public; same heavy-graph reason.
         File.WriteAllText(Path.Combine(configRoot, WatchedSituationsService.FileName), "{}");
 
-        // veto-history.json — real API.
+        // veto-history.json: real API.
         new VetoHistoryStore(configRoot).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
 
-        // dossier-notes.json — real API.
+        // dossier-notes.json: real API.
         new DossierNotesStore(configRoot).AddNote(Guid.NewGuid(), "a note");
 
-        // strat-mining.json — StratMiningService's user-truth file; its own doc comment fixes this path.
+        // strat-mining.json: StratMiningService's user-truth file; its own doc comment fixes this path.
         File.WriteAllText(Path.Combine(configRoot, "strat-mining.json"), "{}");
 
-        // round-index/ — real API.
+        // round-index/: real API.
         DemoCacheStore demoCache = new(null);
         new RoundIndexStore(cacheRoot, demoCache).Write("/d/a.dem", new RoundIndexDocument());
 
-        // suggestions/ — real API.
+        // suggestions/: real API.
         new ProposalStore(cacheRoot, demoCache).Write("/d/a.dem", new ProposalDocument());
 
-        // strat-mining/ — StratMiningService's derived cache; its own doc comment fixes this path.
+        // strat-mining/: StratMiningService's derived cache; its own doc comment fixes this path.
         Directory.CreateDirectory(Path.Combine(cacheRoot, "strat-mining"));
         File.WriteAllText(Path.Combine(cacheRoot, "strat-mining", "detected.json"), "{}");
 
-        // team-index.json — TeamIdentityService's derived cache; its own doc comment fixes this path.
+        // team-index.json: TeamIdentityService's derived cache; its own doc comment fixes this path.
         File.WriteAllText(Path.Combine(cacheRoot, "team-index.json"), "{}");
 
-        // grenade-lineups.json.gz — real API.
+        // grenade-lineups.json.gz: real API.
         new GrenadeLineupStore(cacheRoot).Save();
 
-        // grenades-v3.attempts.json — GrenadeStoreMigration.AttemptsFileName is public.
+        // grenades-v3.attempts.json: GrenadeStoreMigration.AttemptsFileName is public.
         File.WriteAllText(Path.Combine(cacheRoot, GrenadeStoreMigration.AttemptsFileName), "{}");
 
-        // demos/*.grenades*.json.gz, *.grenades.log.gz — the grenade walk's sidecar suffixes, all public.
+        // demos/*.grenades*.json.gz, *.grenades.log.gz: the grenade walk's sidecar suffixes, all public.
         string demos = Path.Combine(cacheRoot, "demos");
         Directory.CreateDirectory(demos);
         File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.Suffix), "g1");
