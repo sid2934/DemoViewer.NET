@@ -35,6 +35,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     private readonly List<Func<MapLevel, double, double, bool>> _mapClickHandlers = [];
     private readonly List<PaneHandle> _panes = [];
     private readonly List<Playback2DPanel> _panels = [];
+    private readonly List<Action<int>> _playheadHandlers = [];
     private readonly Playback2DTimelineViewModel _timeline;
     private readonly Func<PlaceResolver?> _zones;
     private PaneHandle? _openSide;
@@ -111,6 +112,14 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         ArgumentNullException.ThrowIfNull(handler);
         _demoChangedHandlers.Add(handler);
         return new Removal(() => _demoChangedHandlers.Remove(handler));
+    }
+
+    /// <inheritdoc />
+    public IDisposable OnPlayheadChanged(Action<int> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        _playheadHandlers.Add(handler);
+        return new Removal(() => _playheadHandlers.Remove(handler));
     }
 
     /// <inheritdoc />
@@ -246,6 +255,15 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         foreach (Action handler in _demoChangedHandlers.ToArray())
         {
             handler();
+        }
+    }
+
+    /// <summary>The timeline's playhead moved to <paramref name="tick" />: every <see cref="OnPlayheadChanged" /> handler, in order.</summary>
+    internal void NotifyPlayheadChanged(int tick)
+    {
+        foreach (Action<int> handler in _playheadHandlers.ToArray())
+        {
+            handler(tick);
         }
     }
 

@@ -2285,6 +2285,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _roundTrack.Facts = LoadRoundFacts(_context.DemoPath);
         Timeline.Rebuild(_timelineData);
         Timeline.UpdatePlayhead(_context.CurrentFrameIndex, _context.CurrentTick);
+        Surface.NotifyPlayheadChanged(_context.CurrentTick);
         RefreshGates();
 
         FrameUpdated?.Invoke();
@@ -2492,6 +2493,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The playhead follows the shared clock's push, never a private timer, so it tracks play, step,
         // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
         Timeline.UpdatePlayhead(snapshot.FrameIndex, snapshot.Tick);
+        Surface.NotifyPlayheadChanged(snapshot.Tick);
 
         // Mark the viewport dirty; the View coalesces this to one InvalidateVisual on the render frame.
         FrameUpdated?.Invoke();
