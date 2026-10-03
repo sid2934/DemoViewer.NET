@@ -1013,11 +1013,9 @@ public class App : Application
         services.AddSingleton(sp =>
         {
             // BuildShell resolves this unconditionally (the Library team filter), so the pack's gate
-            // cannot decide whether the service is built, only whether it reads its files now. Off, it
-            // stays detached and empty until the pack's lifecycle attaches it: the Library still needs a
-            // working service, but nothing from a disabled pack belongs in memory or in the queue list.
-            IFeatureGate? teamsGate = sp.GetService<IFeatureGate>();
-            bool packOn = teamsGate?.IsEnabled(StratBookPack.PackFeatureId) ?? false;
+            // cannot decide whether the service is built. It is built detached and unread: the pack's
+            // lifecycle attaches it, and only then does its file read enter the queue. The gate is not
+            // read here on purpose, since at container build the first-run wizard has not asked yet.
             TeamIdentityService teams = new(
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
@@ -1026,7 +1024,7 @@ public class App : Application
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
                     "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
                 scheduleLoad: StartupLoad(sp, "Load: teams", "teams"),
-                loadAtStart: packOn);
+                loadAtStart: false);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
