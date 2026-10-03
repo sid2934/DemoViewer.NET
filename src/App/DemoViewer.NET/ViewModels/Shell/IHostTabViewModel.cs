@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Models;
+using System.Text.Json;
 using DemoViewer.NET.Modules.Abstractions;
 
 #endregion
@@ -21,15 +21,18 @@ public interface IHostTabViewModel : IWorkspaceTabViewModel
     /// <summary>The band over the rail. The shell sets it from the contribution before any view binds it.</summary>
     string RailLabel { get; set; }
 
-    // The session file keeps one pane-layout slot beside the active tab, restored before any demo loads. Item 23
-    // moves it into pack session state; until then the shell hands the slot to every host and the one that owns
-    // it answers.
-    /// <summary>The pane layout to persist, or null when the host keeps none.</summary>
-    StratBookLayoutState? SnapshotLayout() => null;
+    // Distinct from IWorkspaceTabViewModel.SnapshotState/RestoreState (the per-TAB blob keyed by TabId,
+    // applied lazily on first activation): this is per-PACK state, keyed by pack id in SessionPayload.Packs
+    // and restored before any tab activates, through every host regardless of which one is selected.
+    /// <summary>The pack id this host's session state is keyed under, or null when it keeps none.</summary>
+    string? SessionPackId => null;
 
-    /// <summary>Applies a persisted pane layout; null (an older session file) leaves the panes as they are.</summary>
-    /// <param name="state">The persisted layout, or null.</param>
-    void RestoreLayout(StratBookLayoutState? state)
+    /// <summary>The pack's session state to persist, or null to persist nothing.</summary>
+    JsonElement? SnapshotPackState() => null;
+
+    /// <summary>Applies a persisted pack session blob. Must tolerate an old or partial shape.</summary>
+    /// <param name="state">The persisted blob.</param>
+    void RestorePackState(JsonElement state)
     {
     }
 }

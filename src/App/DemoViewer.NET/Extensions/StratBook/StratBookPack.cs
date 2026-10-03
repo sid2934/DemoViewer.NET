@@ -59,8 +59,11 @@ public sealed class StratBookPack : IFeaturePack
     /// <summary>The umbrella gate id. A persisted override key.</summary>
     public const string PackFeatureId = "pack.stratbook";
 
+    /// <summary>The pack id. A persisted key (<c>DemoCacheRecord.Packs</c>, <c>SessionPayload.Packs</c>).</summary>
+    public const string PackId = "net.demoviewer.pack.stratbook";
+
     /// <inheritdoc />
-    public string Id => "net.demoviewer.pack.stratbook";
+    public string Id => PackId;
 
     /// <inheritdoc />
     public string FeatureId => PackFeatureId;
