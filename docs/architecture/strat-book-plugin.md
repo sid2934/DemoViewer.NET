@@ -1647,7 +1647,9 @@ Rules as built:
   `FeaturePacks.Configure([new StratBookPack()])`, which both heads do before Avalonia starts, UiCapture does
   on its first line and the test assembly does from a module initializer (`CompiledInPacks`). The list
   freezes on first read because `FeatureCatalog`, `JobKindRegistry.Default` and `CommandRegistry.Default`
-  build from it once; a late `Configure` throws. `App.BuildServices(windowService)` still reads it, so the
+  build from it once; a second or late `Configure` throws (`FrozenList<T>`, pinned by `FeaturePacksTests`).
+  Each head's `BuildAvaloniaApp` also calls `FeaturePacks.ConfigureIfUnset` with the same list, a no-op
+  after Main, because the XAML previewer calls that method without running Main. `App.BuildServices(windowService)` still reads it, so the
   tests that build the composition root are unchanged, and the pack-off tests override the gate rather than
   the list.
 - **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (decision 5 option (b): a

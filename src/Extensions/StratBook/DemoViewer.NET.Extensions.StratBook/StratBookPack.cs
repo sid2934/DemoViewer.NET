@@ -109,7 +109,7 @@ public sealed class StratBookPack : IFeaturePack
         // wants it.
         new(
             "tab.situations", FeatureScope.Tab, "Situations",
-            "Find rounds by where the players stood — search the library's round index for a setup, "
+            "Find rounds by where the players stood: search the library's round index for a setup, "
             + "an execute or a retake and walk the hits.",
             PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
         // The Teams tab: who played in which demo, which team is us, the opponent per demo. Default-visible

@@ -21,10 +21,14 @@ internal sealed class Program
     // Avalonia configuration, don't remove; also used by visual designer.
     /// <summary>Build avalonia app.</summary>
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        // The XAML previewer calls this without Main, so it declares the same packs; a no-op after Main.
+        FeaturePacks.ConfigureIfUnset([new StratBookPack()]);
+        return AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+    }
 
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
