@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
@@ -203,35 +204,39 @@ public class TeamsModuleTests
             });
         }
 
-        LibraryTabViewModel vm = new(library, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]), teams: teams);
+        TeamLibraryContribution contribution = new(() => teams);
+        LibraryTabViewModel vm = new(library, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
+            contributions: [contribution]);
+        LibraryFilterViewModel filter = vm.Filters.Single();
         using (Assert.Multiple())
         {
             await Assert.That(vm.HasTeamFilter).IsTrue();
-            await Assert.That(vm.AvailableTeams.Count).IsEqualTo(4).Because("All teams, Us, and two teams");
-            await Assert.That(vm.AvailableTeams[0]).IsEqualTo(TeamFilterItem.All);
-            await Assert.That(vm.AvailableTeams[1]).IsEqualTo(TeamFilterItem.Us);
+            await Assert.That(filter.Items.Count).IsEqualTo(4).Because("All teams, Us, and two teams");
+            await Assert.That(filter.Items[0]).IsEqualTo(new LibraryFilterItem("", "All teams"));
+            await Assert.That(filter.Items[1]).IsEqualTo(new LibraryFilterItem("us", "Us"));
             await Assert.That(vm.FilteredEntries.Count).IsEqualTo(3);
             await Assert.That(vm.HasActiveFilters).IsFalse();
         }
 
-        vm.SelectedTeam = vm.AvailableTeams[2];
+        Guid teamId = teams.Teams[0].Id;
+        filter.Selected = filter.Items[2];
         using (Assert.Multiple())
         {
             await Assert.That(vm.FilteredEntries.Select(e => e.FilePath)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
             await Assert.That(vm.HasActiveFilters).IsTrue();
         }
 
-        vm.SelectedTeam = TeamFilterItem.Us;
+        filter.Selected = filter.Items[1];
         await Assert.That(vm.FilteredEntries).IsEmpty().Because("nothing is us yet");
 
-        teams.SetUs(vm.AvailableTeams[2].TeamId);
-        await Assert.That(vm.FilteredEntries.Count).IsEqualTo(2).Because("the filter re-applies on the service's Changed");
+        teams.SetUs(teamId);
+        await Assert.That(vm.FilteredEntries.Count).IsEqualTo(2).Because("the filter re-applies on the contribution's Changed");
 
-        teams.Rename(vm.AvailableTeams[2].TeamId!.Value, "Renamed");
-        await Assert.That(vm.AvailableTeams.Select(t => t.Display)).Contains("Renamed");
+        teams.Rename(teamId, "Renamed");
+        await Assert.That(filter.Items.Select(i => i.Display)).Contains("Renamed");
 
         vm.ClearFiltersCommand.Execute(null);
-        await Assert.That(vm.SelectedTeam).IsEqualTo(TeamFilterItem.All);
+        await Assert.That(filter.Selected).IsEqualTo(filter.Items[0]);
         await Assert.That(vm.FilteredEntries.Count).IsEqualTo(3);
     }
 }
