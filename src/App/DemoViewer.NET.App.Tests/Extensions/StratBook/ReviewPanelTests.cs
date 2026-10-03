@@ -250,7 +250,7 @@ public class ReviewPanelTests
             Playback2DTimelineHarness.Pump();
 
             TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == TagTrack.TrackId);
-            List<(string Header, Action Run)> menu = vm.Timeline.LaneMenu!(band).ToList();
+            IReadOnlyList<MenuEntry> menu = vm.Timeline.MenuFor(band);
             await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo(["Edit A execute", "Delete A execute"]);
             menu[1].Run();
             await Assert.That(vm.Tags.Document!.Instances).IsEmpty();
@@ -268,7 +268,7 @@ public class ReviewPanelTests
             {
                 await Assert.That(vm.Timeline.IsLaneEditable).IsFalse();
                 await Assert.That(vm.Timeline.HasEditSpan).IsFalse();
-                await Assert.That(vm.Timeline.LaneMenu!(band)).IsEmpty();
+                await Assert.That(vm.Timeline.MenuFor(band)).IsEmpty();
             }
 
             vm.OnDeactivated();

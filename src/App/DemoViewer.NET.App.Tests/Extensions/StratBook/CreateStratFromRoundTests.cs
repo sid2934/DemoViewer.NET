@@ -38,12 +38,12 @@ public class CreateStratFromRoundTests
     private static CapturedPawn Pawn(int slot, float x, float y, float z = 0, string? place = "TSpawn") =>
         new(slot, slot < 5 ? 2 : 3, (ulong)(100 + slot), "player" + slot, x, y, z, 90, place);
 
-    private static List<CapturedPawn> Everyone(Func<int, (float X, float Y)>? at = null) =>
+    internal static List<CapturedPawn> Everyone(Func<int, (float X, float Y)>? at = null) =>
         [.. Enumerable.Range(0, 10).Select(s => at?.Invoke(s) is { } p ? Pawn(s, p.X, p.Y) : Pawn(s, s * 1000, 0))];
 
-    private static int At(double seconds) => Freeze + (int)(seconds * Rate);
+    internal static int At(double seconds) => Freeze + (int)(seconds * Rate);
 
-    private static RoundCapture Round(params CaptureMoment[] moments) =>
+    internal static RoundCapture Round(params CaptureMoment[] moments) =>
         new(7, Freeze, At(100), Rate, [new CaptureMoment(Freeze, CaptureTrigger.FreezeEnd, Everyone()), .. moments]);
 
     private static StratCaptureOptions Options(RoundCapture capture, int side = 2, bool arrows = true) =>
@@ -381,58 +381,10 @@ public class CreateStratFromRoundTests
         }
     }
 
-    [Test]
-    public async Task TheRoundBand_OffersTheCapture_OnlyForARoundAndOnlyWhenTheTabCan()
-    {
-        Playback2DTimelineViewModel timeline = new();
-        List<TimelineBandViewModel> asked = [];
-        timeline.CreateStratRequested += asked.Add;
-        TimelineBandViewModel round = Band("round", "7");
-        TimelineBandViewModel warmup = Band("round", "wu");
-
-        timeline.RequestCreateStrat(round);
-        timeline.CanCreateStrat = true;
-        timeline.RequestCreateStrat(warmup);
-        timeline.RequestCreateStrat(Band("tags", "3"));
-        timeline.RequestCreateStrat(round);
-
-        await Assert.That(asked.Count).IsEqualTo(1);
-        await Assert.That(asked[0]).IsSameReferenceAs(round);
-    }
-
-    // The pack-off shape from the 2D tab's own side (item 15): nothing registers IStratCapture, so
-    // GetService returns null and CanCreateStrat is false, without the tab ever naming StratCaptureHost
-    // for this check.
-    [Test]
-    public async Task CanCreateStrat_IsFalse_WhenNothingRegistersTheCaptureService()
-    {
-        Playback2DTabViewModel vm = new();
-        Playback2DFakeContext context = new();
-
-        vm.OnActivated(context);
-
-        await Assert.That(vm.CanCreateStrat).IsFalse();
-    }
-
-    [Test]
-    public async Task CanCreateStrat_IsTrue_WhenACaptureWithADemoIsRegistered()
-    {
-        Playback2DTabViewModel vm = new();
-        Playback2DFakeContext context = new();
-        // CanCreateStrat only checks the reference is non-null; it never reads the demo, so an
-        // uninitialized instance (no constructor run) stands in for a real parse.
-        ParsedDemo placeholder = (ParsedDemo)RuntimeHelpers.GetUninitializedObject(typeof(ParsedDemo));
-        context.SetService<IStratCapture>(new StratCaptureHost(() => placeholder, new StratStore(null), null));
-
-        vm.OnActivated(context);
-
-        await Assert.That(vm.CanCreateStrat).IsTrue();
-    }
-
-    private static TimelineBandViewModel Band(string track, string label) =>
+    internal static TimelineBandViewModel Band(string track, string label) =>
         new(new TimelineBand(track, 0, 10, label, label, 0), 0, 1, Brushes.Gray);
 
-    private static StratCaptureRequest Request(IReadOnlyCollection<string> key) =>
+    internal static StratCaptureRequest Request(IReadOnlyCollection<string> key) =>
         new("de_mirage", 7, Freeze, At(120), "ab", "match.dem", null, key, StratOwner.Me(), "me", StratOwner.MeKind,
             StratFromRound.QuantizedLevel);
 }
