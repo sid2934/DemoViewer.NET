@@ -412,6 +412,45 @@ public class StratBookPackTests
         });
     }
 
+    private static readonly string[] _railOrder =
+    [
+        "stratbook.browser", "situations.search", "tagger.matrix", "utilitybook.browser", "review.queue", "dossier.browser",
+        "suggested.inbox"
+    ];
+
+    private static readonly string[] _railHeaders = ["Strats", "Situations", "Tags", "Utility", "Review", "Dossier", "Suggested"];
+
+    // Item 12: the hub is a contribution now, and the rail must read exactly as it did when the shell built it.
+    // The rail's entries are the modules' own descriptors, so the badge a module moves is the badge the rail shows.
+    [Test]
+    public async Task TheHub_IsThePacksHostTab_AndTheRailKeepsItsSevenSectionsInOrder()
+    {
+        await WithProvider(null, async provider =>
+        {
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
+            MainViewModel vm = provider.GetRequiredService<MainViewModel>();
+            HostTabContribution host = pack.HostTabs.Single();
+            IReadOnlyList<WorkspaceTabDescriptor> rail = vm.StratBookHub().Sections.Sections;
+            WorkspaceTabDescriptor hubTab = vm.Tabs.Single(t => t.TabId == StratBookHubViewModel.TabId);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(host.HostId).IsEqualTo(StratBookHubViewModel.HostId);
+                await Assert.That(host.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
+                await Assert.That(host.RailLabel).IsEqualTo(StratBookHubViewModel.RailLabel);
+                await Assert.That(hubTab.Header).IsEqualTo("Strat Book");
+                await Assert.That(hubTab.Order).IsEqualTo(4).Because("after 2D Playback, before Authoring");
+                await Assert.That(hubTab.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
+                await Assert.That(hubTab.ViewModelFactory!()).IsSameReferenceAs(vm.StratBookHub())
+                    .Because("the strip tab's VM is the one the contribution built, not a second hub");
+                await Assert.That(rail.Select(s => s.TabId)).IsEquivalentTo(_railOrder);
+                await Assert.That(rail.Select(s => s.Header)).IsEquivalentTo(_railHeaders);
+                await Assert.That(rail.All(s => s.HostId == StratBookHubViewModel.HostId)).IsTrue()
+                    .Because("every rail entry is a pack module's own descriptor, so the badge a module moves is the badge the rail shows");
+            }
+        });
+    }
+
     [Test]
     public async Task UnknownPackId_ResolvesOff_UnknownOtherId_StillResolvesOn()
     {
