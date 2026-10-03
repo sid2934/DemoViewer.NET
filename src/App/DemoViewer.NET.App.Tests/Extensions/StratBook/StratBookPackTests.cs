@@ -458,9 +458,9 @@ public class StratBookPackTests
                 await Assert.That(vm.StratBookHub().Sections.Sections).IsEmpty();
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
                 await Assert.That(vm.LibraryTab.Sections.Sections).IsEmpty();
-                await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse()
+                await Assert.That(vm.LibraryTab.Filters).IsEmpty()
                     .Because("the real cascade through pack.stratbook hides it the same way FakeGate does in StratBookShellTests");
-                await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
+                await Assert.That(vm.LibraryTab.HasBadge).IsFalse();
             }
         });
 
@@ -473,8 +473,8 @@ public class StratBookPackTests
                 await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId);
                 await Assert.That(vm.StratBookHub().Sections.Sections.Count).IsEqualTo(7);
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsTrue();
-                await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
-                await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
+                await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
+                await Assert.That(vm.LibraryTab.HasBadge).IsTrue();
             }
         });
     }

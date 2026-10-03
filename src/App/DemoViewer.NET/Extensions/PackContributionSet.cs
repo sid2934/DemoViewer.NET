@@ -45,6 +45,9 @@ internal sealed class PackContributionSet
     /// <summary>Every pack's re-index estimate, in pack order. Settings watches only the first for the toggle notice.</summary>
     public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];
 
+    /// <summary>Every pack's Library filter/badge contributions, in pack order. The Library hosts these generically.</summary>
+    public IReadOnlyList<ILibraryContribution> LibraryContributions => [.. Packs.SelectMany(p => p.LibraryContributions)];
+
     /// <summary>
     ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,
     ///     the designer and unit-test path; a pack id the gate does not know resolves off, never on.
