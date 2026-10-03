@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
@@ -20,7 +22,6 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
@@ -54,7 +55,7 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 ///     </para>
 ///     <para>UI-thread affine, like the session it edits.</para>
 /// </summary>
-public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrameHost, ITokenEditor, IDisposable
+public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrameHost, ITokenEditingHost, IGuidesHost, ITokenEditor, IDisposable
 {
     /// <summary>World size of the square a map without a bundle is framed on, before any token is placed.</summary>
     private const double FallbackHalfExtent = 2048;
@@ -379,7 +380,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     public string SpeedText => Transport.Speed.ToString("0.##", CultureInfo.InvariantCulture) + "×";
 
-    // ── ISceneFrameHost ──────────────────────────────────────────────────────────────────────────
+    // ── ISceneFrameHost, IGuidesHost, ITokenEditingHost ─────────────────────────────────────────────
 
     /// <inheritdoc />
     public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;

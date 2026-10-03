@@ -7,9 +7,13 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Core.Layers;
 
 #endregion
 
@@ -50,6 +54,15 @@ public partial class StratCanvasView : UserControl
             surface.TextEditRequested += OnTextEditRequested;
             _textEditor.KeyDown += OnTextEditorKeyDown;
             _textEditor.LostFocus += OnTextEditorLostFocus;
+        }
+
+        // The strat canvas's own tool and layer, on this host only: the 2D Playback tab never calls
+        // AddTool or AddLayer, so it gets neither (step-authoring.md §3.10).
+        if (_host is not null)
+        {
+            Scene2DHost host = _host;
+            host.AddTool(new TokenTool());
+            host.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() => (host.FrameHost as IGuidesHost)?.Guides ?? SceneGuides.None));
         }
 
         // Tunnel, like the 2D view: the canvas's keys win over a focused button in the tool row.
