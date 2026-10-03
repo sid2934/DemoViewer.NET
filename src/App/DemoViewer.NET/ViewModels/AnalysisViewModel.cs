@@ -1273,15 +1273,17 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         return (DemoAnalysis.Build(demo, CoreRulesets(rules.Rulesets), options), rules);
     }
 
-    // The composition root's merged build knows which rulesets a pack owns; without one (the designer,
-    // a test) nothing is excluded.
+    // The composition root's merged build knows which rulesets a pack owns. In production there is
+    // always a container here: BuildServices assigns App.Services before the shell exists, and only the
+    // shell starts a run. A null or disposed container is the designer or a test, and then the read is
+    // used as it is.
     private static IReadOnlyList<RulesetDoc> CoreRulesets(IReadOnlyList<RulesetDoc> rulesets)
     {
         try
         {
             return App.Services?.GetService<MergedRulesBuild>()?.WithoutPackRulesets(rulesets) ?? rulesets;
         }
-        catch (Exception)
+        catch (ObjectDisposedException)
         {
             return rulesets;
         }
