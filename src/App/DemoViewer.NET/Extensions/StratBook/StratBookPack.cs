@@ -7,6 +7,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.Situations;
@@ -370,6 +371,9 @@ public sealed class StratBookPack : IFeaturePack
                 () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
                 action => Dispatcher.UIThread.Post(action));
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
+            // Set here, not by the evaluator registry's lazy wrapper, which only runs once something has
+            // already polled the coordinator.
+            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
             return built;
         });
         // The tuning view's harness: stored counts for free, an in-memory re-run over a candidate
@@ -516,6 +520,10 @@ public sealed class StratBookPack : IFeaturePack
                 () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
                 enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
             sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
+            // Set here, not by the evaluator registry's lazy wrapper: GrenadeIndex resolves this directly
+            // at StartPacks time, before anything has polled the coordinator, so a wrapper-only assignment
+            // would leave Coordinator null and Request silently no-op until the first poll.
+            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
             return built;
         });
 
@@ -664,14 +672,15 @@ public sealed class StratBookPack : IFeaturePack
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
         // the others write). The registry resolves this only while the pack is on, so these factories are
         // never invoked, and these services never constructed, with the pack off.
+        string libraryId = sp.GetRequiredService<DemoLibraryService>().Id;
         contributions.Evaluator(RoundFactsEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundFactsEvaluator>(),
-            "library");
+            libraryId);
         contributions.Evaluator(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             RoundFactsEvaluator.EvaluatorId);
         contributions.Evaluator(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
         contributions.Evaluator(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
-            "library");
+            libraryId);
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator

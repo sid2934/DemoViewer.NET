@@ -49,11 +49,7 @@ public sealed class EvaluatorRegistry
     {
         lock (_gate)
         {
-            if (!_packsPopulated)
-            {
-                _populatePacks?.Invoke();
-                _packsPopulated = true;
-            }
+            EnsurePacksPopulated();
 
             List<IDemoEvaluator> result = new(_declaredOrder.Count);
             foreach (string id in SortedIds())
@@ -76,6 +72,34 @@ public sealed class EvaluatorRegistry
 
             return result;
         }
+    }
+
+    /// <summary>
+    ///     Populates and sorts without materializing anything: a cycle or an unknown After id throws here,
+    ///     at startup, instead of waiting for the first real <see cref="Resolve" />. The sort it computes is
+    ///     cached, so a <see cref="Resolve" /> right after does no extra work.
+    /// </summary>
+    public void Validate()
+    {
+        lock (_gate)
+        {
+            EnsurePacksPopulated();
+            SortedIds();
+        }
+    }
+
+    // The latch is set BEFORE the callback runs, not after: if populate throws partway through, a later
+    // call must not retry it, which would re-add the same ids and throw "registered more than once",
+    // masking the real failure behind a second, confusing one.
+    private void EnsurePacksPopulated()
+    {
+        if (_packsPopulated)
+        {
+            return;
+        }
+
+        _packsPopulated = true;
+        _populatePacks?.Invoke();
     }
 
     private void Add(string id, Func<IDemoEvaluator> factory, IReadOnlyList<string> after, Func<bool>? enabled)
