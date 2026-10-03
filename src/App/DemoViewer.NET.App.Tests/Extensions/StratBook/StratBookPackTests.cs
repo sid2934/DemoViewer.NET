@@ -39,7 +39,6 @@ public class StratBookPackTests
         "Microsoft.Extensions.Options.IOptionsChangeTokenSource`1[DemoViewer.NET.Configuration.AppSettings]",
         "Microsoft.Extensions.Options.IConfigureOptions`1[DemoViewer.NET.Configuration.AppSettings]",
         "DemoViewer.NET.Features.IFeatureGate",
-        "DemoViewer.NET.Extensions.PackLifecycleRegistry",
         "DemoViewer.NET.Extensions.IPackLifecycle",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
         "DemoViewer.NET.Theming.ThemeRegistry",

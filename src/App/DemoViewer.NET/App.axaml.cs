@@ -11,6 +11,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -302,21 +303,36 @@ public class App : Application
                 // ReviewQueue are core (Reels uses the queue too), so their flush stays unconditional here
                 // rather than behind a pack's "was built" guard. Idempotent, so a re-fired request writes
                 // nothing new.
+                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
                 Action[] flushes =
                 [
                     () => services.GetService<TagStore>()?.SaveIndex(),
                     () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
                     () =>
                     {
-                        // Only packs whose lifecycle actually ran: a pack that resolved off at startup
-                        // never built anything, so its shutdown must never construct a store either.
-                        foreach (IPackLifecycle lifecycle in services.GetRequiredService<PackLifecycleRegistry>().Ran)
+                        // Every pack's lifecycle, unconditionally: whether OnEnabledAsync ran at startup is
+                        // not whether there is anything to flush now (a pack turned on mid-session has no
+                        // live-toggle re-run yet, item 8's job, but a tab it exposed can still have been
+                        // opened and written to). Each lifecycle's own "was built" guards decide what, if
+                        // anything, to touch; one lifecycle's failure must not skip the others.
+                        foreach (IFeaturePack pack in FeaturePacks.Default)
                         {
-                            lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+                            if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
+                            {
+                                continue;
+                            }
+
+                            try
+                            {
+                                lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+                            }
+                            catch (Exception ex)
+                            {
+                                AppLog.OperationFailed(log, "shutdown flush", ex);
+                            }
                         }
                     }
                 ];
-                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
                 foreach (Action flush in flushes)
                 {
                     try
@@ -690,14 +706,14 @@ public class App : Application
     /// <summary>
     ///     For each pack whose <see cref="IFeaturePack.FeatureId" /> resolves on, resolves its
     ///     <see cref="IPackLifecycle" /> (if registered, keyed by <see cref="IFeaturePack.Id" />) and fires
-    ///     <see cref="IPackLifecycle.OnEnabledAsync" />, recording it in the <see cref="PackLifecycleRegistry" />
-    ///     so shutdown flushes only what started. Fire-and-forget: a pack's startup loads run on the
-    ///     processing queue, same as the explicit block this replaced.
+    ///     <see cref="IPackLifecycle.OnEnabledAsync" />. Fire-and-forget: a pack's startup loads run on the
+    ///     processing queue, same as the explicit block this replaced. Shutdown does not read anything
+    ///     this records: every pack's lifecycle gets an unconditional <see cref="IPackLifecycle.OnShutdown" />
+    ///     instead, each deciding for itself what it actually built.
     /// </summary>
     internal static void StartPacks(IServiceProvider provider, IReadOnlyList<IFeaturePack> packs)
     {
         IFeatureGate gate = provider.GetRequiredService<IFeatureGate>();
-        PackLifecycleRegistry registry = provider.GetRequiredService<PackLifecycleRegistry>();
         foreach (IFeaturePack pack in packs)
         {
             if (!gate.IsEnabled(pack.FeatureId))
@@ -707,7 +723,6 @@ public class App : Application
 
             if (provider.GetKeyedService<IPackLifecycle>(pack.Id) is { } lifecycle)
             {
-                registry.MarkRan(lifecycle);
                 _ = lifecycle.OnEnabledAsync(PackStartReason.Startup, CancellationToken.None);
             }
         }
@@ -1021,6 +1036,13 @@ public class App : Application
         // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
         services.AddSingleton(sp =>
         {
+            // BuildShell resolves this unconditionally (the Library team filter), so the pack's gate
+            // cannot decide whether the service is built, only whether its startup READ is a queue item.
+            // Off, the ctor's own fallback (scheduleLoad null) reads teams.json inline instead: the
+            // Library still needs a working service, but nothing from a disabled pack belongs in the
+            // queue list.
+            IFeatureGate? teamsGate = sp.GetService<IFeatureGate>();
+            bool packOn = teamsGate?.IsEnabled(StratBookPack.PackFeatureId) ?? false;
             TeamIdentityService teams = new(
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
@@ -1028,7 +1050,7 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action),
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
                     "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
-                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"));
+                scheduleLoad: packOn ? StartupLoad(sp, "Load: teams", "teams") : null);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
@@ -1109,9 +1131,6 @@ public class App : Application
         // on WASM). Factory-registered (mirrors DemoLibraryService) so there is no ambiguity over its optional
         // ctor param.
         services.AddSingleton(sp => new RecentFilesStore(sp.GetRequiredService<SettingsService>()));
-
-        // Which packs' lifecycles actually started this session, so shutdown flushes only those.
-        services.AddSingleton<PackLifecycleRegistry>();
 
         // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
         // not what is registered.
