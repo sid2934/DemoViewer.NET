@@ -587,25 +587,49 @@ public interface IPlaybackSurface
     IReadOnlyList<MapLevel> MapLevels { get; }                     // the mounted viewport's levels; empty without one
     Playback2DKeymapProfile Keymap { get; }                        // the tab's resolved keymap, replaced whole on a rebind
     event Action? KeymapChanged;
+    event Action? Deactivated;                                     // before the tab flushes its documents
+    IDisposable OnDemoChanged(Action handler);                     // on activation and on a demo reset, after the resync
     IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items);
+    ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
+    IDisposable AddModeToggle(ModeToggle toggle);                  // the toolbar renders it; its action flips it
     IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);  // Side; RightColumn forwards to AddPanel
-    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null);
+    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
+        ModeToggle? mode = null);                                  // shown while open, gate on and the mode on
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
     IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
     // Temporary, each named for the item that removes it:
-    bool IsReviewMode { get; }                                     // item 18 makes the mode the pack's
-    event Action? ReviewModeChanged;                               // item 18
-    Playback2DTimelineViewModel Timeline { get; }                  // item 18: lane events, edit span, registered tracks
     Scene2DFrame CurrentFrame { get; }                             // item 20: Click To Tag resolves against the frame
     PlaceResolver? Zones { get; }                                  // item 20
     IDisposable AddMapClickHandler(Func<MapLevel, double, double, bool> handler);  // item 20 replaces with AddPointerPreHandler
     // Not built yet, in the order the items need them:
-    void AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);  // item 18
     void AddToolbarItem(ToolbarItem item);                                                      // item 20
     void AddPointerPreHandler(Func<ScenePointer, bool> handler);                                // item 20, Click To Tag
     void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
     void AddTool(IPointerTool tool);                                                            // later; token
-    IDisposable OnDemoChanged(Action handler);                                                  // if a contribution needs it
+}
+
+public interface ILaneBehaviour   // what a lane does; the timeline dispatches to the lane whose track made the band
+{
+    void OnBandPressed(TimelineBandViewModel band, ITimelineData data);          // before the seek
+    IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band, ITimelineData data);  // before the band-menu contributors'
+    void OnLabelRequested(int frame);                                            // empty lane clicked while IsEditable
+    void OnEditSpanDragged(int startFrame, int endFrame);                        // a handle of EditSpan moved
+}
+
+public interface ILaneHandle : IDisposable   // Dispose unregisters the track and its behaviour
+{
+    ITimelineTrack Track { get; }
+    bool IsSuppressed { get; set; }          // hidden for a mode; the user's own toggle is untouched
+    bool IsEditable { get; set; }            // the row shows even empty; a click asks for a label
+    (int Start, int End)? EditSpan { get; set; }   // drawn with two handles; one lane's at a time
+}
+
+public sealed class ModeToggle   // a mode of the tab a contribution owns
+{
+    public ModeToggle(string id, string label, string tooltip, Playback2DAction? action = null, string? icon = null);
+    public bool IsOn { get; set; }           // raises Changed on a flip
+    public bool IsAvailable { get; set; }    // off: the toolbar hides the toggle; the action only leaves the mode
+    public event Action? Changed;
 }
 
 public interface IPaneHandle : IDisposable   // Dispose removes the pane; Close only hides it
@@ -667,22 +691,64 @@ a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the 
 tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
 Review toggle and never collapses the cards.
 
-Three members are temporary and named for the items that remove them. `IsReviewMode` and `ReviewModeChanged`
-(item 18): the mode is still the tab's, persisted and toggled there; the surface shows contributed panels only
-while it is on, and the contribution hears the flip to clear the palette, the queue's selection and the editor.
-`Timeline` (item 18): the lanes are still registered by the tab, so the contribution reads the `TagTrack` and
-`ProposalTrack` from `Timeline.RegisteredTracks` (the session comes from `TagTrack.Session`, the colour bridge
-goes back through `TagTrack.CodeColour`) and carries the lane behaviour the tab used to carry, the band menu
-through `AddBandMenu` and the press, drag and label handlers through the timeline's events; item 18 turns those
-into lane contributions with their own `ILaneBehaviour`. `CurrentFrame`, `Zones` and `AddMapClickHandler`
-(item 20): Click To Tag Position resolves the clicked point in the pack against the frame on screen and the
-map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer. `OnDemoChanged` was
-not needed. The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus
-off) on two signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which
-the tab raises before it flushes its documents, and `TagSession.Detaching`, raised before a swap inside
-`AttachAsync` or a `Detach` lets go of the document, while the old document is still current. So the tab
-calls nothing on the palette by name, and neither focus nor a half-typed note survives a tab switch or a
-demo swap.
+Three members are temporary and named for the item that removes them: `CurrentFrame`, `Zones` and
+`AddMapClickHandler` (item 20). Click To Tag Position resolves the clicked point in the pack against the frame
+on screen and the map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer.
+The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus off) on two
+signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which the tab
+raises before it flushes its documents (the contribution flushes its own session there), and
+`TagSession.Detaching`, raised before a swap inside `AttachAsync` or a `Detach` lets go of the document,
+while the old document is still current. So the tab calls nothing on the palette by name, and neither focus
+nor a half-typed note survives a tab switch or a demo swap.
+
+As built by item 18 (`Modules/Playback2D/Timeline/ILaneBehaviour.cs`, `Extensions/ModeToggle.cs`): the lanes,
+the mode and the session are the pack's, and the three hooks item 17 left (`IsReviewMode`, `ReviewModeChanged`,
+`Timeline`) are gone with the tab's `TagSession`, `TagTrack`, `ProposalTrack`, `IsReviewMode`, `Tags`,
+`AttachTagsToCurrentDemo` and its `TryResolve<T>` locator; the tab imports no pack namespace for them and
+`PackBoundaryTests` lists no item-18 edge.
+
+- *Lanes.* `AddLane(track, row, behaviour)` is `Playback2DTimelineViewModel.RegisterLane`: the track registers
+  as before (registration order is display order; a track registered after the build is built at once, so a
+  pack turned on in session shows its lane without a re-query) and the timeline keeps the lane beside it.
+  Dispatch is by the lane that made the band, never by track id: `PressBand` calls the lane's `OnBandPressed`
+  before the seek, `MenuFor` puts the lane's entries before the `BandMenus` contributors', `RequestLaneLabel`
+  goes to the first editable lane, and `DragEditEdge` moves the span of the lane that owns it and tells that
+  lane. The handle carries the state the contribution used to set through `Timeline`: `IsSuppressed` is
+  `SetTrackSuppressed` by the track's id (the user's toggle untouched, `IsTrackSuppressed` still answers by
+  id), and the row folds `IsLaneEditable`, `ShowLane`, `HasEditSpan`, `EditX` and `EditWidth` from every lane's
+  `IsEditable` and `EditSpan`. Disposing the handle is `UnregisterTrack`: the toggle, the bands, the markers,
+  the suppression and the lane go, and the row re-folds. The three tab-level events (`BandPressed`,
+  `LaneLabelRequested`, `EditSpanDragged`) are deleted; nothing raised them for anyone else.
+- *The mode.* `ModeToggle` is a contributed mode: the view's toolbar lists `Surface.ModeToggles` as
+  `ToggleButton`s bound to `IsOn`, `Label`, `Tooltip` and `IsAvailable` in the slot the hardcoded Review toggle
+  had; `Playback2DSurface.TryExecute` gives a keymap action to the toggle that names it first (`TryToggle`:
+  flips while available or on, false when off with nothing to show, so Shift+R is nobody's then), then to the
+  action handlers. A panel is bound to a mode through `AddPanel`'s `mode`, and `IsShown` folds the gate, the
+  open state and the mode; a panel bound to none shows whenever it is open with its gate on. The tab's
+  `IsReviewAvailable` is still an open panel whose gate is on, and `IsCardStrip` is now any panel shown
+  (`Surface.HasShownPanels`), which the view's panel host and the strip rows bind.
+- *The demo.* `OnDemoChanged` is raised by the tab at the two moments it attached its tag session before: the
+  end of `OnActivated` and of `OnDemoReset`, after the resync. A contribution attaches per-demo state there;
+  the context's `DemoPath` may be the demo already attached.
+
+The contribution (`ReviewPanelsPlaybackContribution`, now `IDisposable` because it owns the track) builds the
+`TagSession` on attach from `context.GetService<T>()`: `TagStore` (null for session-only tags), `DemoCacheStore`
+for the rounds a new tag's `round` is derived from, and `IRoundFactsSource` for its facts. It registers
+`TagTrack` and `ProposalTrack` on the lane row in that order with a `TagLaneBehaviour` (Label Mode's pick on a
+press, the edit and delete entries, the new label on an empty-lane click, the editor's span on a handle drag)
+and a `ProposalLaneBehaviour` (the queue's pick on a press, the review entries); the proposal track's
+confidence tints come from the theme tokens the tab used to supply. It registers the Review `ModeToggle`
+(id `stratbook.review`, action `ToggleReviewMode`), reads its start from `Playback2D.ReviewMode` and writes
+every flip back to the same key, suppresses both lanes while the mode is off, binds the three panels to it,
+and sets `IsAvailable` from the two tagging gates, which is what hides the toolbar toggle when both are off.
+On `OnDemoChanged` and at attach it binds the session to `context.DemoPath` (fire and forget, the hash from
+`DemoSha256` or the file); the demo already attached is kept, a swap runs through `AttachAsync`, whose
+`Detaching` lets the palette write its pending tag to the old document first. `Detach` writes the palette's
+pending tag, disposes the panels, disposes the lane handles (the tracks leave the timeline), then the track
+and the session (which flushes to the store), so a pack turned off with a tag pending loses nothing, and a
+pack turned off leaves the tab with no session, no lane, no toggle and no handler. Pack off at startup builds
+none of it: the tab's timeline carries the four core tracks alone, which also removed two hidden track
+toggles the footer used to make room for.
 
 One behaviour changed on purpose. Undo and redo while the palette has the keyboard report handled (true)
 even when the tag history is empty; before, the tab returned the real `TagSession.Undo()` result, which made
@@ -691,7 +757,7 @@ through to the annotations' undo now that the focused panel is asked first; the 
 the unfocused case's.
 
 The contribution (`Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs`)
-builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over the lane's session
+builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over its session
 with `TagPaletteStore`, `SuggestedTagsService` and `SettingsService` from `context.GetService<T>()`, and
 registers them as three panels: the palette (order 0, gate `playback2d.tagger`), the review panel (order 1,
 `ReviewPanelView` in the pack: the Suggested / Labels toggle, the shared editor and the Labels list the core
