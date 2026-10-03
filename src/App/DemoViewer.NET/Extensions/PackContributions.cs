@@ -23,6 +23,8 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<StatusChipContribution> _statusChips = [];
     private readonly List<IPackReindexEstimate> _reindexEstimates = [];
     private readonly List<IPlaybackContribution> _playback = [];
+    private readonly List<StoreDescriptor> _stores = [];
+    private IPackDataRemoval? _dataRemoval;
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
@@ -56,6 +58,12 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>2D Playback contributions, in contribution order.</summary>
     public IReadOnlyList<IPlaybackContribution> PlaybackContributions => _playback;
+
+    /// <summary>Store and cache paths the pack declared, in contribution order.</summary>
+    public IReadOnlyList<StoreDescriptor> Stores => _stores;
+
+    /// <summary>The pack's "delete extension data" action, or null when it declared none.</summary>
+    public IPackDataRemoval? DataRemovalContribution => _dataRemoval;
 
     /// <inheritdoc />
     public void Module(IWorkspaceModule workspaceModule)
@@ -135,5 +143,20 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(contribution);
         _playback.Add(contribution);
+    }
+
+    /// <inheritdoc />
+    public void Store(StoreDescriptor store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentException.ThrowIfNullOrWhiteSpace(store.Id);
+        _stores.Add(store);
+    }
+
+    /// <inheritdoc />
+    public void DataRemoval(IPackDataRemoval removal)
+    {
+        ArgumentNullException.ThrowIfNull(removal);
+        _dataRemoval = removal;
     }
 }

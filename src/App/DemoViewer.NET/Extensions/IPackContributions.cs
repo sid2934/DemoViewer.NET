@@ -142,6 +142,91 @@ public interface IPackReindexEstimate
     Task<int> CountAsync();
 }
 
+/// <summary>Which app-data root a <see cref="StoreDescriptor" />'s paths resolve against.</summary>
+public enum StoreRoot
+{
+    /// <summary>
+    ///     <c>AppPaths.ConfigRoot</c>: the consolidated per-user config root (<c>settings.json</c>'s
+    ///     directory), where a pack's own user-truth stores and drop-in folders live.
+    /// </summary>
+    Config,
+
+    /// <summary><c>AppPaths.DemoCacheDir</c>: the demo cache root, where the pack's regenerable caches live.</summary>
+    Cache
+}
+
+/// <summary>
+///     One pack store or cache path, for "delete extension data" (architecture doc §7.4, §8). A path in
+///     <paramref name="Paths" /> is either a literal file or directory relative to <paramref name="Root" />,
+///     or a demo-sidecar pattern of the form <c>"demos/*&lt;suffix&gt;"</c>: everything in <c>demos/</c>
+///     under the root whose file name ends with <c>&lt;suffix&gt;</c>, matched by ordinal string comparison,
+///     never by a filesystem glob (<c>demos/</c> also holds the core record sidecars, which must survive).
+/// </summary>
+/// <param name="Id">Stable id, unique within the pack. A lookup key, never shown.</param>
+/// <param name="Label">The store's name in the delete confirmation and its size line.</param>
+/// <param name="Root">Which root <paramref name="Paths" /> resolve against.</param>
+/// <param name="Paths">One or more paths or demo-sidecar patterns, relative to <paramref name="Root" />.</param>
+/// <param name="IsUserWork">
+///     True when the store holds something the user wrote or tuned by hand, not a derived cache: named by
+///     label in the delete confirmation. False for a store that re-fills itself from the library.
+/// </param>
+public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IReadOnlyList<string> Paths, bool IsUserWork);
+
+/// <summary>What <see cref="IPackDataRemoval.InventoryAsync" /> found of one <see cref="StoreDescriptor" />.</summary>
+/// <param name="Descriptor">The store this counts.</param>
+/// <param name="FileCount">Files that exist under it right now.</param>
+/// <param name="Bytes">Their combined size.</param>
+public sealed record StoreInventoryItem(StoreDescriptor Descriptor, int FileCount, long Bytes);
+
+/// <summary>A pack's on-disk footprint at one point in time, one entry per declared store.</summary>
+/// <param name="Items">One entry per <see cref="StoreDescriptor" /> the pack declared, in declaration order.</param>
+public sealed record PackDataInventory(IReadOnlyList<StoreInventoryItem> Items)
+{
+    /// <summary>An inventory of nothing: every store reports zero, used when the real count could not run.</summary>
+    public static readonly PackDataInventory Empty = new([]);
+
+    /// <summary>Every file the inventory found, across every store.</summary>
+    public long TotalBytes => Items.Sum(i => i.Bytes);
+
+    /// <summary>The stores named <see cref="StoreDescriptor.IsUserWork" />, the ones the confirmation calls out by name.</summary>
+    public IEnumerable<StoreInventoryItem> UserWorkItems => Items.Where(i => i.Descriptor.IsUserWork);
+}
+
+/// <summary>What <see cref="IPackDataRemoval.DeleteAsync" /> did.</summary>
+/// <param name="Ran">
+///     False when the queue dropped the item before it ran (the pack was switched back on first, which
+///     cancels every item owned by its feature id): nothing was touched.
+/// </param>
+/// <param name="Removed">What was actually deleted, one entry per store.</param>
+/// <param name="RecordsUpdated">Demo cache records whose pack payload and stamps were stripped.</param>
+public sealed record PackDataRemovalResult(bool Ran, PackDataInventory Removed, int RecordsUpdated)
+{
+    /// <summary>The queue dropped the item: nothing ran.</summary>
+    public static readonly PackDataRemovalResult NotRun = new(false, PackDataInventory.Empty, 0);
+}
+
+/// <summary>
+///     What a pack hands Settings for "delete extension data" (architecture doc §8, item 24): available
+///     whether the pack is on or off, so the Settings VM never has to resolve the pack's own stores or
+///     gate state itself.
+/// </summary>
+public interface IPackDataRemoval
+{
+    /// <summary>The pack id the Settings row is filed under (for the row's label, read off <c>FeatureCatalog</c>).</summary>
+    string PackFeatureId { get; }
+
+    /// <summary>Counts what is on disk right now, for the confirmation's size line. Never deletes anything.</summary>
+    Task<PackDataInventory> InventoryAsync();
+
+    /// <summary>
+    ///     Deletes every declared store's files, strips the pack's payload and stamps from the demo cache,
+    ///     and drops whatever the pack's own stores still hold in memory. If the pack is on, turns it off
+    ///     first and waits for its release to finish, so nothing it is still writing is deleted out from
+    ///     under it; the pack stays off afterward.
+    /// </summary>
+    Task<PackDataRemovalResult> DeleteAsync();
+}
+
 /// <summary>
 ///     What a pack may hand the shell from <see cref="IFeaturePack.Contribute" />. Every contribution
 ///     carries the pack's umbrella id implicitly; the shell shows one only while that id and any narrower
@@ -189,4 +274,10 @@ public interface IPackContributions
     ///     off. See <see cref="IPlaybackContribution" />.
     /// </summary>
     void Playback(IPlaybackContribution contribution);
+
+    /// <summary>One store or cache path the pack owns, for "delete extension data"; see <see cref="StoreDescriptor" />.</summary>
+    void Store(StoreDescriptor store);
+
+    /// <summary>The pack's "delete extension data" action; see <see cref="IPackDataRemoval" />.</summary>
+    void DataRemoval(IPackDataRemoval removal);
 }
