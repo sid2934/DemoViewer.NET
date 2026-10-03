@@ -275,9 +275,12 @@ public static class FeatureCatalog
                     throw new InvalidOperationException(
                         $"Pack feature '{f.Id}' may not join core group '{groupId}'.");
                 }
-            }
 
-            fromPacks.AddRange(features);
+                // Every contribution carries its pack's id implicitly (7.2), independent of ParentId: the
+                // gate cascades it off with the pack even when it is parented to a core tab. The pack's own
+                // Pack-scope row is not owned by itself.
+                fromPacks.Add(f.Scope == FeatureScope.Pack ? f : f with { OwnerPackId = pack.FeatureId });
+            }
         }
 
         FeatureDescriptor[] all = [.. _core, .. fromPacks];
@@ -326,10 +329,16 @@ public static class FeatureCatalog
                 throw new InvalidOperationException(
                     $"Feature '{d.Id}' ({d.Scope}) may not have '{d.ParentId}' ({parent.Scope}) as its parent.");
             }
+        }
 
-            if (parent.Scope == FeatureScope.Pack && d.Required)
+        // Nothing a pack owns may be Required, not just a tab parented to it directly: a sub-feature
+        // docked in a core tab (playback2d.tagger) is just as pack-owned via OwnerPackId, and Required
+        // would defeat that pack's switch the same way.
+        foreach (FeatureDescriptor d in all)
+        {
+            if (d.OwnerPackId is not null && d.Required)
             {
-                throw new InvalidOperationException($"Feature '{d.Id}' under pack '{d.ParentId}' may not be Required.");
+                throw new InvalidOperationException($"Feature '{d.Id}' owned by pack '{d.OwnerPackId}' may not be Required.");
             }
         }
 

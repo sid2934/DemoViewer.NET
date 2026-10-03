@@ -65,6 +65,7 @@ public sealed class StratMiningService : IDisposable
 
     private readonly DemoCacheStore _demoCache;
     private readonly string? _detectedPath;
+    private readonly Func<bool> _enabled;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly object _gate = new();
     private readonly GrenadeIndex? _grenadeIndex;
@@ -100,10 +101,14 @@ public sealed class StratMiningService : IDisposable
     ///     The processing queue a mine runs in, and whose pending demo parses hold back the quiet re-mine; null mines
     ///     on <paramref name="run" /> directly.
     /// </param>
+    /// <param name="enabled">
+    ///     The owning pack's gate for the cache-quiet re-mine only; a user-requested <see cref="MineAsync()" />
+    ///     always runs. Defaults to always-on.
+    /// </param>
     public StratMiningService(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
         string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
-        IDemoProcessingQueue? queue = null)
+        IDemoProcessingQueue? queue = null, Func<bool>? enabled = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(positions);
@@ -121,6 +126,7 @@ public sealed class StratMiningService : IDisposable
         _post = post ?? (action => action());
         _run = run ?? Task.Run;
         _queue = queue;
+        _enabled = enabled ?? (() => true);
         _signatures = new RoundSignatureBuilder(demoCache, positions, fingerprintFor,
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
             new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
@@ -685,9 +691,11 @@ public sealed class StratMiningService : IDisposable
 
     private void OnSourceChanged(string? _) => OnSourceChanged();
 
+    // Gated: the owning pack's state is read live, so a toggle mid-session stops this arming without a
+    // restart.
     private void OnSourceChanged()
     {
-        if (MinedUtc is null || QuietDelay == Timeout.InfiniteTimeSpan)
+        if (!_enabled() || MinedUtc is null || QuietDelay == Timeout.InfiniteTimeSpan)
         {
             return;
         }
@@ -702,9 +710,17 @@ public sealed class StratMiningService : IDisposable
     // Demo parses only: the queue's other jobs (clips, this mine) must not hold the re-mine back forever.
     private bool QueueBusy => _queue is { } queue && queue.ActiveCount(QueueJobKind.DemoProcessing) > 0;
 
-    /// <summary>The quiet timer: re-mines unless the processing queue has work, in which case it waits for the drain.</summary>
+    /// <summary>
+    ///     The quiet timer: re-mines unless the processing queue has work, in which case it waits for the
+    ///     drain. A no-op while the owning pack's gate is off, even for a timer armed before it went off.
+    /// </summary>
     internal void OnQuiet()
     {
+        if (!_enabled())
+        {
+            return;
+        }
+
         lock (_gate)
         {
             if (QueueBusy)

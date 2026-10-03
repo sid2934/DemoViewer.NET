@@ -93,6 +93,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly TeamIdentityService? _teams; // the Team filter's source (null = no filter offered)
     private readonly IDemoProvenanceSource? _provenance; // the card's provenance chip (null = no chip)
 
+    // Checked before every read of _teams / _provenance so the services are never touched while off, not
+    // just hidden. Defaults to always-on for a caller that doesn't pass one.
+    private readonly Func<bool> _packEnabled;
+    private bool _packWasEnabled;
+
     [ObservableProperty]
     private bool _isCardView = true; // user default: card view
 
@@ -133,7 +138,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RecentFilesStore? recentFiles = null,
         string? sampleDemoPath = null,
         TeamIdentityService? teams = null,
-        IDemoProvenanceSource? provenance = null)
+        IDemoProvenanceSource? provenance = null,
+        Func<bool>? packEnabled = null)
     {
         _library = library;
         _openDemo = openDemo;
@@ -143,6 +149,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         _sampleDemoPath = sampleDemoPath;
         _teams = teams;
         _provenance = provenance;
+        _packEnabled = packEnabled ?? (() => true);
+        _packWasEnabled = _packEnabled();
         if (_provenance is not null)
         {
             // Same lifetime as the team subscription: a pin set from another surface, a team marked
@@ -215,11 +223,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     /// <summary>The Team filter's choices: "All teams", "Us", then every visible team. One entry when no service is wired.</summary>
     public ObservableCollection<TeamFilterItem> AvailableTeams { get; } = [];
 
-    /// <summary>True when a Team Identity service backs the Team filter.</summary>
-    public bool HasTeamFilter => _teams is not null;
+    /// <summary>True when a Team Identity service backs the Team filter AND the Strat Book extension is on.</summary>
+    public bool HasTeamFilter => _teams is not null && _packEnabled();
 
-    /// <summary>True when a provenance source backs the card's label chip.</summary>
-    public bool HasProvenance => _provenance is not null;
+    /// <summary>True when a provenance source backs the card's label chip AND the Strat Book extension is on.</summary>
+    public bool HasProvenance => _provenance is not null && _packEnabled();
 
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
     public ObservableCollection<string> AvailablePlayers { get; } = [AllPlayers];
@@ -577,7 +585,55 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     private void OnTeamsChanged()
     {
+        if (!_packEnabled())
+        {
+            return;
+        }
+
         RefreshAvailableTeams();
+        ApplyFilter();
+    }
+
+    /// <summary>
+    ///     Re-reads the pack-enabled predicate and reconciles the team filter and provenance chip to it.
+    ///     The shell calls this on every gate change (<c>ApplyGateChange</c>); a steady state (no actual
+    ///     flip) is a cheap no-op, so an unrelated gate change never re-queries either service.
+    /// </summary>
+    public void RefreshPackGate()
+    {
+        bool enabled = _packEnabled();
+        if (enabled == _packWasEnabled)
+        {
+            return;
+        }
+
+        _packWasEnabled = enabled;
+        if (enabled)
+        {
+            RefreshAvailableTeams();
+            RefreshProvenance();
+        }
+        else
+        {
+            // SelectedTeam is reassigned LAST, as RefreshAvailableTeams below also does, and in the same
+            // place relative to _suppressApply: a bound ComboBox nulls SelectedItem the instant Clear()
+            // drops the item it was showing, and that null writes back through the TwoWay binding over
+            // an earlier assignment.
+            _suppressApply = true;
+            AvailableTeams.Clear();
+            AvailableTeams.Add(TeamFilterItem.All);
+            foreach (DemoEntry entry in _library.Entries)
+            {
+                entry.ProvenanceLabel = null;
+                entry.ProvenanceIsOverride = false;
+            }
+
+            _suppressApply = false;
+            SelectedTeam = TeamFilterItem.All;
+        }
+
+        OnPropertyChanged(nameof(HasTeamFilter));
+        OnPropertyChanged(nameof(HasProvenance));
         ApplyFilter();
     }
 
@@ -585,13 +641,17 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     // name can change under the same id, which an add/remove diff would miss.
     private void RefreshAvailableTeams()
     {
-        if (_teams is null)
+        if (_teams is null || !_packEnabled())
         {
             return;
         }
 
         Guid? keepId = SelectedTeam.TeamId;
         bool keepUs = SelectedTeam.IsUs;
+
+        // Suppressed: a bound ComboBox nulls SelectedItem the instant Clear() drops the item it was
+        // showing, and that null writes back through the TwoWay binding before the reassign below runs.
+        _suppressApply = true;
         AvailableTeams.Clear();
         AvailableTeams.Add(TeamFilterItem.All);
         AvailableTeams.Add(TeamFilterItem.Us);
@@ -600,6 +660,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             AvailableTeams.Add(new TeamFilterItem(DisplayText.Sanitize(team.Name), team.Id, false));
         }
 
+        _suppressApply = false;
         SelectedTeam = keepUs ? TeamFilterItem.Us
             : keepId is { } id ? AvailableTeams.FirstOrDefault(t => t.TeamId == id) ?? TeamFilterItem.All
             : TeamFilterItem.All;
@@ -647,6 +708,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public void SetProvenance(DemoEntry entry, string? label)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (!_packEnabled())
+        {
+            return;
+        }
+
         _teams?.SetProvenanceOverride(entry.FilePath, label);
     }
 
@@ -654,7 +720,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     // rather than a lookup storm per card, and an entry the cache does not know reads unlabeled.
     private void RefreshProvenance()
     {
-        if (_provenance is null)
+        if (_provenance is null || !_packEnabled())
         {
             return;
         }
@@ -797,7 +863,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         // Team filter: "Us" keeps demos whose our side resolved (a roster of the us team, or a me
         // account); a team keeps demos with either side assigned to it.
-        if (_teams is not null && !SelectedTeam.IsAll)
+        if (_packEnabled() && _teams is not null && !SelectedTeam.IsAll)
         {
             TeamFilterItem team = SelectedTeam;
             q = q.Where(e => _teams.GetAssignment(e.FilePath) is { } a

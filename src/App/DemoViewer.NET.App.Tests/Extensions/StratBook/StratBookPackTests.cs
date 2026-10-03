@@ -206,27 +206,68 @@ public class StratBookPackTests
         await WithGate(async (svc, gate) =>
         {
             svc.Write(s => s.UserCategory = UserCategory.Developer);
-            // An explicit per-tab override does not survive the pack going off: cascade beats override.
+            // An explicit override does not survive the pack going off: cascade beats override, through
+            // ParentId (tab.dossier) and through OwnerPackId alone (playback2d.tagger, whose ParentId is the
+            // core tab.playback2d and so never reaches the pack that way).
             svc.Write(s => s.Features.Overrides["tab.dossier"] = true);
+            svc.Write(s => s.Features.Overrides["playback2d.tagger"] = true);
             svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
 
             await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsFalse();
-            foreach ((string id, string parent) in _movedIds.Where(m => m.Parent != "tab.playback2d"))
+            foreach ((string id, string parent) in _movedIds)
             {
-                await Assert.That(gate.IsEnabled(id)).IsFalse().Because($"{id} cascades off through {parent}");
+                await Assert.That(gate.IsEnabled(id)).IsFalse()
+                    .Because($"{id} is owned by the pack and goes off with it, whatever {parent} resolves to");
             }
 
-            // The two docked in 2D Playback keep tab.playback2d as their parent and so stay on here.
-            await Assert.That(gate.IsEnabled("playback2d.tagger")).IsTrue();
-            await Assert.That(gate.IsEnabled("playback2d.suggestedtags")).IsTrue();
-            // Core tabs are untouched.
+            await Assert.That(gate.IsEnabled("playback2d.tagger")).IsFalse()
+                .Because("the owning-pack rule beats an explicit override=true, the same as ParentId cascade does");
+
+            // Core tabs are untouched, and so is a core SUB-feature sharing tab.playback2d with the two
+            // pack-owned ones that just went off above: the rule discriminates by owner, not by ParentId.
             await Assert.That(gate.IsEnabled("tab.playback2d")).IsTrue();
             await Assert.That(gate.IsEnabled("tab.library")).IsTrue();
+            await Assert.That(gate.IsEnabled("playback2d.annotations")).IsTrue()
+                .Because("core, not pack-owned, even though its parent is the same tab.playback2d");
 
             svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
             await Assert.That(gate.IsEnabled("tab.stratbook")).IsTrue().Because("the pack back on lets the tabs through");
             await Assert.That(gate.IsEnabled("stratbook.export")).IsTrue();
+            await Assert.That(gate.IsEnabled("playback2d.tagger")).IsTrue()
+                .Because("the owning-pack rule only forces off; it never forces on past the tab's own state");
+            await Assert.That(gate.IsEnabled("playback2d.suggestedtags")).IsTrue();
         });
+    }
+
+    // The owning-pack rule (7.2/7.6): a sub-feature docked in a CORE tab still carries its contributing
+    // pack's id and cascades off with it, independent of ParentId. Structural half of the rule (the stamp
+    // itself); the behavioural half is PackOff_CascadesEveryTab_AndEverySubFeatureUnderThem_Off above.
+    [Test]
+    public async Task Build_StampsEveryPackDescriptor_WithItsOwnerPackId_ExceptThePackRowItself()
+    {
+        FeatureDescriptor[] built = FeatureCatalog.Build(FeaturePacks.Default);
+        HashSet<string> packIds = [.. new StratBookPack().Features.Select(f => f.Id)];
+
+        FeatureDescriptor packRow = built.Single(d => d.Id == StratBookPack.PackFeatureId);
+        await Assert.That(packRow.OwnerPackId).IsNull().Because("a pack is not owned by itself");
+
+        foreach (FeatureDescriptor d in built.Where(d => d.Id != StratBookPack.PackFeatureId))
+        {
+            if (packIds.Contains(d.Id))
+            {
+                await Assert.That(d.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
+                    .Because($"{d.Id} is contributed by the pack");
+            }
+            else
+            {
+                await Assert.That(d.OwnerPackId).IsNull().Because($"{d.Id} is core, not pack-owned");
+            }
+        }
+
+        // playback2d.tagger and playback2d.suggestedtags are the two that prove the rule earns its keep:
+        // their ParentId is the core tab.playback2d, not the pack.
+        await Assert.That(built.Single(d => d.Id == "playback2d.tagger").ParentId).IsEqualTo("tab.playback2d");
+        await Assert.That(built.Single(d => d.Id == "playback2d.tagger").OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId);
     }
 
     [Test]
@@ -250,6 +291,9 @@ public class StratBookPackTests
                 await Assert.That(vm.StratBookHub.Sections.Sections).IsEmpty();
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
                 await Assert.That(vm.LibraryTab.Sections.Sections).IsEmpty();
+                await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse()
+                    .Because("the real cascade through pack.stratbook hides it the same way FakeGate does in StratBookShellTests");
+                await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
             }
         });
 
@@ -262,6 +306,8 @@ public class StratBookPackTests
                 await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId);
                 await Assert.That(vm.StratBookHub.Sections.Sections.Count).IsEqualTo(7);
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsTrue();
+                await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
+                await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
             }
         });
     }
@@ -303,9 +349,14 @@ public class StratBookPackTests
     {
         FakePack requiredPack = new("pack.req", [Pack("pack.req") with { Required = true }]);
         FakePack requiredTab = new("pack.reqtab", [Pack("pack.reqtab"), Tab("tab.reqtab", "pack.reqtab") with { Required = true }]);
+        // Owned via OwnerPackId alone: parented to a CORE tab (tab.library), not to the pack directly, the
+        // playback2d.tagger shape.
+        FakePack requiredSubFeatureUnderCoreTab = new("pack.reqsub",
+            [Pack("pack.reqsub"), SubFeature("sub.reqsub", "tab.library") with { Required = true }]);
 
         await Assert.That(Message(() => FeatureCatalog.Build([requiredPack]))).Contains("may not be Required");
         await Assert.That(Message(() => FeatureCatalog.Build([requiredTab]))).Contains("may not be Required");
+        await Assert.That(Message(() => FeatureCatalog.Build([requiredSubFeatureUnderCoreTab]))).Contains("may not be Required");
     }
 
     [Test]
@@ -425,6 +476,9 @@ public class StratBookPackTests
 
     private static FeatureDescriptor Tab(string id, string? parent) =>
         new(id, FeatureScope.Tab, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+
+    private static FeatureDescriptor SubFeature(string id, string? parent) =>
+        new(id, FeatureScope.SubFeature, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
 
     private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
     {

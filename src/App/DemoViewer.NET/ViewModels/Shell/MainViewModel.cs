@@ -141,6 +141,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // (the real app + the gating tests).
     private readonly IFeatureGate? _gate;
 
+    // The Strat Book's umbrella id. The Library's team filter and provenance chip, and the strat export
+    // chip, key off this directly: none of them is a section with a feature id of its own.
+    private const string StratBookPackFeatureId = "pack.stratbook";
+
+    // A null gate fails open, matching every other surface this flag controls.
+    private bool IsStratBookPackEnabled => _gate?.IsEnabled(StratBookPackFeatureId) ?? true;
+
     // ── Heavy-parse coordination + highlights pipeline ──
     // Null on the designer / unit-test path → interactive loads run ungated (pre-gate behavior)
     // and no highlight harvesting happens.
@@ -874,7 +881,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _recentFiles,
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
             teams, // the Team filter: "All teams", "Us", then every visible team
-            provenance); // the card's provenance chip
+            provenance, // the card's provenance chip
+            packEnabled: () => IsStratBookPackEnabled);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
@@ -2332,21 +2340,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // Shown while running, or while a finished result has not been dismissed. An idle mapper adds nothing
-    // to the strip: the tab attaches it on the first Export, which is long before the first Start.
+    // to the strip: the tab attaches it on the first Export, which is long before the first Start. The
+    // strat slot also requires the pack: off hides it without unsubscribing, so it returns when the pack does.
     private void ReconcileExportChip()
     {
-        ReconcileExportChip(Playback2DExportStatus, _exportChipDismissed);
-        ReconcileExportChip(StratExportStatus, _stratExportChipDismissed);
+        ReconcileExportChip(Playback2DExportStatus, _exportChipDismissed, allowed: true);
+        ReconcileExportChip(StratExportStatus, _stratExportChipDismissed, allowed: IsStratBookPackEnabled);
     }
 
-    private void ReconcileExportChip(Playback2DExportStatusViewModel? mounted, bool dismissed)
+    private void ReconcileExportChip(Playback2DExportStatusViewModel? mounted, bool dismissed, bool allowed)
     {
         if (mounted is not { } status)
         {
             return;
         }
 
-        bool shouldShow = status.IsRunning || !status.IsIdle && !dismissed;
+        bool shouldShow = allowed && (status.IsRunning || !status.IsIdle && !dismissed);
         bool present = Chips.Contains(status.Chip);
         if (shouldShow && !present)
         {
@@ -2537,6 +2546,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReconcileChips();
         // The chrome.processingQueue gate may have flipped: add/remove the Processing chip to match.
         ReconcileQueueChip();
+
+        // The pack id may have flipped: the Library's team filter and provenance chip go with it, and so
+        // does the strat export chip (the hub and its sections already went through ReconcileTabs above).
+        LibraryTab.RefreshPackGate();
+        ReconcileExportChip();
     }
 
     /// <summary>
@@ -2569,8 +2583,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (ReferenceEquals(SelectedTab, removed))
             {
                 // Neighbor-select BEFORE the remove so the selection is already on a surviving tab when
-                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard.
-                SelectedTab = ChooseNeighbor(removed, desired);
+                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard. The hub is
+                // special-cased: its order-neighbor can be any tab to its left, but a disabled pack must
+                // land on Library specifically, not whatever happens to sort just before it.
+                SelectedTab = ReferenceEquals(removed, _stratBookHubTab)
+                    ? Tabs.FirstOrDefault(t => t.TabId == "builtin.library") ?? ChooseNeighbor(removed, desired)
+                    : ChooseNeighbor(removed, desired);
             }
 
             removed.Deactivate(); // idempotent; drops the realized View if it was the (old) selected tab.
@@ -4485,10 +4503,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // Re-selects the persisted tab by its durable TabId: the ONLY key, because the tab
     // set is dynamic (feature gating, new built-ins landing mid-strip) and a position means a different tab
-    // from one build to the next. A stale, gated-out, or absent id falls back to the first tab (Library);
-    // for a session predating TabId persistence that is a one-time, self-healing loss of the remembered
-    // tab, which beats confidently restoring the wrong one. Called after BuildWorkspaceTabs, so Tabs is
-    // already populated.
+    // from one build to the next. A stale, gated-out, or absent id falls back to Library by id, never a
+    // position. Called after BuildWorkspaceTabs, so Tabs is already populated.
     private void RestoreActiveTab(SessionPayload p)
     {
         if (Tabs.Count == 0)
@@ -4496,11 +4512,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // A section id here is a session file written when the Strat Book sections were strip tabs; the
-        // lookup lands it on the section through its host.
+        // A section id here is a session written when the Strat Book sections were strip tabs, or a pack
+        // section/hub id from a session where the pack was on and is now off.
         if (!TrySelectTab(p.ActiveTabId))
         {
-            SelectedTab = Tabs[0];
+            SelectedTab = Tabs.FirstOrDefault(t => t.TabId == "builtin.library") ?? Tabs[0];
         }
     }
 

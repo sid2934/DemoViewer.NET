@@ -195,8 +195,10 @@ public class App : Application
             if (!OperatingSystem.IsBrowser())
             {
                 GrenadeIndexEvaluator grenades = services.GetRequiredService<GrenadeIndexEvaluator>();
+                IFeatureGate? grenadeGate = services.GetService<IFeatureGate>();
                 viewModel.MatchOverviewTab.IndexGrenades = grenades.Request;
                 viewModel.MatchOverviewTab.AreGrenadesIndexed = grenades.IsCurrent;
+                viewModel.MatchOverviewTab.PackEnabled = () => grenadeGate?.IsEnabled("pack.stratbook") ?? true;
             }
 
             // Session restore runs HERE, not in the shell ctor: it activates the persisted tab, and tab
@@ -942,12 +944,16 @@ public class App : Application
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
             return new RoundIndexEvaluator(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => monitor?.CurrentValue.Situations.BackgroundIndex ?? true,
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                // The literal id, not StratBookPack.PackFeatureId: this is core code, and a pack id fails
+                // off on a typo (FeatureCatalog.IsPackId), never silently on.
+                enabled: () => features?.IsEnabled("pack.stratbook") ?? true);
         });
         services.AddSingleton(sp => new SituationIndex(
             sp.GetRequiredService<DemoCacheStore>(),
