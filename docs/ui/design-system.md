@@ -2357,6 +2357,17 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
   UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
   decisions above).
+- **Delete extension data (strat-book-plugin.md item 24, 2026-10-03):** one row per `IPackDataRemoval`
+  below `ContributedSettingsPages`, `ItemsControl ItemsSource="{Binding ExtensionDataActions}"`. Unlike a
+  contributed page it is NOT gated by the pack's `FeatureId`: it shows whether the pack is on or off,
+  since deleting while off is the main use. No modal dialog exists anywhere in this app to reuse, so the
+  confirmation is an inline `Border` that Arm reveals in place of the Delete button: `ConfirmationText`
+  lists the user-work stores by label and size (`AccentError` on both the Delete and the confirm panel's
+  Delete, `PanelHeaderHoverDeep` for the panel so it reads as a step inside the card rather than a second
+  card), Cancel collapses it, Confirm runs the delete and leaves a status line. `StatusText` alone (no
+  panel) covers "Counting…", "Nothing to delete." and the final count. `ExtensionDataActionViewModel` is
+  its own small Arm/Confirm/Cancel state machine, one per row, built from the pack's `IPackDataRemoval`
+  and a label read off `FeatureCatalog` the same way `StratBookToggleNotice` reads one.
 
 ---
 
