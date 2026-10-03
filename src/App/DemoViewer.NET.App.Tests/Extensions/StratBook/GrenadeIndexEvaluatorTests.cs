@@ -116,6 +116,26 @@ public class GrenadeIndexEvaluatorTests
             .Because("a no-op Request clears nothing, not even a stamp a retry would normally lift");
     }
 
+    // The coordinator's exact scenario: a click while the pack is off, then the pack comes back on
+    // without a restart. Background is off by default (Wire), so only a leftover forced path could
+    // make Wants true here.
+    [Test]
+    public async Task WithThePackOff_Request_LeavesNothingForWhenThePackComesBackOn()
+    {
+        bool on = false;
+        (_, GrenadeIndexEvaluator evaluator) = Wire(enabled: () => on);
+
+        evaluator.Request(Demo);
+        on = true;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse()
+                .Because("the demo must not be walked unasked now that the pack is back on");
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+        }
+    }
+
     [Test]
     public async Task ARequest_IsWantedAtUserPriority_WhateverTheOptInSays()
     {
