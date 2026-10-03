@@ -271,7 +271,7 @@ public class App : Application
                         // not whether there is anything to flush now (a pack turned on and off in session,
                         // or one whose tab was opened and written to). Each lifecycle's own "is live" guards
                         // decide what, if anything, to touch; one lifecycle's failure must not skip the others.
-                        foreach (IFeaturePack pack in FeaturePacks.Default)
+                        foreach (IFeaturePack pack in FeaturePacks.Compatible)
                         {
                             if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
                             {
@@ -599,7 +599,7 @@ public class App : Application
     ///     </para>
     /// </summary>
     internal static ServiceProvider BuildServices(IWindowService windowService) =>
-        BuildServices(windowService, FeaturePacks.Default);
+        BuildServices(windowService, FeaturePacks.Compatible);
 
     /// <summary>
     ///     <see cref="BuildServices(IWindowService)" /> over an explicit pack list. The packs' descriptors
