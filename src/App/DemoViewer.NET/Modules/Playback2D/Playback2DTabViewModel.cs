@@ -18,9 +18,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -38,13 +36,10 @@ using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -130,16 +125,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
     // through the same IsAvailable the timeline band asks: one answer, not two that can disagree.
     private readonly RoundTrack _roundTrack = new();
-
-    // The open demo's tags and their lane on the timeline (tag-store.md §3.11). One session per tab: the
-    // store's CheckOut is single-writer. The pack's review panels edit through it; the session and the
-    // lane stay here until item 18 registers the lanes through the pack.
-    private readonly TagSession _tagSession;
-    private readonly TagTrack _tagTrack;
-
-    // Suggested Tags' pending proposals on the tag lane (suggested-tags.md §3.6). The pack's queue owns the
-    // set and mirrors it onto this track; registered here until item 18.
-    private readonly ProposalTrack _proposalTrack = new();
 
     // Cached round facts, the winner tint's source on a Valve demo (which carries no round_end). Resolved
     // ambiently like the settings: a headless test builds this with no container and gets null, and the
@@ -375,33 +360,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Timeline.RegisterTrack(new BombTrack());
         Timeline.RegisterTrack(_annotationTrack);
 
-        // No container means session-only tags, the annotation rule. The track re-queries on every
-        // session version bump, posted to the UI thread because a save can raise Changed off it. Round
-        // Facts gives a new tag its round's facts as it is made. The session and both lane tracks stay
-        // here until item 18 registers them through the pack; the review panels reach them through
-        // Surface.Timeline.RegisteredTracks.
-        DemoCacheStore? cache = TryResolve<DemoCacheStore>();
-        _tagSession = new TagSession(TryResolve<TagStore>(), path => cache?.TryLoadRecord(path)?.Rounds, _roundFacts);
-        _tagTrack = new TagTrack(_tagSession, static action => Dispatcher.UIThread.Post(action));
-        Timeline.RegisterTrack(_tagTrack, TimelineBandRow.Lane);
-
-        // The Suggested track sits on the tag lane after the tags, so an accepted proposal moves from
-        // one band to the other in place. Its three confidence steps take theme tokens, never literals.
-        _proposalTrack.StepColour = ProposalStepColour;
-        Timeline.RegisterTrack(_proposalTrack, TimelineBandRow.Lane);
-
-        // The packs' surface: their band menus join the timeline's contributors, their side panes take the
-        // export pane's place (opening one closes the export), and their right-column panels show under
-        // the player cards in Review mode. The surface reads the gate, the mode, the frame and the zones
-        // live from here.
+        // The packs' surface: their band menus and lanes join the timeline, their side panes take the
+        // export pane's place (opening one closes the export), their right-column panels show under the
+        // player cards while a mode of theirs is on, and their mode toggles sit on the toolbar. The surface
+        // reads the gate, the frame and the zones live from here.
         Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke(),
-            id => _features?.IsEnabled(id) ?? true, () => IsReviewMode, () => CurrentFrame, () => Zones);
+            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame, () => Zones);
         Surface.SidePaneOpened += CloseExport;
-        Surface.PanelsChanged += RaiseReviewMode;
-
-        // Review mode starts as the user left it (off on a first run): the lanes follow it from here.
-        _isReviewMode = Settings()?.Current.Playback2D.ReviewMode ?? false;
-        ApplyReviewModeToTimeline();
+        Surface.PanelsChanged += RaisePanelState;
 
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
@@ -684,12 +650,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _annotationTrack.Dispose();
         _annotationController.Dispose();
 
-        // Detaching removes every contributed pane and panel, which closes and disposes the open ones; it
-        // runs before the session goes so a panel's pending edit still has a document to land in.
+        // Detaching removes every contributed pane, panel and lane, which closes and disposes the open ones.
         _contributionBinding?.Dispose();
         _contributionBinding = null;
-        _tagTrack.Dispose();
-        _tagSession.Dispose(); // detaches, which flushes
 
         // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
         // a running export, which would otherwise raise a terminal status into a half-torn-down shell.
@@ -701,7 +664,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The tab's own close covers a side pane left by a contribution that did not.
         Surface.CloseSidePane();
         Surface.SidePaneOpened -= CloseExport;
-        Surface.PanelsChanged -= RaiseReviewMode;
+        Surface.PanelsChanged -= RaisePanelState;
     }
 
     public void OnActivated(IModuleContext context)
@@ -747,7 +710,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // before the next push arrives.
         ResyncToCurrentDemo();
         AttachAnnotationsToCurrentDemo(false);
-        AttachTagsToCurrentDemo();
+        Surface.NotifyDemoChanged(); // a contribution attaches its per-demo state (the pack's tag session)
         Status = $"2D Playback — active · {context.CurrentPlayers.Count} players · 0 pushes";
     }
 
@@ -758,8 +721,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
         // fire-and-forget write races the process exit.
         _annotationController.Flush();
-        Surface.NotifyDeactivated(); // a panel holding the keyboard lets go and writes what it was making
-        _tagSession.Flush();
+        Surface.NotifyDeactivated(); // a panel holding the keyboard lets go, writes what it was making and flushes
 
         // A contributed pane in progress (a Create Strat review mid-walk) is dropped: nothing was saved, and
         // the tab may come back to another demo.
@@ -1256,18 +1218,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    private static T? TryResolve<T>() where T : class
-    {
-        try
-        {
-            return App.Services?.GetService<T>();
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     private static SettingsService? TryResolveSettings()
     {
         try
@@ -1384,88 +1334,19 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     The open demo's tag session: the Tag Track reads it, and the Tag Palette will edit through it.
-    ///     Attached on activation and on every demo swap; unattached while no demo file is open.
+    ///     A contributed panel whose gate is on exists: the column has something to show. The modes that show
+    ///     panels are the contributions' (<see cref="IPlaybackSurface.AddModeToggle" />), so a tab with no
+    ///     contributed panel offers no toggle and never collapses the cards.
     /// </summary>
-    public TagSession Tags => _tagSession;
-
-    private bool _isReviewMode;
-
-    /// <summary>
-    ///     Review mode: the contributed review panels and the tag and suggestion lanes show, the player
-    ///     cards collapse to a strip, and the tagging keys act. Off, the tab is plain playback and every
-    ///     tagging key is unhandled, so a stray N cannot reject a suggestion no one can see. Persisted.
-    ///     The mode is the tab's until item 18 makes it the pack's; the panels hear it through
-    ///     <see cref="IPlaybackSurface.ReviewModeChanged" />.
-    /// </summary>
-    public bool IsReviewMode
-    {
-        get => _isReviewMode;
-        set
-        {
-            if (_isReviewMode == value)
-            {
-                return;
-            }
-
-            _isReviewMode = value;
-            ApplyReviewModeToTimeline();
-            Surface.NotifyReviewModeChanged();
-            SaveReviewModeSetting(value);
-            RaiseReviewMode();
-        }
-    }
-
-    /// <summary>Whether Review mode has anything to show: a contributed panel whose gate is on. The toolbar hides the toggle otherwise.</summary>
     public bool IsReviewAvailable => Surface.HasPanels;
 
-    /// <summary>The player cards draw as a compact strip, leaving the column to the review panels.</summary>
-    public bool IsCardStrip => IsReviewMode && IsReviewAvailable;
+    /// <summary>The player cards draw as a compact strip, leaving the column to the shown panels.</summary>
+    public bool IsCardStrip => Surface.HasShownPanels;
 
-    private void RaiseReviewMode()
+    private void RaisePanelState()
     {
-        OnPropertyChanged(nameof(IsReviewMode));
         OnPropertyChanged(nameof(IsReviewAvailable));
         OnPropertyChanged(nameof(IsCardStrip));
-    }
-
-    // The tag and suggestion lanes are Review mode's: hidden by mode, never by the user's own toggle.
-    // Suppression by track id stays here with the registration (item 18).
-    private void ApplyReviewModeToTimeline()
-    {
-        Timeline.SetTrackSuppressed(TagTrack.TrackId, !IsReviewMode);
-        Timeline.SetTrackSuppressed(ProposalTrack.TrackId, !IsReviewMode);
-    }
-
-    private static void SaveReviewModeSetting(bool on)
-    {
-        try
-        {
-            Settings()?.Write(s => s.Playback2D.ReviewMode = on);
-        }
-        catch (Exception)
-        {
-            // A read-only config directory must not take the toggle down.
-        }
-    }
-
-    // The Suggested track's steps as theme tokens at the lane's wash alpha: the track hands back ARGB and
-    // never names a colour. Off the UI thread (a test's layout) the track's own washes stand.
-    private static uint? ProposalStepColour(ConfidenceStep step)
-    {
-        if (Application.Current is not { } app || !Dispatcher.UIThread.CheckAccess())
-        {
-            return null;
-        }
-
-        (string key, uint fallback, byte alpha) = step switch
-        {
-            ConfidenceStep.High => ("Pb2dPositive", 0xFF5AB05Au, (byte)0x80),
-            ConfidenceStep.Medium => ("Pb2dBomb", 0xFFE08040u, (byte)0x60),
-            _ => ("Pb2dTextDim", 0xFFA0A8B0u, (byte)0x40)
-        };
-        Color colour = ThemeColors.Get(key, app.ActualThemeVariant, Color.FromUInt32(fallback));
-        return Color.FromArgb(alpha, colour.R, colour.G, colour.B).ToUInt32();
     }
 
     /// <summary>
@@ -1480,36 +1361,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     {
         ArgumentNullException.ThrowIfNull(level);
         return Surface.TryHandleMapClick(level, worldX, worldY);
-    }
-
-    // Binds the tag session to whatever demo the context is on. Fire-and-forget like the annotations:
-    // the hash may have to be computed off the UI thread (a demo Content Identity has not reached), and
-    // an activation must not wait on it. Re-activation on the demo already attached keeps the in-memory
-    // document; a swap flushes the old one inside AttachAsync.
-    private void AttachTagsToCurrentDemo()
-    {
-        if (_context is not { } ctx || string.IsNullOrEmpty(ctx.DemoPath)
-                                    || string.Equals(_tagSession.DemoPath, ctx.DemoPath,
-                                        StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        // A tag a panel was still making belongs to the demo it was made on: AttachAsync flushes first.
-        _ = AttachTagsAsync(ctx, ctx.DemoPath).ContinueWith(static _ => { }, TaskScheduler.Default);
-    }
-
-    private async Task AttachTagsAsync(IModuleContext ctx, string demoPath)
-    {
-        // Resumes on the calling (UI) context: the session is UI-thread affine.
-        DemoIdentity? demo = await TagSession.IdentityForAsync(demoPath, ctx.DemoSha256);
-        if (demo is null || !ReferenceEquals(_context, ctx)
-                         || !string.Equals(ctx.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return; // unreadable, or the user moved on while it hashed
-        }
-
-        await _tagSession.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
     }
 
     private static string[] BuildMyWeaponsPaths()
@@ -1933,17 +1784,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             case Playback2DAction.PrevSituationResult:
                 return IsSituationResultWalkEnabled && (SituationResults?.Walk(-1) ?? false);
 
-            case Playback2DAction.ToggleReviewMode:
-                if (!IsReviewAvailable && !IsReviewMode)
-                {
-                    return false;
-                }
-
-                IsReviewMode = !IsReviewMode;
-                return true;
-
-            // The pack actions (Tag*, Suggestion*, FocusTagPalette) and anything else the tab does not
-            // name: the contributions' turn, unless a focused panel already had it above.
+            // The pack actions (Tag*, Suggestion*, FocusTagPalette, ToggleReviewMode) and anything else the
+            // tab does not name: the contributions' turn, unless a focused panel already had it above.
             default:
                 return !offered && Surface.TryExecute(action);
         }
@@ -2373,7 +2215,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one
         // forces, unlike a tab re-activation, which must keep the in-memory document.
         AttachAnnotationsToCurrentDemo(true);
-        AttachTagsToCurrentDemo();
+        Surface.NotifyDemoChanged();
     }
 
     // Rebuilds ALL per-demo draw-state from the CURRENT context, shared by on-activation and by the
