@@ -141,6 +141,7 @@ public static partial class Variants
             // captured by "settings".
             ["settings-queue-warn"] = () => Settings(2),
             ["wizard"] = Wizard,
+            ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
             ["library-populated"] = () => Library(LibraryState.Populated),
             ["library-dropover"] = () => Library(LibraryState.DragOver),
@@ -1241,6 +1242,30 @@ public static partial class Variants
         FirstRunWizardViewModel vm = new(svc)
         {
             CurrentStep = 1
+        };
+        return new FirstRunWizardView
+        {
+            DataContext = vm
+        };
+    }
+
+    /// <summary>
+    ///     The wizard's Extensions step (item 6): one card per <see cref="FeatureScope.Pack" /> catalog
+    ///     row, here just <c>pack.stratbook</c>. A fresh temp-dir <see cref="SettingsService" /> (no
+    ///     settings.json) so <see cref="SettingsService.NeedsFirstRun" /> is true and the step exists at
+    ///     index 3; a re-run from Settings never reaches it.
+    /// </summary>
+    private static FirstRunWizardView WizardExtensions()
+    {
+        string dir = Path.Combine(
+            Path.GetTempPath(), "demoviewer-uicapture-wizard-extensions", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+
+        SettingsService svc = new(dir);
+        FirstRunWizardViewModel vm = new(svc)
+        {
+            CurrentStep = 3
         };
         return new FirstRunWizardView
         {

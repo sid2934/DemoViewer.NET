@@ -1550,6 +1550,37 @@ for every audience; first-run + skippable.
   tracks window height: keep the capture `--size` (1280x800) and `_transportRect` in sync. NOT wired into
   MainView/MainViewModel yet (engine phase owns integration).
 
+### FirstRunWizardView Extensions step: one card per FeatureScope.Pack row (feature/strat-book-ext-6-first-run, 2026-10-02)
+Item 6 of the Strat Book extension plan (`docs/architecture/strat-book-plugin.md` section 6, section 8,
+section 10 decision 2, section 11.1). Asks whether to turn each installed extension on, generically over
+the catalog rather than a hardcoded Strat Book reference.
+- **Placement.** A new step inserted before Done (`FirstRunWizardViewModel.WizardStep`: Welcome, Category,
+  Folders, **Extensions**, Done), so every earlier index (`IsCategoryStep` = 1, `IsFoldersStep` = 2) stays
+  stable whether or not the Extensions step exists this run.
+- **Generic, not Strat Book specific.** The VM takes an optional `IEnumerable<FeatureDescriptor> packs`
+  ctor param (default: `FeatureCatalog.All.Where(d => d.Scope == FeatureScope.Pack)`) and builds one
+  `PackOptionViewModel` per row: `FeatureId`, `Title` (the descriptor's `Label`), `Copy`, `Enabled`
+  (seeded from any existing override, else the catalog default for the current category). A second pack
+  gets its own card from the same loop, with no new VM or view code.
+- **Copy.** A small `_packCopy` lookup in the VM keyed by pack id supplies a richer "what it adds, what it
+  costs" paragraph for a known pack (Strat Book's cites the M0 memory figure in round terms, "a few hundred
+  MB of memory on a large library", `docs/architecture/strat-book-plugin.md` section 12); an id with no
+  entry falls back to the descriptor's own one-line `Description`, which is what keeps a future pack's
+  question working before anyone writes bespoke copy for it.
+- **Visibility.** The step exists only when `SettingsService.NeedsFirstRun` is true at construction
+  (captured once, before `Finish`/`Skip` can flip it) and at least one pack row exists. An upgrade whose
+  settings.json predates a pack's key never sees the question: the gate's override-or-default resolution
+  already lands on for a missing key, so the step would be asking something already answered.
+- **Writes.** `Finish` writes every answer explicitly into `Features.Overrides[FeatureId]`, on or off, the
+  same unconditional pattern as `UserCategory` and `Library.Folders` above it; `Skip` never touches pack
+  overrides, so a skipped first run leaves every pack at its catalog default (on), matching `Skip`'s
+  basis-preserving contract for the rest of the wizard.
+- **Layout.** One `Border.card` per pack (title + wrapped copy left, a `CheckBox` right), inside an
+  `ItemsControl` bound to `PackOptions`. No new tokens: `TextValue`/`TextMid`/`TextDim`/`card` reused as is.
+- **Verified** in `UiCapture/Variants.cs` as `wizard-extensions` (`--size 1280x800`, a fresh temp-dir
+  `SettingsService` parked on `CurrentStep=3`) and in `FirstRunWizardTests` (headless window render plus
+  accept/decline/skip/upgrade coverage against a live `FeatureGate`).
+
 <a id="stats-components"></a>
 ### Stats component library (`Controls/Stats/`, v0.8.1)
 
