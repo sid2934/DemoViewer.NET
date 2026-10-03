@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
@@ -475,6 +476,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         return true;
     }
+
+    /// <inheritdoc />
+    bool ISceneFrameHost.TryPointerPreHandler(ScenePointer pointer) =>
+        TryTagPositionAt(pointer.Level, pointer.WorldX, pointer.WorldY);
 
     /// <summary>
     ///     Makes a step the active one: pauses, moves the playhead to the step's time, and keeps that step active

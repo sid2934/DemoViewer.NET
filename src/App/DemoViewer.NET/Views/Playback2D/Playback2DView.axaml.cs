@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
 
@@ -24,7 +25,6 @@ namespace DemoViewer.NET.Views.Playback2D;
 /// </summary>
 public partial class Playback2DView : UserControl
 {
-    private readonly MenuItem? _findRoundsMenuItem;
     private readonly MenuItem? _followMenuItem;
     private readonly ILevelSurface? _levelSurface;
     private readonly TextBlock? _mapApproxNote;
@@ -33,6 +33,7 @@ public partial class Playback2DView : UserControl
     private readonly IPlayback2DSurface? _surface;
     private readonly Canvas? _textEditorLayer;
     private readonly TextBox? _textEditor;
+    private readonly Separator? _toolbarItemsSeparator;
 
     // True between the surface asking for a label's text and the editor handing it back. Cleared FIRST
     // on the way out, because hiding the box moves focus, and losing focus is itself a commit.
@@ -50,6 +51,10 @@ public partial class Playback2DView : UserControl
     // pan flag, so anything that can make the release stop matching (a rebind, an external settings.json
     // edit, a profile swap) would strand the surface panning forever.
     private Key? _holdPanKey;
+
+    // The overflow menu's entries for Surface.ToolbarItems, rebuilt every open: tracked so the previous
+    // set can be removed before the fresh one goes in (a pack toggled live, or a rebind's label change).
+    private readonly List<MenuItem> _toolbarMenuItems = [];
 
     public Playback2DView()
     {
@@ -79,7 +84,7 @@ public partial class Playback2DView : UserControl
         }
 
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
-        _findRoundsMenuItem = this.FindControl<MenuItem>("FindRoundsMenuItem");
+        _toolbarItemsSeparator = this.FindControl<Separator>("ToolbarItemsSeparator");
         _modeLabel = this.FindControl<TextBlock>("ModeLabel");
         _mapApproxNote = this.FindControl<TextBlock>("MapApproxNote");
 
@@ -521,7 +526,8 @@ public partial class Playback2DView : UserControl
         _ => mode.ToString()
     };
 
-    // Populate the Follow-Player submenu from the VM's current players each time the menu opens.
+    // Populate the Follow-Player submenu and the toolbar items' entries from the VM's live state each
+    // time the menu opens.
     private void OnModeMenuOpened(object? sender, EventArgs e)
     {
         if (DataContext is not Playback2DTabViewModel vm)
@@ -529,12 +535,7 @@ public partial class Playback2DView : UserControl
             return;
         }
 
-        // The gesture in the header is the RESOLVED profile's, read on open so a rebind shows here at
-        // the same moment it reaches the router; the flyout is not in the visual tree for a binding.
-        if (_findRoundsMenuItem is not null)
-        {
-            _findRoundsMenuItem.Header = vm.FindRoundsLikeThisLabel;
-        }
+        RebuildToolbarMenuItems(vm);
 
         if (_followMenuItem is null)
         {
@@ -565,13 +566,42 @@ public partial class Playback2DView : UserControl
         _followMenuItem.ItemsSource = items;
     }
 
+    // Surface.ToolbarItems as overflow entries: a pack toggled live or a rebound gesture changes the set
+    // or the label between opens, so this rebuilds rather than binds (MenuFlyout.Items takes no source
+    // alongside the flyout's own static entries). Each entry's Command is the item's own, the same one
+    // the toolbar button runs.
+    private void RebuildToolbarMenuItems(Playback2DTabViewModel vm)
+    {
+        if (_modeMenuFlyout is null)
+        {
+            return;
+        }
+
+        foreach (MenuItem old in _toolbarMenuItems)
+        {
+            _modeMenuFlyout.Items.Remove(old);
+        }
+
+        _toolbarMenuItems.Clear();
+
+        // Set directly rather than bound: this separator is the flyout popup's own content, not reliably
+        // in the visual tree for a data binding before the flyout has opened once.
+        if (_toolbarItemsSeparator is not null)
+        {
+            _toolbarItemsSeparator.IsVisible = vm.Surface.HasToolbarItems;
+        }
+
+        foreach (ToolbarItem item in vm.Surface.ToolbarItems)
+        {
+            MenuItem menuItem = new() { Header = item.MenuHeader ?? item.Label, Command = item.Command };
+            _modeMenuFlyout.Items.Add(menuItem);
+            _toolbarMenuItems.Add(menuItem);
+        }
+    }
+
     // The SplitButton submenu pick goes through the VM's follow funnel like every other path; the viewport
     // mirror and the mode label are then driven by OnFollowSlotChanged, so a menu pick and a card pick
     // produce identical state.
     private void FollowSlot(int slot) =>
         (DataContext as Playback2DTabViewModel)?.NotifyFollowSlotChanged(slot);
-
-    // The menu pick takes the key's own funnel, so the two cannot drift.
-    private void OnFindRoundsLikeThis(object? sender, RoutedEventArgs e) =>
-        (DataContext as Playback2DTabViewModel)?.ExecuteAction(Playback2DAction.FindRoundsLikeThis);
 }

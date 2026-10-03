@@ -4,10 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
@@ -126,13 +124,22 @@ public interface IPlaybackSurface
     IDisposable AddModeToggle(ModeToggle toggle);
 
     /// <summary>
-    ///     The frame on screen, for a contribution that resolves a map click against it. Temporary: item 20
-    ///     moves Click To Tag behind a pointer pre-handler over a scene pointer.
+    ///     A button the view lists beside the core toolbar buttons and again as an entry in the camera-mode
+    ///     overflow menu, so one registration reaches both.
     /// </summary>
-    Scene2DFrame CurrentFrame { get; }
+    /// <returns>Removes the item.</returns>
+    IDisposable AddToolbarItem(ToolbarItem item);
 
-    /// <summary>The open map's zones, or null without any. Temporary with <see cref="CurrentFrame" /> (item 20).</summary>
-    PlaceResolver? Zones { get; }
+    /// <summary>
+    ///     A primary press, not diverted to pan (Space, Ctrl and the middle button all divert), offered to
+    ///     pointer pre-handlers in registration order ahead of the pointer tools. True consumes the press.
+    ///     Click To Tag Position is one of these.
+    /// </summary>
+    /// <returns>Removes the handler.</returns>
+    IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);
+
+    /// <summary>The gesture text for <paramref name="action" /> under <see cref="Keymap" />, parenthesised, or "" unbound.</summary>
+    string GestureHint(Playback2DAction action);
 
     /// <summary>
     ///     A right-click menu contributor for timeline bands. Asked for every band pressed; returns no
@@ -183,12 +190,4 @@ public interface IPlaybackSurface
     /// </summary>
     /// <returns>Removes the handler.</returns>
     IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);
-
-    /// <summary>
-    ///     A left click on the map, before the pointer tools see it: the clicked pane's floor and the world
-    ///     point. True takes the click. Temporary: item 20 replaces this with a pointer pre-handler
-    ///     contribution over a scene pointer.
-    /// </summary>
-    /// <returns>Removes the handler.</returns>
-    IDisposable AddMapClickHandler(Func<MapLevel, double, double, bool> handler);
 }

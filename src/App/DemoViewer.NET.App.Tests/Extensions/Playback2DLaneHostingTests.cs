@@ -3,8 +3,12 @@
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.ViewModels;
+using SkiaSharp;
 
 #endregion
 
@@ -21,6 +25,8 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class Playback2DLaneHostingTests
 {
     private static readonly string[] CoreTracks = ["round", "kill", "bomb", "annotation"];
+
+    private static readonly MapLevel FakeLevel = new() { Id = MapSpace.IdForZMin(-500), Name = "upper", ZMin = -500, ZMax = 100_000 };
 
     [Test]
     public async Task AddLane_RegistersTheTrackInTheLaneRow_AndDisposeUnregistersIt()
@@ -234,6 +240,150 @@ public class Playback2DLaneHostingTests
             await Assert.That(vm.Surface.ModeToggles).IsEmpty();
             await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse().Because("the toggle left");
             await Assert.That(flips).IsEqualTo(2);
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task AddToolbarItem_OrdersByOrder_WiresTheCommand_AndDisposalUnwiresAndRemoves()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        int aRuns = 0;
+        int bRuns = 0;
+        ToolbarItem a = new("a", "A", "tip a", _ =>
+        {
+            aRuns++;
+            return true;
+        }, order: 10);
+        ToolbarItem b = new("b", "B", "tip b", _ =>
+        {
+            bRuns++;
+            return true;
+        }, order: 0);
+
+        IDisposable regA = vm.Surface.AddToolbarItem(a);
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.ToolbarItems).IsEquivalentTo([a]);
+            await Assert.That(vm.Surface.HasToolbarItems).IsTrue();
+            await Assert.That(a.Command).IsNotNull();
+        }
+
+        vm.Surface.AddToolbarItem(b);
+        await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo(["b", "a"])
+            .Because("lower Order sorts first, regardless of registration order");
+
+        a.Command!.Execute(null);
+        await Assert.That(aRuns).IsEqualTo(1).Because("the command AddToolbarItem wired runs the item against the current frame");
+
+        regA.Dispose();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.ToolbarItems).IsEquivalentTo([b]);
+            await Assert.That(a.Command).IsNull().Because("the registration wired it; removing it unwires it");
+            await Assert.That(vm.Surface.HasToolbarItems).IsTrue().Because("b is still there");
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task ToolbarItemsAction_RunsThroughTryExecute_BeforeTheActionHandlers()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        int runs = 0;
+        int handlerCalls = 0;
+        ToolbarItem item = new("fake.item", "Item", "tip", _ =>
+        {
+            runs++;
+            return true;
+        }, Playback2DAction.FindRoundsLikeThis);
+
+        vm.Surface.AddToolbarItem(item);
+        vm.Surface.AddActionHandler(_ =>
+        {
+            handlerCalls++;
+            return true;
+        });
+
+        await Assert.That(vm.Surface.TryExecute(Playback2DAction.FindRoundsLikeThis)).IsTrue();
+        using (Assert.Multiple())
+        {
+            await Assert.That(runs).IsEqualTo(1);
+            await Assert.That(handlerCalls).IsEqualTo(0).Because("the toolbar item's own action claims it first");
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task AddPointerPreHandler_TriesInOrder_AConsumingOneStopsThere_AndDisposalRemoves()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        List<string> calls = [];
+        IDisposable regA = vm.Surface.AddPointerPreHandler(_ =>
+        {
+            calls.Add("a");
+            return false;
+        });
+        IDisposable regB = vm.Surface.AddPointerPreHandler(_ =>
+        {
+            calls.Add("b");
+            return true;
+        });
+        vm.Surface.AddPointerPreHandler(_ =>
+        {
+            calls.Add("c");
+            return true;
+        });
+
+        ScenePointer pointer = new(FakeLevel, 0, 0, default(SKPoint), ToolModifiers.None, Scene2DFrame.Empty,
+            static () => null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.TryHandlePointerPress(pointer)).IsTrue();
+            await Assert.That(calls).IsEquivalentTo(["a", "b"]).Because("a falls through, b consumes it, c is never asked");
+        }
+
+        calls.Clear();
+        regB.Dispose();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.TryHandlePointerPress(pointer)).IsTrue();
+            await Assert.That(calls).IsEquivalentTo(["a", "c"]).Because("b left; the next handler in order takes it");
+        }
+
+        calls.Clear();
+        regA.Dispose();
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.TryHandlePointerPress(pointer)).IsTrue();
+            await Assert.That(calls).IsEquivalentTo(["c"]);
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task PointerPreHandler_NoneConsuming_FallsThrough()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        bool asked = false;
+        vm.Surface.AddPointerPreHandler(_ =>
+        {
+            asked = true;
+            return false;
+        });
+
+        ScenePointer pointer = new(FakeLevel, 0, 0, default(SKPoint), ToolModifiers.None, Scene2DFrame.Empty,
+            static () => null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Surface.TryHandlePointerPress(pointer)).IsFalse();
+            await Assert.That(asked).IsTrue();
         }
 
         vm.Dispose();
