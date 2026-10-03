@@ -1,8 +1,10 @@
 #region
 
 using System.Diagnostics.CodeAnalysis;
+using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
@@ -42,6 +44,30 @@ public sealed record RulesetContribution(string RulesetId);
 public sealed record GatedRuleset(string RulesetId, Func<bool> Enabled);
 
 /// <summary>
+///     A strip tab a pack contributes to host sections (the Strat Book hub). Sections name it by
+///     <paramref name="HostId" /> through <see cref="WorkspaceTabDescriptor.HostId" />; the shell shows the
+///     tab only while <paramref name="FeatureId" /> resolves on AND at least one hosted section does, and
+///     lands on Library when the tab the user is on goes away.
+/// </summary>
+/// <param name="HostId">The id sections name, e.g. <c>"stratbook.hub"</c>. A persisted key.</param>
+/// <param name="TabId">The strip tab's own id, the session's active-tab key when no section is selected.</param>
+/// <param name="Header">The strip header.</param>
+/// <param name="Order">The strip position among the Main-placement tabs.</param>
+/// <param name="RailLabel">The band over the host's section rail.</param>
+/// <param name="ViewModelFactory">Builds the host VM once, when the shell builds the strip.</param>
+/// <param name="ViewFactory">Realizes the host's view on each activation.</param>
+/// <param name="FeatureId">The gate id the tab shows under; null takes the owning pack's id.</param>
+public sealed record HostTabContribution(
+    string HostId,
+    string TabId,
+    string Header,
+    int Order,
+    string RailLabel,
+    Func<IHostTabViewModel> ViewModelFactory,
+    Func<Control> ViewFactory,
+    string? FeatureId = null);
+
+/// <summary>
 ///     What a pack may hand the shell from <see cref="IFeaturePack.Contribute" />. Every contribution
 ///     carries the pack's umbrella id implicitly; the shell shows one only while that id and any narrower
 ///     id it names both resolve on.
@@ -52,6 +78,9 @@ public interface IPackContributions
     [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords",
         Justification = "Module is the extension design's name for a workspace module contribution.")]
     void Module(IWorkspaceModule workspaceModule);
+
+    /// <summary>A strip tab that hosts sections; see <see cref="HostTabContribution" />.</summary>
+    void HostTab(HostTabContribution host);
 
     /// <summary>
     ///     An evaluator on the demo fan-out, reporting <paramref name="id" /> through

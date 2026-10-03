@@ -69,7 +69,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
             TabId = TabId,
             Header = "Suggested",
             Order = 6, // after Dossier (5)
-            Placement = TabPlacement.StratBook,
+            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SuggestedInboxView()

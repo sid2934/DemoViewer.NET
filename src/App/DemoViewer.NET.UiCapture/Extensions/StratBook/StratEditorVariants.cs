@@ -13,7 +13,6 @@ using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.Views.StratBook;
-using TabPlacement = DemoViewer.NET.Modules.Abstractions.TabPlacement;
 
 #endregion
 
@@ -37,7 +36,7 @@ public static partial class Variants
         [
             new()
             {
-                TabId = "stratbook.browser", Header = "Strats", Order = 0, Placement = TabPlacement.StratBook,
+                TabId = "stratbook.browser", Header = "Strats", Order = 0, HostId = StratBookHubViewModel.HostId,
                 ViewModelFactory = () => strats, ViewFactory = () => new StratBookTabView()
             }
         ];
@@ -51,7 +50,7 @@ public static partial class Variants
             (string id, string header, string? badge) = others[i];
             sections.Add(new WorkspaceTabDescriptor
             {
-                TabId = id, Header = header, Order = i + 1, Placement = TabPlacement.StratBook, Badge = badge,
+                TabId = id, Header = header, Order = i + 1, HostId = StratBookHubViewModel.HostId, Badge = badge,
                 ViewFactory = () => new TextBlock { Text = header, HorizontalAlignment = HorizontalAlignment.Center }
             });
         }

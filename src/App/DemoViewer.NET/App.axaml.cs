@@ -1188,8 +1188,8 @@ public class App : Application
                 sp.GetRequiredService<TeamIdentityService>(),
                 // Demo Provenance Labels, for the Library card's label chip.
                 sp.GetRequiredService<IDemoProvenanceSource>(),
-                // The Strat Book's collapsed panes: the hub rail and the Strats section's list share it.
-                sp.GetRequiredService<StratBookLayout>());
+                // The host tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
+                sp.GetRequiredService<PackContributionSet>().HostTabs);
 
             // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
             // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.

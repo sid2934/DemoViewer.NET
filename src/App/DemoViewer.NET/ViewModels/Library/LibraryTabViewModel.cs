@@ -255,6 +255,12 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public bool HasNoFolders => Folders.Count == 0;
 
     /// <summary>
+    ///     The id a section names in <see cref="WorkspaceTabDescriptor.HostId" /> to sit behind the Library's
+    ///     Demos / Teams toggle. The Library's own tab id; a persisted key.
+    /// </summary>
+    public const string HostId = "builtin.library";
+
+    /// <summary>
     ///     The views the Library hosts behind its Demos / Teams toggle (Teams, from the Teams module). No
     ///     selection means the demo browser; the shell fills and gates the list.
     /// </summary>
