@@ -31,6 +31,9 @@
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+        <!-- The strat canvas's frame source (item 26) writes Scene2DFrame's internal fields directly,
+             the same pooled-refill pattern SceneFrameBuilder uses. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook"/>
     </ItemGroup>
 
 </Project>
