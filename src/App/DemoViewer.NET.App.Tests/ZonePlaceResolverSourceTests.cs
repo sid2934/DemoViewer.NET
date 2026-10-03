@@ -55,7 +55,7 @@ public class ZonePlaceResolverSourceTests
         await Assert.That(zones.Adjacent(linked.Name).ToArray()).IsEquivalentTo(expected);
         await Assert.That(zones.Adjacent("NoSuchPlace").Count).IsEqualTo(0);
 
-        using ToleranceSliderTests.Harness slider = new(source);
+        using ToleranceSliderHarness slider = new(source);
         using (Assert.Multiple())
         {
             await Assert.That(slider.Vm.Map).IsEqualTo(Map);
@@ -88,13 +88,13 @@ public class ZonePlaceResolverSourceTests
         AssetZonePlaceResolverSource browser = new(_ => null, () => null);
         await Assert.That(browser.TryGet(Map)).IsNull();
 
-        using ToleranceSliderTests.Harness slider = new(source);
+        using ToleranceSliderHarness slider = new(source);
         await Assert.That(slider.Vm.AdjacencySource).IsEqualTo("zones");
         slider.Vm.Map = "de_dust2";
         await Assert.That(slider.Vm.AdjacencySource).IsEqualTo("empirical");
         await Assert.That(slider.Vm.ToleranceTip).Contains("index:");
 
-        using ToleranceSliderTests.Harness offline = new(browser);
+        using ToleranceSliderHarness offline = new(browser);
         await Assert.That(offline.Vm.AdjacencySource).IsEqualTo("empirical");
     }
 
@@ -137,7 +137,7 @@ public class ZonePlaceResolverSourceTests
 
         await Assert.That(ReferenceEquals(source.TryGet(Map), after)).IsTrue().Because("an unchanged overlay is not re-read");
 
-        using ToleranceSliderTests.Harness slider = new(source);
+        using ToleranceSliderHarness slider = new(source);
         await Assert.That(slider.Vm.ToleranceTip).Contains($"zones:{after.ZonesVersion}");
     }
 

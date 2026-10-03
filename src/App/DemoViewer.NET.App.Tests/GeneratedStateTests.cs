@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats.Mining;
 
 #endregion
@@ -43,7 +44,20 @@ public class GeneratedStateTests
     [Test]
     public async Task ADetectedPattern_DismissedWinsOverPromoted()
     {
-        MinedPattern pattern = StratMiningServiceTests.Pattern("k", 1, 2);
+        // A minimal MinedPattern, not StratMiningServiceTests.Pattern: that helper lives in the
+        // extension test project and this file tests the core GeneratedState contract only.
+        MinedPattern pattern = new()
+        {
+            Key = "k",
+            Kind = PatternKind.Setup,
+            Map = "de_nuke",
+            Side = 2,
+            Members = [new MinedMember("/d/m1.dem", null, 1, null, true, BuyType.Full, 0, 0, 64, 0)],
+            Medoid = new RoundSignature
+            {
+                DemoPath = "/d/m1.dem", Round = 1, Map = "de_nuke", Side = 2, Kind = PatternKind.Setup, Anchors = []
+            }
+        };
         using (Assert.Multiple())
         {
             await Assert.That(new DetectedPattern(pattern, false, null).State).IsEqualTo(GeneratedState.New);
