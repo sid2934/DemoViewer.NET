@@ -1049,6 +1049,31 @@ is already inside this "reduced" baseline; once item 2 lands, the reduced number
 reason this measurement did not isolate, and the true overhead of turning the pack off is likely a bit
 higher than the 57% here.
 
+### 12.2 Item 2: the merged pass with and without `round_facts`
+
+Item 2 makes `round_facts` a pack contribution, so with the pack off the ruleset leaves the merged set the
+Library and Highlights passes run. This measures that one pass, A/B, on the reference demo
+(`003816248937665266002_0544286934.dem`, 172 MB, read in place from `demos/benchmarks`), with
+`AnalysisBench --bare --no-golden` against the shipped `rules/` directory (A, pack on) and against a copy of
+it without `round_facts.rules.yaml` (B, pack off). Three rounds interleaved A B A B A B per the
+bench-variance note; medians of 3. macOS arm64, Release, head `a1f6b2d2`, 1-minute load average 5 at start
+(an earlier attempt under a load average of 30 to 38 spread 4.6 to 15.3 s across rounds and was discarded).
+
+| Path | Phase | Pack on (A) | Pack off (B) | B vs A |
+|---|---|---|---|---|
+| `--retained` | Parse | 792.5 ms | 756.5 ms | noise |
+| `--retained` | Build | 166.5 ms | 137.9 ms | -17% (every round: 163 to 172 vs 137 to 138) |
+| `--retained` | Eval | 3591.7 ms | 3471.3 ms | -3.4% |
+| `--retained` | Total (parse+build+eval) | 4560.7 ms | 4366.0 ms | -4.3% |
+| forward (default) | Run (open+build+decode+eval) | 3159.8 ms | 3107.2 ms | -1.7% |
+
+Read it as: dropping `round_facts` saves a steady ~30 ms of graph build per demo and a few percent of
+evaluation, both inside the round-to-round spread the bench-variance note warns about, so the eval and run
+deltas are directional, not quotable. The build saving is the one figure that held in every round. The
+rule-chain event table is identical between A and B apart from the `round_facts` stat nodes (B lacks
+`money_reliable`), which is the goldens-do-not-move check at the bench level; the test-level check is
+`ForwardPassRealDemoTests` and `RoundFactsRealDemoTests` on the same corpus (9 passed, 2 skipped by design).
+
 ## 13. Repository layout (decision 5)
 
 After Phase 0b, inside the app project, with namespaces unchanged:
