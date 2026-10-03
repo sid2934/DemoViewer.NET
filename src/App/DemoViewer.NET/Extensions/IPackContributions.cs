@@ -183,4 +183,10 @@ public interface IPackContributions
 
     /// <summary>The pack's answer for the Settings re-index notice; see <see cref="IPackReindexEstimate" />.</summary>
     void ReindexEstimate(IPackReindexEstimate estimate);
+
+    /// <summary>
+    ///     A 2D Playback contribution: attached to every 2D tab while the pack is on, detached when it goes
+    ///     off. See <see cref="IPlaybackContribution" />.
+    /// </summary>
+    void Playback(IPlaybackContribution contribution);
 }

@@ -1,7 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.Clips;
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
@@ -37,7 +37,7 @@ public static class RoundFactsProjection
         thresholds ??= ThresholdsFrom(table.Parameters);
         RoundFactsRows result = new()
         {
-            Schema = DemoCacheRecord.RoundFactsSchema
+            Schema = StratBookCache.RoundFactsSchema
         };
 
         Dictionary<int, List<IReadOnlyDictionary<string, object?>>> byRound = new();

@@ -1,10 +1,9 @@
 #region
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
 
 #endregion
 
@@ -207,22 +206,13 @@ public sealed class CachedHighlightEvent
 ///     loaded lazily, because the surfaces that want the fat payload (Match Overview, the reel tray) want it
 ///     for one demo at a time. The always-loaded projection is <see cref="DemoCacheIndexEntry" />.
 /// </summary>
-public sealed class DemoCacheRecord
+public sealed class DemoCacheRecord : IJsonOnDeserialized
 {
     /// <summary>Bump when a tier's payload shape changes. Each is independent: see <see cref="TierStamp" />.</summary>
     public const int HeaderSchema = 1;
 
     public const int ParseSchema = 1;
     public const int AnalysisSchema = 1;
-
-    /// <summary>The <see cref="RoundFacts" /> payload shape. Folded into <see cref="RoundFactsFingerprint" />, so a bump re-runs the evaluator alone.</summary>
-    public const int RoundFactsSchema = 1;
-
-    /// <summary>The <c>.dvri.json</c> sidecar shape. Folded into <see cref="RoundIndexFingerprint" />, so a bump re-indexes alone.</summary>
-    public const int RoundIndexSchema = 1;
-
-    /// <summary>The <c>.grenades.json</c> sibling's shape. A bump re-walks every demo's grenades and nothing else.</summary>
-    public const int GrenadeSchema = 1;
 
     // ── T0 identity ──────────────────────────────────────────────────────────
     public string Path { get; set; } = "";
@@ -297,68 +287,91 @@ public sealed class DemoCacheRecord
     /// <summary>Per-highlight-definition hashes, for finer-grained staleness than the combined fingerprint.</summary>
     public Dictionary<string, string> HighlightHashes { get; set; } = new();
 
-    /// <summary>
-    ///     The <c>round_facts</c> ruleset's output: one row per round, two sides each. An analysis output
-    ///     that rides the tier-2 parse, so it sits in this tier but is stamped by its own fingerprint and
-    ///     schema rather than by <see cref="Analysis" />: a threshold edit re-runs only this evaluator,
-    ///     never the highlight scan. Null on every sidecar written before the field existed.
-    /// </summary>
-    public RoundFactsRows? RoundFacts { get; set; }
+    // ── Packs ────────────────────────────────────────────────────────────────
+    // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
+    // the pack through IPackPayloads and never deserialised by core. What core needs for the backlog and
+    // the fill state (schema, fingerprint, outcome) is promoted to PackStamps and mirrored on the index
+    // row, so a staleness pass opens no sidecar and no payload. Payloads that are too large to ride a
+    // record Match Overview re-reads on every property touch (the round index, the grenade rows) stay in
+    // their own sidecars; only their stamps are here.
+
+    /// <summary>Per-pack payloads keyed by pack id. Opaque here; typed through <see cref="IPackPayloads" />.</summary>
+    public Dictionary<string, JsonElement> Packs { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>One stamp per pack facet written for this demo. See <see cref="PackStamp" />.</summary>
+    public List<PackStamp> PackStamps { get; set; } = [];
 
     /// <summary>
-    ///     The resolved identity of the effective <c>round_facts</c> ruleset (user override included)
-    ///     folded with <see cref="RoundFactsSchema" />, as it was when <see cref="RoundFacts" /> was
-    ///     written. A mismatch marks the rows stale.
+    ///     Members no property claims, held only between the read and <c>OnDeserialized</c>: a sidecar written
+    ///     before <see cref="Packs" /> existed carries the pack's fields flat, and the fold reads them from
+    ///     here. Always null afterwards, so unknown members are still dropped on the next write. Serializer
+    ///     plumbing, not an API: nothing should read or set it.
     /// </summary>
-    public string? RoundFactsFingerprint { get; set; }
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
 
-    // ── Round index ──────────────────────────────────────────────────────────
-    // The stamp lives here; the rows do not. The sidecar under cache/round-index/ carries 55 to 90 KB
-    // of runs per demo, and this record is re-read on every Match Overview property touch, so putting
-    // them here would make every Library arrow-key a ten-times heavier read for a surface that never
-    // looks at them.
+    /// <summary>The stamp with <paramref name="id" />, or null when the facet was never written.</summary>
+    /// <param name="id">The facet id (<see cref="PackStamp.Id" />).</param>
+    public PackStamp? Stamp(string id) => PackStamps.Find(s => string.Equals(s.Id, id, StringComparison.Ordinal));
 
-    /// <summary>When the demo's <c>.dvri.json</c> was last written, at which schema. Never written = no index.</summary>
-    public TierStamp RoundIndex { get; set; } = new();
+    /// <summary>Replaces the stamp with <paramref name="stamp" />'s id, or adds it.</summary>
+    /// <param name="stamp">The new stamp.</param>
+    public void SetStamp(PackStamp stamp)
+    {
+        ArgumentNullException.ThrowIfNull(stamp);
+        int at = PackStamps.FindIndex(s => string.Equals(s.Id, stamp.Id, StringComparison.Ordinal));
+        if (at < 0)
+        {
+            PackStamps.Add(stamp);
+        }
+        else
+        {
+            PackStamps[at] = stamp;
+        }
+    }
 
-    public RoundIndexState RoundIndexState { get; set; } = RoundIndexState.Pending;
+    /// <summary>Marks a facet's last write as failed, keeping whatever else its stamp carries.</summary>
+    /// <param name="id">The facet id.</param>
+    public void MarkFailed(string id) =>
+        SetStamp((Stamp(id) ?? new PackStamp(id, 0, null)) with { State = DemoAnalysisState.Failed });
 
-    /// <summary>The <see cref="RoundIndexFingerprint" /> the sidecar was built under; a mismatch marks it stale.</summary>
-    public string? RoundIndexFingerprint { get; set; }
+    /// <summary>Lifts a failed facet back to pending so the derived backlog takes it again. No-op otherwise.</summary>
+    /// <param name="id">The facet id.</param>
+    public void ClearFailed(string id)
+    {
+        if (Stamp(id) is { State: DemoAnalysisState.Failed } failed)
+        {
+            SetStamp(failed with { State = DemoAnalysisState.Pending });
+        }
+    }
 
-    /// <summary>Sampled rows in the sidecar, for the status strip; 0 when absent.</summary>
-    public int RoundIndexRowCount { get; set; }
+    /// <summary>Is the facet current at <paramref name="schema" /> under <paramref name="fingerprint" />? See <see cref="PackStamp.IsCurrent" />.</summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool IsPackCurrent(string id, int schema, string? fingerprint) =>
+        Stamp(id)?.IsCurrent(schema, fingerprint) ?? false;
 
-    // ── Suggested tags ───────────────────────────────────────────────────────
-    // The proposals live under cache/suggestions/ with their own fingerprint (suggested-tags.md §3.4);
-    // only the stamp and the pending count ride the record, so the evaluator's backlog and the queue's
-    // counter derive from the index without opening that file.
+    /// <summary>
+    ///     Does the facet want its evaluator? Derived like <see cref="NeedsAnalysis" />, with
+    ///     <see cref="DemoAnalysisState.Failed" /> excluded for the same reason: retry is an explicit user
+    ///     action, never a heavy job on every pass.
+    /// </summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool NeedsPack(string id, int schema, string? fingerprint) =>
+        Stamp(id) is not { State: DemoAnalysisState.Failed } && !IsPackCurrent(id, schema, fingerprint);
 
-    /// <summary>The detector-set fingerprint the proposals file was built under; null when there is none.</summary>
-    public string? SuggestionsFingerprint { get; set; }
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (UnknownMembers is { Count: > 0 } members)
+        {
+            LegacyPackFields.Fold(this, members);
+        }
 
-    /// <summary>Proposals with no verdict yet, 0 when there are none or no file.</summary>
-    public int SuggestionCount { get; set; }
-
-    // ── Grenade walk ─────────────────────────────────────────────────────────
-    // The rows live in the .grenades.log.gz sibling of this sidecar (.grenades.json.gz before the v3 migration)
-    // (grenade-walk.md §3.9); only the stamp rides the record. A stamp beside the tiers rather than a
-    // tier: the walk depends on the parse, not on the analysis run, so a rules change must not
-    // invalidate it.
-
-    /// <summary>When the siblings were last written, at which schema. Never written = no rows.</summary>
-    public TierStamp Grenades { get; set; } = new();
-
-    public DemoAnalysisState GrenadeState { get; set; } = DemoAnalysisState.Pending;
-
-    /// <summary>Rows in the siblings; 0 when absent.</summary>
-    public int GrenadeCount { get; set; }
-
-    /// <summary>The walker version the rows were made by; another version re-walks.</summary>
-    public string? GrenadeWalker { get; set; }
-
-    /// <summary>Share of the demo's commands that decoded when it was walked (the jump-throw source's reach).</summary>
-    public double GrenadeInputCoverage { get; set; }
+        UnknownMembers = null;
+    }
 
     /// <summary>The highest tier actually present.</summary>
     [JsonIgnore]
@@ -416,57 +429,6 @@ public sealed class DemoCacheRecord
         AnalysisState != DemoAnalysisState.Failed && !IsAnalysisCurrent(currentFingerprint);
 
     /// <summary>
-    ///     Are the round facts still valid under <paramref name="currentFingerprint" />? Rows written at
-    ///     another schema or another ruleset identity are stale; a null current fingerprint means there is
-    ///     no <c>round_facts</c> ruleset to run, so nothing can be current.
-    /// </summary>
-    /// <param name="currentFingerprint">The effective ruleset's fingerprint, or null when there is none.</param>
-    public bool IsRoundFactsCurrent(string? currentFingerprint) =>
-        RoundFacts is { Schema: RoundFactsSchema }
-        && currentFingerprint is not null
-        && string.Equals(RoundFactsFingerprint, currentFingerprint, StringComparison.Ordinal);
-
-    /// <summary>
-    ///     Does this demo want the round facts evaluator? Derived, like <see cref="NeedsAnalysis" />, and
-    ///     false whenever there is no ruleset to run: the rows are an output of that ruleset, so its
-    ///     absence is "nothing to do", never "everything is stale".
-    /// </summary>
-    /// <param name="currentFingerprint">The effective ruleset's fingerprint, or null when there is none.</param>
-    public bool NeedsRoundFacts(string? currentFingerprint) =>
-        currentFingerprint is not null && !IsRoundFactsCurrent(currentFingerprint);
-
-    /// <summary>Is the round index sidecar still valid under <paramref name="currentFingerprint" />?</summary>
-    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
-    public bool IsRoundIndexCurrent(string currentFingerprint) =>
-        RoundIndex.IsPresent
-        && RoundIndexState == RoundIndexState.Indexed
-        && string.Equals(RoundIndexFingerprint, currentFingerprint, StringComparison.Ordinal);
-
-    /// <summary>
-    ///     Does this demo want the round index evaluator? Derived like <see cref="NeedsAnalysis" />, with
-    ///     <see cref="RoundIndexState.Failed" /> excluded for the same reason: retry is an explicit user
-    ///     action, never a heavy job on every pass.
-    /// </summary>
-    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
-    public bool NeedsRoundIndex(string currentFingerprint) =>
-        RoundIndexState != RoundIndexState.Failed && !IsRoundIndexCurrent(currentFingerprint);
-
-    /// <summary>Are the grenade siblings current under <paramref name="walkerVersion" />?</summary>
-    /// <param name="walkerVersion">The walker version in force.</param>
-    public bool IsGrenadesCurrent(string walkerVersion) =>
-        Grenades.Schema == GrenadeSchema
-        && GrenadeState == DemoAnalysisState.Indexed
-        && string.Equals(GrenadeWalker, walkerVersion, StringComparison.Ordinal);
-
-    /// <summary>
-    ///     Does this demo want the grenade walk? Failed is excluded like the other evaluators: retry is an
-    ///     explicit user action.
-    /// </summary>
-    /// <param name="walkerVersion">The walker version in force.</param>
-    public bool NeedsGrenades(string walkerVersion) =>
-        GrenadeState != DemoAnalysisState.Failed && !IsGrenadesCurrent(walkerVersion);
-
-    /// <summary>
     ///     Does this record still describe the file on disk? Size + mtime, exactly as the library cache keys
     ///     freshness today: cheap, and a content hash is not affordable per reconcile pass.
     /// </summary>
@@ -508,19 +470,7 @@ public sealed class DemoCacheRecord
         AnalysisState = AnalysisState,
         ConfigFingerprint = ConfigFingerprint,
         HighlightCount = Highlights.Count,
-        RoundFactsSchema = RoundFacts?.Schema ?? 0,
-        RoundFactsFingerprint = RoundFactsFingerprint,
-        RoundIndexSchema = RoundIndex.Schema,
-        RoundIndexComputedAtTicks = RoundIndex.ComputedAtTicks,
-        RoundIndexState = RoundIndexState,
-        RoundIndexFingerprint = RoundIndexFingerprint,
-        RoundIndexRowCount = RoundIndexRowCount,
-        SuggestionsFingerprint = SuggestionsFingerprint,
-        SuggestionCount = SuggestionCount,
-        GrenadeSchema = Grenades.Schema,
-        GrenadeState = GrenadeState,
-        GrenadeCount = GrenadeCount,
-        GrenadeWalker = GrenadeWalker
+        PackStamps = [.. PackStamps]
     };
 }
 
@@ -529,7 +479,7 @@ public sealed class DemoCacheRecord
 ///     startup; the fat <see cref="DemoCacheRecord" /> behind it is read only when a surface asks for that
 ///     specific demo.
 /// </summary>
-public sealed class DemoCacheIndexEntry
+public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
 {
     public string Path { get; set; } = "";
     public long Size { get; set; }
@@ -576,50 +526,43 @@ public sealed class DemoCacheIndexEntry
     public int HighlightCount { get; set; }
 
     /// <summary>
-    ///     Schema of the sidecar's round facts, 0 when it holds none. Mirrored with its fingerprint for
-    ///     the same reason <see cref="ConfigFingerprint" /> is: the evaluator's backlog derives from the
-    ///     index without opening a sidecar.
+    ///     The record's <see cref="DemoCacheRecord.PackStamps" />, mirrored for the same reason
+    ///     <see cref="ConfigFingerprint" /> is: a pack's backlog and the strip's counts derive from the
+    ///     index without opening a sidecar. A stamp with every optional member costs about 100 bytes.
     /// </summary>
-    public int RoundFactsSchema { get; set; }
+    public List<PackStamp> PackStamps { get; set; } = [];
 
-    /// <summary>The fingerprint the sidecar's round facts were written under; see <see cref="DemoCacheRecord.RoundFactsFingerprint" />.</summary>
-    public string? RoundFactsFingerprint { get; set; }
+    /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
 
-    // The round index stamp, mirrored (about 50 bytes on a ~780-byte row) so the index backlog and the
-    // status strip's counts derive from the index without opening a sidecar, like NeedsAnalysis.
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.Stamp" />.</summary>
+    /// <param name="id">The facet id.</param>
+    public PackStamp? Stamp(string id) => PackStamps.Find(s => string.Equals(s.Id, id, StringComparison.Ordinal));
 
-    /// <summary>Schema of the demo's <c>.dvri.json</c>, 0 when it has never been written.</summary>
-    public int RoundIndexSchema { get; set; }
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.IsPackCurrent" />: same rule, no sidecar read.</summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool IsPackCurrent(string id, int schema, string? fingerprint) =>
+        Stamp(id)?.IsCurrent(schema, fingerprint) ?? false;
 
-    /// <summary>When the sidecar was written (UTC ticks): the Watched Situations watermark reads this.</summary>
-    public long RoundIndexComputedAtTicks { get; set; }
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.NeedsPack" />: same rule, no sidecar read.</summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool NeedsPack(string id, int schema, string? fingerprint) =>
+        Stamp(id) is not { State: DemoAnalysisState.Failed } && !IsPackCurrent(id, schema, fingerprint);
 
-    public RoundIndexState RoundIndexState { get; set; } = RoundIndexState.Pending;
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (UnknownMembers is { Count: > 0 } members)
+        {
+            LegacyPackFields.Fold(this, members);
+        }
 
-    public string? RoundIndexFingerprint { get; set; }
-
-    public int RoundIndexRowCount { get; set; }
-
-    /// <summary>The proposals file's fingerprint, mirrored so the suggested tags backlog needs no file read.</summary>
-    public string? SuggestionsFingerprint { get; set; }
-
-    /// <summary>
-    ///     Pending proposals for the demo, mirrored the way <see cref="HighlightCount" /> is, so the queue
-    ///     can say "12 pending" without opening the proposals file.
-    /// </summary>
-    public int SuggestionCount { get; set; }
-
-    // The grenade stamp, mirrored like HighlightCount so the evaluator's backlog and the Grenade Index
-    // decide which siblings to open without opening them.
-
-    /// <summary>Schema of the demo's <c>.grenades.json</c>, 0 when it has never been written.</summary>
-    public int GrenadeSchema { get; set; }
-
-    public DemoAnalysisState GrenadeState { get; set; } = DemoAnalysisState.Pending;
-
-    public int GrenadeCount { get; set; }
-
-    public string? GrenadeWalker { get; set; }
+        UnknownMembers = null;
+    }
 
     [JsonIgnore]
     public DemoCacheTier Tier =>
@@ -641,39 +584,6 @@ public sealed class DemoCacheIndexEntry
              && AnalysisState == DemoAnalysisState.Indexed
              && (currentFingerprint is null
                  || string.Equals(ConfigFingerprint, currentFingerprint, StringComparison.Ordinal)));
-
-    /// <summary>
-    ///     Index-level twin of <see cref="DemoCacheRecord.NeedsRoundFacts" />: same rule, no sidecar read.
-    /// </summary>
-    /// <param name="currentFingerprint">The effective ruleset's fingerprint, or null when there is none.</param>
-    public bool NeedsRoundFacts(string? currentFingerprint) =>
-        currentFingerprint is not null
-        && !(RoundFactsSchema == DemoCacheRecord.RoundFactsSchema
-             && string.Equals(RoundFactsFingerprint, currentFingerprint, StringComparison.Ordinal));
-
-    /// <summary>Index-level twin of <see cref="DemoCacheRecord.IsRoundIndexCurrent" />: same rule, no sidecar read.</summary>
-    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
-    public bool IsRoundIndexCurrent(string currentFingerprint) =>
-        RoundIndexSchema > 0
-        && RoundIndexState == RoundIndexState.Indexed
-        && string.Equals(RoundIndexFingerprint, currentFingerprint, StringComparison.Ordinal);
-
-    /// <summary>Index-level twin of <see cref="DemoCacheRecord.NeedsRoundIndex" />: same rule, no sidecar read.</summary>
-    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
-    public bool NeedsRoundIndex(string currentFingerprint) =>
-        RoundIndexState != RoundIndexState.Failed && !IsRoundIndexCurrent(currentFingerprint);
-
-    /// <summary>Index-level twin of <see cref="DemoCacheRecord.IsGrenadesCurrent" />: same rule, no sidecar read.</summary>
-    /// <param name="walkerVersion">The walker version in force.</param>
-    public bool IsGrenadesCurrent(string walkerVersion) =>
-        GrenadeSchema == DemoCacheRecord.GrenadeSchema
-        && GrenadeState == DemoAnalysisState.Indexed
-        && string.Equals(GrenadeWalker, walkerVersion, StringComparison.Ordinal);
-
-    /// <summary>Index-level twin of <see cref="DemoCacheRecord.NeedsGrenades" />: same rule, no sidecar read.</summary>
-    /// <param name="walkerVersion">The walker version in force.</param>
-    public bool NeedsGrenades(string walkerVersion) =>
-        GrenadeState != DemoAnalysisState.Failed && !IsGrenadesCurrent(walkerVersion);
 
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;

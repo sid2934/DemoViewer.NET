@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Tags;
@@ -35,8 +36,8 @@ public class SuggestedTagsReviewTests
             await Assert.That(document.DetectorSet.Regions).IsEqualTo("learned:1");
             await Assert.That(document.Proposals.Select(p => p.Id)).Contains(ExecuteId);
             await Assert.That(document.Proposals.Single(p => p.Id == ExecuteId).RoundStartTick).IsEqualTo(FreezeEnd);
-            await Assert.That(row!.SuggestionsFingerprint).IsEqualTo(document.DetectorSet.Fingerprint);
-            await Assert.That(row.SuggestionCount).IsEqualTo(document.Proposals.Count)
+            await Assert.That(row!.SuggestionsFingerprint()).IsEqualTo(document.DetectorSet.Fingerprint);
+            await Assert.That(row!.SuggestionCount()).IsEqualTo(document.Proposals.Count)
                 .Because("nothing has a verdict yet, and the index mirrors the pending count");
             await Assert.That(h.Service.Wants(DemoPath)).IsFalse().Because("the stamp is current");
         }
@@ -126,7 +127,7 @@ public class SuggestedTagsReviewTests
             await Assert.That(verdict.TagInstanceId).IsEqualTo(instance.Id);
             await Assert.That(verdict.FrameCount).IsEqualTo(2);
             await Assert.That(h.Service.Load(DemoPath).Pending.Any(e => e.Proposal.Id == ExecuteId)).IsFalse();
-            await Assert.That(h.Cache.TryGetIndex(DemoPath)!.SuggestionCount).IsEqualTo(pendingBefore - 1);
+            await Assert.That(h.Cache.TryGetIndex(DemoPath)!.SuggestionCount()).IsEqualTo(pendingBefore - 1);
             await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsFalse().Because("it is no longer pending");
         }
     }

@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using System.Numerics;
 using System.Text.Encodings.Web;
@@ -270,7 +271,7 @@ internal static class SuggestedTagsRealDemoRows
             list.Add((sample.Tick, sample.Place));
         }
 
-        RoundFactsRows rows = new() { Schema = DemoCacheRecord.RoundFactsSchema };
+        RoundFactsRows rows = new() { Schema = StratBookCache.RoundFactsSchema };
         for (int i = 0; i < clips.Count; i++)
         {
             int start = clips[i].StartTickFrameClock;

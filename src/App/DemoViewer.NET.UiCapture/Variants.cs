@@ -177,6 +177,8 @@ public static partial class Variants
             ["livesync-chips"] = LiveSyncChips,
             ["livesync-flyouts"] = LiveSyncFlyouts,
             ["playback2d-livesync-hud"] = Playback2DLiveSyncHud,
+            // The 2D tab with the Create Strat review open in the contributed side pane (item 16); 1280x800.
+            ["playback2d-create-strat-pane"] = Playback2DCreateStratPane,
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),

@@ -382,12 +382,6 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         RequestSeekToFrame(band.StartFrameIndex);
     }
 
-    /// <summary>
-    ///     Whether a round band offers "Create strat from this round" on right-click (step-authoring.md §3.9). Set
-    ///     by the tab, which knows whether a capture host and a parsed demo are there.
-    /// </summary>
-    public bool CanCreateStrat { get; set; }
-
     /// <summary>True for a band the rounds track made for a round, which excludes the warmup band.</summary>
     /// <param name="band">A band from either row.</param>
     public static bool IsRoundBand(TimelineBandViewModel band)
@@ -396,19 +390,26 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         return band.TrackId == "round" && int.TryParse(band.Label, NumberStyles.None, CultureInfo.InvariantCulture, out _);
     }
 
-    /// <summary>Asks the tab to create a strat from a round band. No-op for any other band, or when the tab cannot.</summary>
-    /// <param name="band">The round band right-clicked.</param>
-    public void RequestCreateStrat(TimelineBandViewModel band)
+    /// <summary>
+    ///     The right-click menu's contributors, asked in order for every band pressed: the tab's own lane
+    ///     menu first, then what the packs attached through the surface. A contributor returns nothing for a
+    ///     band it has no entry for.
+    /// </summary>
+    public List<Func<TimelineBandViewModel, IEnumerable<MenuEntry>>> BandMenus { get; } = [];
+
+    /// <summary>Every contributor's entries for <paramref name="band" />, in contributor order. Empty offers no menu.</summary>
+    /// <param name="band">The band right-clicked, from either row.</param>
+    public IReadOnlyList<MenuEntry> MenuFor(TimelineBandViewModel band)
     {
         ArgumentNullException.ThrowIfNull(band);
-        if (CanCreateStrat && IsRoundBand(band))
+        List<MenuEntry> entries = [];
+        foreach (Func<TimelineBandViewModel, IEnumerable<MenuEntry>> contributor in BandMenus)
         {
-            CreateStratRequested?.Invoke(band);
+            entries.AddRange(contributor(band));
         }
-    }
 
-    /// <summary>Raised by <see cref="RequestCreateStrat" />; the tab opens the review for the band's round.</summary>
-    public event Action<TimelineBandViewModel>? CreateStratRequested;
+        return entries;
+    }
 
     // ── Review mode's lane editing ───────────────────────────────────────────────────────────────────────
 
@@ -505,12 +506,6 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
     /// <summary>Raised by <see cref="RequestLaneLabel" /> with the frame clicked.</summary>
     public event Action<int>? LaneLabelRequested;
-
-    /// <summary>
-    ///     The right-click menu for a lane band: what the tab offers for the labels or suggestions in it (edit,
-    ///     delete, review). Null or empty offers nothing.
-    /// </summary>
-    public Func<TimelineBandViewModel, IReadOnlyList<(string Header, Action Run)>>? LaneMenu { get; set; }
 
     private void RaiseEditSpan()
     {

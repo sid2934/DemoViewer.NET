@@ -1035,6 +1035,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
      the pre-first-freeze-end warmup band). Won-by tint comes from `round_end`'s winner; a demo without
      `round_end` renders neutral. Clicking a band seeks to its FIRST frame, not to the pixel under the
      cursor.
+     - **A right press is the band's menu, and it never seeks.** The control builds a `ContextMenu` from
+       `Playback2DTimelineViewModel.MenuFor(band)`, which concatenates the `BandMenus` contributors in
+       order: the tab's own lane menu (edit, delete, review on a lane band, Review mode only), then
+       whatever the extension packs attached through `IPlaybackSurface.AddBandMenu` (Create Strat From
+       Round on a round band, while the Strat Book pack is on). No entries, no menu. The control holds no
+       entry text of its own; a new entry is a contributor, never a `MenuItem` in the code-behind.
   2. **Scrub bar (22 px).** A track rule, one glyph per `TimelineMarker` (`×` kill · `◆` plant ·
      `✂` defuse · `✸` explode), and the playhead. Press seeks; press-and-drag scrubs continuously.
      A **kill glyph is coloured by the side that got the kill**. See the marker-colour rule below.
@@ -1137,7 +1143,18 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 | **Canvas top-right** | `HudStack`: live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the A4 kill feed | 1 | **no** (`IsHitTestVisible=False`) |
 | **Canvas bottom-left** | `TransportBar`: camera-mode `SplitButton`, mode label, kill nav | 1 | yes |
 | **Canvas right centre** | `LevelStrip` (B3), vertical margins clearing the kill feed and the transport bar | 1 | yes |
+| **Canvas right edge, full height** | The side panes: the export pane and the contributed side pane (`Surface.SidePane`), 360 px, `Pb2dPanelBg` over a `Pb2dGridSplitter` hairline, a `Close` button in their footer. One shows at a time: opening either closes the other. | 1 | yes |
 | **Bottom edge** | [`TimelineControl`](#timelinecontrol): its own `Auto` grid row | 2 | yes |
+
+- **The contributed side pane is one host, not one `Border` per feature.** `Playback2DView.axaml` binds a
+  single pane host to `Playback2DTabViewModel.Surface.SidePane` (the open pane's view model, or null) and
+  its `Close` to `Surface.CloseSidePaneCommand`. An extension pack adds a pane through
+  `IPlaybackSurface.AddPane(PanePlacement.Side, order, factory)` and opens it from its own entry point (a
+  band-menu entry, a toolbar item); the view comes from the `ViewLocator` convention, so the pane's view
+  model derives from `ViewModelBase` and has a `…View`. The Create Strat From Round review is the first
+  such pane; it used to be a second hardcoded `Border` bound to a pack-typed property on the tab. The tab
+  closes any open side pane on deactivation and on a demo reset, and the view model of a closed pane is
+  disposed. Variant `playback2d-create-strat-pane` (1280x800) renders the host with that review open.
 
 - **Docking, not reflow, is the answer to "the toolbars are always displayed".** D35's responsive rule
   ([wrap or scroll](#responsive-strip)) is about a strip that is too WIDE; the reported defect was chrome

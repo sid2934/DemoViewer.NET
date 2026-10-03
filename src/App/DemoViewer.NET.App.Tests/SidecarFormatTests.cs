@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.IO.Compression;
 using System.Numerics;
 using System.Text;
@@ -81,9 +82,9 @@ public class SidecarFormatTests
                 await Assert.That(IsGzipFile(file)).IsTrue();
                 await Assert.That(json).DoesNotContain("\n").Because("the record is written compact");
                 await Assert.That(back).IsNotNull();
-                await Assert.That(back!.RoundFacts!.Rounds.Count).IsEqualTo(24);
-                await Assert.That(back.Highlights.Count).IsEqualTo(200);
-                await Assert.That(back.Players[0].SteamId64).IsEqualTo("76561198000000001");
+                await Assert.That(back!.RoundFacts()!.Rounds.Count).IsEqualTo(24);
+                await Assert.That(back!.Highlights.Count).IsEqualTo(200);
+                await Assert.That(back!.Players[0].SteamId64).IsEqualTo("76561198000000001");
             }
         }
         finally
@@ -116,7 +117,7 @@ public class SidecarFormatTests
             using (Assert.Multiple())
             {
                 await Assert.That(read).IsNotNull();
-                await Assert.That(read!.RoundFacts!.Rounds.Count).IsEqualTo(24);
+                await Assert.That(read!.RoundFacts()!.Rounds.Count).IsEqualTo(24);
                 await Assert.That(File.Exists(legacy)).IsTrue().Because("a read never migrates");
                 await Assert.That(File.Exists(file)).IsFalse();
             }
@@ -276,9 +277,7 @@ public class SidecarFormatTests
     private static void Stamp(DemoCacheStore cache)
     {
         DemoCacheRecord record = RoundIndexTestData.ParsedRecord(Demo, "de_nuke", "sha-g");
-        DemoCacheStore.StampGrenades(record);
-        record.GrenadeState = DemoAnalysisState.Indexed;
-        record.GrenadeWalker = GrenadeWalker.Version;
+        record.StampGrenades();
         cache.Upsert(record);
     }
 
@@ -345,9 +344,7 @@ public class SidecarFormatTests
     private static void StampGrenades(DemoCacheStore cache, string path, string sha)
     {
         DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, "de_nuke", sha);
-        DemoCacheStore.StampGrenades(record);
-        record.GrenadeState = DemoAnalysisState.Indexed;
-        record.GrenadeWalker = GrenadeWalker.Version;
+        record.StampGrenades();
         cache.Upsert(record);
     }
 

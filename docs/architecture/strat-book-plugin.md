@@ -584,20 +584,47 @@ public interface IPlaybackContribution
 
 public interface IPlaybackSurface
 {
-    void AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items);
-    void AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
-    IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);  // side pane, right column
-    void AddToolbarItem(ToolbarItem item);
-    void AddPointerPreHandler(Func<ScenePointer, bool> handler);  // Click To Tag
-    void AddLayer(string layerId, Func<ISceneLayer> layer);        // later; guides
-    void AddTool(IPointerTool tool);                               // later; token
-    IDisposable OnDemoChanged(Action handler);
+    IReadOnlyList<MapLevel> MapLevels { get; }                     // the mounted viewport's levels; empty without one
+    IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items);
+    IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);  // Side hosted; RightColumn at item 17
+    // Not built yet, in the order the items need them:
+    void AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);  // item 18
+    void AddToolbarItem(ToolbarItem item);                                                      // item 20
+    void AddPointerPreHandler(Func<ScenePointer, bool> handler);                                // item 20, Click To Tag
+    void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
+    void AddTool(IPointerTool tool);                                                            // later; token
+    IDisposable OnDemoChanged(Action handler);                                                  // if a contribution needs it
 }
+
+public interface IPaneHandle : IDisposable   // Dispose removes the pane; Close only hides it
+{
+    bool IsOpen { get; }
+    void Open();     // builds a fresh view model from the factory; an open pane is rebuilt, another Side pane closes
+    void Close();    // disposes the view model when it is IDisposable
+    event Action? Closed;
+}
+
+public sealed record MenuEntry(string Header, Action Run);
 ```
 
-The Create Strat contribution would add a band-menu entry for round bands whose action opens a pane it
-added (`AddPane(PanePlacement.Side, ...)`), using `IStratCapture` resolved from `context.GetService<T>()`.
-That pairing is the PoC finding in section 6 (item 16).
+As built by item 16 (`Extensions/IPlaybackContribution.cs`, `Extensions/IPlaybackSurface.cs`): the two
+registrations return disposables, so a contribution's `Detach` undoes exactly what its `Attach` added, and
+`MapLevels` is on the surface because the Create Strat capture keys a pawn's Z to the mounted viewport's
+floors, which only the view knows. `Playback2DTabViewModel.Surface` is the implementation
+(`Playback2DSurface`): band menus join `Playback2DTimelineViewModel.BandMenus`, the contributor list that
+replaced `CanCreateStrat`, `RequestCreateStrat`, `CreateStratRequested` and the single `LaneMenu` slot (the
+tab's own lane menu is the first contributor); side panes bind to one host in `Playback2DView.axaml`, the
+export pane's place, one open at a time, and opening one closes the export. `PlaybackContributionHost`
+(`Extensions/`) attaches every pack's contributions from `PackContributionSet` to a tab and follows the
+gate's `Changed` live; `BuildRegistry` hands it to `Playback2DModule`, whose tab factory gives it to each
+tab view-model, which attaches on its first activation (the context arrives there) and detaches on dispose.
+The tab closes any open side pane on deactivation and on demo reset, as it closed the Create Strat review
+before.
+
+The Create Strat contribution (`Extensions/StratBook/Modules/StratBook/CreateStratPlaybackContribution.cs`)
+adds a band-menu entry for round bands whose action opens a pane it added (`AddPane(PanePlacement.Side,
+...)`), using `IStratCapture` resolved from `context.GetService<T>()` at every band press, which is how the
+gate reaches it. That pairing is the PoC finding in section 6 (item 16).
 
 `AddLayer` and `AddTool` exist for completeness and for (b). For (a), the token tool and guides layer can
 stay core-registered: they are inert without a strat frame host and cost nothing. Code keeps the word

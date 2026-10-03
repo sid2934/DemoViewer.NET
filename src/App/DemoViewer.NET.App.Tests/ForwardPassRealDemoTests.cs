@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CS2DemoKit.Analysis;
@@ -155,7 +156,7 @@ public class ForwardPassRealDemoTests
             ["round facts"] = factsTable.Rows.Count == 0 ? None : WithoutSha(rows),
             ["highlight fingerprint"] = HighlightConfigFingerprint.Compute(
                 HighlightsOnly(rules), parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint,
-            ["round facts fingerprint"] = RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema,
+            ["round facts fingerprint"] = RoundFactsFingerprint.Combine(StratBookCache.RoundFactsSchema,
                 HighlightConfigFingerprint.Compute([doc], parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint)
         };
         return (written, old);
@@ -189,7 +190,7 @@ public class ForwardPassRealDemoTests
         });
         RulesRoundFactsRulesetIdentity identity = new(merged);
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(identity), identity).EvaluateForward(path, pass);
-        return WithoutSha(cache.TryLoadRecord(path)?.RoundFacts);
+        return WithoutSha(cache.TryLoadRecord(path)?.RoundFacts());
     }
 
     private static Dictionary<string, string> Write(string path, MergedRulesBuild merged,
@@ -220,9 +221,9 @@ public class ForwardPassRealDemoTests
             return new Dictionary<string, string>
             {
                 ["record"] = recordJson.ToJsonString(),
-                ["round facts"] = WithoutSha(record.RoundFacts),
+                ["round facts"] = WithoutSha(record.RoundFacts()),
                 ["highlight fingerprint"] = record.ConfigFingerprint ?? "",
-                ["round facts fingerprint"] = record.RoundFactsFingerprint ?? "",
+                ["round facts fingerprint"] = record.RoundFactsFingerprint() ?? "",
                 ["library"] = JsonSerializer.Serialize(new
                 {
                     entry.State,

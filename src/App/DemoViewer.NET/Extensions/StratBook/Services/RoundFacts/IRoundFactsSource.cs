@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -70,16 +71,16 @@ public sealed class RoundFactsSource : IRoundFactsSource
     }
 
     /// <inheritdoc />
-    public int Schema => DemoCacheRecord.RoundFactsSchema;
+    public int Schema => StratBookCache.RoundFactsSchema;
 
     /// <inheritdoc />
     public event Action<string>? Updated;
 
     /// <inheritdoc />
-    public RoundFactsRows? TryGet(string demoPath) => _enabled() ? _demoCache.TryLoadRecord(demoPath)?.RoundFacts : null;
+    public RoundFactsRows? TryGet(string demoPath) => _enabled() ? _demoCache.RoundFactsOf(demoPath) : null;
 
     /// <inheritdoc />
-    public RoundFactsRows? TryGet(DemoCacheRecord record) => _enabled() ? record.RoundFacts : null;
+    public RoundFactsRows? TryGet(DemoCacheRecord record) => _enabled() ? _demoCache.RoundFactsOf(record) : null;
 
     /// <inheritdoc />
     public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
@@ -96,9 +97,9 @@ public sealed class RoundFactsSource : IRoundFactsSource
 
         List<(DemoCacheIndexEntry, RoundFacts)> hits = [];
         foreach (DemoCacheRecord record in _demoCache.LoadRecords(e =>
-                     e.RoundFactsSchema > 0 && (filter.Demos is null || filter.Demos.Contains(e.Path))))
+                     e.RoundFactsStamp() is { Schema: > 0 } && (filter.Demos is null || filter.Demos.Contains(e.Path))))
         {
-            if (record.RoundFacts is not { } rows || _demoCache.TryGetIndex(record.Path) is not { } entry)
+            if (_demoCache.RoundFactsOf(record) is not { } rows || _demoCache.TryGetIndex(record.Path) is not { } entry)
             {
                 continue;
             }

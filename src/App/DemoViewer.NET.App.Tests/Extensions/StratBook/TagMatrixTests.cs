@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
@@ -497,7 +498,7 @@ public class TagMatrixTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => DemoCacheRecord.RoundFactsSchema;
+        public int Schema => StratBookCache.RoundFactsSchema;
 
         public event Action<string>? Updated
         {

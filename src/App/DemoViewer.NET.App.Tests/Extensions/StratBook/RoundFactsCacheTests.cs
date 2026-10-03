@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
@@ -20,7 +21,7 @@ public class RoundFactsCacheTests
     private static string TempRoot() =>
         Path.Combine(Path.GetTempPath(), $"dv-roundfacts-{Guid.NewGuid():N}");
 
-    private static RoundFactsRows Rows(int schema = DemoCacheRecord.RoundFactsSchema) => new()
+    private static RoundFactsRows Rows(int schema = StratBookCache.RoundFactsSchema) => new()
     {
         Schema = schema,
         Clock = new RoundFactsClock
@@ -114,7 +115,7 @@ public class RoundFactsCacheTests
                 .Because("no ruleset to run is nothing to do, never everything stale");
             await Assert.That(record.IsRoundFactsCurrent(Fingerprint)).IsFalse();
             await Assert.That(record.ToIndexEntry().NeedsRoundFacts(Fingerprint)).IsTrue();
-            await Assert.That(record.ToIndexEntry().RoundFactsSchema).IsEqualTo(0);
+            await Assert.That(record.ToIndexEntry().RoundFactsSchema()).IsEqualTo(0);
         }
     }
 
@@ -122,8 +123,7 @@ public class RoundFactsCacheTests
     public async Task AChangedFingerprint_ReportsItAgain_AndTheSameOneDoesNot()
     {
         DemoCacheRecord record = Analysed("/d/a.dem");
-        record.RoundFacts = Rows();
-        record.RoundFactsFingerprint = Fingerprint;
+        record.SetRoundFacts(Rows(), Fingerprint);
 
         using (Assert.Multiple())
         {
@@ -141,8 +141,7 @@ public class RoundFactsCacheTests
     public async Task RowsAtAnOlderSchema_AreStaleUnderTheSameFingerprint()
     {
         DemoCacheRecord record = Analysed("/d/a.dem");
-        record.RoundFacts = Rows(0);
-        record.RoundFactsFingerprint = Fingerprint;
+        record.SetRoundFacts(Rows(0), Fingerprint);
 
         await Assert.That(record.NeedsRoundFacts(Fingerprint)).IsTrue();
     }
@@ -163,13 +162,14 @@ public class RoundFactsCacheTests
             }
             """;
 
-        DemoCacheRecord? record = JsonSerializer.Deserialize<DemoCacheRecord>(oldSidecar);
+        DemoCacheRecord? deserialized = JsonSerializer.Deserialize<DemoCacheRecord>(oldSidecar);
+        await Assert.That(deserialized).IsNotNull();
+        DemoCacheRecord record = deserialized!;
 
         using (Assert.Multiple())
         {
-            await Assert.That(record).IsNotNull();
-            await Assert.That(record!.RoundFacts).IsNull();
-            await Assert.That(record.RoundFactsFingerprint).IsNull();
+            await Assert.That(record.RoundFacts()).IsNull();
+            await Assert.That(record.RoundFactsFingerprint()).IsNull();
             await Assert.That(record.Rounds.Count).IsEqualTo(1).Because("the tier-2 rounds are untouched");
             await Assert.That(record.NeedsRoundFacts(Fingerprint)).IsTrue();
         }
@@ -183,28 +183,29 @@ public class RoundFactsCacheTests
         {
             DemoCacheStore store = new(root);
             DemoCacheRecord record = Analysed("/d/a.dem");
-            record.RoundFacts = Rows();
-            record.RoundFactsFingerprint = Fingerprint;
+            record.SetRoundFacts(Rows(), Fingerprint);
             store.Upsert(record);
             store.SaveIndex();
 
             DemoCacheStore reopened = new(root);
-            DemoCacheIndexEntry? entry = reopened.TryGetIndex("/d/a.dem");
-            DemoCacheRecord? cached = reopened.TryLoadRecord("/d/a.dem");
+            DemoCacheIndexEntry? row = reopened.TryGetIndex("/d/a.dem");
+            DemoCacheRecord? loaded = reopened.TryLoadRecord("/d/a.dem");
+            await Assert.That(row).IsNotNull();
+            await Assert.That(loaded).IsNotNull();
+            DemoCacheIndexEntry entry = row!;
+            DemoCacheRecord cached = loaded!;
 
             using (Assert.Multiple())
             {
-                await Assert.That(entry).IsNotNull();
-                await Assert.That(entry!.RoundFactsSchema).IsEqualTo(DemoCacheRecord.RoundFactsSchema);
-                await Assert.That(entry.RoundFactsFingerprint).IsEqualTo(Fingerprint);
+                await Assert.That(entry.RoundFactsSchema()).IsEqualTo(StratBookCache.RoundFactsSchema);
+                await Assert.That(entry.RoundFactsFingerprint()).IsEqualTo(Fingerprint);
                 await Assert.That(entry.NeedsRoundFacts(Fingerprint)).IsFalse();
                 await Assert.That(entry.NeedsRoundFacts("rf-B")).IsTrue();
 
-                await Assert.That(cached).IsNotNull();
-                await Assert.That(cached!.NeedsRoundFacts(Fingerprint)).IsEqualTo(entry.NeedsRoundFacts(Fingerprint));
+                await Assert.That(cached.NeedsRoundFacts(Fingerprint)).IsEqualTo(entry.NeedsRoundFacts(Fingerprint));
                 await Assert.That(cached.NeedsRoundFacts("rf-B")).IsEqualTo(entry.NeedsRoundFacts("rf-B"));
 
-                RoundFactsRows rows = cached.RoundFacts!;
+                RoundFactsRows rows = cached.RoundFacts()!;
                 await Assert.That(rows.ClockIdentity().TickRate).IsEqualTo(64);
                 await Assert.That(rows.ClockIdentity().LastTick).IsEqualTo(1000);
                 RoundFacts round = rows.Rounds[0];
@@ -229,14 +230,13 @@ public class RoundFactsCacheTests
     {
         DemoCacheStore store = new(null);
         DemoCacheRecord record = Analysed("/d/a.dem");
-        record.RoundFacts = Rows();
-        record.RoundFactsFingerprint = Fingerprint;
+        record.SetRoundFacts(Rows(), Fingerprint);
         store.Upsert(record);
 
         using (Assert.Multiple())
         {
-            await Assert.That(store.TryLoadRecord("/d/a.dem")?.RoundFacts?.Rounds.Count).IsEqualTo(1);
-            await Assert.That(store.TryGetIndex("/d/a.dem")?.RoundFactsFingerprint).IsEqualTo(Fingerprint);
+            await Assert.That(store.TryLoadRecord("/d/a.dem")?.RoundFacts()?.Rounds.Count).IsEqualTo(1);
+            await Assert.That(store.TryGetIndex("/d/a.dem")?.RoundFactsFingerprint()).IsEqualTo(Fingerprint);
         }
     }
 }
