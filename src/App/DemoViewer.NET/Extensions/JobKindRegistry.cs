@@ -41,8 +41,8 @@ public sealed class JobKindRegistry
 
     private JobKindRegistry(IReadOnlyDictionary<QueueJobKind, JobKindDescriptor> byKind) => _byKind = byKind;
 
-    /// <summary>Built once from the compiled-in pack list (<see cref="FeaturePacks.Default" />).</summary>
-    public static JobKindRegistry Default { get; } = Build(FeaturePacks.Default);
+    /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
+    public static JobKindRegistry Default { get; } = Build(FeaturePacks.Compatible);
 
     /// <summary>
     ///     Composes every pack's <see cref="IFeaturePack.JobKinds" /> over <see cref="CoreDescriptors" />

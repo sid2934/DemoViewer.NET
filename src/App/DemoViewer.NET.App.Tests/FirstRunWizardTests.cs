@@ -7,7 +7,10 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Setup;
@@ -481,6 +484,58 @@ public class FirstRunWizardTests
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         using FeatureGate gate = new(monitor, false);
         await body(gate);
+    }
+
+    // Item 33: the step asks only about packs in the catalog, and the catalog is composed from the
+    // compatible packs, so an extension that failed the compatibility check is absent here (Settings is
+    // where its reason shows). Proven on the live catalog against FeaturePacks.Compatible, and on a fake
+    // pair where one pack fails: the catalog built from the compatible subset drives a wizard with one card.
+    [Test]
+    public async Task ExtensionsStep_AsksOnlyAboutCompatibleExtensions()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FirstRunWizardViewModel live = new(new SettingsService(dir));
+            await Assert.That(live.PackOptions.Select(o => o.FeatureId))
+                .IsEquivalentTo(FeaturePacks.Compatible.Select(p => p.FeatureId));
+
+            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+            IFeaturePack incompatible = new CatalogPack("pack.future", FakeManifests.For("net.demoviewer.pack.future", "Future", "2.0.0", "^2.0", "*"));
+            IFeaturePack fine = new CatalogPack("pack.fine", FakeManifests.For("net.demoviewer.pack.fine", "Fine"));
+            IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, fine], host);
+            FeatureDescriptor[] catalog = FeatureCatalog.Build([.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)]);
+
+            FirstRunWizardViewModel vm = new(new SettingsService(dir), packs: catalog.Where(d => d.Scope == FeatureScope.Pack));
+            using (Assert.Multiple())
+            {
+                await Assert.That(statuses[0].IsCompatible).IsFalse();
+                await Assert.That(vm.PackOptions.Select(o => o.FeatureId)).IsEquivalentTo(["pack.fine"]);
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // A pack with one catalog row, so FeatureCatalog.Build accepts it.
+    private sealed class CatalogPack(string featureId, ExtensionManifest manifest) : IFeaturePack
+    {
+        public string Id => manifest.Id;
+        public string FeatureId => featureId;
+        public ExtensionManifest Manifest => manifest;
+
+        public IEnumerable<FeatureDescriptor> Features =>
+            [new(featureId, FeatureScope.Pack, manifest.Name, "d", null, null, false, new Dictionary<UserCategory, bool> { [UserCategory.PowerUser] = true })];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
+        }
     }
 
     // The step appears on a fresh config dir (CurrentStep==3 after three Nexts) and not on an existing
