@@ -4,7 +4,7 @@
 #   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-n] [-l]
 #
 #   -t  tier (default: standard, the in-flight default; see docs/playback2d-v2/plans/P3-test-tiers.md)
-#   -p  project key or `all` (default: all).  Keys: playback2d cli app livesync trimmer
+#   -p  project key or `all` (default: all).  Keys: playback2d cli app ext livesync trimmer
 #       visualization gameicons ruleauthoring
 #   -c  configuration (default: Release, matching CI)
 #   -n  no build; assume the binaries are current
@@ -82,6 +82,7 @@ PROJECTS=(
   "playback2d|src/Playback2D/DemoViewer.NET.Playback2D.Tests"
   "cli|tools/DemoViewer.NET.Playback2D.Cli.Tests"
   "app|src/App/DemoViewer.NET.App.Tests"
+  "ext|src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests"
 )
 
 SELECTED=()
