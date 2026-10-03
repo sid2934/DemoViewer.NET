@@ -4,8 +4,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Services.DemoCache;
@@ -256,8 +258,9 @@ public class TagTrackTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+            review.ReviewMode!.IsOn = true; // tagging and its lanes live in Review mode
+            TagSession tags = review.Session!;
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             TimelineControl control = Playback2DTimelineHarness.Timeline(view);
             ItemsControl lane = control.FindControl<ItemsControl>("TagLane")
@@ -267,8 +270,8 @@ public class TagTrackTests
             await Assert.That(vm.Timeline.HasLaneBands).IsFalse();
             await Assert.That(lane.IsEffectivelyVisible).IsFalse();
 
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
-            vm.Tags.Apply(new TagDelta.Add(Instance("A execute", 800, 1_200)));
+            await tags.AttachAsync(Demo, Clock, DemoPath);
+            tags.Apply(new TagDelta.Add(Instance("A execute", 800, 1_200)));
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(vm.Timeline.LaneBands.Count).IsEqualTo(1);

@@ -262,6 +262,21 @@ public sealed class StratMiningService : IPackResident, IDisposable
         });
     }
 
+    /// <summary>
+    ///     Drops the dismissed and promoted pattern keys, which <see cref="Release" /> keeps, and re-reads
+    ///     strat-mining.json: the recovery after it is deleted out from under the store (item 24's "delete
+    ///     extension data"). Without this, <see cref="LoadState" />'s retry merge (which keeps an in-memory
+    ///     edit a failed read could not persist) would fold the deleted keys back in on the next attach.
+    /// </summary>
+    public void ResetState()
+    {
+        _state = new MiningState();
+        _stateRefused = false;
+        _stateUnread = false;
+        StateProblem = null;
+        LoadState();
+    }
+
     private bool Detach()
     {
         lock (_gate)

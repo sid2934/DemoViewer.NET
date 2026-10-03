@@ -353,6 +353,45 @@ public class StratBookLiveToggleTests
         });
     }
 
+    /// <summary>
+    ///     Item 24's blocker: a re-enable landing right after <c>PackSwitch.Pending</c> resolves, but before
+    ///     <c>StratBookDataRemoval</c> calls the remover, used to run the delete against a fully live pack
+    ///     and report success. <c>afterReleaseForTests</c> lands the re-enable at exactly that point (the
+    ///     release and the re-enable's own attach both run inline on this container's queue double, so there
+    ///     is nothing to pump between the hook and the outer re-check): the delete must abort, untouched.
+    /// </summary>
+    [Test]
+    public async Task Delete_ReEnabledRightAfterTheReleaseWait_AbortsBeforeTheRemoverRuns()
+    {
+        await WithContainer(Seed(packOn: true), async (provider, queue, settings) =>
+        {
+            App.StartPacks(provider);
+            PackSwitch packs = provider.GetRequiredService<PackSwitch>();
+            await packs.Pending;
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(packs.IsOn(Pack)).IsTrue();
+
+            string stratsDir = Path.Combine(AppPaths.ConfigRoot!, "strats");
+            Directory.CreateDirectory(stratsDir);
+            string stratsFile = Path.Combine(stratsDir, "index.json");
+            await File.WriteAllTextAsync(stratsFile, "{}");
+
+            StratBookDataRemoval removal = new(provider,
+                afterReleaseForTests: () => settings.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId)));
+
+            PackDataRemovalResult result = await removal.DeleteAsync();
+            Dispatcher.UIThread.RunJobs();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Ran).IsFalse();
+                await Assert.That(File.Exists(stratsFile)).IsTrue()
+                    .Because("a re-enable landing right after the release wait must abort the delete before any file is touched");
+                await Assert.That(packs.IsOn(Pack)).IsTrue().Because("the hook's re-enable is real, not undone by the aborted delete");
+            }
+        });
+    }
+
     [Test]
     public async Task ADeclinedWizard_InTheShell_LeavesTeamIdentityUnread_AndQueuesNoTeamsLoad()
     {
