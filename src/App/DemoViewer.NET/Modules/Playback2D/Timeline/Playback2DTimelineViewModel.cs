@@ -104,6 +104,12 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>The registered tracks' toggles, in registration order (which is display order).</summary>
     public IReadOnlyList<TimelineTrackToggle> Tracks => _toggles;
 
+    /// <summary>The registered tracks themselves, in registration order. A contribution finds a lane the tab registered here (item 18 moves the lanes).</summary>
+    public IReadOnlyList<ITimelineTrack> RegisteredTracks => _tracks;
+
+    /// <summary>The data the bands were last built from, or null before the first <see cref="Rebuild" />.</summary>
+    public ITimelineData? Data => _data;
+
     /// <summary>The laid-out round bands. Rebuilt on <see cref="Rebuild" /> and on a width change.</summary>
     public ObservableCollection<TimelineBandViewModel> Bands { get; } = new();
 

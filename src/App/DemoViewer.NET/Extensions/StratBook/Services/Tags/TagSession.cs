@@ -158,6 +158,13 @@ public sealed class TagSession : IDisposable
     /// <summary>Raised after any change to the document or the status line. May fire off the UI thread.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    ///     Raised before the session lets go of its document, on a swap (<see cref="AttachAsync" />) or a
+    ///     <see cref="Detach" />, while the old document is still current and before it is flushed. A pending
+    ///     edit applied here lands in the document going out.
+    /// </summary>
+    public event Action? Detaching;
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -228,6 +235,8 @@ public sealed class TagSession : IDisposable
         ArgumentNullException.ThrowIfNull(clock);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // Before the flush: a subscriber's last write to the old document goes out with it.
+        Detaching?.Invoke();
         await FlushAsync().ConfigureAwait(true);
         if (Document is not null)
         {
@@ -283,6 +292,7 @@ public sealed class TagSession : IDisposable
     {
         if (Document is not null)
         {
+            Detaching?.Invoke();
             Flush();
         }
 
