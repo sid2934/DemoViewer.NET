@@ -44,7 +44,7 @@ public sealed class TeamLibraryContribution(Func<TeamIdentityService> resolve, s
                 items.Add(new LibraryFilterItem(team.Id.ToString(), DisplayText.Sanitize(team.Name)));
             }
 
-            return new LibraryFilter("Team", items, Matches(teams));
+            return new LibraryFilter("Team", items, Matches(teams), Tooltip: "Filter by team");
         }
     }
 
