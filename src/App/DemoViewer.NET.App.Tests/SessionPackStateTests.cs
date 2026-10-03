@@ -1,0 +1,157 @@
+#region
+
+using System.Text.Json;
+using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Models;
+
+#endregion
+
+namespace DemoViewer.NET.AppTests;
+
+/// <summary>
+///     <see cref="SessionPayload.Packs" /> through the real <see cref="SettingsService" /> (item 23): a
+///     pre-<c>Packs</c> file's top-level <c>StratBook</c> member folds once, a new file's <c>Packs</c>
+///     dictionary round-trips byte for byte including ids this build does not own, and a per-pack blob
+///     this build cannot make sense of never throws. The pack-off carry-through and the hub's own
+///     tolerant restore are shell-level (<see cref="AppTests.StratBookShellTests" />): the store itself
+///     has no notion of a pack being on or off.
+/// </summary>
+public class SessionPackStateTests
+{
+    private static string NewTempDir()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvsessionpacks_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    private static void Cleanup(string dir)
+    {
+        try
+        {
+            Directory.Delete(dir, true);
+        }
+        catch
+        {
+            // best-effort cleanup
+        }
+    }
+
+    [Test]
+    public async Task OldFile_WithTopLevelStratBook_FoldsIntoPacksKeyedByThePackId()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), """
+                {
+                  "Session": {
+                    "DebuggerVisible": false,
+                    "OutputVisible": false,
+                    "ActiveTabId": "stratbook.browser",
+                    "StratBook": { "RailCollapsed": true, "ListCollapsed": false }
+                  }
+                }
+                """);
+
+            SessionPayload? loaded = new SettingsService(dir).LoadSession();
+
+            await Assert.That(loaded).IsNotNull();
+            JsonElement folded = loaded!.Packs![StratBookPack.PackId];
+            using (Assert.Multiple())
+            {
+                await Assert.That(folded.GetProperty("RailCollapsed").GetBoolean()).IsTrue();
+                await Assert.That(folded.GetProperty("ListCollapsed").GetBoolean()).IsFalse();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task OldFile_WithBothTopLevelStratBookAndAPacksEntryForTheSameId_ThePacksEntryWins()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), """
+                {
+                  "Session": {
+                    "DebuggerVisible": false,
+                    "OutputVisible": false,
+                    "StratBook": { "RailCollapsed": true, "ListCollapsed": true },
+                    "Packs": { "net.demoviewer.pack.stratbook": { "RailCollapsed": false, "ListCollapsed": false } }
+                  }
+                }
+                """);
+
+            SessionPayload? loaded = new SettingsService(dir).LoadSession();
+
+            await Assert.That(loaded!.Packs![StratBookPack.PackId].GetProperty("RailCollapsed").GetBoolean()).IsFalse()
+                .Because("the new-shape entry already present must not be overwritten by the legacy fold");
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task NewFile_WithMultiplePackEntries_RoundTripsThemAllUnchanged()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            Dictionary<string, JsonElement> packs = new(StringComparer.Ordinal)
+            {
+                [StratBookPack.PackId] = JsonSerializer.SerializeToElement(new { RailCollapsed = true, ListCollapsed = false }),
+                // An id no pack in this build owns: must survive untouched, the way a pack that has not
+                // shipped yet (or one this build does not have) still round-trips.
+                ["net.demoviewer.pack.future"] = JsonSerializer.SerializeToElement(new { Anything = 1 })
+            };
+
+            SettingsService svc = new(dir);
+            svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null, packs));
+
+            SessionPayload? loaded = new SettingsService(dir).LoadSession();
+
+            await Assert.That(loaded!.Packs!.Keys).IsEquivalentTo(packs.Keys);
+            using (Assert.Multiple())
+            {
+                await Assert.That(JsonElement.DeepEquals(loaded.Packs[StratBookPack.PackId], packs[StratBookPack.PackId])).IsTrue();
+                await Assert.That(JsonElement.DeepEquals(loaded.Packs["net.demoviewer.pack.future"], packs["net.demoviewer.pack.future"])).IsTrue();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task UnreadablePackBlob_RoundTripsWithoutThrowing()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
+                new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                {
+                    [StratBookPack.PackId] = JsonSerializer.SerializeToElement(42)
+                }));
+
+            SessionPayload? loaded = new SettingsService(dir).LoadSession();
+
+            await Assert.That(loaded!.Packs![StratBookPack.PackId].ValueKind).IsEqualTo(JsonValueKind.Number)
+                .Because("the store holds a pack blob opaquely; only the owning pack's Restore interprets its shape");
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+}
