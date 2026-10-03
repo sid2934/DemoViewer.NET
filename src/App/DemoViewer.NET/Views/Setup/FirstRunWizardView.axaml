@@ -140,7 +140,36 @@
                         ToolTip.Tip="Pick a folder to scan for demos (unavailable in the browser)." />
             </StackPanel>
 
-            <!-- Step 3 — Done -->
+            <!-- Step 3 — Optional extensions. One card per FeatureScope.Pack row in the catalog (generic:
+                 a second pack asks its own question here with no new code), present only on a genuine
+                 first run. Default selection is ON (seeded by the VM from the catalog default). -->
+            <StackPanel IsVisible="{Binding IsExtensionsStep}" Spacing="12">
+                <TextBlock Text="Optional extensions" FontSize="19" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextValue}" />
+                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           Text="Extensions add optional surfaces on top of the viewer. Each one is on by default, so turn any of them off here, or anytime in Settings." />
+                <ItemsControl ItemsSource="{Binding PackOptions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="setup:PackOptionViewModel">
+                            <Border Classes="card" Padding="12,10" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="{Binding Title}" FontSize="14"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                        <TextBlock Text="{Binding Copy}" FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextDim}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" VerticalAlignment="Top"
+                                              IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                              AutomationProperties.Name="{Binding Title}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Step 4 — Done -->
             <StackPanel IsVisible="{Binding IsDoneStep}" Spacing="16" MaxWidth="440"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock Text="You're all set" FontSize="24" FontWeight="SemiBold"
