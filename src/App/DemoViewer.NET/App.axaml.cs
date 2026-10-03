@@ -11,6 +11,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -297,16 +298,41 @@ public class App : Application
             static void FlushStores(ServiceProvider services)
             {
                 // Shutdown is a strat commit trigger (strat-model.md §3.8), and both user-truth stores defer
-                // their index to it: the Strat Book writes its own, and the Tag Store's is written here, the
-                // call its design leaves to the shell. Idempotent, so a re-fired request writes nothing new.
+                // their index to it: the Strat Book writes its own (through its pack's lifecycle below), and
+                // the Tag Store's is written here, the call its design leaves to the shell. TagStore and
+                // ReviewQueue are core (Reels uses the queue too), so their flush stays unconditional here
+                // rather than behind a pack's "was built" guard. Idempotent, so a re-fired request writes
+                // nothing new.
+                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
                 Action[] flushes =
                 [
-                    () => services.GetRequiredService<ModuleRegistry>().Modules.OfType<StratBookModule>().FirstOrDefault()?.Shutdown(),
                     () => services.GetService<TagStore>()?.SaveIndex(),
                     () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
-                    () => services.GetService<GrenadeIndex>()?.FlushLineups(TimeSpan.FromSeconds(5))
+                    () =>
+                    {
+                        // Every pack's lifecycle, unconditionally: whether OnEnabledAsync ran at startup is
+                        // not whether there is anything to flush now (a pack turned on mid-session has no
+                        // live-toggle re-run yet, item 8's job, but a tab it exposed can still have been
+                        // opened and written to). Each lifecycle's own "was built" guards decide what, if
+                        // anything, to touch; one lifecycle's failure must not skip the others.
+                        foreach (IFeaturePack pack in FeaturePacks.Default)
+                        {
+                            if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
+                            {
+                                continue;
+                            }
+
+                            try
+                            {
+                                lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+                            }
+                            catch (Exception ex)
+                            {
+                                AppLog.OperationFailed(log, "shutdown flush", ex);
+                            }
+                        }
+                    }
                 ];
-                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
                 foreach (Action flush in flushes)
                 {
                     try
@@ -669,40 +695,37 @@ public class App : Application
         // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
         // any rescan, independent of ValidateOnBuild's eager-construction behavior.
         provider.GetRequiredService<DemoEvaluationCoordinator>();
-        // The situation index's startup load: every current sidecar, as a queue item at the front (2 ms per
-        // demo measured). Queries before it finishes answer empty with IsReady false and the strip says so.
-        SituationIndex situations = provider.GetRequiredService<SituationIndex>();
-        _ = StartupLoad(provider, "Load: situations index", "situations")(situations.Load);
-        // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
-        GrenadeIndex grenadeIndex = provider.GetRequiredService<GrenadeIndex>();
-        _ = StartupLoad(provider, "Load: grenade index", "utility")(grenadeIndex.Load);
-        // Nothing resolves the lineup clip service; constructing it is what subscribes it to the index.
-        provider.GetRequiredService<LineupClipService>();
-        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
-        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
-        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
-        // Nothing resolves the facts refresher; constructing it is what subscribes it to the rows writes.
-        provider.GetRequiredService<TagFactsRefresher>();
-        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue item that
-        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
-        // 30 s so startup loads are not competing for the disk.
-        if (!OperatingSystem.IsBrowser())
-        {
-            DemoCacheStore demoCache = provider.GetRequiredService<DemoCacheStore>();
-            IDemoProcessingQueue queue = provider.GetRequiredService<IDemoProcessingQueue>();
-            GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
-            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
-                {
-                    SidecarFormatMigration.Submit(queue, demoCache,
-                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
-
-                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
-                    GrenadeStoreMigration.Submit(queue, demoCache, grenades);
-                },
-                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
-        }
+        // Each pack whose feature id resolves on gets its lifecycle's startup loads. A pack that is off
+        // never resolves its lifecycle, so none of this runs: no index load, no Team Identity rebuild, no
+        // queue item.
+        StartPacks(provider, packs);
         Services = provider;
         return provider;
+    }
+
+    /// <summary>
+    ///     For each pack whose <see cref="IFeaturePack.FeatureId" /> resolves on, resolves its
+    ///     <see cref="IPackLifecycle" /> (if registered, keyed by <see cref="IFeaturePack.Id" />) and fires
+    ///     <see cref="IPackLifecycle.OnEnabledAsync" />. Fire-and-forget: a pack's startup loads run on the
+    ///     processing queue, same as the explicit block this replaced. Shutdown does not read anything
+    ///     this records: every pack's lifecycle gets an unconditional <see cref="IPackLifecycle.OnShutdown" />
+    ///     instead, each deciding for itself what it actually built.
+    /// </summary>
+    internal static void StartPacks(IServiceProvider provider, IReadOnlyList<IFeaturePack> packs)
+    {
+        IFeatureGate gate = provider.GetRequiredService<IFeatureGate>();
+        foreach (IFeaturePack pack in packs)
+        {
+            if (!gate.IsEnabled(pack.FeatureId))
+            {
+                continue;
+            }
+
+            if (provider.GetKeyedService<IPackLifecycle>(pack.Id) is { } lifecycle)
+            {
+                _ = lifecycle.OnEnabledAsync(PackStartReason.Startup, CancellationToken.None);
+            }
+        }
     }
 
     /// <summary>
@@ -1013,6 +1036,13 @@ public class App : Application
         // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
         services.AddSingleton(sp =>
         {
+            // BuildShell resolves this unconditionally (the Library team filter), so the pack's gate
+            // cannot decide whether the service is built, only whether its startup READ is a queue item.
+            // Off, the ctor's own fallback (scheduleLoad null) reads teams.json inline instead: the
+            // Library still needs a working service, but nothing from a disabled pack belongs in the
+            // queue list.
+            IFeatureGate? teamsGate = sp.GetService<IFeatureGate>();
+            bool packOn = teamsGate?.IsEnabled(StratBookPack.PackFeatureId) ?? false;
             TeamIdentityService teams = new(
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
@@ -1020,7 +1050,7 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action),
                 run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
                     "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
-                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"));
+                scheduleLoad: packOn ? StartupLoad(sp, "Load: teams", "teams") : null);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
