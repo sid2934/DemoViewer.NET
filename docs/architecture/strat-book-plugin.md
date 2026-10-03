@@ -475,6 +475,29 @@ step.
     publish check: the Browser head compile-links the extension. 32. `scripts/test.sh` gains the extension
     test project and tier.
 
+**Item 25 as built (2026-10-03).** The project is
+`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/DemoViewer.NET.Extensions.StratBook.csproj`, one
+directory deeper than the sketch above so item 28's test project sits beside it. The Phase 0b tree moved
+whole with `git mv`, namespaces unchanged (`RootNamespace` is `DemoViewer.NET`); the embedded palettes and
+callouts moved with it under their old `LogicalName`s, and both readers already resolve
+`typeof(...).Assembly`, so nothing else changed for them. Phases 2 to 4 had not cut every edge after all:
+the composition root still registered the Round Index, Situation Index, Tag Store, Tag Palette, Team
+Identity, Provenance and Teams tab services, wired Match Overview's grenade hooks and flushed the Tag Store
+at shutdown; `ReviewQueue.FromTag` took a tag type; `AssetZonePlaceResolverSource` implemented a pack
+interface from core; the 2D round track and tab read `RoundFacts`/`IRoundFactsSource`; `SituationsSettings`
+stored `RoundIndexTokenSource`. Item 25 moved the registrations into `StratBookPack.Register`, the grenade
+hooks into a new `IPackContributions.Shell` attachment (section 7.2), the Tag Store flush into
+`StratBookLifecycle.OnShutdown` (through a `Tags` slot on the instances tracker), `FromTag` into the pack as
+`TagClips.FromTag`, and the zone resolver source into the pack; it moved the Round Facts models and the
+`IRoundFactsSource` interface and the token-source enum into core (the implementations stayed). The
+Desktop and Browser heads reference the extension and call `FeaturePacks.Configure([new StratBookPack()])`
+before Avalonia starts, which is item 29's content pulled forward because 25 does not compile without it.
+Item 27's work landed here too (the `ViewLocator` searches the pack assemblies; the pack had no `avares://`
+URI or `assembly=` xmlns to repoint), as did item 30's test half (`PackBoundaryTests` asserts the app
+csproj has no `Extensions` project reference; its allow-list is empty). Item 31 was checked locally (the
+Browser head builds in Release). Item 32 needs nothing until item 28 creates the test project:
+`scripts/test.sh` lists test projects only, and CI builds the solution. Section 13 has the layout and rules.
+
 ### Phase 6: independent release cadence (about 6 items)
 
 The extension ships and updates separately from the app. Bounded by one hard fact: the extension uses
@@ -573,6 +596,14 @@ public interface IPackContributions
 
 Every contribution carries the pack's `FeatureId` implicitly (the pack registered it), and may carry a
 narrower sub-feature id. The shell shows a contribution only when both resolve on.
+
+As built (item 25): `void Shell(Action<MainViewModel> attach)` joined the list. The shell factory runs every
+pack's attachments once, right after the shell is constructed and before anything can resolve it, which is
+the moment the composition root used to wire a pack's delegates by hand. It exists for the delegate slots a
+core page exposes (Match Overview's `IndexGrenades`, `AreGrenadesIndexed`, `PackEnabled`); an attachment
+must not resolve the shell itself and reaches everything else lazily. The pack's lifecycle was the wrong
+place: resolving the shell from `OnEnabledAsync` constructed it during `StartPacks`, which put the shell's
+own startup loads ahead of the pack's on the queue.
 
 ### 7.3 2D Playback
 
@@ -675,7 +706,7 @@ tab view-model, which attaches on its first activation (the context arrives ther
 The tab closes any open side pane on deactivation and on demo reset, as it closed the Create Strat review
 before.
 
-The Create Strat contribution (`Extensions/StratBook/Modules/StratBook/CreateStratPlaybackContribution.cs`)
+The Create Strat contribution (`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/StratBook/CreateStratPlaybackContribution.cs`)
 adds a band-menu entry for round bands whose action opens a pane it added (`AddPane(PanePlacement.Side,
 ...)`), using `IStratCapture` resolved from `context.GetService<T>()` at every band press, which is how the
 gate reaches it. That pairing is the PoC finding in section 6 (item 16).
@@ -770,7 +801,7 @@ an empty tag history leave the key unhandled. Returning true is what keeps an em
 through to the annotations' undo now that the focused panel is asked first; the annotations' history stays
 the unfocused case's.
 
-The contribution (`Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs`)
+The contribution (`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs`)
 builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over its session
 with `TagPaletteStore`, `SuggestedTagsService` and `SettingsService` from `context.GetService<T>()`, and
 registers them as three panels: the palette (order 0, gate `playback2d.tagger`), the review panel (order 1,
@@ -804,7 +835,7 @@ it on every open, after the divider `Separator` (`IsVisible="{Binding Surface.Ha
 row's own divider is). `TryExecute` tries a `ModeToggle` whose `Action` matches first, then a `ToolbarItem`
 whose `Action` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
 and the keymap action are one funnel. The Situations contribution
-(`Extensions/StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers the button's own text,
+(`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers the button's own text,
 "Rounds like this", as `Label` (icon `⌕`, restoring today's button face, which the menu entry does not carry)
 and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`Playback2DAction.FindRoundsLikeThis`);
 its `Run` resolves `IFindRoundsLikeThis` through `context.GetService<T>()` as `TryFindRoundsLikeThis` used to
@@ -871,7 +902,7 @@ timing is unchanged from before item 22; only the off case is actually lazier no
 `ProvenanceLibraryContribution.BadgeFor`/`BadgesFor`, which always returns a badge once the service
 resolves (an entry the cache has not indexed yet also reads "unlabeled", collapsing a distinction the old
 field-level null preserved but the display never showed). The pack's two contributions,
-`Extensions/StratBook/Services/Teams/TeamLibraryContribution.cs` and
+`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Services/Teams/TeamLibraryContribution.cs` and
 `.../Services/Provenance/ProvenanceLibraryContribution.cs`, each take a `Func<T>` resolver (no DI
 registration of their own, matching item 16's `CreateStratPlaybackContribution`) and an optional
 `featureId` constructor parameter so a caller outside `StratBookPack.Contribute` (a shell test) can name
@@ -915,7 +946,7 @@ into `Packs` under the pack's id via `IJsonOnDeserialized`/`[JsonExtensionData]`
 same mechanism item 21 used for the demo cache record; `SessionPayload` keeps its own literal copy of the
 id string (`Models` cannot depend on `Services` or on the pack) rather than naming `StratBookPack.PackId`.
 An already-present `Packs` entry for that id wins. `StratBookHubViewModel` implements the three members
-over `StratBookLayout` (now in `Extensions/StratBook/`,
+over `StratBookLayout` (now in the extension project,
 with `StratBookLayoutState`), whose `RestoreSessionState(JsonElement)` reads `RailCollapsed`/`ListCollapsed`
 independently and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
 blob leaves that pane as it is instead of throwing or discarding the rest.
@@ -1709,14 +1740,54 @@ root), not only the two ring-G viewmodels a narrower grep would suggest.
 pack-owned by the ring table: `SettingsViewModel`'s constructor takes it, and that seam is item 14's to
 cut, not a rename item's.
 
-After Phase 5, the same tree moved up:
+After Phase 5 (item 25, as built):
 
 ```
 src/Extensions/StratBook/
-  DemoViewer.NET.Extensions.StratBook/            the csproj; references src/App/DemoViewer.NET
-  DemoViewer.NET.Extensions.StratBook.Tests/
-  extension.json                                   Phase 6 manifest
+  DemoViewer.NET.Extensions.StratBook/              the csproj; references src/App/DemoViewer.NET
+    DemoViewer.NET.Extensions.StratBook.csproj      RootNamespace DemoViewer.NET; AssemblyName DemoViewer.NET.Extensions.StratBook
+    AssemblyInfo.cs                                 InternalsVisibleTo App.Tests and UiCapture
+    StratBookPack.cs, StratBookLifecycle.cs, ...    the pack root files
+    Modules/ Services/ ViewModels/ Views/ Controls/ Assets/   the Phase 0b tree, moved whole, namespaces unchanged
+    Services/Zones/AssetZonePlaceResolverSource.cs  the one file that moved in from core (it implements a pack interface)
+  DemoViewer.NET.Extensions.StratBook.Tests/        item 28
+  extension.json                                    Phase 6 manifest
+src/App/DemoViewer.NET.App.Tests/Extensions/StratBook/      the pack's tests, until item 28
+src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants, until item 28
 ```
+
+Rules as built:
+
+- **The app references no extension.** `src/App/DemoViewer.NET/DemoViewer.NET.csproj` has no project
+  reference under `src/Extensions/`; the compiler enforces the boundary and `PackBoundaryTests` asserts the
+  csproj so a reference cannot be added quietly. The extension references the app. The heads (Desktop,
+  Browser), `DemoViewer.NET.App.Tests` and `DemoViewer.NET.UiCapture` reference both.
+- **Composition.** `FeaturePacks.Default` is empty until the head calls
+  `FeaturePacks.Configure([new StratBookPack()])`, which both heads do before Avalonia starts, UiCapture does
+  on its first line and the test assembly does from a module initializer (`CompiledInPacks`). The list
+  freezes on first read because `FeatureCatalog`, `JobKindRegistry.Default` and `CommandRegistry.Default`
+  build from it once; a late `Configure` throws. `App.BuildServices(windowService)` still reads it, so the
+  tests that build the composition root are unchanged, and the pack-off tests override the gate rather than
+  the list.
+- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (decision 5 option (b): a
+  first-party extension composes over the same internal seams the app's own composition root uses; Phase
+  6's loader loads only first-party signed assemblies, so this exposes nothing to third parties). The
+  extension grants `DemoViewer.NET.App.Tests` and `DemoViewer.NET.UiCapture`. No core member was widened to
+  public for the split.
+- **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
+  assembly, asks each compiled-in pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
+  carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 7.4).
+- **Shared namespaces.** `DemoViewer.NET.Services.RoundFacts` (models and `IRoundFactsSource` in core,
+  `RoundFactsSource` and the evaluator in the pack), `DemoViewer.NET.Services.RoundIndex`
+  (`RoundIndexTokenSource` in core, the index in the pack) and `DemoViewer.NET.Services.Zones` (Zone Baking in
+  core, the resolver source in the pack) are declared by both assemblies. `PackBoundaryTests` treats a
+  namespace both declare as shared and scans core only for the pack-owned ones.
+- **Resources.** The palettes and callouts are `EmbeddedResource`s of the extension under the logical names
+  they always had (`DemoViewer.NET.Services.Tags.Palettes.*`, `DemoViewer.NET.Services.Strats.Callouts.*`);
+  `TagPaletteStore` and `CanonicalPlaces` read `typeof(...).Assembly`, which is now the extension.
+- **Publishing.** The heads reference the extension, so `dotnet publish` of a head ships
+  `DemoViewer.NET.Extensions.StratBook.dll` beside the app with no script change; `scripts/publish.sh` and
+  the release workflow are unchanged.
 
 What stays in the app: everything ring G in section 3 (lanes, shape tools, `MapSceneHost`, zones,
 `QueueWork`, the processing queue) and the Review Queue (decision 1). Ring S items move with the
