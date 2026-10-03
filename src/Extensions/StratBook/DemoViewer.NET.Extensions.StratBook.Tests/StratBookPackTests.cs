@@ -1,7 +1,9 @@
 #region
 
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
@@ -531,6 +533,21 @@ public class StratBookPackTests
         });
     }
 
+    // Item 33: the embedded manifest names this pack, and the shipped build passes its own check.
+    [Test]
+    public async Task ThePack_Manifest_NamesItself_AndIsCompatibleWithThisBuild()
+    {
+        StratBookPack pack = new();
+        using (Assert.Multiple())
+        {
+            await Assert.That(pack.Manifest).IsNotNull();
+            await Assert.That(pack.Manifest.Id).IsEqualTo(StratBookPack.PackId);
+            await Assert.That(pack.Manifest.Version).IsEqualTo(new SemVersion(1, 0, 0));
+            await Assert.That(pack.Manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
+            await Assert.That(PackStatus.Evaluate(pack, ExtensionHost.Current).IsCompatible).IsTrue();
+        }
+    }
+
     [Test]
     public async Task ThePackId_IsNotTheModuleId()
     {
@@ -703,6 +720,7 @@ public class StratBookPackTests
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
+        public ExtensionManifest Manifest => FakeManifests.For(Id);
         public IEnumerable<FeatureDescriptor> Features => features;
 
         public void Register(IServiceCollection services)

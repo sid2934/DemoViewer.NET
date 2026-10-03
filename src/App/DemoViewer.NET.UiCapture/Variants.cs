@@ -19,6 +19,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 using DemoViewer.NET.Extensions.StratBook.Views.Settings;
@@ -154,6 +155,9 @@ public static partial class Variants
             // Delete extension data (item 24): the pack off (the main use case) with its confirmation
             // already armed, so the row, the user-work sizes and the two buttons are all in frame.
             ["settings-extensions-delete-confirm"] = () => Settings(packOff: true, armDelete: true),
+            // Item 33: a second, fake extension built against pack contract 2.x, so its master row renders
+            // locked with the reason beneath the real Strat Book row (which shows its version).
+            ["settings-extensions-incompatible"] = () => Settings(packOff: false, incompatible: true),
             ["wizard"] = Wizard,
             ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
@@ -1368,7 +1372,7 @@ public static partial class Variants
     ///     Extensions section and auto-expands its group for the capture, the on variant the same way minus
     ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
-    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false)
+    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false, bool incompatible = false)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1438,7 +1442,17 @@ public static partial class Variants
             ]
             : null;
 
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals);
+        // Item 33: the real pack's status plus, on request, a fake extension whose manifest wants pack
+        // contract 2.x. Judged by the real check against the real host, so the message is the shipped one.
+        IReadOnlyList<PackStatus>? statuses = null;
+        if (incompatible)
+        {
+            CaptureIncompatiblePack future = new();
+            statuses = [.. FeaturePacks.Statuses, PackStatus.Evaluate(future, ExtensionHost.Current)];
+        }
+
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals,
+            packStatuses: statuses);
         if (packOff is not null)
         {
             vm.SettingsFilterText = "extension";
@@ -1453,6 +1467,28 @@ public static partial class Variants
         {
             DataContext = vm
         };
+    }
+
+    // A capture-only second extension (item 33): never configured, never composed; only its status exists,
+    // and only for "settings-extensions-incompatible".
+    private sealed class CaptureIncompatiblePack : IFeaturePack
+    {
+        public string Id => "net.demoviewer.pack.future";
+        public string FeatureId => "pack.future";
+
+        public ExtensionManifest Manifest => new(
+            Id, "Future Book", new SemVersion(1, 2, 0), "DemoViewer.NET.Extensions.FutureBook.dll",
+            "DemoViewer.NET.Extensions.FutureBook.FutureBookPack", VersionRange.Parse("^2.0"), VersionRange.Any);
+
+        public IEnumerable<FeatureDescriptor> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
+        }
     }
 
     // A capture-only IPackDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is

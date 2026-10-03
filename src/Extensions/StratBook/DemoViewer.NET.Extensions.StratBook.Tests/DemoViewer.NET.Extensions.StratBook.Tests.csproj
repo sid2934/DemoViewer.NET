@@ -50,6 +50,8 @@
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\FakeTimelineData.cs" Link="FakeTimelineData.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DActivation.cs" Link="Playback2DActivation.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\TestLibraries.cs" Link="TestLibraries.cs"/>
+        <!-- Item 33: manifests for the IFeaturePack fakes every moved test's FakePack now needs. -->
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Extensions\FakeManifests.cs" Link="FakeManifests.cs"/>
     </ItemGroup>
 
 </Project>

@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
@@ -224,6 +225,7 @@ public class HostTabContributionTests
     {
         public string Id => "net.demoviewer.test.fakepack";
         public string FeatureId => PackId;
+        public ExtensionManifest Manifest => FakeManifests.For(Id);
         public IEnumerable<FeatureDescriptor> Features => [];
 
         public void Register(IServiceCollection services)
