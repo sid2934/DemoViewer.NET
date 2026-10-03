@@ -142,7 +142,6 @@ public class LibraryTeamFilterRenderTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(vm.HasTeamFilter).IsFalse();
                 await Assert.That(vm.Filters).IsEmpty();
                 await Assert.That(vm.FilteredEntries.Count).IsEqualTo(3);
             }
@@ -155,7 +154,7 @@ public class LibraryTeamFilterRenderTests
             LibraryFilterViewModel filterAgain = vm.Filters.Single();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.HasTeamFilter).IsTrue();
+                await Assert.That(vm.Filters.Count).IsEqualTo(1);
                 await Assert.That(filterAgain.Selected.Key).IsEqualTo("");
                 await Assert.That(filterAgain.Items.Count).IsEqualTo(4).Because("All, Us, and the two teams");
             }

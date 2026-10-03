@@ -458,16 +458,14 @@ public class DemoProvenanceTests
             DemoEntry unknown = library.Entries[2];
             using (Assert.Multiple())
             {
-                await Assert.That(vm.HasProvenance).IsTrue();
+                await Assert.That(vm.HasBadge).IsTrue();
                 await Assert.That(mm.BadgeLabel).IsEqualTo("matchmaking");
-                await Assert.That(mm.BadgeDisplay).IsEqualTo("matchmaking");
                 await Assert.That(mm.BadgeIsPinned).IsFalse();
                 await Assert.That(nobody.BadgeLabel).IsEqualTo("unlabeled").Because("resolved, but the heuristic had nothing to say");
-                await Assert.That(nobody.BadgeDisplay).IsEqualTo("unlabeled");
                 await Assert.That(unknown.BadgeLabel).IsEqualTo("unlabeled").Because("not in the cache yet, but the contribution still answers unlabeled");
             }
 
-            vm.SetProvenance(mm, "our scrim");
+            vm.SetBadgeLabel(mm, "our scrim");
             using (Assert.Multiple())
             {
                 await Assert.That(mm.BadgeLabel).IsEqualTo("our scrim").Because("the chip re-reads on the contribution's Changed");
@@ -475,7 +473,7 @@ public class DemoProvenanceTests
                 await Assert.That(mm.BadgeTooltip).Contains("set by you");
             }
 
-            vm.SetProvenance(mm, null);
+            vm.SetBadgeLabel(mm, null);
             using (Assert.Multiple())
             {
                 await Assert.That(mm.BadgeLabel).IsEqualTo("matchmaking");
@@ -484,7 +482,7 @@ public class DemoProvenanceTests
             }
 
             LibraryTabViewModel bare = new(library, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]));
-            await Assert.That(bare.HasProvenance).IsFalse().Because("no contribution, no chip");
+            await Assert.That(bare.HasBadge).IsFalse().Because("no contribution, no chip");
         }
     }
 

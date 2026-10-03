@@ -524,8 +524,7 @@ public class StratBookShellTests
 
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse();
-                    await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
+                    await Assert.That(vm.LibraryTab.HasBadge).IsFalse();
                     await Assert.That(vm.LibraryTab.Filters).IsEmpty()
                         .Because("no filter contribution while the pack is off");
                     await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
@@ -534,6 +533,8 @@ public class StratBookShellTests
                         .Because("a strat export attached while the pack is off never joins the strip");
                     await Assert.That(provenance.ResolveCalls).IsEqualTo(0)
                         .Because("the Library must not query provenance while the pack is off");
+                    await Assert.That(provenance.ResolveAllCalls).IsEqualTo(0)
+                        .Because("nor the batch hook a full refresh would otherwise use");
                 }
             }
             finally
@@ -621,8 +622,8 @@ public class StratBookShellTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(StratBookHubViewModel.TabId);
-                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
-                    await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
+                    await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
+                    await Assert.That(vm.LibraryTab.HasBadge).IsTrue();
                     await Assert.That(vm.Chips.Contains(status.Chip)).IsTrue();
                 }
 
@@ -632,8 +633,7 @@ public class StratBookShellTests
                 {
                     await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
                         .Because("the Strat Book tab the user was on just went away");
-                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsFalse();
-                    await Assert.That(vm.LibraryTab.HasProvenance).IsFalse();
+                    await Assert.That(vm.LibraryTab.HasBadge).IsFalse();
                     await Assert.That(vm.LibraryTab.Filters).IsEmpty();
                     await Assert.That(vm.Chips.Contains(status.Chip)).IsFalse()
                         .Because("a running strat export is hidden, not stopped, while the pack is off");
@@ -649,8 +649,8 @@ public class StratBookShellTests
                 gate.RaiseChanged();
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
-                    await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
+                    await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
+                    await Assert.That(vm.LibraryTab.HasBadge).IsTrue();
                     await Assert.That(vm.Chips.Contains(status.Chip)).IsTrue()
                         .Because("the same mapper reappears: turning the pack off never unsubscribed it");
                     await Assert.That(vm.TrySelectTab("stratbook.browser")).IsTrue();
@@ -676,10 +676,10 @@ public class StratBookShellTests
             {
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm.LibraryTab.HasTeamFilter).IsTrue();
-                    await Assert.That(vm.LibraryTab.HasProvenance).IsTrue();
-                    await Assert.That(provenance.ResolveCalls).IsGreaterThan(0)
-                        .Because("the pack on is the pre-gating behaviour: nothing new is suppressed");
+                    await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
+                    await Assert.That(vm.LibraryTab.HasBadge).IsTrue();
+                    await Assert.That(provenance.ResolveAllCalls).IsGreaterThan(0)
+                        .Because("the pack on is the pre-gating behaviour: nothing new is suppressed, through the batch hook");
                 }
             }
             finally
@@ -858,6 +858,7 @@ public class StratBookShellTests
     private sealed class CountingProvenanceSource : IDemoProvenanceSource
     {
         public int ResolveCalls { get; private set; }
+        public int ResolveAllCalls { get; private set; }
 
         public string? LabelFor(string sha256) => null;
 
@@ -870,9 +871,12 @@ public class StratBookShellTests
             return new DemoProvenance(demoPath, null, null, null, ProvenanceOrigin.None);
         }
 
-        public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths) =>
-            demoPaths.ToDictionary(p => p,
+        public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths)
+        {
+            ResolveAllCalls++;
+            return demoPaths.ToDictionary(p => p,
                 p => new DemoProvenance(p, null, null, null, ProvenanceOrigin.None), StringComparer.Ordinal);
+        }
 
         // Never raised: no test here depends on it, and the interface requires the member regardless.
 #pragma warning disable CS0067

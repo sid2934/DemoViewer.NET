@@ -210,7 +210,7 @@ public class TeamsModuleTests
         LibraryFilterViewModel filter = vm.Filters.Single();
         using (Assert.Multiple())
         {
-            await Assert.That(vm.HasTeamFilter).IsTrue();
+            await Assert.That(vm.Filters.Count).IsEqualTo(1);
             await Assert.That(filter.Items.Count).IsEqualTo(4).Because("All teams, Us, and two teams");
             await Assert.That(filter.Items[0]).IsEqualTo(new LibraryFilterItem("", "All teams"));
             await Assert.That(filter.Items[1]).IsEqualTo(new LibraryFilterItem("us", "Us"));
