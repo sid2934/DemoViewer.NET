@@ -214,20 +214,28 @@ public class StratMiningServiceTests
             .Because("the record panel finds the runs through the tag index");
     }
 
-    // Item 1: the cache-quiet re-mine is one of the opportunistic hooks the pack gate forces off. A user
-    // mine stays unaffected (MineAsync is not gated: there is no UI path to call it with the pack off).
+    // The cache-quiet re-mine is one of the opportunistic hooks the pack gate forces off. A user mine
+    // stays unaffected (MineAsync is not gated: there is no UI path to call it with the pack off).
     [Test]
     public async Task WithThePackOff_TheQuietReMine_IsANoOp()
     {
         using Library library = Library.Create();
-        using StratMiningService service = library.Service(enabled: () => false);
+        int runs = 0;
+        using StratMiningService service = library.Service(
+            run: a =>
+            {
+                runs++;
+                a();
+                return Task.CompletedTask;
+            },
+            enabled: () => false);
+
         await service.MineAsync();
-        DateTime? minedAt = service.MinedUtc;
-        await Assert.That(minedAt).IsNotNull();
+        await Assert.That(runs).IsEqualTo(1).Because("a user mine is not gated");
 
         service.OnQuiet();
 
-        await Assert.That(service.MinedUtc).IsEqualTo(minedAt)
+        await Assert.That(runs).IsEqualTo(1)
             .Because("the quiet hook must not re-mine while the pack is off, even for a timer armed before it went off");
     }
 

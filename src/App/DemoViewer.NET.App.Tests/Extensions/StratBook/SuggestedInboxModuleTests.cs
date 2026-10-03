@@ -10,9 +10,9 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Suggested section's badge (item 1): recomputed from the demo index on every <c>cache.Changed</c>
-///     while the owning pack's gate is on, left alone while it is off, re-read live so a mid-session toggle
-///     needs no restart.
+///     The Suggested section's badge: recomputed from the demo index on every <c>cache.Changed</c> while
+///     the section's gate is on, left alone while it is off, re-read live so a mid-session toggle needs no
+///     restart.
 /// </summary>
 public class SuggestedInboxModuleTests
 {

@@ -214,9 +214,12 @@ public class StratBookPackTests
                     .Because($"{id} is owned by the pack and goes off with it, whatever {parent} resolves to");
             }
 
-            // Core tabs are untouched.
+            // Core tabs are untouched, and so is a core SUB-feature sharing tab.playback2d with the two
+            // pack-owned ones that just went off above: the rule discriminates by owner, not by ParentId.
             await Assert.That(gate.IsEnabled("tab.playback2d")).IsTrue();
             await Assert.That(gate.IsEnabled("tab.library")).IsTrue();
+            await Assert.That(gate.IsEnabled("playback2d.annotations")).IsTrue()
+                .Because("core, not pack-owned, even though its parent is the same tab.playback2d");
 
             svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
             await Assert.That(gate.IsEnabled("tab.stratbook")).IsTrue().Because("the pack back on lets the tabs through");

@@ -32,9 +32,9 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
     /// <param name="cache">The demo index, for the badge; null shows none.</param>
     /// <param name="enabled">
-    ///     The owning pack's gate for the badge recompute; null resolves <see cref="IFeatureGate" /> from
-    ///     <see cref="App.Services" /> live (the shell's shared locator, so the call site here needs no
-    ///     constructor change).
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack
+    ///     (its ParentId is the pack directly); null resolves <see cref="IFeatureGate" /> from
+    ///     <see cref="App.Services" /> live.
     /// </param>
     public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null, Func<bool>? enabled = null)
     {
