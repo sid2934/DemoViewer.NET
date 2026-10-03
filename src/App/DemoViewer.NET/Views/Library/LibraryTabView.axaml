@@ -61,6 +61,13 @@
             <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
             <Setter Property="BorderBrush" Value="{DynamicResource LibraryCardTextMid}" />
         </Style>
+        <!-- The badge menu's reset row (item 22 review): a divider above it, since MenuFlyout's ItemsSource
+             renders one MenuItem per LibraryBadgeMenuEntry and can't mix in a literal Separator. -->
+        <Style Selector="MenuItem.reset">
+            <Setter Property="BorderThickness" Value="0 1 0 0" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HexRowSeparator}" />
+            <Setter Property="Margin" Value="0 4 0 0" />
+        </Style>
         <Style Selector="TextBlock.metaLabel">
             <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
             <Setter Property="FontSize" Value="10" />
@@ -198,7 +205,7 @@
                                         <ComboBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}"
                                                   FontSize="12" MinWidth="110" MaxWidth="180"
                                                   VerticalAlignment="Center" Margin="0 0 8 0"
-                                                  ToolTip.Tip="{Binding Label}">
+                                                  ToolTip.Tip="{Binding Tooltip}">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate x:DataType="ext:LibraryFilterItem">
                                                     <TextBlock Text="{Binding Display}" />
@@ -438,14 +445,16 @@
                                                      and the picked label as one command parameter. -->
                                                             <Button Classes="badgeChip"
                                                                     Classes.pinned="{Binding BadgeIsPinned}"
-                                                                    Content="{Binding BadgeDisplay}"
+                                                                    Content="{Binding BadgeLabel}"
                                                                     ToolTip.Tip="{Binding BadgeTooltip}"
-                                                                    IsVisible="{Binding $parent[UserControl].((vm:LibraryTabViewModel)DataContext).HasProvenance}">
+                                                                    IsVisible="{Binding $parent[UserControl].((vm:LibraryTabViewModel)DataContext).HasBadge}">
                                                                 <Button.Flyout>
                                                                     <MenuFlyout ItemsSource="{Binding $parent[UserControl].((vm:LibraryTabViewModel)DataContext).BadgeMenuEntries}">
                                                                         <MenuFlyout.ItemTemplate>
-                                                                            <DataTemplate x:DataType="x:String">
-                                                                                <MenuItem Header="{Binding}" Tag="{Binding}" Click="OnBadgeLabelPicked" />
+                                                                            <DataTemplate x:DataType="vm:LibraryBadgeMenuEntry">
+                                                                                <MenuItem Header="{Binding Label}" Tag="{Binding}"
+                                                                                          Classes.reset="{Binding IsReset}"
+                                                                                          ToolTip.Tip="{Binding Tooltip}" Click="OnBadgeLabelPicked" />
                                                                             </DataTemplate>
                                                                         </MenuFlyout.ItemTemplate>
                                                                     </MenuFlyout>
