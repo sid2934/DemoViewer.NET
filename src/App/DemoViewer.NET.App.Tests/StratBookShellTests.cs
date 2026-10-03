@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using Avalonia.Controls;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
@@ -533,7 +534,7 @@ public class StratBookShellTests
         });
 
     [Test]
-    public async Task PackOff_AtStartup_WithAPersistedPackSection_RestoresToLibrary_AndKeepsTheStratBookBlob()
+    public async Task PackOff_AtStartup_WithAPersistedPackSection_RestoresToLibrary_AndCarriesThePackBlobThroughUnchanged()
     {
         string dir = NewTempDir();
         try
@@ -541,8 +542,15 @@ public class StratBookShellTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 SettingsService svc = new(dir);
+                // "Future" survives a save this build does not understand, proving the blob is carried
+                // through untouched rather than re-snapshotted from the (default) live hub.
+                JsonElement seeded = JsonSerializer.SerializeToElement(
+                    new { RailCollapsed = true, ListCollapsed = true, Future = 7 });
                 svc.SaveSession(new SessionPayload(null, null, null, false, false, "stratbook.browser",
-                    null, null, new StratBookLayoutState(true, true)));
+                    null, null, new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                    {
+                        [StratBookPack.PackId] = seeded
+                    }));
 
                 FakeGate gate = new();
                 SetPackOff(gate);
@@ -553,9 +561,9 @@ public class StratBookShellTests
                     {
                         await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
                             .Because("a persisted pack section with the pack off lands on Library, not nothing");
-                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsTrue()
-                            .Because("the pack's own session blob restores untouched even while the pack is off");
-                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsTrue();
+                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                            .Because("the pack is off: its session blob is never restored into the hub");
+                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsFalse();
                     }
 
                     vm.SaveSession();
@@ -566,11 +574,180 @@ public class StratBookShellTests
                 }
 
                 SessionPayload? reloaded = svc.LoadSession();
-                using (Assert.Multiple())
+                await Assert.That(JsonElement.DeepEquals(reloaded!.Packs![StratBookPack.PackId], seeded)).IsTrue()
+                    .Because("re-saving with the pack off must carry the blob through byte for byte, never re-snapshot the live (default) hub");
+
+                // The pack back on, over the same file: the carried-through blob restores.
+                FakeGate gateOn = new();
+                MainViewModel vmOn = NewShell(gateOn, svc, new SectionsModule());
+                try
                 {
-                    await Assert.That(reloaded!.StratBook!.RailCollapsed).IsTrue()
-                        .Because("re-saving with the pack off must not clobber the blob with a fresh default");
-                    await Assert.That(reloaded.StratBook!.ListCollapsed).IsTrue();
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(vmOn.StratBookHub().Layout.IsRailCollapsed).IsTrue()
+                            .Because("re-enabling the pack restores exactly what was carried through while it was off");
+                        await Assert.That(vmOn.StratBookHub().Layout.IsListCollapsed).IsTrue();
+                    }
+                }
+                finally
+                {
+                    vmOn.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    [Test]
+    public async Task PackOn_AtStartup_WithALegacyTopLevelStratBookBlob_FoldsItAndRestoresTheHub()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                // The shape a file written before Packs existed carried: "StratBook" at the top level of
+                // the Session section, not under Packs.
+                await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), """
+                    {
+                      "Session": {
+                        "DebuggerVisible": false,
+                        "OutputVisible": false,
+                        "ActiveTabId": "stratbook.browser",
+                        "StratBook": { "RailCollapsed": true, "ListCollapsed": false }
+                      }
+                    }
+                    """);
+
+                SettingsService svc = new(dir);
+                MainViewModel vm = NewShell(new FakeGate(), svc, new SectionsModule());
+                try
+                {
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsTrue()
+                            .Because("the pre-Packs blob folds into Packs[stratbook] and restores through the same path");
+                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsFalse();
+                    }
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    [Test]
+    public async Task PackOn_AtStartup_WithAPartiallyUnreadablePackBlob_RestoresWhatItCanAndIgnoresTheRest()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                // RailCollapsed is the wrong type (a string); ListCollapsed is well-typed. Neither member
+                // existing at all (a bare number blob) must not throw either.
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
+                    new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                    {
+                        [StratBookPack.PackId] = JsonSerializer.SerializeToElement(
+                            new { RailCollapsed = "yes", ListCollapsed = true })
+                    }));
+
+                MainViewModel vm = NewShell(new FakeGate(), svc, new SectionsModule());
+                try
+                {
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                            .Because("a wrong-typed member is ignored, leaving the pane at its default");
+                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsTrue()
+                            .Because("a well-typed member beside a bad one still restores");
+                    }
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+
+                // A non-object blob (an old, hand-edited, or wholly unrelated value) must not throw either.
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
+                    new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                    {
+                        [StratBookPack.PackId] = JsonSerializer.SerializeToElement(42)
+                    }));
+                MainViewModel vm2 = NewShell(new FakeGate(), svc, new SectionsModule());
+                try
+                {
+                    await Assert.That(vm2.StratBookHub().Layout.IsRailCollapsed).IsFalse();
+                }
+                finally
+                {
+                    vm2.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    // Item 4: a persisted active-tab id naming the host itself (not one of its sections) must also land
+    // on Library while the pack is off. TrySelectTab/RestoreActiveTab already handle this; the carry-
+    // through test above covers a section id ("stratbook.browser"), this covers the host's own id.
+    [Test]
+    public async Task PersistedActiveTabId_NamingTheHubItself_WithThePackOff_LandsOnLibrary()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                SettingsService svc = new(dir);
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, StratBookHubViewModel.HostId));
+
+                FakeGate gate = new();
+                SetPackOff(gate);
+                MainViewModel vm = NewShell(gate, svc, new SectionsModule());
+                try
+                {
+                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
+                        .Because("the hub's own persisted id is gone from the strip while the pack is off");
+                }
+                finally
+                {
+                    vm.Dispose();
                 }
             });
         }
