@@ -723,12 +723,12 @@ public class App : Application
             // Replay-walkthrough starter: resolves the singleton shell lazily (never at ctor time, which
             // would recurse through the shell factory). Null-safe if the shell isn't built yet.
             () => Services?.GetService<MainViewModel>()?.StartWalkthrough(),
-            // Suggested Tags tuning (§3.7): a fresh VM per open, reading the harness's stored report at
-            // construction like the rest of this screen's sections do.
-            new SuggestedTagsTuningViewModel(
-                sp.GetRequiredService<SuggestedTagsTuningService>(),
-                sp.GetRequiredService<ProfileStore>(),
-                OperatingSystem.IsBrowser())));
+            // The settings pages the packs contribute (item 14): the Suggested Tags tuning card and the
+            // Grenade Index card. Read fresh on every Settings open, same as the pages' own VMs.
+            sp.GetRequiredService<PackContributionSet>().SettingsPages,
+            // The Extensions "N demos will be re-indexed" notice's count (item 14); SettingsViewModel
+            // watches only the first entry.
+            sp.GetRequiredService<PackContributionSet>().ReindexEstimates));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
@@ -1201,6 +1201,11 @@ public class App : Application
             {
                 moduleContext.SetServices(sp);
             }
+
+            // The chip slots the packs contribute (item 14: the Strat export chip, in a slot the pack
+            // mounts into on the first Export). A post-construction call, not a ctor parameter: the ctor
+            // parameter list is item 22's to edit next.
+            shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
 
             return shell;
         }

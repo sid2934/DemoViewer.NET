@@ -2,6 +2,7 @@
 
 using Avalonia.Controls;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
@@ -501,11 +502,13 @@ public class StratBookShellTests
             CountingProvenanceSource provenance = new();
 
             MainViewModel vm = NewShellWithTeams(gate, teams, provenance, new SectionsModule());
+            StratBookExportChipSlot slot = new();
+            vm.AttachStatusChips([new StatusChipContribution("stratbook.export", 0, slot, StratBookPack.PackFeatureId)]);
             FakeExportJob job = new();
             Playback2DExportStatusViewModel status = new(job);
             try
             {
-                vm.AttachStratExportStatus(status);
+                slot.Mount(status);
                 job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 10, 0, TimeSpan.Zero, "strat.webm", null));
 
                 using (Assert.Multiple())
@@ -594,11 +597,13 @@ public class StratBookShellTests
             CountingProvenanceSource provenance = new();
             SectionsModule module = new();
             MainViewModel vm = NewShellWithTeams(gate, teams, provenance, module);
+            StratBookExportChipSlot slot = new();
+            vm.AttachStatusChips([new StatusChipContribution("stratbook.export", 0, slot, StratBookPack.PackFeatureId)]);
             FakeExportJob job = new();
             Playback2DExportStatusViewModel status = new(job);
             try
             {
-                vm.AttachStratExportStatus(status);
+                slot.Mount(status);
                 job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 10, 0, TimeSpan.Zero, "strat.webm", null));
 
                 await Assert.That(vm.TrySelectTab("stratbook.browser")).IsTrue();

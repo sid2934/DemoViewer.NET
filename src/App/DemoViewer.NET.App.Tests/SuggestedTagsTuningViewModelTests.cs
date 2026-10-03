@@ -1,9 +1,9 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.ViewModels.Settings;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion

@@ -8,10 +8,12 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
+using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.Settings;
@@ -56,10 +58,10 @@ public class SettingsViewModelTests
     // IOptionsMonitor<AppSettings> and an IFeatureGate bound to that same service's live config (mirrors
     // SettingsServiceTests + FeatureGateTests). The gate uses UI-thread marshaling DISABLED so its Changed
     // event, the cue that refreshes the feature rows, is observable inline in these non-UI cases; it is
-    // registered in the container so the provider disposes it. countStratBookPendingReindex is the item 5
-    // test seam for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
+    // registered in the container so the provider disposes it. reindexEstimate is the item 14 test seam
+    // for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
-        string dir, Func<Task<int>>? countStratBookPendingReindex = null)
+        string dir, IPackReindexEstimate? reindexEstimate = null)
     {
         SettingsService svc = new(dir);
         ServiceCollection services = new();
@@ -70,8 +72,16 @@ public class SettingsViewModelTests
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
-            null, null, countStratBookPendingReindex);
+            null, null, reindexEstimate is null ? null : [reindexEstimate]);
         return (vm, svc, gate, sp);
+    }
+
+    // The pending-reindex-count test seam: a fixed pack feature id (the real StratBookPack's) with a
+    // caller-supplied count function, so a test can observe "Counting…" before controlling when it lands.
+    private sealed class FakeReindexEstimate(Func<Task<int>> count) : IPackReindexEstimate
+    {
+        public string PackFeatureId => StratBookPack.PackFeatureId;
+        public Task<int> CountAsync() => count();
     }
 
     // Find a feature row by its catalog id across every grouped collection, Extensions included.
@@ -401,6 +411,206 @@ public class SettingsViewModelTests
                     vm.Dispose();
                 }
             });
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Item 14: the real pack's two settings pages (Suggested Tags tuning, Grenade Index) now arrive as
+    // contributions, not constructor parameters, so this goes through the REAL composition root rather
+    // than NewVm's minimal container: their own VMs need SuggestedTagsTuningService/ProfileStore, which
+    // only a real container wires, and AppPaths.ConfigDirEnvVar is sandboxed to a temp dir here exactly as
+    // AppCompositionRootTests/StratBookPackTests do, so nothing touches the live config dir. Proves the
+    // pages render with the same content as before the move AND still fit the real host width with the
+    // Extensions group's default expansion (no filter needed).
+    [Test]
+    public async Task ContributedSettingsPages_RenderTheRealPacksContent_AtTheRealHostWidth()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvsettingspages_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string? prevConfigDir = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    SettingsViewModel vm = provider.GetRequiredService<Func<SettingsViewModel>>()();
+                    try
+                    {
+                        using (Assert.Multiple())
+                        {
+                            await Assert.That(vm.ContributedSettingsPages.Select(p => p.Header)).IsEquivalentTo(
+                                ["SUGGESTED TAGS TUNING", "GRENADE INDEX"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+                            await Assert.That(vm.ContributedSettingsPages.All(p => p.IsVisible)).IsTrue()
+                                .Because("the pack is on by default and the search filter is empty");
+                        }
+
+                        SettingsView view = new()
+                        {
+                            DataContext = vm
+                        };
+                        Window window = new()
+                        {
+                            Width = 560,
+                            Height = 1400,
+                            Content = view
+                        };
+                        window.Show();
+                        Dispatcher.UIThread.RunJobs();
+                        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                        Dispatcher.UIThread.RunJobs();
+
+                        ScrollViewer scroll = view.FindControl<ScrollViewer>("SectionsScroll")
+                                               ?? throw new InvalidOperationException("SectionsScroll is gone from the view.");
+                        Console.WriteLine($"[contributed-pages-width] extent={scroll.Extent} viewport={scroll.Viewport}");
+                        await Assert.That(scroll.Extent.Width).IsLessThanOrEqualTo(scroll.Viewport.Width)
+                            .Because("the two contributed pages must fit the real host width, not just the row list");
+                    }
+                    finally
+                    {
+                        vm.Dispose();
+                    }
+                }
+                finally
+                {
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prevConfigDir);
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
+    // A trivial contributed page, independent of the real pack: a bare ViewModelBase and a bare Control,
+    // so the mechanism itself (gate × keyword match) is pinned without any Strat Book machinery.
+    private sealed class FakePageViewModel : ViewModelBase;
+
+    // Item 14, the generic mechanism: a fake page contribution (gated on the real pack.stratbook id, so
+    // the override write below is enough to flip it) renders under Extensions only while its gate
+    // resolves on, and the search filter hides/shows it by its own Keywords, independent of any built-in
+    // section's keyword row.
+    [Test]
+    public async Task ContributedPage_ShowsOnlyWhileItsGateIsOn_AndSearchFindsItByItsOwnKeywords()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            ServiceCollection services = new();
+            services.Configure<AppSettings>(svc.Configuration);
+            services.AddSingleton<IFeatureGate>(s =>
+                new FeatureGate(s.GetRequiredService<IOptionsMonitor<AppSettings>>(), false));
+            ServiceProvider sp = services.BuildServiceProvider();
+            IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
+            IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
+
+            SettingsPageContribution fake = new(
+                "fake.widget", "WIDGET SETTINGS", 0, "widget gadget",
+                () => new FakePageViewModel(), () => new Border(), StratBookPack.PackFeatureId);
+            SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
+                null, [fake], null);
+            using (sp)
+            {
+                try
+                {
+                    MountedSettingsPage page = vm.ContributedSettingsPages.Single();
+                    await Assert.That(page.Header).IsEqualTo("WIDGET SETTINGS");
+                    await Assert.That(page.IsVisible).IsTrue()
+                        .Because("the pack is on by default and the filter is empty");
+
+                    svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+                    await Assert.That(page.IsVisible).IsFalse()
+                        .Because("the page's own gate is the real pack's, now off");
+
+                    svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                    await Assert.That(page.IsVisible).IsTrue().Because("the pack is back on");
+
+                    vm.SettingsFilterText = "widget";
+                    await Assert.That(page.IsVisible).IsTrue().Because("matches its own Keywords");
+
+                    vm.SettingsFilterText = "something-nobody-typed";
+                    await Assert.That(page.IsVisible).IsFalse().Because("matches none of its Keywords");
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Item 14 blocker fix: a page whose gate is off at construction must not run its factories at all, and
+    // must run them exactly once, the first time the gate turns on, never again on a later toggle.
+    [Test]
+    public async Task ContributedPage_BuildsItsFactoriesOnlyOnce_TheFirstTimeItsGateTurnsOn()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+            ServiceCollection services = new();
+            services.Configure<AppSettings>(svc.Configuration);
+            services.AddSingleton<IFeatureGate>(s =>
+                new FeatureGate(s.GetRequiredService<IOptionsMonitor<AppSettings>>(), false));
+            ServiceProvider sp = services.BuildServiceProvider();
+            IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
+            IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
+
+            int calls = 0;
+            SettingsPageContribution fake = new(
+                "fake.widget", "WIDGET SETTINGS", 0, "widget",
+                () =>
+                {
+                    calls++;
+                    return new FakePageViewModel();
+                },
+                () => new Border(), StratBookPack.PackFeatureId);
+            SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
+                null, [fake], null);
+            using (sp)
+            {
+                try
+                {
+                    MountedSettingsPage page = vm.ContributedSettingsPages.Single();
+                    await Assert.That(calls).IsEqualTo(0).Because("the gate is off at construction");
+                    await Assert.That(page.IsBuilt).IsFalse();
+                    await Assert.That(page.IsVisible).IsFalse();
+
+                    svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                    await Assert.That(calls).IsEqualTo(1).Because("built once, the first time the gate turns on");
+                    await Assert.That(page.IsBuilt).IsTrue();
+                    await Assert.That(page.IsVisible).IsTrue();
+
+                    svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+                    svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                    await Assert.That(calls).IsEqualTo(1).Because("already built; a later toggle cycle does not rebuild");
+                    await Assert.That(page.IsVisible).IsTrue();
+                }
+                finally
+                {
+                    vm.Dispose();
+                }
+            }
         }
         finally
         {
@@ -864,7 +1074,7 @@ public class SettingsViewModelTests
         {
             TaskCompletionSource<int> tcs = new();
             (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) =
-                NewVm(dir, () => tcs.Task);
+                NewVm(dir, new FakeReindexEstimate(() => tcs.Task));
             using (sp)
             {
                 svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
@@ -892,7 +1102,8 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) =
+                NewVm(dir, new FakeReindexEstimate(() => Task.FromResult(0)));
             using (sp)
             {
                 svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
@@ -924,7 +1135,7 @@ public class SettingsViewModelTests
             Queue<Func<Task<int>>> probes = new(new Func<Task<int>>[] { () => probeA.Task, () => probeB.Task });
 
             (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) =
-                NewVm(dir, () => probes.Dequeue()());
+                NewVm(dir, new FakeReindexEstimate(() => probes.Dequeue()()));
             using (sp)
             {
                 svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);

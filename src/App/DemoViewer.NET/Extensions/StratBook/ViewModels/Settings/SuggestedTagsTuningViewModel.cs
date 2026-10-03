@@ -6,10 +6,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Settings;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 
 /// <summary>
 ///     One detector's line in the Settings tuning table (suggested-tags.md §3.7): the verdict history
@@ -100,7 +101,7 @@ public sealed partial class TuningParameterRow : ObservableObject
 ///         hides, per §3.8: "no tuning view" there.
 ///     </para>
 /// </summary>
-public sealed partial class SuggestedTagsTuningViewModel : ObservableObject
+public sealed partial class SuggestedTagsTuningViewModel : ViewModelBase
 {
     private readonly ProfileStore? _profiles;
     private readonly SuggestedTagsTuningService? _tuning;
