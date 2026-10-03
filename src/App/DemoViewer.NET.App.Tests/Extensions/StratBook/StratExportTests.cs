@@ -278,7 +278,7 @@ public class StratExportTests
 
         List<Playback2DExportStatusViewModel> chips = [];
         ModuleContext context = new(new PlaybackController(), () => null);
-        context.SetStratExportHost(new StratExportHost(null, null, null, () => new AppSettings(), _ => { },
+        context.RegisterService<IStratExport>(() => new StratExportHost(null, null, null, () => new AppSettings(), _ => { },
             chips.Add, null));
         vm.OnActivated(context);
         vm.Session.Open(document.Id);

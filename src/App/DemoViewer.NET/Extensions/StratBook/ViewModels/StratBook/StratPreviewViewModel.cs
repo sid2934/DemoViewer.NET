@@ -27,6 +27,7 @@ public enum StratPreviewState
 /// </summary>
 public sealed partial class StratPreviewViewModel : ObservableObject, IDisposable
 {
+    private readonly StratCanvasServices? _canvasServices;
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
     private readonly Action<Action> _post;
@@ -45,9 +46,11 @@ public sealed partial class StratPreviewViewModel : ObservableObject, IDisposabl
     /// <param name="mapLoader">The canvas's map loader; the baked assets when null.</param>
     /// <param name="post">UI-thread marshal for the canvas session.</param>
     /// <param name="lineupOrigins">Puts a throw's actor at its lineup's throw origin; null projects none.</param>
+    /// <param name="canvasServices">The canvas's gate, zone resolver and settings fallback; see <see cref="StratCanvasServices" />.</param>
     public StratPreviewViewModel(MinedPattern pattern, string title, Func<string?, LoadedMapAsset?>? mapLoader, Action<Action> post,
-        LineupOriginSource? lineupOrigins = null)
+        LineupOriginSource? lineupOrigins = null, StratCanvasServices? canvasServices = null)
     {
+        _canvasServices = canvasServices;
         _lineupOrigins = lineupOrigins;
         Pattern = pattern;
         Key = pattern.Key;
@@ -132,7 +135,7 @@ public sealed partial class StratPreviewViewModel : ObservableObject, IDisposabl
         {
             _session = new StratSession(_store, _post);
             _session.Open(copy.Id);
-            Canvas = new StratCanvasViewModel(_session, _mapLoader, readOnly: true, lineupOrigins: _lineupOrigins);
+            Canvas = new StratCanvasViewModel(_session, _mapLoader, readOnly: true, lineupOrigins: _lineupOrigins, lookups: _canvasServices);
             Canvas.PropertyChanged += OnCanvasChanged;
         }
 

@@ -1,6 +1,8 @@
 #region
 
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
@@ -354,6 +356,29 @@ public class StratRoutingTests
         }
     }
 
+    // Item 15: with no explicit routing func, the canvas falls back to an injected gate (constructor
+    // lookup, not App.Services) and reprojects when it fires Changed, the same way the old
+    // App.Services-backed fallback did.
+    [Test]
+    public async Task AnInjectedGate_DrivesRoutingReactively_WithNoExplicitRoutingFunc()
+    {
+        ZonePlaceResolverAdapter map = Map(Dust2);
+        StratDocument document = ExecuteB(map);
+        (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
+        FakeFeatureGate gate = new();
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(),
+            lookups: new StratCanvasServices(gate, null, null));
+
+        StratSceneProjection off = canvas.Projection!;
+        await Assert.That(off.Routed).IsFalse().Because("the gate starts disabled");
+
+        gate.Enabled = true;
+        gate.Raise();
+        StratSceneProjection on = canvas.Projection!;
+        await Assert.That(on.Routed).IsTrue().Because("Changed alone, with no Seek or Apply after it, re-reads the gate and reprojects");
+    }
+
     [Test]
     public async Task ARouteLine_ShowsWhileATokenMoves_AndIsGoneOnArrival()
     {
@@ -524,5 +549,16 @@ public class StratRoutingTests
         TokenTrack a = Track(Project(plain, map, false), "A");
         TokenTrack b = Track(Project(via, map, false), "A");
         await Assert.That(b.Keyframes.SequenceEqual(a.Keyframes)).IsTrue();
+    }
+
+    // Ignores featureId: the canvas asks for one id, and the test only needs one on/off switch.
+    private sealed class FakeFeatureGate : IFeatureGate
+    {
+        public bool Enabled { get; set; }
+        public UserCategory Category => UserCategory.Developer;
+        public int HiddenCount => 0;
+        public bool IsEnabled(string featureId) => Enabled;
+        public event EventHandler? Changed;
+        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
     }
 }

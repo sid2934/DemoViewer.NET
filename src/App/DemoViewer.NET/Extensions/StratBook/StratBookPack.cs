@@ -5,11 +5,13 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Dossier;
 using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.RoundTagger;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.StratBook;
+using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Modules.UtilityBook;
@@ -408,6 +410,10 @@ public sealed class StratBookPack : IFeaturePack
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            // The canvas (and the Detected preview's) fallback when nobody passes placesFor/routing
+            // explicitly: the real gate and zone source, not App.Services.
+            StratCanvasServices canvasServices = new(
+                sp.GetService<IFeatureGate>(), sp.GetService<IZonePlaceResolverSource>(), sp.GetRequiredService<SettingsService>());
             return new StratBookTabViewModel(
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),
@@ -423,7 +429,50 @@ public sealed class StratBookPack : IFeaturePack
                 playback: () => sp.GetService<ISituationPlayback>(),
                 spawns: new StratSpawnSource(),
                 layout: sp.GetRequiredService<StratBookLayout>(),
-                lineupMap: (map, asset) => UtilityBookFor(sp, map, asset));
+                lineupMap: (map, asset) => UtilityBookFor(sp, map, asset),
+                canvasServices: canvasServices);
+        });
+
+        // Create Strat From Round (step-authoring.md §3.9). Transient: the gate is read fresh on every
+        // resolve. A Singleton would cache a null from a startup-time off state forever.
+        services.AddTransient<IStratCapture>(sp =>
+        {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            if (!(gate?.IsEnabled(PackFeatureId) ?? true))
+            {
+                return null!;
+            }
+
+            return new StratCaptureHost(
+                () => sp.GetService<MainViewModel>()?.ModuleContext is ICurrentDemoSource source ? source.CurrentDemo : null,
+                sp.GetRequiredService<StratStore>(),
+                sp.GetService<TeamIdentityService>(),
+                id =>
+                {
+                    // The tab first: activation refreshes its list, which the open strat is then selected in.
+                    sp.GetService<MainViewModel>()?.TrySelectTab(StratBookModule.BrowserTabId);
+                    sp.GetRequiredService<StratBookTabViewModel>().OpenStrat(id);
+                });
+        });
+
+        // Strat Export (step-authoring.md §3.6). No export on the browser: no ffmpeg, no files.
+        services.AddTransient<IStratExport>(sp =>
+        {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            if (!(gate?.IsEnabled(PackFeatureId) ?? true) || OperatingSystem.IsBrowser())
+            {
+                return null!;
+            }
+
+            SettingsService settings = sp.GetRequiredService<SettingsService>();
+            return new StratExportHost(
+                sp.GetRequiredService<HeavyJobGate>(),
+                () => sp.GetService<MainViewModel>()?.LiveSync?.State.IsSessionActive == true,
+                () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true,
+                () => settings.Current,
+                settings.Write,
+                status => sp.GetService<MainViewModel>()?.AttachStratExportStatus(status),
+                path => sp.GetService<MainViewModel>()?.OpenOutputFolder(path));
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
