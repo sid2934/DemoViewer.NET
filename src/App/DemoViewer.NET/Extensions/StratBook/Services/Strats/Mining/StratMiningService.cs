@@ -82,6 +82,9 @@ public sealed class StratMiningService : IPackResident, IDisposable
     private bool _attached;
     private bool _released;
     private bool _deferred;
+
+    // The mine in flight, so a release can let it end before touching the signature cache it reads.
+    private Task _mine = Task.CompletedTask;
     private Timer? _quiet;
     private bool _rerun;
     private bool _running;
@@ -228,6 +231,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
             return;
         }
 
+        Task mine;
         lock (_gate)
         {
             _released = true;
@@ -235,6 +239,18 @@ public sealed class StratMiningService : IPackResident, IDisposable
             _quiet = null;
             _deferred = false;
             _rerun = false;
+            mine = _mine;
+        }
+
+        // A mine still running skips its next step now that it is detached (the pack cancelled its queue
+        // item too); the cache is dropped only once it has let go. Bounded: a step is one batch of demos.
+        try
+        {
+            mine.Wait(TimeSpan.FromSeconds(15));
+        }
+        catch (AggregateException)
+        {
+            // Its failure is its own; the release goes on.
         }
 
         _signatures.ReleaseCache();
@@ -304,13 +320,19 @@ public sealed class StratMiningService : IPackResident, IDisposable
 
         if (_queue is null)
         {
-            return _run(MineLoop);
+            Task loop = _run(MineLoop);
+            lock (_gate)
+            {
+                _mine = loop;
+            }
+
+            return loop;
         }
 
         IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: library",
             "strat-mining", user ? DemoJobPriority.UserRequested : DemoJobPriority.Background, MineQueuedAsync,
             Key: "strat-mining"));
-        return handle.Completion.ContinueWith(_ =>
+        Task mine = handle.Completion.ContinueWith(_ =>
         {
             lock (_gate)
             {
@@ -319,6 +341,12 @@ public sealed class StratMiningService : IPackResident, IDisposable
 
             _post(() => Changed?.Invoke());
         }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        lock (_gate)
+        {
+            _mine = mine;
+        }
+
+        return mine;
     }
 
     // One pass as a queue item. Steps aside between batches, so a demo open waits for one batch at most.
@@ -329,7 +357,11 @@ public sealed class StratMiningService : IPackResident, IDisposable
         try
         {
             RoundSignatureBuilder.BuildSession? session = null;
-            await _run(() => session = _signatures.Begin()).ConfigureAwait(false);
+            if (!await StepAsync(() => session = _signatures.Begin()).ConfigureAwait(false))
+            {
+                return;
+            }
+
             int count = session!.Count;
             for (int from = 0; from < count; from += BatchSize)
             {
@@ -341,17 +373,23 @@ public sealed class StratMiningService : IPackResident, IDisposable
                 }
 
                 int start = from;
-                await _run(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false);
+                if (!await StepAsync(() => _signatures.Step(session, start, BatchSize)).ConfigureAwait(false))
+                {
+                    return;
+                }
             }
 
             job.Report(count, count, "grouping rounds");
             await job.StepAsideAsync().ConfigureAwait(false);
-            await _run(() =>
+            if (!await StepAsync(() =>
+                {
+                    signatures = _signatures.Finish(session);
+                    patterns = StratMiner.Mine(signatures);
+                    Save(patterns);
+                }).ConfigureAwait(false))
             {
-                signatures = _signatures.Finish(session);
-                patterns = StratMiner.Mine(signatures);
-                Save(patterns);
-            }).ConfigureAwait(false);
+                return;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -359,6 +397,26 @@ public sealed class StratMiningService : IPackResident, IDisposable
         }
 
         Published(signatures, patterns);
+    }
+
+    // One step of a mine, skipped once the pack released this service: nothing it would read is wanted and
+    // the signature cache is not thread-safe. False ends the mine without publishing.
+    private async Task<bool> StepAsync(Action step)
+    {
+        bool attached = false;
+        await _run(() =>
+        {
+            lock (_gate)
+            {
+                attached = _attached;
+            }
+
+            if (attached)
+            {
+                step();
+            }
+        }).ConfigureAwait(false);
+        return attached;
     }
 
     private void MineLoop()

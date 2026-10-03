@@ -227,6 +227,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
     /// </remarks>
     public void Release()
     {
+        Task worker;
         lock (_gate)
         {
             if (_released)
@@ -242,6 +243,18 @@ public sealed class LineupClipService : IPackResident, IDisposable
             _orphanSince.Clear();
             _evictedAbsentSince.Clear();
             _evicted = null;
+            worker = WorkerTask;
+        }
+
+        // A render still running writes nothing back once released (the pack cancelled its queue item too);
+        // the worker ends after it. Bounded: one demo's batch.
+        try
+        {
+            worker.Wait(TimeSpan.FromSeconds(15));
+        }
+        catch (AggregateException)
+        {
+            // Its failure is its own; the release goes on.
         }
     }
 
@@ -830,16 +843,15 @@ public sealed class LineupClipService : IPackResident, IDisposable
         TaskCompletionSource idle = new(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_gate)
         {
-            if (_running || _pending.Count == 0)
+            if (_running || _released || _pending.Count == 0)
             {
                 return;
             }
 
             _running = true;
             _idle = idle;
+            WorkerTask = idle.Task;
         }
-
-        WorkerTask = idle.Task;
         if (_processing is null)
         {
             _ = Task.Run(() => DrainAsync(_ct), CancellationToken.None);
@@ -971,6 +983,15 @@ public sealed class LineupClipService : IPackResident, IDisposable
         {
             _log?.Invoke($"lineup clips: {demoPath}: {ex.Message}");
             return;
+        }
+
+        lock (_gate)
+        {
+            // Released meanwhile: the GIFs on disk are adopted by the next plan; nothing else is touched.
+            if (_released || _disposed)
+            {
+                return;
+            }
         }
 
         job?.NoteDemoParsed();
