@@ -66,6 +66,13 @@ public enum FeatureScope
 ///     Category → default-enabled map. Used when no explicit override exists. Every category should have an
 ///     entry; a missing entry is treated as <c>false</c>.
 /// </param>
+/// <param name="OwnerPackId">
+///     The pack that contributed this descriptor, stamped by <see cref="FeatureCatalog.Build" />; never set
+///     by hand. Independent of <see cref="ParentId" />: a sub-feature parented to a CORE tab (2D Playback's
+///     docked Strat Book surfaces) still carries its pack's id here, so the gate cascades it off with the
+///     pack whatever its <see cref="ParentId" /> chain says. Null for every core descriptor and for a pack's
+///     own <see cref="FeatureScope.Pack" /> row (a pack is not owned by itself).
+/// </param>
 public sealed record FeatureDescriptor(
     string Id,
     FeatureScope Scope,
@@ -74,4 +81,5 @@ public sealed record FeatureDescriptor(
     string? ParentId,
     string? GroupId,
     bool Required,
-    IReadOnlyDictionary<UserCategory, bool> Defaults);
+    IReadOnlyDictionary<UserCategory, bool> Defaults,
+    string? OwnerPackId = null);
