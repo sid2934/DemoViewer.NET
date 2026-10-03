@@ -21,6 +21,11 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
 {
     private const string ToolbarItemId = "stratbook.findroundslikethis";
 
+    // The button's own text today: no gesture hint (the icon carries the rest, "⌕ Rounds like this"),
+    // and never changes, unlike MenuHeader and Tooltip.
+    private const string Label = "Rounds like this";
+    private const string Icon = "⌕";
+
     private IDisposable? _actionHandler;
     private IModuleContext? _context;
     private IDisposable? _demoChanged;
@@ -44,8 +49,8 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
         _findRounds = context.GetService<IFindRoundsLikeThis>();
         _situationResults = context.GetService<ISituationResultWalk>();
 
-        _item = new ToolbarItem(ToolbarItemId, Label(surface), ToolTip(surface), RunFindRoundsLikeThis,
-            Playback2DAction.FindRoundsLikeThis, icon: "⌕");
+        _item = new ToolbarItem(ToolbarItemId, Label, ToolTip(surface), RunFindRoundsLikeThis,
+            Playback2DAction.FindRoundsLikeThis, icon: Icon, menuHeader: MenuHeader(surface));
         surface.KeymapChanged += OnKeymapChanged;
         _demoChanged = surface.OnDemoChanged(RefreshAvailability);
         _actionHandler = surface.AddActionHandler(OnAction);
@@ -119,14 +124,14 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
             return;
         }
 
-        item.Label = Label(surface);
+        item.MenuHeader = MenuHeader(surface);
         item.Tooltip = ToolTip(surface);
     }
 
-    // "Rounds like this", not "Find rounds like this": the button's own text today, distinct from its
-    // tooltip and the menu header's "Find rounds like this", which the tooltip keeps.
-    private static string Label(IPlaybackSurface surface) =>
-        $"Rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}";
+    // "Find rounds like this", not "Rounds like this": the menu header's own text today, which the
+    // tooltip keeps too.
+    private static string MenuHeader(IPlaybackSurface surface) =>
+        $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}";
 
     private static string ToolTip(IPlaybackSurface surface) =>
         $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}: snapshot the alive players by "
