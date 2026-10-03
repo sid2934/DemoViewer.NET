@@ -91,6 +91,13 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
     public TabPlacement Placement { get; init; } = TabPlacement.Main;
 
     /// <summary>
+    ///     The <c>FeatureCatalog</c> id the shell gates this tab on, or <c>null</c> to always show it. A module
+    ///     declares its own id here instead of relying on the shell's built-in fallback map, so a module-owned
+    ///     tab's gating travels with the descriptor rather than a separate lookup the shell must keep in sync.
+    /// </summary>
+    public string? FeatureId { get; init; }
+
+    /// <summary>
     ///     The DataContext assigned to the realized View. For shell-routed built-ins this is the shell
     ///     itself (so the existing <c>{Binding TabVM.X}</c> bindings keep resolving); for module-owned
     ///     tabs it is the per-tab VM. Set directly when the VM is pre-built (the built-in case), or

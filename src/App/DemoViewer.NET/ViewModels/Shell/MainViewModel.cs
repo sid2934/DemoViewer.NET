@@ -87,10 +87,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             "highlights"
         };
 
-    // Maps a WorkspaceTabDescriptor.TabId (module-owned, e.g. "builtin.parser") to its FeatureCatalog tab
-    // feature id (e.g. "tab.parser"). A descriptor whose TabId is ABSENT here is never gated → always shown
-    // (fail-open); a mapped id not in the catalog also fails open via IFeatureGate.IsEnabled. Static +
-    // readonly (CA1861/CA1859-clean; the value type is the concrete Dictionary the lookup uses directly).
+    // Fallback for a descriptor that declares no WorkspaceTabDescriptor.FeatureId of its own: maps its TabId
+    // (module-owned, e.g. "builtin.parser") to its FeatureCatalog tab feature id (e.g. "tab.parser"). Every
+    // Strat Book module now declares its own FeatureId (IsTabEnabled reads that first), so this map holds
+    // only the built-ins that don't. A TabId ABSENT here (and with no descriptor FeatureId) is never gated →
+    // always shown (fail-open); a mapped id not in the catalog also fails open via IFeatureGate.IsEnabled.
+    // Static + readonly (CA1861/CA1859-clean; the value type is the concrete Dictionary the lookup uses directly).
     private static readonly Dictionary<string, string> _tabFeatureIds = new(StringComparer.Ordinal)
     {
         ["builtin.library"] = "tab.library",
@@ -99,14 +101,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["builtin.entity"] = "tab.entity",
         ["builtin.stats"] = "tab.stats",
         ["highlights.browser"] = "tab.highlights",
-        ["situations.search"] = "tab.situations",
-        ["teams.browser"] = "tab.teams",
-        ["review.queue"] = "tab.review",
-        ["suggested.inbox"] = "tab.suggested",
-        ["tagger.matrix"] = "tab.tagger",
-        ["stratbook.browser"] = "tab.stratbook",
-        ["utilitybook.browser"] = "tab.utilitybook",
-        ["dossier.browser"] = "tab.dossier",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
         ["playback2d.viewport"] = "tab.playback2d",
@@ -2470,8 +2464,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // True when the tab should be shown. Fail-open in two ways: a null gate (no filtering at all) and a
-    // TabId with no mapped feature (an ungated tab is always shown). The Strat Book hub has no feature of
-    // its own: it shows while any of its sections does.
+    // descriptor with no FeatureId and no entry in the built-in fallback map (an ungated tab is always
+    // shown). The Strat Book hub has no feature of its own: it shows while any of its sections does.
     private bool IsTabEnabled(WorkspaceTabDescriptor descriptor)
     {
         if (_gate is null)
@@ -2484,7 +2478,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return _stratBookSections.Any(IsTabEnabled);
         }
 
-        if (!_tabFeatureIds.TryGetValue(descriptor.TabId, out string? featureId))
+        string? featureId = descriptor.FeatureId;
+        if (featureId is null && !_tabFeatureIds.TryGetValue(descriptor.TabId, out featureId))
         {
             return true;
         }
