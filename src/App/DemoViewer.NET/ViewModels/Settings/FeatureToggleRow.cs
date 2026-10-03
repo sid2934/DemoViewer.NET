@@ -42,7 +42,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     /// <summary>
     ///     True while this row's owning pack (<see cref="OwnerPackId" />) resolves on. Always true for a row
     ///     with no owning pack (including a pack's own master row: a pack is not owned by itself). A pack
-    ///     CHILD row is interactive only while its pack is on — "enabled only while the master is on" — even
+    ///     CHILD row is interactive only while its pack is on, "enabled only while the master is on", even
     ///     though the cascade already resolves <see cref="IsEnabled" /> off by itself; the row's own stored
     ///     override is untouched either way, so it keeps its value for when the pack comes back.
     /// </summary>
@@ -131,7 +131,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
 
     /// <summary>
     ///     The pack that owns this row (<see cref="FeatureDescriptor.OwnerPackId" />), or null for a row not
-    ///     contributed by any pack — including a pack's own master row. Drives <see cref="IsPackEnabled" />.
+    ///     contributed by any pack, including a pack's own master row. Drives <see cref="IsPackEnabled" />.
     /// </summary>
     public string? OwnerPackId { get; }
 
@@ -222,7 +222,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
         {
             // Locked row. Required can never be disabled; a group FOLLOWER's own override is inert (the gate
             // resolves the whole group from the leader); a pack CHILD while its pack is off is locked the
-            // same way, so a stray programmatic set never writes a new override here — the row's EXISTING
+            // same way, so a stray programmatic set never writes a new override here: the row's EXISTING
             // override (if any) is untouched, which is how it "keeps its own value" for when the pack comes
             // back. Bounce the setter to the authoritative gate state WITHOUT writing (the toggle is also
             // disabled in the UI; this guards the programmatic path). Guarded so the bounce is not a toggle.

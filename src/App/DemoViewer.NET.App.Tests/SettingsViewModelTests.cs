@@ -361,7 +361,7 @@ public class SettingsViewModelTests
 
     // Render: the Extensions section (item 5), master switch and every nested row, fits the real settings
     // host width (520-560px, design-system.md) with no horizontal overflow. SectionsScroll disables its
-    // horizontal scrollbar, so wider content would silently clip rather than error — Extent > Viewport is
+    // horizontal scrollbar, so wider content would silently clip rather than error. Extent > Viewport is
     // the actual overflow signal, not a visual guess.
     [Test]
     public async Task ExtensionsSection_FitsTheRealSettingsHostWidth_NoHorizontalOverflow()
@@ -791,7 +791,7 @@ public class SettingsViewModelTests
     }
 
     // (d) Search finds the Extensions section by its generic keyword, by the pack's own label ("Strat
-    // Book"), and by a row's label ("Situations") with no per-pack code — ExtensionsSectionMatches scans
+    // Book"), and by a row's label ("Situations") with no per-pack code: ExtensionsSectionMatches scans
     // the built rows. An unrelated term hides it, the sanity check against over-eager fuzzy matching.
     [Test]
     public async Task SettingsFilter_FindsExtensions_ByKeywordAndByPackRowLabels()
@@ -853,7 +853,7 @@ public class SettingsViewModelTests
     }
 
     // (f) Turning the extension ON shows "Counting…" immediately, then the demo count once the injected
-    // probe lands — proven with a TaskCompletionSource so the interim state is actually observed, not
+    // probe lands, proven with a TaskCompletionSource so the interim state is actually observed, not
     // raced. TaskCompletionSource's continuation runs synchronously on SetResult's calling thread by
     // default, so the post-count assertion needs no dispatcher pump.
     [Test]
