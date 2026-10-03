@@ -35,6 +35,10 @@ public class ForwardPassRealDemoTests
     private static RuleConfigLoadResult ShippedRules() =>
         YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null);
 
+    // The two separate builds before the merge: highlights alone, round_facts alone.
+    private static IReadOnlyList<RulesetDoc> HighlightsOnly(IReadOnlyList<RulesetDoc> rules) =>
+        [.. rules.Where(r => r.Id != RoundFactsFingerprint.RulesetId)];
+
     [Test]
     [Arguments(0)]
     [Arguments(1)]
@@ -133,8 +137,8 @@ public class ForwardPassRealDemoTests
         written["firings"] = JsonSerializer.Serialize(merged.BareRun(parsed).Highlights, Json);
 
         IReadOnlyList<RulesetDoc> rules = ShippedRules().Rulesets;
-        BuildResult highlightsOnly = DemoAnalysis.Build(parsed, RoundFactsFingerprint.WithoutRoundFacts(rules));
-        RulesetDoc doc = merged.RoundFactsDoc!;
+        BuildResult highlightsOnly = DemoAnalysis.Build(parsed, HighlightsOnly(rules));
+        RulesetDoc doc = merged.EnabledDoc(RoundFactsFingerprint.RulesetId)!;
         BuildResult factsOnly = DemoAnalysis.Build(parsed, [doc]);
         AnalysisRun factsRun = DemoAnalysis.Evaluate(parsed, factsOnly, new AnalysisOptions { CaptureSnapshots = false });
         MetricTable? table = factsRun.ProjectConfiguredOutputs(parsed)
@@ -150,7 +154,7 @@ public class ForwardPassRealDemoTests
                 DemoAnalysis.Evaluate(parsed, highlightsOnly, new AnalysisOptions { CaptureSnapshots = false }).Highlights, Json),
             ["round facts"] = factsTable.Rows.Count == 0 ? None : WithoutSha(rows),
             ["highlight fingerprint"] = HighlightConfigFingerprint.Compute(
-                RoundFactsFingerprint.WithoutRoundFacts(rules), parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint,
+                HighlightsOnly(rules), parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint,
             ["round facts fingerprint"] = RoundFactsFingerprint.Combine(DemoCacheRecord.RoundFactsSchema,
                 HighlightConfigFingerprint.Compute([doc], parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint)
         };

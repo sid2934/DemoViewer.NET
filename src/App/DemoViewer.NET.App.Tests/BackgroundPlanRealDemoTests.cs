@@ -113,7 +113,7 @@ public class BackgroundPlanRealDemoTests
             tags.Load(path).Entries.Select(e => e.Proposal).ToList(), Json);
 
         RuleConfigLoadResult rules = YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null);
-        BuildResult build = DemoAnalysis.Build(parsed, RoundFactsFingerprint.WithoutRoundFacts(rules.Rulesets));
+        BuildResult build = DemoAnalysis.Build(parsed, [.. rules.Rulesets.Where(r => r.Id != RoundFactsFingerprint.RulesetId)]);
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         outputs["highlights"] = JsonSerializer.Serialize(run.Highlights, Json);
 

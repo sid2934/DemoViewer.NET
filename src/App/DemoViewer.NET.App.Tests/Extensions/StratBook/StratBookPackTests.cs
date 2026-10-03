@@ -40,6 +40,8 @@ public class StratBookPackTests
         "Microsoft.Extensions.Options.IConfigureOptions`1[DemoViewer.NET.Configuration.AppSettings]",
         "DemoViewer.NET.Features.IFeatureGate",
         "DemoViewer.NET.Extensions.IPackLifecycle",
+        // Added by item 2: every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
+        "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
         "DemoViewer.NET.Theming.ThemeRegistry",
         "DemoViewer.NET.Services.IWindowService",
@@ -156,6 +158,46 @@ public class StratBookPackTests
             string modules = string.Join(", ", provider.GetRequiredService<ModuleRegistry>().Modules.Select(m => m.Id));
             await Assert.That(modules).IsEqualTo(ModulesBeforeThePack)
                 .Because("the shell's tab order and section order follow registration order");
+        });
+    }
+
+    // Item 2: the round_facts ruleset is the pack's. With the pack on the merged set is the whole read
+    // (the forward pass is byte-identical to before the pack); off, the ruleset alone leaves it.
+    [Test]
+    public async Task ThePack_ClaimsTheRoundFactsRuleset_WhichLeavesTheMergedSetOnlyWhenOff()
+    {
+        await WithProvider(null, async provider =>
+        {
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
+            Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
+            // The app's own read: the shipped rules under the user's overlay, which the locator keys off
+            // the real config root, not the test's config dir. The build has already provisioned it.
+            string shipped = CS2DemoKit.Analysis.Yaml.RuleSetLocator.ResolveShippedRulesDirectory();
+            string read = string.Join(",", CS2DemoKit.Analysis.Yaml.YamlConfigLoader
+                .LoadWithOverlay(shipped, CS2DemoKit.Analysis.Yaml.RuleSetLocator.EnsureUserRulesDirectory(shipped))
+                .Rulesets.Select(r => r.Id));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(pack.Pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
+                await Assert.That(pack.Rulesets.Select(r => r.RulesetId)).IsEquivalentTo(["round_facts"]);
+                await Assert.That(build.PackRulesets.Select(r => r.RulesetId)).IsEquivalentTo(["round_facts"]);
+                await Assert.That(read).Contains("round_facts");
+                await Assert.That(string.Join(",", build.Docs.Select(d => d.Id))).IsEqualTo(read)
+                    .Because("pack on: the merged set is the whole read, in read order");
+            }
+        });
+
+        const string packOff = """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
+        await WithProvider(packOff, async provider =>
+        {
+            Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(build.Docs.Select(d => d.Id)).DoesNotContain("round_facts");
+                await Assert.That(build.CoreDocs.Select(d => d.Id)).DoesNotContain("round_facts");
+                await Assert.That(build.EnabledDoc("round_facts")).IsNull();
+            }
         });
     }
 
