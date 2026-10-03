@@ -504,7 +504,7 @@ public sealed class StratBookPack : IFeaturePack
                 () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true,
                 () => settings.Current,
                 settings.Write,
-                status => sp.GetService<MainViewModel>()?.AttachStratExportStatus(status),
+                sp.GetRequiredService<StratBookExportChipSlot>().Mount,
                 path => sp.GetService<MainViewModel>()?.OpenOutputFolder(path));
         });
 
@@ -634,6 +634,10 @@ public sealed class StratBookPack : IFeaturePack
         // The pack's lifecycle (item 3): resolved by the app only while pack.stratbook resolves on,
         // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
         services.AddKeyedSingleton<IPackLifecycle, StratBookLifecycle>(Id);
+
+        // The Strat Book export chip's mount point (item 14): shared by the StatusChip contribution below
+        // and the IStratExport factory's mount callback, so both sides of the hand-off agree on one slot.
+        services.AddSingleton<StratBookExportChipSlot>();
     }
 
     // Wraps an existing registration's factory so the built instance is also recorded on the tracker,
@@ -679,6 +683,23 @@ public sealed class StratBookPack : IFeaturePack
         // The hub every section below sits on. The shell builds the hub VM when it builds the strip, so the
         // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
         contributions.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
+
+        // Settings pages (item 14): the Suggested Tags tuning card and the Grenade Index card, both
+        // desktop-only (no filesystem on the browser, same gate they had before the move).
+        if (!OperatingSystem.IsBrowser())
+        {
+            contributions.SettingsPage(StratBookSettingsPages.SuggestedTagsTuning(sp));
+            contributions.SettingsPage(StratBookSettingsPages.GrenadeIndex(sp));
+        }
+
+        // The Strat Book export chip (item 14): the shell shows it only while the pack is on, through the
+        // same slot the IStratExport factory mounts into on the first Export.
+        contributions.StatusChip(new StatusChipContribution(
+            "stratbook.export", 0, sp.GetRequiredService<StratBookExportChipSlot>()));
+
+        // The Settings "N demos will be re-indexed" notice's count (item 14), over the same evaluators the
+        // re-enable backfill polls.
+        contributions.ReindexEstimate(new StratBookPendingReindexCount(sp));
 
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here

@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -9,7 +10,6 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
@@ -68,14 +68,13 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ("Diagnostics", "diagnostics logging log level rows file rolling caps size count"),
         ("Playback2DKeys", "keys keybinds keybindings keyboard shortcuts hotkeys gestures rebind "
                            + "controls 2d playback radar draw erase undo pan follow round kill speed"),
-        ("SuggestedTagsTuning", "suggested tags tuning detectors profile execute default fake opener "
-                                + "retake recall precision parameters preview verdicts"),
         // The generic keyword surface for the section that lists every FeatureScope.Pack master switch.
         // ExtensionsSectionMatches below ALSO scans each built row's own Label, so a pack's name (and its
-        // tabs' names) are findable without listing them here by hand.
+        // tabs' names) are findable without listing them here by hand. A pack's own contributed PAGES
+        // (item 14: Suggested Tags tuning, Grenade Index) carry their own Keywords on the contribution
+        // instead of a row here.
         ("Extensions", "extension extensions pack packs plugin addon add-on master switch background "
-                       + "indexing reindex"),
-        ("GrenadeIndex", "grenade index utility book lineup clip render walk background")
+                       + "indexing reindex")
     ];
 
     // Every feature row, in one flat list, for the gate-driven refresh sweep (the bound collections below are
@@ -87,18 +86,19 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // toggle here reconciles the app's tabs/chrome and this list from the one gate.
     private readonly IFeatureGate _gate;
 
-    // Test seam for the Extensions "N demos will be re-indexed" notice (item 5, §8): null in production,
-    // where StratBookPendingReindexCount resolves the pack's evaluators through the app service locator
-    // (the constructor shape is fixed, so this cannot be a normal dependency).
-    private readonly Func<Task<int>>? _countStratBookPendingReindex;
+    // The Extensions "N demos will be re-indexed" notice (architecture doc §8): the first pack-contributed
+    // estimate (item 14). At most one pack exists today; a second pack's own toggle would need its own
+    // notice slot, which this does not attempt. Null contributes nothing (no pack, or a test that wires
+    // none), so the notice mechanism below simply never fires.
+    private readonly IPackReindexEstimate? _reindexEstimate;
 
     // Bumped on every pack-toggle transition so a slow count that lands after a LATER flip is dropped
     // rather than overwriting a more recent notice.
-    private int _stratBookNoticeGeneration;
+    private int _toggleNoticeGeneration;
 
-    // The pack's last-observed resolved state, seeded at construction so the ctor's own first refresh
-    // never reads as a transition and shows a notice nobody asked for.
-    private bool _stratBookPackWasEnabled;
+    // The watched pack's last-observed resolved state, seeded at construction so the ctor's own first
+    // refresh never reads as a transition and shows a notice nobody asked for.
+    private bool _watchedPackWasEnabled;
 
     // Whether this is the WASM head. Injected, not read from OperatingSystem here. See the internal ctor.
     private readonly Func<bool> _isBrowser;
@@ -181,14 +181,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>Background library scan opt-in → <c>AppSettings.Highlights.BackgroundScan</c> (default OFF).</summary>
     [ObservableProperty]
     private bool _highlightsBackgroundScan;
-
-    /// <summary>Background library grenade walk → <c>AppSettings.Grenades.BackgroundIndex</c> (default OFF). Desktop only, beside the scan opt-in.</summary>
-    [ObservableProperty]
-    private bool _grenadesBackgroundIndex;
-
-    /// <summary>Lineup Clip Render → <c>AppSettings.Grenades.RenderLineupClips</c> (default ON). Desktop only, beside the walk opt-in.</summary>
-    [ObservableProperty]
-    private bool _grenadesRenderLineupClips;
 
     // ── Idle mode: desktop only; suppressed on WASM like Background processing. ──
 
@@ -372,9 +364,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _showSectionFolders = true;
 
     [ObservableProperty]
-    private bool _showSectionGrenadeIndex = true;
-
-    [ObservableProperty]
     private bool _showSectionHighlights = true;
 
     [ObservableProperty]
@@ -388,9 +377,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _showSectionProcessing = true;
-
-    [ObservableProperty]
-    private bool _showSectionSuggestedTagsTuning = true;
 
     [ObservableProperty]
     private bool _showSectionTheme = true;
@@ -409,7 +395,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Feedback for the last in-session flip of the Strat Book extension's master switch (§8): null
     ///     until a flip happens in this VM's lifetime (nothing to report at a plain startup). On: "Counting…"
-    ///     then a demo count once <see cref="RecomputeStratBookToggleNoticeAsync" /> lands. Off: a one-line
+    ///     then a demo count once <see cref="RecomputeToggleNoticeAsync" /> lands. Off: a one-line
     ///     note that its data stays on disk.
     /// </summary>
     [ObservableProperty]
@@ -427,8 +413,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Action? replayWalkthrough = null, SuggestedTagsTuningViewModel? suggestedTagsTuning = null)
-        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, suggestedTagsTuning)
+        Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null)
+        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
+            reindexEstimates)
     {
     }
 
@@ -445,15 +433,19 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <param name="themes">The theme catalogue.</param>
     /// <param name="isBrowser">Whether the host is the WASM head.</param>
     /// <param name="replayWalkthrough">Re-runs the tutorial walkthrough, or null.</param>
-    /// <param name="suggestedTagsTuning">The Suggested Tags tuning section's VM; a hidden stand-in when null.</param>
-    /// <param name="countStratBookPendingReindex">
-    ///     Test seam for the Extensions "N demos will be re-indexed" notice (§8): null (production) resolves
-    ///     the count through <see cref="StratBookPendingReindexCount" />.
+    /// <param name="settingsPages">
+    ///     The settings pages the packs contribute (item 14): rendered under Extensions, beneath each
+    ///     pack's master switch and feature rows. Null (most tests) renders none.
+    /// </param>
+    /// <param name="reindexEstimates">
+    ///     The packs' answers for the Extensions "N demos will be re-indexed" notice (§8); the first one
+    ///     is used (today, at most one pack exists). Null (most tests) shows no notice.
     /// </param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Func<bool> isBrowser, Action? replayWalkthrough = null, SuggestedTagsTuningViewModel? suggestedTagsTuning = null,
-        Func<Task<int>>? countStratBookPendingReindex = null)
+        Func<bool> isBrowser, Action? replayWalkthrough = null,
+        IReadOnlyList<SettingsPageContribution>? settingsPages = null,
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -465,10 +457,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _isBrowser = isBrowser;
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
-        _countStratBookPendingReindex = countStratBookPendingReindex;
-        // Null in a test that does not wire the tuning harness: the section then hides itself
-        // (SuggestedTagsTuningViewModel(null, null) reports CanManageTuning = false).
-        SuggestedTagsTuning = suggestedTagsTuning ?? new SuggestedTagsTuningViewModel(null, null, isBrowser());
+        _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
 
         Categories = BuildCategoryOptions();
         // Populate the theme list from the registry. Held in an ObservableCollection so "Reload themes" can
@@ -500,8 +489,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _diagnosticsFileMaxCount = current.Diagnostics.FileMaxCount;
         // Highlights section: seed from fields so construction trips no change-hooks.
         _highlightsBackgroundScan = current.Highlights.BackgroundScan;
-        _grenadesBackgroundIndex = current.Grenades.BackgroundIndex;
-        _grenadesRenderLineupClips = current.Grenades.RenderLineupClips;
         _reelOutputFolder = current.Highlights.ReelOutputDirectory;
         _reelContainerFormat = current.Highlights.ReelContainerFormat;
         _reelFps = current.Highlights.ReelFps;
@@ -528,7 +515,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         // Seeded BEFORE the first RefreshFeatureRows below, so that call sees no transition and shows no
         // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip (§8), not state.
-        _stratBookPackWasEnabled = gate.IsEnabled(StratBookPack.PackFeatureId);
+        _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.PackFeatureId);
+
+        // Registers every contributed page; none is built yet (BuildContributedSettingsPages).
+        BuildContributedSettingsPages(settingsPages);
 
         // Build the feature-toggle rows (grouped: Tabs each followed by their SubFeatures, then Chrome),
         // then the Extensions rows (every pack's master switch plus its own tabs/sub-features, which leave
@@ -586,14 +576,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public UpdateViewModel Update { get; } = UpdateViewModel.Shared;
 
-    /// <summary>
-    ///     Suggested Tags' tuning section (suggested-tags.md §3.7): a fresh instance per Settings open,
-    ///     since it reads the harness's stored report at construction. Hides itself
-    ///     (<see cref="SuggestedTagsTuningViewModel.CanManageTuning" />) on the browser, where there is
-    ///     no tuning view per §3.8.
-    /// </summary>
-    public SuggestedTagsTuningViewModel SuggestedTagsTuning { get; }
-
     /// <summary>Offered reel container formats.</summary>
     public IReadOnlyList<string> ReelContainerFormats { get; } = ["mp4", "mkv", "mov"];
 
@@ -627,15 +609,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>Whether the Highlights section is shown: desktop only (cache/scan/reel need a filesystem).</summary>
     public bool CanManageHighlights { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>
-    ///     Whether the Grenade Index card (under Extensions) is shown: desktop only, the same gate it had
-    ///     while it rode inside the Highlights section.
-    /// </summary>
-    public bool CanManageGrenadeIndex { get; } = !OperatingSystem.IsBrowser();
-
-    /// <summary>Whether the Strat Book extension's master switch currently resolves on; drives the two relocated cards beneath it.</summary>
-    public bool IsStratBookPackEnabled => _gate.IsEnabled(StratBookPack.PackFeatureId);
-
     /// <summary>The effective user category: the selected card's value. Convenience for callers/tests.</summary>
     public UserCategory SelectedCategory => SelectedCategoryOption.Value;
 
@@ -657,6 +630,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     and <see cref="ChromeFeatureRows" /> so they are never listed twice.
     /// </summary>
     public ObservableCollection<FeatureToggleRow> ExtensionsFeatureRows { get; } = [];
+
+    /// <summary>
+    ///     Settings pages the packs contribute (item 14), rendered under Extensions beneath
+    ///     <see cref="ExtensionsFeatureRows" />, each hidden while its own <see cref="SettingsPageContribution.FeatureId" />
+    ///     resolves off or the search filter does not match. Every entry exists from construction, but
+    ///     <see cref="MountedSettingsPage.IsBuilt" /> stays false until its gate first resolves on.
+    /// </summary>
+    public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
 
     /// <summary>
     ///     How many non-Required features the current user has hidden versus the developer-full baseline (from
@@ -751,6 +732,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _disposed = true;
         _gate.Changed -= OnGateChanged;
         _onChange?.Dispose();
+
+        foreach (MountedSettingsPage page in ContributedSettingsPages)
+        {
+            (page.ViewModel as IDisposable)?.Dispose();
+        }
     }
 
     /// <summary>
@@ -774,12 +760,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     private static bool SectionMatches(string section, string filter)
     {
+        string keywords = Array.Find(_sectionKeywords, k => k.Section == section).Keywords;
+        return KeywordsMatch(keywords, filter);
+    }
+
+    // The same fuzzy match SectionMatches runs over a named built-in section's keyword row, open to any
+    // keyword string: a pack's contributed page carries its own on the contribution (item 14) instead of
+    // a row here.
+    private static bool KeywordsMatch(string keywords, string filter)
+    {
         if (filter.Length == 0)
         {
             return true;
         }
 
-        string keywords = Array.Find(_sectionKeywords, k => k.Section == section).Keywords;
         return keywords.Contains(filter, StringComparison.OrdinalIgnoreCase)
                || Fuzz.PartialRatio(filter.ToLowerInvariant(), keywords) >= 80;
     }
@@ -803,20 +797,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ShowSectionDiagnostics = CanManageDiagnosticsLogging && SectionMatches("Diagnostics", filter);
         // No platform gate: the 2D tab (and therefore its keymap) is WASM-reachable.
         ShowSectionPlayback2DKeys = SectionMatches("Playback2DKeys", filter);
-        // The Extensions master-switch card is always reachable (it is how a user turns the pack back
-        // on), so it ignores IsStratBookPackEnabled; the two relocated cards beneath it do not.
+        // The Extensions master-switch card is always reachable (it is how a user turns a pack back on),
+        // so its own match ignores every pack's gate; a contributed PAGE beneath it does not (item 14).
         ShowSectionExtensions = ExtensionsSectionMatches(filter);
-        // Relocated under Extensions (item 5): Strat Book-only, hidden entirely while the pack is off, on
-        // top of their own pre-existing platform gate (§3.8 / desktop-only lineup rendering).
-        ShowSectionSuggestedTagsTuning =
-            IsStratBookPackEnabled && SuggestedTagsTuning.CanManageTuning && SectionMatches("SuggestedTagsTuning", filter);
-        ShowSectionGrenadeIndex = IsStratBookPackEnabled && CanManageGrenadeIndex && SectionMatches("GrenadeIndex", filter);
+        bool anyPageVisible = RefreshContributedPageVisibility(filter);
 
         ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates
                            || ShowSectionPlayback2DKeys;
         ShowGroupLibrary = ShowSectionFolders || ShowSectionProcessing || ShowSectionIdle;
         ShowGroupFeatures = ShowSectionFeatures;
-        ShowGroupExtensions = ShowSectionExtensions || ShowSectionSuggestedTagsTuning || ShowSectionGrenadeIndex;
+        ShowGroupExtensions = ShowSectionExtensions || anyPageVisible;
         ShowGroupLiveCs2 = ShowSectionLiveSync || ShowSectionHighlights;
         ShowGroupDiagnostics = ShowSectionDiagnostics;
 
@@ -857,6 +847,42 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         return false;
+    }
+
+    // Called from ApplySectionFilter (a filter keystroke) and from RefreshFeatureRows (a gate change).
+    // A page not yet built is built here, the first time its gate is seen on, never before: building it
+    // while off would construct whatever its VM pulls in regardless of the pack's gate (plan doc §8).
+    private bool RefreshContributedPageVisibility(string filter)
+    {
+        bool anyVisible = false;
+        foreach (MountedSettingsPage page in ContributedSettingsPages)
+        {
+            bool gateOn = page.FeatureId is null || _gate.IsEnabled(page.FeatureId);
+            if (gateOn)
+            {
+                page.EnsureBuilt();
+            }
+
+            page.IsVisible = gateOn && KeywordsMatch(page.Keywords, filter);
+            anyVisible |= page.IsVisible;
+        }
+
+        return anyVisible;
+    }
+
+    // Registers every contributed page at construction, unbuilt: RefreshContributedPageVisibility (called
+    // from the ctor's own trailing ApplySectionFilter) builds only the ones whose gate is already on.
+    private void BuildContributedSettingsPages(IReadOnlyList<SettingsPageContribution>? pages)
+    {
+        if (pages is null)
+        {
+            return;
+        }
+
+        foreach (SettingsPageContribution contribution in pages.OrderBy(p => p.Order))
+        {
+            ContributedSettingsPages.Add(new MountedSettingsPage(contribution));
+        }
     }
 
     partial void OnKeybindRejectionNoteChanged(string value) =>
@@ -1341,26 +1367,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         Persist(s => s.Highlights.BackgroundScan = value);
-    }
-
-    partial void OnGrenadesBackgroundIndexChanged(bool value)
-    {
-        if (_applyingExternal)
-        {
-            return;
-        }
-
-        Persist(s => s.Grenades.BackgroundIndex = value);
-    }
-
-    partial void OnGrenadesRenderLineupClipsChanged(bool value)
-    {
-        if (_applyingExternal)
-        {
-            return;
-        }
-
-        Persist(s => s.Grenades.RenderLineupClips = value);
     }
 
     partial void OnReelOutputFolderChanged(string? value)
@@ -1851,28 +1857,38 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         // §8's in-session notice: fires only on a TRANSITION (not every refresh), so a plain category
         // change or an unrelated override write never shows it. Catches a self-write, Reset-to-defaults,
-        // and an external edit alike, since all three land here through gate.Changed.
-        bool stratBookNowEnabled = _gate.IsEnabled(StratBookPack.PackFeatureId);
-        if (stratBookNowEnabled != _stratBookPackWasEnabled)
+        // and an external edit alike, since all three land here through gate.Changed. No-ops when no pack
+        // contributed an estimate.
+        if (_reindexEstimate is { } watched)
         {
-            _stratBookPackWasEnabled = stratBookNowEnabled;
-            _stratBookNoticeGeneration++;
-            if (stratBookNowEnabled)
+            bool watchedNowEnabled = _gate.IsEnabled(watched.PackFeatureId);
+            if (watchedNowEnabled != _watchedPackWasEnabled)
             {
-                StratBookToggleNotice = "Counting…";
-                _ = RecomputeStratBookToggleNoticeAsync(_stratBookNoticeGeneration);
-            }
-            else
-            {
-                StratBookToggleNotice = "The Strat Book extension stops its background work. Its data stays on disk.";
+                _watchedPackWasEnabled = watchedNowEnabled;
+                _toggleNoticeGeneration++;
+                if (watchedNowEnabled)
+                {
+                    StratBookToggleNotice = "Counting…";
+                    _ = RecomputeToggleNoticeAsync(watched, _toggleNoticeGeneration);
+                }
+                else
+                {
+                    string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == watched.PackFeatureId)?.Label
+                                   ?? "extension";
+                    StratBookToggleNotice = $"The {label} stops its background work. Its data stays on disk.";
+                }
             }
         }
+
+        // A contributed page's own gate id (item 14) may have flipped; the filter half of its visibility
+        // is unchanged, so re-apply it with the CURRENT filter text rather than re-deriving it here.
+        bool anyPageVisible = RefreshContributedPageVisibility(SettingsFilterText.Trim());
+        ShowGroupExtensions = ShowSectionExtensions || anyPageVisible;
 
         OnPropertyChanged(nameof(HiddenCount));
         OnPropertyChanged(nameof(FeatureCategoryLabel));
         OnPropertyChanged(nameof(FeaturesHeaderText));
         OnPropertyChanged(nameof(ResetButtonText));
-        OnPropertyChanged(nameof(IsStratBookPackEnabled));
     }
 
     private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Settings");
@@ -1880,14 +1896,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // Resolves the re-index count off the UI thread (PendingPaths over a large library is not free) and
     // writes the final notice, UNLESS a later toggle already changed the generation: dropping a stale
     // result beats a "12 demos…" note that lands after the user flipped the extension back off.
-    private async Task RecomputeStratBookToggleNoticeAsync(int generation)
+    private async Task RecomputeToggleNoticeAsync(IPackReindexEstimate estimate, int generation)
     {
         int count;
         try
         {
-            count = _countStratBookPendingReindex is { } compute
-                ? await compute()
-                : await StratBookPendingReindexCount.ComputeAsync();
+            count = await estimate.CountAsync();
         }
         catch (Exception ex)
         {
@@ -1897,7 +1911,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             count = 0;
         }
 
-        if (_disposed || generation != _stratBookNoticeGeneration)
+        if (_disposed || generation != _toggleNoticeGeneration)
         {
             return;
         }
@@ -2019,8 +2033,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             DiagnosticsFileMaxCount = settings.Diagnostics.FileMaxCount;
             // Highlights section.
             HighlightsBackgroundScan = settings.Highlights.BackgroundScan;
-            GrenadesBackgroundIndex = settings.Grenades.BackgroundIndex;
-            GrenadesRenderLineupClips = settings.Grenades.RenderLineupClips;
             ReelOutputFolder = settings.Highlights.ReelOutputDirectory;
             ReelContainerFormat = settings.Highlights.ReelContainerFormat;
             ReelFps = settings.Highlights.ReelFps;
