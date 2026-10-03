@@ -534,8 +534,14 @@ public interface IFeaturePack
 public interface IPackLifecycle            // optional, resolved from the pack's own registrations
 {
     Task OnEnabledAsync(PackStartReason reason, CancellationToken ct);  // startup loads, subscriptions
-    void OnDisabled();                       // unsubscribe, cancel owned jobs, release resident indexes
+    Task OnDisabledAsync();                  // unsubscribe, cancel owned jobs, release resident indexes (completes when released)
     void OnShutdown(TimeSpan budget);        // flushes
+}
+
+public interface IPackResident              // a pack-built singleton whose state can be dropped and rebuilt (item 8)
+{
+    void Attach();                           // subscribe to the sources that keep it current; loads nothing
+    void Release();                          // unsubscribe, flush what is pending, drop the state
 }
 ```
 
@@ -682,11 +688,45 @@ If Round Facts is in the pack, the highlights fingerprint must be split first (s
 re-scans every demo's highlights. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
 be visible and pausable in the queue, per the standing rule that all background work goes through it.
 
-**Live toggle.** Live in both directions, and turning off releases the pack's memory in session (decision 3,
-item 8). Turning on mid-session is the harder direction: startup loads run from `OnEnabledAsync`, and any
-2D Playback tab already open attaches the pack's contributions on the next demo change or immediately if
-`Attach` supports a live surface (it should; panes are already dynamic). If live attach in 2D Playback
-proves fragile, the fallback is "takes effect on the next demo open", not "restart".
+**Live toggle (item 8, as built).** Live in both directions, and turning off releases the pack's memory in
+session (decision 3). A core `PackSwitch` subscribes to the gate's `Changed` once per pack and acts on real
+transitions only: the resolved `IsEnabled(pack.FeatureId)` against the state the lifecycle was last put in,
+so a settings write that leaves the pack where it was does nothing. `App.StartPacks` is its startup pass.
+
+- *Off to on:* `OnEnabledAsync(EnabledInSession, ct)`, the same code path as startup (the loads are queue
+  items at user priority), then a user-priority `SectionCompute` item owned by the pack id ("Strat Book
+  extension: find demos to re-index") that re-polls the library through the coordinator, so the pack's
+  evaluators submit every demo whose pack fields are missing or stale and the backfill is visible and
+  pausable in the queue. Open 2D Playback tabs and the shell react through the gate's `Changed` as before.
+- *On to off:* the enable's token is cancelled (a load still queued does nothing when it runs), every queued
+  pack item goes by owner tag through `IDemoProcessingQueue.CancelOwned(ownerTag)` (a running one finishes
+  its unit; a parse the library co-owns stays), and the release itself is one `SectionCompute` item at user
+  priority, owner the pack id, sharing the loads' serial, so a large index never leaves memory on the UI
+  thread and never beside a load still running. `OnDisabledAsync` returns that item's completion.
+- *What release means.* The residents are container singletons that core surfaces hold references to
+  (Team Identity for the Library filter, the situation index for the shell), so the object cannot be
+  replaced; its state can. Each implements `IPackResident`: `Release` unsubscribes from the sources that
+  would refill it (`DemoCacheStore.Changed`, the evaluators' `Written`/`Indexed`, the index's `Changed`),
+  writes anything pending (lineups, the signature cache) and drops the loaded data; `Attach` subscribes
+  again and the next load rebuilds. Released: `SituationIndex`, `GrenadeIndex` (and its lineup document),
+  `TeamIdentityService` (side keys, assignments, joins, both files), `LineupClipService` (plan, ranks,
+  requests), `TagFactsRefresher`, `WatchedSituationsService` (the new-hit groups; the saved watches stay),
+  `StratMiningService` (the quiet timer, the patterns, the `SignatureCache`), and the zone graphs in
+  `AssetZonePlaceResolverSource` (only pack code reads them). `StratBookPackInstances` keeps the built
+  residents across a release and nulls its typed view, so shutdown flushes nothing that was dropped and a
+  re-enable restores and re-attaches everything built lazily before the release.
+- *Not released:* the pack's tab view-models (container singletons the modules hand to the shell; their
+  result lists are bounded by the last query and their map assets by the last map shown) and the pack's
+  small user-truth stores (strats, tags, dossier notes, veto history, proposals, profile, site regions),
+  which are the user's files and cheap. The hub shows no "stopping" state: its tab is gone the instant the
+  gate flips; the release item is visible in the queue instead.
+- *First run.* On a fresh desktop install `StartPacks` waits while `SettingsService.NeedsFirstRun` is true;
+  the wizard's Finish or Skip writes settings, which is a gate change like any other, and the pack starts
+  if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
+  browser never shows the wizard and never waits. Upgrades with the flag set start as today.
+- *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
+  60 grenades each): an enable builds about 21 MB on the GC heap; the release leaves 0.5 MB after the
+  first off-on-off cycle and 0.05 MB after the second, so nothing grows per toggle.
 
 **Session restore.** If the persisted active tab id belongs to a disabled pack, restore lands on Library.
 Pack session blobs of a disabled pack are preserved in the session file untouched, so re-enabling restores
