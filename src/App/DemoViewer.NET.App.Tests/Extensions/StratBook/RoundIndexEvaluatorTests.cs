@@ -187,6 +187,22 @@ public class RoundIndexEvaluatorTests
     }
 
     [Test]
+    public async Task WithThePackOff_NothingIsWanted_EvenWithRoundFactsPresentAndBackgroundOn()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: TwoRounds()));
+        RoundIndexStore store = new(null, cache);
+        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
+        RoundIndexEvaluator evaluator = new(cache, store, sources, () => true, walk: _ => [], enabled: () => false);
+
+        await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.PendingPaths()).IsEmpty();
+
+        evaluator.OnParsedOpportunistically(Demo, Parse());
+        await Assert.That(store.TryRead(Demo)).IsNull().Because("the opportunistic hand-off follows Wants, which the pack gate forces false");
+    }
+
+    [Test]
     public async Task WithBackgroundOff_OnlyForcedPathsAreWanted_AndTheHandOffIsGated()
     {
         (DemoCacheStore cache, RoundIndexStore store, RoundIndexEvaluator evaluator) = Wire(background: false);
