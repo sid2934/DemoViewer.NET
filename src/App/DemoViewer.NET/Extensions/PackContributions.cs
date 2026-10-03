@@ -14,6 +14,7 @@ namespace DemoViewer.NET.Extensions;
 internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 {
     private readonly List<IWorkspaceModule> _modules = [];
+    private readonly List<HostTabContribution> _hostTabs = [];
     private readonly List<EvaluatorContribution> _evaluators = [];
     private readonly List<JobKindDescriptor> _jobKinds = [];
     private readonly List<CommandDescriptor> _commands = [];
@@ -28,6 +29,9 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>Modules, in contribution order.</summary>
     public IReadOnlyList<IWorkspaceModule> Modules => _modules;
+
+    /// <summary>Host tabs, in contribution order, each stamped with a gate id.</summary>
+    public IReadOnlyList<HostTabContribution> HostTabs => _hostTabs;
 
     /// <summary>Evaluators, in contribution order.</summary>
     public IReadOnlyList<EvaluatorContribution> Evaluators => _evaluators;
@@ -46,6 +50,17 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(workspaceModule);
         _modules.Add(workspaceModule);
+    }
+
+    /// <inheritdoc />
+    public void HostTab(HostTabContribution host)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentException.ThrowIfNullOrWhiteSpace(host.HostId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(host.TabId);
+        ArgumentNullException.ThrowIfNull(host.ViewModelFactory);
+        ArgumentNullException.ThrowIfNull(host.ViewFactory);
+        _hostTabs.Add(host.FeatureId is null ? host with { FeatureId = Pack.FeatureId } : host);
     }
 
     /// <inheritdoc />
