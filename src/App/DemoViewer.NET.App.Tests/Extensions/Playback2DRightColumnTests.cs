@@ -15,14 +15,16 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The 2D tab's right-column hosting (item 17) over fake contributions: panels show in order while open,
-///     several at once, each behind its own gate and all behind Review mode; a closed panel's view model is
-///     disposed; the host follows the pack gate live and detaching removes every panel; a panel's focus
-///     scope routes keys and actions, and Review mode is available only while a panel with its gate on exists.
+///     The 2D tab's right-column hosting (items 17 and 18) over fake contributions: panels show in order while
+///     open, several at once, each behind its own gate and, when bound to one, behind a contributed mode; a
+///     closed panel's view model is disposed; the host follows the pack gate live and detaching removes every
+///     panel; a panel's focus scope routes keys and actions; the cards collapse while a panel shows.
 /// </summary>
 public class Playback2DRightColumnTests
 {
     private const string NarrowGate = "pack.fake.narrow";
+
+    private static ModeToggle Mode() => new("fake.mode", "Mode", "A fake mode");
 
     private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab()
     {
@@ -36,12 +38,14 @@ public class Playback2DRightColumnTests
         new([(new FakePack(), contributions)], gate);
 
     [Test]
-    public async Task OpenPanels_ShowInOrder_SeveralAtOnce_AndOnlyInReviewMode()
+    public async Task OpenPanels_ShowInOrder_SeveralAtOnce_AndOnlyWhileTheirModeIsOn()
     {
         (Playback2DTabViewModel vm, _) = Tab();
-        IPanelHandle second = vm.Surface.AddPanel(2, () => new FakePanelViewModel("second"));
-        IPanelHandle first = vm.Surface.AddPanel(1, () => new FakePanelViewModel("first"));
-        IPanelHandle third = vm.Surface.AddPanel(3, () => new FakePanelViewModel("third"));
+        ModeToggle mode = Mode();
+        using IDisposable toggle = vm.Surface.AddModeToggle(mode);
+        IPanelHandle second = vm.Surface.AddPanel(2, () => new FakePanelViewModel("second"), mode: mode);
+        IPanelHandle first = vm.Surface.AddPanel(1, () => new FakePanelViewModel("first"), mode: mode);
+        IPanelHandle third = vm.Surface.AddPanel(3, () => new FakePanelViewModel("third"), mode: mode);
 
         await Assert.That(vm.IsReviewAvailable).IsFalse().Because("a panel that is not open shows nothing");
 
@@ -53,12 +57,12 @@ public class Playback2DRightColumnTests
             await Assert.That(vm.Surface.Panels.Select(p => ((FakePanelViewModel)p.Content!).Name))
                 .IsEquivalentTo(["first", "second", "third"]);
             await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false])
-                .Because("Review mode is off");
+                .Because("the mode is off");
             await Assert.That(vm.IsReviewAvailable).IsTrue();
             await Assert.That(vm.IsCardStrip).IsFalse();
         }
 
-        vm.IsReviewMode = true;
+        mode.IsOn = true;
         using (Assert.Multiple())
         {
             await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([true, true, true]);
@@ -69,6 +73,20 @@ public class Playback2DRightColumnTests
         first.Open();
         await Assert.That(vm.Surface.Panels.Count).IsEqualTo(3).Because("Open on an open panel is a no-op");
 
+        // A panel bound to no mode shows as soon as it is open; disposing a bound one drops its mode subscription.
+        mode.IsOn = false;
+        IPanelHandle free = vm.Surface.AddPanel(0, () => new FakePanelViewModel("free"));
+        free.Open();
+        first.Dispose();
+        mode.IsOn = true;
+        using (Assert.Multiple())
+        {
+            await Assert.That(free.IsShown).IsTrue();
+            await Assert.That(first.IsShown).IsFalse();
+            await Assert.That(vm.Surface.Panels.Select(p => ((FakePanelViewModel)p.Content!).Name))
+                .IsEquivalentTo(["free", "second", "third"]);
+        }
+
         vm.Dispose();
     }
 
@@ -76,7 +94,6 @@ public class Playback2DRightColumnTests
     public async Task Close_DisposesTheViewModel_AndKeepsTheOthers()
     {
         (Playback2DTabViewModel vm, _) = Tab();
-        vm.IsReviewMode = true;
         IPanelHandle a = vm.Surface.AddPanel(0, () => new FakePanelViewModel("a"));
         IPanelHandle b = vm.Surface.AddPanel(1, () => new FakePanelViewModel("b"));
         a.Open();
@@ -106,7 +123,6 @@ public class Playback2DRightColumnTests
     public async Task AGatedPanel_FollowsItsFeature_AndReviewAvailabilityFollowsTheGatesOn()
     {
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Tab();
-        vm.IsReviewMode = true;
         IPanelHandle gated = vm.Surface.AddPanel(0, () => new FakePanelViewModel("gated"), featureId: NarrowGate);
         int shownChanges = 0;
         gated.ShownChanged += () => shownChanges++;
@@ -137,7 +153,6 @@ public class Playback2DRightColumnTests
     public async Task TheHost_FollowsThePackGateLive_DisposingPanelsOnTheWayOff()
     {
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Tab();
-        vm.IsReviewMode = true;
         FakeContribution fake = new();
         FakeGate gate = new() { On = false };
 
@@ -166,7 +181,6 @@ public class Playback2DRightColumnTests
     public async Task Detach_RemovesEveryPanel_AndTheTabsDisposeDetaches()
     {
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Tab();
-        vm.IsReviewMode = true;
         FakeContribution fake = new();
         IDisposable binding = Host(null, fake).Attach(vm.Surface, ctx);
         FakePanelViewModel built = (FakePanelViewModel)vm.Surface.Panels.Single().Content!;
@@ -184,7 +198,6 @@ public class Playback2DRightColumnTests
         FakeContribution second = new();
         Playback2DTabViewModel owned = new() { Contributions = Host(null, second) };
         owned.OnActivated(new Playback2DFakeContext { Gate = new FakeModuleFeatureGate() });
-        owned.IsReviewMode = true;
         FakePanelViewModel ownedPanel = (FakePanelViewModel)owned.Surface.Panels.Single().Content!;
         owned.Dispose();
         using (Assert.Multiple())
@@ -219,8 +232,9 @@ public class Playback2DRightColumnTests
     public async Task KeysGoToTheHandlersFirst_ActionsToAFocusedPanelFirst_AndToTheRestLast()
     {
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Tab();
-        vm.IsReviewMode = true;
-        IPanelHandle panel = vm.Surface.AddPanel(0, () => new FakePanelViewModel("keys"));
+        ModeToggle mode = Mode();
+        mode.IsOn = true;
+        IPanelHandle panel = vm.Surface.AddPanel(0, () => new FakePanelViewModel("keys"), mode: mode);
         panel.Open();
         List<Key> keys = [];
         List<Playback2DAction> actions = [];
@@ -265,7 +279,7 @@ public class Playback2DRightColumnTests
             await Assert.That(actions).IsEquivalentTo([Playback2DAction.TogglePlay, Playback2DAction.StepForward]);
         }
 
-        vm.IsReviewMode = false;
+        mode.IsOn = false;
         await Assert.That(vm.Surface.HasKeyboard).IsFalse().Because("a hidden panel cannot hold the keyboard");
 
         vm.Dispose();

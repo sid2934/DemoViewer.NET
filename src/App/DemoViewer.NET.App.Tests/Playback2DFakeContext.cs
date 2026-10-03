@@ -39,6 +39,9 @@ internal sealed class Playback2DFakeContext : IModuleContext
     // arrived".
     public string? DemoPath { get; set; }
 
+    // Known to the tag session's attach, which otherwise hashes the file at DemoPath (none, for a fake).
+    public string? DemoSha256 { get; set; }
+
     // The map the tab selects baked assets (and zones) by. Null, the interface default, means no bundle.
     public string? MapName { get; set; }
 
