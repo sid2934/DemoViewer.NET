@@ -648,6 +648,39 @@ public interface ISessionParticipant
 public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IReadOnlyList<string> Paths);
 ```
 
+As built (item 22, `Extensions/IPackContributions.cs`): one filter and one badge per contribution rather than
+a list of filters, since the Library hosts N *contributions* (each optionally offering a filter, a badge, or
+both) instead of one contribution offering N filters. `LibraryFilter(Label, Items, Matches)` carries its own
+items and predicate; `LibraryFilterItem(Key, Display)` reserves `Key == ""` as the neutral "All" choice the
+Library skips when applying predicates. A badge needs a fourth member beyond the sketch,
+`bool HasBadge { get; }`: `BadgeLabels` alone cannot say whether a contribution renders a badge at all, since
+a read-only badge (no settable menu) legitimately has an empty label list. `FeatureId` (nullable, default
+`null`) and `Changed` complete the interface, matching 7.2's general contract; `IPackContributions.Library(...)`
+stamps a null `FeatureId` to the owning pack's id the same way `SettingsPage` does, through a small internal
+wrapper (`PackContributions.StampedLibraryContribution`) rather than a record `with`, since `ILibraryContribution`
+is an interface, not a record. `LibraryTabViewModel` owns a generic host: it calls into a contribution only
+while `_isFeatureEnabled(contribution.FeatureId)` is true (set once by `MainViewModel` to `_gate.IsEnabled`),
+subscribing to `Changed` only on that transition, so nothing behind `Filter`/`BadgeFor` is ever touched while
+off. One `LibraryFilterViewModel` per on filter contribution is added to `ObservableCollection<LibraryFilterViewModel>
+Filters`, kept as the same instance across a data refresh (`Rebuild`, preserving the ComboBox selection by
+`Key`) and removed only on a gate transition (`RebuildFilters`); `ApplyFilter` folds every entry's `Matches`
+in. The badge is a single slot (`ActiveBadgeContribution`, the first on contribution with `HasBadge`): the
+plan's "N badges" is the contribution list, not the card UI, which renders one chip, a documented limit a
+second badge-granting pack would need to lift. `LibraryTabViewModel`/`MainViewModel` lost `TeamIdentityService`
+and `IDemoProvenanceSource` entirely (ctor params and `using`s both); `MainViewModel` no longer force-builds
+either service at shell construction when the pack is off, since the old code's two `sp.GetRequiredService<T>()`
+ctor arguments are gone. `DemoEntry` (`Modules/Library/DemoLibraryModels.cs`) traded `ProvenanceLabel`/
+`ProvenanceIsOverride`/`ProvenanceDisplay`/`ProvenanceTooltip` for generic `BadgeLabel`/`BadgeTooltip`/
+`BadgeIsPinned`/`BadgeDisplay`; the "unlabeled" and the three-state tooltip text moved into
+`ProvenanceLibraryContribution.BadgeFor`, which now always returns a badge once its service resolves (an
+entry the cache has not indexed yet also reads "unlabeled", collapsing a distinction the old field-level
+null preserved but the display never showed). The pack's two contributions,
+`Extensions/StratBook/Services/Teams/TeamLibraryContribution.cs` and
+`.../Services/Provenance/ProvenanceLibraryContribution.cs`, each take a `Func<T>` resolver (no DI
+registration of their own, matching item 16's `CreateStratPlaybackContribution`) and an optional
+`featureId` constructor parameter so a caller outside `StratBookPack.Contribute` (a shell test) can name
+the pack id explicitly instead of relying on the stamp.
+
 Theme tokens are not a contribution in (a) or (b): they stay in the core dictionaries, which cost nothing
 when unused. A pack token manifest only matters for third-party add-ons.
 
@@ -769,10 +802,11 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
 - *First run.* On a fresh desktop install `StartPacks` waits while `SettingsService.NeedsFirstRun` is true;
   the wizard's Finish or Skip writes settings, which is a gate change like any other, and the pack starts
   if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
-  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team
-  Identity, which the shell builds for the Library filter before the wizard has asked, is built detached
-  and unread whatever the gate says at container build; only the attach item reads its files, and a read
-  that reaches a detached service (a queued one that lost the race with a release) reads and writes nothing.
+  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team Identity
+  is no longer built at shell construction for the Library filter (item 22 moved that to a lazy resolve
+  inside the Team filter contribution, reached only once the pack's gate is on); the enable's attach item
+  is now the first thing that resolves and reads it, and a read that reaches a detached service (a queued
+  one that lost the race with a release) reads and writes nothing.
 - *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
   60 grenades each, a mine and a watch seeded): an enable builds about 21 MB on the GC heap; the release
   leaves 0.5 MB after the first off-on-off cycle and 0.0 MB after the second, so nothing grows per toggle.
