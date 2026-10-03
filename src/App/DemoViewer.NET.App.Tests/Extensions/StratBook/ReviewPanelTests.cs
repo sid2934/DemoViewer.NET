@@ -5,6 +5,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
+using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
@@ -186,11 +187,11 @@ public class ReviewPanelTests
     public async Task KeysTypedIntoTheEditor_NeverReachTheKeymap() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+            await review.Session!.AttachAsync(Demo, Clock, DemoPath);
             vm.IsReviewMode = true;
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm, 1280, 800);
-            vm.ReviewPanel.LabelHereCommand.Execute(null);
+            review.Review!.LabelHereCommand.Execute(null);
             Playback2DTimelineHarness.Pump();
 
             TextBox from = view.GetVisualDescendants().OfType<TextBox>().First(t => t.Name == "FromBox");
@@ -204,31 +205,32 @@ public class ReviewPanelTests
             {
                 await Assert.That(ctx.PlayCount).IsEqualTo(0).Because("Space in a box is a space, not play");
                 await Assert.That(ctx.NextEvents).IsEmpty().Because("E in a box is a letter, not next round");
-                await Assert.That(vm.ReviewPanel.HasEditor).IsTrue();
+                await Assert.That(review.Review.HasEditor).IsTrue();
             }
 
             window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
-            await Assert.That(vm.ReviewPanel.HasEditor).IsFalse().Because("Esc in the editor cancels it");
+            await Assert.That(review.Review.HasEditor).IsFalse().Because("Esc in the editor cancels it");
         });
 
     [Test]
     public async Task OnTheLane_TheHandlesMoveTheEditor_AClickStartsALabel_AndABandOffersEditAndDelete() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             vm.Timeline.PixelWidth = 999; // one px per frame over the harness's 1000 frames
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
             TagInstance tag = Tag("A execute", 800, 1_200);
-            vm.Tags.Apply(new TagDelta.Add(tag));
+            tags.Apply(new TagDelta.Add(tag));
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(vm.Timeline.IsLaneEditable).IsFalse().Because("the lane takes edits in Review mode only");
             vm.IsReviewMode = true;
             await Assert.That(vm.Timeline.IsLaneEditable).IsTrue();
 
-            vm.ReviewPanel.EditTag(tag.Id);
-            TagEditorViewModel editor = vm.ReviewPanel.ActiveEditor!;
+            review.Review!.EditTag(tag.Id);
+            TagEditorViewModel editor = review.Review.ActiveEditor!;
             await Assert.That(vm.Timeline.HasEditSpan).IsTrue();
             await Assert.That(vm.Timeline.EditX).IsEqualTo(400).Because("tick 800 is frame 400 on the fake");
 
@@ -239,13 +241,13 @@ public class ReviewPanelTests
             {
                 await Assert.That(editor.CurrentSpan).IsEqualTo((600, 1_400));
                 await Assert.That(ctx.SeekFrames.Count + ctx.SeekTicks.Count).IsEqualTo(seeks).Because("a handle drag never seeks");
-                await Assert.That(vm.Tags.Document!.Instances.Single().FromTick).IsEqualTo(800).Because("the drag moves the draft; Save writes it");
+                await Assert.That(tags.Document!.Instances.Single().FromTick).IsEqualTo(800).Because("the drag moves the draft; Save writes it");
             }
 
             vm.Timeline.DragEditEdge(true, 900);
             await Assert.That(editor.CurrentSpan!.Value.From).IsEqualTo(1_400).Because("the start never passes the end");
             editor.SaveCommand.Execute(null);
-            await Assert.That(vm.Tags.Document!.Instances.Single().FromTick).IsEqualTo(1_400);
+            await Assert.That(tags.Document!.Instances.Single().FromTick).IsEqualTo(1_400);
             await Assert.That(vm.Timeline.HasEditSpan).IsFalse();
             Playback2DTimelineHarness.Pump();
 
@@ -253,10 +255,10 @@ public class ReviewPanelTests
             IReadOnlyList<MenuEntry> menu = vm.Timeline.MenuFor(band);
             await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo(["Edit A execute", "Delete A execute"]);
             menu[1].Run();
-            await Assert.That(vm.Tags.Document!.Instances).IsEmpty();
+            await Assert.That(tags.Document!.Instances).IsEmpty();
 
             vm.Timeline.RequestLaneLabel(100);
-            TagEditorViewModel created = vm.ReviewPanel.ActiveEditor!;
+            TagEditorViewModel created = review.Review.ActiveEditor!;
             using (Assert.Multiple())
             {
                 await Assert.That(created.CanDelete).IsFalse().Because("a click on empty lane starts a new label");
@@ -280,18 +282,19 @@ public class ReviewPanelTests
     public async Task ThePanel_RendersTheLabelsTab_WithTheEditorOpen() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             ctx.Push(1, 2);
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
-            vm.Tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
-            vm.Tags.Apply(new TagDelta.Add(Tag("Retake", 800, 900)));
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
+            tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
+            tags.Apply(new TagDelta.Add(Tag("Retake", 800, 900)));
             vm.IsReviewMode = true;
             (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1280, 900);
-            vm.ReviewPanel.ShowLabels();
-            vm.ReviewPanel.SelectLabelCommand.Execute(vm.ReviewPanel.Labels[0]);
+            review.Review!.ShowLabels();
+            review.Review.SelectLabelCommand.Execute(review.Review.Labels[0]);
             Playback2DTimelineHarness.Pump();
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-labels-editor.png"), new PngBitmapEncoderOptions());
-            await Assert.That(vm.ReviewPanel.HasEditor).IsTrue();
+            await Assert.That(review.Review.HasEditor).IsTrue();
             window.Close();
         });
 
@@ -300,24 +303,25 @@ public class ReviewPanelTests
     public async Task ThePanel_RendersHandMadeAndMachineWrittenLabelsApart() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             ctx.Push(1, 2);
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
-            vm.Tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
+            tags.Apply(new TagDelta.Add(Tag("A execute", 300, 700)));
             TagInstance accepted = Tag("Retake", 800, 900);
             accepted.Source = TagSources.Suggested;
             accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
             TagInstance run = Tag("Default", 100, 250);
             run.Source = TagSources.Suggested;
             run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
-            vm.Tags.Apply(new TagDelta.Add(accepted));
-            vm.Tags.Apply(new TagDelta.Add(run));
+            tags.Apply(new TagDelta.Add(accepted));
+            tags.Apply(new TagDelta.Add(run));
             vm.IsReviewMode = true;
             (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1280, 900);
-            vm.ReviewPanel.ShowLabels();
+            review.Review!.ShowLabels();
             Playback2DTimelineHarness.Pump();
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "review-labels-grouped.png"), new PngBitmapEncoderOptions());
-            await Assert.That(vm.ReviewPanel.MachineLabels.Count).IsEqualTo(2);
+            await Assert.That(review.Review.MachineLabels.Count).IsEqualTo(2);
             window.Close();
         });
 }

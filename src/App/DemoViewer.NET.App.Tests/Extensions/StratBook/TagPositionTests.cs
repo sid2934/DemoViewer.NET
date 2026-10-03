@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.AppTests.Extensions.StratBook;
+using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Playback2D.Core;
@@ -251,10 +253,11 @@ public class TagPositionTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             vm.IsReviewMode = true; // tagging and its lanes live in Review mode
             ctx.PushPlacedMarkers((0, 2, -800f, 600f, 64f, "Ramp"), (1, 3, 900f, -500f, 64f, "BombsiteA"));
-            await vm.Tags.AttachAsync(Demo, Clock, DemoPath);
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
             (Window window, Playback2DView view) =
                 Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
@@ -281,12 +284,12 @@ public class TagPositionTests
             window.KeyPressQwerty(PhysicalKey.C, RawInputModifiers.None);
             window.KeyPressQwerty(PhysicalKey.Digit3, RawInputModifiers.None); // Default: written at once
             Playback2DTimelineHarness.Pump();
-            await Assert.That(vm.IsTagPaletteFocused).IsTrue();
+            await Assert.That(review.IsPaletteFocused).IsTrue();
 
             Click(At(-790, 610));
             Click(At(890, -490));
 
-            TagInstance tag = vm.Tags.Document!.Instances.Single();
+            TagInstance tag = tags.Document!.Instances.Single();
             TagMovement? move = tag.Movements.SingleOrDefault();
             Console.WriteLine($"[tag-position] positions={tag.Positions.Count} movements={tag.Movements.Count} "
                               + $"from={move?.From.Place}@({move?.From.X:0},{move?.From.Y:0}) "
@@ -307,7 +310,7 @@ public class TagPositionTests
             window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
             Click(At(-790, 610));
-            await Assert.That(vm.Tags.Document!.Instances.Single().Positions).IsEmpty();
+            await Assert.That(tags.Document!.Instances.Single().Positions).IsEmpty();
 
             window.Close();
             vm.OnDeactivated();
