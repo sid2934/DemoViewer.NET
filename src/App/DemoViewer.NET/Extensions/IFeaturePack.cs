@@ -36,6 +36,14 @@ public interface IFeaturePack
     IEnumerable<FeatureDescriptor> Features { get; }
 
     /// <summary>
+    ///     The pack's keymap commands, read by <c>CommandRegistry</c> with no DI and no composition root:
+    ///     a bare-constructed view model (a headless test's <c>new Playback2DTabViewModel()</c>) resolves
+    ///     these the same as a fully composed app. Defaults to none, so a pack that contributes no commands
+    ///     need not override it.
+    /// </summary>
+    IEnumerable<CommandDescriptor> Commands => Array.Empty<CommandDescriptor>();
+
+    /// <summary>
     ///     Adds the pack's registrations. Unconditional: factories are lazy, and a registration that
     ///     depends on the gate would make turning the pack on without a restart impossible.
     /// </summary>
