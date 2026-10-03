@@ -783,8 +783,10 @@ and `Detach` disposes the three view models after writing the palette's pending 
 As built by item 20 (`Extensions/ScenePointer.cs`, `Extensions/ToolbarItem.cs`, `Extensions/IPlaybackSurface.cs`,
 `Modules/Playback2D/ISceneFrameHost.cs`, `Modules/Playback2D/Scene2DHost.cs`): `CurrentFrame`, `Zones` and
 `AddMapClickHandler` are gone from the surface, and so is the tab's `TryTagPositionAt` forwarder to
-`Surface.TryHandleMapClick`. `ISceneFrameHost` itself keeps `CurrentFrame` and `Zones` (the zone-outline overlay
-and the strat canvas's own `TryTagPositionAt` still read them) but trades its one-off `TryTagPositionAt(level,
+`Surface.TryHandleMapClick`. `ISceneFrameHost` itself keeps `CurrentFrame` and `Zones`: `Scene2DHost` still
+reads them directly, for the zone-outline overlay and to build each `ScenePointer` in `TryPrimaryPress` (the
+strat canvas's own `TryTagPositionAt` reads neither; it resolves places through `PlacesFor`). `ISceneFrameHost`
+trades its one-off `TryTagPositionAt(level,
 x, y)` for a default-`false` `TryPointerPreHandler(ScenePointer pointer)`; `Scene2DHost.OnPointerPressed` builds
 one `ScenePointer` per primary press not diverted to pan (Space, Ctrl, the middle button) and offers it to the
 bound host before the router. `Playback2DTabViewModel` forwards its `TryPointerPreHandler` to
@@ -802,13 +804,15 @@ it on every open, after the divider `Separator` (`IsVisible="{Binding Surface.Ha
 row's own divider is). `TryExecute` tries a `ModeToggle` whose `Action` matches first, then a `ToolbarItem`
 whose `Action` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
 and the keymap action are one funnel. The Situations contribution
-(`Extensions/StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers "Find rounds like this"
-with that funnel (`Playback2DAction.FindRoundsLikeThis`), its `Run` resolving `IFindRoundsLikeThis` through
-`context.GetService<T>()` as `TryFindRoundsLikeThis` used to from `App.Services`; the item is added only while
-`IModuleContext.MapName` is non-empty (checked at attach, for a live pack toggle with a demo already open, and
-on every `OnDemoChanged`) and removed when it closes, so "available only with a demo and a map name" is now
-presence, not just a silent refusal. Its label and tooltip read `IPlaybackSurface.GestureHint`, the same text
-`FindRoundsLikeThisLabel`/`FindRoundsLikeThisToolTip` built, and refresh on `KeymapChanged`. J/K
+(`Extensions/StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers the button's own text,
+"Rounds like this", as `Label` (icon `⌕`, restoring today's button face, which the menu entry does not carry)
+and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`Playback2DAction.FindRoundsLikeThis`);
+its `Run` resolves `IFindRoundsLikeThis` through `context.GetService<T>()` as `TryFindRoundsLikeThis` used to
+from `App.Services`. The item is added only while `IModuleContext.MapName` is non-empty (checked at attach,
+for a live pack toggle with a demo already open, and on every `OnDemoChanged`) and removed when it closes, so
+"available only with a demo and a map name" is now presence, not just a silent refusal. Label and tooltip read
+`IPlaybackSurface.GestureHint`, as `FindRoundsLikeThisLabel`/`FindRoundsLikeThisToolTip` did, and refresh on
+`KeymapChanged`. J/K
 (`NextSituationResult`/`PrevSituationResult`) move to the same contribution through `AddActionHandler` (item
 17's seam), gated by the Situations tab's own feature exactly as the tab gated them. The tab's `FindRounds`,
 `SituationResults`, `IsSituationResultWalkEnabled`, the two label/tooltip properties, `FindRoundsLikeThisCommand`,
