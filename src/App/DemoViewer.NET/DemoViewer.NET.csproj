@@ -18,15 +18,20 @@
     </ItemGroup>
 
     <!-- The built-in tag palette (tag-store.md §3.4), embedded for the same reason: TagPaletteStore reads it
-         through the parser and validator user drop-ins go through, so a first run can tag. -->
+         through the parser and validator user drop-ins go through, so a first run can tag. LogicalName
+         keeps the manifest name at its pre-move value (readers match by filename suffix, not by this
+         name, but the name is also a user-facing diagnostic label, via TagPaletteStoreTests). -->
     <ItemGroup>
-        <EmbeddedResource Include="Extensions\StratBook\Assets\Palettes\*.tagpalette.json"/>
+        <EmbeddedResource Include="Extensions\StratBook\Assets\Palettes\*.tagpalette.json"
+                          LogicalName="DemoViewer.NET.Services.Tags.Palettes.%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <!-- The canonical place names per shipped map (strat-model.md §3.7), embedded so a fresh install can
-         resolve callouts before any zones load. CanonicalPlaces reads them by manifest name. -->
+         resolve callouts before any zones load. CanonicalPlaces reads them by manifest name. Same
+         LogicalName reasoning as the tag palette above. -->
     <ItemGroup>
-        <EmbeddedResource Include="Extensions\StratBook\Assets\Callouts\*.places.json"/>
+        <EmbeddedResource Include="Extensions\StratBook\Assets\Callouts\*.places.json"
+                          LogicalName="DemoViewer.NET.Services.Strats.Callouts.%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <ItemGroup>
