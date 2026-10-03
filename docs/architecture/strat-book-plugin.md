@@ -823,9 +823,10 @@ library, with the pack on (M0), off at startup (9), and after an on-to-off toggl
 
 | State | Resident set after startup | Library index time | Notes |
 |---|---|---|---|
-| Pack on (M0, head at the time) | GC heap 368.7 MB immediately after settling (median of 5); drops to 323.5 MB after 90s more idle with no queue activity to explain it (median of 5), likely a .NET buffer-pool trim rather than app or pack behavior, since the isolated probe drops by the same amount with no app, no queue and no Avalonia at all | full 6-evaluator pass 14.5 s versus library+highlights-only 9.3 s, pooled median of 3 runs x 4 demos each (about 57% slower, a floor: see §12.1 on library's own asymmetry; run medians ranged 44 to 87%) | macOS arm64, Release, head f48f6695, 382-demo copy. `PrivateMemorySize64` reads 0 on this OS; see §12.1. |
-| Pack off at startup (9) | | | |
-| On, then off in session (9) | | | |
+| Pack on (M0, head f48f6695) | GC heap 368.7 MB immediately after settling (median of 5); drops to 323.5 MB after 90s more idle with no queue activity to explain it (median of 5), likely a .NET buffer-pool trim rather than app or pack behavior, since the isolated probe drops by the same amount with no app, no queue and no Avalonia at all | full 6-evaluator pass 14.5 s versus library+highlights-only 9.3 s, pooled median of 3 runs x 4 demos each (about 57% slower, a floor: see §12.1 on library's own asymmetry; run medians ranged 44 to 87%) | macOS arm64, Release, head f48f6695, 382-demo copy. `PrivateMemorySize64` reads 0 on this OS; see §12.1. |
+| Pack on, rerun (9, head 396495e1) | GC heap 369.9 MB immediately after settling (median of 5); after 90s more idle the drop M0 saw recurred in only 2 of 5 trials (down to ~324.6 MB, the same ~45 MB M0 measured), while the other 3 rose instead (to ~374.8 MB), so the late median (374.8 MB) sits above the early one | full 6-evaluator pass 13.5 s versus library+highlights-only-with-the-pack-still-on 7.7 s, one run x 4 demos each (about 76% slower). Not the pack-off comparison; see the pack-off row and §12.3 for that | macOS arm64, Release, head 396495e1 (code-identical to fa77bad5), fresh copy of the same 382-demo library |
+| Pack off at startup (9) | GC heap 29.6 MB immediately after settling (median of 5); 29.7 MB after 90s more idle (median of 5), essentially flat: no drift recurs when nothing of the pack ever decodes a sidecar. Working set 203.8 MB early / 202.4 MB late (median), but individual trials ranged 116 to 206 MB late, noise with no counterpart in the GC heap | library + highlights only, which is what `Wants()` resolves the full evaluator list to with the pack off: two runs over the same 8 demos, 9.2 s and 9.4 s median; `round_facts` confirmed excluded from the merged ruleset (`MergedRulesBuild.EnabledDoc("round_facts") is null`) | macOS arm64, Release, head 396495e1, fresh copy of the same library with `Features.Overrides["pack.stratbook"] = false` in settings.json |
+| On, then off in session (9) | GC heap: on 369.9 MB, then off 84.1 MB immediately after the release, then off 31.2 MB after 90s more idle (matching the pack-off-at-startup row's 29.6 MB within 1.6 MB), then on again 369.4 MB (medians of 3, real `IDemoProcessingQueue`). The 84.1 MB immediate figure is transient (gone after 90s idle; likely a pool trim), not retained pack state: once it settles, re-enabling costs about the same as the first enable, not more | not measured in session; the library+highlights-only figure is the pack-off row above | macOS arm64, Release, head 396495e1, same 382-demo copy as the pack-on rerun, pack on at boot, off and on again through `SettingsService.Write` + `PackSwitch` |
 
 ### 12.1 M0 method and numbers
 
@@ -1021,6 +1022,177 @@ deltas are directional, not quotable. The build saving is the one figure that he
 rule-chain event table is identical between A and B apart from the `round_facts` stat nodes (B lacks
 `money_reliable`), which is the goldens-do-not-move check at the bench level; the test-level check is
 `ForwardPassRealDemoTests` and `RoundFactsRealDemoTests` on the same corpus (9 passed, 2 skipped by design).
+
+### 12.3 Item 9: pack off at startup, and the in-session toggle
+
+Reproduced by `tools/strat-book-baseline/run.sh --state on|off|toggle` (new flags; `--state on` with no other
+change is M0's own invocation, still against a pack-on copy). The two new `StratBookPackBaselineTests`
+probes, `ResidentSetAfterStartup_PackOff` and `IndexingTimePerDemo_PackOff`, reuse M0's boot and snapshot
+code but settle on the gate instead of on the pack's readiness flags, which never go true when it is off; a
+third probe, `OnThenOffThenOn_InSession`, flips `Features.Overrides["pack.stratbook"]` through the real
+`SettingsService.Write` and `PackSwitch`, on the real `IDemoProcessingQueue` (not the Budget test's fake
+one), so awaiting `PackSwitch.Pending` waits for the actual "Strat Book: release memory" and startup-load
+items to run, not just for them to be submitted. Machine, build and library: same as M0 (macOS arm64,
+Release, 382 demos), head `396495e1` (code-identical to `fa77bad5`, the item 8/10 merge point; only
+`docs/strat-room/plan.md` sits between them). Fresh config copies, made the same way M0's was (the live
+config dir minus `lineup-clips/`, `logs/`, `crash.log`, `*.bak`, `.DS_Store`; the same five background
+flags forced off): one with no `pack.stratbook` override (resolves on, used for the "pack on, rerun" row's
+resident-set and index-time trials) and one with the override set to `false` (for the "pack off" row). A
+third, also with no override, was made after the toggle probe gained its `off-late` step (below) to rerun
+the toggle trials against the fixed code. Every copy and demo-list file was deleted after the run it was
+made for; nothing under `.scratch/` is tracked.
+
+**Resident set, pack off at startup**, 5 trials, same early/late shape as M0's probe:
+
+| Trial | Early working set | Early GC heap | Late working set | Late GC heap |
+|---|---|---|---|---|
+| 1 | 206.3 MB | 29.60 MB | 116.6 MB | 29.74 MB |
+| 2 | 204.7 MB | 29.58 MB | 205.7 MB | 29.72 MB |
+| 3 | 201.7 MB | 29.60 MB | 132.7 MB | 29.74 MB |
+| 4 | 201.5 MB | 29.62 MB | 202.4 MB | 29.75 MB |
+| 5 | 203.8 MB | 29.59 MB | 204.6 MB | 29.73 MB |
+| **median** | **203.8 MB** | **29.60 MB** | **202.4 MB** | **29.74 MB** |
+
+Committed bytes read 24.84 MB in every trial, early and late alike (the same "GC is not returning segments"
+pattern M0 saw, just at a tenth of the size). The GC heap barely moves at all (29.58 to 29.75 MB across all
+ten readings): M0's ~45 MB drop does not recur here, which fits M0's own buffer-pool theory, since a pack
+that never loads an index never decodes a gzipped sidecar in the first place, so there is nothing for
+`ArrayPool` to trim. The working set is a different story: trial 1 and 3 drop by 90 and 69 MB respectively,
+trials 2, 4 and 5 barely move. Trial 1's `@M0_QUEUE_OFF_T+Ns` log (the same 15s poll M0's probe writes)
+is empty throughout the 90s, so the drop there is not queue work; trials 2 to 5's logs were not inspected,
+only their early/late snapshot lines (`run_off_trials.sh` greps those). Working-set noise with no GC-heap
+counterpart matches the pre-existing bench-variance scar for this machine and is reported as noise, not a
+finding confirmed on every trial.
+
+**Resident set, pack on, rerun at this head**, 5 trials:
+
+| Trial | Early working set | Early GC heap | Late working set | Late GC heap |
+|---|---|---|---|---|
+| 1 | 417.1 MB | 369.87 MB | 422.2 MB | 374.84 MB |
+| 2 | 417.7 MB | 369.90 MB | 330.4 MB | 324.60 MB |
+| 3 | 420.5 MB | 369.91 MB | 423.1 MB | 374.86 MB |
+| 4 | 417.0 MB | 369.93 MB | 420.6 MB | 374.89 MB |
+| 5 | 415.4 MB | 369.90 MB | 353.5 MB | 324.57 MB |
+| **median** | **417.1 MB** | **369.90 MB** | **420.6 MB** | **374.84 MB** |
+
+The early GC heap (369.90 MB) matches M0's 368.7 MB closely, the small difference plausibly just the code
+that landed between M0 and here (items 1 to 8, 10, 19). The late figure is the surprise: M0 saw the ~45 MB
+drop in five of five trials; here it recurs in exactly two (trials 2 and 5, down to 324.6 MB, the same
+magnitude M0 measured), while the other three rise slightly instead (to ~374.8 to 374.9 MB). The late
+median therefore sits above the early median, the opposite of M0's table. Nothing about the probe changed
+between M0 and this rerun (same code path, same copy shape); the likeliest read is that the drop is a
+runtime-level buffer-pool trim gated by a timer or an unused-bucket threshold that this 90s window sometimes
+catches and sometimes does not, which is consistent with it being independent of the app (M0's own isolated
+probe) rather than deterministic. Treat M0's "always drops" framing as itself a small-sample artifact (5 of
+5 trials is not enough to rule out exactly this split happening the other way) rather than conclude the
+mechanism changed. One fact cuts the other way, though: the toggle probe's `off-late` reading below
+trimmed in all 3 of 3 trials, not 2 of 5. If both readings are catching the same timer, something kept on
+by the pack while it is running (nothing of the pack is attached in the pure pack-off boot, everything is
+attached in the pack-on boot this split happened under) may be what makes the trim land inconsistently
+here but reliably once the pack is off, rather than the trim itself being a coin flip.
+
+**Library index time, pack off**, 8 demos (library + highlights only; this is now the real evaluator list
+with the pack off, not a probe choosing a mode): 9453.8, 8936.9, 10233.9, 9030.8, 9401.9, 9613.2, 9147.7,
+9991.0 ms; median 9427.9 ms. `MergedRulesBuild.EnabledDoc("round_facts")` is null for the whole run,
+confirming item 2's split actually holds under the real gate, not just under `AnalysisBench`'s A/B in §12.2.
+
+**Library index time, pack on, rerun**, 4 demos full / 4 reduced (the same split M0 used, pack on
+throughout, so the reduced arm here still carries `round_facts`'s own compute cost per M0's original
+caveat): full median 13539.2 ms, reduced median 7688.8 ms (76% slower full, inside M0's 44 to 87% spread).
+
+**The pack-passes-add-X% figure, with a real after-state, and a noise caveat.** M0 could only compare
+"full" against a "reduced" arm that still ran `round_facts` internally (item 2 had not landed), so its 57%
+figure was always going to undercount. Comparing the pack-on rerun's full arm (13539.2 ms) against the
+pack-off row's second run (9427.9 ms, measured on a different 8 demos from the same size-median cluster,
+not the same ones, see "method deltas" below) gives 43.6% overhead, i.e. the pack's four evaluators plus
+Grenade Index's walk cost about 4111 ms per demo of this size on this machine, inside M0's spread. Treat it
+as a point estimate, not a tight bound: the pack-off row's two runs over the identical 8 demos landed at
+9162.8 ms and 9427.9 ms, 2.9% apart, but the pack-on rerun's reduced arm (still running `round_facts`
+internally, just not writing it) came in at 7688.8 ms, 1.47 to 1.74 s FASTER than the pack-off row despite
+doing strictly more work. Per §12.2 `round_facts` itself costs only a few percent, nowhere near 1.7 s, so
+demo-to-demo and SMB-read noise on this machine is at least as wide as the gap between 43.6%, M0's 57% and
+the in-run 44 to 87% spread; the 43.6% figure is a real improvement over M0's (a true pack-off denominator
+instead of one still carrying `round_facts`), but it is not more precise than M0's, just less biased.
+
+**On, then off, then on again, in one process**, 3 trials, real queue. The first pass through this probe
+(before it had an `off-late` step) measured on-before/off/on-again only and got a confusing result: off
+landed at 84.1 MB (54.5 MB above the pack-off-at-startup row's 29.6 MB) and on-again landed at a median of
+422.1 MB, 52.2 MB above on-before in two of three trials. Both looked like real pack costs. Adding a 90s
+idle wait and a second collect between "off" and the re-enable, the same window `ResidentSetAfterStartup`
+uses, resolves both:
+
+| Trial | on-before GC heap | off GC heap (immediate) | off GC heap (after 90s idle) | on-again GC heap |
+|---|---|---|---|---|
+| 1 | 370.17 MB | 84.41 MB | 31.47 MB | 369.73 MB |
+| 2 | 369.88 MB | 84.10 MB | 31.19 MB | 369.32 MB |
+| 3 | 369.86 MB | 84.10 MB | 31.21 MB | 369.44 MB |
+| **median** | **369.88 MB** | **84.10 MB** | **31.21 MB** | **369.44 MB** |
+
+**The 84.1 MB immediate figure is transient, not retained pack state.** After 90s of idle (no
+further gate changes, nothing else running) the same process's heap drops to 31.2 MB, 1.6 MB above the
+pack-off-at-startup row's 29.6 MB, close enough to call it the same floor; committed bytes drop with it, to
+a median of 24.7 MB, matching the pack-off-at-startup row's 24.8 MB almost exactly. This is the same ~45 to
+55 MB scale M0 attributed to a buffer-pool trim on decode, and the timing fits that reading (the release
+itself does the real work: `SituationIndex`, `GrenadeIndex` and Team Identity all report not ready/not
+loaded the instant the release item completes, before any idle wait), but the probe only shows that
+whatever lingers is gone within 90s, not what specifically holds it until then. Decision 3 ("no reclaimed
+on restart") holds either way: the heap does go back to where it was, just not within the first few
+seconds.
+
+**Re-enabling from a settled state costs about the same as the first enable, not more.** on-again (369.44
+MB median) sits 0.44 MB below on-before (369.88 MB), well inside the trial noise the pack-on rerun's own
+early/late split already showed (±45 to 50 MB with nothing but idle time passing). The earlier 3-trial
+run's "52.2 MB more to re-enable" is consistent with flipping the pack back on before the pool had
+trimmed, so the reload's own allocations landed on top of memory that was about to be freed anyway, but
+three trials against three cannot cleanly separate that from the same noise, only make it the likelier
+reading. `StratBookLiveToggleTests.OnThenOff_ReturnsTheHeap_ToWhereItWasBeforeTheEnable`
+(`[Category("Budget")]`, synthetic 160-demo fixture, fake `InlineQueue`, no idle wait between cycles)
+reports a sub-1-MB residual after its first off-on-off cycle; one plausible mechanism, not confirmed here,
+is a GC-triggered buffer-pool trim keyed to how long a rented buffer has sat unused, in which case three
+collects taken immediately would see only recently-rented buffers and free little, while a collect after
+90s would see the same buffers past whatever age threshold frees them, and the synthetic fixture rents
+little either way so its residual is small regardless of timing.
+Working set in the second pass (medians): on-before 415.0 MB, off 383.7 MB, off-late 171.4 MB, on-again
+379.7 MB. Off-late's working set is noisy in exactly the way the pack-off-at-startup row's was (this run's
+three trials: 218.3, 140.2 and 171.4 MB), the same GC-heap-flat-but-working-set-noisy pattern repeating.
+
+Library index time was not measured inside the toggle probe: the pack-off row above already answers "what
+does indexing cost with the pack off", and parsing demos inside the same process that the three resident
+readings share would pollute their JIT and GC history for no new number.
+
+**Method deltas from M0, and two things worth naming.** The index-time demo lists for the on-rerun and
+off rows are disjoint from EACH OTHER (no filename appears in both), both from the same size-median
+`match730_*` cluster M0 used (not M0's exact 8: the library has 381 to 382 entries depending on exactly
+when it is counted, and M0's doc did not record filenames, only the selection rule).
+
+1. A "Stale NFS file handle" on the `192.168.1.7` mount failed the on-rerun probe three times running,
+   each time on a different file (`...1162819269_392.dem` twice, then `...1246116093_405.dem`), neither
+   reproducing a `dd` read taken seconds apart on the same file; several demos already used successfully
+   in the pack-off run were also momentarily unreadable by `dd` during the same session, then readable
+   again, so this is believed transient, not a change anyone made. The fourth attempt, rebuilding the
+   whole list from a fresh `dd`-verified readable set, succeeded and is what the doc reports.
+2. That rebuild excluded every filename already in the off-row's list, but not the three earlier (failed)
+   versions of its own list, so 4 of its 9 lines came back around, each read 1 to 3 times before this
+   final pass: `...0380373016_406` (the discarded warm-up in all three failed attempts, scored "reduced"
+   here, 7295.2 ms) and `...1857131197_392` (scored "reduced" three times before, scored "reduced" again
+   here, 7676.5 ms) are the two FASTEST of the four reduced times, both faster than the two genuinely
+   fresh reduced demos (7701.2, 8949.0 ms), which does look like a real warm-cache effect and means the
+   reduced median (7688.8 ms) used above is probably a little low. `...0400436477_410` (scored "full"
+   three times before, "full" again here, 15357.5 ms) is the SLOWEST of the four full times, and
+   `...0155597527_407` (scored "reduced" once before, "full" here, 13340.7 ms) sits near the middle, so
+   the full arm shows no comparable speedup. Net effect: the 76% "full slower than reduced" figure for
+   the on-rerun likely overstates the gap a little (a fresh reduced arm would probably land above 7688.8
+   ms), which is a second, independent reason the 43.6% pack-passes figure above is a point estimate, not
+   a tight bound, on top of the demo-to-demo noise already named there.
+
+The off row's list, by contrast, was read twice on purpose (not a mistake): `IndexingTimePerDemo_PackOff`
+ran clean the first time too, giving two independent passes over the identical 9 lines, 9162.8 ms and
+9427.9 ms median, 2.9% apart. That agreement is a real same-list repeat-read comparison; the on-rerun's
+internal consistency cannot be read the same way; see the "pack-passes-add-X%" note above for why the two
+are then still compared across each other for the headline percentage. One run per state used for the
+reported numbers, two for the off row (not M0's three throughout): the time budget for this item did not
+stretch to three full index-time passes on top of ten resident-set trials, six toggle trials and a code
+change mid-session.
 
 ## 13. Repository layout (decision 5)
 
