@@ -7,6 +7,7 @@ using Avalonia.Reactive;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Library;
@@ -136,6 +137,20 @@ public class AppCompositionRootTests
             await Assert.That(coordinator.EvaluatorIds[4]).IsEqualTo("suggestedtags");
             // The grenade walk reads nothing the others write; last so it never delays one that does.
             await Assert.That(coordinator.EvaluatorIds[5]).IsEqualTo("grenades");
+
+            // The order above came from the registry's resolve, not a literal array: prove it actually
+            // built the four pack evaluators (the PackOff_* test proves the converse, that it does not,
+            // with the pack off), so this is not equally true of a coordinator with an empty pack list.
+            StratBookPackInstances instances =
+                provider.GetRequiredService<StratBookPackInstances>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(instances.RoundFacts).IsNotNull();
+                await Assert.That(instances.RoundIndex).IsNotNull();
+                await Assert.That(instances.SuggestedTags).IsNotNull();
+                await Assert.That(instances.GrenadeWalk).IsNotNull();
+            }
+
             await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
                 .IsSameReferenceAs(coordinator);
             await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Coordinator)
@@ -147,6 +162,39 @@ public class AppCompositionRootTests
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
                 .IsSameReferenceAs(coordinator);
         });
+    }
+
+    // The converse of the test above: with the pack off, the registry's gate keeps the four pack
+    // evaluators out of the resolved order, and their factories are never invoked, so the services
+    // themselves are never constructed. Resolving StratBookPackInstances only AFTER polling the
+    // coordinator (never GetRequiredService on a pack evaluator directly, which would construct it
+    // regardless of this test) is what makes this a proof rather than a tautology.
+    [Test]
+    public async Task EvaluatorFanOutOrder_WithThePackOff_IsOnlyLibraryAndHighlights_AndBuildsNothingPackOwned()
+    {
+        const string packOff = """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            Services.DemoProcessing.DemoEvaluationCoordinator coordinator =
+                provider.GetRequiredService<Services.DemoProcessing.DemoEvaluationCoordinator>();
+
+            await Assert.That(coordinator.EvaluatorIds).IsEquivalentTo(["library", "highlights"])
+                .Because("the pack is off: its four evaluators are never in the fan-out");
+
+            StratBookPackInstances instances =
+                provider.GetRequiredService<StratBookPackInstances>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(instances.RoundFacts).IsNull()
+                    .Because("the pack is off: Round Facts evaluator was never constructed, not merely excluded");
+                await Assert.That(instances.RoundIndex).IsNull()
+                    .Because("the pack is off: Round Index evaluator was never constructed, not merely excluded");
+                await Assert.That(instances.SuggestedTags).IsNull()
+                    .Because("the pack is off: Suggested Tags service was never constructed, not merely excluded");
+                await Assert.That(instances.GrenadeWalk).IsNull()
+                    .Because("the pack is off: Grenade Index evaluator was never constructed, not merely excluded");
+            }
+        }, packOff);
     }
 
     // Wired end to end: with the pack off, the real container's own factories (not a test double) leave
