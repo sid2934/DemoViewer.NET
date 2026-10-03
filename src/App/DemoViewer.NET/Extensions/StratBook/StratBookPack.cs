@@ -714,6 +714,7 @@ public sealed class StratBookPack : IFeaturePack
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
         contributions.Playback(new CreateStratPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
+        contributions.Playback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator

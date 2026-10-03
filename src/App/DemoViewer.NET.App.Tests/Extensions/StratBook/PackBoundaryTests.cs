@@ -36,14 +36,13 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/App.axaml.cs", "DemoViewer.NET.ViewModels.Teams", "composition root"),
         // The default pack list the heads hand the composition root; the heads name the packs themselves at item 29.
         ("src/App/DemoViewer.NET/Extensions/FeaturePacks.cs", "DemoViewer.NET.Extensions.StratBook", "composition root"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Palette", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Review", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Timeline", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.Situations", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 15"),
+        // The tag and proposal lanes (TagTrack, ProposalTrack, the TagSession they read) stay registered by
+        // the tab until item 18 moves them into lane contributions.
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.RoundTagger.Timeline", "item 18"),
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.SuggestedTags", "item 18"),
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Tags", "item 18"),
+        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Modules.Situations", "item 20"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.RoundFacts", "item 15"),
-        ("src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs", "DemoViewer.NET.Services.Tags", "item 15"),
         ("src/App/DemoViewer.NET/Modules/Playback2D/Timeline/RoundTrack.cs", "DemoViewer.NET.Services.RoundFacts", "item 2"),
         ("src/App/DemoViewer.NET/Services/Review/ReviewQueue.cs", "DemoViewer.NET.Services.Tags", "item 25"),
         ("src/App/DemoViewer.NET/Services/Zones/AssetZonePlaceResolverSource.cs", "DemoViewer.NET.Services.RoundIndex", "item 25"),
@@ -57,7 +56,6 @@ public class PackBoundaryTests
         ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.Services.Provenance", "item 22"),
         ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.Services.Teams", "item 22"),
         ("src/App/DemoViewer.NET/ViewModels/Library/LibraryTabViewModel.cs", "DemoViewer.NET.ViewModels.Teams", "item 22"),
-        ("src/App/DemoViewer.NET/Views/Playback2D/Playback2DView.axaml", "DemoViewer.NET.Modules.RoundTagger", "item 17"),
     ];
 
     [Test]

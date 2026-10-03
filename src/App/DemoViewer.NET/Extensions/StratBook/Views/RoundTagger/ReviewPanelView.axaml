@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:rt="using:DemoViewer.NET.Views.RoundTagger"
+             xmlns:rv="using:DemoViewer.NET.Modules.RoundTagger.Review"
+             x:Class="DemoViewer.NET.Views.RoundTagger.ReviewPanelView"
+             x:DataType="rv:ReviewPanelViewModel">
+
+    <!-- Review mode's panel in the 2D Playback right column: the Suggested / Labels toggle, the one editor
+         over both lists, and the Labels list. The Tag Palette sits above it and the Suggestion Queue below
+         it as their own contributed panels; this one owns the editor they share. -->
+    <UserControl.Styles>
+        <!-- The selected row reads as selected by its border, not by tint alone. -->
+        <Style Selector="Button.tagRow.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource Pb2dPositive}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel>
+        <!-- The two review lists: the suggestions still waiting for a verdict, and the labels written. -->
+        <Grid Margin="0,2,0,4" ColumnDefinitions="*,*" ColumnSpacing="4">
+            <ToggleButton Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Focusable="False" FontSize="11" Content="{Binding Queue.HeaderText}"
+                          IsChecked="{Binding IsSuggestedTab, Mode=TwoWay}"
+                          IsVisible="{Binding IsSuggestedAvailable}" />
+            <ToggleButton Grid.Column="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Focusable="False" FontSize="11" Content="{Binding LabelsHeader}"
+                          IsChecked="{Binding IsLabelsTab, Mode=TwoWay}"
+                          IsVisible="{Binding IsLabelsAvailable}" />
+        </Grid>
+
+        <!-- The editor over a suggestion, a written label or a new one. -->
+        <ContentControl Margin="0,0,0,4" Content="{Binding ActiveEditor}" IsVisible="{Binding HasEditor}">
+            <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="rv:TagEditorViewModel">
+                    <rt:TagEditorView />
+                </DataTemplate>
+            </ContentControl.ContentTemplate>
+        </ContentControl>
+
+        <StackPanel Spacing="4" Margin="0,0,0,2" IsVisible="{Binding IsLabelsListShown}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="Label this round" Padding="6,1" FontSize="11" Focusable="False"
+                        Command="{Binding LabelRoundCommand}" IsEnabled="{Binding CanLabel}"
+                        ToolTip.Tip="A label over the whole round under the playhead; pick its code" />
+                <Button Content="Label here" Padding="6,1" FontSize="11" Focusable="False"
+                        Command="{Binding LabelHereCommand}" IsEnabled="{Binding CanLabel}"
+                        ToolTip.Tip="A label starting at the playhead; set its end and code" />
+            </StackPanel>
+            <TextBlock Text="no labels on this demo yet" FontSize="10" IsVisible="{Binding !HasLabels}"
+                       Foreground="{DynamicResource Pb2dTextDim}" />
+            <!-- Hand-made labels first; what the app wrote (accepted suggestions, strat runs) apart. -->
+            <TextBlock Text="{Binding HandHeader}" FontSize="10" Margin="0,4,0,0" IsVisible="{Binding HasHandLabels}"
+                       Foreground="{DynamicResource Pb2dTextMid}" />
+            <ItemsControl ItemsSource="{Binding HandLabels}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="rv:TagRowViewModel">
+                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                Padding="6,3" Margin="0,0,0,2" Focusable="False"
+                                Background="{DynamicResource Pb2dPanelBg}"
+                                Classes="tagRow" Classes.selected="{Binding IsSelected}"
+                                Command="{Binding $parent[ItemsControl].((rv:ReviewPanelViewModel)DataContext).SelectLabelCommand}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Spacing="1">
+                                <TextBlock FontSize="11">
+                                    <Run Text="{Binding Title}" Foreground="{DynamicResource Pb2dTextBrightest}" />
+                                    <Run Text="{Binding RoundText}" Foreground="{DynamicResource Pb2dTextDim}" />
+                                    <Run Text="{Binding ClockText}" Foreground="{DynamicResource Pb2dTextDim}" />
+                                    <Run Text="{Binding SourceText}" Foreground="{DynamicResource Pb2dTextMid}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding LabelsText}" FontSize="10" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Pb2dTextMid}" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding MachineHeader}" FontSize="10" Margin="0,4,0,0" IsVisible="{Binding HasMachineLabels}"
+                       Foreground="{DynamicResource Pb2dTextMid}" />
+            <ItemsControl ItemsSource="{Binding MachineLabels}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="rv:TagRowViewModel">
+                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                Padding="6,3" Margin="0,0,0,2" Focusable="False"
+                                Background="{DynamicResource Pb2dPanelBg}"
+                                Classes="tagRow" Classes.selected="{Binding IsSelected}"
+                                Command="{Binding $parent[ItemsControl].((rv:ReviewPanelViewModel)DataContext).SelectLabelCommand}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Spacing="1">
+                                <TextBlock FontSize="11">
+                                    <Run Text="{Binding Title}" Foreground="{DynamicResource Pb2dTextBrightest}" />
+                                    <Run Text="{Binding RoundText}" Foreground="{DynamicResource Pb2dTextDim}" />
+                                    <Run Text="{Binding ClockText}" Foreground="{DynamicResource Pb2dTextDim}" />
+                                    <Run Text="{Binding SourceText}" Foreground="{DynamicResource Pb2dTextMid}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding LabelsText}" FontSize="10" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Pb2dTextMid}" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

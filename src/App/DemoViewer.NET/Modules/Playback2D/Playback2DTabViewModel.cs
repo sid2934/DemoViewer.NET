@@ -18,9 +18,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
-using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.SuggestedTags;
@@ -134,14 +131,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // through the same IsAvailable the timeline band asks: one answer, not two that can disagree.
     private readonly RoundTrack _roundTrack = new();
 
-    // The open demo's tags and their lane on the timeline (tag-store.md §3.11). The tab owns the session
-    // because the Tag Palette docks here; the Round Tagger module contributes no surface of its own to
-    // the 2D tab. One session per tab: the store's CheckOut is single-writer.
+    // The open demo's tags and their lane on the timeline (tag-store.md §3.11). One session per tab: the
+    // store's CheckOut is single-writer. The pack's review panels edit through it; the session and the
+    // lane stay here until item 18 registers the lanes through the pack.
     private readonly TagSession _tagSession;
     private readonly TagTrack _tagTrack;
 
-    // Suggested Tags' pending proposals on the tag lane and the queue that reviews them, docked under the
-    // palette (suggested-tags.md §3.6). The queue owns the set; the track mirrors its pending proposals.
+    // Suggested Tags' pending proposals on the tag lane (suggested-tags.md §3.6). The pack's queue owns the
+    // set and mirrors it onto this track; registered here until item 18.
     private readonly ProposalTrack _proposalTrack = new();
 
     // Cached round facts, the winner tint's source on a Valve demo (which carries no round_end). Resolved
@@ -380,48 +377,27 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // No container means session-only tags, the annotation rule. The track re-queries on every
         // session version bump, posted to the UI thread because a save can raise Changed off it. Round
-        // Facts gives a new tag its round's facts as it is made.
+        // Facts gives a new tag its round's facts as it is made. The session and both lane tracks stay
+        // here until item 18 registers them through the pack; the review panels reach them through
+        // Surface.Timeline.RegisteredTracks.
         DemoCacheStore? cache = TryResolve<DemoCacheStore>();
         _tagSession = new TagSession(TryResolve<TagStore>(), path => cache?.TryLoadRecord(path)?.Rounds, _roundFacts);
         _tagTrack = new TagTrack(_tagSession, static action => Dispatcher.UIThread.Post(action));
         Timeline.RegisterTrack(_tagTrack, TimelineBandRow.Lane);
 
-        // The Tag Palette docks here and edits through the same session. The playhead it tags at is the
-        // shared clock's tick, the annotation panel's source; its button colours become the track's.
-        TagPalette = new TagPaletteViewModel(_tagSession, TryResolve<TagPaletteStore>(),
-            () => _context?.CurrentTick ?? CurrentFrame.Time.Tick, () => _context?.TickRate ?? 64,
-            static action => Dispatcher.UIThread.Post(action));
-        TagPalette.SelectPalette(Settings()?.Current.Playback2D.TagPaletteId);
-        TagPalette.PaletteChosen += SaveTagPaletteSetting;
-        _tagTrack.CodeColour = code => TagPalette.Palette.ColourOf(code);
-
         // The Suggested track sits on the tag lane after the tags, so an accepted proposal moves from
         // one band to the other in place. Its three confidence steps take theme tokens, never literals.
         _proposalTrack.StepColour = ProposalStepColour;
         Timeline.RegisterTrack(_proposalTrack, TimelineBandRow.Lane);
-        SuggestionQueue = new SuggestionQueueViewModel(TryResolve<SuggestedTagsService>(), _proposalTrack,
-            tick => _context?.RequestSeekToTick(tick), () => _context?.TickRate ?? 64,
-            static action => Dispatcher.UIThread.Post(action),
-            () => Settings()?.Current.Playback2D.SuggestedTagsBackground ?? false,
-            SaveSuggestedTagsBackground);
 
-        // Review mode's panel: the Suggested and Labels tabs and the one editor over both.
-        ReviewPanel = new ReviewPanelViewModel(_tagSession, SuggestionQueue, TagPalette,
-            () => _context?.CurrentTick ?? CurrentFrame.Time.Tick, () => _context?.TickRate ?? 64,
-            tick => _context?.RequestSeekToTick(tick));
-
-        // Review mode's lane editing: the open editor's span drawn with handles, a click on empty lane to start a
-        // label, and the right-click menu on a lane band.
-        ReviewPanel.PropertyChanged += OnReviewPanelChanged;
-        Timeline.EditSpanDragged += OnEditSpanDragged;
-        Timeline.LaneLabelRequested += OnLaneLabelRequested;
-        Timeline.BandMenus.Add(LaneMenuFor);
-        _tagSession.Changed += RefreshLaneEditing;
-
-        // The packs' surface: their band menus join the timeline's contributors after the lane menu above,
-        // their side panes take the export pane's place, and opening one closes the export.
-        Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke());
+        // The packs' surface: their band menus join the timeline's contributors, their side panes take the
+        // export pane's place (opening one closes the export), and their right-column panels show under
+        // the player cards in Review mode. The surface reads the gate, the mode, the frame and the zones
+        // live from here.
+        Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke(),
+            id => _features?.IsEnabled(id) ?? true, () => IsReviewMode, () => CurrentFrame, () => Zones);
         Surface.SidePaneOpened += CloseExport;
+        Surface.PanelsChanged += RaiseReviewMode;
 
         // Review mode starts as the user left it (off on a first run): the lanes follow it from here.
         _isReviewMode = Settings()?.Current.Playback2D.ReviewMode ?? false;
@@ -430,7 +406,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
-        Timeline.BandPressed += OnTimelineBandPressed;
 
         LoadLevelSettings();
         LevelStrip.SettingsChanged += SaveLevelSettings;
@@ -562,8 +537,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     internal Func<IReadOnlyList<MapLevel>>? CaptureLevelsSource { get; set; }
 
     /// <summary>
-    ///     What the packs attach to: band-menu contributors and side panes. The view binds the side-pane
-    ///     host to <see cref="Playback2DSurface.SidePane" />.
+    ///     What the packs attach to: band-menu contributors, side panes, right-column panels, key and action
+    ///     handlers. The view binds the side-pane host to <see cref="Playback2DSurface.SidePane" /> and the
+    ///     right column's panel host to <see cref="Playback2DSurface.Panels" />.
     /// </summary>
     public Playback2DSurface Surface { get; }
 
@@ -707,16 +683,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Annotations.Dispose();
         _annotationTrack.Dispose();
         _annotationController.Dispose();
-        TagPalette.PaletteChosen -= SaveTagPaletteSetting;
-        TagPalette.Finish();
-        TagPalette.Dispose();
+
+        // Detaching removes every contributed pane and panel, which closes and disposes the open ones; it
+        // runs before the session goes so a panel's pending edit still has a document to land in.
+        _contributionBinding?.Dispose();
+        _contributionBinding = null;
         _tagTrack.Dispose();
-        ReviewPanel.PropertyChanged -= OnReviewPanelChanged;
-        Timeline.EditSpanDragged -= OnEditSpanDragged;
-        Timeline.LaneLabelRequested -= OnLaneLabelRequested;
-        _tagSession.Changed -= RefreshLaneEditing;
-        ReviewPanel.Dispose();
-        SuggestionQueue.Dispose();
         _tagSession.Dispose(); // detaches, which flushes
 
         // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
@@ -726,12 +698,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _exportJob?.Dispose();
         _exportJob = null;
 
-        // Detaching removes every contributed pane, which closes an open one; the tab's own close covers a
-        // pane left by a contribution that did not.
-        _contributionBinding?.Dispose();
-        _contributionBinding = null;
+        // The tab's own close covers a side pane left by a contribution that did not.
         Surface.CloseSidePane();
         Surface.SidePaneOpened -= CloseExport;
+        Surface.PanelsChanged -= RaiseReviewMode;
     }
 
     public void OnActivated(IModuleContext context)
@@ -788,8 +758,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
         // fire-and-forget write races the process exit.
         _annotationController.Flush();
-        TagPalette.Leave(); // a tag still waiting for its labels is written, not dropped
-        _tagSession.Flush();
+        _tagSession.Flush(); // a tag a panel is still making is written through Flushing, not dropped
 
         // A contributed pane in progress (a Create Strat review mid-walk) is dropped: nothing was saved, and
         // the tab may come back to another demo.
@@ -1419,21 +1388,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public TagSession Tags => _tagSession;
 
-    /// <summary>The Tag Palette docked in this tab. Always built; <see cref="IsTagPaletteEnabled" /> decides whether it shows.</summary>
-    public TagPaletteViewModel TagPalette { get; }
-
-    /// <summary>Whether the <c>playback2d.tagger</c> feature is on. Fail-open, live; see <see cref="IsTimelineEnabled" />.</summary>
-    public bool IsTagPaletteEnabled => _features?.IsEnabled(RoundTaggerModule.PaletteFeatureId) ?? true;
-
-    /// <summary>Whether the palette has the keyboard: its keys then shadow the tab's (overview correction 21).</summary>
-    public bool IsTagPaletteFocused => ShowTagPalette && TagPalette.IsFocused;
-
     private bool _isReviewMode;
 
     /// <summary>
-    ///     Review mode: the tag palette, the suggestion queue and the tag and suggestion lanes show, the player
+    ///     Review mode: the contributed review panels and the tag and suggestion lanes show, the player
     ///     cards collapse to a strip, and the tagging keys act. Off, the tab is plain playback and every
     ///     tagging key is unhandled, so a stray N cannot reject a suggestion no one can see. Persisted.
+    ///     The mode is the tab's until item 18 makes it the pack's; the panels hear it through
+    ///     <see cref="IPlaybackSurface.ReviewModeChanged" />.
     /// </summary>
     public bool IsReviewMode
     {
@@ -1446,37 +1408,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             }
 
             _isReviewMode = value;
-            if (!value)
-            {
-                // Leaving writes a tag in progress rather than stranding it, and drops the selection that
-                // held J and K for the queue.
-                if (TagPalette.IsFocused)
-                {
-                    TagPalette.Leave();
-                }
-
-                SuggestionQueue.Selected = null;
-                ReviewPanel.SelectedLabel = null;
-                ReviewPanel.CloseEditorCommand.Execute(null);
-            }
-
             ApplyReviewModeToTimeline();
+            Surface.NotifyReviewModeChanged();
             SaveReviewModeSetting(value);
             RaiseReviewMode();
         }
     }
 
-    /// <summary>Review mode's panel: the Suggested and Labels tabs and the editor.</summary>
-    public ReviewPanelViewModel ReviewPanel { get; }
-
-    /// <summary>Whether Review mode has anything to show: either tagging gate is on. The toolbar hides the toggle otherwise.</summary>
-    public bool IsReviewAvailable => IsTagPaletteEnabled || IsSuggestedTagsEnabled;
-
-    /// <summary>The palette shows: its gate is on and the tab is in Review mode.</summary>
-    public bool ShowTagPalette => IsTagPaletteEnabled && IsReviewMode;
-
-    /// <summary>The suggestion queue shows: its gate is on and the tab is in Review mode.</summary>
-    public bool ShowSuggestionQueue => IsSuggestedTagsEnabled && IsReviewMode;
+    /// <summary>Whether Review mode has anything to show: a contributed panel whose gate is on. The toolbar hides the toggle otherwise.</summary>
+    public bool IsReviewAvailable => Surface.HasPanels;
 
     /// <summary>The player cards draw as a compact strip, leaving the column to the review panels.</summary>
     public bool IsCardStrip => IsReviewMode && IsReviewAvailable;
@@ -1485,169 +1425,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     {
         OnPropertyChanged(nameof(IsReviewMode));
         OnPropertyChanged(nameof(IsReviewAvailable));
-        OnPropertyChanged(nameof(ShowTagPalette));
-        OnPropertyChanged(nameof(ShowSuggestionQueue));
         OnPropertyChanged(nameof(IsCardStrip));
-        OnPropertyChanged(nameof(IsTagPaletteFocused));
     }
 
     // The tag and suggestion lanes are Review mode's: hidden by mode, never by the user's own toggle.
+    // Suppression by track id stays here with the registration (item 18).
     private void ApplyReviewModeToTimeline()
     {
         Timeline.SetTrackSuppressed(TagTrack.TrackId, !IsReviewMode);
         Timeline.SetTrackSuppressed(ProposalTrack.TrackId, !IsReviewMode);
-        RefreshLaneEditing();
-    }
-
-    private TagEditorViewModel? _spanEditor;
-
-    private void RefreshLaneEditing()
-    {
-        Timeline.IsLaneEditable = IsReviewMode && ShowTagPalette && _tagSession.Document is not null;
-        UpdateEditSpan();
-    }
-
-    private void OnReviewPanelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(ReviewPanelViewModel.ActiveEditor))
-        {
-            return;
-        }
-
-        if (_spanEditor is not null)
-        {
-            _spanEditor.PropertyChanged -= OnSpanEditorChanged;
-        }
-
-        _spanEditor = ReviewPanel.ActiveEditor;
-        if (_spanEditor is not null)
-        {
-            _spanEditor.PropertyChanged += OnSpanEditorChanged;
-        }
-
-        UpdateEditSpan();
-    }
-
-    private void OnSpanEditorChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(TagEditorViewModel.CurrentSpan))
-        {
-            UpdateEditSpan();
-        }
-    }
-
-    // The open editor's span as frames on the lane, or nothing outside Review mode or with no editor.
-    private void UpdateEditSpan()
-    {
-        if (!IsReviewMode || _context is not { } ctx || ReviewPanel.ActiveEditor?.CurrentSpan is not { } span)
-        {
-            Timeline.SetEditSpan(null);
-            return;
-        }
-
-        int start = ctx.FrameIndexAtTick(span.From);
-        int end = ctx.FrameIndexAtTick(span.To);
-        Timeline.SetEditSpan(start < 0 ? null : (start, end < 0 ? Math.Max(start, ctx.TotalFrames - 1) : end));
-    }
-
-    private void OnEditSpanDragged(int startFrame, int endFrame)
-    {
-        if (ReviewPanel.ActiveEditor is { } editor)
-        {
-            editor.SetSpan(TickAtFrame(startFrame), TickAtFrame(endFrame));
-        }
-    }
-
-    private void OnLaneLabelRequested(int frame)
-    {
-        if (!IsReviewMode)
-        {
-            return;
-        }
-
-        int tick = TickAtFrame(frame);
-        int rate = _context?.TickRate ?? 64;
-        ReviewPanel.NewTag(tick, tick + 10 * (rate > 0 ? rate : 64), "New label");
-    }
-
-    // The labels or suggestions in a lane band, each with what can be done to it. The timeline's first
-    // band-menu contributor; a lane contribution takes it over in item 18.
-    private IEnumerable<MenuEntry> LaneMenuFor(TimelineBandViewModel band)
-    {
-        List<MenuEntry> entries = [];
-        if (!IsReviewMode || _timelineData is not { } data)
-        {
-            return entries;
-        }
-
-        if (band.TrackId == TagTrack.TrackId && _tagSession.Document is { } document)
-        {
-            foreach (Guid id in _tagTrack.InstancesInRun(data, band.StartFrameIndex))
-            {
-                if (document.Instances.FirstOrDefault(i => i.Id == id) is not { } instance)
-                {
-                    continue;
-                }
-
-                string name = instance.Round is { } round ? $"{instance.Code} (round {round})" : instance.Code;
-                entries.Add(new MenuEntry($"Edit {name}", () => ReviewPanel.EditTag(id)));
-                entries.Add(new MenuEntry($"Delete {name}", () => DeleteTag(id)));
-            }
-        }
-        else if (band.TrackId == ProposalTrack.TrackId)
-        {
-            foreach (string id in _proposalTrack.ProposalsInRun(data, band.StartFrameIndex))
-            {
-                string pick = id;
-                entries.Add(new MenuEntry($"Review {id}", () =>
-                {
-                    ReviewPanel.IsSuggestedTab = true;
-                    SuggestionQueue.SelectFromTrack([pick]);
-                }));
-            }
-        }
-
-        return entries;
-    }
-
-    private void DeleteTag(Guid id)
-    {
-        try
-        {
-            _tagSession.Apply(new TagDelta.Remove(id));
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            // Already gone: nothing to delete.
-        }
-    }
-
-    // The frame clock's inverse: the first tick whose frame index reaches the frame. Frame indices rise with
-    // ticks, so a binary search over the parse's tick range finds it.
-    private int TickAtFrame(int frame)
-    {
-        if (_context is not { } ctx)
-        {
-            return 0;
-        }
-
-        int lo = ctx.FirstTick;
-        int hi = ctx.LastTick > lo ? ctx.LastTick : lo + frame * 2 + 2;
-        while (lo < hi)
-        {
-            int mid = lo + (hi - lo) / 2;
-            int at = ctx.FrameIndexAtTick(mid);
-            if (at >= 0 && at >= frame)
-            {
-                hi = mid;
-            }
-            else
-            {
-                lo = mid + 1;
-            }
-        }
-
-        return lo;
     }
 
     private static void SaveReviewModeSetting(bool on)
@@ -1661,40 +1447,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             // A read-only config directory must not take the toggle down.
         }
     }
-
-    /// <summary>
-    ///     The palette's turn at a key, taken by the View BEFORE the tab's own keymap: its palette-scoped
-    ///     rows, then the open panel's hotkeys. False when the palette does not have focus or nothing in
-    ///     it claims the key, and the key then resolves through <see cref="Keymap" /> as usual.
-    /// </summary>
-    /// <param name="key">The key.</param>
-    /// <param name="modifiers">The modifiers held.</param>
-    public bool TryHandleTagPaletteKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
-        IsTagPaletteFocused && TagPalette.TryHandleKey(key, modifiers);
-
-    /// <summary>The Suggested Tags queue docked under the palette. Always built; <see cref="IsSuggestedTagsEnabled" /> decides whether it shows.</summary>
-    public SuggestionQueueViewModel SuggestionQueue { get; }
-
-    /// <summary>Whether <c>playback2d.suggestedtags</c> is on for this user. Ungated (true) without a feature source.</summary>
-    public bool IsSuggestedTagsEnabled => _features?.IsEnabled(SuggestedTagsService.FeatureId) ?? true;
-
-    /// <summary>
-    ///     The queue's turn at a key, taken by the View after the palette's and BEFORE the tab's own keymap:
-    ///     the keymap's <see cref="Playback2DBindingScope.WhenSuggestionSelected" /> rows, which only exist
-    ///     while a proposal is selected. That is how J and K walk the queue then and the Situations result
-    ///     set otherwise. False when nothing is selected or no row there matches.
-    /// </summary>
-    /// <param name="key">The key.</param>
-    /// <param name="modifiers">The modifiers held.</param>
-    public bool TryHandleSuggestionKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
-        ShowSuggestionQueue && SuggestionQueue.HasSelection
-                               && Keymap.TryResolveInScope(Playback2DBindingScope.WhenSuggestionSelected, key, modifiers,
-                                   out Playback2DAction action)
-                               && SuggestionQueue.Execute(action);
-
-    // The queue shows the demo the tag session holds, or nothing while the gate is off.
-    private void AttachSuggestionsTo(string? demoPath, string? sha256) =>
-        SuggestionQueue.Attach(IsSuggestedTagsEnabled ? demoPath : null, sha256);
 
     // The Suggested track's steps as theme tokens at the lane's wash alpha: the track hands back ARGB and
     // never names a colour. Off the UI thread (a test's layout) the track's own washes stand.
@@ -1716,11 +1468,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     A left click on the map while the palette has focus (Click To Tag Position): the point, on the
-    ///     clicked pane's floor at the playhead, goes on the tag being made or the last one written. The
-    ///     place comes from this map's zones when it has them, else from the nearest pawn on that floor in
-    ///     the frame on screen (<see cref="TagPositionResolver" />). False when the palette does not have
-    ///     focus or there is no tag to put the point on, and the press then goes to the pointer tools.
+    ///     A left click on the map, offered to the contributions before the pointer tools (Click To Tag
+    ///     Position lives in the pack): the point on the clicked pane's floor. False when none takes it, and
+    ///     the press then goes to the pointer tools. Item 20 moves this behind a pointer pre-handler.
     /// </summary>
     /// <param name="level">The floor the clicked pane shows.</param>
     /// <param name="worldX">World X of the click.</param>
@@ -1728,61 +1478,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public bool TryTagPositionAt(MapLevel level, double worldX, double worldY)
     {
         ArgumentNullException.ThrowIfNull(level);
-        bool toEditor = IsReviewMode && ReviewPanel.HasEditor;
-        if (!toEditor && (!IsTagPaletteFocused || TagPalette.IsEditingNote))
-        {
-            return false;
-        }
-
-        Scene2DFrame frame = CurrentFrame;
-        int tick = _context?.CurrentTick ?? frame.Time.Tick;
-        TagPosition position = TagPositionResolver.Resolve(worldX, worldY, level, tick, Zones, frame.Markers);
-
-        // An open editor takes the click: the position goes on the tag being edited, not on the last one written.
-        return toEditor ? ReviewPanel.AddPosition(position) : TagPalette.AttachPosition(position);
-    }
-
-    // The gate folds into the palette's focus: gated off, the palette cannot keep the keyboard, and a tag
-    // it was making is written rather than stranded behind a hidden panel.
-    // Outside Review mode C does nothing: the palette is not on screen, and entering the mode is Shift+R's.
-    private bool ToggleTagPaletteFocus()
-    {
-        if (!ShowTagPalette)
-        {
-            return false;
-        }
-
-        if (TagPalette.IsFocused)
-        {
-            TagPalette.Leave();
-            return true;
-        }
-
-        return TagPalette.Focus();
-    }
-
-    private void SaveTagPaletteSetting(string id)
-    {
-        try
-        {
-            Settings()?.Write(s => s.Playback2D.TagPaletteId = id);
-        }
-        catch (Exception)
-        {
-            // A read-only config directory must not take the palette down over which palette it shows.
-        }
-    }
-
-    private static void SaveSuggestedTagsBackground(bool on)
-    {
-        try
-        {
-            Settings()?.Write(s => s.Playback2D.SuggestedTagsBackground = on);
-        }
-        catch (Exception)
-        {
-            // A read-only config directory keeps the sweep's state for the session.
-        }
+        return Surface.TryHandleMapClick(level, worldX, worldY);
     }
 
     // Binds the tag session to whatever demo the context is on. Fire-and-forget like the annotations:
@@ -1798,8 +1494,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        // A tag the palette was still making belongs to the demo it was made on: written before the swap.
-        TagPalette.Leave();
+        // A tag a panel was still making belongs to the demo it was made on: AttachAsync flushes first.
         _ = AttachTagsAsync(ctx, ctx.DemoPath).ContinueWith(static _ => { }, TaskScheduler.Default);
     }
 
@@ -1814,10 +1509,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
 
         await _tagSession.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
-
-        // The queue follows the tags: same demo, same hash, which keys its verdicts before the library
-        // has hashed the file.
-        AttachSuggestionsTo(demoPath, demo.Sha256);
     }
 
     private static string[] BuildMyWeaponsPaths()
@@ -2070,6 +1761,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return false;
         }
 
+        // A contributed panel holding the keyboard sees every action first (undo and redo are its
+        // document's); otherwise the contributions get what the tab leaves unhandled, in the default arm.
+        bool offered = Surface.HasKeyboard;
+        if (offered && Surface.TryExecute(action))
+        {
+            return true;
+        }
+
         switch (action)
         {
             case Playback2DAction.TogglePlay:
@@ -2191,15 +1890,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 return true;
             }
 
-            // One history per document kind, resolved by focus (tag-store.md §3.9): while the palette has
-            // the keyboard, undo and redo are the tags'.
-            case Playback2DAction.Undo when IsTagPaletteFocused:
-                TagPalette.Finish();
-                return _tagSession.Undo();
-
-            case Playback2DAction.Redo when IsTagPaletteFocused:
-                return _tagSession.Redo();
-
+            // One history per document kind, resolved by focus (tag-store.md §3.9): a focused panel took
+            // its undo and redo above; here they are the annotations'.
             case Playback2DAction.Undo:
                 if (!IsAnnotationsEnabled || !Annotations.CanUndo)
                 {
@@ -2240,28 +1932,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             case Playback2DAction.PrevSituationResult:
                 return IsSituationResultWalkEnabled && (SituationResults?.Walk(-1) ?? false);
 
-            case Playback2DAction.FocusTagPalette:
-                return ToggleTagPaletteFocus();
-
-            // Palette-scoped: they arrive through TryHandleTagPaletteKey, and here only when the palette
-            // has the keyboard, so a stray call from another path cannot act on an unfocused palette.
-            case Playback2DAction.TagPaletteBack:
-            case Playback2DAction.TagNote:
-            case Playback2DAction.TagClearSticky:
-            case Playback2DAction.TagLabelMode:
-            case Playback2DAction.TagLabelGroupNext:
-                return IsTagPaletteFocused && TagPalette.Execute(action);
-
-            // The queue's six: inert without a selection. J and K arrive through TryHandleSuggestionKey
-            // while one is selected, since outside that scope they walk the Situations result set.
-            case Playback2DAction.SuggestionNext:
-            case Playback2DAction.SuggestionPrev:
-            case Playback2DAction.SuggestionAccept:
-            case Playback2DAction.SuggestionReject:
-            case Playback2DAction.SuggestionEdit:
-            case Playback2DAction.SuggestionAcceptAll:
-                return ShowSuggestionQueue && SuggestionQueue.Execute(action);
-
             case Playback2DAction.ToggleReviewMode:
                 if (!IsReviewAvailable && !IsReviewMode)
                 {
@@ -2271,8 +1941,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 IsReviewMode = !IsReviewMode;
                 return true;
 
+            // The pack actions (Tag*, Suggestion*, FocusTagPalette) and anything else the tab does not
+            // name: the contributions' turn, unless a focused panel already had it above.
             default:
-                return false;
+                return !offered && Surface.TryExecute(action);
         }
     }
 
@@ -2392,22 +2064,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(IsAnnotationsEnabled));
         OnPropertyChanged(nameof(AnnotationSession));
         OnPropertyChanged(nameof(IsAutoLevelEnabled));
-        OnPropertyChanged(nameof(IsTagPaletteEnabled));
 
-        // Gated off, the palette gives the keyboard back: its keys would otherwise keep shadowing the
-        // tab's behind a panel the user can no longer see.
-        if (!IsTagPaletteEnabled && TagPalette.IsFocused)
-        {
-            TagPalette.Leave();
-        }
-
-        OnPropertyChanged(nameof(IsTagPaletteFocused));
-
-        // Gated off, the queue lets go of the demo, which empties the Suggested track and drops the
-        // selection that held J and K; gated back on, it shows the open demo again.
-        OnPropertyChanged(nameof(IsSuggestedTagsEnabled));
-        AttachSuggestionsTo(_tagSession.DemoPath, _tagSession.Document?.Demo.Sha256);
-        RaiseReviewMode();
+        // The contributed panels re-read their gates; PanelsChanged then raises IsReviewAvailable here.
+        Surface.RefreshGates();
 
         // Three inputs: the gate, the context, and whether that context has a demo. The export host is
         // wired once at composition, before any tab is activated, so activation is the last moment it can
@@ -2522,7 +2181,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // toolbar's DataContext is the panel, and a five-deep ancestor cast that silently yields "" on a
         // standalone mount is a worse contract than one assignment.
         Annotations.ApplyKeymap(Keymap);
-        TagPalette.ApplyKeymap(Keymap);
+        Surface.SetKeymap(Keymap);
     }
 
     private void LoadLevelSettings()
@@ -2691,31 +2350,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     private void OnTimelineSeekRequested(int frameIndex) => _context?.RequestSeekToFrame(frameIndex);
-
-    // A tag band clicked in Label Mode picks its tag for the palette; the seek to the band's start still
-    // happens, so the pick is also on screen. Outside Label Mode a tag band only seeks, as before.
-    private void OnTimelineBandPressed(TimelineBandViewModel band)
-    {
-        // A Suggested band picks its proposal for the queue, which is how the mouse starts a review; a
-        // second press on a merged band walks to its next member.
-        if (band.TrackId == ProposalTrack.TrackId)
-        {
-            if (IsSuggestedTagsEnabled && _timelineData is not null)
-            {
-                SuggestionQueue.SelectFromTrack(_proposalTrack.ProposalsInRun(_timelineData, band.StartFrameIndex));
-            }
-
-            return;
-        }
-
-        if (band.TrackId != TagTrack.TrackId || !IsTagPaletteEnabled || !TagPalette.IsLabelMode
-            || _timelineData is null)
-        {
-            return;
-        }
-
-        TagPalette.SelectForLabels(_tagTrack.InstancesInRun(_timelineData, band.StartFrameIndex));
-    }
 
     // The floating overlay's status readout moved into the timeline footer; mirror it so the one Status
     // string still drives it.
@@ -3015,7 +2649,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The playhead follows the shared clock's push, never a private timer, so it tracks play, step,
         // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
         Timeline.UpdatePlayhead(snapshot.FrameIndex, snapshot.Tick);
-        TagPalette.RefreshLabelTarget(); // Label Mode's tag is the one under the playhead unless one is picked
 
         // Mark the viewport dirty; the View coalesces this to one InvalidateVisual on the render frame.
         FrameUpdated?.Invoke();
