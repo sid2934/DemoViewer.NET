@@ -387,11 +387,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     The pack session blobs loaded at startup, kept for the life of the session (unlike
-    ///     <see cref="_pendingRestore" />, which clears on the first demo load). A pack whose gate is off
-    ///     right now is never asked to snapshot, so this is the only source for carrying its blob through
-    ///     unchanged on the next save.
+    ///     <see cref="_pendingRestore" />, which clears on the first demo load). A pack that has never been
+    ///     enabled this session is never asked to snapshot, so this is the only source for carrying its
+    ///     blob through unchanged on the next save.
     /// </summary>
     private Dictionary<string, JsonElement>? _loadedPackSessions;
+
+    /// <summary>
+    ///     Pack ids <c>RestorePackState</c> has been called for this session, at startup or on a live
+    ///     enable. Once a pack is in here, <c>SnapshotPackSessions</c> trusts its host's current value over
+    ///     <see cref="_loadedPackSessions" /> even after the pack goes off again, so a value set while it
+    ///     was on is never lost to a later disable.
+    /// </summary>
+    private readonly HashSet<string> _restoredPackIds = new(StringComparer.Ordinal);
 
     // ── 2D export chip ─────────────────────────────────────────────────────────
     // The FIFTH StatusChip consumer, and the only one attached from a tab rather than at composition:
@@ -2582,6 +2590,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         ReconcileTabs();
 
+        // A pack that just turned on restores its carried-forward blob here (RestorePackSessions is a
+        // once-per-pack no-op otherwise), so a mid-session enable shows the saved layout, not defaults.
+        RestorePackSessions(_loadedPackSessions);
+
         // Force owned panels closed when their chrome is now gated off. Without this a drawer/rail a
         // developer left open would stay open after a downgrade even though its toggle button is hidden.
         if (!IsDebuggerChromeEnabled)
@@ -4593,8 +4605,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // Walks every host in _hosts, not TabsAndSections, so a host's pack state lands before any tab
-    // activates. Skips a host whose gate (host.Tab.FeatureId) is off; IsPackSessionEnabled is the same
-    // check SnapshotPackSessions uses, so a skipped pack's blob is read back unchanged on the next save.
+    // activates. Called at startup (RestoreSession) and on every live gate change (ApplyGateChange): a
+    // pack id already in _restoredPackIds is skipped, so a mid-session enable restores exactly once, and
+    // an unrelated gate change afterward is a no-op here.
     private void RestorePackSessions(Dictionary<string, JsonElement>? packs)
     {
         if (packs is null)
@@ -4604,15 +4617,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         foreach (SectionHostEntry host in _hosts)
         {
-            if (host.ViewModel?.SessionPackId is not { } packId || !IsPackSessionEnabled(host))
+            if (host.ViewModel?.SessionPackId is not { } packId
+                || _restoredPackIds.Contains(packId)
+                || !IsPackSessionEnabled(host)
+                || !packs.TryGetValue(packId, out JsonElement state))
             {
                 continue;
             }
 
-            if (packs.TryGetValue(packId, out JsonElement state))
-            {
-                host.ViewModel.RestorePackState(state);
-            }
+            host.ViewModel.RestorePackState(state);
+            _restoredPackIds.Add(packId);
         }
     }
 
@@ -4692,9 +4706,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         WindowBounds,
         SnapshotPackSessions());
 
-    // Snapshots every host's pack session state under its pack id. Starts from what was loaded (so an
-    // id with no host today, or a host whose pack is off, carries through byte for byte) and overwrites
-    // only the hosts that are both present and enabled.
+    // Snapshots every host's pack session state under its pack id. Starts from what was loaded (so an id
+    // with no host today carries through byte for byte) and overwrites a host that is either enabled now
+    // or was restored into earlier this session (_restoredPackIds): the latter is what keeps a value set
+    // while the pack was on from being lost to a later disable, instead of falling back to the stale blob.
     private Dictionary<string, JsonElement>? SnapshotPackSessions()
     {
         Dictionary<string, JsonElement> packs = _loadedPackSessions is { } loaded
@@ -4703,7 +4718,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         foreach (SectionHostEntry host in _hosts)
         {
-            if (host.ViewModel?.SessionPackId is not { } packId || !IsPackSessionEnabled(host))
+            if (host.ViewModel?.SessionPackId is not { } packId
+                || (!IsPackSessionEnabled(host) && !_restoredPackIds.Contains(packId)))
             {
                 continue;
             }
