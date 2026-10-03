@@ -274,6 +274,49 @@ public class TagLabelModeTests
         }
     }
 
+    /// <summary>
+    ///     Through the tab: Label Mode's target follows the playhead with no click, on the surface's playhead
+    ///     hook. Playing or scrubbing from one tag into the next re-targets the palette and restarts its panels.
+    /// </summary>
+    [Test]
+    public async Task InTheTab_LabelModesTarget_FollowsThePlayheadWithoutAClick()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
+            review.ReviewMode!.IsOn = true;
+            TagSession tags = review.Session!;
+            await tags.AttachAsync(Demo, Clock, DemoPath);
+            tags.Apply(new TagDelta.Add(Instance("A execute", 800, 1_000)));
+            tags.Apply(new TagDelta.Add(Instance("Retake", 1_200, 1_400)));
+            Playback2DTimelineHarness.Pump();
+
+            ctx.Push(450, 900);
+            await Assert.That(ReviewPanelsHarness.Press(vm, Key.C)).IsTrue();
+            await Assert.That(ReviewPanelsHarness.Press(vm, Key.L, KeyModifiers.Control)).IsTrue();
+            TagPaletteViewModel palette = review.Palette!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(palette.LabelTargetText).StartsWith("A execute");
+                await Assert.That(palette.PanelTitle).IsEqualTo("outcome").Because("the execute's code leads to outcome");
+            }
+
+            ctx.Push(650, 1_300); // the clock moves into the retake; nobody clicks
+            using (Assert.Multiple())
+            {
+                await Assert.That(palette.LabelTargetText).StartsWith("Retake");
+                await Assert.That(palette.PanelTitle).IsEqualTo("site").Because("a different tag restarts the panels at its own");
+            }
+
+            ctx.Push(550, 1_100); // between the two: nothing under the playhead
+            await Assert.That(palette.LabelTargetText).IsEqualTo("no tag under the playhead");
+
+            review.ReviewMode.IsOn = false;
+            vm.OnDeactivated();
+            vm.Dispose();
+        });
+    }
+
     /// <summary>Through the tab: the palette's keys and a click on the tag lane pick and label, and the lane still seeks.</summary>
     [Test]
     public async Task InTheTab_ATagBandPicksTheTag_AndTheKeysLabelIt()
@@ -281,7 +324,7 @@ public class TagLabelModeTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
-            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
+            review.ReviewMode!.IsOn = true; // tagging and its lanes live in Review mode
             vm.Timeline.PixelWidth = 1000;
             TagSession tags = review.Session!;
             await tags.AttachAsync(Demo, Clock, DemoPath);

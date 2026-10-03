@@ -728,7 +728,9 @@ public class App : Application
             sp.GetRequiredService<PackContributionSet>().SettingsPages,
             // The Extensions "N demos will be re-indexed" notice's count (item 14); SettingsViewModel
             // watches only the first entry.
-            sp.GetRequiredService<PackContributionSet>().ReindexEstimates));
+            sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
+            // Each pack's "delete extension data" action (item 24), one row per entry.
+            sp.GetRequiredService<PackContributionSet>().DataRemovals));
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
@@ -1188,10 +1190,8 @@ public class App : Application
                 // The unified demo cache: what a Library single-click renders on Match Overview without
                 // parsing anything.
                 sp.GetRequiredService<DemoCacheStore>(),
-                // Team Identity, for the Library's team filter.
-                sp.GetRequiredService<TeamIdentityService>(),
-                // Demo Provenance Labels, for the Library card's label chip.
-                sp.GetRequiredService<IDemoProvenanceSource>(),
+                // The Library's filter/badge contributions (item 22: the Team filter, the provenance chip).
+                sp.GetRequiredService<PackContributionSet>().LibraryContributions,
                 // The host tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
                 sp.GetRequiredService<PackContributionSet>().HostTabs);
 

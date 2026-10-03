@@ -21,8 +21,11 @@ namespace DemoViewer.NET.AppTests;
 internal static class Playback2DTimelineHarness
 {
     /// <summary>Builds an activated tab over a recording context carrying rounds, kills and bomb events.</summary>
+    /// <param name="totalFrames">The fake demo's length.</param>
+    /// <param name="contributions">The packs' contributions to attach on activation, or none.</param>
+    /// <param name="configure">Runs on the context before activation: services, the demo path.</param>
     public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab(int totalFrames = 1000,
-        PlaybackContributionHost? contributions = null)
+        PlaybackContributionHost? contributions = null, Action<Playback2DFakeContext>? configure = null)
     {
         Playback2DFakeContext ctx = new()
         {
@@ -39,6 +42,7 @@ internal static class Playback2DTimelineHarness
             Death(40), Death(400), Death(900), Death(1400)
         ];
         ctx.Timelines["bomb_planted"] = [Bomb("bomb_planted", 700)];
+        configure?.Invoke(ctx);
 
         Playback2DTabViewModel vm = new() { Contributions = contributions };
         vm.OnActivated(ctx);

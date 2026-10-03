@@ -588,25 +588,50 @@ public interface IPlaybackSurface
     IReadOnlyList<MapLevel> MapLevels { get; }                     // the mounted viewport's levels; empty without one
     Playback2DKeymapProfile Keymap { get; }                        // the tab's resolved keymap, replaced whole on a rebind
     event Action? KeymapChanged;
+    event Action? Deactivated;                                     // before the tab flushes its documents
+    IDisposable OnDemoChanged(Action handler);                     // on activation and on a demo reset, after the resync
+    IDisposable OnPlayheadChanged(Action<int> handler);            // the tick, on every playhead update
     IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items);
+    ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
+    IDisposable AddModeToggle(ModeToggle toggle);                  // the toolbar renders it; its action flips it
     IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);  // Side; RightColumn forwards to AddPanel
-    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null);
+    IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
+        ModeToggle? mode = null);                                  // shown while open, gate on and the mode on
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
     IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
     // Temporary, each named for the item that removes it:
-    bool IsReviewMode { get; }                                     // item 18 makes the mode the pack's
-    event Action? ReviewModeChanged;                               // item 18
-    Playback2DTimelineViewModel Timeline { get; }                  // item 18: lane events, edit span, registered tracks
     Scene2DFrame CurrentFrame { get; }                             // item 20: Click To Tag resolves against the frame
     PlaceResolver? Zones { get; }                                  // item 20
     IDisposable AddMapClickHandler(Func<MapLevel, double, double, bool> handler);  // item 20 replaces with AddPointerPreHandler
     // Not built yet, in the order the items need them:
-    void AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);  // item 18
     void AddToolbarItem(ToolbarItem item);                                                      // item 20
     void AddPointerPreHandler(Func<ScenePointer, bool> handler);                                // item 20, Click To Tag
     void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
     void AddTool(IPointerTool tool);                                                            // later; token
-    IDisposable OnDemoChanged(Action handler);                                                  // if a contribution needs it
+}
+
+public interface ILaneBehaviour   // what a lane does; the timeline dispatches to the lane whose track made the band
+{
+    void OnBandPressed(TimelineBandViewModel band, ITimelineData data);          // before the seek
+    IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band, ITimelineData data);  // before the band-menu contributors'
+    void OnLabelRequested(int frame);                                            // empty lane clicked while IsEditable
+    void OnEditSpanDragged(int startFrame, int endFrame);                        // a handle of EditSpan moved
+}
+
+public interface ILaneHandle : IDisposable   // Dispose unregisters the track and its behaviour
+{
+    ITimelineTrack Track { get; }
+    bool IsSuppressed { get; set; }          // hidden for a mode; the user's own toggle is untouched
+    bool IsEditable { get; set; }            // the row shows even empty; a click asks for a label
+    (int Start, int End)? EditSpan { get; set; }   // drawn with two handles; one lane's at a time
+}
+
+public sealed class ModeToggle   // a mode of the tab a contribution owns
+{
+    public ModeToggle(string id, string label, string tooltip, Playback2DAction? action = null, string? icon = null);
+    public bool IsOn { get; set; }           // raises Changed on a flip
+    public bool IsAvailable { get; set; }    // off: the toolbar hides the toggle; the action only leaves the mode
+    public event Action? Changed;
 }
 
 public interface IPaneHandle : IDisposable   // Dispose removes the pane; Close only hides it
@@ -668,22 +693,70 @@ a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the 
 tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
 Review toggle and never collapses the cards.
 
-Three members are temporary and named for the items that remove them. `IsReviewMode` and `ReviewModeChanged`
-(item 18): the mode is still the tab's, persisted and toggled there; the surface shows contributed panels only
-while it is on, and the contribution hears the flip to clear the palette, the queue's selection and the editor.
-`Timeline` (item 18): the lanes are still registered by the tab, so the contribution reads the `TagTrack` and
-`ProposalTrack` from `Timeline.RegisteredTracks` (the session comes from `TagTrack.Session`, the colour bridge
-goes back through `TagTrack.CodeColour`) and carries the lane behaviour the tab used to carry, the band menu
-through `AddBandMenu` and the press, drag and label handlers through the timeline's events; item 18 turns those
-into lane contributions with their own `ILaneBehaviour`. `CurrentFrame`, `Zones` and `AddMapClickHandler`
-(item 20): Click To Tag Position resolves the clicked point in the pack against the frame on screen and the
-map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer. `OnDemoChanged` was
-not needed. The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus
-off) on two signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which
-the tab raises before it flushes its documents, and `TagSession.Detaching`, raised before a swap inside
-`AttachAsync` or a `Detach` lets go of the document, while the old document is still current. So the tab
-calls nothing on the palette by name, and neither focus nor a half-typed note survives a tab switch or a
-demo swap.
+Three members are temporary and named for the item that removes them: `CurrentFrame`, `Zones` and
+`AddMapClickHandler` (item 20). Click To Tag Position resolves the clicked point in the pack against the frame
+on screen and the map's zones; item 20 replaces the hook with the pointer pre-handler over a scene pointer.
+The palette gives the keyboard back (`Leave`: the pending tag written, the note dropped, focus off) on two
+signals the contribution subscribes to and `Detach` drops: `IPlaybackSurface.Deactivated`, which the tab
+raises before it flushes its documents (the contribution flushes its own session there), and
+`TagSession.Detaching`, raised before a swap inside `AttachAsync` or a `Detach` lets go of the document,
+while the old document is still current. So the tab calls nothing on the palette by name, and neither focus
+nor a half-typed note survives a tab switch or a demo swap.
+
+As built by item 18 (`Modules/Playback2D/Timeline/ILaneBehaviour.cs`, `Extensions/ModeToggle.cs`): the lanes,
+the mode and the session are the pack's, and the three hooks item 17 left (`IsReviewMode`, `ReviewModeChanged`,
+`Timeline`) are gone with the tab's `TagSession`, `TagTrack`, `ProposalTrack`, `IsReviewMode`, `Tags`,
+`AttachTagsToCurrentDemo` and its `TryResolve<T>` locator; the tab imports no pack namespace for them and
+`PackBoundaryTests` lists no item-18 edge.
+
+- *Lanes.* `AddLane(track, row, behaviour)` is `Playback2DTimelineViewModel.RegisterLane`: the track registers
+  as before (registration order is display order; a track registered after the build is built at once, so a
+  pack turned on in session shows its lane without a re-query) and the timeline keeps the lane beside it.
+  Dispatch is by the lane that made the band, never by track id: `PressBand` calls the lane's `OnBandPressed`
+  before the seek, `MenuFor` puts the lane's entries before the `BandMenus` contributors', `RequestLaneLabel`
+  goes to the first editable lane, and `DragEditEdge` moves the span of the lane that owns it and tells that
+  lane. The handle carries the state the contribution used to set through `Timeline`: `IsSuppressed` is
+  `SetTrackSuppressed` by the track's id (the user's toggle untouched, `IsTrackSuppressed` still answers by
+  id), and the row folds `IsLaneEditable`, `ShowLane`, `HasEditSpan`, `EditX` and `EditWidth` from every lane's
+  `IsEditable` and `EditSpan`. Disposing the handle is `UnregisterTrack`: the toggle, the bands, the markers,
+  the suppression and the lane go, and the row re-folds. The three tab-level events (`BandPressed`,
+  `LaneLabelRequested`, `EditSpanDragged`) are deleted; nothing raised them for anyone else.
+- *The mode.* `ModeToggle` is a contributed mode: the view's toolbar lists `Surface.ModeToggles` as
+  `ToggleButton`s bound to `IsOn`, `Label`, `Tooltip` and `IsAvailable` in the slot the hardcoded Review toggle
+  had; `Playback2DSurface.TryExecute` gives a keymap action to the toggle that names it first (`TryToggle`:
+  flips while available or on, false when off with nothing to show, so Shift+R is nobody's then), then to the
+  action handlers. A panel is bound to a mode through `AddPanel`'s `mode`, and `IsShown` folds the gate, the
+  open state and the mode; a panel bound to none shows whenever it is open with its gate on. The tab's
+  `IsReviewAvailable` is still an open panel whose gate is on, and `IsCardStrip` is now any panel shown
+  (`Surface.HasShownPanels`), which the view's panel host and the strip rows bind.
+- *The demo and the playhead.* `OnDemoChanged` is raised by the tab at the two moments it attached its tag
+  session before: the end of `OnActivated` and of `OnDemoReset`, after the resync. A contribution attaches
+  per-demo state there; the context's `DemoPath` may be the demo already attached. `OnPlayheadChanged` is
+  raised with the tick wherever the tab calls `Timeline.UpdatePlayhead` (a clock push, the resync), which is
+  how Label Mode's target follows the playhead without a click now that the contribution has no `Timeline`
+  to watch.
+
+The contribution (`ReviewPanelsPlaybackContribution`, now `IDisposable` because it owns the track) builds the
+`TagSession` on attach from `context.GetService<T>()`: `TagStore` (null for session-only tags), `DemoCacheStore`
+for the rounds a new tag's `round` is derived from, and `IRoundFactsSource` for its facts. It registers
+`TagTrack` and `ProposalTrack` on the lane row in that order with a `TagLaneBehaviour` (Label Mode's pick on a
+press, the edit and delete entries, the new label on an empty-lane click, the editor's span on a handle drag)
+and a `ProposalLaneBehaviour` (the queue's pick on a press, the review entries); the proposal track's
+confidence tints come from the theme tokens the tab used to supply. It registers the Review `ModeToggle`
+(id `stratbook.review`, action `ToggleReviewMode`), reads its start from `Playback2D.ReviewMode` and writes
+every flip back to the same key, suppresses both lanes while the mode is off, binds the three panels to it,
+and sets `IsAvailable` from the two tagging gates, which is what hides the toolbar toggle when both are off.
+On `OnDemoChanged` and at attach it binds the session to `context.DemoPath` (fire and forget, the hash from
+`DemoSha256` or the file; the identity resolver is a constructor seam for tests); the demo already attached
+is kept, a path still being attached is not attached twice (the first activation reaches both the attach
+and the demo-change signal before the session's `DemoPath` moves), and a swap runs through `AttachAsync`,
+whose `Detaching` lets the palette write its pending tag to the old document first. The playhead hook calls
+the palette's `RefreshLabelTarget`. `Detach` writes the palette's
+pending tag, disposes the panels, disposes the lane handles (the tracks leave the timeline), then the track
+and the session (which flushes to the store), so a pack turned off with a tag pending loses nothing, and a
+pack turned off leaves the tab with no session, no lane, no toggle and no handler. Pack off at startup builds
+none of it: the tab's timeline carries the four core tracks alone, which also removed two hidden track
+toggles the footer used to make room for.
 
 One behaviour changed on purpose. Undo and redo while the palette has the keyboard report handled (true)
 even when the tag history is empty; before, the tab returned the real `TagSession.Undo()` result, which made
@@ -692,7 +765,7 @@ through to the annotations' undo now that the focused panel is asked first; the 
 the unfocused case's.
 
 The contribution (`Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs`)
-builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over the lane's session
+builds `TagPaletteViewModel`, `SuggestionQueueViewModel` and `ReviewPanelViewModel` over its session
 with `TagPaletteStore`, `SuggestedTagsService` and `SettingsService` from `context.GetService<T>()`, and
 registers them as three panels: the palette (order 0, gate `playback2d.tagger`), the review panel (order 1,
 `ReviewPanelView` in the pack: the Suggested / Labels toggle, the shared editor and the Labels list the core
@@ -722,6 +795,58 @@ public interface ISessionParticipant
 
 public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IReadOnlyList<string> Paths);
 ```
+
+As built (item 22, `Extensions/IPackContributions.cs`): one filter and one badge per contribution rather than
+a list of filters, since the Library hosts N *contributions* (each optionally offering a filter, a badge, or
+both) instead of one contribution offering N filters. `LibraryFilter(Label, Items, Matches)` carries its own
+items and predicate; `LibraryFilterItem(Key, Display)` reserves `Key == ""` as the neutral "All" choice the
+Library skips when applying predicates. A badge needs a fourth member beyond the sketch,
+`bool HasBadge { get; }`: `BadgeLabels` alone cannot say whether a contribution renders a badge at all, since
+a read-only badge (no settable menu) legitimately has an empty label list. `FeatureId` (nullable, default
+`null`) and `Changed` complete the interface, matching 7.2's general contract; `IPackContributions.Library(...)`
+stamps a null `FeatureId` to the owning pack's id the same way `SettingsPage` does, through a small internal
+wrapper (`PackContributions.StampedLibraryContribution`) rather than a record `with`, since `ILibraryContribution`
+is an interface, not a record. `LibraryTabViewModel` owns a generic host: it calls into a contribution only
+while `_isFeatureEnabled(contribution.FeatureId)` is true (set once by `MainViewModel` to `_gate.IsEnabled`),
+subscribing to `Changed` only on that transition, so nothing behind `Filter`/`BadgeFor` is ever touched while
+off. One `LibraryFilterViewModel` per on filter contribution is added to `ObservableCollection<LibraryFilterViewModel>
+Filters`, kept as the same instance across a data refresh (`Rebuild`, preserving the ComboBox selection by
+`Key`) and removed only on a gate transition (`RebuildFilters`); `ApplyFilter` folds every entry's `Matches`
+in. The badge is a single slot (`ActiveBadgeContribution`, the first on contribution with `HasBadge`): the
+plan's "N badges" is the contribution list, not the card UI, which renders one chip, a documented limit a
+second badge-granting pack would need to lift. `LibraryTabViewModel`/`MainViewModel` lost `TeamIdentityService`
+and `IDemoProvenanceSource` entirely (ctor params and `using`s both); `MainViewModel` no longer force-builds
+either service at shell construction when the pack is off, since the old code's two `sp.GetRequiredService<T>()`
+ctor arguments are gone. With the pack on, the default, the resolve still happens at construction, just
+inside `LibraryTabViewModel`'s own `RebuildFilters` rather than `MainViewModel`'s ctor argument, so the
+timing is unchanged from before item 22; only the off case is actually lazier now (see §8's First Run note).
+`DemoEntry` (`Modules/Library/DemoLibraryModels.cs`) traded `ProvenanceLabel`/
+`ProvenanceIsOverride`/`ProvenanceDisplay`/`ProvenanceTooltip` for generic `BadgeLabel`/`BadgeTooltip`/
+`BadgeIsPinned`; the "unlabeled" fallback and the three-state tooltip text both moved into
+`ProvenanceLibraryContribution.BadgeFor`/`BadgesFor`, which always returns a badge once the service
+resolves (an entry the cache has not indexed yet also reads "unlabeled", collapsing a distinction the old
+field-level null preserved but the display never showed). The pack's two contributions,
+`Extensions/StratBook/Services/Teams/TeamLibraryContribution.cs` and
+`.../Services/Provenance/ProvenanceLibraryContribution.cs`, each take a `Func<T>` resolver (no DI
+registration of their own, matching item 16's `CreateStratPlaybackContribution`) and an optional
+`featureId` constructor parameter so a caller outside `StratBookPack.Contribute` (a shell test) can name
+the pack id explicitly instead of relying on the stamp.
+
+Review pass: `BadgeFor` stayed for a single-entry read, but a full refresh calls a second interface member,
+`BadgesFor(IEnumerable<DemoEntry>)` (default forwards to `BadgeFor` per entry), so
+`ProvenanceLibraryContribution` can call `IDemoProvenanceSource.ResolveAll` once for the whole card grid
+instead of once per card (`Resolve` re-reads and copies Team Identity's override list on every call).
+`LibraryTabViewModel.OnContributionChanged` only calls `RefreshBadges` when the changed contribution is the
+current `ActiveBadgeContribution`, so the Team filter's own `Changed` (a rename) never re-runs the badge
+batch; it also now adds a `LibraryFilterViewModel` for a contribution whose `Filter` goes from null to
+non-null via `Changed`, not only on a gate transition. `LibraryFilter` gained `Tooltip` (null defaults to
+`Label`); `TeamLibraryContribution` sets it to "Filter by team" to keep the pre-refactor text.
+`ILibraryContribution` gained `BadgeResetTooltip` (default null) so the reset row's own tooltip ("Let the
+clan tags, the header and Team Identity decide") comes from the contribution, not a hardcoded string in the
+host; `LibraryTabViewModel.BadgeMenuEntries` is `IReadOnlyList<LibraryBadgeMenuEntry>` (`Label`, `IsReset`,
+`Tooltip`), not a flat string list, and the view styles a top border on the `IsReset` row's `MenuItem`
+rather than mixing a literal `Separator` into the `ItemsSource`. `HasTeamFilter` (unbound) was dropped;
+`HasProvenance`/`SetProvenance` renamed `HasBadge`/`SetBadgeLabel`.
 
 Theme tokens are not a contribution in (a) or (b): they stay in the core dictionaries, which cost nothing
 when unused. A pack token manifest only matters for third-party add-ons.
@@ -763,6 +888,57 @@ host's live state when its pack is enabled right now OR its id is in `_restoredP
 clause is what keeps a value set while a pack was on from being lost to a later disable (the pack's own
 blob, not the one loaded at startup, wins), and a pack that was never enabled this session still carries
 its loaded blob through unread and unwritten.
+
+**As built by item 24.** `StoreDescriptor` gained a fifth field, `IsUserWork`, read by the Settings
+confirmation; `IPackContributions` gained `Store(StoreDescriptor)` and `DataRemoval(IPackDataRemoval)`,
+aggregated on `PackContributionSet` as `Stores` and `DataRemovals`. `PackDataRemover`
+(`Services/DemoCache/PackDataRemover.cs`) resolves a descriptor's paths against `AppPaths.ConfigRoot` or
+`AppPaths.DemoCacheDir`, refuses anything rooted, carrying a `..` segment, or resolving to the root itself,
+never follows a reparse point or deletes a `.dem` file, and strips a pack's `Packs` entry and matching
+`PackStamps` from every demo cache record and index row. A demo-sidecar family (the grenade walk's
+siblings under `cache/demos/`) is declared as `"demos/*<suffix>"`: the directory is listed once and the
+suffix matched by ordinal string comparison in managed code, never handed to a filesystem glob, so it
+cannot widen to match the core record sidecars beside it. Both of `PackDataRemover`'s public methods run
+through `QueueWork.Run` on serial `ownerTag` (`QueueWork.RunAsync` has no serial parameter), so a delete
+never overlaps the pack's own release item on the same serial.
+
+`StratBookStores.All` is the pack's descriptor list, corrected against the real writers rather than this
+section's original table: `grenade-lineups.json.gz` and `grenades-v3.attempts.json` are under the CACHE
+root (`GrenadeLineupStore`/`GrenadeStoreMigration` both combine with `DemoCacheStore.CacheRoot`, never
+`AppPaths.ConfigRoot`), and `review-queue.json` is dropped (decision 10.1: Review Queue is core, shared
+with Reels, live with the pack off; deleting it would take Reels' own queue with it). Facet ids for the
+record strip are the pack's four evaluator ids (`StratBookDataRemoval.FacetIds`), not a separate list: a
+`PackStamp.Id` is a facet, not a pack id, and the convention every writer follows is that a stamp always
+rides with the payload it describes.
+
+**Release path, as decided:** turn the pack off first, delete, leave it off. `StratBookDataRemoval.DeleteAsync`
+writes the gate override off through `SettingsService.Write` (the same write the Extensions master switch
+makes) and awaits `PackSwitch.Pending`. That wait is never stale: `FeatureGate.RaiseChanged` fires inline,
+synchronously, for a self-write made from the UI thread, so by the time the override write returns,
+`PackSwitch.Disable` has already queued the release and updated `Pending`. Only once that release has run
+(residents dropped, the lineup flush and the signature cache's own write done) does the delete touch any
+file, so nothing the release still owns is deleted out from under it. The alternative the plan offered,
+calling a lifecycle release directly and staying on, was not taken: it would need its own synchronization
+with whatever queue item is draining the release, which `PackSwitch.Pending` already gives for free from
+the existing switch-off path, with no new seam.
+
+A re-check guards the gap `Pending` cannot: `DeleteAsync` reads `IsEnabled(PackFeatureId)` again right
+after the wait, before calling the remover, and the remover itself evaluates a `stillOff` predicate inside
+the queued job, right before it touches a file, so a re-enable landing between the wait and the job
+actually running aborts cleanly on either side rather than deleting against a live pack.
+
+**The blocker this surfaced:** `StratStore`, `TagStore`, `DossierNotesStore`, `VetoHistoryStore`,
+`WatchedSituationsService` and `StratMiningService`'s state file are explicitly NOT released on disable
+(§8: "the pack's small user-truth stores... are not released"), so deleting their files while they stay
+resident in memory would leave the deleted content on screen if the pack were re-enabled in the same
+session, and the next edit would save it straight back. `DeleteAsync` closes this by calling each store's
+own recovery after a successful delete: `StratStore.RebuildIndexFromDisk` and `TagStore.RebuildIndexFromDisk`
+already existed (the lost-index recovery); `DossierNotesStore.Reload`, `VetoHistoryStore.Reload` and
+`WatchedSituationsService.Reload` are new, each clearing exactly what the store's own `Load`/`Refuse` pair
+already touches; `StratMiningService.ResetState` is new for the same reason, and matters more than the
+others because `LoadState`'s own retry logic merges a fresh read with whatever is still in memory, which
+would otherwise fold the deleted dismissed/promoted keys back in on the next attach. `TagPaletteStore.Reload`
+and `ProfileStore.Reload` (both pre-existing) cover `palettes/` and `suggested-tags/` the same way.
 
 ### 7.5 Commands and keybindings
 
@@ -882,10 +1058,14 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
 - *First run.* On a fresh desktop install `StartPacks` waits while `SettingsService.NeedsFirstRun` is true;
   the wizard's Finish or Skip writes settings, which is a gate change like any other, and the pack starts
   if its answer resolves on (accept, or Skip with the default) and stays unbuilt if it resolves off. The
-  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Team
-  Identity, which the shell builds for the Library filter before the wizard has asked, is built detached
-  and unread whatever the gate says at container build; only the attach item reads its files, and a read
-  that reaches a detached service (a queued one that lost the race with a release) reads and writes nothing.
+  browser never shows the wizard and never waits. Upgrades with the flag set start as today. Item 22 moved
+  the Library filter's and the provenance chip's resolve of Team Identity and the provenance source off
+  the shell's own constructor and into the two contributions, reached only while each one's gate is on.
+  With the pack explicitly off that means neither service is built at shell construction at all. With the
+  pack on, the default, the Library's own constructor reaches the same resolve at the same moment the old
+  eager constructor injection did (its first `RebuildFilters`), so the enable's attach item is still only
+  the first thing to READ Team Identity's files, as before item 22; a read that reaches a detached service
+  (a queued one that lost the race with a release) reads and writes nothing.
 - *Measured* (`StratBookLiveToggleTests`, `[Category("Budget")]`, 160 synthetic demos with 24 rounds and
   60 grenades each, a mine and a watch seeded): an enable builds about 21 MB on the GC heap; the release
   leaves 0.5 MB after the first off-on-off cycle and 0.0 MB after the second, so nothing grows per toggle.

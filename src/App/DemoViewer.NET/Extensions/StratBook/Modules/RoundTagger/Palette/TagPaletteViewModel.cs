@@ -600,7 +600,8 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
 
     /// <summary>
     ///     Re-resolves Label Mode's target after the playhead or the document moved, and when it is a
-    ///     different tag restarts the panels at that tag's own. The tab calls it on every playhead update.
+    ///     different tag restarts the panels at that tag's own. The review contribution calls it on every
+    ///     playhead update through the surface's playhead hook, and the session's Changed calls it here.
     /// </summary>
     public void RefreshLabelTarget()
     {

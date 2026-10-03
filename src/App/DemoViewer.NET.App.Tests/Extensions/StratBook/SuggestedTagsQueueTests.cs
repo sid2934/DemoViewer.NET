@@ -391,9 +391,10 @@ public class SuggestedTagsQueueTests
     [Test]
     public async Task TheTab_LeavesTheKeysUnhandled_WithNoSelection_AndHidesTheQueueWhenGatedOff()
     {
+        // Off the UI thread (no RunOnUi), where nothing pumps a dispatcher post.
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) =
-            AppTests.Extensions.StratBook.ReviewPanelsHarness.Tab();
-        vm.IsReviewMode = true;
+            AppTests.Extensions.StratBook.ReviewPanelsHarness.Tab(post: AppTests.Extensions.StratBook.ReviewPanelsHarness.SynchronousPost);
+        review.ReviewMode!.IsOn = true;
 
         using (Assert.Multiple())
         {

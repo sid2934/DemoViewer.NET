@@ -254,7 +254,7 @@ public class TagPositionTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
-            vm.IsReviewMode = true; // tagging and its lanes live in Review mode
+            review.ReviewMode!.IsOn = true; // tagging and its lanes live in Review mode
             ctx.PushPlacedMarkers((0, 2, -800f, 600f, 64f, "Ramp"), (1, 3, 900f, -500f, 64f, "BombsiteA"));
             TagSession tags = review.Session!;
             await tags.AttachAsync(Demo, Clock, DemoPath);

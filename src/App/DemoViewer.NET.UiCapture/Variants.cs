@@ -33,6 +33,8 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Commands;
@@ -149,11 +151,15 @@ public static partial class Variants
             // one-shot capture than the posted ScrollTargetSection scroll) AND auto-expands its group.
             ["settings-extensions-on"] = () => Settings(packOff: false),
             ["settings-extensions-off"] = () => Settings(packOff: true),
+            // Delete extension data (item 24): the pack off (the main use case) with its confirmation
+            // already armed, so the row, the user-work sizes and the two buttons are all in frame.
+            ["settings-extensions-delete-confirm"] = () => Settings(packOff: true, armDelete: true),
             ["wizard"] = Wizard,
             ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
             ["library-populated"] = () => Library(LibraryState.Populated),
             ["library-dropover"] = () => Library(LibraryState.DragOver),
+            ["library-populated-pack-on"] = () => Library(LibraryState.PopulatedPackOn),
             ["workbench"] = Workbench,
             ["framelist"] = FrameList,
             // v0.6.0 fit-and-finish surfaces: the code-color-promotion consumers (severity ramps,
@@ -632,7 +638,11 @@ public static partial class Variants
     ///     path → dimmed grey-out), with back-dated open times so the relative-date labels ("2d ago" / "6d
     ///     ago") render. <see cref="LibraryState.Populated" /> also seeds folders + a few demo entries so the
     ///     browser + the persistent header actions render; <see cref="LibraryState.DragOver" /> forces the
-    ///     drop overlay visible (a real file drag can't be synthesized off-display).
+    ///     drop overlay visible (a real file drag can't be synthesized off-display);
+    ///     <see cref="LibraryState.PopulatedPackOn" /> additionally wires the pack's Team filter and
+    ///     provenance chip (item 22) over a real <see cref="TeamIdentityService" />, so the toolbar and the
+    ///     card both render exactly as they do with the Strat Book extension on. <see cref="LibraryState.Populated" />
+    ///     stays unwired (no contributions): the pack-off render.
     /// </summary>
     private static LibraryTabView Library(LibraryState state)
     {
@@ -658,7 +668,8 @@ public static partial class Variants
         string libJson = Path.Combine(dir, "library.json");
         DemoLibraryService lib = new(a => a(), libJson);
 
-        if (state == LibraryState.Populated)
+        IReadOnlyList<ILibraryContribution>? contributions = null;
+        if (state is LibraryState.Populated or LibraryState.PopulatedPackOn)
         {
             lib.Folders.Add("/demos/pro-matches");
             lib.Entries.Add(SampleDemo("de_mirage", "ZywOo, apEX, flameZ, Spinx, mezii", "mirage_vs_faze.dem"));
@@ -666,12 +677,18 @@ public static partial class Variants
             lib.Entries.Add(SampleDemo("de_dust2", "s1mple, b1t, Aleksib, iM, jL", "dust2_navi.dem"));
         }
 
+        if (state == LibraryState.PopulatedPackOn)
+        {
+            contributions = LibraryPackContributions(lib);
+        }
+
         LibraryTabViewModel vm = new(
             lib,
             _ => Task.CompletedTask,
             () => Task.FromResult<IReadOnlyList<string>>([]),
             () => Task.CompletedTask,
-            recents)
+            recents,
+            contributions: contributions)
         {
             IsDragOver = state == LibraryState.DragOver
         };
@@ -680,6 +697,59 @@ public static partial class Variants
         {
             DataContext = vm
         };
+    }
+
+    // Item 22: a real TeamIdentityService + DemoProvenanceSource over cache rows mirroring the sample
+    // entries, so the Team filter and the provenance chip render as they do with the pack on. One demo
+    // carries clan tags (→ "official"); the others resolve "unlabeled". Unique synthetic SteamIDs per
+    // entry, so the three unrelated rosters never cluster into a team.
+    private static IReadOnlyList<ILibraryContribution> LibraryPackContributions(DemoLibraryService lib)
+    {
+        DemoCacheStore cache = new(null);
+        TeamIdentityService teams = new(null, cache, run: a =>
+        {
+            a();
+            return Task.CompletedTask;
+        });
+        teams.StartAsync().GetAwaiter().GetResult();
+
+        int steamId = 0;
+        using (cache.BeginBatch())
+        {
+            foreach (DemoEntry entry in lib.Entries)
+            {
+                bool isMirage = entry.FilePath.EndsWith("mirage_vs_faze.dem", StringComparison.Ordinal);
+                DemoCacheRecord record = new()
+                {
+                    Path = entry.FilePath,
+                    Size = entry.FileSizeBytes,
+                    ModifiedTicks = entry.Modified.Ticks,
+                    Map = entry.MapName,
+                    SourceKind = "HltvPro",
+                    TClan = isMirage ? "Vitality" : null,
+                    CtClan = isMirage ? "FaZe" : null
+                };
+                foreach (string name in entry.Players)
+                {
+                    record.Players.Add(new CachedPlayerInfo
+                    {
+                        Slot = record.Players.Count,
+                        Name = name,
+                        SteamId64 = $"76561198{++steamId:D9}",
+                        Team = 2
+                    });
+                }
+
+                DemoCacheStore.StampParse(record);
+                cache.Upsert(record);
+            }
+        }
+
+        return
+        [
+            new TeamLibraryContribution(() => teams),
+            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(cache, teams), () => teams)
+        ];
     }
 
     /// <summary>
@@ -1298,7 +1368,7 @@ public static partial class Variants
     ///     Extensions section and auto-expands its group for the capture, the on variant the same way minus
     ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
-    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null)
+    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1353,16 +1423,45 @@ public static partial class Variants
                 StratBookPack.PackFeatureId)
         ];
 
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages);
+        // "Delete extension data" (item 24): a canned inventory, no real PackDataRemover, so the capture
+        // is deterministic and needs no temp files. Sizes are plausible, not measured.
+        IPackDataRemoval[]? dataRemovals = armDelete
+            ?
+            [
+                new CapturePackDataRemoval(new PackDataInventory(
+                [
+                    new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 14, 182_000),
+                    new StoreInventoryItem(new StoreDescriptor("tags", "Tags", StoreRoot.Config, ["tags"], true), 9, 54_000),
+                    new StoreInventoryItem(new StoreDescriptor("teams", "Teams", StoreRoot.Config, ["teams.json"], true), 1, 3_100),
+                    new StoreInventoryItem(new StoreDescriptor("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false), 240, 9_800_000)
+                ]))
+            ]
+            : null;
+
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals);
         if (packOff is not null)
         {
             vm.SettingsFilterText = "extension";
+        }
+
+        if (armDelete)
+        {
+            vm.ExtensionDataActions.Single().ArmCommand.ExecuteAsync(null).GetAwaiter().GetResult();
         }
 
         return new SettingsView
         {
             DataContext = vm
         };
+    }
+
+    // A capture-only IPackDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
+    // unused by the "settings-extensions-delete-confirm" variant, which only arms the confirmation).
+    private sealed class CapturePackDataRemoval(PackDataInventory inventory) : IPackDataRemoval
+    {
+        public string PackFeatureId => StratBookPack.PackFeatureId;
+        public Task<PackDataInventory> InventoryAsync() => Task.FromResult(inventory);
+        public Task<PackDataRemovalResult> DeleteAsync() => Task.FromResult(new PackDataRemovalResult(true, inventory, 0));
     }
 
     // Renders the Playback2D HUD DOMAIN accents (health/armor/headshot/…) as text + glyphs on the real
@@ -4276,7 +4375,8 @@ public static partial class Variants
     {
         Landing, // no folders → the landing hero (Open Demo + recents + drop hint)
         Populated, // folders + demos → the folder browser + persistent Open Demo / Recent ▾ actions bar
-        DragOver // the landing with the drag-over overlay forced on (can't synthesize a real drag headlessly)
+        DragOver, // the landing with the drag-over overlay forced on (can't synthesize a real drag headlessly)
+        PopulatedPackOn // Populated, plus the pack's Team filter and provenance chip wired (item 22)
     }
 
     /// <summary>The three semantic-JUMP treatments the redesign options differ by.</summary>
