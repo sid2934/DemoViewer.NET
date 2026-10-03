@@ -55,6 +55,12 @@ public interface IPackContributions
     /// <summary>A processing-queue job kind the pack owns.</summary>
     void JobKind(JobKindDescriptor kind);
 
+    /// <summary>
+    ///     The pack's keymap commands. The composition root checks this against <see cref="IFeaturePack.Commands" />
+    ///     (the DI-free source every non-composed consumer reads) so the two cannot drift.
+    /// </summary>
+    void Commands(IEnumerable<CommandDescriptor> commands);
+
     /// <summary>A ruleset in the rules directories the pack owns; see <see cref="RulesetContribution" />.</summary>
     void Ruleset(string rulesetId);
 }

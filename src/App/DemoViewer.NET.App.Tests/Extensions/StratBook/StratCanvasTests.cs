@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
@@ -446,19 +447,23 @@ public class StratCanvasTests
     [Arguments(Key.OemCloseBrackets, KeyModifiers.None, Playback2DAction.NextStep)]
     public async Task TheStepAuthoringRows_Resolve_InBothScopes(Key key, KeyModifiers modifiers, Playback2DAction expected)
     {
-        await Assert.That(Playback2DKeymap.TryResolve(key, modifiers, false, out Playback2DAction idle)).IsTrue();
+        // Step Authoring is a Strat Book extension command: the profile a canvas routes through
+        // resolves it, the bare core table (Playback2DKeymap) does not.
+        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
+        await Assert.That(keymap.TryResolve(key, modifiers, false, out Playback2DAction idle)).IsTrue();
         await Assert.That(idle).IsEqualTo(expected);
-        await Assert.That(Playback2DKeymap.TryResolve(key, modifiers, true, out Playback2DAction drawing)).IsTrue();
+        await Assert.That(keymap.TryResolve(key, modifiers, true, out Playback2DAction drawing)).IsTrue();
         await Assert.That(drawing).IsEqualTo(expected);
-        await Assert.That(Playback2DKeymap.FindConflicts(Playback2DKeymap.Default, Playback2DKeymap.ShellReservedGestures)).IsEmpty();
+        await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ShellReservedGestures)).IsEmpty();
     }
 
     [Test]
     public async Task TheBracketRows_ReadAsBrackets()
     {
-        await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.PrevStep)).IsEqualTo("[");
-        await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.NextStep)).IsEqualTo("]");
-        await Assert.That(Playback2DKeymap.GestureText(Playback2DAction.AddStep)).IsEqualTo("Shift+N");
+        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
+        await Assert.That(keymap.GestureText(Playback2DAction.PrevStep)).IsEqualTo("[");
+        await Assert.That(keymap.GestureText(Playback2DAction.NextStep)).IsEqualTo("]");
+        await Assert.That(keymap.GestureText(Playback2DAction.AddStep)).IsEqualTo("Shift+N");
     }
 
     /// <summary>The same rows on the 2D Playback tab have nothing to act on and stay unhandled (§3.7's table).</summary>

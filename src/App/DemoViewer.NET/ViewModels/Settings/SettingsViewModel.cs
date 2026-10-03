@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
@@ -862,14 +863,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(HasKeybindRejections));
 
     // One row per SHIPPED binding, reserved rows included: a reserved gesture that is simply absent from
-    // the list reads as free, which is the opposite of what the reservation means.
+    // the list reads as free, which is the opposite of what the reservation means. A row whose action a
+    // pack owns carries that pack's label and gate id, so IsVisible and the label chip can read it.
     private void BuildKeybindRows()
     {
+        IReadOnlyDictionary<Playback2DAction, PackCommand> packOwners = CommandRegistry.Default.PackOwnerByAction;
         foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
         {
-            Playback2DKeybindRows.Add(new KeybindRow(this, binding));
+            PackCommand? owner = packOwners.TryGetValue(binding.Action, out PackCommand? found) ? found : null;
+            Playback2DKeybindRows.Add(new KeybindRow(this, binding, owner?.PackLabel, owner?.PackFeatureId));
         }
     }
+
+    /// <summary>Whether a pack's chords and keybind rows should be live right now. Read by <see cref="KeybindRow.IsVisible" />.</summary>
+    internal bool IsPackFeatureEnabled(string packFeatureId) => _gate.IsEnabled(packFeatureId);
 
     // Re-resolve every row from the persisted overrides. Called at construction, after each write, and
     // from Reflect (an external edit / another surface).
@@ -894,7 +901,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         CustomKeybindCount = custom;
         OnPropertyChanged(nameof(CustomKeybindCount));
         OnPropertyChanged(nameof(HasCustomKeybinds));
-        KeybindRejectionNote = rejected.Count == 0 ? "" : string.Join("\n", rejected);
+
+        // CommandRegistry.Default.Conflicts is a shipped-table defect (a pack's default chord colliding
+        // with core or another pack), not a user rebind problem, but it reuses this note rather than a
+        // second piece of UI: either way, a chord that silently lost is now something the user can see.
+        IReadOnlyList<string> conflicts = CommandRegistry.Default.Conflicts;
+        KeybindRejectionNote = rejected.Count == 0 && conflicts.Count == 0
+            ? ""
+            : string.Join("\n", rejected.Concat(conflicts));
     }
 
     /// <summary>
@@ -1893,7 +1907,13 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // IFeatureGate.Changed handler. The gate marshals Changed to the UI thread in the headed app (and raises
     // it inline in unit tests), so the refresh runs on the right thread without marshaling here.
-    private void OnGateChanged(object? sender, EventArgs e) => RefreshFeatureRows();
+    // RefreshKeybindRows() is included so a pack switch flip hides or shows its keybind rows live: their
+    // IsVisible is read-through on _gate, not cached, so nothing but the change notification is missing.
+    private void OnGateChanged(object? sender, EventArgs e)
+    {
+        RefreshFeatureRows();
+        RefreshKeybindRows();
+    }
 
     private static string LabelFor(UserCategory category) => category switch
     {

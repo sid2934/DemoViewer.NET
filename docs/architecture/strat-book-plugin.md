@@ -626,12 +626,19 @@ public sealed record CommandDescriptor(
     string Label,
     string Scope,             // "playback2d", "playback2d.palette", "stratbook.canvas"
     KeyGesture? DefaultChord,
-    Action<CommandContext> Run,
+    Func<CommandContext, bool> Run,
     Func<CommandContext, bool>? CanRun = null);
 ```
 
+`Run` returns `bool`, not `void`: the existing dispatch convention (`Playback2DTabViewModel.ExecuteAction`
+returning false means unhandled, so the key falls through to whatever else wants it) has to survive
+through a command, or a resolved key that does nothing would read as handled anyway.
+
 Core `Playback2DAction` values map to command ids one to one, so persisted keybind overrides keep working.
-A command palette, if one is ever built, reads the same registry.
+Item 19 landed ids equal to the action's own enum name (not the `stratbook.step.add` style sketched
+above), since that is what keeps a persisted `KeybindOverrides` row readable unchanged; item 19's own
+report is the place to check before copying the dotted style for a future pack. A command palette, if one
+is ever built, reads the same registry.
 
 ### 7.6 How the gate folds in
 
