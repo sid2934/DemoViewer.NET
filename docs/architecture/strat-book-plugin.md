@@ -766,6 +766,14 @@ one branch per item, a read-only review before every merge, and the standard tie
   `--no-ff` in wave order, runs the standard tier, `AppCompositionRootTests` and the Strat window
   classes, pushes, records the item in `plan.md`, and removes the worktree. The WASM head builds in
   Release after each wave.
+- **Testing without duplication.** Three roles, three budgets. A builder runs only the test classes its
+  item touches or adds, plus `AppCompositionRootTests`, and never the standard tier, the bench or the
+  WASM build. A reviewer reads the diff and runs nothing, except the item's new test class when a claim
+  needs checking. The orchestrator owns the one **heavy lane**: the standard tier once per wave on the
+  merged head (per merge, only the affected classes and `AppCompositionRootTests`), the WASM Release
+  build once per wave, and the Environmental items (M0, 2, 9) one at a time. Nothing in the heavy lane
+  ever runs concurrently with another heavy-lane process. If a wave's tier fails, the orchestrator
+  bisects by running the failing class on each merge commit of the wave rather than re-running the tier.
 - **Done means:** the standard tier passes apart from the known `ThePinnedRounds_ExerciseEveryDetector`;
   the pack-on behaviour is unchanged (goldens and window tests); the pack-off composition-root test
   (item 7) passes from item 7 onward; and no core namespace imports a pack namespace (item 7's guard).
