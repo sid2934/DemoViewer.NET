@@ -187,7 +187,7 @@ news up its analysis services inside its lazy VM factory and costs nothing until
 
 | Touchpoint | Ring | Attaches today | Seam needed |
 |---|---|---|---|
-| `SessionPayload.StratBook` (`StratBookLayoutState(RailCollapsed, ListCollapsed)`) | P | Positional field on the shell's session record, restored at `MainViewModel.cs:4470`, saved at :4576 | Per-pack session blob keyed by pack id (the per-tab `RestoreState` path already exists for tab VMs) |
+| `SessionPayload.StratBook` (`StratBookLayoutState(RailCollapsed, ListCollapsed)`) | P | **Done (item 23).** `SessionPayload.Packs: Dictionary<string, JsonElement>?`, keyed by pack id; `StratBookLayoutState` moved to `Extensions/StratBook/`. `IHostTabViewModel.SessionPackId`/`SnapshotPackState`/`RestorePackState` (§7.4 as built), read/written in `MainViewModel.RestoreSession`/`SnapshotSession` over `_hosts`, gated per host on `host.Tab.FeatureId`. A pre-`Packs` file's top-level `StratBook` folds once via `IJsonOnDeserialized`; a pack that is off carries its blob through unread and unwritten (`_loadedPackSessions`) | none |
 | Active tab id persisted as a section id (`stratbook.browser`) | P | `PersistedActiveTabId` | `TrySelectTab` already returns false for a section whose host is gone (`MainViewModel.cs:3644-3655`); restore must then land on Library |
 | Config-root stores | P/S | `strats/`, `tags/`, `palettes/`, `suggested-tags/`, `lineup-clips/`, `teams.json`, `review-queue.json`, `watched-situations.json`, `veto-history.json`, `dossier-notes.json`, `strat-mining.json`, `grenade-lineups.json.gz`, `grenades-v3.attempts.json` | None to keep. Pack store registration only matters for "delete my data" (section 7) |
 | Cache-root data | P/S | `cache/round-index/*.dvri.json`, `.dvrp.json.gz`; `cache/suggestions/`; `cache/strat-mining/{detected.json, signatures.json.gz}`; `cache/team-index.json`; demo sidecars `.grenades*.json.gz`; fields inside the demo cache record | Opaque pack payloads in the cache record (P4) |
@@ -724,6 +724,42 @@ public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IR
 
 Theme tokens are not a contribution in (a) or (b): they stay in the core dictionaries, which cost nothing
 when unused. A pack token manifest only matters for third-party add-ons.
+
+As built by item 23 (session only; `ILibraryContribution`/`StoreDescriptor` are items 22/24): no
+`IPackContributions.Session` and no standalone `ISessionParticipant`. Wiring the sketch above would have
+meant handing `MainViewModel`'s constructor a new `PackContributionSet`-derived parameter, and that
+constructor region is item 22's for the same window. Instead `IHostTabViewModel` (`ViewModels/Shell/`)
+carries three new, all-default members: `string? SessionPackId`, `JsonElement? SnapshotPackState()`,
+`void RestorePackState(JsonElement state)`. They are new names, not the sketch's `Snapshot`/`Restore`,
+because `IHostTabViewModel` already inherits `IWorkspaceTabViewModel.SnapshotState()`/`RestoreState(object?)`
+(the per-TAB blob in `SessionPayload.ModuleTabs`, applied once on first activation) and a same-named,
+different-signature override would shadow it (CS0108) and risk double-persisting the hub under both keys.
+`SessionPayload.StratBook` becomes `Dictionary<string, JsonElement>? Packs`, keyed by pack id
+(`StratBookPack.PackId`, `"net.demoviewer.pack.stratbook"`), a new trailing nullable parameter;
+`ModuleTabs` is unchanged. `MainViewModel.RestoreSession`/`SnapshotSession` walk the existing `_hosts` list
+(unconditional, pack-on or off, built once in `BuildWorkspaceTabs`) and read/write each host's blob by
+`SessionPackId`, gated on `host.Tab.FeatureId` (the pack's umbrella gate, as `PackContributions.HostTab`
+stamps it) through `_gate?.IsEnabled(...)`: off skips both the restore and the snapshot, and
+`SnapshotSession` seeds its outgoing dictionary from `_loadedPackSessions` (every pack id loaded at
+startup, kept for the session's life, unlike the tab-restore-only `_pendingRestore`) so an off pack's
+entry, and any id no host in this build owns, carries through byte for byte. A pre-`Packs` file's
+top-level `StratBook` member folds once into `Packs[LegacyPackFields.PackId]` via
+`IJsonOnDeserialized`/`[JsonExtensionData]` on `SessionPayload`, the same mechanism item 21 used for the
+demo cache record; an already-present `Packs` entry for that id wins. `StratBookHubViewModel` implements
+the three members over `StratBookLayout` (now in `Extensions/StratBook/`, with `StratBookLayoutState`),
+whose `RestoreSessionState(JsonElement)` reads `RailCollapsed`/`ListCollapsed` independently and accepts
+only `True`/`False`, so a missing member, a wrong-typed one, or a non-object blob leaves that pane as it
+is instead of throwing or discarding the rest.
+
+**Known gap, not closed by item 23.** The hub's view model is built unconditionally in
+`BuildWorkspaceTabs` regardless of the gate (`StratBookHubAccess`'s own doc comment says so), so "pack
+off" here is a gate check in the session code, not something that falls out of nothing existing. That
+leaves two live-toggle edges unhandled: flipping the pack on mid-session shows the hub at its
+just-constructed (unrestored) default until the next full restore, and flipping it off after a change and
+then saving carries forward the stale blob from the last load rather than the live value at the moment it
+went off. Both are accepted for now (session restore is a restart-time concern per section 8; a live-
+toggle fix would touch `OnGateChanged`, outside this item's session-region scope) and are not what the
+round-trip tests below exercise, which is strictly restart-time: load off, save, load on.
 
 ### 7.5 Commands and keybindings
 
