@@ -59,6 +59,41 @@ public class PlaybackBandMenuWindowTests
             window.Close();
         });
 
+    [Test]
+    public async Task RightPressingTheWarmupBand_OpensNoMenu_WhenNoContributorHasAnEntryForIt() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // Freeze-ends away from frame 0, so the rounds row starts with the warmup band, which is on the
+            // round track but is not a round: the contribution offers nothing, and outside Review mode the
+            // tab's lane menu offers nothing either.
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.Frames["round_freeze_end"] = [200, 500, 800];
+            FakeContribution fake = new();
+            PlaybackContributionHost host = new([(new FakePack(), [fake])], null);
+            using IDisposable binding = host.Attach(vm.Surface, ctx);
+            ctx.RaiseDemoReset();
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            TimelineControl timeline = Playback2DTimelineHarness.Timeline(view);
+
+            Border warmup = timeline.GetVisualDescendants().OfType<Border>()
+                .First(b => b.DataContext is TimelineBandViewModel { TrackId: "round", Label: "wu" } && b.Bounds.Width > 0);
+            Point at = Playback2DTimelineHarness.ToWindow(warmup, window, warmup.Bounds.Width / 2, warmup.Bounds.Height / 2);
+            int seeks = ctx.SeekFrames.Count;
+
+            window.MouseDown(at, MouseButton.Right);
+            window.MouseUp(at, MouseButton.Right);
+            Playback2DTimelineHarness.Pump();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(timeline.LastBandMenu).IsNull();
+                await Assert.That(ctx.SeekFrames.Count).IsEqualTo(seeks);
+                await Assert.That(fake.Runs).IsEqualTo(0);
+            }
+
+            window.Close();
+        });
+
     private sealed class FakeContribution : IPlaybackContribution
     {
         public const string Header = "Fake entry";
