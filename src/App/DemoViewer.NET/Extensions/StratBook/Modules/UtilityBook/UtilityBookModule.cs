@@ -29,7 +29,7 @@ public sealed class UtilityBookModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.utilitybook";
 
-    /// <summary>The section's tab id, mapped to <see cref="TabFeatureId" /> by the shell's tab gate.</summary>
+    /// <summary>The section's tab id; its descriptor declares <see cref="TabFeatureId" /> directly.</summary>
     public const string BrowserTabId = "utilitybook.browser";
 
     private readonly Func<UtilityBookTabViewModel> _viewModelFactory;
@@ -53,6 +53,7 @@ public sealed class UtilityBookModule : IWorkspaceModule
             Header = "Utility",
             Order = 3, // after Tags (2)
             Placement = TabPlacement.StratBook,
+            FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new UtilityBookTabView()
         };

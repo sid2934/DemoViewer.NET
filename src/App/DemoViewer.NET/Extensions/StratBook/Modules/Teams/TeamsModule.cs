@@ -14,9 +14,8 @@ namespace DemoViewer.NET.Modules.Teams;
 ///     and members behind each, the demos per team, and the actions that make team truth the user's:
 ///     rename, set as us, merge, split, start roster, hide, not a team, recompute, and the me accounts.
 ///     <para>
-///         <b>The ids are persisted keys.</b> <c>TabId "teams.browser"</c> and the feature id
-///         <c>"tab.teams"</c> key the user's per-tab session state and feature overrides; the header
-///         "Teams" is display text.
+///         <b>The ids are persisted keys.</b> <c>TabId "teams.browser"</c> and <see cref="TabFeatureId" />
+///         key the user's per-tab session state and feature overrides; the header "Teams" is display text.
 ///     </para>
 ///     <para>
 ///         <b>Wiring contract.</b> <see cref="WorkspaceTabDescriptor.ViewModelFactory" /> (lazy and
@@ -26,6 +25,9 @@ namespace DemoViewer.NET.Modules.Teams;
 /// </summary>
 public sealed class TeamsModule : IWorkspaceModule
 {
+    /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
+    public const string TabFeatureId = "tab.teams";
+
     private readonly Func<TeamsTabViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
@@ -47,6 +49,7 @@ public sealed class TeamsModule : IWorkspaceModule
             Header = "Teams",
             Order = 0,
             Placement = TabPlacement.Library,
+            FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TeamsTabView()
         };
