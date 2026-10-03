@@ -1,10 +1,10 @@
 #region
 
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     <para>
 ///         Exactly the members the host touches and nothing more. Read-only on purpose: the host never
 ///         writes back, so a second implementation cannot be surprised by state the host pushes into it.
-///         <see cref="ApplyAnnotationLevelRebuild" /> and <see cref="TryTagPositionAt" /> are the only
+///         <see cref="ApplyAnnotationLevelRebuild" /> and <see cref="TryPointerPreHandler" /> are the only
 ///         calls, and both hand the decision to the implementation.
 ///     </para>
 ///     <para>
@@ -101,11 +101,11 @@ internal interface ISceneFrameHost
     void ApplyAnnotationLevelRebuild(IReadOnlyDictionary<double, double> zMinMap);
 
     /// <summary>
-    ///     Offers a plain left click to Click To Tag Position ahead of the pointer tools. False sends the
-    ///     press on to the router, which is what an implementation with nothing to tag always returns.
+    ///     Offers a primary press, not diverted to pan, to the host's own pointer pre-handling ahead of the
+    ///     pointer tools (Click To Tag Position is one shape of this; the strat canvas's Set On Map is
+    ///     another). False sends the press on to the router, which is what a host with nothing to offer
+    ///     always returns.
     /// </summary>
-    /// <param name="level">The floor the clicked pane shows.</param>
-    /// <param name="worldX">World X of the click.</param>
-    /// <param name="worldY">World Y of the click.</param>
-    bool TryTagPositionAt(MapLevel level, double worldX, double worldY);
+    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
+    bool TryPointerPreHandler(ScenePointer pointer) => false;
 }
