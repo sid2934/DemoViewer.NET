@@ -377,17 +377,10 @@ public partial class Playback2DView : UserControl
             return;
         }
 
-        // The Tag Palette first while it has focus: its scope shadows the tool and always scopes
-        // (overview correction 21), so Esc steps out of a panel and a palette's "A" is a site, not a tool.
-        if (vm.TryHandleTagPaletteKey(e.Key, e.KeyModifiers))
-        {
-            e.Handled = true;
-            return;
-        }
-
-        // Then the Suggested Tags queue while a proposal is selected: its scope is what makes J and K walk
-        // the queue instead of the Situations result set.
-        if (vm.TryHandleSuggestionKey(e.Key, e.KeyModifiers))
+        // The contributions first: a focused panel's scope shadows the tool and always scopes (overview
+        // correction 21), so Esc steps out of a panel and a palette's "A" is a site, not a tool, and a
+        // selected suggestion's scope is what makes J and K walk the queue instead of the result set.
+        if (vm.Surface.TryHandleKey(e.Key, e.KeyModifiers))
         {
             e.Handled = true;
             return;

@@ -58,6 +58,32 @@ public sealed class ModuleTimelineData : ITimelineData
     /// <inheritdoc />
     public int FrameIndexAtTick(int tick) => _context.FrameIndexAtTick(tick);
 
+    /// <summary>
+    ///     The first tick whose frame is at or past <paramref name="frame" />: the inverse of
+    ///     <see cref="IModuleContext.FrameIndexAtTick" />, by binary search over the context's tick range.
+    /// </summary>
+    public static int TickAtFrame(IModuleContext context, int frame)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        int lo = context.FirstTick;
+        int hi = context.LastTick > lo ? context.LastTick : lo + frame * 2 + 2;
+        while (lo < hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            int at = context.FrameIndexAtTick(mid);
+            if (at >= 0 && at >= frame)
+            {
+                hi = mid;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+
+        return lo;
+    }
+
     /// <inheritdoc />
     public IReadOnlyList<int> FramesForEvent(string eventName) =>
         string.IsNullOrEmpty(eventName) ? Array.Empty<int>() : _context.EventFrames(eventName);
