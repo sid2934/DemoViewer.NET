@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -600,7 +601,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         _lastPress = e.GetPosition(this);
         ToolPointerEvent sample = Translate(e, false);
-        if (TryTagPosition(in sample))
+        if (TryPrimaryPress(in sample))
         {
             e.Handled = true;
             return;
@@ -684,17 +685,23 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         e.Handled = true;
     }
 
-    // Click To Tag Position: while the Tag Palette has focus a plain left click is a point for the tag,
-    // taken ahead of the router so the selected tool never sees it. Everything that diverts a press to
-    // pan (Space, Ctrl, the middle button) still pans, which is how a tagger moves the view meanwhile. A
-    // click is a whole gesture, so nothing is captured and the release reaches a router with no gesture.
-    private bool TryTagPosition(in ToolPointerEvent sample) =>
-        sample.Button == ToolPointerButton.Left
-        && sample.Pane is { } pane
-        && !Router.IsSpaceHeld
-        && (sample.Modifiers & (ToolModifiers.Space | ToolModifiers.Control)) == 0
-        && _vm is { } vm
-        && vm.TryTagPositionAt(pane.Level, sample.World.X, sample.World.Y);
+    // A primary press not diverted to pan: offered to the bound host's pointer pre-handler ahead of the
+    // router, so the selected tool never sees it. Everything that diverts a press to pan (Space, Ctrl, the
+    // middle button) still pans, which is how a tagger moves the view meanwhile. A click is a whole
+    // gesture, so nothing is captured and the release reaches a router with no gesture.
+    private bool TryPrimaryPress(in ToolPointerEvent sample)
+    {
+        if (sample.Button != ToolPointerButton.Left || sample.Pane is not { } pane
+            || Router.IsSpaceHeld || (sample.Modifiers & (ToolModifiers.Space | ToolModifiers.Control)) != 0
+            || _vm is not { } vm)
+        {
+            return false;
+        }
+
+        ScenePointer pointer = new(pane.Level, sample.World.X, sample.World.Y, sample.Screen, sample.Modifiers,
+            vm.CurrentFrame, () => vm.Zones);
+        return vm.TryPointerPreHandler(pointer);
+    }
 
     // Avalonia event → pane-resolved, world-resolved tool sample. The coalesced samples are the reason
     // a fast stroke looks smooth: a 1000 Hz digitiser delivers dozens of points per 60 Hz frame, and

@@ -18,7 +18,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -352,8 +351,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
 
         _roundFacts = TryResolveRoundFacts();
-        FindRounds = TryResolveFindRounds();
-        SituationResults = TryResolveSituationResults();
 
         Timeline.RegisterTrack(_roundTrack);
         Timeline.RegisterTrack(new KillTrack());
@@ -362,10 +359,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // The packs' surface: their band menus and lanes join the timeline, their side panes take the
         // export pane's place (opening one closes the export), their right-column panels show under the
-        // player cards while a mode of theirs is on, and their mode toggles sit on the toolbar. The surface
-        // reads the gate, the frame and the zones live from here.
+        // player cards while a mode of theirs is on, and their mode toggles and toolbar items sit on the
+        // toolbar. The surface reads the gate and the frame live from here.
         Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke(),
-            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame, () => Zones);
+            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame);
         Surface.SidePaneOpened += CloseExport;
         Surface.PanelsChanged += RaisePanelState;
 
@@ -605,31 +602,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     composed over it. The View reads it on every keypress, so a rebind takes effect immediately.
     /// </summary>
     public Playback2DKeymapProfile Keymap { get; private set; } = Playback2DKeymapProfile.Default;
-
-    /// <summary>
-    ///     Where Find Rounds Like This hands the current tick. Resolved from the container like the round
-    ///     facts; null on a host without the Situations module (a headless test), and the key is then
-    ///     left unhandled. Settable so a test can watch what the key sends without a container.
-    /// </summary>
-    internal IFindRoundsLikeThis? FindRounds { get; set; }
-
-    /// <summary>
-    ///     Where <c>J</c> / <c>K</c> walk the Situations result set. Resolved like <see cref="FindRounds" />;
-    ///     null on a host without the Situations module, and the keys are then left unhandled. Settable
-    ///     so a test can watch what the keys send without a container.
-    /// </summary>
-    internal ISituationResultWalk? SituationResults { get; set; }
-
-    /// <summary>Whether J/K may walk the Situations result set. Ungated (true) without a feature source.</summary>
-    private bool IsSituationResultWalkEnabled => _features?.IsEnabled(SituationsModule.TabFeatureId) ?? true;
-
-    /// <summary>The mode menu's entry, with the resolved gesture: "Find rounds like this (Ctrl+F)".</summary>
-    public string FindRoundsLikeThisLabel => $"Find rounds like this{GestureHint(Playback2DAction.FindRoundsLikeThis)}";
-
-    /// <summary>The toolbar button's tip, reading the resolved profile so a rebind shows the user's key.</summary>
-    public string FindRoundsLikeThisToolTip =>
-        $"Find rounds like this{GestureHint(Playback2DAction.FindRoundsLikeThis)}: snapshot the alive players by "
-        + "side onto the Situations query canvas and search the library's round index for this setup";
 
     /// <summary>Override rows the profile refused, one line each. Empty on a clean settings file.</summary>
     public IReadOnlyList<string> KeymapRejections { get; private set; } = [];
@@ -1242,30 +1214,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    private static IFindRoundsLikeThis? TryResolveFindRounds()
-    {
-        try
-        {
-            return App.Services?.GetService<IFindRoundsLikeThis>();
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    private static ISituationResultWalk? TryResolveSituationResults()
-    {
-        try
-        {
-            return App.Services?.GetService<ISituationResultWalk>();
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     /// <summary>
     ///     The round facts the winner tint reads. Resolved from the container in the constructor; a test
     ///     without one assigns a fake here before activation, or leaves it null for the pre-facts tint.
@@ -1350,18 +1298,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     A left click on the map, offered to the contributions before the pointer tools (Click To Tag
-    ///     Position lives in the pack): the point on the clicked pane's floor. False when none takes it, and
-    ///     the press then goes to the pointer tools. Item 20 moves this behind a pointer pre-handler.
+    ///     A primary press, offered to the contributions before the pointer tools (Click To Tag Position
+    ///     lives in the pack): the pointer pre-handlers' turn. False when none takes it, and the press then
+    ///     goes to the pointer tools.
     /// </summary>
-    /// <param name="level">The floor the clicked pane shows.</param>
-    /// <param name="worldX">World X of the click.</param>
-    /// <param name="worldY">World Y of the click.</param>
-    public bool TryTagPositionAt(MapLevel level, double worldX, double worldY)
-    {
-        ArgumentNullException.ThrowIfNull(level);
-        return Surface.TryHandleMapClick(level, worldX, worldY);
-    }
+    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
+    public bool TryPointerPreHandler(ScenePointer pointer) => Surface.TryHandlePointerPress(pointer);
 
     private static string[] BuildMyWeaponsPaths()
     {
@@ -1771,49 +1713,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 Annotations.ClearAllCommand.Execute(null);
                 return true;
 
-            case Playback2DAction.FindRoundsLikeThis:
-                return TryFindRoundsLikeThis();
-
-            // The walk seeks through the same shell funnels a card click does, so the shared clock and
-            // LiveSync's observer see it as any other seek. No seam, no result set, or the Situations
-            // tab (and so the pack, which tab.situations cascades off with) gated off leaves the key
-            // unhandled.
-            case Playback2DAction.NextSituationResult:
-                return IsSituationResultWalkEnabled && (SituationResults?.Walk(+1) ?? false);
-
-            case Playback2DAction.PrevSituationResult:
-                return IsSituationResultWalkEnabled && (SituationResults?.Walk(-1) ?? false);
-
-            // The pack actions (Tag*, Suggestion*, FocusTagPalette, ToggleReviewMode) and anything else the
-            // tab does not name: the contributions' turn, unless a focused panel already had it above.
+            // The pack actions (FindRoundsLikeThis, NextSituationResult, PrevSituationResult, Tag*,
+            // Suggestion*, FocusTagPalette, ToggleReviewMode) and anything else the tab does not name: the
+            // contributions' turn, unless a focused panel already had it above.
             default:
                 return !offered && Surface.TryExecute(action);
         }
     }
-
-    /// <summary>The mode menu's and the toolbar button's path onto the same funnel the key takes.</summary>
-    [RelayCommand]
-    private void FindRoundsLikeThis() => TryFindRoundsLikeThis();
-
-    // Hands the CURRENT scene frame over, not the live player states: the markers are the copied-out
-    // scalars the scene built inside the last Advanced callback, place included, and the pooled entities
-    // behind them are not safe to read from a key handler. Refused (the key stays unhandled) with no
-    // seam, no demo, or no frame pushed yet; the seam refuses on its own when nobody is alive.
-    private bool TryFindRoundsLikeThis()
-    {
-        if (FindRounds is not { } find || _context?.MapName is not { Length: > 0 } map)
-        {
-            return false;
-        }
-
-        Scene2DFrame frame = CurrentFrame;
-        return frame.Markers.Count > 0 && find.Show(map, frame.Time, frame.Markers);
-    }
-
-    // An unbound action yields "" from the profile, and " ()" reads as a bug; the annotations toolbar's
-    // hints carry their own punctuation for the same reason.
-    private string GestureHint(Playback2DAction action) =>
-        Keymap.GestureText(action) is { Length: > 0 } text ? $" ({text})" : "";
 
     // Steps within the NavStrip's speed ladder from the nearest current value. A Live Sync session without
     // the plugin's timescale capability pins the speed: the key is consumed (so it never reaches the card
@@ -2016,13 +1922,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         KeymapRejections = rejected;
         OnPropertyChanged(nameof(Keymap));
         OnPropertyChanged(nameof(KeymapRejections));
-        OnPropertyChanged(nameof(FindRoundsLikeThisLabel));
-        OnPropertyChanged(nameof(FindRoundsLikeThisToolTip));
 
-        // The toolbar's gesture hints read the RESOLVED profile, so a rebind reaches the tooltips at the
-        // same moment it reaches the router. Pushed rather than pulled through a $parent binding: the
-        // toolbar's DataContext is the panel, and a five-deep ancestor cast that silently yields "" on a
-        // standalone mount is a worse contract than one assignment.
+        // Surface.SetKeymap raises KeymapChanged, which is how a contribution's gesture-hinted label or
+        // tooltip (IPlaybackSurface.GestureHint) reaches the rebind at the same moment it reaches the router.
         Annotations.ApplyKeymap(Keymap);
         Surface.SetKeymap(Keymap);
     }
