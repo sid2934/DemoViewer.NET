@@ -279,7 +279,7 @@ public interface IToolServices
 
     /// <summary>
     ///     The strat canvas's token editor, or null on a host with no tokens (the 2D Playback tab, the query
-    ///     canvas). Null is what makes <see cref="TokenTool" /> a no-op there.
+    ///     canvas). Null is what makes the strat canvas's token tool a no-op there.
     /// </summary>
     ITokenEditor? Tokens { get; }
 

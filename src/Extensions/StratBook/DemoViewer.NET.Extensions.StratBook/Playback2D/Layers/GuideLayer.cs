@@ -1,11 +1,13 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 
 /// <summary>
 ///     The strat canvas's editing guides (<see cref="SceneGuides" />, read from the host on each paint): the selected step's destination pins and

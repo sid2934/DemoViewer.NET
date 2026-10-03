@@ -18,9 +18,9 @@ public enum TokenGrip
 }
 
 /// <summary>
-///     The strat canvas's side of a token drag (step-authoring.md §3.7). <see cref="TokenTool" /> talks
-///     to this and nothing else, so the tool never sees a strat: the canvas view-model implements it,
-///     writes the keyframe for the active step, and turns a closed drag into one undo entry.
+///     The strat canvas's side of a token drag (step-authoring.md §3.7). The strat canvas's token tool
+///     talks to this and nothing else, so the tool never sees a strat: the canvas view-model implements
+///     it, writes the keyframe for the active step, and turns a closed drag into one undo entry.
 ///     <para>
 ///         A drag is <see cref="BeginDrag" />, any number of <see cref="MoveTo" />, then exactly one of
 ///         <see cref="EndDrag" /> or <see cref="CancelDrag" />. Cancel rolls back to the state at
