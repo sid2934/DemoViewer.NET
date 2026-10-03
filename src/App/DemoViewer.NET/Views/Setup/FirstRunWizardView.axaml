@@ -140,7 +140,7 @@
                         ToolTip.Tip="Pick a folder to scan for demos (unavailable in the browser)." />
             </StackPanel>
 
-            <!-- Step 3 — Optional extensions. One card per FeatureScope.Pack row in the catalog (generic:
+            <!-- Step 3: Optional extensions. One card per FeatureScope.Pack row in the catalog (generic:
                  a second pack asks its own question here with no new code), present only on a genuine
                  first run. Default selection is ON (seeded by the VM from the catalog default). -->
             <StackPanel IsVisible="{Binding IsExtensionsStep}" Spacing="12">
@@ -157,7 +157,7 @@
                                         <TextBlock Text="{Binding Title}" FontSize="14"
                                                    Foreground="{DynamicResource TextValue}" />
                                         <TextBlock Text="{Binding Copy}" FontSize="12" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextDim}" />
+                                                   Foreground="{DynamicResource TextMid}" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" VerticalAlignment="Top"
                                               IsChecked="{Binding Enabled, Mode=TwoWay}"
@@ -169,7 +169,7 @@
                 </ItemsControl>
             </StackPanel>
 
-            <!-- Step 4 — Done -->
+            <!-- Step 4: Done -->
             <StackPanel IsVisible="{Binding IsDoneStep}" Spacing="16" MaxWidth="440"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock Text="You're all set" FontSize="24" FontWeight="SemiBold"

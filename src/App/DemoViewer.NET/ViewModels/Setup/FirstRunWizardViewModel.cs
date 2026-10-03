@@ -125,18 +125,25 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
             Folders.Add(folder);
         }
 
-        // Seeded from any existing override, else the catalog default for the user's CURRENT category
-        // (true for every category for pack.stratbook today). Built regardless of whether the step shows,
-        // since it is cheap and harmless when unused.
+        // Seeded from any existing override, else the catalog default for the category selected above.
+        // Category (step 1) is always reached before Extensions (step 3), so a later category change
+        // reseeds an un-answered option too (OnSelectedCategoryOptionChanged below); an existing override
+        // never does, since that question is already answered.
         FeatureDescriptor[] packRows = [.. packs ?? FeatureCatalog.All.Where(d => d.Scope == FeatureScope.Pack)];
         Dictionary<string, bool> overrides = current.Features.Overrides;
         PackOptions =
         [
-            .. packRows.Select(d => new PackOptionViewModel(
-                d.Id,
-                d.Label,
-                PackCopyFor(d),
-                overrides.TryGetValue(d.Id, out bool overridden) ? overridden : DefaultEnabled(d, current.UserCategory)))
+            .. packRows.Select(d =>
+            {
+                bool hasOverride = overrides.TryGetValue(d.Id, out bool overridden);
+                return new PackOptionViewModel(
+                    d.Id,
+                    d.Label,
+                    PackCopyFor(d),
+                    hasOverride ? overridden : DefaultEnabled(d, current.UserCategory),
+                    d.Defaults,
+                    hasOverride);
+            })
         ];
 
         _includeExtensionsStep = settings.NeedsFirstRun && packRows.Length > 0;
@@ -159,8 +166,6 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         };
     }
 
-    // An unlisted pack id falls back to its own catalog Description (generic, one-line), so a second
-    // pack still gets a question with no new code here.
     private static string PackCopyFor(FeatureDescriptor pack) =>
         _packCopy.TryGetValue(pack.Id, out string? copy) ? copy : pack.Description;
 
@@ -292,8 +297,16 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         OnPropertyChanged(nameof(StepIndicatorText));
     }
 
-    partial void OnSelectedCategoryOptionChanged(CategoryOption value) =>
+    partial void OnSelectedCategoryOptionChanged(CategoryOption value)
+    {
         OnPropertyChanged(nameof(SelectedCategory));
+        // Category is step 1, Extensions is step 3: a category change on the way there reseeds every
+        // pack option that has not already been answered (no persisted override, not yet touched here).
+        foreach (PackOptionViewModel option in PackOptions)
+        {
+            option.Reseed(value.Value);
+        }
+    }
 
     /// <summary>Advances to the next step (clamped at the last step).</summary>
     [RelayCommand]
@@ -442,15 +455,59 @@ public sealed partial class PackOptionViewModel : ObservableObject
     /// <summary>One paragraph of what-it-adds / what-it-costs copy.</summary>
     public string Copy { get; }
 
+    // The descriptor's own category -> default map, kept so Reseed can answer a later category change
+    // without the VM reaching back into FeatureCatalog.
+    private readonly IReadOnlyDictionary<UserCategory, bool> _defaults;
+
+    // True once this question is answered: a persisted override at construction, or an Enabled edit in
+    // this session. Reseed is a no-op once true, so it never overwrites either.
+    private bool _answered;
+
+    // Guards OnEnabledChanged while Reseed itself assigns Enabled, so a reseed is not mistaken for the
+    // user answering the question.
+    private bool _reseeding;
+
     /// <summary>The user's answer: on turns the pack on. Bound TwoWay to the step's CheckBox.</summary>
     [ObservableProperty]
     private bool _enabled;
 
-    public PackOptionViewModel(string featureId, string title, string copy, bool enabled)
+    public PackOptionViewModel(
+        string featureId,
+        string title,
+        string copy,
+        bool enabled,
+        IReadOnlyDictionary<UserCategory, bool> defaults,
+        bool hasOverride)
     {
         FeatureId = featureId;
         Title = title;
         Copy = copy;
         _enabled = enabled;
+        _defaults = defaults;
+        _answered = hasOverride;
+    }
+
+    partial void OnEnabledChanged(bool value)
+    {
+        if (!_reseeding)
+        {
+            _answered = true;
+        }
+    }
+
+    /// <summary>
+    ///     Recomputes <see cref="Enabled" /> from the catalog default for <paramref name="category" />,
+    ///     unless this question is already answered (a persisted override, or a prior CheckBox edit).
+    /// </summary>
+    public void Reseed(UserCategory category)
+    {
+        if (_answered)
+        {
+            return;
+        }
+
+        _reseeding = true;
+        Enabled = _defaults.TryGetValue(category, out bool byDefault) && byDefault;
+        _reseeding = false;
     }
 }
