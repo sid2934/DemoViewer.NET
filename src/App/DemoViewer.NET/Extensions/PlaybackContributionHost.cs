@@ -87,6 +87,8 @@ public sealed class PlaybackContributionHost
             _attached.Clear();
         }
 
+        // Apply touches the surface (timeline contributors, an open pane) with no dispatch of its own: it
+        // relies on IFeatureGate.Changed arriving on the UI thread, which FeatureGate marshals.
         private void OnGateChanged(object? sender, EventArgs e) => Apply();
 
         private void Apply()
