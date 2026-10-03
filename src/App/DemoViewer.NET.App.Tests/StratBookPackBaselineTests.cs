@@ -75,19 +75,24 @@ public class StratBookPackBaselineTests
                 try
                 {
                     await SettleStartupLoads(provider);
+                    Snapshot(provider, "early");
 
-                    Process proc = Process.GetCurrentProcess();
-                    proc.Refresh();
-                    long gcBytes = GC.GetTotalMemory(true);
-                    GCMemoryInfo gi = GC.GetGCMemoryInfo();
-                    Console.WriteLine("@M0_RESIDENT " + JsonSerializer.Serialize(new
+                    // Checks that "settled" (the readiness flags above) really is settled: logs the queue's
+                    // full item list at 15s intervals for 90s more, then snapshots again. If the late figure
+                    // disagrees with the early one, something besides the three readiness flags was still
+                    // doing work (a HeapCompaction job, a lineup save, anything IsLight or LibraryScan-exempt
+                    // that keeps running under BackgroundProcessingEnabled=false), and the early snapshot is
+                    // the wrong one to trust.
+                    IDemoProcessingQueue diagQueue = provider.GetRequiredService<IDemoProcessingQueue>();
+                    for (int elapsed = 0; elapsed < 90; elapsed += 15)
                     {
-                        workingSetMb = proc.WorkingSet64 / 1024.0 / 1024.0,
-                        privateMb = proc.PrivateMemorySize64 / 1024.0 / 1024.0,
-                        gcMb = gcBytes / 1024.0 / 1024.0,
-                        committedMb = gi.TotalCommittedBytes / 1024.0 / 1024.0,
-                        demos = provider.GetRequiredService<DemoCacheStore>().Index.Count
-                    }));
+                        await Task.Delay(TimeSpan.FromSeconds(15));
+                        Console.WriteLine($"@M0_QUEUE_T+{elapsed + 15}s "
+                            + $"queued={diagQueue.QueuedCount} running={diagQueue.RunningCount} "
+                            + $"items=[{string.Join(", ", diagQueue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.State}"))}]");
+                    }
+
+                    Snapshot(provider, "late");
                 }
                 finally
                 {
@@ -98,6 +103,35 @@ public class StratBookPackBaselineTests
         finally
         {
             Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+        }
+    }
+
+    private static void Snapshot(ServiceProvider provider, string label)
+    {
+        Process proc = Process.GetCurrentProcess();
+        proc.Refresh();
+        long gcBytes = GC.GetTotalMemory(true);
+        GCMemoryInfo gi = GC.GetGCMemoryInfo();
+        Console.WriteLine($"@M0_RESIDENT_{label} " + JsonSerializer.Serialize(new
+        {
+            workingSetMb = proc.WorkingSet64 / 1024.0 / 1024.0,
+            privateMb = proc.PrivateMemorySize64 / 1024.0 / 1024.0,
+            gcMb = gcBytes / 1024.0 / 1024.0,
+            committedMb = gi.TotalCommittedBytes / 1024.0 / 1024.0,
+            demos = provider.GetRequiredService<DemoCacheStore>().Index.Count,
+            situationsLoaded = provider.GetRequiredService<SituationIndex>().IsReady,
+            grenadesLoaded = provider.GetRequiredService<GrenadeIndex>().DemoCount
+        }));
+        if (label == "early")
+        {
+            Console.WriteLine("@M0_RESIDENT " + JsonSerializer.Serialize(new
+            {
+                workingSetMb = proc.WorkingSet64 / 1024.0 / 1024.0,
+                privateMb = proc.PrivateMemorySize64 / 1024.0 / 1024.0,
+                gcMb = gcBytes / 1024.0 / 1024.0,
+                committedMb = gi.TotalCommittedBytes / 1024.0 / 1024.0,
+                demos = provider.GetRequiredService<DemoCacheStore>().Index.Count
+            }));
         }
     }
 
@@ -242,16 +276,18 @@ public class StratBookPackBaselineTests
     ///     do with the evaluator list, so the measured demos split into two disjoint groups by position
     ///     (odd index full, even index reduced) instead. Demos are read in place, never copied or moved.
     ///     <para>
-    ///         Round Facts, Round Index and Suggested Tags each check a fingerprint against the cache
-    ///         record and silently do nothing when it already matches, which it does for every demo in an
-    ///         indexed library: an early build of this probe measured all three doing effectively zero work
-    ///         on the full pass, for the same reason <see cref="DemoLibraryService.Wants" /> would already
-    ///         say no to them. Before a demo's full pass, this clears those three fingerprints on its cache
-    ///         record (<see cref="DemoCacheStore.UpdateExisting" />) so all three actually recompute, the
-    ///         scenario this number needs to answer: what re-indexing a demo costs, not what re-checking an
-    ///         already-current one costs. Grenades has no such check (it always walks); library and
-    ///         highlights are gated by a separate "pending" membership this probe does not force, so they do
-    ///         the same (near nothing) in both modes and do not bias the full-versus-reduced delta.
+    ///         Round Facts, Round Index, Suggested Tags and Highlights each check a fingerprint or state
+    ///         field against the cache record and silently do nothing when it already matches, which it
+    ///         does for every demo in an indexed library: an early build of this probe measured all four
+    ///         doing effectively zero work, for the same reason <see cref="IDemoEvaluator.Wants" /> would
+    ///         already say no to them. Before EVERY timed demo, in both modes, this clears those four
+    ///         fields on its cache record (<see cref="DemoCacheStore.UpdateExisting" />, see
+    ///         <see cref="InvalidateForReindex" />) so all four actually recompute, the scenario this number
+    ///         needs to answer: what re-indexing a demo costs, not what re-checking an already-current one
+    ///         costs. Grenades has no such check (it always walks). Library is gated by membership in a
+    ///         private, un-forceable "pending" dictionary this probe does not populate, so it no-ops in
+    ///         both modes; since both modes call it the same way, that does not bias the delta, but it does
+    ///         mean the numbers below do not include library's own (expected small) tier-2 cost.
     ///     </para>
     /// </summary>
     [Test]
@@ -304,8 +340,9 @@ public class StratBookPackBaselineTests
                 // with the other mode reads a warm OS page cache and times artificially fast (measured: a
                 // same-demo full-then-reduced pair showed the SECOND mode 5x to 7x faster purely from that),
                 // so each measured demo below runs under exactly ONE mode, never both.
-                InvalidatePackFingerprints(demoCache, lines[0]);
+                InvalidateForReindex(demoCache, lines[0]);
                 TimeFull(lines[0], full);
+                InvalidateForReindex(demoCache, lines[0]);
                 TimeReduced(lines[0], forward, library, highlights);
 
                 List<(string Demo, double Ms)> fullResults = [];
@@ -317,9 +354,9 @@ public class StratBookPackBaselineTests
                     double sizeMb = new FileInfo(path).Length / 1024.0 / 1024.0;
                     // Odd measured index -> full; even -> reduced, so neither mode's file reads are all
                     // taken first or last (guards against a steady drift over the course of the run).
+                    InvalidateForReindex(demoCache, path);
                     if (i % 2 == 1)
                     {
-                        InvalidatePackFingerprints(demoCache, path);
                         double ms = TimeFull(path, full);
                         fullResults.Add((name, ms));
                         Console.WriteLine("@M0_INDEXMS " + JsonSerializer.Serialize(new { demo = name, sizeMb, mode = "full", ms }));
@@ -371,17 +408,25 @@ public class StratBookPackBaselineTests
         return sorted.Length % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2.0 : sorted[mid];
     }
 
-    // Round Facts, Round Index and Suggested Tags each gate their real work on a fingerprint already
-    // matching the cache record; clearing the three fingerprints is what RoundIndexEvaluator.Request and
+    // Round Facts, Round Index, Suggested Tags and Highlights each gate their real work on a fingerprint
+    // or state already matching the cache record; clearing them is what RoundIndexEvaluator.Request and
     // SuggestedTagsService.Request do via their own forced-path sets, but those ALSO call
     // Coordinator.Consider, which would submit an async queue job racing this probe's own direct Evaluate
     // call. Mutating the record directly forces the same recompute with no concurrent submission.
-    private static void InvalidatePackFingerprints(DemoCacheStore demoCache, string path) =>
+    //
+    // NOT fixed here: DemoLibraryService's own gate is membership in a private "pending" dictionary with
+    // no fingerprint and no public per-path force, populated only by its own RescanAsync reconcile. Both
+    // TimeFull and TimeReduced call library.Evaluate/EvaluateForward and both still no-op on it, the same
+    // way in both arms, so it does not bias the full-versus-reduced delta, but it does mean library's own
+    // (expected small: a players list and a few fields off data the parse already produced) tier-2 cost is
+    // not captured by either number here.
+    private static void InvalidateForReindex(DemoCacheStore demoCache, string path) =>
         demoCache.UpdateExisting(path, r =>
         {
             r.RoundFactsFingerprint = null;
             r.RoundIndexFingerprint = null;
             r.SuggestionsFingerprint = null;
+            r.AnalysisState = DemoAnalysisState.Pending;
         });
 
     // Verbatim copy of DemoProcessingQueue.RunEntry's retained path: a single mmap-or-bytes parse with
