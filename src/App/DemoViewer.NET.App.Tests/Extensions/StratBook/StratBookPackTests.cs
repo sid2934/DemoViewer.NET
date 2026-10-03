@@ -6,14 +6,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Dossier;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.RoundTagger;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.Teams;
-using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -256,40 +248,39 @@ public class StratBookPackTests
             .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id));
     }
 
-    // Item 10: every module's descriptor declares a FeatureId, and that id is the one StratBookPack.Features
-    // actually registered, with the catalog's own OwnerPackId stamp to prove it. A module that declared an
-    // id the pack forgot would fail here on the IsNotNull, not drift along as a fail-open tab.
+    // Reads the pack's own contributed module list, not a hand-written one, so an id a module declares
+    // but StratBookPack.Features never registered fails the catalog-entry check below, instead of
+    // drifting along as a fail-open tab.
     [Test]
     public async Task EveryModule_DeclaresAFeatureId_InTheCatalog_OwnedByThePack()
     {
-        FakeHost host = new();
-        IWorkspaceModule[] modules =
-        [
-            new SituationsModule(() => null!),
-            new TeamsModule(() => null!),
-            new ReviewQueueModule(() => null!),
-            new SuggestedInboxModule(() => null!),
-            new RoundTaggerModule(() => null!),
-            new StratBookModule(() => null!),
-            new UtilityBookModule(() => null!),
-            new DossierModule(() => null!)
-        ];
-
-        foreach (IWorkspaceModule module in modules)
+        await WithProvider(null, async provider =>
         {
-            foreach (WorkspaceTabDescriptor descriptor in module.CreateTabs(host))
-            {
-                await Assert.That(descriptor.FeatureId).IsNotNull()
-                    .Because($"{module.Id}'s '{descriptor.TabId}' must declare its own feature id");
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
+            FakeHost host = new();
+            List<string> declaredIds = [];
 
-                FeatureDescriptor? catalogEntry = FeatureCatalog.ById(descriptor.FeatureId!);
-                await Assert.That(catalogEntry).IsNotNull()
-                    .Because($"'{descriptor.FeatureId}' (declared by {module.Id}) is missing from the catalog: "
-                        + "a module cannot declare an id the pack forgot");
-                await Assert.That(catalogEntry!.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
-                    .Because($"'{descriptor.FeatureId}' must be owned by the pack that owns {module.Id}");
+            foreach (IWorkspaceModule module in pack.Modules)
+            {
+                foreach (WorkspaceTabDescriptor descriptor in module.CreateTabs(host))
+                {
+                    await Assert.That(descriptor.FeatureId).IsNotNull()
+                        .Because($"{module.Id}'s '{descriptor.TabId}' must declare its own feature id");
+
+                    FeatureDescriptor? catalogEntry = FeatureCatalog.ById(descriptor.FeatureId!);
+                    await Assert.That(catalogEntry).IsNotNull()
+                        .Because($"'{descriptor.FeatureId}' (declared by {module.Id}) has no catalog entry");
+                    await Assert.That(catalogEntry!.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
+                        .Because($"'{descriptor.FeatureId}' must be owned by the pack that owns {module.Id}");
+
+                    declaredIds.Add(descriptor.FeatureId!);
+                }
             }
-        }
+
+            string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Scope == FeatureScope.Tab).Select(f => f.Id)];
+            await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
+                .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
+        });
     }
 
     [Test]

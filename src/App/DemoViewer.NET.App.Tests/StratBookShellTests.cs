@@ -321,8 +321,8 @@ public class StratBookShellTests
             }
         });
 
-    // Item 10: a descriptor's own FeatureId gates it with NO entry in MainViewModel's fallback map at all,
-    // and a descriptor that declares neither still fails open, exactly as an ungated tab always has.
+    // A descriptor's own FeatureId gates it with no entry in MainViewModel's fallback map at all; a
+    // descriptor that declares neither still fails open.
     [Test]
     public async Task DescriptorFeatureId_GatesTheTab_WithNoFallbackMapEntry() =>
         await HeadlessSession.RunOnUi(async () =>
@@ -357,8 +357,7 @@ public class StratBookShellTests
             }
         });
 
-    // A built-in tab contributes no FeatureId of its own: MainViewModel's fallback map still gates it by
-    // TabId, exactly as it did before item 10 gave descriptors a FeatureId to declare.
+    // A built-in tab contributes no FeatureId of its own: MainViewModel's fallback map still gates it by TabId.
     [Test]
     public async Task ABuiltInTab_WithNoDeclaredFeatureId_StillGatesThroughTheFallbackMap() =>
         await HeadlessSession.RunOnUi(async () =>

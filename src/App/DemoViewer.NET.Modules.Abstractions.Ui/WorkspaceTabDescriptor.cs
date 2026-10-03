@@ -90,11 +90,7 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
     /// <summary>Where the tab sits.</summary>
     public TabPlacement Placement { get; init; } = TabPlacement.Main;
 
-    /// <summary>
-    ///     The <c>FeatureCatalog</c> id the shell gates this tab on, or <c>null</c> to always show it. A module
-    ///     declares its own id here instead of relying on the shell's built-in fallback map, so a module-owned
-    ///     tab's gating travels with the descriptor rather than a separate lookup the shell must keep in sync.
-    /// </summary>
+    /// <summary>The feature id the host gates this tab on, or <c>null</c> to always show it.</summary>
     public string? FeatureId { get; init; }
 
     /// <summary>

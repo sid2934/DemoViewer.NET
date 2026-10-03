@@ -87,12 +87,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             "highlights"
         };
 
-    // Fallback for a descriptor that declares no WorkspaceTabDescriptor.FeatureId of its own: maps its TabId
-    // (module-owned, e.g. "builtin.parser") to its FeatureCatalog tab feature id (e.g. "tab.parser"). Every
-    // Strat Book module now declares its own FeatureId (IsTabEnabled reads that first), so this map holds
-    // only the built-ins that don't. A TabId ABSENT here (and with no descriptor FeatureId) is never gated →
-    // always shown (fail-open); a mapped id not in the catalog also fails open via IFeatureGate.IsEnabled.
-    // Static + readonly (CA1861/CA1859-clean; the value type is the concrete Dictionary the lookup uses directly).
+    // Fallback for a descriptor with no WorkspaceTabDescriptor.FeatureId of its own: maps its TabId
+    // (e.g. "builtin.parser") to a FeatureCatalog tab id (e.g. "tab.parser"), built-ins only. A TabId
+    // absent here, with no descriptor FeatureId, is never gated → always shown (fail-open); a mapped id
+    // not in the catalog also fails open via IFeatureGate.IsEnabled. Static + readonly (CA1861/CA1859-clean;
+    // the value type is the concrete Dictionary the lookup uses directly).
     private static readonly Dictionary<string, string> _tabFeatureIds = new(StringComparer.Ordinal)
     {
         ["builtin.library"] = "tab.library",
