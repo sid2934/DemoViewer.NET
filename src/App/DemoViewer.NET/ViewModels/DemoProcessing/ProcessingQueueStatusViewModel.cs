@@ -5,6 +5,7 @@ using System.Collections.Specialized;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -31,6 +32,7 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDisposable
 {
     private readonly INotifyCollectionChanged _itemsIncc;
+    private readonly JobKindRegistry _jobKinds;
     private readonly Action? _openSettings;
     private readonly IDemoProcessingQueue _queue;
     private bool _disposed;
@@ -70,11 +72,14 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     ///     Opens the Settings screen (to the Background-processing section); null hides
     ///     the flyout's settings link (e.g. the designer / capture path).
     /// </param>
-    public ProcessingQueueStatusViewModel(IDemoProcessingQueue queue, Action? openSettings = null)
+    /// <param name="jobKinds">Resolves each row's kind chip (item 13). Defaults to <see cref="JobKindRegistry.Default" />.</param>
+    public ProcessingQueueStatusViewModel(IDemoProcessingQueue queue, Action? openSettings = null,
+        JobKindRegistry? jobKinds = null)
     {
         ArgumentNullException.ThrowIfNull(queue);
         _queue = queue;
         _openSettings = openSettings;
+        _jobKinds = jobKinds ?? JobKindRegistry.Default;
 
         Chip = new StatusChipViewModel
         {
@@ -87,7 +92,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         _itemsIncc.CollectionChanged += OnItemsChanged;
         foreach (DemoQueueItem item in _queue.Items)
         {
-            Rows.Add(new DemoQueueRowViewModel(item, _queue));
+            Rows.Add(new DemoQueueRowViewModel(item, _queue, _jobKinds));
         }
 
         _queue.Changed += OnQueueChanged;
@@ -237,7 +242,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
                     : Rows.Count;
                 foreach (DemoQueueItem item in e.NewItems)
                 {
-                    Rows.Insert(Math.Min(insertAt, Rows.Count), new DemoQueueRowViewModel(item, _queue));
+                    Rows.Insert(Math.Min(insertAt, Rows.Count), new DemoQueueRowViewModel(item, _queue, _jobKinds));
                     insertAt++;
                 }
 
@@ -290,7 +295,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         Rows.Clear();
         foreach (DemoQueueItem item in _queue.Items)
         {
-            Rows.Add(new DemoQueueRowViewModel(item, _queue));
+            Rows.Add(new DemoQueueRowViewModel(item, _queue, _jobKinds));
         }
     }
 }

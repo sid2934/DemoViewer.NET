@@ -7,6 +7,7 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -282,6 +283,42 @@ public class StratBookPackTests
             await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
                 .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
         });
+    }
+
+    // Item 13: the pack contributes its job kinds through Contribute(...), and BuildRegistry checks that
+    // list against the DI-free JobKinds property (the one JobKindRegistry.Build(packs) reads). If either
+    // channel drifted, composing the provider here would throw before this test's own assertions run.
+    [Test]
+    public async Task ThePack_ContributesTheSameJobKinds_ItsJobKindsPropertyDeclares()
+    {
+        await WithProvider(null, async provider =>
+        {
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
+            await Assert.That(pack.JobKinds).IsEquivalentTo(new StratBookPack().JobKinds,
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        });
+    }
+
+    [Test]
+    public async Task ThePack_JobKinds_MatchTheFiveStratBookKinds_WithOwnersAmongTheLifecycleTags()
+    {
+        JobKindDescriptor[] kinds = [.. new StratBookPack().JobKinds];
+
+        await Assert.That(kinds.Select(k => k.Kind)).IsEquivalentTo(
+        [
+            QueueJobKind.StratMining, QueueJobKind.StratPreview, QueueJobKind.LineupClips,
+            QueueJobKind.SuggestionsInbox, QueueJobKind.TeamsCommand
+        ]);
+
+        using (Assert.Multiple())
+        {
+            foreach (JobKindDescriptor kind in kinds)
+            {
+                await Assert.That(kind.Owner).IsNotNull().Because($"{kind.Kind} must carry an owner tag");
+                await Assert.That(StratBookLifecycle.OwnerTags).Contains(kind.Owner!)
+                    .Because($"{kind.Kind}'s owner '{kind.Owner}' must be one of item 8's CancelOwned tags");
+            }
+        }
     }
 
     [Test]
