@@ -87,6 +87,8 @@ public class StratBookPackTests
         "DemoViewer.NET.Services.Provenance.IDemoProvenanceSource",
         "DemoViewer.NET.ViewModels.Teams.TeamsTabViewModel",
         "DemoViewer.NET.Services.Strats.StratStore",
+        "DemoViewer.NET.Modules.IStratCapture | Transient",
+        "DemoViewer.NET.Modules.StratBook.IStratExport | Transient",
         "DemoViewer.NET.Services.Strats.CalloutResolverSource",
         "DemoViewer.NET.Services.Strats.StratEvidenceService",
         "DemoViewer.NET.Services.Strats.Mining.StratMiningService",
