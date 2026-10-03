@@ -184,6 +184,20 @@ public sealed class DossierNotesStore
         Commit();
     }
 
+    /// <summary>
+    ///     Drops every team's notes and re-reads the file: the recovery after it is deleted out from under
+    ///     the store (item 24's "delete extension data"), so a later mutation does not resave what the
+    ///     delete just removed.
+    /// </summary>
+    public void Reload()
+    {
+        _teams.Clear();
+        _refused = false;
+        FileProblem = null;
+        Load();
+        Changed?.Invoke();
+    }
+
     /// <summary>Removes a note and its star.</summary>
     /// <param name="teamId">The team.</param>
     /// <param name="key">The note's key.</param>

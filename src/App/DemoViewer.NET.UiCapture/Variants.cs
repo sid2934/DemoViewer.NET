@@ -151,6 +151,9 @@ public static partial class Variants
             // one-shot capture than the posted ScrollTargetSection scroll) AND auto-expands its group.
             ["settings-extensions-on"] = () => Settings(packOff: false),
             ["settings-extensions-off"] = () => Settings(packOff: true),
+            // Delete extension data (item 24): the pack off (the main use case) with its confirmation
+            // already armed, so the row, the user-work sizes and the two buttons are all in frame.
+            ["settings-extensions-delete-confirm"] = () => Settings(packOff: true, armDelete: true),
             ["wizard"] = Wizard,
             ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
@@ -1365,7 +1368,7 @@ public static partial class Variants
     ///     Extensions section and auto-expands its group for the capture, the on variant the same way minus
     ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
-    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null)
+    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1420,16 +1423,45 @@ public static partial class Variants
                 StratBookPack.PackFeatureId)
         ];
 
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages);
+        // "Delete extension data" (item 24): a canned inventory, no real PackDataRemover, so the capture
+        // is deterministic and needs no temp files. Sizes are plausible, not measured.
+        IPackDataRemoval[]? dataRemovals = armDelete
+            ?
+            [
+                new CapturePackDataRemoval(new PackDataInventory(
+                [
+                    new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 14, 182_000),
+                    new StoreInventoryItem(new StoreDescriptor("tags", "Tags", StoreRoot.Config, ["tags"], true), 9, 54_000),
+                    new StoreInventoryItem(new StoreDescriptor("teams", "Teams", StoreRoot.Config, ["teams.json"], true), 1, 3_100),
+                    new StoreInventoryItem(new StoreDescriptor("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false), 240, 9_800_000)
+                ]))
+            ]
+            : null;
+
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals);
         if (packOff is not null)
         {
             vm.SettingsFilterText = "extension";
+        }
+
+        if (armDelete)
+        {
+            vm.ExtensionDataActions.Single().ArmCommand.ExecuteAsync(null).GetAwaiter().GetResult();
         }
 
         return new SettingsView
         {
             DataContext = vm
         };
+    }
+
+    // A capture-only IPackDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
+    // unused by the "settings-extensions-delete-confirm" variant, which only arms the confirmation).
+    private sealed class CapturePackDataRemoval(PackDataInventory inventory) : IPackDataRemoval
+    {
+        public string PackFeatureId => StratBookPack.PackFeatureId;
+        public Task<PackDataInventory> InventoryAsync() => Task.FromResult(inventory);
+        public Task<PackDataRemovalResult> DeleteAsync() => Task.FromResult(new PackDataRemovalResult(true, inventory, 0));
     }
 
     // Renders the Playback2D HUD DOMAIN accents (health/armor/headshot/…) as text + glyphs on the real

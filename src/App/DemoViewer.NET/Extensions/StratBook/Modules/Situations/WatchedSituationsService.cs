@@ -194,6 +194,25 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
         }
     }
 
+    /// <summary>
+    ///     Drops the saved watches, which <see cref="Release" /> keeps, and re-reads the file: the recovery
+    ///     after it is deleted out from under the store (item 24's "delete extension data"), so a later
+    ///     mutation does not resave what the delete just removed.
+    /// </summary>
+    public void Reload()
+    {
+        lock (_gate)
+        {
+            _file = new WatchedSituationsFile();
+            _new.Clear();
+            _refused = false;
+            FileProblem = null;
+            Load();
+        }
+
+        RaiseChanged();
+    }
+
     private bool Detach()
     {
         lock (_gate)

@@ -25,6 +25,8 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     private readonly List<IPackReindexEstimate> _reindexEstimates = [];
     private readonly List<IPlaybackContribution> _playback = [];
     private readonly List<ILibraryContribution> _library = [];
+    private readonly List<StoreDescriptor> _stores = [];
+    private IPackDataRemoval? _dataRemoval;
 
     /// <summary>The pack these contributions belong to.</summary>
     public IFeaturePack Pack { get; } = pack;
@@ -61,6 +63,12 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
     /// <summary>Library filter/badge contributions, in contribution order, each stamped with a gate id.</summary>
     public IReadOnlyList<ILibraryContribution> LibraryContributions => _library;
+
+    /// <summary>Store and cache paths the pack declared, in contribution order.</summary>
+    public IReadOnlyList<StoreDescriptor> Stores => _stores;
+
+    /// <summary>The pack's "delete extension data" action, or null when it declared none.</summary>
+    public IPackDataRemoval? DataRemovalContribution => _dataRemoval;
 
     /// <inheritdoc />
     public void Module(IWorkspaceModule workspaceModule)
@@ -147,6 +155,21 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     {
         ArgumentNullException.ThrowIfNull(contribution);
         _library.Add(contribution.FeatureId is null ? new StampedLibraryContribution(contribution, Pack.FeatureId) : contribution);
+    }
+
+    /// <inheritdoc />
+    public void Store(StoreDescriptor store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentException.ThrowIfNullOrWhiteSpace(store.Id);
+        _stores.Add(store);
+    }
+
+    /// <inheritdoc />
+    public void DataRemoval(IPackDataRemoval removal)
+    {
+        ArgumentNullException.ThrowIfNull(removal);
+        _dataRemoval = removal;
     }
 
     // Stamps the owning pack's id onto a contribution that left FeatureId null, so the host always has a

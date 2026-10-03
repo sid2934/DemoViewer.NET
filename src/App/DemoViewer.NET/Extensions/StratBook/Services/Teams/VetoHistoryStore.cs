@@ -53,6 +53,20 @@ public sealed class VetoHistoryStore
     public IReadOnlyList<VetoEntry> For(Guid opponentTeamId) =>
         [.. _entries.Where(e => e.OpponentTeamId == opponentTeamId).OrderBy(e => e.Order)];
 
+    /// <summary>
+    ///     Drops every step and re-reads the file: the recovery after it is deleted out from under the
+    ///     store (item 24's "delete extension data"), so a later mutation does not resave what the delete
+    ///     just removed.
+    /// </summary>
+    public void Reload()
+    {
+        _entries.Clear();
+        _refused = false;
+        FileProblem = null;
+        Load();
+        Changed?.Invoke();
+    }
+
     /// <summary>Appends one step. The caller sets <see cref="VetoEntry.Order" />.</summary>
     /// <param name="entry">The step to append.</param>
     public void Add(VetoEntry entry)
