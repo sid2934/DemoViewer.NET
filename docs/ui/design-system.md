@@ -861,20 +861,27 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   set it from the projection, so they cannot disagree.
 
 ### Review mode (2D Playback)
-- **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the right column's rows and the panel host),
-  `Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the panels and their
-  behaviour), `Extensions/StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle, editor, Labels list),
-  `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
+- **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the toolbar's mode toggles, the right column's rows
+  and the panel host), `Extensions/ModeToggle.cs` (a contributed mode: label, tooltip, keymap action, on/off),
+  `Modules/Playback2D/Timeline/ILaneBehaviour.cs` (a contributed lane's handlers and its handle),
+  `Extensions/StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the mode, the lanes, the
+  session, the panels and their behaviour), `Extensions/StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle,
+  editor, Labels list), `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
   `Modules/RoundTagger/Review/TagEditorViewModel.cs`, `Views/Playback2D/TimelineControl.axaml` (the lane's edit band).
 - **Purpose:** labelling and suggestion review are a mode, off by default (the `Review` toolbar toggle, Shift+R,
   persisted as `Playback2D.ReviewMode`). Off: full player cards, no palette, queue or tag lanes, and C, Y, N, Enter
   and Ctrl+Y fall through. On: the cards collapse to a one-line strip (name, HP, money) and the contributed panels
   take the rest of the column: palette, a Suggested / Labels toggle, one editor, the queue or the Labels list.
-- **Ownership:** the three panels are the Strat Book extension's right-column contributions
-  (`IPlaybackSurface.AddPanel`), not the tab's: the tab hosts `Surface.Panels` in its third row and knows no panel
-  by name. The toggle is offered only while a contributed panel's gate is on, so with the extension off the
-  column is the game info and the cards alone. Variants `playback2d-review-panels` and
-  `playback2d-review-panels-pack-off` (1280x900) render both.
+- **Ownership:** the mode, the tag and suggestion lanes and the three panels are the Strat Book extension's, not the
+  tab's. The mode is a `ModeToggle` registered through `IPlaybackSurface.AddModeToggle`: the toolbar renders
+  `Surface.ModeToggles` as `ToggleButton`s (the same 11 px, `8,2` padding, 6 px left margin as the other toolbar
+  toggles) and the keymap action the toggle names flips it. The lanes are `IPlaybackSurface.AddLane` registrations
+  with their own `ILaneBehaviour`; the panels are `IPlaybackSurface.AddPanel` registrations bound to the mode. The
+  tab hosts `Surface.Panels` in its third row and knows no panel, lane or mode by name; the cards collapse while
+  any panel shows (`IsCardStrip`). The extension hides its toggle (`ModeToggle.IsAvailable`) while neither tagging
+  gate is on, so with the extension off or both gates off the toolbar has no Review toggle and the column is the
+  game info and the cards alone. Variants `playback2d-review-panels` and `playback2d-review-panels-pack-off`
+  render both.
 - **Contract:** one `TagEditorViewModel` edits both a suggestion (Save accepts it with the edit) and a written tag
   (Save replaces it, Delete removes it through `TagDelta`, so both undo). Start and end are seconds from the round
   start and clamp to the round like the palette does. With an editor open, a map click adds a position and the lane
@@ -883,7 +890,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Layout note:** the strip row is sized from the player count (22 px each plus 12, at most 10 rows) because a
   virtualizing `ListBox` in an `Auto` row measures to 0.
 - **Do not:** show a tagging panel or lane outside the mode, or hide the lanes by writing the user's per-track toggle;
-  use `SetTrackSuppressed`.
+  use the lane handle's `IsSuppressed` (the timeline's `SetTrackSuppressed` by id underneath).
 - **Generated content:** the Suggested tab lists new proposals only; accepted and dismissed ones come back under
   "Show settled (n)", where a dismissed one has Restore. N is Dismiss. The Labels tab lists hand-made labels
   under "Yours (n)" and machine-written ones (accepted suggestions, mined strat runs) under "From suggestions
@@ -1043,11 +1050,13 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
      `round_end` renders neutral. Clicking a band seeks to its FIRST frame, not to the pixel under the
      cursor.
      - **A right press is the band's menu, and it never seeks.** The control builds a `ContextMenu` from
-       `Playback2DTimelineViewModel.MenuFor(band)`, which concatenates the `BandMenus` contributors in
-       order: the tab's own lane menu (edit, delete, review on a lane band, Review mode only), then
-       whatever the extension packs attached through `IPlaybackSurface.AddBandMenu` (Create Strat From
-       Round on a round band, while the Strat Book pack is on). No entries, no menu. The control holds no
-       entry text of its own; a new entry is a contributor, never a `MenuItem` in the code-behind.
+       `Playback2DTimelineViewModel.MenuFor(band)`: the entries of the lane that made the band, from its
+       `ILaneBehaviour.MenuFor` (edit, delete, review on a tag or suggestion band, Review mode only), then
+       the `BandMenus` contributors in order, whatever the extension packs attached through
+       `IPlaybackSurface.AddBandMenu` (Create Strat From Round on a round band, while the Strat Book pack
+       is on). No entries, no menu. The control holds no entry text of its own; a new entry is a lane's or
+       a contributor's, never a `MenuItem` in the code-behind. A left press goes to the lane's
+       `OnBandPressed` first, then seeks.
   2. **Scrub bar (22 px).** A track rule, one glyph per `TimelineMarker` (`×` kill · `◆` plant ·
      `✂` defuse · `✸` explode), and the playhead. Press seeks; press-and-drag scrubs continuously.
      A **kill glyph is coloured by the side that got the kill**. See the marker-colour rule below.
