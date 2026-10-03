@@ -8,6 +8,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
@@ -55,8 +56,10 @@ public class SettingsViewModelTests
     // IOptionsMonitor<AppSettings> and an IFeatureGate bound to that same service's live config (mirrors
     // SettingsServiceTests + FeatureGateTests). The gate uses UI-thread marshaling DISABLED so its Changed
     // event, the cue that refreshes the feature rows, is observable inline in these non-UI cases; it is
-    // registered in the container so the provider disposes it.
-    private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(string dir)
+    // registered in the container so the provider disposes it. countStratBookPendingReindex is the item 5
+    // test seam for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
+    private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
+        string dir, Func<Task<int>>? countStratBookPendingReindex = null)
     {
         SettingsService svc = new(dir);
         ServiceCollection services = new();
@@ -66,13 +69,15 @@ public class SettingsViewModelTests
         ServiceProvider sp = services.BuildServiceProvider();
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry());
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
+            null, null, countStratBookPendingReindex);
         return (vm, svc, gate, sp);
     }
 
-    // Find a feature row by its catalog id across both grouped collections.
+    // Find a feature row by its catalog id across every grouped collection, Extensions included.
     private static FeatureToggleRow Row(SettingsViewModel vm, string featureId) =>
-        vm.TabFeatureRows.Concat(vm.ChromeFeatureRows).First(r => r.FeatureId == featureId);
+        vm.TabFeatureRows.Concat(vm.ChromeFeatureRows).Concat(vm.ExtensionsFeatureRows)
+            .First(r => r.FeatureId == featureId);
 
     /// <summary>
     ///     The settings search filter (v0.6.x findability): matching sections stay, non-matching
@@ -607,6 +612,288 @@ public class SettingsViewModelTests
                 Row(vm, "analysis.breakpoints").IsEnabled = true;
                 await Assert.That(gate.IsEnabled("chrome.debugger")).IsTrue().Because("the group follows its leader");
                 await Assert.That(Row(vm, "chrome.debugger").IsEnabled).IsTrue().Because("the follower row refreshed live");
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // ── Extensions (item 5): the pack master switch + its rows ───────────────────────────────────
+
+    // (a) The master row is present (Pack scope, indent 0), the pack's own tabs sit beneath it at
+    // indent 1 with their sub-feature children one level deeper, and the sub-feature it docks in a CORE
+    // tab (2D Playback's tag palette) is also present, flat. None of these appear in the generic lists.
+    [Test]
+    public async Task ExtensionsSection_ListsThePackWithItsChildren_BeneathTheMasterSwitch()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                await Assert.That(master.Scope).IsEqualTo(FeatureScope.Pack);
+                await Assert.That(master.IndentLevel).IsEqualTo(0);
+                await Assert.That(master.ScopeLabel).IsEqualTo("Extension");
+
+                FeatureToggleRow stratBookTab = Row(vm, "tab.stratbook");
+                await Assert.That(stratBookTab.IndentLevel).IsEqualTo(1);
+
+                FeatureToggleRow stratBookChild = Row(vm, "stratbook.routing");
+                await Assert.That(stratBookChild.IndentLevel).IsEqualTo(2)
+                    .Because("nested under its own tab, which is nested under the master");
+
+                FeatureToggleRow dockedInCoreTab = Row(vm, "playback2d.tagger");
+                await Assert.That(dockedInCoreTab.IndentLevel).IsEqualTo(1)
+                    .Because("no tab of its own under the pack, so it lists flat under the master");
+
+                await Assert.That(vm.TabFeatureRows.Any(r => r.FeatureId == "tab.stratbook")).IsFalse();
+                await Assert.That(vm.TabFeatureRows.Any(r => r.FeatureId == "playback2d.tagger")).IsFalse()
+                    .Because("the docked sub-feature must not also appear under tab.playback2d in the generic list");
+                await Assert.That(vm.ChromeFeatureRows.Any(r => r.FeatureId == StratBookPack.PackFeatureId)).IsFalse();
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // (b) A pack child is interactive only while the master is on: the cascade already resolves its
+    // IsEnabled off, but the row additionally locks (IsInteractive false, a lock hint) and bounces a
+    // stray programmatic set rather than writing a new override. Flipping the master back on unlocks it
+    // live and the master itself is never locked by its own switch.
+    [Test]
+    public async Task ExtensionChildRow_IsInteractiveOnlyWhileTheMasterIsOn()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                FeatureToggleRow child = Row(vm, "tab.situations");
+                await Assert.That(child.IsInteractive).IsTrue().Because("the pack defaults on for PowerUser");
+
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+
+                await Assert.That(child.IsEnabled).IsFalse().Because("cascaded off with the pack");
+                await Assert.That(child.IsInteractive).IsFalse().Because("locked while its pack is off");
+                await Assert.That(child.HasLockHint).IsTrue();
+                await Assert.That(child.LockHint).Contains("extension is off");
+                await Assert.That(master.IsInteractive).IsTrue()
+                    .Because("the master switch is never locked by its own state");
+
+                child.IsEnabled = true; // stray programmatic set while locked: must not persist
+
+                await Assert.That(child.IsEnabled).IsFalse();
+                await Assert.That(svc.Current.Features.Overrides.ContainsKey("tab.situations")).IsFalse()
+                    .Because("no phantom override for a locked pack child");
+
+                svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+
+                await Assert.That(child.IsInteractive).IsTrue().Because("unlocked live once the pack is back on");
+                await Assert.That(child.IsEnabled).IsTrue();
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // (c) FeatureGate.HiddenCount excludes the pack's own row (it renders as the live master switch, not
+    // a hidden feature), so turning the extension off counts exactly its tabs and sub-features, nothing
+    // more. Derives the expected number from the catalog rather than hardcoding it.
+    [Test]
+    public async Task HiddenCount_ExcludesThePackRow_WhenTheExtensionIsOverriddenOff()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate gate, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                vm.SelectCategoryCommand.Execute(UserCategory.Developer);
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+
+                int expected = FeatureCatalog.All.Count(d => d.OwnerPackId == StratBookPack.PackFeatureId && !d.Required);
+                await Assert.That(expected).IsGreaterThan(0);
+                await Assert.That(gate.HiddenCount).IsEqualTo(expected);
+                await Assert.That(vm.HiddenCount).IsEqualTo(expected);
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // (d) Search finds the Extensions section by its generic keyword, by the pack's own label ("Strat
+    // Book"), and by a row's label ("Situations") with no per-pack code — ExtensionsSectionMatches scans
+    // the built rows. An unrelated term hides it, the sanity check against over-eager fuzzy matching.
+    [Test]
+    public async Task SettingsFilter_FindsExtensions_ByKeywordAndByPackRowLabels()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                vm.SettingsFilterText = "extension";
+                await Assert.That(vm.ShowSectionExtensions).IsTrue();
+
+                vm.SettingsFilterText = "Strat Book";
+                await Assert.That(vm.ShowSectionExtensions).IsTrue().Because("matches the master row's own label");
+
+                vm.SettingsFilterText = "situations";
+                await Assert.That(vm.ShowSectionExtensions).IsTrue().Because("matches a built child row's label");
+
+                vm.SettingsFilterText = "theme";
+                await Assert.That(vm.ShowSectionExtensions).IsFalse();
+                await Assert.That(vm.ShowSectionTheme).IsTrue();
+
+                vm.SettingsFilterText = "idle";
+                await Assert.That(vm.ShowSectionExtensions).IsFalse();
+
+                vm.SettingsFilterText = "";
+                await Assert.That(vm.ShowSectionExtensions).IsTrue();
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // ── Extensions: the in-session re-index notice (architecture doc §8) ─────────────────────────
+
+    // (e) No notice at a plain startup: it is feedback for an IN-SESSION flip, not persisted state.
+    [Test]
+    public async Task StratBookToggleNotice_IsNull_AtPlainStartup()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                await Assert.That(vm.StratBookToggleNotice).IsNull();
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // (f) Turning the extension ON shows "Counting…" immediately, then the demo count once the injected
+    // probe lands — proven with a TaskCompletionSource so the interim state is actually observed, not
+    // raced. TaskCompletionSource's continuation runs synchronously on SetResult's calling thread by
+    // default, so the post-count assertion needs no dispatcher pump.
+    [Test]
+    public async Task TurningOnThePack_ShowsCounting_ThenTheReindexCount()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            TaskCompletionSource<int> tcs = new();
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) =
+                NewVm(dir, () => tcs.Task);
+            using (sp)
+            {
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+                svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId)); // off -> on
+
+                await Assert.That(vm.StratBookToggleNotice).IsEqualTo("Counting…");
+
+                tcs.SetResult(7);
+
+                await Assert.That(vm.StratBookToggleNotice).IsEqualTo("7 demos will be re-indexed in the background.");
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // (g) Turning the extension OFF shows the one-line note immediately (no async probe involved).
+    [Test]
+    public async Task TurningOffThePack_ShowsTheStopsWorkNotice()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+
+                await Assert.That(vm.StratBookToggleNotice)
+                    .IsEqualTo("The Strat Book extension stops its background work. Its data stays on disk.");
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // (h) A result that lands after a LATER flip is dropped: the generation guard, not a race the test
+    // merely hopes doesn't happen. Flip on (probe A pending) -> flip off (probe A must never finish the
+    // on-notice) -> flip on again (probe B) -> complete A -> notice still reflects B's eventual answer,
+    // never A's.
+    [Test]
+    public async Task AStaleReindexCount_FromAnEarlierToggle_NeverOverwritesTheCurrentNotice()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            TaskCompletionSource<int> probeA = new();
+            TaskCompletionSource<int> probeB = new();
+            Queue<Func<Task<int>>> probes = new(new Func<Task<int>>[] { () => probeA.Task, () => probeB.Task });
+
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) =
+                NewVm(dir, () => probes.Dequeue()());
+            using (sp)
+            {
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
+                svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId)); // on: starts probe A
+                await Assert.That(vm.StratBookToggleNotice).IsEqualTo("Counting…");
+
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = true); // still on: no transition, no new probe
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false); // off
+                svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId)); // on again: starts probe B
+
+                probeA.SetResult(999); // A's answer must never reach the notice now
+
+                await Assert.That(vm.StratBookToggleNotice).IsEqualTo("Counting…")
+                    .Because("probe A's stale result was dropped by generation, not applied");
+
+                probeB.SetResult(3);
+
+                await Assert.That(vm.StratBookToggleNotice).IsEqualTo("3 demos will be re-indexed in the background.");
 
                 vm.Dispose();
             }
