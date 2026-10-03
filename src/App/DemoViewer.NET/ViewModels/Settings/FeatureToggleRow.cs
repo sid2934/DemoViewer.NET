@@ -59,6 +59,20 @@ public sealed partial class FeatureToggleRow : ObservableObject
     [ObservableProperty]
     private bool _isOverridden;
 
+    /// <summary>
+    ///     True while this row's own pack is running "delete extension data" (item 24). Set by
+    ///     <see cref="SettingsViewModel" /> from the matching <c>ExtensionDataActionViewModel.IsBusy</c>,
+    ///     the one case where a pack's MASTER row needs to lock on something other than
+    ///     <see cref="IsPackEnabled" /> (a pack does not own itself, so that is always true for its own row):
+    ///     flipping the pack on mid-delete is exactly the race the delete's own gate re-checks guard against,
+    ///     and locking the switch here keeps the user from starting that race from the UI.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInteractive))]
+    [NotifyPropertyChangedFor(nameof(HasLockHint))]
+    [NotifyPropertyChangedFor(nameof(LockHint))]
+    private bool _isDeleteBusy;
+
     internal FeatureToggleRow(
         SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
         bool platformUnavailable = false)
@@ -139,10 +153,10 @@ public sealed partial class FeatureToggleRow : ObservableObject
     ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor
     ///     unavailable on this platform, nor a pack child whose pack is currently off.
     /// </summary>
-    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable && IsPackEnabled;
+    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable && IsPackEnabled && !IsDeleteBusy;
 
     /// <summary>Whether a locked-state hint chip should show.</summary>
-    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable || !IsPackEnabled;
+    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable || !IsPackEnabled || IsDeleteBusy;
 
     /// <summary>
     ///     The locked-state hint text. The platform answer comes FIRST: it is the one the user cannot
@@ -157,7 +171,9 @@ public sealed partial class FeatureToggleRow : ObservableObject
                 ? $"follows {FollowsLabel}"
                 : !IsPackEnabled
                     ? "extension is off"
-                    : string.Empty;
+                    : IsDeleteBusy
+                        ? "deleting extension data"
+                        : string.Empty;
 
     /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome" / "Extension").</summary>
     public string ScopeLabel => Scope switch
@@ -218,14 +234,16 @@ public sealed partial class FeatureToggleRow : ObservableObject
             return;
         }
 
-        if (IsRequired || IsGroupFollower || !IsPackEnabled)
+        if (IsRequired || IsGroupFollower || !IsPackEnabled || IsDeleteBusy)
         {
             // Locked row. Required can never be disabled; a group FOLLOWER's own override is inert (the gate
             // resolves the whole group from the leader); a pack CHILD while its pack is off is locked the
             // same way, so a stray programmatic set never writes a new override here: the row's EXISTING
             // override (if any) is untouched, which is how it "keeps its own value" for when the pack comes
-            // back. Bounce the setter to the authoritative gate state WITHOUT writing (the toggle is also
-            // disabled in the UI; this guards the programmatic path). Guarded so the bounce is not a toggle.
+            // back. A pack's own MASTER row mid-delete (IsDeleteBusy) is locked the same way, so a stray
+            // flip cannot race the delete. Bounce the setter to the authoritative gate state WITHOUT writing
+            // (the toggle is also disabled in the UI; this guards the programmatic path). Guarded so the
+            // bounce is not a toggle.
             _applyingRefresh = true;
             try
             {

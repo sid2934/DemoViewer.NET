@@ -409,7 +409,10 @@ public sealed class ProfileStore
         Changed?.Invoke();
     }
 
-    /// <summary>Forgets the cached profile, so the next <see cref="Current" /> rereads the file.</summary>
+    /// <summary>
+    ///     Forgets the cached profile; lazy, reads nothing itself. The next <see cref="Current" /> rereads
+    ///     the file, or reseeds the shipped default if it is gone (the same first-read rule <see cref="Current" /> follows).
+    /// </summary>
     public void Reload()
     {
         lock (_gate)

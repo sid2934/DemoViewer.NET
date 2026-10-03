@@ -536,6 +536,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // gate marshals Changed to the UI thread in the headed app, so the handler need not marshal again.
         BuildFeatureRows();
         BuildExtensionsFeatureRows();
+        WireDataActionRowLocks();
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
 
@@ -1823,6 +1824,31 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                     AddFeatureRow(ExtensionsFeatureRows, sub, 1);
                 }
             }
+        }
+    }
+
+    // Locks a pack's own master row (FeatureToggleRow.IsDeleteBusy) for exactly as long as its
+    // ExtensionDataActionViewModel.IsBusy is true, so the switch cannot start the re-enable race the
+    // delete's own gate re-checks guard against. Called once, after both row collections are built, since
+    // the row a data action names does not exist before BuildExtensionsFeatureRows runs.
+    private void WireDataActionRowLocks()
+    {
+        foreach (ExtensionDataActionViewModel action in ExtensionDataActions)
+        {
+            FeatureToggleRow? row = ExtensionsFeatureRows.FirstOrDefault(r => r.FeatureId == action.PackFeatureId);
+            if (row is null)
+            {
+                continue;
+            }
+
+            row.IsDeleteBusy = action.IsBusy;
+            action.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ExtensionDataActionViewModel.IsBusy))
+                {
+                    row.IsDeleteBusy = action.IsBusy;
+                }
+            };
         }
     }
 
