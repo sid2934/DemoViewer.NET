@@ -37,25 +37,26 @@ public enum Playback2DAction
     ClearAnnotations,
     HoldPan,
 
-    // Bound by Find Rounds Like This (Strat Room, plan D7):
+    // Bound by the Strat Book extension's StratBookCommands (Playback2DKeymap's own table no longer
+    // carries these rows; CommandRegistry composes them back in). Find Rounds Like This:
     FindRoundsLikeThis,
 
-    // Bound by Result Cards And Walking (Strat Room): J / K over the Situations result set.
+    // J / K over the Situations result set, pack-bound.
     NextSituationResult,
     PrevSituationResult,
 
-    // Bound by Tag Palette (Strat Room). The first is how the keyboard reaches the palette; the rest
-    // are palette-scoped, so they only act while it has focus.
+    // Tag Palette, pack-bound. The first is how the keyboard reaches the palette; the rest are
+    // palette-scoped, so they only act while it has focus.
     FocusTagPalette,
     TagPaletteBack,
     TagNote,
     TagClearSticky,
 
-    // Bound by Label Mode (Strat Room): palette-scoped like the three above.
+    // Label Mode, pack-bound: palette-scoped like the three above.
     TagLabelMode,
     TagLabelGroupNext,
 
-    // Bound by Suggested Tags Review (Strat Room): the Proposal Queue's walk and verdicts.
+    // Suggested Tags Review, pack-bound: the Proposal Queue's walk and verdicts.
     SuggestionNext,
     SuggestionPrev,
     SuggestionAccept,
@@ -63,20 +64,20 @@ public enum Playback2DAction
     SuggestionEdit,
     SuggestionAcceptAll,
 
-    // Review mode: the labelling panels, the tag and suggestion lanes and every tagging key.
+    // Review mode, pack-bound: the labelling panels, the tag and suggestion lanes and every tagging key.
     ToggleReviewMode,
 
     // Bound by Shape Tools (Strat Room, step-authoring.md §3.7): the annotation toolbar's shape and
-    // text tools.
+    // text tools. Core: Playback2DKeymap's own table still carries these rows.
     ToolLine,
     ToolArrow,
     ToolRect,
     ToolEllipse,
     ToolText,
 
-    // Bound by Step Authoring (Strat Room, step-authoring.md §3.7): the strat canvas's token tool and
-    // step keys. Rows in this shared table so one set of overrides and one Settings list cover both
-    // tabs; the 2D Playback tab leaves every one of them unhandled.
+    // Step Authoring, pack-bound: the strat canvas's token tool and step keys. Rows in this shared enum
+    // so one set of overrides and one Settings list cover both tabs; the 2D Playback tab leaves every
+    // one of them unhandled.
     ToolToken,
     AddStep,
     DuplicateStep,
@@ -418,68 +419,13 @@ public static class Playback2DKeymap
         new(Playback2DAction.CancelGesture, Key.Escape, KeyModifiers.None,
             Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture", false),
 
-        // ── Situation Search (Always). Ctrl+F, not F: bare F is follow cycling, and the owner chose the
-        //    common find chord (plan D7). It is not a shell accelerator, and the browser DOES deliver
-        //    Ctrl+F to the page (the find bar opens only when nothing handles it), so it is not in the
-        //    browser-reserved list either.
-        new(Playback2DAction.FindRoundsLikeThis, Key.F, KeyModifiers.Control, Playback2DBindingScope.Always,
-            "Find rounds like this: snapshot the alive players onto the Situations query", false),
-
-        // ── Result walking (Always). J / K step the Situations result set from inside playback, so a
-        //    search is reviewed without a tab switch per hit. Unhandled with no result set, and the
-        //    ends of the set do not wrap.
-        new(Playback2DAction.NextSituationResult, Key.J, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Next situation result: seek to the next card of the Situations search", false),
-        new(Playback2DAction.PrevSituationResult, Key.K, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Previous situation result: seek to the previous card of the Situations search", false),
-
-        // ── Review mode. Shift+R: bare R is the rectangle tool, and neither reserved list holds the chord.
-        //    Every tagging row below acts only while Review mode is on; with it off they are unhandled.
-        new(Playback2DAction.ToggleReviewMode, Key.R, KeyModifiers.Shift, Playback2DBindingScope.Always,
-            "Review mode: show the tag palette, the suggestions and the tag lanes, or hide them", false),
-
-        // ── Tag Palette. C (for code) reaches the palette from anywhere on the surface; the three below
-        //    act only while the palette has focus, which is how Esc steps back out of a panel instead of
-        //    clearing the follow. The note and the sticky reset are chords so a palette author keeps
-        //    every bare letter and digit for buttons. None of the four touches Ctrl+F or the Suggested
-        //    Tags queue's J/K/Y/N/Enter/Ctrl+Y (suggested-tags.md §3.6), and C is none of Step
-        //    Authoring's V/A/T/L/R/O.
-        new(Playback2DAction.FocusTagPalette, Key.C, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Tag palette: focus it so its hotkeys tag (press again to leave)", false),
-        new(Playback2DAction.TagPaletteBack, Key.Escape, KeyModifiers.None,
-            Playback2DBindingScope.WhenPaletteFocused,
-            "Tag palette: finish the tag and go back to the codes, or leave the palette", false),
-        new(Playback2DAction.TagNote, Key.M, KeyModifiers.Control, Playback2DBindingScope.WhenPaletteFocused,
-            "Tag palette: write a note on the tag just made", false),
-        new(Playback2DAction.TagClearSticky, Key.Back, KeyModifiers.Control,
-            Playback2DBindingScope.WhenPaletteFocused, "Tag palette: clear the sticky labels", false),
-
-        // ── Label Mode. Chords for the palette's reason: a palette author keeps every bare key. Ctrl+L
-        //    and Ctrl+G are neither shell accelerators nor gestures the browser keeps from the page.
-        new(Playback2DAction.TagLabelMode, Key.L, KeyModifiers.Control, Playback2DBindingScope.WhenPaletteFocused,
-            "Tag palette: label mode, adding labels to the tag under the playhead instead of making tags", false),
-        new(Playback2DAction.TagLabelGroupNext, Key.G, KeyModifiers.Control,
-            Playback2DBindingScope.WhenPaletteFocused, "Tag palette: in label mode, show the next label group",
-            false),
-
-        // ── Suggested Tags queue (suggested-tags.md §3.6). Y, N, Enter and Ctrl+Y are Always rows so the
-        //    checker keeps them for the queue, and they do nothing until a proposal is selected. J and K
-        //    are the Situations walk's Always rows, so the queue's walk sits in its own scope that only a
-        //    selection turns on; next is J there too, the direction the result walk shipped with.
-        new(Playback2DAction.SuggestionNext, Key.J, KeyModifiers.None,
-            Playback2DBindingScope.WhenSuggestionSelected,
-            "Suggested tags: select the next pending proposal and seek to it", false),
-        new(Playback2DAction.SuggestionPrev, Key.K, KeyModifiers.None,
-            Playback2DBindingScope.WhenSuggestionSelected,
-            "Suggested tags: select the previous pending proposal and seek to it", false),
-        new(Playback2DAction.SuggestionAccept, Key.Y, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Suggested tags: accept the selected proposal as a tag and go to the next", false),
-        new(Playback2DAction.SuggestionReject, Key.N, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Suggested tags: reject the selected proposal and go to the next", false),
-        new(Playback2DAction.SuggestionEdit, Key.Enter, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Suggested tags: edit the selected proposal before accepting it", false),
-        new(Playback2DAction.SuggestionAcceptAll, Key.Y, KeyModifiers.Control, Playback2DBindingScope.Always,
-            "Suggested tags: accept every pending proposal the queue's filter shows, after a confirm", false),
+        // Situation Search, result walking, review mode, the Tag Palette, Label Mode, the Suggested Tags
+        // queue and Step Authoring (ToolToken, AddStep, DuplicateStep, DeleteStep, PrevStep, NextStep) are
+        // the Strat Book extension's own commands now: StratBookCommands carries their chords and scopes,
+        // registered through IPackContributions.Commands. Their Playback2DAction members stay (every
+        // existing switch over them is unchanged), but this table, the one the static constructor
+        // conflict-checks eagerly, only ever declares core rows: CommandRegistry composes the two back
+        // into one table for Playback2DKeymapProfile.
 
         // ── Shape Tools (step-authoring.md §3.7). Bare letters in the Always scope like D and X, each
         //    pressed again to go back to pan. None collides with the shipped rows, the shell list or the
@@ -495,23 +441,6 @@ public static class Playback2DKeymap
             "Rectangle tool (press again for pan)", false),
         new(Playback2DAction.ToolEllipse, Key.O, KeyModifiers.None, Playback2DBindingScope.Always,
             "Ellipse tool (press again for pan)", false),
-
-        // ── Step Authoring (step-authoring.md §3.7), acted on by the Strat Book canvas only. AddStep is
-        //    Shift+N, not N: Suggested Tags holds bare N for reject (overview correction 21). Ctrl+D is
-        //    Chrome's bookmark key but reaches the page and is cancellable, so it is deliberately not in
-        //    the browser list; [ and ] are free in every list.
-        new(Playback2DAction.ToolToken, Key.V, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Strat canvas: token tool (press again for pan)", false),
-        new(Playback2DAction.AddStep, Key.N, KeyModifiers.Shift, Playback2DBindingScope.Always,
-            "Strat canvas: insert a step after the active one at the playhead's round-clock time", false),
-        new(Playback2DAction.DuplicateStep, Key.D, KeyModifiers.Control, Playback2DBindingScope.Always,
-            "Strat canvas: copy the active step's positions and strokes into a new step 5 s later", false),
-        new(Playback2DAction.DeleteStep, Key.Delete, KeyModifiers.Control, Playback2DBindingScope.Always,
-            "Strat canvas: delete the active step", false),
-        new(Playback2DAction.PrevStep, Key.OemOpenBrackets, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Strat canvas: seek to the previous step and make it active", false),
-        new(Playback2DAction.NextStep, Key.OemCloseBrackets, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Strat canvas: seek to the next step and make it active", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,

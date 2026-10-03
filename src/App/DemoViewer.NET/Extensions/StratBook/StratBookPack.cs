@@ -61,6 +61,9 @@ public sealed class StratBookPack : IFeaturePack
     /// <inheritdoc />
     public IEnumerable<FeatureDescriptor> Features => _features;
 
+    /// <inheritdoc />
+    public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
+
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
     // Playback cascade from tab.playback2d, not from the pack, until they are reparented.
@@ -532,6 +535,8 @@ public sealed class StratBookPack : IFeaturePack
     {
         ArgumentNullException.ThrowIfNull(contributions);
         ArgumentNullException.ThrowIfNull(sp);
+
+        contributions.Commands(StratBookCommands.All);
 
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here
