@@ -38,19 +38,6 @@ public sealed partial class StratBookLayout : ObservableObject
     /// <summary>The state the session file keeps.</summary>
     public StratBookLayoutState Snapshot() => new(IsRailCollapsed, IsListCollapsed);
 
-    /// <summary>Applies a persisted state; null (an older session file) leaves both panes open.</summary>
-    /// <param name="state">The persisted state, or null.</param>
-    public void Restore(StratBookLayoutState? state)
-    {
-        if (state is null)
-        {
-            return;
-        }
-
-        IsRailCollapsed = state.RailCollapsed;
-        IsListCollapsed = state.ListCollapsed;
-    }
-
     /// <summary>The pack session blob: <see cref="Snapshot" /> as a <c>JsonElement</c>, default STJ naming.</summary>
     public JsonElement SnapshotSessionState() => JsonSerializer.SerializeToElement(Snapshot());
 
