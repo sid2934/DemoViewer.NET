@@ -635,6 +635,20 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     the staging rules and the Settings states.
 37. **CI and packaging.** A release workflow per extension producing the signed zip and feed entry; the
     app installer still bundles the extension version current at app release time.
+    *As built (2026-10-04):* `scripts/pack-extension.sh` (build, stage, sign, zip, feed entry) and
+    `.github/workflows/release-extension.yml` (the release gate and the feed update), plus four new
+    `tools/extension-signing` commands (`report`, `manifest`, `zip`, `feed-merge`/`feed-check`) and a
+    packaging-drift step added to `ci.yml`'s `build` job. Section 7.11 has the tag convention, the zip
+    layout as produced, the feed update rules, the secrets and the owner action, the dry-run path, and
+    how to cut a release step by step. Nothing changes in `release.yml`: the app installer bundles
+    whichever extension version the heads reference at app release time, same as before this item.
+    Deviations from the sketch above: (1) the shipped manifest is still copied beside the app's DLL
+    under the bare name `extension.json` (section 7.8); item 37 does not rename it to `<id>.extension.json`
+    because that touches `ShippedPack.BesideApp`, the app csproj and the loader/matrix tests, none of
+    which are this item's hot file (a release workflow); it is still item 37's to do, just not done here,
+    and stays a one-extension limitation until it is. (2) The release workflow's concurrency group is a
+    fixed id-or-default string, not a per-id group computed from the triggering tag, for the same
+    one-extension reason (section 7.11 has the detail).
 38. **Compatibility matrix test.** A test that builds the extension against the app and asserts the
     manifest's ranges match the referenced versions, so a release cannot ship an unloadable pair.
     *As built (2026-10-03):* `CompatibilityMatrixTests` in App.Tests, plus `CompatibilityReport`
@@ -1801,6 +1815,193 @@ while ignoring `.staging`, and the Settings cases in `SettingsViewModelTests`.
 
 ---
 
+### 7.11 CI and packaging (as built by item 37)
+
+**`scripts/pack-extension.sh <id> [--key <private.pem>] [--dry-run] [--out <dir>]`.** Bash, runs the same
+way locally and in CI. In order:
+
+1. Reads the host values this build offers (`ContractVersion`'s literal from `ExtensionHost.cs`, the
+   `CS2DemoKit.Analysis` pin from `Directory.Packages.props`) from source rather than keeping its own
+   copy, and fails if either grep does not find exactly one match.
+2. Reads the manifest's own `version` and `assembly`; if `GITHUB_REF` is `refs/tags/extensions/<id>/v*`,
+   the tag's version must equal the manifest's (pack-velopack.sh's own tag/version guard, same shape);
+   otherwise the check is skipped, not failed, since a dispatch run or a local invocation names no tag.
+3. Builds `tools/extension-signing` and the extension project (`dotnet build`, Release, no `-r`:
+   framework-dependent, AnyCPU, since the extension is managed-only and loads into the app's process on
+   every OS).
+4. Stages exactly what the extension project itself produces. The built `.deps.json`'s own entry for
+   the project (keyed `<AssemblyName>/<nbgv-version>`) lists, under `runtime` and `resources`, only the
+   files that project's own compile output contributes; every referenced project and package is a
+   separate entry, never folded in. That is "the project's own output minus every reference" without
+   hand-walking a reference closure. A `native` or `runtimeTargets` key on that same entry would mean a
+   RID-specific asset the extension itself ships, which this script refuses to package, stopping with an
+   error rather than shipping a half-correct zip (the shipped extension has none today). The `.xml` doc
+   file is staged when the build produced one; the manifest staged is the repo copy, not the build's
+   `PreserveNewest` copy beside the DLL, though the next step proves them equal.
+5. Reads the manifest embedded in the built DLL (`extension-signing manifest <dll>`, straight out of the
+   PE's resource metadata, no assembly load) and fails if it is not byte-identical to the repo file.
+6. Prints `CompatibilityReport.Describe` for the manifest against the host values from step 1
+   (`extension-signing report <manifest.json> --contract <ver> --cs2demokit <ver>`) and fails the whole
+   run if it is not compatible: a release workflow should not ship a pairing it already knows cannot
+   load.
+7. Signs the staged directory. A key comes from `--key <path>` (local or dry-run testing: an
+   ephemeral key `extension-signing keygen` writes is never in `PublisherKeys.Current`, so verification
+   below is told to check against that key's own public half instead) or from `DV_EXTENSION_SIGNING_KEY`
+   (the real secret: written to a `mktemp` file, `chmod 600`, used, then removed by a `trap ... EXIT`;
+   verification then runs with no override, against `PublisherKeys.Current`, so a secret that is not the
+   key behind `Primary` fails here rather than shipping a zip no app will trust). A real run (no
+   `--dry-run`) with no key available fails outright with the owner action below; a dry run only notes it
+   and ships an unsigned zip, which packaging-drift checks (item 3 below) is all that needs.
+8. Zips the staged directory deterministically (`extension-signing zip`, `DeterministicZip` below:
+   entries sorted ordinal by `/`-path, every entry's timestamp fixed to 1980-01-01 and its Unix mode
+   normalized to `0644`, no directory entries) to
+   `<out>/<AssemblyName>-<version>.zip`, then unzips it to a scratch directory and diffs its file list
+   against the staged one and (when signed) re-verifies the unzipped copy: the loader extracts this
+   archive, not the staged directory, so a zip-tool bug would otherwise go unnoticed. Writes
+   `<zip>.sha256` as `<hex>  <name>`, the form `sha256sum -c` reads.
+9. Emits the feed entry fragment (version, the manifest verbatim, the computed release-asset url, the
+   zip's sha256 and size, `publishedAt`) to `<out>/feed-entry.json`, the exact shape `ExtensionFeedEntry`
+   parses (section 7.10). Self-tests it by merging it into an empty feed
+   (`extension-signing feed-merge <nonexistent> feed-entry.json --id <id> --out ...`) and feed-checking
+   the result, so the fragment is proven to parse as a real entry, not merely as JSON.
+
+Every step fails loudly (`set -euo pipefail` plus explicit checks); nothing is skipped silently, and
+there is no flag anywhere that bypasses a check the way `git commit --no-verify` would.
+
+**Two new `tools/extension-signing` commands beyond `keygen`/`sign`/`verify`,** all linking source from
+the app the same way `ExtensionSignature.cs`/`PublisherKeys.cs` already did, never referencing it (still
+no Avalonia in this tool):
+
+- `report <manifest.json> --contract <ver> --cs2demokit <ver> [--app-version <ver>]` links
+  `SemVersion.cs`, `VersionRange.cs`, `ExtensionHostInfo.cs`, `ExtensionManifest.cs`,
+  `PackCompatibility.cs` and `CompatibilityReport.cs`, all pure value types with no dependency beyond
+  each other and the BCL. It takes the host's three values as arguments rather than linking
+  `ExtensionHost.cs`, which would pull in `AppVersionInfo` and, through it, `GitHubReleaseNotesService`
+  and the app's own `IReleaseNotesService` surface for one static method: `CompatibilityReport.Describe`
+  already takes an `ExtensionHostInfo` explicitly rather than reading `ExtensionHost.Current` itself, so
+  nothing here needed to change for this to work. Exits non-zero when the verdict is `Incompatible`;
+  `CompatibilityMatrixTests` remains the release gate that proves this script's inputs are exactly right,
+  this command is only what prints the same verdict during packaging.
+- `manifest <assembly.dll>` links nothing new: it reads the `extension.json` manifest resource directly
+  out of the PE's metadata tables (`System.Reflection.Metadata.PEReader`) and prints its raw bytes,
+  without loading the assembly. Loading it (even reflection-only, through `MetadataLoadContext`) would
+  put the extension's referenced assemblies on this tool's probe path for no reason: nothing here runs
+  any code from the DLL, only reads a resource every managed assembly carries as ordinary PE data.
+- `zip <dir> --out <zip>` is `DeterministicZip` (`tools/extension-signing/DeterministicZip.cs`, under
+  `DemoViewer.NET.Extensions.Loading` beside the signing types): a manual walk refusing a reparse point
+  the same way `ExtensionSignature.Walk` does (a second implementation, not shared, since the two walks
+  keep different files: this one keeps `extension.sig`, the digest walk skips it), sorted entries, a
+  fixed `ZipArchiveEntry.LastWriteTime` (1980-01-01, the DOS epoch) and `ExternalAttributes` (Unix
+  `0644`) on every entry so two zips of the same tree hash the same regardless of the machine's clock or
+  umask. Verified by zipping the real extension output twice and diffing the sha.
+- `feed-merge <existing.json> <entry.json> --id <id> --out <merged.json> [--allow-downgrade]` and
+  `feed-check <feed.json>` link `ExtensionFeed.cs` (already linking `ExtensionManifest.cs` et al. for
+  `report`). The merge itself is `ExtensionFeedMerge.Merge` in its own file,
+  `tools/extension-signing/FeedMerge.cs`, under `DemoViewer.NET.Extensions.Updates`: it operates on
+  `System.Text.Json.Nodes.JsonNode` rather than the `ExtensionFeed` records, so a member this app does
+  not parse yet (a future one) round-trips untouched instead of being dropped by a record rebuild, and
+  validates the merged result with `ExtensionFeed.Parse` before returning it. Rules: an entry whose
+  version matches one already in the feed replaces it in place, at whatever position it held, and never
+  counts as a downgrade (correcting a shipped version is not publishing something older); a version that
+  matches nothing existing and is higher than the current highest is always accepted; one that is lower
+  than or equal to it is refused unless `--allow-downgrade`; the result is always sorted highest first.
+  `tools/extension-signing/FeedMerge.cs` is also linked into
+  `src/App/DemoViewer.NET.App.Tests/DemoViewer.NET.App.Tests.csproj` (one more `<Compile Include>`
+  beside item 28's four), so `ExtensionPackagingTests` exercises the rules directly in C#, not only
+  through the CLI; its fixtures are `FakeFeeds`' existing entry/feed builders, the same ones
+  `ExtensionFeedTests` and `ExtensionUpdateServiceTests` use, so a fragment the test builds is exactly
+  the shape the script itself writes.
+
+**The zip, as produced**, matches section 7.10's layout exactly:
+
+```
+DemoViewer.NET.Extensions.StratBook.dll
+DemoViewer.NET.Extensions.StratBook.xml
+extension.json
+extension.sig                             present whenever a signing key was available
+```
+
+No satellite culture directories exist today; the staging step copies one when the build's `.deps.json`
+lists a `resources` entry for it, at its own relative path.
+
+**The tag convention.** A real release is cut by pushing `extensions/<id>/v<version>` (for example
+`extensions/net.demoviewer.pack.stratbook/v1.0.1`), which the script's own check requires to agree with
+the manifest's `version`. That is a different string from section 7.10's release tag for the zip itself,
+`<id>-v<version>` (`net.demoviewer.pack.stratbook-v1.0.1`, no slashes, matching the URL
+`ExtensionFeedSource`/`ExtensionFeed`'s example already assumed before this item built the workflow that
+produces it) and from the rolling feed release's tag, `extensions-<id>`. Three different tags for three
+different reasons: the first triggers the workflow and is checked, not shown to users; the second holds
+one version's assets and never changes; the third holds the one `extensions.json` every version's entry
+is merged into and is replaced on every release.
+
+**`.github/workflows/release-extension.yml`.** Triggered by a push matching `extensions/*/v*`, or
+`workflow_dispatch` with an `id` input (default `net.demoviewer.pack.stratbook`, since there is only one
+extension) and a `dry_run` input (default `true`) and `allow_downgrade` (default `false`). A first step
+resolves, before anything else runs, both the id (parsed from the tag when the ref is one, else the
+`id` input) and whether this run actually publishes: a tag push always publishes; a dispatch run
+publishes only when its ref IS that same tag AND `dry_run` is explicitly `false`; every other case,
+including a dispatch from a branch with `dry_run` left `false`, is a dry run regardless of the input,
+since a branch is never the thing a release tag names. The job then runs the ext suite's standard tier,
+builds `App.Tests` and runs `CompatibilityMatrixTests` alone, then `pack-extension.sh` (with
+`DV_EXTENSION_SIGNING_KEY` from the repo secret; `--dry-run` appended when the resolved verdict says so),
+and uploads the zip, its sha256 and the feed entry fragment as a workflow artifact regardless of the
+verdict, so a dry run's output is inspectable from the Actions UI without re-running anything.
+
+Only when the resolved verdict is "publish": creates the per-version `gh release` under the `<id>-v<version>`
+tag with the zip and its sha256 as assets, `--latest=false` (so this release never becomes GitHub's
+"latest", which would misdirect anyone browsing releases by eye; it has no bearing on how either
+Velopack's `GithubSource` or `vpk download github`'s delta seed pick the app's own release, since both
+walk the release list looking for an asset literally named `RELEASES`/`releases.<channel>.json`, never
+relying on "latest", and this release's only assets are the zip and its sha256). Then compares the
+uploaded asset's actual `browser_download_url` (`gh release view --json assets --jq`) against the url the
+feed entry fragment already computed, failing the job on any mismatch rather than publishing a feed entry
+that points at the wrong place.
+
+Then updates the rolling feed: `gh release view extensions-<id>` decides what "existing" means. A release
+that does not exist, or one whose asset list has no `extensions.json`, is the only case read as "no feed
+yet" (an empty merge target; the rolling release is created, `--latest=false`, if it was altogether
+absent). Any other failure (an auth problem, a rate limit, a transient API error) fails the job outright:
+treating "the download failed" as "there is no feed" would republish a one-entry feed over a real one with
+every other version's history in it. `extension-signing feed-merge` then merges the new entry (honoring
+`allow_downgrade`), `feed-check` validates the merged result, and `gh release upload --clobber` replaces
+the rolling release's `extensions.json` asset; the local file is named `extensions.json` before upload
+(not renamed through `gh`'s `#label` syntax, which sets a display label, never the served file name).
+
+**Concurrency.** One group per extension would need the id before the job starts, which a tag push does
+not expose without a dedicated parse job (a job's own concurrency group cannot depend on its own steps'
+output); with exactly one extension today, `release-extension-${{ github.event.inputs.id || 'net.demoviewer.pack.stratbook' }}`
+is equivalent to "per extension" in practice, `cancel-in-progress: false` so two tag pushes queue rather
+than interleave. A second extension needs that parse job (or a job-per-extension matrix) before this
+still holds.
+
+**Item 3: the dry-run packaging check.** `ci.yml`'s `build` job, after the normal solution build, runs
+`pack-extension.sh net.demoviewer.pack.stratbook --dry-run` with no signing key: the extension already
+built in that job, so this adds only the staging, zip and feed-entry steps, catching a packaging
+regression (a file the deps.json-derived staging list stops picking up, a manifest edited without a
+rebuild, a compatibility report gone `Incompatible`) on every PR rather than only when a release is
+actually cut. `release.yml` is untouched: it does not run on pull requests, and the app installer already
+bundles whichever extension version the heads reference at app release time with no change needed here.
+
+**Action before the first release.** Same secret `DV_EXTENSION_SIGNING_KEY` section 7.9 names: store the private key
+`keygen` wrote (outside every git working tree) as that GitHub repository secret, the same way
+`DV_SIGN_*`/`DV_NOTARY_PROFILE` already work in `release.yml`. Until it is set, a real (non-dry-run) run
+of this workflow fails at the signing step with that fact stated plainly; a dry run (the dispatch default)
+works with no secret at all.
+
+**Cutting a release, step by step.** Bump `version` in `src/Extensions/StratBook/extension.json`, commit
+it, push a tag `extensions/net.demoviewer.pack.stratbook/v<version>` matching that bump. The workflow
+builds, tests, signs, zips, creates the release and updates the feed with no further action; watch its
+run in the Actions tab. To preview without publishing, dispatch the workflow by hand with `dry_run` left
+at its default and read the artifact it uploads.
+
+**What is not yet done.** Section 7.8 leaves item 37 the rename of the shipped manifest copy from the
+bare `extension.json` to `<id>.extension.json`, needed once a second extension ships beside this one in
+the same output directory; that touches `ShippedPack.BesideApp`, the app csproj and the loader/matrix
+tests, none of them this item's hot file (a release workflow), so it is deliberately left for whichever
+item adds that second extension, not done here.
+
+---
+
 ## 8. Disable semantics
 
 "Off" means, per resource:
@@ -2420,8 +2621,13 @@ src/App/DemoViewer.NET/Extensions/Loading/        the loader (item 34, section 7
                                                    every head can use it
 src/App/DemoViewer.NET/Extensions/Updates/        the feed, the updater and the staging rules (item 36, section 7.10)
 src/App/DemoViewer.NET/ViewModels/Settings/ExtensionUpdateRow.cs   the update line under an extension's Settings row
-tools/extension-signing/          item 35's signing tool (section 7.9); outside the .slnx; links the two
-                                   Extensions/Loading files above rather than referencing the app
+tools/extension-signing/          item 35's signing tool (section 7.9), item 37's packaging commands added
+                                   (section 7.11: report, manifest, zip, feed-merge, feed-check) and
+                                   DeterministicZip.cs/FeedMerge.cs; outside the .slnx; links source from
+                                   the app (Extensions/Loading, Extensions/Manifest, Extensions/Updates)
+                                   rather than referencing it
+scripts/pack-extension.sh         item 37: build, stage, sign, zip and feed entry for one extension release
+.github/workflows/release-extension.yml   item 37: the release workflow (section 7.11)
 ```
 
 At run time, under the config root (`AppPaths.ConfigRoot`), item 36 stages what item 34 loads:
@@ -2488,6 +2694,13 @@ Rules as built:
 - **Publishing.** The heads reference the extension, so `dotnet publish` of a head ships
   `DemoViewer.NET.Extensions.StratBook.dll` beside the app with no script change; `scripts/publish.sh` and
   the release workflow are unchanged.
+- **The extension's own release (item 37).** A separate workflow, `release-extension.yml`, and a separate
+  script, `scripts/pack-extension.sh`, cut and publish one extension version independently of an app
+  release; `release.yml` itself is untouched, since the app installer still bundles whichever extension
+  version the heads reference at the time the app is released. `ExtensionPackagingTests` (App.Tests) links
+  `tools/extension-signing/FeedMerge.cs` the same way four item 28 fixtures are linked the other direction,
+  so the rolling feed's merge rules are tested in C#, not only exercised through the CLI. Section 7.11 has
+  the rest.
 
 What stays in the app: everything ring G in section 3 (lanes, shape tools, `MapSceneHost`, zones,
 `QueueWork`, the processing queue) and the Review Queue (decision 1). Ring S items move with the

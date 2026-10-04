@@ -27,6 +27,15 @@ is the intended end state but deferred.
 > the private feed (+ wiring those creds as CI secrets) and §6 (signing/notarization). The full-platform
 > natives are now expected to ship in the `1.0.0` feed release (§8 step 1).
 
+> **A first-party extension (the Strat Book pack) ships on its own, separate pipeline**, not through
+> anything on this page: `scripts/pack-extension.sh` and `.github/workflows/release-extension.yml`
+> build, sign, zip and publish one extension version independently of an app release, onto its own
+> GitHub releases (a per-version release plus a rolling `extensions-<id>` feed release), never into the
+> Velopack `current/` channel this page describes. The app installer still bundles whichever extension
+> version the heads reference at the time the app itself is released; that part of this page's plan is
+> unchanged. See `docs/architecture/strat-book-plugin.md` §7.7 to §7.11 for the extension's manifest,
+> loader, signing and release pipeline in full.
+
 ---
 
 ## The recommendation
