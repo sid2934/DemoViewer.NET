@@ -65,13 +65,6 @@ public sealed record LoadOutcome(string Directory, ExtensionManifest? Manifest, 
     ///     version is known, else "An update in '1.0.2' was not loaded: ..." naming the directory.
     /// </summary>
     public string UserMessage => Manifest is null
-        ? $"An update in '{Path.GetFileName(Directory)}' was not loaded: {Detail}"
+        ? $"An update in '{Path.GetFileName(Path.TrimEndingDirectorySeparator(Directory))}' was not loaded: {Detail}"
         : $"Update {Manifest.Version} was not loaded: {Detail}";
-
-    /// <summary>The log line: the subject, the directory and the detail.</summary>
-    public string Describe(string fallbackName)
-    {
-        string subject = Manifest is null ? fallbackName : $"{Manifest.Name} {Manifest.Version}";
-        return $"{subject} at '{Directory}' not loaded ({Failure}): {Detail}";
-    }
 }
