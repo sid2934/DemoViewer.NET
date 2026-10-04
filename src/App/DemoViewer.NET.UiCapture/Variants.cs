@@ -21,6 +21,7 @@ using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 using DemoViewer.NET.Extensions.StratBook.Views.Settings;
@@ -162,6 +163,10 @@ public static partial class Variants
             // Item 34: the Strat Book row as an installed update (1.0.1 staged under the config root) with a
             // higher staged candidate the loader refused, so the source label and the amber note render.
             ["settings-extensions-staged"] = () => Settings(packOff: false, staged: true),
+            // Item 36: the update line under the Strat Book row, over a fake feed: a newer version offered
+            // with its Update button, and a staged copy waiting for a restart.
+            ["settings-extensions-update-available"] = () => Settings(packOff: false, updates: "available"),
+            ["settings-extensions-update-installed"] = () => Settings(packOff: false, updates: "installed"),
             ["wizard"] = Wizard,
             ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
@@ -1377,7 +1382,7 @@ public static partial class Variants
     ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
     private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false, bool incompatible = false,
-        bool staged = false)
+        bool staged = false, string? updates = null)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1396,6 +1401,9 @@ public static partial class Variants
             {
                 s.Features.Overrides[StratBookPack.PackFeatureId] = false;
             }
+
+            // Item 36: the capture checks the fake feed itself below; Settings must not check again on open.
+            s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
         });
 
         ServiceCollection services = new();
@@ -1478,8 +1486,47 @@ public static partial class Variants
             ];
         }
 
+        // Item 36: the real pack's status over a fake feed that offers the next patch. "available" leaves it
+        // to download; "installed" has it staged already under the capture's config root, so the check reports
+        // a restart. The check runs here, before the VM exists, so the row seeds from the remembered verdict.
+        ExtensionUpdateService? updater = null;
+        if (updates is not null)
+        {
+            PackStatus real = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId);
+            ExtensionManifest running = real.Manifest!;
+            SemVersion next = new(running.Version.Major, running.Version.Minor, running.Version.Patch + 1);
+            string manifest = $$"""
+                {
+                  "id": "{{running.Id}}",
+                  "name": "{{running.Name}}",
+                  "version": "{{next}}",
+                  "assembly": "{{running.Assembly}}",
+                  "entryType": "{{running.EntryType}}",
+                  "requiresHost": "{{running.RequiresHost}}",
+                  "requiresCs2DemoKit": "{{running.RequiresCs2DemoKit}}"
+                }
+                """;
+            Uri feedUrl = new("https://example.invalid/extensions.json");
+            CaptureFeedClient client = new($$"""
+                { "id": "{{running.Id}}", "entries": [ {
+                  "version": "{{next}}", "manifest": {{manifest}},
+                  "url": "https://example.invalid/{{running.Id}}-{{next}}.zip",
+                  "sha256": "{{new string('0', 64)}}", "size": 4718592, "publishedAt": "2026-10-03T12:00:00Z" } ] }
+                """);
+            if (updates == "installed")
+            {
+                string stagedDir = Path.Combine(dir, "extensions", running.Id, next.ToString());
+                Directory.CreateDirectory(stagedDir);
+                File.WriteAllText(Path.Combine(stagedDir, ExtensionManifest.FileName), manifest);
+                File.WriteAllText(Path.Combine(stagedDir, running.Assembly), string.Empty);
+            }
+
+            updater = new ExtensionUpdateService(dir, [real], ExtensionHost.Current, TrustPolicy.Nothing, client, _ => feedUrl);
+            updater.CheckAsync().GetAwaiter().GetResult();
+        }
+
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals,
-            packStatuses: statuses);
+            packStatuses: statuses, extensionUpdates: updater);
         if (packOff is not null)
         {
             vm.SettingsFilterText = "extension";
@@ -1494,6 +1541,15 @@ public static partial class Variants
         {
             DataContext = vm
         };
+    }
+
+    // A capture-only feed (item 36): one canned extensions.json, no network, no download.
+    private sealed class CaptureFeedClient(string feed) : IExtensionFeedClient
+    {
+        public Task<string> GetFeedAsync(Uri url, CancellationToken ct) => Task.FromResult(feed);
+
+        public Task DownloadAsync(Uri url, Stream destination, long maxBytes, IProgress<long>? progress, CancellationToken ct) =>
+            throw new NotSupportedException("the capture never downloads");
     }
 
     // A capture-only second extension (item 33): never configured, never composed; only its status exists,
