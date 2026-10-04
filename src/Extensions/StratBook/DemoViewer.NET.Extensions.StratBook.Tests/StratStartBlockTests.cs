@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The start (docs/strat-format.md, "The start"): where every token stands at tick 0, read from a block, or in an
-///     older file from its round-start step and the copies Add step made. The owner's B execute is the file that needed
+///     older file from its round-start step and the copies Add step made. The real B execute is the file that needed
 ///     it: its seed became a move at 1:55, and a later edit removed A to D's spawn entries from it, so only the lurk's
 ///     unmarked copies still say where they began.
 /// </summary>
@@ -258,7 +258,7 @@ public class StratStartBlockTests
         [.. Enumerable.Range(0, 5).Select(i => new SpawnSpot(1000 + 100 * i, 0, 0, "TSpawn"))],
         [.. Enumerable.Range(0, 5).Select(i => new SpawnSpot(-1000 - 100 * i, 0, 0, "CTSpawn"))]);
 
-    // Rush A as the owner left it: the seed turned into a throw at 1:55 holding only the opponents, our five gone from it.
+    // Rush A as it was left: the seed turned into a throw at 1:55 holding only the opponents, our five gone from it.
     private static StratDocument SeedWithoutOurFive()
     {
         StratDocument document = StratDocument.Create(Guid.NewGuid(), Team, "de_mirage", "T", "rush", "Rush A", Created);

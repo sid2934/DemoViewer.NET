@@ -105,7 +105,7 @@ public sealed class Team
     public bool IsAuto => NameSource != TeamNameSource.User && !IsUs && MergedFrom.Count == 0;
 }
 
-/// <summary>The owner's own accounts: what makes "our side" resolvable when no roster matches.</summary>
+/// <summary>The user's own accounts: what makes "our side" resolvable when no roster matches.</summary>
 public sealed class MeAccounts
 {
     public List<string> SteamIds { get; set; } = [];

@@ -17,7 +17,7 @@ using DemoViewer.NET.Views.Teams;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The revised Teams view over a library shaped like the owner's: matchmaking with a regular trio and
+///     The revised Teams view over a library shaped like a real one: matchmaking with a regular trio and
 ///     rotating fills, and a scrim team whose fifth changed. Renders the suggestions inbox, then accepts
 ///     the squad through the view model and renders the my-team card. The PNGs are the review surface.
 /// </summary>

@@ -78,7 +78,7 @@ public sealed record ProvenanceInputs(bool BothClanTags, DemoSourceKind SourceKi
 ///         <item>our side resolved, tagless, not matchmaking: <c>scrim</c>;</item>
 ///         <item>else unlabeled.</item>
 ///     </list>
-///     Steps 3 and 4 do not require our side to come from the me accounts: the owner's own roster is a
+///     Steps 3 and 4 do not require our side to come from the me accounts: the user's own roster is a
 ///     team once it recurs (so its demos resolve through <c>Team</c>, not <c>Me</c>) and in matchmaking
 ///     its opponents never recur (§3.3), so reading "me-resolved" literally would leave every demo of
 ///     that roster unlabeled while the solo queues beside them read <c>matchmaking</c>.

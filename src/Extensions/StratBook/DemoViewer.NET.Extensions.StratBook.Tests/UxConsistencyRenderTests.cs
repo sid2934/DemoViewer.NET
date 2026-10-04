@@ -16,7 +16,7 @@ using DemoViewer.NET.Views.Teams;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Renders of the owner-approved visible changes from the UI-thread audit: the Teams tab while its
+///     Renders of the approved visible changes from the UI-thread audit: the Teams tab while its
 ///     teams are read and while a change is applied. PNGs land in <see cref="HeadlessSession.ArtifactDir" />.
 /// </summary>
 [NotInParallel]

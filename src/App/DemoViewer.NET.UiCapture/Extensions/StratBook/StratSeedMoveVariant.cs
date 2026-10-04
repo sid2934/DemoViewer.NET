@@ -40,7 +40,7 @@ public static partial class Variants
         return view;
     }
 
-    // The same execute as the owner later left it: no E line on the seed, and E's lurk a second later via Long Doors,
+    // The same execute as it was later left: no E line on the seed, and E's lurk a second later via Long Doors,
     // working five areas. Dragged, E's entry on the lurk step sits a few units from Long Doors' centre, else it is the
     // step's unmarked copy of spawn.
     private static StratBookHubView StratEditorOwnersLurk(double atSeconds, bool dragged)

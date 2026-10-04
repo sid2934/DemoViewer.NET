@@ -34,7 +34,7 @@ public class StratLineSlotTests
 
     private static StratStepRow Row(StratBookTabViewModel vm, Guid id) => vm.Editor.Steps.Single(r => r.Id == id);
 
-    // Step 8 of the owner's "Execute B" as revision 7 left it.
+    // Step 8 of the "Execute B" strat as revision 7 left it.
     private static StratStep ExecuteBStep8() => new()
     {
         Id = Guid.NewGuid(), AtSeconds = 53, Actor = StratVocabulary.ActorAll, Verb = "move", Note = "entry, A holds under",

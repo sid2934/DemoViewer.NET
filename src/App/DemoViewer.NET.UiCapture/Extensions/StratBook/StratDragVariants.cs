@@ -60,7 +60,7 @@ public static partial class Variants
         return view;
     }
 
-    // The owner's file before this change: E's lurk carries an old drag's departure across the map, and the seed's spawn
+    // The file before this change: E's lurk carries an old drag's departure across the map, and the seed's spawn
     // spots and opponents sit on step 1.
     private static StratBookHubView StratDragPlaced()
     {

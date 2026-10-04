@@ -159,7 +159,7 @@ public class TeamIdentityRevisionTests
         using (Assert.Multiple())
         {
             await Assert.That(squad.Players[0].SteamId64).IsEqualTo(owner).Because("the squad starts with you");
-            await Assert.That(squad.Players.Count).IsEqualTo(3).Because("the owner and the two regular partners the design measured");
+            await Assert.That(squad.Players.Count).IsEqualTo(3).Because("the user and the two regular partners the design measured");
             await Assert.That(squad.GamesTogether).IsGreaterThanOrEqualTo(TeamSuggestions.SquadMinGames);
         }
 

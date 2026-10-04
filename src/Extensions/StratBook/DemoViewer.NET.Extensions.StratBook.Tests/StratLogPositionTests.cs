@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class StratLogPositionTests
 {
-    // A duplicate run not at the tail, and the owner's shape.
+    // A duplicate run not at the tail, and the real file's shape.
     private static readonly int[] NotAtTail = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 9, 10];
     private static readonly int[] OwnerShape = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 9, 10, 11, 12];
 

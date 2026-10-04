@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The regression pin for the clustering constants (design §3.3, §7): the anonymised side keys of
-///     the owner's library, 277 matchmaking replays and 8 HLTV demos, replayed through the clusterer and
+///     a real library, 277 matchmaking replays and 8 HLTV demos, replayed through the clusterer and
 ///     held to the chosen row of the measurement table. SteamIDs in the fixture are stable fakes.
 /// </summary>
 public class TeamIdentityCorpusTests

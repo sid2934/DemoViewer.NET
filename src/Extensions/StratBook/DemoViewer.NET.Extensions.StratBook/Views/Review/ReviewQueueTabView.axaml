@@ -16,7 +16,7 @@
       queue as one video, sections as title cards (Pack Export); a host with no exporter hides it.
 
       The list is virtualized (a VirtualizingStackPanel under the ItemsControl's own ScrollViewer): the
-      owner's queue passed 4,800 clips, and a StackPanel under an outer ScrollViewer realized every row.
+      user's queue passed 4,800 clips, and a StackPanel under an outer ScrollViewer realized every row.
       A section over 50 clips starts collapsed; the filter row narrows by source and text.
 
       Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.

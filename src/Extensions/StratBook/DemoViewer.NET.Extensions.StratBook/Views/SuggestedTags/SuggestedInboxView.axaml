@@ -6,7 +6,7 @@
 
     <!--
       THE SUGGESTED SECTION: every demo's tag suggestions in one inbox (generated-content.md). New ones only until
-      "Show settled" is on. The list is virtualized under its own ScrollViewer: the owner's library holds thousands.
+      "Show settled" is on. The list is virtualized under its own ScrollViewer: a real library holds thousands.
       Colour: tokens only; state is carried by words.
     -->
 

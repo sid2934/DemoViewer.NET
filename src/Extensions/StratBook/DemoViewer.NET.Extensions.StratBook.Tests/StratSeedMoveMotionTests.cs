@@ -229,7 +229,7 @@ public class StratSeedMoveMotionTests
     private static readonly string[] LurkWatch = ["LongDoors", "TopofMid", "Catwalk", "Middle", "MidDoors"];
 
     /// <summary>
-    ///     The same execute as the owner later left it: the seed's move has no line for E, and E lurks a second later
+    ///     The same execute as it was later left: the seed's move has no line for E, and E lurks a second later
     ///     on its own step, via Long Doors, watching and working five areas. The lurk step holds unmarked copies of the
     ///     ten seed positions; <paramref name="dragged" /> replaces E's with a drag a few units from Long Doors' centre.
     /// </summary>

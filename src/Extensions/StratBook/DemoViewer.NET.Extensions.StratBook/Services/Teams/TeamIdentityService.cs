@@ -417,7 +417,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
         }
     }
 
-    /// <summary>The owner's accounts.</summary>
+    /// <summary>The user's accounts.</summary>
     public IReadOnlyList<string> MyAccounts
     {
         get

@@ -29,7 +29,7 @@ public sealed class TeamClusterer
 {
     /// <summary>
     ///     Valve's continuity rule: at least three of the roster must play in each match
-    ///     (tournament-operation-requirements §3.2.5(a), forfeited under §3.10.1). Measured on the owner's
+    ///     (tournament-operation-requirements §3.2.5(a), forfeited under §3.10.1). Measured on a real library's
     ///     277 replays: k = 4 breaks a roster on one stand-in, k = 2 chains 50 sides into one non-roster.
     /// </summary>
     public const int Continuity = 3;

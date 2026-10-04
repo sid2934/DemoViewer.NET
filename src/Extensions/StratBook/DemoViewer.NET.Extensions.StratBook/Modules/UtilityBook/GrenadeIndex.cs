@@ -859,7 +859,7 @@ public sealed class GrenadeIndex : IPackResident, IDisposable
 
     /// <summary>
     ///     Two grid positions within this distance of each other's mean origin, in the plane, are one
-    ///     standing spot. Measured on the owner's 53 indexed demos (16,374 grenades): the fixed grid alone
+    ///     standing spot. Measured on a library of 53 indexed demos (16,374 grenades): the fixed grid alone
     ///     finds 1,243 lineups thrown twice or more covering 3,923 throws; merging within 16 units and 2
     ///     degrees of aim finds 1,408 covering 5,201, with the largest lineup at 40 throws (no chaining).
     /// </summary>

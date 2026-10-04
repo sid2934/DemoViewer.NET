@@ -69,8 +69,8 @@ public static class TeamSuggestions
 {
     /// <summary>
     ///     The whole squad must have played this many games together on your side, and so each partner at
-    ///     least this many with you. No share bar: on the owner's 266 replays the trio played 17 together
-    ///     while the owner's single most frequent partner reached only 47, so any share that admits the
+    ///     least this many with you. No share bar: on a 266-replay library the trio played 17 together
+    ///     while the single most frequent partner reached only 47, so any share that admits the
     ///     trio admits nearly everyone.
     /// </summary>
     public const int SquadMinGames = 8;
@@ -78,7 +78,7 @@ public static class TeamSuggestions
     /// <summary>The largest squad offered: you plus four.</summary>
     public const int SquadMaxSize = 5;
 
-    /// <summary>The smallest squad offered: you plus two, the trio the owner describes.</summary>
+    /// <summary>The smallest squad offered: you plus two, the trio a user describes.</summary>
     public const int SquadMinSize = 3;
 
     /// <summary>Valve's active-roster window: the team's last ten matches.</summary>

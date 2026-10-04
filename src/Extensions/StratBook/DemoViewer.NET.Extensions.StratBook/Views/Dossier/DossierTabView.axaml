@@ -5,7 +5,7 @@
              x:DataType="vm:DossierTabViewModel">
 
     <!--
-      THE OPPONENT DOSSIER: a team picker over Team Identity and, today, the Map Pool Record — the
+      THE OPPONENT DOSSIER: a team picker over Team Identity and, today, the Map Pool Record, the
       demo-derivable substitute for the veto model. Left: the team list. Right: the
       selected team's sample size, its per-map record and side split, the decider record where a
       best-of series is inferable, the Setup Heatmaps By Buy (their CT positions per map and buy, fixed

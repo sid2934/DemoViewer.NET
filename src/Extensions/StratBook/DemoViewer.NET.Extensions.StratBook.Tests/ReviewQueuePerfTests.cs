@@ -18,7 +18,7 @@ using DemoViewer.NET.Views.Review;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Times the Review section over a queue the size the owner's grew to: load, open, scroll to the
+///     Times the Review section over a queue the size a real one grew to: load, open, scroll to the
 ///     bottom and a lineup-clip batch arriving while it is open. Prints the numbers and renders the
 ///     section. <c>DV_REVIEW_QUEUE</c> names a copy of a real <c>review-queue.json</c>; without it a
 ///     synthetic queue of the same shape is used.
@@ -88,7 +88,7 @@ public class ReviewQueuePerfTests
                 int realized = TextBoxes(view);
                 Save(window, $"review-queue-{label}-open.png");
 
-                // Every section open: the worst case the owner can ask for.
+                // Every section open: the worst case a user can ask for.
                 sw.Restart();
                 vm.ExpandAllCommand.Execute(null);
                 Settle();

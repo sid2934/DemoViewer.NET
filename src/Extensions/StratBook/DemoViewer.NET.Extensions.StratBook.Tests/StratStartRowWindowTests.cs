@@ -103,7 +103,7 @@ public class StratStartRowWindowTests
             window.Close();
         });
 
-    // The owner's B execute as an older build left it, and a captured strat.
+    // A B execute as an older build left it, and a captured strat.
     private static IEnumerable<StratDocument> Opened()
     {
         yield return StratStartBlockTests.Legacy();

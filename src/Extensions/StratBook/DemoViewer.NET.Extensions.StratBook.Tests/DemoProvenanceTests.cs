@@ -148,7 +148,7 @@ public class DemoProvenanceTests
     [Test]
     public async Task Heuristic_UsTeam_AgainstNobody_ReadsLikeMe()
     {
-        // The owner's own roster recurs, so its demos resolve through Team rather than Me; in matchmaking
+        // The user's own roster recurs, so its demos resolve through Team rather than Me; in matchmaking
         // the opponent never recurs. Reading "me-resolved" literally would leave every one of them unlabeled.
         using (Assert.Multiple())
         {

@@ -237,7 +237,7 @@ public class TeamIdentityTests
             await Assert.That(team.Rosters[0].ExtendedCore!.Order(StringComparer.Ordinal)).IsEquivalentTo(Ids(1, 2, 3, 4, 100, 101, 102))
                 .Because("the constants plus the longest-standing fifths");
             await Assert.That(teams.GetAssignment("/d/acq.dem")!.T.TeamId).IsNull()
-                .Because("the owner plus two acquaintances outside the core shares one");
+                .Because("the user plus two acquaintances outside the core shares one");
         }
     }
 
@@ -324,7 +324,7 @@ public class TeamIdentityTests
         List<DemoCacheRecord> records = [];
         for (int i = 0; i < 20; i++)
         {
-            // The owner (1) with a different four every time, against strangers: no roster, one account.
+            // The user (1) with a different four every time, against strangers: no roster, one account.
             records.Add(Record($"/d/q{i:D2}.dem", i + 1, [.. Ids(1), .. Ids(200 + i * 4, 201 + i * 4, 202 + i * 4, 203 + i * 4)], Strangers()));
         }
 
