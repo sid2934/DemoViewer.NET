@@ -60,7 +60,7 @@ public sealed class DossierDocument
 }
 
 /// <summary>
-///     The Dossier's export (plan.md §3, Dossier Editing And Export): the short form (the one-pager of
+///     The Dossier's export: the short form (the one-pager of
 ///     starred findings, the default) and the long form (the working document), each as self-contained
 ///     HTML like LAN Print or as Markdown. Pure string builders over <see cref="DossierDocument" />; the
 ///     writer below is the only part that touches disk.

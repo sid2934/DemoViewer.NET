@@ -26,7 +26,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.ViewModels.Dossier;
 
 /// <summary>
-///     The Opponent Dossier tab (plan.md §3, Phase 5): a team picker over Team Identity and its built
+///     The Opponent Dossier tab: a team picker over Team Identity and its built
 ///     sections. The Map Pool Record: maps played, win rate, side wins, the decider record where a
 ///     best-of series is inferable, and the optional user-entered veto history filed beside it. The
 ///     Setup Heatmaps By Buy: one heatmap per map and CT buy with its fixed and rotating places, each of
@@ -377,7 +377,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     public bool HasPeriodDiff => PeriodDiffRecent is not null;
 
-    /// <summary>"18 demos" — the section's own overall sample size, or the empty-state line.</summary>
+    /// <summary>"18 demos": the section's own overall sample size, or the empty-state line.</summary>
     public string SampleSizeLine { get; private set; } = "";
 
     /// <summary>"Deciders: 3-1 (4)" or "" when nothing is inferable.</summary>

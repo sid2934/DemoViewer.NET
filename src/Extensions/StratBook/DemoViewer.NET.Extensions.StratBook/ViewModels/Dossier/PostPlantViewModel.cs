@@ -12,7 +12,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.ViewModels.Dossier;
 
 /// <summary>
-///     The Dossier's Post-Plant And Retake section (plan.md §3, Phase 5): per map and side, the rounds
+///     The Dossier's Post-Plant And Retake section: per map and side, the rounds
 ///     with a plant, the man count at the plant and how they ended; on T the plant clusters and the
 ///     post-plant holds, on CT the retake grouping. Every number is a <see cref="TendencyLinkViewModel" />
 ///     whose click sends its rounds to the Review Queue under one title card and shows the Review tab,

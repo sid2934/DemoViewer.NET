@@ -9,7 +9,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Role View And LAN Print (plan.md §3; strat-model.md §3.14): one slot's parts on screen, switched by
+///     Role View And LAN Print (strat-model.md §3.14): one slot's parts on screen, switched by
 ///     <see cref="StratRoleViewPanelViewModel.SelectedSlot" />, and Print writing every slot's sheet as one
 ///     HTML page (the item's own done line: "a strat prints to one sheet per slot").
 /// </summary>

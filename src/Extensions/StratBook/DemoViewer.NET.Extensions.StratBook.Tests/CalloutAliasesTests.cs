@@ -17,7 +17,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Callout Aliases (plan.md, strat-model.md §3.7): a team's word resolves to a nav place through
+///     Callout Aliases (strat-model.md §3.7): a team's word resolves to a nav place through
 ///     <see cref="CalloutResolver" /> wherever a place is typed, edited or shown - the callouts editor
 ///     in the Strat Book, the Query Canvas's place names, and a <see cref="PositionPredicate" /> a
 ///     TagQuery place filter would build.

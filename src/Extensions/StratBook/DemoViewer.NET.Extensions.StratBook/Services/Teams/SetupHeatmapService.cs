@@ -13,7 +13,7 @@ using DemoViewer.NET.Services.RoundIndex;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     Builds a team's <see cref="SetupHeatmapSet" /> (plan.md §3, Setup Heatmaps By Buy): for each map
+///     Builds a team's <see cref="SetupHeatmapSet" />: for each map
 ///     and economy state, where the team stood on defence. A round counts when Team Identity puts the
 ///     team on CT that round (<see cref="TeamIdentityService.SideAtRound" />), its buy is the CT side's
 ///     Round Facts <see cref="SideFacts.BuyType" />, and its positions are the round positions file's

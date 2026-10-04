@@ -9,12 +9,12 @@ using DemoViewer.NET.ViewModels.Dossier;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Period Diff over one team's six synthetic demos (plan.md §3, Period Diff, Phase 5): a window of
+///     Period Diff over one team's six synthetic demos: a window of
 ///     three splits them into "last" (days 4 to 6, team A losing every one) and "previous" (days 1 to 3,
 ///     team A winning every one), read newest first the way <see cref="TeamIdentityService.SidesOf" />
 ///     already orders them. The roster-boundary test is the item's own "done" bar: a
 ///     <see cref="TeamIdentityService.StartRoster" /> call between the two windows, with the same five
-///     players on both sides of it, still shows up as <see cref="PeriodDiffSet.RosterChanged" /> — the
+///     players on both sides of it, still shows up as <see cref="PeriodDiffSet.RosterChanged" />, the
 ///     mechanic team-identity.md's design names for exactly this ("Period Diff then reads the boundary").
 /// </summary>
 [NotInParallel]

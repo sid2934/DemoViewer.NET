@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Dossier;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Dossier Editing And Export (plan.md §3, Phase 5): the exporter's two forms and two files, the
+///     Dossier Editing And Export: the exporter's two forms and two files, the
 ///     notes store's persistence, the editor's star, rewrite, leave-out and note actions, and the tab
 ///     collecting its sections' lines, with the one-pager as the default export.
 /// </summary>

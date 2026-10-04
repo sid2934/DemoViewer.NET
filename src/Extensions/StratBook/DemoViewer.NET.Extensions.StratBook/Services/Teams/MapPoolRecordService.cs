@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
 ///     Builds a <see cref="MapPoolRecord" /> for one team over <see cref="TeamIdentityService.SidesOf" />
-///     (plan.md §3, Map Pool Record, Phase 5): the demo-derivable substitute for the veto model (F12).
+///    : the demo-derivable substitute for the veto model (F12).
 ///     Stateless: the Dossier tab calls <see cref="Build" /> on selection and on every
 ///     <see cref="TeamIdentityService.Changed" />, the way the Teams tab re-projects its own selection.
 /// </summary>
@@ -84,8 +84,8 @@ public static class MapPoolRecordService
         };
     }
 
-    // A decider is inferable only from a recognizable series length (plan.md D5: manual veto entry
-    // only, no scraping, so nothing here reads a series id) — three demos (best of three) or five (best
+    // A decider is inferable only from a recognizable series length (decision D5: manual veto entry
+    // only, no scraping, so nothing here reads a series id): three demos (best of three) or five (best
     // of five) against the same opponent, played the same calendar day by file time (Team Identity's own
     // OrderTicks proxy for a match date, SideKeys.From / TeamClusterer.DateOf). The last demo in such a
     // group, by that same order, is the decider; any other group size, or an opponent that never

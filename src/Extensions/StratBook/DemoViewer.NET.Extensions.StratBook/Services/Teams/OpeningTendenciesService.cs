@@ -13,7 +13,7 @@ using DemoViewer.NET.Services.RoundIndex;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     Builds a team's <see cref="OpeningTendenciesSet" /> (plan.md §3, Opening Tendencies) over the
+///     Builds a team's <see cref="OpeningTendenciesSet" /> over the
 ///     Grenade Index and Round Facts: per map and side, the first utility's timing as a clock histogram
 ///     and its kind and landing place, the first-contact distribution, the site split, the entry player
 ///     by site and the lurk timing. A round counts when Team Identity puts the team on that side in it

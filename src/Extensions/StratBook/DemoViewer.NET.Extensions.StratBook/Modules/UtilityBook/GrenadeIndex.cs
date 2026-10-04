@@ -73,7 +73,7 @@ public sealed record GrenadeQuery(
 /// <param name="JumpThrow">Whether the members were jump-throws.</param>
 /// <param name="Throws">The members, oldest demo first, then by release tick.</param>
 /// <param name="Id">
-///     A stable identity for this throw position (Lineup On A Strat Step, plan.md §3, Phase 4), computed by
+///     A stable identity for this throw position (Lineup On A Strat Step), computed by
 ///     <see cref="GrenadeIndex.LineupId" /> over the map, kind, landing cell and rounded origin rather than
 ///     any one member: the representative throw (oldest demo first) can change as an older demo is indexed
 ///     later, but the position it names does not. This is the value Strat Model's <c>utility.lineupId</c>
@@ -136,7 +136,7 @@ public sealed record GrenadeCluster(
 }
 
 /// <summary>
-///     The Grenade Index (plan.md §3, Phase 4): every Grenade Walk row in the library, one per grenade,
+///     The Grenade Index: every Grenade Walk row in the library, one per grenade,
 ///     with its landing place from Zone Baking's resolver, queried by map, kind, landing place, side and
 ///     demo set and returned as clusters on a coarse landing grid with the origins deduplicated.
 ///     <para>

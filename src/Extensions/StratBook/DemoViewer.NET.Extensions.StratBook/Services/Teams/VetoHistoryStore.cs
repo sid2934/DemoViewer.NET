@@ -9,11 +9,11 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for (plan.md §3,
-///     Map Pool Record; F12, D5): manual entry only, no scraping, filed per opponent team.
+///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for (decision D5):
+///     manual entry only, no scraping, filed per opponent team.
 ///     <para>
 ///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation — the same small-file rule
+///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation, the same small-file rule
 ///         <see cref="Review.ReviewQueue" /> follows. A null config root (the browser, tests) keeps the
 ///         history for the session; a file that cannot be read, or is at a newer schema, is refused and
 ///         never overwritten.

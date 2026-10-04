@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///     <c>dv2d pack</c>'s own <see cref="IPackClipRenderer" />: parses a clip's demo, loads its map
 ///     bundle and its saved ink, and renders it through the same Pipeline primitives
 ///     <c>dv2d export</c> already assembles by hand (<see cref="TrackerFrameSource" />,
-///     <c>SceneLayerCatalog.CreateSceneStack</c>, <see cref="SceneExportSession" />) — never through the
+///     <c>SceneLayerCatalog.CreateSceneStack</c>, <see cref="SceneExportSession" />), never through the
 ///     App's own <c>PackClipRenderer</c>, which needs the heavy-job gate and the app-managed ffmpeg
 ///     directory a headless tool does not have. <see cref="PackPlanner" /> and <see cref="PackExporter" />
 ///     are the one shared plan-then-stitch policy either host runs; only this glue is per-host, exactly

@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Services.Review;
 ///         <b>Persistence.</b> <c>review-queue.json</c> under the config root, written whole through
 ///         <see cref="DemoCacheStore.WriteAtomic" />. The file is read on a worker at construction and the
 ///         first access waits for it; writes are debounced onto a worker, and <see cref="Flush" /> writes
-///         what is pending (shutdown calls it). The owner's queue reached thousands of rows, so neither
+///         what is pending (shutdown calls it). A real queue reached thousands of rows, so neither
 ///         runs on the UI thread. A null root keeps the queue for the session: the browser host and
 ///         tests. A file that cannot be read, or is at a newer schema, is refused and never overwritten.
 ///     </para>

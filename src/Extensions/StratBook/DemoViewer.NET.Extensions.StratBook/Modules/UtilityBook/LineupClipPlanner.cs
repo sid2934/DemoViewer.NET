@@ -64,7 +64,7 @@ public sealed record LineupClipJob(
 }
 
 /// <summary>
-///     Lineup Clip Render's planning (plan.md §3, Phase 4): which throw positions get a clip, what range and
+///     Lineup Clip Render's planning: which throw positions get a clip, what range and
 ///     camera it renders with, and where the pair lands. One clip per lineup and technique: every throw of
 ///     one technique from one spot looks the same, so one representative stands for them. Pure: no parse,
 ///     no render, no file written; <see cref="LineupClipService" /> runs what this plans.

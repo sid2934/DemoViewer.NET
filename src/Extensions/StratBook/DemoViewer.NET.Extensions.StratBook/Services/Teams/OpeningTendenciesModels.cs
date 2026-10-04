@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     One team's Opening Tendencies (plan.md §3, Phase 5): one block per map and side the team played,
+///     One team's Opening Tendencies: one block per map and side the team played,
 ///     the map with the most rounds first, T before CT. Built by <see cref="OpeningTendenciesService.Build" />.
 /// </summary>
 public sealed class OpeningTendenciesSet

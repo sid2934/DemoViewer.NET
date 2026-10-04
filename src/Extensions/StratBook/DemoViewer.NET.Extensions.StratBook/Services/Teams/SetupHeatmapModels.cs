@@ -8,7 +8,7 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     One team's Setup Heatmaps By Buy (plan.md §3, Phase 5): one heatmap per map and CT buy the team
+///     One team's Setup Heatmaps By Buy: one heatmap per map and CT buy the team
 ///     defended on, the map with the most such rounds first, buys cheapest first. Built by <see cref="SetupHeatmapService.Build" />.
 /// </summary>
 public sealed class SetupHeatmapSet

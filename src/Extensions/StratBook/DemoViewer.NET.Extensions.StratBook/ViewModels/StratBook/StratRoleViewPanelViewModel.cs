@@ -11,7 +11,7 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     Role View And LAN Print (plan.md §3; strat-model.md §3.14, decision 8): one slot's parts on screen,
+///     Role View And LAN Print (strat-model.md §3.14, decision 8): one slot's parts on screen,
 ///     and a button that writes every slot's sheet as one self-contained HTML page and opens it in the
 ///     system browser. The derivation and the writer are Strat Model's own (§9 step 6,
 ///     <see cref="RoleSheet.Derive" /> and <see cref="RoleSheetHtmlWriter.Html" />); this view model only

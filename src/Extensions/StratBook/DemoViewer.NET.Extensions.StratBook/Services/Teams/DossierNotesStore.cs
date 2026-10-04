@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     The user's edits to each team's Dossier (plan.md §3, Dossier Editing And Export): stars, rewritten
+///     The user's edits to each team's Dossier: stars, rewritten
 ///     lines, left-out lines, free notes and the summary, filed per team.
 ///     <para>
 ///         <b>Persistence.</b> <c>dossier-notes.json</c> beside <c>teams.json</c>, written whole through

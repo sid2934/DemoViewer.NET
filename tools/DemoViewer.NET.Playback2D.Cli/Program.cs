@@ -135,7 +135,7 @@ internal static class Program
                                             GPU request into force-gpu, so a lane fails rather than silently
                                             measuring software rendering. dv2d reads no AppSettings (§7.7).
 
-                                pack        Headless Packs (plan.md §3): the Review Queue's plan-then-stitch
+                                pack        Headless Packs: the Review Queue's plan-then-stitch
                                             policy run over a review-queue.json file instead of the app's
                                             Export pack row, so "every scrim from last night, tagged rounds
                                             only, rendered by morning" is a scheduled command. The queue

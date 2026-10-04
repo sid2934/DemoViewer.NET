@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     One of a team's demos as Period Diff counts it (plan.md §3, Period Diff, Phase 5): the map, the
+///     One of a team's demos as Period Diff counts it: the map, the
 ///     resolved winner where the final score is unambiguous, the side-round split, and the roster Team
 ///     Identity put the team's side on. Built by <see cref="PeriodDiffService.Build" />.
 /// </summary>
@@ -75,7 +75,7 @@ public sealed class PeriodDiffPeriod
 }
 
 /// <summary>
-///     A team's Period Diff (plan.md §3, Phase 5): its last <see cref="WindowSize" /> demos against the
+///     A team's Period Diff: its last <see cref="WindowSize" /> demos against the
 ///     <see cref="WindowSize" /> before those, "roster to roster" (team-identity.md §3, Period Diff).
 ///     Built by <see cref="PeriodDiffService.Build" />, synchronously like the Map Pool Record: both
 ///     periods come from <see cref="TeamIdentityService.SidesOf" />, already held in memory, so nothing

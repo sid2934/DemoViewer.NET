@@ -204,7 +204,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
 
-        // Strat Record Panel (plan.md §3, strat-model.md §3.6): run / won / aborted, split by Demo
+        // Strat Record Panel (strat-model.md §3.6): run / won / aborted, split by Demo
         // Provenance Labels, the failure breakdown, every number a clip. A session-only Tag Store when
         // the host wired none, so the tab still renders (empty) rather than needing a fourth optional
         // to become required.
@@ -212,12 +212,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         StratEvidenceService recordEvidence = evidence ?? new StratEvidenceService(recordTags);
         RecordPanel = new StratRecordPanelViewModel(recordEvidence, recordTags, review, indexBySha, selectTab, _post);
 
-        // Strat Version History (plan.md §3, strat-model.md §3.8): the append-only diff log as a pane,
+        // Strat Version History (strat-model.md §3.8): the append-only diff log as a pane,
         // the record split either side of each entry. Reads the same evidence and Tag Store as the
         // Record Panel above, so the two never disagree about what "run" or "won" means.
         HistoryPanel = new StratHistoryPanelViewModel(store, recordEvidence, recordTags, _calloutResolvers, _post);
 
-        // Role View And LAN Print (plan.md §3, strat-model.md §3.14): one slot's parts on screen and the
+        // Role View And LAN Print (strat-model.md §3.14): one slot's parts on screen and the
         // button that prints all five as one HTML page. Print has nothing to write to on the browser head.
         RoleView = new StratRoleViewPanelViewModel(IsBrowser);
 

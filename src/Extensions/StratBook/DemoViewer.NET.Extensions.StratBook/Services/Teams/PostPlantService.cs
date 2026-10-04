@@ -12,7 +12,7 @@ using DemoViewer.NET.Services.RoundIndex;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     Builds a team's <see cref="PostPlantSet" /> (plan.md §3, Post-Plant And Retake) over Round Facts
+///     Builds a team's <see cref="PostPlantSet" /> over Round Facts
 ///     and the Round Index's positions files: per map and side, the rounds with a plant, the man count at
 ///     the plant and how those rounds ended; on T the plant clusters and the post-plant holds, on CT the
 ///     retake grouping. A round counts when Team Identity puts the team on that side in it

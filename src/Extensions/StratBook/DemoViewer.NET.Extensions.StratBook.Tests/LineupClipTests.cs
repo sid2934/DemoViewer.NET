@@ -15,7 +15,7 @@ using DemoViewer.NET.Services.Review;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Lineup Clip Render (plan.md §3, Phase 4): the job planning, which is the whole of what a unit test can
+///     Lineup Clip Render: the job planning, which is the whole of what a unit test can
 ///     reach (the real render parses a demo and runs in the integration phase). Which lineups get a clip, the
 ///     tick range around the throw, the pair's paths, the GIF request the existing export session receives
 ///     (format, rate, size, the frames the range resolves to, the camera on the thrower), and the service that

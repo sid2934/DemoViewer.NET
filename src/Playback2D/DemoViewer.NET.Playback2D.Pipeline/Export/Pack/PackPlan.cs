@@ -113,7 +113,7 @@ public sealed record PackPlan(PackSettings Settings, IReadOnlyList<PackSegment> 
 }
 
 /// <summary>
-///     Pack Export's planning (plan.md §3, Phase 4): the Review Queue turned into what one export renders.
+///     Pack Export's planning: the Review Queue turned into what one export renders.
 ///     Pure: no parse, no render, no file written.
 ///     <para>
 ///         <b>Sections are title cards.</b> A queue title card becomes a card held for

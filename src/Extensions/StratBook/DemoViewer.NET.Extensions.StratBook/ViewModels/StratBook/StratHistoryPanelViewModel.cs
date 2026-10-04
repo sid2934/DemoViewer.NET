@@ -11,7 +11,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     Strat Version History (plan.md §3, strat-model.md §3.8): the append-only diff log as a pane, newest entry
+///     Strat Version History (strat-model.md §3.8): the append-only diff log as a pane, newest entry
 ///     first, each entry phrased against the document as it stood just before it, with the record
 ///     (<see cref="StratEvidenceService" />) split either side of the entry's revision. The data is
 ///     <see cref="StratHistoryPane" />; this view model reads the store's log, computes the record the same way

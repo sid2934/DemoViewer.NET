@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     One team's Post-Plant And Retake (plan.md §3, Phase 5): one block per map and side the team
+///     One team's Post-Plant And Retake: one block per map and side the team
 ///     played, the map with the most rounds first, T before CT. Built by <see cref="PostPlantService.Build" />.
 /// </summary>
 public sealed class PostPlantSet

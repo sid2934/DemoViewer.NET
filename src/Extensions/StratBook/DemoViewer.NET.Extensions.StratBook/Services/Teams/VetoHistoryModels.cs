@@ -15,8 +15,8 @@ public enum VetoAction
 }
 
 /// <summary>
-///     One veto step the user entered by hand against an opponent (plan.md D5: manual entry only, in
-///     Phase 5; no scraping — the artifact's veto model needs match-series metadata no demo carries,
+///     One veto step the user entered by hand against an opponent (decision D5: manual entry only, in
+///     Phase 5; no scraping: the artifact's veto model needs match-series metadata no demo carries,
 ///     F12). <see cref="Order" /> is the pick order the user typed the step in, one-based.
 /// </summary>
 public sealed class VetoEntry

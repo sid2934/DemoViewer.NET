@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 #endregion
 
 // Lives in Pipeline (namespace kept as DemoViewer.NET.Services.Export.Pack, so every App call site's
-// `using` still resolves) rather than in src/App: `dv2d pack` (Headless Packs, plan.md §3) needs the
+// `using` still resolves) rather than in src/App: `dv2d pack` (Headless Packs) needs the
 // same plan-then-stitch policy the app's Export pack row runs, and Pipeline is the one place both a
 // headless tool and the App can reach without the CLI ever referencing src/App/*. Only the plumbing
 // that touches App-only concerns (the heavy-job gate, the app-managed ffmpeg directory) stays behind
@@ -60,7 +60,7 @@ public readonly record struct PackProgress(int Segment, int SegmentCount, string
 public sealed record PackResult(IReadOnlyList<string> Outputs, int ClipsRendered, IReadOnlyList<PackSkip> Failed);
 
 /// <summary>
-///     Pack Export (plan.md §3, Phase 4): one video from many demos, annotations burned in, the Review
+///     Pack Export: one video from many demos, annotations burned in, the Review
 ///     Queue's sections as title cards.
 ///     <para>
 ///         <b>How the clips are stitched.</b> One <c>SceneExportSession</c> per clip, as every other export

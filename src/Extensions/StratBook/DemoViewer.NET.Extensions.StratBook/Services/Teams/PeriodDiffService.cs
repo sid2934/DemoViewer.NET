@@ -7,15 +7,15 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     Builds a team's <see cref="PeriodDiffSet" /> (plan.md §3, Period Diff, Phase 5): its last
+///     Builds a team's <see cref="PeriodDiffSet" />: its last
 ///     <c>windowSize</c> demos against the <c>windowSize</c> before those, over
 ///     <see cref="TeamIdentityService.SidesOf" />, newest first, the same order every other Dossier
 ///     section reads. Stateless and synchronous, like <see cref="MapPoolRecordService" />: nothing here
 ///     opens a demo Team Identity or the Map Pool Record has not already loaded for the same team.
 ///     <para>
 ///         <b>Rosters are the diff's own signal</b> (team-identity.md §3: "Period Diff reads rosters,
-///         'roster to roster'"). A roster does not change on ordinary attrition — one or two members
-///         still match the same anchor and stay stamped a stand-in (design §3.3) — so
+///         'roster to roster'"). A roster does not change on ordinary attrition: one or two members
+///         still match the same anchor and stay stamped a stand-in (design §3.3), so
 ///         <see cref="PeriodDiffSet.RosterChanged" /> firing means a real boundary: the user started a
 ///         new roster, or the team's demos this far back belong to a different, earlier-founded one.
 ///     </para>

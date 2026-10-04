@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     What the user did to one team's Dossier (plan.md §3, Dossier Editing And Export): the findings
+///     What the user did to one team's Dossier: the findings
 ///     starred for the one-pager, the generated lines rewritten or left out, the free notes added beside
 ///     them, and the summary that heads the export. A finding is addressed by its key (the section and
 ///     what it counts, never an index), so a star or an edit survives a rebuild that reorders or adds

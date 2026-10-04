@@ -25,12 +25,12 @@ using DemoViewer.NET.ViewModels.UtilityBook;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Grenade Index (plan.md §3, Phase 4) over synthetic rows siblings in an in-memory cache: the done
+///     The Grenade Index over synthetic rows siblings in an in-memory cache: the done
 ///     bar ("every smoke that landed on Mirage CT in these nine demos" returns clustered origins), the
 ///     coarse landing grid, the origin dedup and the jump-throw split, a copied demo counted once, the stamp
 ///     rule, the no-zones fallback, a zones version change re-resolving, the evaluator's merge and a
 ///     removal; then the Utility Book module's ids, the tab VM over the same index, and its Lineup Cards
-///     (plan.md §3, Phase 4): the CS2UTIL field set and the setpos/setang console line's exact format.
+///    : the CS2UTIL field set and the setpos/setang console line's exact format.
 /// </summary>
 public class GrenadeIndexTests
 {

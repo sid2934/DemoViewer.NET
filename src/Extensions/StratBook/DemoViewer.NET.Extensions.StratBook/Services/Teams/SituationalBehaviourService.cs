@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     Builds a team's <see cref="SituationalBehaviourSet" /> (plan.md §3, Situational Behaviour) over
+///     Builds a team's <see cref="SituationalBehaviourSet" /> over
 ///     Round Facts alone: per map and side, the pistol rounds and how they convert into the bonus round,
 ///     the rounds where the opponent bought eco or semi and how the team played them, the rounds where
 ///     the team held an alive-count edge and whether it closed them out, and what the team bought the

@@ -24,7 +24,7 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 public sealed record DossierFindingSource(string Key, string Section, string Generated, Func<byte[]?>? Image = null, string? Map = null);
 
 /// <summary>
-///     Dossier Editing And Export (plan.md §3, Phase 5): every built section's numbers as findings, the
+///     Dossier Editing And Export: every built section's numbers as findings, the
 ///     long form being the working document and the starred findings assembling the one-pager. Every
 ///     line is editable (rewritten, reset, left out), the user adds notes and a summary beside them, and
 ///     the export writes either form as self-contained HTML or Markdown, the short form by default.

@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     One map's aggregate over a team's demos (plan.md §3, Map Pool Record, Phase 5). Every number
+///     One map's aggregate over a team's demos. Every number
 ///     carries its own sample size: <see cref="Played" /> for the record, <see cref="CtRoundsWon" /> +
 ///     <see cref="TRoundsWon" /> for the side split.
 /// </summary>
@@ -38,9 +38,9 @@ public sealed class MapPoolMapRow
 }
 
 /// <summary>
-///     The decider record across every recognizable best-of series (plan.md F12/D5): a same-day,
+///     The decider record across every recognizable best-of series (decision D5): a same-day,
 ///     same-opponent group of three or five demos, ordered by file time, whose last demo is the decider.
-///     Anything else — a single map, an uneven group, an unaffiliated opponent — is not inferable and is
+///     Anything else (a single map, an uneven group, an unaffiliated opponent) is not inferable and is
 ///     left out, so <see cref="Played" /> is the record's own sample size.
 /// </summary>
 public sealed class DeciderRecord
@@ -55,7 +55,7 @@ public sealed class DeciderRecord
 }
 
 /// <summary>
-///     The Map Pool Record for one team (plan.md §3, Phase 5): the demo-derivable substitute for the
+///     The Map Pool Record for one team: the demo-derivable substitute for the
 ///     veto model (F12). Everything here comes from demos the team is known to have played in; the veto
 ///     history a user enters by hand lives beside it in <see cref="VetoHistoryStore" /> and is not folded
 ///     into these numbers.

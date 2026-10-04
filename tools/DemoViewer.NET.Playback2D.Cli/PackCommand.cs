@@ -14,10 +14,10 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d pack</c>: Headless Packs (plan.md §3, Phase 4). A review-queue.json file becomes one
+///     <c>dv2d pack</c>: Headless Packs. A review-queue.json file becomes one
 ///     video, scheduled rather than clicked: "every scrim from last night, tagged rounds only, rendered
 ///     by morning" is this command in a cron line. It is <see cref="PackPlanner" /> and
-///     <see cref="PackExporter" /> — the exact plan-then-stitch policy the app's Export pack row runs —
+///     <see cref="PackExporter" />, the exact plan-then-stitch policy the app's Export pack row runs,
 ///     handed a headless <see cref="IPackClipRenderer" />/<see cref="IPackEncoder" /> pair instead of the
 ///     App's own (<see cref="HeadlessPackClipRenderer" />, <see cref="HeadlessPackEncoder" />).
 ///     <para>

@@ -5,7 +5,7 @@
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     <c>dv2d pack</c> (Headless Packs, plan.md §3): the queue file, argument parsing, and the exit
+///     <c>dv2d pack</c> (Headless Packs): the queue file, argument parsing, and the exit
 ///     codes a scheduled run depends on. Nothing here parses a demo: a plan needs one, but planning and
 ///     the CLI's own refusals do not, and that is exactly what a bad queue file or a bad flag hits first.
 /// </summary>

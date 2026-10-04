@@ -15,7 +15,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     The Strat Record Panel (plan.md §3, strat-model.md §3.6): run / won / lost / aborted, split by Demo
+///     The Strat Record Panel (strat-model.md §3.6): run / won / lost / aborted, split by Demo
 ///     Provenance Labels, a small-sample caution under eight, the failure breakdown, and a click on every
 ///     number that sends the runs behind it to the Review Queue and shows the Review tab. The data comes
 ///     from <see cref="StratEvidenceService" />; this view model orders it, words it and wires the clicks,

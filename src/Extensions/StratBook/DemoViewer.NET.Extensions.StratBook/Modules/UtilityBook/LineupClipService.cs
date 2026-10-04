@@ -36,7 +36,7 @@ public interface ILineupClipRenderer
 }
 
 /// <summary>
-///     Lineup Clip Render (plan.md §3, Phase 4): every Lineup Card with a repeated throw position gets a
+///     Lineup Clip Render: every Lineup Card with a repeated throw position gets a
 ///     short GIF of the throw, the camera on the thrower, written beside the <c>setpos</c>/<c>setang</c>
 ///     line it was thrown from, with no one pressing anything.
 ///     <para>

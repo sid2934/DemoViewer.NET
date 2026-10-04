@@ -12,7 +12,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.ViewModels.Dossier;
 
 /// <summary>
-///     The Dossier's Situational Behaviour section (plan.md §3, Phase 5): per map and side, the pistol
+///     The Dossier's Situational Behaviour section: per map and side, the pistol
 ///     rounds and their follow-up, the rounds played against a low-buy opponent, the rounds where the
 ///     team held an alive-count edge and whether it closed them out, and what it bought after a loss.
 ///     Every number is a <see cref="TendencyLinkViewModel" /> whose click sends its rounds to the Review

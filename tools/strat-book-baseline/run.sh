@@ -20,7 +20,7 @@
 # --demos    Optional. A file of demo paths, one per line, the first line a discarded warm-up. Demos are
 #            read in place, NEVER copied or moved. Default: picked from <config>/library.json below, the
 #            8 demos nearest the library's size median (by file size), skipping anything under assets/tour
-#            (the sample demo is incomplete, see the project memory note) and anything not present on disk.
+#            (the sample demo is incomplete and is never evidence) and anything not present on disk.
 # --state    "on" (default): M0's three probes, pack on, against a config copy with no override (or an
 #            explicit Features.Overrides.pack.stratbook = true). "off": item 9's pack-off counterparts;
 #            the config copy's settings.json MUST carry Features.Overrides.pack.stratbook = false, or the

@@ -13,7 +13,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.ViewModels.Dossier;
 
 /// <summary>
-///     The Dossier's Opening Tendencies section (plan.md §3, Phase 5): per map and side, the first
+///     The Dossier's Opening Tendencies section: per map and side, the first
 ///     utility's clock histogram and landing places, the first-contact histogram, and on T the site
 ///     split, the entry player by site and the lurk timing. Every number is a
 ///     <see cref="TendencyLinkViewModel" /> whose click sends its rounds to the Review Queue under one
