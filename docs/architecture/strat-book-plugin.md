@@ -631,6 +631,8 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     app installer still bundles the extension version current at app release time.
 38. **Compatibility matrix test.** A test that builds the extension against the app and asserts the
     manifest's ranges match the referenced versions, so a release cannot ship an unloadable pair.
+    *As built (2026-10-03):* `CompatibilityMatrixTests` in App.Tests, plus `CompatibilityReport`
+    (section 7.7 has both).
 
 Other first-party modules (Highlights, Rule Workbench, Library sections) can take the same layout later;
 nothing here depends on it.
@@ -1227,12 +1229,14 @@ when written the same.
 
 **The host.** `ExtensionHost` exposes three values and `Current` as one `ExtensionHostInfo`:
 
-- `ContractVersion`, 1.0.0 today, a constant bumped by hand with the change that needs it. **Major** on a
-  breaking change to any type under `DemoViewer.NET.Extensions`, or to `IModuleContext`,
-  `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a changed signature,
-  a new abstract member on an interface a pack implements. **Minor** on an additive change: a new
-  contribution kind, a new optional member with a default. Never patch; a contract has no behaviour of
-  its own to fix.
+- `ContractVersion`, 1.0.0 today, a constant bumped by hand with the change that needs it. The contract is
+  the surface a pack's own assembly references or implements, not every type under
+  `DemoViewer.NET.Extensions`: host-side types that no pack touches (`Loading`, `CompatibilityReport`)
+  change freely. **Major** on a breaking change to a type a pack does reference or implement, including
+  `IModuleContext`, `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a
+  changed signature, a new abstract member on an interface a pack implements. **Minor** on an additive
+  change: a new contribution kind, a new optional member with a default. Never patch; a contract has no
+  behaviour of its own to fix.
 - `AppVersion`, from `AppVersionInfo.CurrentReleaseVersion`; null on an unstamped build.
 - `Cs2DemoKitVersion`, read at runtime from `CS2DemoKit.Analysis`'s informational version. NBGV stamps
   `0.13.0.1-beta0001+9f1e3e3b4a`; the fourth component and the metadata are dropped so the value equals
@@ -1273,6 +1277,38 @@ fake second extension in that state.
 
 **The browser head** is unchanged: it compile-links the extension, the same check runs at configuration
 and passes.
+
+**The compatibility matrix test (item 38).** `CompatibilityMatrixTests`
+(`src/App/DemoViewer.NET.App.Tests/Extensions/CompatibilityMatrixTests.cs`) is the release gate: it reads
+the shipped manifest from the repo (walking to the filesystem root for `DemoViewer.NET.slnx`, no fixed
+cap, since a release gate must fail loudly rather than skip when it cannot find its own repo), from the
+copy beside the test binary, and from `new StratBookPack().Manifest` (the embedded copy the loader judges
+the bundled pack by), asserting all three equal. It checks every axis against `ExtensionHost.Current`
+separately rather than relying on `Check`'s single first failure, pins `requiresCs2DemoKit` to the
+`Directory.Packages.props` pin exactly, and asserts `requiresHost` is bounded below the next major. A
+table test pins `PackCompatibility.Check`'s semantics over representative host/manifest pairs.
+
+**The reference check.** The extension's compiled `GetReferencedAssemblies()` is checked against the app
+assembly's own transitive closure (loaded by simple name, minus the BCL), not a fixed list: the extension
+references `CS2OpenDev.Sdk`, `CS2OpenDev.Protos`, `Google.Protobuf`, `DemoViewer.NET.Modules.Abstractions`
+and `.Modules.Abstractions.Ui` directly, five of the eighteen non-BCL assemblies it references today, none
+in this section's example families; a fixed list drawn from those families would have missed them. Every
+one of the eighteen is app-shipped, so the private allowlist is empty today; the heads are deliberately not
+walked, so a dependency only a head adds trips the exhaustiveness test instead of passing unnoticed. The
+baseline is the test process's own dependency closure (what `dotnet test` restores), not the Desktop
+head's publish output; 7.8's `CheckReferences` below covers the loaded, published app. The check also sees
+only the `AssemblyVersion` attribute (`0.13.0.0` for any `0.13.0-*` CS2DemoKit build), so a
+prerelease-label drift is caught by the exact-pin assertion above, not by this one.
+
+`CompatibilityReport.Describe` (`src/App/DemoViewer.NET/Extensions/Manifest/CompatibilityReport.cs`)
+renders `Check`'s verdict and every value that fed it as one line, for item 37's packaging step to print
+and item 36's updater to log. No pack references or implements it, so per the contract rule above it needs
+no `ContractVersion` bump.
+
+A contract bump (section 7.7's major/minor rule) must update `requiresHost` in `extension.json`, or
+`RequiresHost_IsSatisfiedByTheCurrentContract_AndWouldBeViolatedByTheNextMajor` fails. A CS2DemoKit bump
+must move all three `CS2DemoKit.*` pins in `Directory.Packages.props` and `requiresCs2DemoKit` in one
+commit, or `RequiresCs2DemoKit_EqualsTheDirectoryPackagesPropsPin_Exactly` fails.
 
 ### 7.8 Loading (as built by item 34)
 
