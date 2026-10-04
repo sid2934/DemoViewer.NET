@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Signs and verifies staged extension directories (docs/architecture/strat-book-plugin.md §7.9).
+         Out of the .slnx on purpose: a small CI/owner utility, not an app component. Links the app's
+         own ExtensionSignature.cs and PublisherKeys.cs rather than referencing the app project, so the
+         tool and the app run exactly the same digest and verify code without pulling in Avalonia. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <AnalysisMode>Minimum</AnalysisMode>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Loading\ExtensionSignature.cs" Link="Shared\ExtensionSignature.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Loading\PublisherKeys.cs" Link="Shared\PublisherKeys.cs"/>
+    </ItemGroup>
+
+</Project>
