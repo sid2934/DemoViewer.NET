@@ -67,6 +67,9 @@ public sealed record StratExportCapture(
 public sealed class StratExportJob : IExportRunner
 {
     /// <summary>Default frame rate: the GIF rate that divides 100 and keeps a round under the cap.</summary>
+    /// <summary>Runs over the built layer stack before the export starts; the golden gate silences text with it.</summary>
+    public Action<SceneCompositor>? ConfigureLayers { get; init; }
+
     public const int DefaultFps = 20;
 
     /// <summary>Default width. Square, so a radar fills it and the text arithmetic holds.</summary>
@@ -234,6 +237,7 @@ public sealed class StratExportJob : IExportRunner
         // No vision solver: the layer is named with the other six and draws nothing without one.
         using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack([.. core.LayerIds], null, null,
             new StratHudDataSource(spec.RoundSeconds, spec.CountsUp), spec.Ink);
+        ConfigureLayers?.Invoke(compositor);
         using IRenderSurfaceProvider surfaces = _surfaces();
 
         SceneExportSession session = new(compositor)

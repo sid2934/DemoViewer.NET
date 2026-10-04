@@ -2,10 +2,10 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 #endregion
 
@@ -265,22 +265,7 @@ internal static class GoldenCommand
     internal static void SilenceText(SceneRenderPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        if (plan.Compositor.Find(SceneLayerIds.Markers) is MarkerLayer markers)
-        {
-            markers.DrawLabels = false;
-        }
-
-        if (plan.Compositor.Find(SceneLayerIds.Annotations) is AnnotationLayer annotations)
-        {
-            annotations.DrawTextElements = false;
-        }
-
-        if (plan.Compositor.Find(SceneLayerIds.Zones) is ZoneOutlineLayer zones)
-        {
-            zones.DrawLabels = false;
-        }
-
-        plan.Compositor.SetEnabled(SceneLayerIds.FloorLabel, false);
+        SceneLayerCatalog.SilenceText(plan.Compositor);
     }
 
     /// <summary>Renders one entry through a plan <see cref="PlanFor" /> built.</summary>

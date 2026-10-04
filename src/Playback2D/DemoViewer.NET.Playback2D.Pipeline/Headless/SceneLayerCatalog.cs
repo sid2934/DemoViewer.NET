@@ -110,6 +110,38 @@ public static class SceneLayerCatalog
     }
 
     /// <summary>
+    ///     Turns off every layer's text so a second render marks the glyph pixels: marker labels, the
+    ///     floor caption, text annotations, zone names and the clock's figures. Shapes, markers,
+    ///     outlines and boxes still draw. Used by the golden gates, which judge text under its own ink.
+    /// </summary>
+    /// <param name="compositor">The stack to switch; the change is not undone.</param>
+    public static void SilenceText(SceneCompositor compositor)
+    {
+        ArgumentNullException.ThrowIfNull(compositor);
+        if (compositor.Find(SceneLayerIds.Markers) is MarkerLayer markers)
+        {
+            markers.DrawLabels = false;
+        }
+
+        if (compositor.Find(SceneLayerIds.Annotations) is AnnotationLayer annotations)
+        {
+            annotations.DrawTextElements = false;
+        }
+
+        if (compositor.Find(SceneLayerIds.Zones) is ZoneOutlineLayer zones)
+        {
+            zones.DrawLabels = false;
+        }
+
+        if (compositor.Find(SceneLayerIds.HudClock) is ClockLayer clock)
+        {
+            clock.DrawLabels = false;
+        }
+
+        compositor.SetEnabled(SceneLayerIds.FloorLabel, false);
+    }
+
+    /// <summary>
     ///     Builds the <b>full v2 scene stack</b>: what the window draws, plus the export HUD.
     ///     <para>
     ///         <b>The only entry point.</b> <c>dv2d render</c>, <c>golden</c>, <c>bench</c> and

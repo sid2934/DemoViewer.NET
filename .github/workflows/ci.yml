@@ -202,8 +202,10 @@ jobs:
       # local run reports against, and are printed here either way.
       #
       # The ZERO-ALLOCATION assertion is deliberately NOT scaled by this. Zero is zero on every
-      # machine, and it is the half of the budget that catches most of the regressions.
-      DV2D_BUDGET_SCALE: '2.0'
+      # machine, and it is the half of the budget that catches most of the regressions. 3.0 since
+      # 2026-10-04: the runner renders the same frame in 15 to 18 ms where it took 11 three weeks
+      # earlier, with the render itself unchanged (identical local bench at both commits).
+      DV2D_BUDGET_SCALE: '3.0'
     steps:
       - uses: actions/checkout@v4
         with:

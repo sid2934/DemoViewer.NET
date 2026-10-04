@@ -85,6 +85,9 @@ public sealed class ClockLayer : ISceneLayer
     /// <inheritdoc />
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>Draw the clock, caption, race and score text. Off, the boxes still draw.</summary>
+    public bool DrawLabels { get; set; } = true;
+
     /// <inheritdoc />
     public int ContentVersion => 0;
 
@@ -167,7 +170,10 @@ public sealed class ClockLayer : ISceneLayer
         // "the round ends" and "0:34" meaning "the site goes up" are not the same number.
         _paint.Color = _snapshot.BombTicking ? ctx.Palette.BombDetonation : new SKColor(_style.TextArgb);
         (float cx, float cy) = clock.OriginForTopLeft(clockLeft, rowTop + (topRowH - clock.Height) / 2);
-        canvas.DrawText(clock.Blob, cx, cy, _paint);
+        if (DrawLabels)
+        {
+            canvas.DrawText(clock.Blob, cx, cy, _paint);
+        }
 
         float below = rowTop + topRowH;
         if (caption is { } roundCaption)
@@ -175,7 +181,10 @@ public sealed class ClockLayer : ISceneLayer
             _paint.Color = new SKColor(DimTextArgb);
             (float rx, float ry) = roundCaption.OriginForTopLeft(
                 centreX - roundCaption.Width / 2, below);
-            canvas.DrawText(roundCaption.Blob, rx, ry, _paint);
+            if (DrawLabels)
+            {
+                canvas.DrawText(roundCaption.Blob, rx, ry, _paint);
+            }
             below += roundCaption.Height;
         }
 
@@ -190,7 +199,10 @@ public sealed class ClockLayer : ISceneLayer
                         || _snapshot.DefuseSeconds <= _snapshot.CountdownSeconds;
             _paint.Color = wins ? ctx.Palette.BombDefuse : ctx.Palette.BombDetonation;
             (float dx, float dy) = race.OriginForTopLeft(centreX - race.Width / 2, below + 1f);
-            canvas.DrawText(race.Blob, dx, dy, _paint);
+            if (DrawLabels)
+            {
+                canvas.DrawText(race.Blob, dx, dy, _paint);
+            }
         }
     }
 
@@ -218,7 +230,10 @@ public sealed class ClockLayer : ISceneLayer
         _paint.Color = new SKColor(OnTeamArgb);
         (float x, float y) = score.OriginForTopLeft(
             left + (boxW - score.Width) / 2, top + (boxH - score.Height) / 2);
-        canvas.DrawText(score.Blob, x, y, _paint);
+        if (DrawLabels)
+        {
+            canvas.DrawText(score.Blob, x, y, _paint);
+        }
     }
 
     /// <summary>
