@@ -105,6 +105,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // re-add them after a release/rebuild, which the fixed layer set already does for itself.
     private readonly Dictionary<string, Func<ISceneLayer>> _extraLayers = new();
 
+    // The ids this host already manages itself (BuildScene's fixed set, plus BindAnnotations' and
+    // BindZones' dynamic ones). AddLayer refuses these outright rather than let a collision surface
+    // later as an obscure duplicate-id failure out of SceneCompositor.Add.
+    private static readonly HashSet<string> OwnLayerIds = new(StringComparer.Ordinal)
+    {
+        SceneLayerIds.Radar, SceneLayerIds.Trails, SceneLayerIds.AreaEffects, SceneLayerIds.Vision,
+        SceneLayerIds.Markers, SceneLayerIds.Bomb, SceneLayerIds.FloorLabel, SceneLayerIds.Annotations,
+        SceneLayerIds.Zones
+    };
+
     /// <summary>Creates the host and registers the seven scene layers.</summary>
     public Scene2DHost()
     {
@@ -163,14 +173,21 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <summary>
     ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
     ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
-    ///     <see cref="ISceneLayer.Id" />; registering the same id again replaces it.
+    ///     <see cref="ISceneLayer.Id" />; registering the same id again replaces it. Refuses an id this
+    ///     host already manages itself (<see cref="OwnLayerIds" />).
     /// </summary>
     /// <param name="layerId">The layer's id.</param>
     /// <param name="layer">Builds a fresh layer instance.</param>
+    /// <exception cref="ArgumentException"><paramref name="layerId" /> names one of this host's own layers.</exception>
     internal void AddLayer(string layerId, Func<ISceneLayer> layer)
     {
         ArgumentNullException.ThrowIfNull(layerId);
         ArgumentNullException.ThrowIfNull(layer);
+
+        if (OwnLayerIds.Contains(layerId))
+        {
+            throw new ArgumentException($"'{layerId}' is one of this host's own layers.", nameof(layerId));
+        }
 
         _extraLayers[layerId] = layer;
         if (_released)
