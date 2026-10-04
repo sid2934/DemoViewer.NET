@@ -29,7 +29,7 @@ public interface IFeaturePack
     /// <summary>
     ///     The pack's manifest, the same <c>extension.json</c> a loader reads from disk before loading the
     ///     assembly, here from the embedded copy. Its <see cref="ExtensionManifest.Id" /> must equal
-    ///     <see cref="Id" />. <see cref="FeaturePacks.Configure" /> judges it against
+    ///     <see cref="Id" />. <see cref="FeaturePacks.Configure(IReadOnlyList{IFeaturePack})" /> judges it against
     ///     <see cref="ExtensionHost.Current" />; a pack that fails is configured but never composed. A getter
     ///     that throws <see cref="ExtensionManifestException" /> reads as an invalid manifest, not a crash.
     /// </summary>
