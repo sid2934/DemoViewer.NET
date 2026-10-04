@@ -19,6 +19,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
@@ -158,6 +159,9 @@ public static partial class Variants
             // Item 33: a second, fake extension built against pack contract 2.x, so its master row renders
             // locked with the reason beneath the real Strat Book row (which shows its version).
             ["settings-extensions-incompatible"] = () => Settings(packOff: false, incompatible: true),
+            // Item 34: the Strat Book row as an installed update (1.0.1 staged under the config root) with a
+            // higher staged candidate the loader refused, so the source label and the amber note render.
+            ["settings-extensions-staged"] = () => Settings(packOff: false, staged: true),
             ["wizard"] = Wizard,
             ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
@@ -1372,7 +1376,8 @@ public static partial class Variants
     ///     Extensions section and auto-expands its group for the capture, the on variant the same way minus
     ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
-    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false, bool incompatible = false)
+    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false, bool incompatible = false,
+        bool staged = false)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1449,6 +1454,28 @@ public static partial class Variants
         {
             CaptureIncompatiblePack future = new();
             statuses = [.. FeaturePacks.Statuses, PackStatus.Evaluate(future, ExtensionHost.Current)];
+        }
+
+        // Item 34: the real pack's status rewritten as a staged 1.0.1 that won, plus a 1.1.0 the loader
+        // refused (judged by the real check against the real host, so the detail is the shipped message).
+        if (staged)
+        {
+            PackStatus real = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId);
+            ExtensionManifest higher = real.Manifest! with { Version = new SemVersion(1, 1, 0), RequiresCs2DemoKit = VersionRange.Parse("0.14.0") };
+            string stagedRoot = Path.Combine(dir, "extensions", StratBookPack.PackId);
+            statuses =
+            [
+                real with
+                {
+                    Manifest = real.Manifest with { Version = new SemVersion(1, 0, 1) },
+                    Source = new PackSource.Staged(Path.Combine(stagedRoot, "1.0.1")),
+                    Rejected =
+                    [
+                        new LoadOutcome(Path.Combine(stagedRoot, "1.1.0"), higher, LoadFailure.Incompatible,
+                            PackCompatibility.Check(higher, ExtensionHost.Current).Describe(higher, StratBookPack.PackId)!)
+                    ]
+                }
+            ];
         }
 
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals,
