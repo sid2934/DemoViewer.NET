@@ -616,6 +616,17 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     own feed (a GitHub release per extension version); the app's Update service checks it, downloads,
     verifies, stages under the config root and applies on next start. Settings shows the installed and
     available versions under "Extensions".
+    *As built (2026-10-03):* the feed is one `extensions.json` per extension (`ExtensionFeed`), a release
+    asset whose default URL is built from the same repository constant the release notes read;
+    `ExtensionUpdateService` (`Extensions/Updates/`) fetches it through `IExtensionFeedClient`, judges every
+    entry's manifest with the section 7.7 check behind one predicate (`IsOffered`, decision 6's seam), and
+    downloads to `extensions/.staging/`, where the zip's size and sha256 are checked before it is opened,
+    the extraction is bounded and refuses any path that escapes, the root `extension.json` must name the
+    entry's id and version, and the loader's `ITrustPolicy` judges the unpacked directory; only then is it
+    renamed to `extensions/<id>/<version>/` for item 34's loader. Every step is a queue item at user
+    priority. Settings shows one update line per extension row, checks on open at most once an hour, and
+    offers Update and Check buttons. Section 7.10 has the feed schema, the zip layout item 37 must produce,
+    the staging rules and the Settings states.
 37. **CI and packaging.** A release workflow per extension producing the signed zip and feed entry; the
     app installer still bundles the extension version current at app release time.
 38. **Compatibility matrix test.** A test that builds the extension against the app and asserts the
@@ -1401,6 +1412,162 @@ the pack's index loads followed from the staged code; with nothing staged, `Stra
 (bundled)`; with the same staged copy and no opt-in, `loaded (bundled)` followed by `Staged extension at
 '<dir>' not loaded (Untrusted): the copy is not signed by this app's publisher`.
 
+### 7.10 Update feed and staging (as built by item 36)
+
+Everything here lives in the app under `DemoViewer.NET.Extensions.Updates` (`ExtensionFeed` and
+`ExtensionFeedEntry`, `IExtensionFeedClient` and `HttpExtensionFeedClient`, `ExtensionFeedSource`,
+`ExtensionUpdateService`, `ExtensionUpdateState` and `StageResult`, `ExtensionStaging`) plus
+`ViewModels/Settings/ExtensionUpdateRow`. Only the Desktop head constructs the service: the browser has no
+config root to stage into, and its Settings line says updates come with the app. The service loads
+nothing; a staged copy is what item 34's loader takes at the next start.
+
+**The feed.** One `extensions.json` per extension, hosted as a GitHub release asset. The default URL is
+`https://github.com/<owner>/<repo>/releases/download/extensions-<id>/extensions.json`, with the repository
+from the constant `GitHubReleaseNotesService` already reads (`ExtensionFeedSource.DefaultTemplate`): one
+rolling release per extension, tagged `extensions-<id>`, whose asset item 37's workflow replaces on every
+extension release. The setting `Extensions.FeedUrl` may name another https URL, with `{id}` standing for the
+extension id; anything that is not https falls back to the default. The feed's origin is not the gate:
+the signed zip is what the trust policy judges.
+
+```json
+{
+  "id": "net.demoviewer.pack.stratbook",
+  "entries": [
+    {
+      "version": "1.0.1",
+      "manifest": { ...the extension.json inside the zip, verbatim... },
+      "url": "https://github.com/<owner>/<repo>/releases/download/net.demoviewer.pack.stratbook-v1.0.1/DemoViewer.NET.Extensions.StratBook-1.0.1.zip",
+      "sha256": "<64 hex characters, the zip's SHA-256>",
+      "size": 4718592,
+      "publishedAt": "2026-10-03T12:00:00Z"
+    }
+  ]
+}
+```
+
+| Member | Required | Meaning |
+|---|---|---|
+| `id` | yes | The extension id; every entry's manifest must carry it. Only `[A-Za-z0-9._-]`, since it names a folder. |
+| `entries` | yes | Every published version, in any order; parsed highest first. At most 500. |
+| `entries[].version` | yes | SemVer 2.0; must equal the manifest's `version`. No two entries share one. |
+| `entries[].manifest` | yes | The section 7.7 manifest, so the app can judge a version before downloading it. Parsed by the same strict parser; must name `id`. |
+| `entries[].url` | yes | The zip, an absolute https URL. |
+| `entries[].sha256` | yes | The zip's SHA-256, hex, either case. |
+| `entries[].size` | yes | The zip's length in bytes, positive. |
+| `entries[].publishedAt` | no | An ISO 8601 timestamp. |
+
+Unknown members are ignored, comments and trailing commas accepted, so a newer feed reads on an older
+app. The feed is capped at 4 MB before it is parsed.
+
+**The zip item 37 must produce.** Flat, with the manifest at the root, exactly what the loader expects
+under `extensions/<id>/<version>/`:
+
+```
+DemoViewer.NET.Extensions.StratBook.dll   the assembly the manifest names
+DemoViewer.NET.Extensions.StratBook.xml   its documentation file, when built
+extension.json                            the manifest; id and version equal the feed entry's
+extension.sig                             item 35's signature over the directory
+<culture>/...                             any satellite directories, kept as they are
+```
+
+Nothing is renamed, dropped or added on the way to disk: the signature item 35 verifies at load is the
+signature that came out of the zip. A zip is refused for more than 4096 entries, more than 512 MB of
+content (the feed's `size` is held to the same cap), an entry whose stream is longer than it declares,
+or an entry whose name is rooted, carries a drive letter, a `..`, `.` or empty segment (split on both
+separators, since a Windows-written zip may carry backslashes and on Unix a backslash is a legal file-name
+character), or that resolves outside the target directory.
+
+**The check.** `ExtensionUpdateService.CheckAsync` fetches every declared extension's feed as one queue
+item at user priority (the user pressed the button or opened Settings) and computes one
+`ExtensionUpdateState` per pack. Installed is the running copy's manifest version and `PackSource`.
+Offered is the highest entry newer than installed that `IsOffered(entry, host)` accepts. Latest is the
+highest entry overall, offered or not, with `LatestCompatibility` when it is newer and not offered, so
+Settings can say what a newer version needs. Pending is a version already staged on disk that the loader
+would take at the next start: the highest `extensions/<id>/<version>/` above the running version that
+passes the section 7.7 check. The status, in order of precedence: `UpdateAvailable` when something is
+offered and it is newer than any pending copy; `PendingRestart` when a pending copy exists; `NeedsNewerApp`
+when the latest is newer and nothing is offered; else `UpToDate`. A feed that cannot be fetched is
+`FeedUnreachable` and one that does not parse, or is for another extension, is `FeedInvalid`, each with a
+user-terms `Error` and the exception message on `LogDetail` for the log only; a pack whose own manifest
+did not read is `Unknown`. Nothing throws. The service remembers the last state per pack for the run
+(`LastStates`, `LastState(id)`).
+
+**Decision 6's predicate.** `IsOffered` is the one place the owner's pending choice lands.
+`ExtensionUpdateService.DefaultIsOffered` is option (B): `PackCompatibility.Check(entry.Manifest, host)`
+accepts it. Option (A) replaces the predicate passed to the constructor with one that reads the
+CI-written `builtAgainst` block from the entry's manifest and compares it with the running versions; the
+loader's own check (section 7.8) gets the matching change. Nothing else in the service or in Settings
+knows which option is in force. A predicate that throws offers nothing.
+
+**Download and staging.** `DownloadAndStageAsync(entry)` is one queue item at user priority, cancellable,
+and never throws; it returns a `StageResult` of `Installed`, `AlreadyInstalled`, `Refused` (with the
+reason in user terms) or `Cancelled`. In order:
+
+1. `extensions/<id>/<version>/` already exists: `AlreadyInstalled`, nothing is fetched or changed.
+2. The zip streams to `extensions/.staging/<id>/<version>.zip.part`, bounded by the feed's `size` (the
+   client stops at one byte over and refuses a `Content-Length` above it), with a 60 s stall timeout per
+   read. Progress (bytes received of total) reaches the Settings row and the queue item.
+3. The file's length must equal `size`, then its SHA-256 must equal `sha256`. Nothing is opened before
+   both pass.
+4. The zip unpacks into `extensions/.staging/<id>/<version>/` under the rules above, planned before anything
+   is written.
+5. `extension.json` must exist at the root, parse, name the entry's id and version, and the assembly it
+   names must be beside it.
+6. The loader's `ITrustPolicy` (`TrustPolicy.Default`, the same value `Program.Main` hands the loader) is
+   asked about the unpacked directory and its manifest. A policy that throws reads as untrusted.
+7. One `Directory.Move` to `extensions/<id>/<version>/`. A target that appeared in the meantime is
+   `AlreadyInstalled`. The `.zip.part` and the empty `.staging/<id>/` go.
+
+Any refusal or error removes the `.zip.part` and the unpacked directory; a cancellation does the same.
+Every delete is guarded the way `PackDataRemover.ResolveSafe` guards (strictly inside `extensions/`, never
+through a reparse point, never a `.dem`), and `ExtensionLoader.Discover` skips dot folders, so an
+unfinished download is never reported as a broken candidate.
+
+**At startup.** `CleanupOnStartAsync`, a background queue item from the composition root after the
+loader's report: removes `extensions/.staging/` whole (a download the last run did not finish), then every
+staged version of a declared extension that is not newer than the running copy and is not the directory
+the running copy loaded from. Newer versions stay, even ones the loader refused today, since they may load
+after an app update. Nothing outside `extensions/` is touched.
+
+**Settings.** Under Extensions, each extension's master row carries one update line (`FeatureToggleRow.Update`,
+an `ExtensionUpdateRow`): the verdict, a Check button (always, unless a download runs), an Update button
+while a version is offered, a Cancel button and a progress bar while one downloads. Opening Settings checks
+every feed when `Extensions.LastUpdateCheckUtc` is unset or at least an hour old, and records the time
+after every finished check; within the hour the rows seed from the service's remembered verdict. The copy,
+one sentence per state:
+
+| State | Line |
+|---|---|
+| not checked this run | (empty; the Check button is the invitation) |
+| checking | `Checking for updates…` |
+| `UpToDate` | `Up to date.` |
+| `UpdateAvailable` | `1.0.1 available.` and the Update button |
+| downloading | `Downloading 1.0.1: 1.2 of 4.5 MB`, the bar and Cancel |
+| `PendingRestart` (and after a successful download) | `1.0.1 installed, restart to use it.` |
+| `NeedsNewerApp` | `1.2.0 available but needs app contract ^2.0 (this app provides 1.0.0).`, or the CS2DemoKit or app-release form |
+| `FeedUnreachable` | `Could not check for updates: the update feed could not be reached.` |
+| `FeedInvalid` | `Could not check for updates: the update feed could not be read.` |
+| `Unknown` | `Updates cannot be checked: the extension's own manifest could not be read.` |
+| a refused download | the offer stands, plus an amber `Update 1.0.1 could not be installed: <reason>.` |
+| browser head | `Updates come with the app.`, no buttons |
+
+Copy says "extension" and "update", never "pack". The UiCapture variants
+`settings-extensions-update-available` and `settings-extensions-update-installed` render the two states
+users will meet most.
+
+**Logging.** Under `App.Extensions`: `Extension <id> update check failed (<status>): <detail>`,
+`Extension <name> <version> staged at '<dir>'; it loads at the next start`,
+`Extension <name> <version> update refused: <detail> [<exception>]`, and
+`Removed staged extension directory '<dir>' (<reason>)` from the startup sweep.
+
+**Verified.** `ExtensionFeedTests` (the schema and every refusal), `ExtensionUpdateServiceTests` (every
+check state, the decision-6 predicate as the only gate, wrong sha and size, five zip-slip shapes, a
+missing or mismatched manifest, an untrusted copy with the staging directory gone, a successful stage with
+every file intact and `PendingRestart`, an existing target as a no-op, a cancellation leaving no partial
+file, every step a user-priority `ExtensionUpdate` queue item, and the startup sweep keeping the running and
+newer copies), one `ExtensionLoaderTests` case that stages through the service and discovers the result
+while ignoring `.staging`, and the Settings cases in `SettingsViewModelTests`.
+
 ---
 
 ## 8. Disable semantics
@@ -2017,6 +2184,8 @@ src/Extensions/StratBook/
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the item 28 move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; item 28 did not touch this
 src/App/DemoViewer.NET/Extensions/Loading/        the loader (item 34, section 7.8); the app, so every head can use it
+src/App/DemoViewer.NET/Extensions/Updates/        the feed, the updater and the staging rules (item 36, section 7.10)
+src/App/DemoViewer.NET/ViewModels/Settings/ExtensionUpdateRow.cs   the update line under an extension's Settings row
 ```
 
 At run time, under the config root (`AppPaths.ConfigRoot`), item 36 stages what item 34 loads:
@@ -2024,7 +2193,11 @@ At run time, under the config root (`AppPaths.ConfigRoot`), item 36 stages what 
 ```
 <config root>/extensions/<id>/<version>/          one staged extension version; read by the Desktop head at startup
   extension.json                                  id and version equal to the folder names
+  extension.sig                                   item 35's signature, as it came out of the zip
   DemoViewer.NET.Extensions.StratBook.dll         the assembly the manifest names
+<config root>/extensions/.staging/<id>/           item 36's work in progress; skipped by the loader, removed at the next start
+  <version>.zip.part                              the download, verified against the feed's size and sha256
+  <version>/                                      the unpacked copy, judged by the trust policy, then renamed into place
 ```
 
 Item 26's namespace rule: a moved type keeps its original namespace when the move vacates that namespace
