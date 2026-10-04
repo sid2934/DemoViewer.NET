@@ -612,6 +612,12 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
 35. **Signing and trust.** Only assemblies signed with the project's key load from the config root;
     anything else is ignored with a log line. First-party only; the add-on design's consent UX is not
     pulled in.
+    *As built (2026-10-03):* ECDSA P-256/SHA-256 (no standalone Ed25519 in .NET 10), a detached
+    `extension.sig` over a canonical whole-tree digest, `PublisherKeys` embedded in the app, and
+    `SignedTrustPolicy` filling the `ITrustPolicy` seam item 34 left; `TrustPolicy.Default` now checks
+    signing first and the developer opt-in second. A signing tool at `tools/extension-signing` (outside
+    the `.slnx`) generates keys, signs and verifies. Section 7.9 has the digest format, the verification
+    order, the tool and the owner's action on the private key.
 36. **Update feed.** Velopack owns `current/` and cannot carry a second package, so the extension has its
     own feed (a GitHub release per extension version); the app's Update service checks it, downloads,
     verifies, stages under the config root and applies on next start. Settings shows the installed and
@@ -1364,14 +1370,12 @@ before. The same prototype confirmed the other half of the trap: a method that m
 - *Internals.* The app's `InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")` matches by simple name,
   so the staged copy sees the same internals the shipped one does.
 
-**Trust.** `ITrustPolicy.IsTrusted(directory, manifest)` is asked once per candidate, after the
-compatibility check and before the assembly is touched; a policy that throws reads as untrusted.
-`TrustPolicy.Default` is the seam item 35 fills with the signature check. Until then it trusts nothing on
-disk, so **loading from the config root is off in a release build**, unless the developer opt-in
-`DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1` is set in the process environment, which trusts every staged
-copy. The variable is for building and testing the loader and for running an extension built from a local
-checkout; nothing in the app or the installer sets it, and item 35 keeps it as the documented way to run
-an unsigned local build.
+**Trust.** `ITrustPolicy.Judge(directory, manifest)` is asked once per candidate, after the compatibility
+check and before the assembly is touched; a policy that throws reads as untrusted. As built (item 35,
+section 7.9), `TrustPolicy.Default` trusts a directory signed by one of `PublisherKeys.Current`, or,
+failing that, the developer opt-in `DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1` set in the process
+environment, which trusts every staged copy regardless of its signature. Nothing in the app or the
+installer sets the variable; it is the documented way to run an unsigned local build.
 
 **Logging.** The loader runs before any logger exists, so it records its outcome on each `PackStatus`
 (`Source`, `Rejected`) and `App.axaml.cs` writes the report once the diagnostics pillar is up, under the
@@ -1400,6 +1404,156 @@ Book 1.0.1 loaded (installed update) from '<root>/extensions/net.demoviewer.pack
 the pack's index loads followed from the staged code; with nothing staged, `Strat Book 1.0.0 loaded
 (bundled)`; with the same staged copy and no opt-in, `loaded (bundled)` followed by `Staged extension at
 '<dir>' not loaded (Untrusted): the copy is not signed by this app's publisher`.
+
+---
+
+### 7.9 Signing and trust (as built by item 35)
+
+Everything here lives in the app under `DemoViewer.NET.Extensions.Loading` (`ExtensionSignature`,
+`PublisherKeys`, `SignedTrustPolicy`, and `TrustVerdict` and `TrustPolicy.SignedOrOptIn` beside
+`ITrustPolicy`); a signing tool at `tools/extension-signing` links the first two files rather than
+referencing the app.
+
+**Algorithm.** ECDSA P-256 with SHA-256, not Ed25519. .NET 10's `System.Security.Cryptography` has no
+standalone Ed25519 sign/verify: the only Ed25519-related surface is the composite ML-DSA-with-Ed25519
+hybrid tied to `MLDsa`, not a plain signer, and `ECDsa.Create()` is the one new-key-pair factory the
+runtime ships without a third-party package. Signatures use the fixed-length IEEE P1363 encoding
+(`DSASignatureFormat.IeeeP1363FixedFieldConcatenation`), 64 bytes for P-256, never the DER form, so the
+byte length alone is a cheap sanity check.
+
+**The canonical digest** (`ExtensionSignature.ComputeDigest`). Every file under the staged directory,
+recursive, except a top-level `extension.sig`, hashed with SHA-256 in one deterministic order:
+
+1. An 8-byte little-endian file count.
+2. Per file, ordinal by its `/`-separated relative path (never the OS separator, so the same tree
+   hashes the same on Windows and on macOS/Linux): an 8-byte little-endian length and the path's UTF-8
+   bytes, then an 8-byte little-endian length and the file's content bytes.
+
+Both lengths are prefixed, not just the content's, because a bare concatenation of variable-length
+fields is ambiguous (`"ab"` then `"c"` hashes the same as `"a"` then `"bc"` without one). The walk is
+manual, never `Directory.EnumerateFiles(..., AllDirectories)`: every entry, file or directory, is
+checked for a reparse point before it is used, and refused (`ExtensionSignatureException`) rather than
+followed, matching the loader's own rule for the staged folder one level up. `EnumerationOptions` sets
+`AttributesToSkip = 0`; the default skips `Hidden`, and a dotfile is `Hidden` on every OS .NET runs on,
+so a committed default would let an added dotfile hide from the digest. The walk also refuses more than
+`MaxFiles` (2000) files or more than `MaxTotalBytes` (512 MB) total content, checked from `FileInfo.Length`
+before a file is opened, so a tree that is too big to safely hash fails fast rather than streaming
+hundreds of megabytes first. This is the form item 37's CI step must reproduce byte for byte; nothing
+about it is specific to this tool, and the tool and the app compile the identical source file (see
+below), so there is only one implementation to keep in sync.
+
+**`extension.sig`** is JSON beside `extension.json`:
+
+```json
+{
+  "alg": "ECDSA-P256-SHA256",
+  "keyId": "<lowercase hex, SHA-256 of the signer's SubjectPublicKeyInfo DER>",
+  "digest": "<base64, the 32-byte canonical digest at signing time>",
+  "signature": "<base64, the 64-byte IEEE P1363 signature>"
+}
+```
+
+The JSON encoding itself needs no cross-tool agreement; only the signed message does. The signature is
+over a fixed ASCII domain tag (`"DemoViewer.NET extension signature v1"`) followed by the digest bytes,
+never the bare digest, so this key is never asked to verify some other 32-byte message as if it were
+this one.
+
+**Verification order matters.** `ExtensionSignature.Verify(directory, publisherKeysBase64Spki)`:
+
+1. Missing `extension.sig` → `Missing`, detail "the copy is not signed by this app's publisher".
+2. Not valid JSON, or a required field missing or not valid base64 → `Malformed`, detail "signature
+   invalid".
+3. `keyId` matches none of the given keys → `UnknownKey`, detail "the copy is not signed by this app's
+   publisher" (collapsed with `Missing`: from the app's side, a key it does not recognize is the same
+   fact as no signature at all).
+4. The signature does not verify against the matched key, over the **recorded** digest → `SignatureInvalid`,
+   detail "signature invalid".
+5. Only once the signature has verified does `Verify` recompute the digest from the directory as it is
+   now and compare; a mismatch → `DigestMismatch`, detail "a file changed after signing". A cap exceeded
+   or a link found during that recompute reads the same way, since signing enforces the identical caps
+   and refusals, so a tree that trips one now could not have been the one that was signed.
+
+The order is load-bearing: the recorded digest inside `extension.sig` is attacker-controlled data until
+the signature over it verifies, so nothing compares it to the live directory before that. This also
+means a wrong key and a changed file are handled as two different buckets (steps 3 and 5), never
+conflated into one ambiguous "didn't verify". The two are genuinely distinguishable here because the
+signature names the key it claims, not because the math alone could tell them apart.
+
+Every failure path is a `SignatureCheck`, never an exception; `ComputeDigest` itself throws
+`ExtensionSignatureException` (a cap, a link, or an I/O error), and `Verify` catches that case by case
+rather than letting it escape. `Verify` never throws.
+
+**The app's seam.** `ITrustPolicy` gained a second, default-implemented member,
+`TrustVerdict Judge(directory, manifest)`, additive over the item 33 contract rule in section 7.7 (a
+new member with a default is "minor"); `ContractVersion` stays at 1.0.0 since `^1.0` admits a minor bump
+either way, left for the orchestrator to take up separately if it wants the version to say so.
+`IsTrusted` is unchanged, so every policy written before item 35 still compiles and reports the one
+generic reason it always gave; `ExtensionLoader.Select` now calls `Judge`, not `IsTrusted`, and copies
+its `Reason`/`LogDetail` onto the `Untrusted` `LoadOutcome`.
+
+`SignedTrustPolicy(publicKeysBase64Spki = null)` calls `ExtensionSignature.Verify` against
+`PublisherKeys.Current` by default, or an injected list for a test. `TrustPolicy.Default` is
+`SignedOrOptIn(PublisherKeys.Current, <the real environment>)`: signed trust first, the developer opt-in
+second, and on a full refusal the reported reason is the **signing** failure's, not "the opt-in wasn't
+set", since that is the one a user or the log can act on. Neither key parsing nor a file read happens
+at type load: `PublisherKeys.Current` is a plain list of base64 strings, and both policies underneath
+`Default` are only ever asked inside the loader's own try/catch, so a bad embedded key constant cannot
+fail the process at startup, only that one candidate at judge time. The opt-in itself still does not
+look at the directory at all, signed or not: setting `DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1` bypasses
+even a directory signed by a key this build does not know, exactly as it bypassed an unsigned one
+before item 35. That is unchanged from item 34 and is why the variable is documented as a developer
+bypass, not a narrower "only when truly unsigned" rule.
+
+**`PublisherKeys`.** SubjectPublicKeyInfo, base64, one constant (`Primary`) today, in a list
+(`Current`) so rotation adds a key ahead of retiring one: a signature verifies if any listed key
+verifies it. The public key in this repo today has key id
+`dfe4ae3ebb28794fb79a03562ad36eaf252ebe1753292574e752bad4bc1c4cc0`, generated 2026-10-03.
+
+**The signing tool**, `tools/extension-signing` (out of the `.slnx`, a CI/owner utility rather than an
+app component, following the `NavPathSpike` convention of a comment saying so plus relaxed analyzer
+settings):
+
+```
+extension-signing keygen --out <private.pem>     generates an ECDSA P-256 key pair; writes the
+                                                  private key to <private.pem> (chmod 600 off
+                                                  Windows) and prints the public half as a
+                                                  PublisherKeys.cs constant and its key id
+extension-signing sign <dir> --key <private.pem> writes <dir>/extension.sig
+extension-signing verify <dir>                   checks <dir>/extension.sig against PublisherKeys.Current
+```
+
+It links `Extensions/Loading/ExtensionSignature.cs` and `PublisherKeys.cs` from the app via MSBuild
+`<Compile Include="..." Link="..."/>`, not a project reference, so the tool and the app run the exact
+same digest and verify code without pulling Avalonia into a CI utility, and there is one implementation
+to keep correct rather than two to keep in sync. Verified by hand (2026-10-03): signed a staged
+directory with a freshly generated key, verified it clean, then independently reproduced each of the
+four failure buckets (missing, malformed, wrong key, one byte flipped after signing) against the real
+tool and the real embedded key.
+
+**Action before the first release.** The matching private key is not in this repo, not even on a branch that stays
+unpushed: it was generated with `keygen` and written to a path under the owner's home directory, outside
+every git working tree, permissions restricted to the owner. Before item 37 wires a release workflow
+that signs the shipped extension automatically, the owner stores that private key's PEM contents as the
+GitHub repository secret `DV_EXTENSION_SIGNING_KEY`, the same pattern the existing `DV_SIGN_*` /
+`DV_NOTARY_PROFILE` secrets already use in `release.yml` (unset today; wired via repo secrets when the
+owner is ready). Rotating the key is `keygen` again, adding the new public constant to
+`PublisherKeys.Current` ahead of removing the old one (so an extension signed with the old key still
+loads until every shipped build has the new constant), then updating the stored secret once releases
+move to the new key.
+
+**Tests.** `src/App/DemoViewer.NET.App.Tests/Extensions/ExtensionSignatureTests.cs`: sign-then-verify
+round trip with a key generated in process; a byte change, a rename, an added file, a removed file, and
+a wrong key each fail with the detail named above; the canonical digest is identical across two runs and
+independent of the files' creation order; a dotfile changes the digest; both caps are enforced; a
+symlinked file inside the tree is refused. `SignedTrustPolicyTests.cs`: a missing signature is untrusted
+with the generic reason; a valid one is trusted; `SignedOrOptIn` trusts a signed directory without the
+env var, trusts an unsigned one only with it, and (a documented edge, not a new rule) the opt-in still
+bypasses a directory signed by the wrong key since it does not inspect the directory at all;
+`PublisherKeys.Current`'s one entry imports as a NIST P-256 key. `ExtensionLoaderTests.cs` gained two
+cases: `Resolve` loads a staged copy of the real extension signed with a freshly generated key, no env
+var set; the same staged copy with one byte flipped in the DLL is rejected as `Untrusted` with detail
+"a file changed after signing". No test commits a private key; every test that signs something
+generates its own ephemeral key pair and injects the matching public half.
 
 ---
 
@@ -2016,7 +2170,12 @@ src/Extensions/StratBook/
   extension.json                                    the manifest (item 33, section 7.7); embedded and copied beside the DLL
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the item 28 move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; item 28 did not touch this
-src/App/DemoViewer.NET/Extensions/Loading/        the loader (item 34, section 7.8); the app, so every head can use it
+src/App/DemoViewer.NET/Extensions/Loading/        the loader (item 34, section 7.8) and the signing and
+                                                   trust seam (item 35, section 7.9: ExtensionSignature.cs,
+                                                   PublisherKeys.cs, SignedTrustPolicy.cs); the app, so
+                                                   every head can use it
+tools/extension-signing/          item 35's signing tool (section 7.9); outside the .slnx; links the two
+                                   Extensions/Loading files above rather than referencing the app
 ```
 
 At run time, under the config root (`AppPaths.ConfigRoot`), item 36 stages what item 34 loads:
@@ -2025,6 +2184,7 @@ At run time, under the config root (`AppPaths.ConfigRoot`), item 36 stages what 
 <config root>/extensions/<id>/<version>/          one staged extension version; read by the Desktop head at startup
   extension.json                                  id and version equal to the folder names
   DemoViewer.NET.Extensions.StratBook.dll         the assembly the manifest names
+  extension.sig                                  item 35's detached signature over everything else here
 ```
 
 Item 26's namespace rule: a moved type keeps its original namespace when the move vacates that namespace
