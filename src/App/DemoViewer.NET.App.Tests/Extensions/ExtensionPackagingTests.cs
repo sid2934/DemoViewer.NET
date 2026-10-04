@@ -103,6 +103,44 @@ public class ExtensionPackagingTests
         await Assert.That(ex.Message).Contains("the existing feed is for 'net.demoviewer.pack.other'");
     }
 
+    // What scripts/pack-extension.sh itself wrote to feed-entry.json for a real --dry-run build of the
+    // shipped extension (2026-10-03), pasted verbatim rather than built through FakeFeeds: this is the
+    // one place the test fixture is the script's own output, not a stand-in for it. The version, sha256,
+    // size and publishedAt will drift as the repo moves; only the shape (every member, the manifest
+    // nested and verbatim) is what this test leans on.
+    private const string RealScriptOutputFixture = """
+        {
+          "version": "1.0.0",
+          "manifest": {
+            "id": "net.demoviewer.pack.stratbook",
+            "name": "Strat Book",
+            "version": "1.0.0",
+            "assembly": "DemoViewer.NET.Extensions.StratBook.dll",
+            "entryType": "DemoViewer.NET.Extensions.StratBook.StratBookPack",
+            "requiresHost": "^1.0",
+            "requiresCs2DemoKit": "0.13.0-beta0001"
+          },
+          "url": "https://github.com/sid2934/DemoViewer.NET/releases/download/net.demoviewer.pack.stratbook-v1.0.0/DemoViewer.NET.Extensions.StratBook-1.0.0.zip",
+          "sha256": "093341e647d88aa621ddcd199c4f6c0fb4e874a9ed4882d46a1406ab75946723",
+          "size": 1535538,
+          "publishedAt": "2026-10-04T03:08:44Z"
+        }
+        """;
+
+    [Test]
+    public async Task Merge_TheScriptsOwnFeedEntryFixture_MergesAndParses()
+    {
+        string merged = ExtensionFeedMerge.Merge(null, RealScriptOutputFixture, "net.demoviewer.pack.stratbook", allowDowngrade: false);
+
+        ExtensionFeed feed = ExtensionFeed.Parse(merged);
+        using (Assert.Multiple())
+        {
+            await Assert.That(feed.Id).IsEqualTo("net.demoviewer.pack.stratbook");
+            await Assert.That(feed.Entries.Count).IsEqualTo(1);
+            await Assert.That(feed.Latest!.Manifest.Assembly).IsEqualTo("DemoViewer.NET.Extensions.StratBook.dll");
+        }
+    }
+
     // The bare entry object pack-extension.sh writes to disk for the workflow to merge: FakeFeeds.Json
     // wraps it in a whole feed, so this pulls the one entry back out rather than hand-writing a second,
     // divergent fixture shape.

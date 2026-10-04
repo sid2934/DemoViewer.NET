@@ -127,13 +127,23 @@ jobs:
           TAG="$ID-v$VERSION"
           ZIP="$(jq -r '.manifest.assembly | sub("\\.dll$"; "")' "$OUT/feed-entry.json")-$VERSION.zip"
 
-          gh release create "$TAG" \
-            --repo "${{ github.repository }}" \
-            --title "$ID $VERSION" \
-            --notes "Extension release. See docs/architecture/strat-book-plugin.md §7.11." \
-            --latest=false \
-            --target "${{ github.sha }}" \
-            "$OUT/$ZIP" "$OUT/$ZIP.sha256"
+          # Idempotent, the same absent-vs-error shape the rolling-feed step uses below: a re-run after
+          # a later step failed (the url check, the feed update) must not die here because the release
+          # already exists from the earlier attempt, or the only way forward would be deleting it by hand.
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>"$OUT/view-error.txt"; then
+            gh release upload "$TAG" --repo "${{ github.repository }}" --clobber "$OUT/$ZIP" "$OUT/$ZIP.sha256"
+          elif grep -qi "release not found" "$OUT/view-error.txt"; then
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "$ID $VERSION" \
+              --notes "Extension release. See docs/architecture/strat-book-plugin.md §7.11." \
+              --latest=false \
+              --target "${{ github.sha }}" \
+              "$OUT/$ZIP" "$OUT/$ZIP.sha256"
+          else
+            echo "::error::gh release view '$TAG' failed: $(cat "$OUT/view-error.txt")" >&2
+            exit 1
+          fi
 
           EXPECTED_URL="$(jq -r .url "$OUT/feed-entry.json")"
           ACTUAL_URL="$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets \
@@ -152,7 +162,11 @@ jobs:
           ID="${{ steps.resolve.outputs.id }}"
           OUT="artifacts/extension-release/$ID"
           ROLLING="extensions-$ID"
-          TOOL="$(dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -getProperty:TargetPath -v q | tail -1)"
+          # -getProperty alone is evaluation-only: TargetPath is computable without the Build target
+          # running at all, so a build invoked only with -getProperty would print a path to a DLL the
+          # earlier pack-extension.sh step already built, but a fresh runner never has otherwise.
+          dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -v q --nologo
+          TOOL="$(dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -getProperty:TargetPath -v q)"
 
           # "Absent" (no release, or a release with no extensions.json asset) is the only case treated
           # as an empty feed. Any other failure (auth, rate limit, a transient API error) must fail the

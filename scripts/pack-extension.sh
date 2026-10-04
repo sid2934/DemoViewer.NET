@@ -46,6 +46,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Captured before the signing section can reassign KEY_PATH to a temp file for the
+# DV_EXTENSION_SIGNING_KEY path; the verify override below applies only to this one.
+EXPLICIT_KEY_PATH="$KEY_PATH"
+
 if [ -z "$ID" ]; then
     echo "usage: $0 <id> [--key <private.pem>] [--dry-run] [--out <dir>]" >&2
     echo "known ids: $(for e in "${EXTENSIONS[@]}"; do printf '%s ' "${e%%|*}"; done)" >&2
@@ -125,10 +129,16 @@ case "$TAG_REF" in
 esac
 
 # ── Build the signing tool and the extension, Release, framework-dependent ────────────────────────────
+# -getProperty is evaluation-only: TargetPath/TargetDir are computable without the Build target ever
+# running, so a build invoked ONLY with -getProperty prints a path to a file that was never produced.
+# Each project gets a plain build first (which fails loudly on a real error), then a second,
+# near-instant invocation (everything up to date) to read the paths back out as JSON.
 echo "[pack-extension] building tools/extension-signing"
-TOOL_DLL="$(dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -getProperty:TargetPath -v q | tail -1)"
+dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -v q --nologo
+TOOL_DLL="$(dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -getProperty:TargetPath -v q)"
 
 echo "[pack-extension] building $CSPROJ_FILE"
+dotnet build "$CSPROJ_FILE" -c Release -v q --nologo
 BUILD_JSON="$(dotnet build "$CSPROJ_FILE" -c Release -getProperty:TargetDir -getProperty:AssemblyName -v q)"
 TARGET_DIR="$(printf '%s' "$BUILD_JSON" | jq -r '.Properties.TargetDir')"
 BUILT_ASSEMBLY_NAME="$(printf '%s' "$BUILD_JSON" | jq -r '.Properties.AssemblyName')"
@@ -218,15 +228,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# A caller-supplied --key is always local/dry-run testing (an ephemeral keygen'd key never appears in
-# PublisherKeys.Current), so verify is told to check against its public half there; a key from
-# DV_EXTENSION_SIGNING_KEY verifies against the app's real publisher keys with no override (empty here
-# on purpose: an array would hit bash 3.2's nounset-on-empty-array bug, still the default /bin/bash on
-# macOS).
+# The verify override is keyed on --dry-run, never merely on "a --key was given": a real release run
+# (no --dry-run) always verifies against PublisherKeys.Current with no override, even if --key was
+# passed explicitly, so a key that is not the one behind Primary fails here rather than shipping a zip
+# no app will trust. Only a dry run, with an explicit --key (an ephemeral keygen'd key never appears in
+# PublisherKeys.Current), is told to check against that key's own public half instead. Left empty
+# rather than built as an array on purpose: an empty array hits bash 3.2's nounset-on-empty-array bug,
+# still the default /bin/bash on macOS.
 VERIFY_KEY_PATH=""
-if [ -n "$KEY_PATH" ]; then
-    VERIFY_KEY_PATH="$KEY_PATH"
-elif [ -n "${DV_EXTENSION_SIGNING_KEY:-}" ]; then
+if [ "$DRY_RUN" -eq 1 ] && [ -n "$EXPLICIT_KEY_PATH" ]; then
+    VERIFY_KEY_PATH="$EXPLICIT_KEY_PATH"
+fi
+
+if [ -z "$KEY_PATH" ] && [ -n "${DV_EXTENSION_SIGNING_KEY:-}" ]; then
     KEY_TMP="$(mktemp)"
     chmod 600 "$KEY_TMP"
     printf '%s' "$DV_EXTENSION_SIGNING_KEY" > "$KEY_TMP"

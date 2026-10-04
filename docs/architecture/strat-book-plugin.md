@@ -635,8 +635,8 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     the staging rules and the Settings states.
 37. **CI and packaging.** A release workflow per extension producing the signed zip and feed entry; the
     app installer still bundles the extension version current at app release time.
-    *As built (2026-10-04):* `scripts/pack-extension.sh` (build, stage, sign, zip, feed entry) and
-    `.github/workflows/release-extension.yml` (the release gate and the feed update), plus four new
+    *As built (2026-10-03):* `scripts/pack-extension.sh` (build, stage, sign, zip, feed entry) and
+    `.github/workflows/release-extension.yml` (the release gate and the feed update), plus five new
     `tools/extension-signing` commands (`report`, `manifest`, `zip`, `feed-merge`/`feed-check`) and a
     packaging-drift step added to `ci.yml`'s `build` job. Section 7.11 has the tag convention, the zip
     layout as produced, the feed update rules, the secrets and the owner action, the dry-run path, and
@@ -1868,7 +1868,7 @@ way locally and in CI. In order:
 Every step fails loudly (`set -euo pipefail` plus explicit checks); nothing is skipped silently, and
 there is no flag anywhere that bypasses a check the way `git commit --no-verify` would.
 
-**Two new `tools/extension-signing` commands beyond `keygen`/`sign`/`verify`,** all linking source from
+**Five new `tools/extension-signing` commands beyond `keygen`/`sign`/`verify`,** all linking source from
 the app the same way `ExtensionSignature.cs`/`PublisherKeys.cs` already did, never referencing it (still
 no Avalonia in this tool):
 
@@ -1953,9 +1953,10 @@ tag with the zip and its sha256 as assets, `--latest=false` (so this release nev
 Velopack's `GithubSource` or `vpk download github`'s delta seed pick the app's own release, since both
 walk the release list looking for an asset literally named `RELEASES`/`releases.<channel>.json`, never
 relying on "latest", and this release's only assets are the zip and its sha256). Then compares the
-uploaded asset's actual `browser_download_url` (`gh release view --json assets --jq`) against the url the
-feed entry fragment already computed, failing the job on any mismatch rather than publishing a feed entry
-that points at the wrong place.
+uploaded asset's actual `.url` (`gh release view --json assets --jq`, the field confirmed by hand against
+a real release in this repo; the same call's `.apiUrl` is a different thing, the API endpoint, not the
+download link) against the url the feed entry fragment already computed, failing the job on any mismatch
+rather than publishing a feed entry that points at the wrong place.
 
 Then updates the rolling feed: `gh release view extensions-<id>` decides what "existing" means. A release
 that does not exist, or one whose asset list has no `extensions.json`, is the only case read as "no feed
