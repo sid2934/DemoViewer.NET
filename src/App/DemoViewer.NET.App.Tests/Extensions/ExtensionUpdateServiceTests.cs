@@ -3,8 +3,10 @@
 using System.IO.Compression;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.Extensions.UpdateFixtures;
 
 #endregion
@@ -329,7 +331,7 @@ public class ExtensionUpdateServiceTests
             using (Assert.Multiple())
             {
                 await Assert.That(result.Outcome).IsEqualTo(StageOutcome.Refused);
-                await Assert.That(result.Detail).IsEqualTo("the update is not signed by this app's publisher");
+                await Assert.That(result.Detail).IsEqualTo("the copy is not signed by this app's publisher");
                 await Assert.That(trust.Asked.Count).IsEqualTo(1);
                 await Assert.That(trust.Asked[0].Directory).IsEqualTo(extracted).Because("the policy judges the unpacked copy before it is installed");
                 await Assert.That(trust.Asked[0].Manifest.Version).IsEqualTo(SemVersion.Parse("1.0.1"));
@@ -401,6 +403,80 @@ public class ExtensionUpdateServiceTests
                 await Assert.That(newer.Status).IsEqualTo(ExtensionUpdateStatus.UpdateAvailable);
                 await Assert.That(newer.Offered!.Version).IsEqualTo(SemVersion.Parse("1.0.2"));
                 await Assert.That(newer.Pending).IsEqualTo(SemVersion.Parse("1.0.1"));
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    // End to end over item 35: the extension this test process runs, zipped the way item 37 will and signed
+    // with an ephemeral key, installs through SignedTrustPolicy; the same zip with one byte of the DLL
+    // changed after signing is refused with the signature check's own reason.
+    [Test]
+    public async Task Download_SignedRealExtension_Installs_AndATamperedDllIsRefused()
+    {
+        string root = NewRoot();
+        try
+        {
+            string shippedDll = typeof(StratBookPack).Assembly.Location;
+            string shippedManifest = Path.Combine(Path.GetDirectoryName(shippedDll)!, ExtensionManifest.FileName);
+            if (!File.Exists(shippedManifest))
+            {
+                throw new SkipTestException($"no {ExtensionManifest.FileName} beside {shippedDll}");
+            }
+
+            ExtensionManifest built = ExtensionManifest.Parse(File.ReadAllText(shippedManifest));
+            SemVersion next = new(built.Version.Major, built.Version.Minor, built.Version.Patch + 1);
+            string json = File.ReadAllText(shippedManifest).Replace($"\"{built.Version}\"", $"\"{next}\"", StringComparison.Ordinal);
+            (string publicKey, System.Security.Cryptography.ECDsa privateKey) = NewKeyPair();
+            using (privateKey)
+            {
+                string tree = Path.Combine(root, "tree");
+                Directory.CreateDirectory(tree);
+                File.WriteAllText(Path.Combine(tree, ExtensionManifest.FileName), json);
+                File.Copy(shippedDll, Path.Combine(tree, built.Assembly));
+                File.WriteAllText(Path.Combine(tree, ExtensionSignature.FileName), ExtensionSignature.Sign(tree, privateKey));
+                byte[] signed = ZipDirectory(tree);
+
+                byte[] dll = File.ReadAllBytes(Path.Combine(tree, built.Assembly));
+                dll[dll.Length / 2] ^= 0x01;
+                File.WriteAllBytes(Path.Combine(tree, built.Assembly), dll);
+                byte[] tampered = ZipDirectory(tree);
+
+                FakeFeeds.Entry good = new(next.ToString(), signed);
+                FakeFeedClient client = new();
+                client.Zips[good.Url] = signed;
+                PackStatus status = Status(built.Id, built.Version.ToString());
+                SignedTrustPolicy policy = new([publicKey]);
+                ExtensionUpdateService service = new(root, [status], Host, policy, client, FeedUrl);
+
+                StageResult installed = await service.DownloadAndStageAsync(ExtensionFeed.Parse(FakeFeeds.Json(built.Id, good)).Entries.Single());
+
+                string otherRoot = NewRoot();
+                try
+                {
+                    client.Zips[good.Url] = tampered;
+                    FakeFeeds.Entry bad = new(next.ToString(), tampered);
+                    ExtensionUpdateService again = new(otherRoot, [status], Host, policy, client, FeedUrl);
+                    StageResult refused = await again.DownloadAndStageAsync(ExtensionFeed.Parse(FakeFeeds.Json(built.Id, bad)).Entries.Single());
+
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(installed.Outcome).IsEqualTo(StageOutcome.Installed);
+                        await Assert.That(installed.Directory).IsEqualTo(Path.Combine(root, "extensions", built.Id, next.ToString()));
+                        await Assert.That(File.Exists(Path.Combine(installed.Directory!, ExtensionSignature.FileName))).IsTrue();
+                        await Assert.That(policy.Judge(installed.Directory!, built).Trusted).IsTrue().Because("what was installed still verifies in place");
+                        await Assert.That(refused.Outcome).IsEqualTo(StageOutcome.Refused);
+                        await Assert.That(refused.Detail).Contains("a file changed after signing");
+                        await Assert.That(NothingStaged(otherRoot)).IsTrue();
+                    }
+                }
+                finally
+                {
+                    Cleanup(otherRoot);
+                }
             }
         }
         finally
@@ -582,6 +658,27 @@ public class ExtensionUpdateServiceTests
         new(root, statuses ?? [Status()], Host, trust ?? TrustAll, client, FeedUrl, queue, isOffered);
 
     private static ExtensionFeedEntry Entry(FakeFeeds.Entry e) => ExtensionFeed.Parse(FakeFeeds.Json(e)).Entries.Single();
+
+    // The same ephemeral P-256 pair ExtensionSignatureTests generates: the public half as base64 SPKI.
+    private static (string PublicKey, System.Security.Cryptography.ECDsa PrivateKey) NewKeyPair()
+    {
+        System.Security.Cryptography.ECDsa key = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        return (Convert.ToBase64String(key.ExportSubjectPublicKeyInfo()), key);
+    }
+
+    private static byte[] ZipDirectory(string directory)
+    {
+        using MemoryStream stream = new();
+        using (ZipArchive archive = new(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            {
+                archive.CreateEntryFromFile(file, Path.GetRelativePath(directory, file).Replace('\\', '/'));
+            }
+        }
+
+        return stream.ToArray();
+    }
 
     private static string StageVersion(string extensions, string version, string id = Id, string requiresHost = "^1.0")
     {

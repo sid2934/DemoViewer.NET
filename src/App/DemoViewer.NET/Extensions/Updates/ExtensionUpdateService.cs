@@ -463,21 +463,19 @@ public sealed class ExtensionUpdateService
                 return Refuse(entry, badManifest!, null);
             }
 
-            bool trusted;
-            string? trustError = null;
+            TrustVerdict verdict;
             try
             {
-                trusted = _trust.IsTrusted(extracted, manifest);
+                verdict = _trust.Judge(extracted, manifest);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                trusted = false;
-                trustError = ex.Message;
+                verdict = TrustVerdict.No("the trust check failed", ex.Message);
             }
 
-            if (!trusted)
+            if (!verdict.Trusted)
             {
-                return Refuse(entry, trustError is null ? "the update is not signed by this app's publisher" : "the trust check failed", trustError);
+                return Refuse(entry, verdict.Reason ?? "the copy is not signed by this app's publisher", verdict.LogDetail);
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(installed)!);
