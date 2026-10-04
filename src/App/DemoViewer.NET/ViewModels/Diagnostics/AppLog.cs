@@ -41,8 +41,8 @@ internal static partial class AppLog
     public static partial void ExtensionIncompatible(ILogger logger, string name, string version, string source, string problem);
 
     [LoggerMessage(EventId = 17, Level = LogLevel.Warning,
-        Message = "Staged extension at '{directory}' not loaded ({failure}): {detail}")]
-    public static partial void ExtensionCandidateRejected(ILogger logger, string directory, LoadFailure failure, string detail);
+        Message = "Staged extension at '{directory}' not loaded ({failure}): {detail}{logDetail}")]
+    public static partial void ExtensionCandidateRejected(ILogger logger, string directory, LoadFailure failure, string detail, string logDetail);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "Reel generation failed.\n{diagnostics}")]
     public static partial void ReelGenerationFailed(ILogger logger, string diagnostics);

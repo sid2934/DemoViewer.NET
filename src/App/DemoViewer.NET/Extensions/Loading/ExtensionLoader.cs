@@ -106,6 +106,7 @@ public static class ExtensionLoader
 
             bool trusted;
             string why = "the copy is not signed by this app's publisher";
+            string? trustError = null;
             try
             {
                 trusted = trust.IsTrusted(candidate.Directory, m);
@@ -113,12 +114,13 @@ public static class ExtensionLoader
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 trusted = false;
-                why = "the trust check failed: " + ex.Message;
+                why = "the trust check failed";
+                trustError = ex.Message;
             }
 
             if (!trusted)
             {
-                rejected.Add(new LoadOutcome(candidate.Directory, m, LoadFailure.Untrusted, why));
+                rejected.Add(new LoadOutcome(candidate.Directory, m, LoadFailure.Untrusted, why, trustError));
                 continue;
             }
 
@@ -149,7 +151,7 @@ public static class ExtensionLoader
         }
         catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException or ArgumentException)
         {
-            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.AssemblyLoadFailed, $"'{m.Assembly}' could not be loaded: {ex.Message}"));
+            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.AssemblyLoadFailed, $"'{m.Assembly}' could not be loaded", ex.Message));
         }
 
         Type? entry;
@@ -159,7 +161,7 @@ public static class ExtensionLoader
         }
         catch (Exception ex) when (ex is TypeLoadException or ReflectionTypeLoadException or FileLoadException or BadImageFormatException)
         {
-            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.EntryTypeMissing, $"'{m.EntryType}' could not be loaded: {ex.Message}"));
+            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.EntryTypeMissing, $"'{m.EntryType}' could not be loaded", ex.Message));
         }
 
         if (entry is null)
@@ -181,7 +183,7 @@ public static class ExtensionLoader
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             Exception cause = ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
-            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.NotAPack, $"'{m.EntryType}' could not be constructed: {cause.Message}"));
+            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.NotAPack, $"'{m.EntryType}' could not be constructed", cause.Message));
         }
 
         if (!string.Equals(pack.Id, m.Id, StringComparison.Ordinal))
@@ -196,7 +198,7 @@ public static class ExtensionLoader
         }
         catch (ExtensionManifestException ex)
         {
-            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.IdentityMismatch, "the extension's embedded manifest is invalid: " + ex.Message));
+            return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.IdentityMismatch, "the extension's embedded manifest is invalid", ex.Message));
         }
 
         if (!string.Equals(embedded.Id, m.Id, StringComparison.Ordinal) || embedded.Version != m.Version)
@@ -241,14 +243,17 @@ public static class ExtensionLoader
                     if (selection.Chosen is { } chosen)
                     {
                         LoadResult loaded = Load(chosen);
-                        if (loaded.Pack is not null)
+                        LoadOutcome? failure = loaded.Failure
+                            ?? CheckReferences(chosen, loaded.Pack!.GetType().Assembly, RunningVersion)
+                            ?? Probe(chosen, loaded.Pack!);
+                        if (failure is null)
                         {
                             staged = loaded.Pack;
                             source = new PackSource.Staged(chosen.Directory);
                         }
                         else
                         {
-                            rejected.Add(loaded.Failure!);
+                            rejected.Add(failure);
                         }
                     }
                 }
@@ -257,7 +262,7 @@ public static class ExtensionLoader
             {
                 staged = null;
                 source = PackSource.Bundled;
-                rejected.Add(new LoadOutcome(extensionsDir ?? string.Empty, null, LoadFailure.LoaderFailed, $"the extension loader failed: {ex.GetType().Name}: {ex.Message}"));
+                rejected.Add(new LoadOutcome(extensionsDir ?? string.Empty, null, LoadFailure.LoaderFailed, "the extension loader failed", $"{ex.GetType().Name}: {ex.Message}"));
             }
 
             IFeaturePack pack = staged ?? s.Create();
@@ -266,6 +271,120 @@ public static class ExtensionLoader
 
         return statuses;
     }
+
+    /// <summary>
+    ///     The version-skew check (strat-book-plugin.md §7.8): every assembly <paramref name="staged" />
+    ///     references that the app ships must be referenced at the version the app runs
+    ///     (<paramref name="runningVersion" />, null for one the app does not ship). The first mismatch is a
+    ///     <see cref="LoadFailure.ReferenceMismatch" /> outcome; null when all agree. Framework assemblies
+    ///     (<c>System.*</c>, <c>netstandard</c>, <c>mscorlib</c>) come from the shared runtime and are not
+    ///     compared.
+    /// </summary>
+    public static LoadOutcome? CheckReferences(ExtensionCandidate candidate, Assembly staged, Func<string, Version?> runningVersion)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(staged);
+        (string Name, Version Built, Version Running)? mismatch = FindReferenceMismatch(staged.GetReferencedAssemblies(), runningVersion);
+        return mismatch is null
+            ? null
+            : new LoadOutcome(candidate.Directory, candidate.Manifest, LoadFailure.ReferenceMismatch,
+                $"it was built against {mismatch.Value.Name} {mismatch.Value.Built}; this app ships {mismatch.Value.Running}");
+    }
+
+    /// <summary>The comparison behind <see cref="CheckReferences" />, over the referenced names alone.</summary>
+    public static (string Name, Version Built, Version Running)? FindReferenceMismatch(
+        IEnumerable<AssemblyName> referenced, Func<string, Version?> runningVersion)
+    {
+        ArgumentNullException.ThrowIfNull(referenced);
+        ArgumentNullException.ThrowIfNull(runningVersion);
+        foreach (AssemblyName reference in referenced)
+        {
+            string? name = reference.Name;
+            if (name is null || reference.Version is null || IsFrameworkAssembly(name))
+            {
+                continue;
+            }
+
+            Version? running = runningVersion(name);
+            if (running is not null && running != reference.Version)
+            {
+                return (name, reference.Version, running);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     The version the default context runs <paramref name="simpleName" /> at: the loaded assembly's
+    ///     when it is loaded, else the file beside the app (which is what the default context would load),
+    ///     else null. Reads the file's identity only; nothing is loaded.
+    /// </summary>
+    public static Version? RunningVersion(string simpleName)
+    {
+        foreach (Assembly loaded in AssemblyLoadContext.Default.Assemblies)
+        {
+            AssemblyName name = loaded.GetName();
+            if (string.Equals(name.Name, simpleName, StringComparison.OrdinalIgnoreCase))
+            {
+                return name.Version;
+            }
+        }
+
+        try
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, simpleName + ".dll");
+            return File.Exists(path) ? AssemblyName.GetAssemblyName(path).Version : null;
+        }
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     The load-time probe (§7.8): reads <paramref name="pack" />'s contract members (<c>Id</c>,
+    ///     <c>Manifest</c>, <c>Features</c>, <c>Commands</c>, <c>JobKinds</c>) and runs its <c>Register</c>
+    ///     on a scratch container, so a member compiled against a missing or changed type fails here, as a
+    ///     <see cref="LoadFailure.ProbeFailed" /> outcome, rather than later inside the composition root. Null
+    ///     when every call returns. Catches lambdas and views nothing: those are compiled on first use.
+    /// </summary>
+    public static LoadOutcome? Probe(ExtensionCandidate candidate, IFeaturePack pack)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(pack);
+        string step = "reading its identity";
+        try
+        {
+            _ = pack.Id;
+            _ = pack.FeatureId;
+            _ = pack.Manifest;
+            step = "reading its features";
+            _ = pack.Features.ToArray();
+            step = "reading its commands";
+            _ = pack.Commands.ToArray();
+            step = "reading its job kinds";
+            _ = pack.JobKinds.ToArray();
+            step = "registering its services";
+            pack.Register(new Microsoft.Extensions.DependencyInjection.ServiceCollection());
+            return null;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Exception cause = ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
+            return new LoadOutcome(candidate.Directory, candidate.Manifest, LoadFailure.ProbeFailed,
+                $"{step} failed ({cause.GetType().Name})", cause.Message);
+        }
+    }
+
+    private static bool IsFrameworkAssembly(string name) =>
+        name.StartsWith("System.", StringComparison.Ordinal)
+        || string.Equals(name, "System", StringComparison.Ordinal)
+        || string.Equals(name, "netstandard", StringComparison.Ordinal)
+        || string.Equals(name, "mscorlib", StringComparison.Ordinal)
+        || string.Equals(name, "Microsoft.CSharp", StringComparison.Ordinal)
+        || string.Equals(name, "Microsoft.VisualBasic", StringComparison.Ordinal)
+        || string.Equals(name, "WindowsBase", StringComparison.Ordinal);
 
     // The shipped version comes from the manifest copied beside the DLL, never from the type: reading the
     // type would load the shipped assembly. Null when the file is missing or does not parse.
@@ -334,7 +453,7 @@ public static class ExtensionLoader
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            rejected.Add(new LoadOutcome(versionDir, null, LoadFailure.ManifestInvalid, $"{ExtensionManifest.FileName} could not be read: {ex.Message}"));
+            rejected.Add(new LoadOutcome(versionDir, null, LoadFailure.ManifestInvalid, $"{ExtensionManifest.FileName} could not be read", ex.Message));
             return;
         }
 
@@ -344,7 +463,7 @@ public static class ExtensionLoader
             || !string.Equals(versionFolder, manifest.Version.ToString(), StringComparison.Ordinal))
         {
             rejected.Add(new LoadOutcome(versionDir, manifest, LoadFailure.FolderMismatch,
-                $"the folder is '{idFolder}/{versionFolder}' but the manifest says '{manifest.Id}/{manifest.Version}'"));
+                $"the folder is '{idFolder}' version {versionFolder} but the manifest says '{manifest.Id}' version {manifest.Version}"));
             return;
         }
 

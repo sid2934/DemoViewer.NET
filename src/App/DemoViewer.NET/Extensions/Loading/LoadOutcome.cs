@@ -42,6 +42,12 @@ public enum LoadFailure
     /// <summary>The loaded pack's id or embedded manifest version is not the on-disk manifest's.</summary>
     IdentityMismatch,
 
+    /// <summary>The staged assembly references an assembly the app ships at a different version.</summary>
+    ReferenceMismatch,
+
+    /// <summary>Reading the pack's contract members or running its <c>Register</c> on a scratch container threw.</summary>
+    ProbeFailed,
+
     /// <summary>The loader itself failed; the shipped copy was used.</summary>
     LoaderFailed
 }
@@ -54,8 +60,12 @@ public enum LoadFailure
 /// <param name="Directory">The staged directory, as a full path.</param>
 /// <param name="Manifest">Its manifest when it parsed, else null.</param>
 /// <param name="Failure">The check that failed.</param>
-/// <param name="Detail">The specifics in user terms: what was required, what was found.</param>
-public sealed record LoadOutcome(string Directory, ExtensionManifest? Manifest, LoadFailure Failure, string Detail)
+/// <param name="Detail">
+///     The specifics in user terms: what was required, what was found. Carries at most a bare file name,
+///     never a path or an exception message, since Settings shows it.
+/// </param>
+/// <param name="LogDetail">The exception message behind <paramref name="Detail" />, for the log only; null when there is none.</param>
+public sealed record LoadOutcome(string Directory, ExtensionManifest? Manifest, LoadFailure Failure, string Detail, string? LogDetail = null)
 {
     /// <summary>The staged version, when the manifest parsed.</summary>
     public SemVersion? Version => Manifest?.Version;

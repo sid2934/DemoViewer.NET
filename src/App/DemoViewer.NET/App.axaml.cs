@@ -483,7 +483,8 @@ public class App : Application
 
             foreach (LoadOutcome outcome in status.Rejected)
             {
-                AppLog.ExtensionCandidateRejected(log, outcome.Directory, outcome.Failure, outcome.Detail);
+                AppLog.ExtensionCandidateRejected(log, outcome.Directory, outcome.Failure, outcome.Detail,
+                    outcome.LogDetail is null ? string.Empty : " [" + outcome.LogDetail + "]");
             }
         }
     }
