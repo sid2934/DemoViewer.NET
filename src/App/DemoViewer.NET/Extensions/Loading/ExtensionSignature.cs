@@ -217,6 +217,11 @@ public static class ExtensionSignature
             // trips one of them changed after it was signed.
             return SignatureCheck.Fail(SignatureFailure.DigestMismatch, ChangedDetail, ex.Message);
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Belt over ComputeDigest's own guard: Verify's contract is never to throw regardless.
+            return SignatureCheck.Fail(SignatureFailure.DigestMismatch, ChangedDetail, ex.Message);
+        }
 
         return CryptographicOperations.FixedTimeEquals(actualDigest, recordedDigest)
             ? SignatureCheck.Ok
@@ -263,6 +268,13 @@ public static class ExtensionSignature
                 continue;
             }
 
+            // The signature is always IEEE P1363 over a P-256 key; a listed key on another curve
+            // cannot be the one that produced it, whatever its id, so it is never asked to verify.
+            if (!string.Equals(key.ExportParameters(false).Curve.Oid.Value, ECCurve.NamedCurves.nistP256.Oid.Value, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             if (key.VerifyData(payload, signature, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation))
             {
                 return true;
@@ -277,43 +289,59 @@ public static class ExtensionSignature
     // point before it is used and refused rather than followed. AttributesToSkip is cleared because the
     // default skips Hidden, and .NET marks a Unix dotfile Hidden; skipping it here would let an added
     // dotfile hide from the digest.
+    //
+    // The enumeration itself (not just File.GetAttributes on an entry) can throw mid-iteration, a
+    // directory disappearing or a permission revoked under the walk, so the whole foreach is inside
+    // the guard, not only the per-entry attribute read.
     private static void Walk(string dir, string root, List<string> relatives)
     {
-        EnumerationOptions options = new() { AttributesToSkip = 0 };
-        foreach (string entry in Directory.EnumerateFileSystemEntries(dir, "*", options))
+        // IgnoreInaccessible defaults to true, which would silently skip an unreadable entry instead
+        // of throwing: exactly the gap that would let part of the tree go unhashed without a reason.
+        EnumerationOptions options = new() { AttributesToSkip = 0, IgnoreInaccessible = false };
+        try
         {
-            string relative = Path.GetRelativePath(root, entry).Replace(Path.DirectorySeparatorChar, '/');
-            FileAttributes attributes;
-            try
+            foreach (string entry in Directory.EnumerateFileSystemEntries(dir, "*", options))
             {
-                attributes = File.GetAttributes(entry);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                throw new ExtensionSignatureException($"'{relative}' could not be read", ex);
-            }
+                string relative = Path.GetRelativePath(root, entry).Replace(Path.DirectorySeparatorChar, '/');
+                FileAttributes attributes;
+                try
+                {
+                    attributes = File.GetAttributes(entry);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    throw new ExtensionSignatureException($"'{relative}' could not be read", ex);
+                }
 
-            if ((attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new ExtensionSignatureException($"'{relative}' is a link; the signed tree may not contain one");
-            }
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new ExtensionSignatureException($"'{relative}' is a link; the signed tree may not contain one");
+                }
 
-            if ((attributes & FileAttributes.Directory) != 0)
-            {
-                Walk(entry, root, relatives);
-                continue;
-            }
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    Walk(entry, root, relatives);
+                    continue;
+                }
 
-            if (string.Equals(relative, FileName, StringComparison.Ordinal))
-            {
-                continue; // the signature cannot sign itself
-            }
+                if (string.Equals(relative, FileName, StringComparison.Ordinal))
+                {
+                    continue; // the signature cannot sign itself
+                }
 
-            relatives.Add(relative);
-            if (relatives.Count > MaxFiles)
-            {
-                throw new ExtensionSignatureException($"the signed tree has more than {MaxFiles} files");
+                relatives.Add(relative);
+                if (relatives.Count > MaxFiles)
+                {
+                    throw new ExtensionSignatureException($"the signed tree has more than {MaxFiles} files");
+                }
             }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            string relativeDir = string.Equals(dir, root, StringComparison.Ordinal)
+                ? "the signed directory"
+                : $"'{Path.GetRelativePath(root, dir).Replace(Path.DirectorySeparatorChar, '/')}'";
+            throw new ExtensionSignatureException($"{relativeDir} could not be read", ex);
         }
     }
 

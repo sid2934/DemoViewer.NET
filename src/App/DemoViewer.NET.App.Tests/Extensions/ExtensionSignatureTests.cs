@@ -265,6 +265,104 @@ public class ExtensionSignatureTests
         }
     }
 
+    // The signature format is always IEEE P1363 over a P-256 key. A listed key that happens to carry
+    // the claimed key id but sits on another curve must be skipped, not handed to VerifyData, which
+    // would otherwise be asked to check a 64-byte P-256 signature against a P-384 key.
+    [Test]
+    public async Task Verify_AKeyOnAnotherCurve_IsSkippedRatherThanAttempted_AndReadsAsSignatureInvalid()
+    {
+        string dir = NewTree();
+        (string signerPublicKey, ECDsa signerPrivateKey) = NewKeyPair();
+        using ECDsa otherCurveKey = ECDsa.Create(ECCurve.NamedCurves.nistP384);
+        string otherCurvePublicKey = Convert.ToBase64String(otherCurveKey.ExportSubjectPublicKeyInfo());
+        using (signerPrivateKey)
+        {
+            try
+            {
+                WriteSignature(dir, signerPrivateKey);
+                string otherCurveKeyId = ExtensionSignature.KeyId(Convert.FromBase64String(otherCurvePublicKey));
+                RewriteSignatureField(dir, "keyId", otherCurveKeyId);
+
+                SignatureCheck check = ExtensionSignature.Verify(dir, [otherCurvePublicKey]);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(check.Verified).IsFalse();
+                    await Assert.That(check.Failure).IsEqualTo(SignatureFailure.SignatureInvalid);
+                    await Assert.That(check.Detail).IsEqualTo("signature invalid");
+                }
+            }
+            finally
+            {
+                Cleanup(dir);
+            }
+        }
+    }
+
+    // A subdirectory that goes unreadable mid-walk (permission revoked, not removed) must surface as
+    // a reason, never an exception: Verify's contract is to never throw, and Walk's own enumeration,
+    // not just its per-entry attribute read, must be guarded for this to hold.
+    [Test]
+    public async Task Verify_ASubdirectoryMadeUnreadableDuringRecompute_FailsWithAReason_NeverThrows()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            throw new TUnit.Core.Exceptions.SkipTestException("no mode bits to withhold on Windows");
+        }
+
+        string dir = NewTree();
+        string subdir = Path.Combine(dir, "sub");
+        (string publicKey, ECDsa privateKey) = NewKeyPair();
+        using (privateKey)
+        {
+            try
+            {
+                WriteSignature(dir, privateKey);
+                File.SetUnixFileMode(subdir, UnixFileMode.None);
+                try
+                {
+                    foreach (string _ in Directory.EnumerateFileSystemEntries(subdir))
+                    {
+                        // just provoking the UnauthorizedAccessException below
+                    }
+
+                    throw new TUnit.Core.Exceptions.SkipTestException(
+                        "this account reads a mode-000 directory (root?); the failure cannot be provoked");
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // the condition the test needs
+                }
+
+                SignatureCheck check = ExtensionSignature.Verify(dir, [publicKey]);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(check.Verified).IsFalse();
+                    await Assert.That(check.Failure).IsEqualTo(SignatureFailure.DigestMismatch);
+                    await Assert.That(check.Detail).IsEqualTo("a file changed after signing");
+                    await Assert.That(check.LogDetail).IsNotNull();
+                }
+            }
+            finally
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    try
+                    {
+                        File.SetUnixFileMode(subdir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                    }
+                    catch (IOException)
+                    {
+                        // best-effort
+                    }
+                }
+
+                Cleanup(dir);
+            }
+        }
+    }
+
     [Test]
     public async Task ComputeDigest_RefusesMoreFilesThanTheCap()
     {
@@ -347,6 +445,63 @@ public class ExtensionSignatureTests
         }
         finally
         {
+            Cleanup(dir);
+        }
+    }
+
+    // Directory.EnumerateFileSystemEntries can throw mid-iteration, not only at the per-entry
+    // File.GetAttributes call: a subdirectory that goes unreadable must surface as the same typed
+    // exception as every other refusal here, never a raw IOException/UnauthorizedAccessException.
+    [Test]
+    public async Task ComputeDigest_RefusesAnUnreadableSubdirectory_AsExtensionSignatureException()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            throw new TUnit.Core.Exceptions.SkipTestException("no mode bits to withhold on Windows");
+        }
+
+        string dir = NewTree();
+        string subdir = Path.Combine(dir, "sub");
+        try
+        {
+            File.SetUnixFileMode(subdir, UnixFileMode.None);
+            try
+            {
+                foreach (string _ in Directory.EnumerateFileSystemEntries(subdir))
+                {
+                    // just provoking the UnauthorizedAccessException below
+                }
+
+                throw new TUnit.Core.Exceptions.SkipTestException(
+                    "this account reads a mode-000 directory (root?); the failure cannot be provoked");
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // the condition the test needs
+            }
+
+            Exception? ex = Catch(() => ExtensionSignature.ComputeDigest(dir));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(ex).IsTypeOf<ExtensionSignatureException>();
+                await Assert.That(ex!.Message).Contains("sub");
+            }
+        }
+        finally
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    File.SetUnixFileMode(subdir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                }
+                catch (IOException)
+                {
+                    // best-effort
+                }
+            }
+
             Cleanup(dir);
         }
     }
