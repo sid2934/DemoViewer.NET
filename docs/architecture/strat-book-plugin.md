@@ -611,8 +611,8 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     app installer still bundles the extension version current at app release time.
 38. **Compatibility matrix test.** A test that builds the extension against the app and asserts the
     manifest's ranges match the referenced versions, so a release cannot ship an unloadable pair.
-    *As built:* `CompatibilityMatrixTests` in App.Tests, plus `CompatibilityReport` (section 7.7 has
-    both).
+    *As built (2026-10-03):* `CompatibilityMatrixTests` in App.Tests, plus `CompatibilityReport`
+    (section 7.7 has both).
 
 Other first-party modules (Highlights, Rule Workbench, Library sections) can take the same layout later;
 nothing here depends on it.
@@ -1241,21 +1241,26 @@ and passes.
 
 **The compatibility matrix test (item 38).** `CompatibilityMatrixTests`
 (`src/App/DemoViewer.NET.App.Tests/Extensions/CompatibilityMatrixTests.cs`) is the release gate: it reads
-the shipped manifest from the repo (the way `ExtensionManifestTests` locates `DemoViewer.NET.slnx` to find
-the repo root) and from the copy beside the test binary, and checks every axis against `ExtensionHost.Current`
-separately rather than relying on `Check`'s single first failure. It also asserts `requiresCs2DemoKit`
-equals the `Directory.Packages.props` pin exactly, not merely a satisfied range, and that `requiresHost` is
-bounded below the next major so a contract bump fails the test until the manifest is updated. A table test
-pins `PackCompatibility.Check`'s semantics over representative host/manifest pairs, including the
-prerelease rule's two directions. Separately, it walks the extension assembly's compiled
-`GetReferencedAssemblies()` against the app's own transitive reference closure (loaded by simple name,
-minus the BCL) and asserts version equality, catching a build-time drift between the extension's and the
-app's dependency graph before it reaches a user as a JIT-time `MissingMethodException`; that check only
-sees the `AssemblyVersion` attribute, so a prerelease-label drift within one `AssemblyVersion` (for example
-`beta0001` to `beta0002`) is caught by the exact-pin assertion, not this one. `CompatibilityReport.Describe`
-(`src/App/DemoViewer.NET/Extensions/Manifest/CompatibilityReport.cs`) renders `Check`'s verdict and every
-value that fed it as one line, for item 37's packaging step to print and item 36's updater to log; adding it
-is host-side tooling, not a pack contract change, so it needs no `ContractVersion` bump.
+the shipped manifest from the repo (the way `ExtensionManifestTests` locates `DemoViewer.NET.slnx`) and
+from the copy beside the test binary, checks every axis against `ExtensionHost.Current` separately rather
+than relying on `Check`'s single first failure, pins `requiresCs2DemoKit` to the `Directory.Packages.props`
+pin exactly, and asserts `requiresHost` is bounded below the next major. A table test pins
+`PackCompatibility.Check`'s semantics over representative host/manifest pairs.
+
+**The reference check.** The extension's compiled `GetReferencedAssemblies()` is checked against the app
+assembly's own transitive closure (loaded by simple name, minus the BCL), not a fixed list: the extension
+references `CS2OpenDev.Sdk`, `CS2OpenDev.Protos`, `Google.Protobuf`, `DemoViewer.NET.Modules.Abstractions`
+and `.Modules.Abstractions.Ui` directly, five of the eighteen non-BCL assemblies it references today, none
+in this section's example families; a fixed list drawn from those families would have missed them. Every
+one of the eighteen is app-shipped, so the private allowlist is empty today; the heads are deliberately not
+walked, so a dependency only a head adds trips the exhaustiveness test instead of passing unnoticed. The
+check sees only the `AssemblyVersion` attribute (`0.13.0.0` for any `0.13.0-*` CS2DemoKit build), so a
+prerelease-label drift is caught by the exact-pin assertion above, not by this one.
+
+`CompatibilityReport.Describe` (`src/App/DemoViewer.NET/Extensions/Manifest/CompatibilityReport.cs`)
+renders `Check`'s verdict and every value that fed it as one line, for item 37's packaging step to print
+and item 36's updater to log; it is host-side tooling, not a pack contract change, so it needs no
+`ContractVersion` bump.
 
 A contract bump (section 7.7's major/minor rule) must update `requiresHost` in `extension.json`, or
 `RequiresHost_IsSatisfiedByTheCurrentContract_AndWouldBeViolatedByTheNextMajor` fails. A CS2DemoKit bump
