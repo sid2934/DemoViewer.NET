@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <!-- Item 28: moved from App.Tests, namespaces unchanged (strat-book-plugin.md §13). The root
+             namespace stays the App.Tests one so every moved file compiles with no using/namespace churn. -->
+        <RootNamespace>DemoViewer.NET.AppTests</RootNamespace>
+        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Same posture as App.Tests: real-demo and RealDemo-tagged cases churn multi-GB ParsedDemo
+             graphs on a 16 GB dev machine. -->
+        <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="Avalonia.Headless"/>
+        <PackageReference Include="Avalonia.Skia"/>
+        <PackageReference Include="Avalonia.Fonts.Inter"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
+        <ProjectReference Include="..\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
+        <ProjectReference Include="..\..\..\Testing\DemoViewer.NET.TestSupport\DemoViewer.NET.TestSupport.csproj"/>
+    </ItemGroup>
+
+    <!-- Shared App.Tests infrastructure, LINKED rather than referenced: a ProjectReference to App.Tests
+         would have both assemblies' [ModuleInitializer]s run in one process (CompiledInPacks calling
+         FeaturePacks.Configure twice, SessionIsolation repointing DEMOVIEWER_CONFIG_DIR twice) and risks
+         TUnit registering App.Tests' own tests a second time here. Each file compiles into BOTH
+         assemblies, so each gets its own module initializer and its own test registration. -->
+    <ItemGroup>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\GlobalUsings.cs" Link="GlobalUsings.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\CompiledInPacks.cs" Link="CompiledInPacks.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SessionIsolation.cs" Link="SessionIsolation.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\HeadlessSession.cs" Link="HeadlessSession.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DFakeContext.cs" Link="Playback2DFakeContext.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DTimelineHeadlessSupport.cs" Link="Playback2DTimelineHeadlessSupport.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SyntheticParsedDemo.cs" Link="SyntheticParsedDemo.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\QueuedPost.cs" Link="QueuedPost.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\FakeTimelineData.cs" Link="FakeTimelineData.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DActivation.cs" Link="Playback2DActivation.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\TestLibraries.cs" Link="TestLibraries.cs"/>
+        <!-- Item 33: manifests for the IFeaturePack fakes every moved test's FakePack now needs. -->
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Extensions\FakeManifests.cs" Link="FakeManifests.cs"/>
+    </ItemGroup>
+
+</Project>

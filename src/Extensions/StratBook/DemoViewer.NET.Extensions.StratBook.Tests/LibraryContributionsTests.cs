@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 ///     The pack's two Library contributions (item 22): <see cref="TeamLibraryContribution" /> (the Team
 ///     filter) and <see cref="ProvenanceLibraryContribution" /> (the provenance badge). The generic hosting
 ///     mechanism itself (gate-off means unqueried, Changed re-applies, reset on off) is
-///     <see cref="DemoViewer.NET.AppTests.LibraryContributionTests" />'s, over a fake; this class is the
+///     <c>DemoViewer.NET.AppTests.LibraryContributionTests</c>'s, over a fake; this class is the
 ///     two real contributions' own item lists, "Us" semantics, labels and override round trip.
 /// </summary>
 [NotInParallel]

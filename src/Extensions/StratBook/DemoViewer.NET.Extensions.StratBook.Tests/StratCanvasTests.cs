@@ -476,7 +476,7 @@ public class StratCanvasTests
     [Arguments(Playback2DAction.NextStep)]
     public async Task OnThe2DTab_TheStepAuthoringRows_AreUnhandled(Playback2DAction action)
     {
-        (Playback2DTabViewModel vm, _) = Playback2DActionDispatchTests.Activated();
+        (Playback2DTabViewModel vm, _) = Playback2DActivation.Activated();
         await Assert.That(vm.ExecuteAction(action)).IsFalse();
         await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
     }
