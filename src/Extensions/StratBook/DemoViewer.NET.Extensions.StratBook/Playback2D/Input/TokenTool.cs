@@ -1,11 +1,12 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 
 /// <summary>
 ///     Drags the strat canvas's tokens (step-authoring.md §3.7). Press hits a token through

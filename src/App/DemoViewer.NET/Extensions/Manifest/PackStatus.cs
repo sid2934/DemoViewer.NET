@@ -1,3 +1,9 @@
+#region
+
+using DemoViewer.NET.Extensions.Loading;
+
+#endregion
+
 namespace DemoViewer.NET.Extensions.Manifest;
 
 /// <summary>
@@ -8,13 +14,30 @@ namespace DemoViewer.NET.Extensions.Manifest;
 /// <param name="Pack">The pack as configured.</param>
 /// <param name="Manifest">Its manifest, or null when reading it failed (<see cref="PackCompatibility.ManifestInvalid" />).</param>
 /// <param name="Compatibility">The verdict.</param>
-public sealed record PackStatus(IFeaturePack Pack, ExtensionManifest? Manifest, PackCompatibility Compatibility)
+/// <param name="Source">Where the pack's assembly came from; the shipped copy unless the loader chose a staged one.</param>
+/// <param name="Rejected">
+///     The staged candidates for this pack the loader looked at and did not load, newest first, each with
+///     its reason (strat-book-plugin.md §7.8). Empty when nothing was staged or the staged copy is the one
+///     running. Settings shows them under the row so a user can see why an update did not take.
+/// </param>
+public sealed record PackStatus(
+    IFeaturePack Pack,
+    ExtensionManifest? Manifest,
+    PackCompatibility Compatibility,
+    PackSource? Source = null,
+    IReadOnlyList<LoadOutcome>? Rejected = null)
 {
     /// <summary>True when the pack composes into this app.</summary>
     public bool IsCompatible => Compatibility.IsCompatible;
 
     /// <summary>The reason in user terms, or null when compatible.</summary>
     public string? Problem => Compatibility.Describe(Manifest, Pack.Id);
+
+    /// <summary>Where the pack's assembly came from; <see cref="PackSource.Bundled" /> when not said.</summary>
+    public PackSource Source { get; init; } = Source ?? PackSource.Bundled;
+
+    /// <summary>The staged candidates the loader rejected for this pack; empty when not said.</summary>
+    public IReadOnlyList<LoadOutcome> Rejected { get; init; } = Rejected ?? [];
 
     /// <summary>
     ///     Judges every pack in <paramref name="packs" /> against <paramref name="host" />, in order. A

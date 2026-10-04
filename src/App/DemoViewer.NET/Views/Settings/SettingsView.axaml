@@ -27,6 +27,12 @@
                                    VerticalAlignment="Center"
                                    IsVisible="{Binding HasVersion}"
                                    ToolTip.Tip="The extension's version, from its manifest." />
+                        <!-- Item 34: where the running copy came from, "(bundled)" or "(installed update)". -->
+                        <TextBlock Text="{Binding SourceLabel}" FontSize="9"
+                                   Foreground="{DynamicResource TextDim}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding HasSource}"
+                                   ToolTip.Tip="Bundled: the copy that came with this app. Installed update: a newer copy the updater staged under the app's data folder." />
                         <TextBlock Text="{Binding LockHint}" FontSize="9"
                                    Foreground="{DynamicResource TextDim}"
                                    VerticalAlignment="Center"
@@ -46,6 +52,12 @@
                                Foreground="{DynamicResource AccentError}" FontSize="10"
                                TextWrapping="Wrap"
                                IsVisible="{Binding IsIncompatible}" />
+                    <!-- Item 34: a staged update that did not load, with the reason. The copy that is running
+                         still works, so nothing is locked. -->
+                    <TextBlock Text="{Binding LoadNote}"
+                               Foreground="{DynamicResource AccentAmber}" FontSize="10"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding HasLoadNote}" />
                 </StackPanel>
                 <Button Grid.Column="1" Classes="icon-btn" Content="↺"
                         VerticalAlignment="Center"

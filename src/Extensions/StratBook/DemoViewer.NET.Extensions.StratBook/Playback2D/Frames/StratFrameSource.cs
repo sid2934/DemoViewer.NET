@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Keyframes;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 
 /// <summary>
 ///     A strat as a frame source: tokens sampled off their tracks, each throw's flight and effect from the utility

@@ -3,6 +3,7 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 
 #endregion
@@ -83,9 +84,15 @@ public sealed partial class FeatureToggleRow : ObservableObject
     ///     Why the extension cannot load on this app (<c>PackStatus.Problem</c>), or null. A row with one is
     ///     locked off: its pack composed nothing, so no override could take effect.
     /// </param>
+    /// <param name="source">Where the extension's assembly came from (<c>PackStatus.Source</c>); a pack master row only.</param>
+    /// <param name="loadNote">
+    ///     Why a staged update of this extension was not loaded (<c>PackStatus.Rejected</c>, one line per
+    ///     candidate), or null. Informational: the row stays interactive, since the bundled copy is running.
+    /// </param>
     internal FeatureToggleRow(
         SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
-        bool platformUnavailable = false, string? version = null, string? incompatibility = null)
+        bool platformUnavailable = false, string? version = null, string? incompatibility = null,
+        PackSource? source = null, string? loadNote = null)
     {
         _owner = owner;
         _gate = gate;
@@ -99,6 +106,8 @@ public sealed partial class FeatureToggleRow : ObservableObject
         OwnerPackId = descriptor.OwnerPackId;
         Version = version;
         Incompatibility = incompatibility;
+        Source = source;
+        LoadNote = loadNote;
 
         // A grouped feature toggles atomically from its LEADER (the gate resolves every member's own-state
         // from the leader). So a NON-leader member's own override is inert. The row must not offer an
@@ -176,6 +185,25 @@ public sealed partial class FeatureToggleRow : ObservableObject
 
     /// <summary>Whether <see cref="Incompatibility" /> is set.</summary>
     public bool IsIncompatible => Incompatibility is not null;
+
+    /// <summary>Where the extension's assembly came from; null on every row but a pack master row.</summary>
+    public PackSource? Source { get; }
+
+    /// <summary>The source in user terms beside the version, "(bundled)" or "(installed update)"; null when <see cref="Source" /> is.</summary>
+    public string? SourceLabel => Source is null ? null : $"({Source.Label})";
+
+    /// <summary>Whether <see cref="SourceLabel" /> is set.</summary>
+    public bool HasSource => Source is not null;
+
+    /// <summary>
+    ///     Why a staged update of this extension did not load (item 34), one line per rejected candidate, or
+    ///     null. Shown under the description; unlike <see cref="Incompatibility" /> it locks nothing, since the
+    ///     copy that is running works.
+    /// </summary>
+    public string? LoadNote { get; }
+
+    /// <summary>Whether <see cref="LoadNote" /> is set.</summary>
+    public bool HasLoadNote => LoadNote is not null;
 
     /// <summary>
     ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor

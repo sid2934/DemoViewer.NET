@@ -1,17 +1,20 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 
 /// <summary>
 ///     The strat canvas's editing guides (<see cref="SceneGuides" />, read from the host on each paint): the selected step's destination pins and
 ///     via marks, and while a token is dragged its hollow start, the dashed route the drop would store and the place under
-///     the pointer. Under the markers, so the dragged token stays on top. Draws nothing on a frame without guides, which is
-///     every host but the strat canvas.
+///     the pointer. Paints above the markers: the compositor sorts by <see cref="Slot" /> first, and <see cref="LayerSlot.Overlay" />
+///     comes after the markers' <see cref="LayerSlot.World" />. Draws nothing on a frame without guides, which is every host
+///     but the strat canvas.
 /// </summary>
 public sealed class GuideLayer : ISceneLayer
 {
@@ -46,7 +49,7 @@ public sealed class GuideLayer : ISceneLayer
     public LayerSlot Slot => LayerSlot.Overlay;
 
     /// <inheritdoc />
-    /// <remarks>Just under the markers (40).</remarks>
+    /// <remarks>Only orders within Overlay; Slot already puts this after the markers' World slot.</remarks>
     public int Order => 38;
 
     /// <inheritdoc />

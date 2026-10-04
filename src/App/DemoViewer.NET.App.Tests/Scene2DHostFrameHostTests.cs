@@ -18,7 +18,6 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
-using SkiaSharp;
 
 #endregion
 
@@ -34,6 +33,10 @@ namespace DemoViewer.NET.AppTests;
 ///         The 2D tab's own behaviour is pinned by the suites that already mount through the tab
 ///         (<c>Scene2DHostTests</c>, <c>SceneLayerListParityTests</c>, the annotation, level strip and
 ///         keybind suites); they are the regression gate for the rebind and are not duplicated here.
+///     </para>
+///     <para>
+///         Carries no extension import (item 26): the two cases that construct the extension's
+///         <c>TokenTool</c> directly are <c>TokenToolHostTests</c>, in the extension's own test project.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -138,42 +141,10 @@ public class Scene2DHostFrameHostTests
         });
     }
 
-    [Test]
-    public async Task TokenEditor_ReachesTheToolServices()
-    {
-        await HeadlessSession.RunOnUi(async () =>
-        {
-            RecordingTokenEditor editor = new();
-            FakeSceneFrameHost fake = new() { TokenEditor = editor };
-            fake.Publish(Frame(1, true, TenTokens()));
-
-            (Window window, Scene2DHost host) = Mount(fake);
-            host.FitToExtent();
-            Playback2DTimelineHarness.Pump();
-            host.SetActiveTool(ToolKind.Token);
-            await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.Token)
-                .Because("the host registers the token tool, or selecting it would fall back to pan");
-
-            Point start = Playback2DTimelineHarness.ToWindow(host, window, 300, 300);
-            Point end = Playback2DTimelineHarness.ToWindow(host, window, 340, 320);
-            window.MouseDown(start, MouseButton.Left);
-            window.MouseMove(end);
-            window.MouseUp(end, MouseButton.Left);
-            Playback2DTimelineHarness.Pump();
-
-            Console.WriteLine($"[token] {string.Join(", ", editor.Calls)}");
-            await Assert.That(editor.Calls).Contains("Begin T1 Body");
-            await Assert.That(editor.Calls.Count(c => c.StartsWith("Move", StringComparison.Ordinal)))
-                .IsGreaterThanOrEqualTo(1);
-            await Assert.That(editor.Calls[^1]).StartsWith("End");
-
-            window.Close();
-        });
-    }
-
     /// <summary>
-    ///     The 2D Playback tab is a frame host with no token editor, so the token tool falls through there
-    ///     and the press opens nothing.
+    ///     The 2D Playback tab is a frame host with no tokens: nobody calls <c>Scene2DHost.AddTool</c> for
+    ///     it (item 26), so <c>ToolKind.Token</c> is not registered on its host at all, and selecting it
+    ///     falls back to pan, as any unregistered kind does.
     /// </summary>
     [Test]
     public async Task TabViewModel_HasNoTokenEditor_AndTheTokenToolFallsThrough()
@@ -188,12 +159,12 @@ public class Scene2DHostFrameHostTests
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(host.FrameHost).IsSameReferenceAs(vm);
-            await Assert.That(((ISceneFrameHost)vm).TokenEditor).IsNull();
+            await Assert.That(host.FrameHost is ITokenEditingHost).IsFalse()
+                .Because("the 2D Playback tab offers no tokens to drag");
 
             host.SetActiveTool(ToolKind.Token);
-            window.MouseDown(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
-            await Assert.That(host.Router.IsGestureOpen).IsFalse();
-            window.MouseUp(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
+            await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.PanZoom)
+                .Because("nothing registered a tool under Token on this host");
 
             window.Close();
         });
@@ -284,37 +255,6 @@ public class Scene2DHostFrameHostTests
             await Assert.That(host.SmoothedMarkerPosition(7)).IsEqualTo((500f, 500f));
 
             window.MouseUp(Playback2DTimelineHarness.ToWindow(host, window, 240, 220), MouseButton.Left);
-            window.Close();
-        });
-    }
-
-    /// <summary>A token drag open when the host is re-bound is rolled back, not committed.</summary>
-    [Test]
-    public async Task SwappingHosts_MidTokenDrag_CancelsTheDrag()
-    {
-        await HeadlessSession.RunOnUi(async () =>
-        {
-            RecordingTokenEditor editor = new();
-            FakeSceneFrameHost fake = new() { TokenEditor = editor };
-            fake.Publish(Frame(1, true, TenTokens()));
-
-            (Window window, Scene2DHost host) = Mount(fake);
-            host.FitToExtent();
-            Playback2DTimelineHarness.Pump();
-            host.SetActiveTool(ToolKind.Token);
-
-            window.MouseDown(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
-            window.MouseMove(Playback2DTimelineHarness.ToWindow(host, window, 320, 300));
-            await Assert.That(host.Router.IsGestureOpen).IsTrue();
-
-            host.DataContext = new FakeSceneFrameHost();
-
-            Console.WriteLine($"[token-swap] {string.Join(", ", editor.Calls)}");
-            await Assert.That(host.Router.IsGestureOpen).IsFalse();
-            await Assert.That(editor.Calls[^1]).IsEqualTo("Cancel");
-            await Assert.That(editor.Calls.Any(c => c.StartsWith("End", StringComparison.Ordinal))).IsFalse();
-
-            window.MouseUp(Playback2DTimelineHarness.ToWindow(host, window, 320, 300), MouseButton.Left);
             window.Close();
         });
     }
@@ -560,7 +500,6 @@ public class Scene2DHostFrameHostTests
         public bool ShowBombRing { get; set; } = true;
         public bool ShowZones => false;
         public PlaceResolver? Zones => null;
-        public ITokenEditor? TokenEditor { get; init; }
 
         /// <summary>Settable override for <see cref="TryPointerPreHandler" />; null falls through (the default answer).</summary>
         public Func<ScenePointer, bool>? PointerPreHandler { get; set; }
@@ -580,29 +519,5 @@ public class Scene2DHostFrameHostTests
         }
 
         public void Raise() => FrameUpdated?.Invoke();
-    }
-
-    /// <summary>Hits a token on every press and records each call in order.</summary>
-    private sealed class RecordingTokenEditor : ITokenEditor
-    {
-        public List<string> Calls { get; } = [];
-        public int ActiveTick => 0;
-
-        public bool TryHitToken(LevelPane pane, SKPoint world, float worldRadius, out string slot,
-            out TokenGrip grip)
-        {
-            slot = "T1";
-            grip = TokenGrip.Body;
-            return true;
-        }
-
-        public void BeginDrag(string slot, TokenGrip grip) => Calls.Add($"Begin {slot} {grip}");
-
-        public void MoveTo(string slot, SKPoint world, double levelMinZ, ToolModifiers modifiers = ToolModifiers.None, double worldUnitsPerPixel = 0) =>
-            Calls.Add($"Move {slot} {world.X:F0},{world.Y:F0} z={levelMinZ}");
-
-        public void EndDrag(ToolModifiers modifiers = ToolModifiers.None) => Calls.Add("End ");
-
-        public void CancelDrag() => Calls.Add("Cancel");
     }
 }

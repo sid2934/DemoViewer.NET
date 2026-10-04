@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
@@ -23,7 +24,9 @@ internal sealed class Program
     public static AppBuilder BuildAvaloniaApp()
     {
         // The XAML previewer calls this without Main, so it declares the same packs; a no-op after Main.
-        FeaturePacks.ConfigureIfUnset([new StratBookPack()]);
+        // Behind a factory: after Main a staged copy may be the configured one, and the shipped type must
+        // then stay untouched (strat-book-plugin.md §7.8).
+        FeaturePacks.ConfigureIfUnset(static () => [new StratBookPack()]);
         return AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
@@ -58,10 +61,17 @@ internal sealed class Program
 
         builder.Run();
 
-        // The extensions this build ships (strat-book-plugin.md §13). The app assembly references none of
-        // them; the composition root and the static registries read this list, so it is declared before
-        // anything Avalonia-side runs.
-        FeaturePacks.Configure([new StratBookPack()]);
+        // The extensions this build ships (strat-book-plugin.md §13), each replaced by a newer copy staged
+        // under <config root>/extensions/ when one is compatible and trusted (§7.8). The app assembly
+        // references none of them; the composition root and the static registries read this list, so it is
+        // declared before anything Avalonia-side runs. The shipped pack sits behind a factory: a method that
+        // mentions StratBookPack loads the shipped assembly when it is compiled, and the loader must decide
+        // before that happens, so nothing else in Main may name the type.
+        FeaturePacks.ConfigureResolved(ExtensionLoader.Resolve(
+            AppPaths.ConfigRoot,
+            [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack())],
+            ExtensionHost.Current,
+            TrustPolicy.Default));
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack.

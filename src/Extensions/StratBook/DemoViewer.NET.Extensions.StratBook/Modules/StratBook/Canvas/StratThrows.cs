@@ -1,9 +1,9 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.Strats;
 
 #endregion

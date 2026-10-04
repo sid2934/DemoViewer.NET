@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
@@ -992,6 +993,88 @@ public class SettingsViewModelTests
 
                 await Assert.That(child.IsInteractive).IsTrue().Because("unlocked live once the pack is back on");
                 await Assert.That(child.IsEnabled).IsTrue();
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Item 34: the master row says where the running copy came from ("(bundled)" for the compile-linked
+    // pack this assembly configures), its children nothing; with no staged candidate there is no note.
+    [Test]
+    public async Task ExtensionMasterRow_ShowsTheSource()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                FeatureToggleRow child = Row(vm, "tab.situations");
+                using (Assert.Multiple())
+                {
+                    await Assert.That(master.Source).IsEqualTo(PackSource.Bundled);
+                    await Assert.That(master.HasSource).IsTrue();
+                    await Assert.That(master.SourceLabel).IsEqualTo("(bundled)");
+                    await Assert.That(master.HasLoadNote).IsFalse();
+                    await Assert.That(child.HasSource).IsFalse();
+                    await Assert.That(child.HasLoadNote).IsFalse();
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Item 34: a staged copy that won shows "(installed update)"; the staged candidates the loader refused
+    // show one line each under the row, and lock nothing, since the copy that is running works.
+    [Test]
+    public async Task ExtensionMasterRow_ShowsAnInstalledUpdate_AndWhyAHigherOneWasRefused()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            PackStatus real = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId);
+            LoadOutcome higher = new(
+                "/extensions/net.demoviewer.pack.stratbook/1.1.0",
+                FakeManifests.For(StratBookPack.PackId, "Strat Book", "1.1.0", "^1.0", "0.14.0"),
+                LoadFailure.Incompatible,
+                "Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.13.0-beta0001");
+            LoadOutcome broken = new("/extensions/net.demoviewer.pack.stratbook/1.0.9", null, LoadFailure.ManifestInvalid, "'version' is required.");
+            PackStatus staged = real with
+            {
+                Source = new PackSource.Staged("/extensions/net.demoviewer.pack.stratbook/1.0.1"),
+                Rejected = [higher, broken]
+            };
+
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, packStatuses: [staged]);
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(master.SourceLabel).IsEqualTo("(installed update)");
+                    await Assert.That(master.HasLoadNote).IsTrue();
+                    await Assert.That(master.LoadNote).IsEqualTo(
+                        "Update 1.1.0 was not loaded: Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.13.0-beta0001"
+                        + Environment.NewLine
+                        + "An update in '1.0.9' was not loaded: 'version' is required.");
+                    await Assert.That(master.IsIncompatible).IsFalse();
+                    await Assert.That(master.IsInteractive).IsTrue().Because("a refused update locks nothing");
+                    await Assert.That(master.IsEnabled).IsTrue();
+                }
+
+                master.IsEnabled = false;
+                await Assert.That(svc.Current.Features.Overrides[StratBookPack.PackFeatureId]).IsFalse().Because("the switch still works");
 
                 vm.Dispose();
             }

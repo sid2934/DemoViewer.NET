@@ -4,7 +4,6 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
@@ -77,15 +76,6 @@ internal interface ISceneFrameHost
     ///     host asks for it only while <see cref="ShowZones" /> is on.
     /// </summary>
     PlaceResolver? Zones { get; }
-
-    /// <summary>
-    ///     The editor the token tool drags through, or null where there are no tokens (the 2D Playback
-    ///     tab). Surfaced to the tools as <see cref="IToolServices.Tokens" />.
-    /// </summary>
-    ITokenEditor? TokenEditor { get; }
-
-    /// <summary>The editing guides drawn over the scene; none on a host without a token editor.</summary>
-    SceneGuides Guides => SceneGuides.None;
 
     /// <summary>
     ///     Raised on every push AND every toggle change, on the UI thread. The host re-reads every member

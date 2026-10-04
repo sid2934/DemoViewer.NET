@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
@@ -186,6 +187,51 @@ public class FeaturePacksTests
             await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo([fine.Id]);
             Assert.Throws<InvalidOperationException>(() => compatibleFirst.Set([]));
             Assert.Throws<InvalidOperationException>(() => defaultFirst.Set([]));
+        }
+    }
+
+    // ── Item 34: where each pack came from ──────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task AStatus_IsBundled_UnlessTheLoaderSaysOtherwise()
+    {
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
+        PackStatus evaluated = PackStatus.Evaluate(fine, host);
+        LoadOutcome refused = new("/extensions/net.demoviewer.pack.fine/1.1.0", FakeManifests.For(fine.Id, "Fine", "1.1.0"), LoadFailure.Untrusted, "unsigned");
+        PackStatus staged = evaluated with { Source = new PackSource.Staged("/extensions/net.demoviewer.pack.fine/1.2.0"), Rejected = [refused] };
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluated.Source).IsEqualTo(PackSource.Bundled);
+            await Assert.That(evaluated.Source.IsStaged).IsFalse();
+            await Assert.That(evaluated.Source.Label).IsEqualTo("bundled");
+            await Assert.That(evaluated.Rejected).IsEmpty();
+            await Assert.That(staged.Source.IsStaged).IsTrue();
+            await Assert.That(staged.Source.Label).IsEqualTo("installed update");
+            await Assert.That(staged.Rejected.Single().UserMessage).IsEqualTo("Update 1.1.0 was not loaded: unsigned");
+            await Assert.That(staged.IsCompatible).IsTrue().Because("the source changes nothing about the verdict");
+            await Assert.That(FeaturePacks.Statuses.Single().Source).IsEqualTo(PackSource.Bundled).Because("the test assembly compile-links the pack");
+        }
+    }
+
+    // The status-list overload is what the Desktop head passes from the loader: the list is taken as is,
+    // sources and rejections included, and freezes like the pack-list one.
+    [Test]
+    public async Task ConfiguringFromStatuses_KeepsTheSourcesTheLoaderAssigned()
+    {
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
+        PackStatus staged = PackStatus.Evaluate(fine, host) with { Source = new PackSource.Staged("/extensions/x/1.2.0") };
+
+        FrozenList<PackStatus> list = new();
+        list.Set([staged]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(list.Value.Single().Source).IsEqualTo(new PackSource.Staged("/extensions/x/1.2.0"));
+            Assert.Throws<InvalidOperationException>(() => list.Set([]));
+            Assert.Throws<InvalidOperationException>(() => FeaturePacks.ConfigureResolved([staged]));
         }
     }
 

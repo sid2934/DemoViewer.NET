@@ -20,6 +20,8 @@ public class PackBoundaryTests
 {
     private const string AppProject = "src/App/DemoViewer.NET";
     private const string PackProject = "src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook";
+    private const string Playback2DCoreProject = "src/Playback2D/DemoViewer.NET.Playback2D.Core";
+    private const string Playback2DPipelineProject = "src/Playback2D/DemoViewer.NET.Playback2D.Pipeline";
 
     /// <summary>Known mentions of a pack-owned namespace in core text, with the item that removes each.</summary>
     private static readonly (string FilePath, string Namespace, string RemovalItem)[] AllowedEdges =
@@ -40,6 +42,29 @@ public class PackBoundaryTests
 
         await Assert.That(extensionReferences).IsEmpty()
             .Because("the app assembly must not reference an extension; the heads compose both (strat-book-plugin.md §13)");
+    }
+
+    /// <summary>
+    ///     Item 26's half of the boundary: the strat-only types item 26 moved out of Playback2D.Core and
+    ///     Pipeline (the keyframe track, the strat frame source, the token tool, the guides layer) must not
+    ///     pull the extension back in as a dependency of the two assemblies they left.
+    /// </summary>
+    [Test]
+    [Arguments(Playback2DCoreProject, "DemoViewer.NET.Playback2D.Core.csproj")]
+    [Arguments(Playback2DPipelineProject, "DemoViewer.NET.Playback2D.Pipeline.csproj")]
+    public async Task Playback2DProject_HasNoProjectReferenceToAnExtension(string projectDir, string csprojName)
+    {
+        string repoRoot = DemoTestHelper.FindRepoRoot()
+            ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
+
+        XDocument csproj = XDocument.Load(Path.Combine(repoRoot, projectDir, csprojName));
+        List<string> extensionReferences = csproj.Descendants("ProjectReference")
+            .Select(r => (string?)r.Attribute("Include") ?? "")
+            .Where(include => include.Replace('\\', '/').Contains("/Extensions/", StringComparison.Ordinal))
+            .ToList();
+
+        await Assert.That(extensionReferences).IsEmpty()
+            .Because($"{csprojName} must not reference an extension; the extension references it, not the other way round (strat-book-plugin.md §13)");
     }
 
     [Test]

@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.Loading;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -27,6 +28,21 @@ internal static partial class AppLog
 
     /// <summary>Category for demo-processing-queue faults.</summary>
     public const string QueueCategory = "App.Queue";
+
+    /// <summary>Category for the extension loader's one-time startup report (strat-book-plugin.md §7.8).</summary>
+    public const string ExtensionsCategory = "App.Extensions";
+
+    [LoggerMessage(EventId = 15, Level = LogLevel.Information,
+        Message = "Extension {name} {version} loaded ({source}) from '{location}'")]
+    public static partial void ExtensionLoaded(ILogger logger, string name, string version, string source, string location);
+
+    [LoggerMessage(EventId = 16, Level = LogLevel.Warning,
+        Message = "Extension {name} {version} not loaded ({source}): {problem}")]
+    public static partial void ExtensionIncompatible(ILogger logger, string name, string version, string source, string problem);
+
+    [LoggerMessage(EventId = 17, Level = LogLevel.Warning,
+        Message = "Staged extension at '{directory}' not loaded ({failure}): {detail}{logDetail}")]
+    public static partial void ExtensionCandidateRejected(ILogger logger, string directory, LoadFailure failure, string detail, string logDetail);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "Reel generation failed.\n{diagnostics}")]
     public static partial void ReelGenerationFailed(ILogger logger, string diagnostics);
