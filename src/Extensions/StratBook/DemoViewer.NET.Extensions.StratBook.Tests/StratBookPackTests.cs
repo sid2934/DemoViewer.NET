@@ -546,7 +546,6 @@ public class StratBookPackTests
             await Assert.That(pack.Manifest.Id).IsEqualTo(StratBookPack.PackId);
             // Stamped from src/Extensions/StratBook/version.json at build; the 0.x line until the first major.
             await Assert.That(pack.Manifest.Version.Major).IsEqualTo(0);
-            await Assert.That(pack.Manifest.Version.ToString()).IsNotEqualTo("{nbgv}");
             await Assert.That(pack.Manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
             await Assert.That(PackStatus.Evaluate(pack, ExtensionHost.Current).IsCompatible).IsTrue();
         }

@@ -9,6 +9,7 @@
   ],
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
+    "^refs/tags/v\\d+\\.\\d+",
     "^refs/tags/extensions/net\\.demoviewer\\.pack\\.stratbook/v\\d+\\.\\d+\\.\\d+$"
   ],
   "release": {

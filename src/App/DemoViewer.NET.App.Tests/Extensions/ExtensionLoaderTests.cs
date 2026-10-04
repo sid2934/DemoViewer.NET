@@ -795,7 +795,8 @@ public class ExtensionLoaderTests
         string path = Path.Combine(Path.GetDirectoryName(shippedDll)!, ExtensionManifest.FileName);
         if (!File.Exists(path))
         {
-            throw new SkipTestException($"no {ExtensionManifest.FileName} beside {shippedDll}");
+            // A missing stamped copy is a build regression, not a reason to skip.
+            throw new InvalidOperationException($"no {ExtensionManifest.FileName} beside {shippedDll}; the stamping target did not run");
         }
 
         return ExtensionManifest.Parse(File.ReadAllText(path));

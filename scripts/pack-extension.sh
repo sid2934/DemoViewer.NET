@@ -134,6 +134,21 @@ case "$TAG_REF" in
             exit 2
         fi
         echo "[pack-extension] tag/version agreement: extensions/$ID/v$TAG_VER == $MANIFEST_VERSION"
+        # The tag itself is a public-release ref, so nbgv reads clean from any commit it is put on. A
+        # release is cut from main only (strat-book-plugin.md §7.11); a real run refuses a tag whose
+        # commit is not on origin/main. A dry run against a tag only reports it.
+        if ! git rev-parse --verify -q origin/main >/dev/null; then
+            echo "error: origin/main is not available, so the tagged commit cannot be checked against it." >&2
+            exit 2
+        fi
+        if git merge-base --is-ancestor HEAD origin/main; then
+            echo "[pack-extension] tagged commit is on origin/main"
+        elif [ "$DRY_RUN" -eq 1 ]; then
+            echo "[pack-extension] note: the tagged commit is not on origin/main; a real run would refuse it"
+        else
+            echo "error: the tagged commit $(git rev-parse --short HEAD) is not on origin/main; releases are cut from main." >&2
+            exit 2
+        fi
         ;;
     *)
         echo "[pack-extension] no extensions/$ID/v* tag ref present; skipping the tag/version check"

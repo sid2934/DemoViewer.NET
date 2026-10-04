@@ -56,7 +56,11 @@ jobs:
         run: dotnet build DemoViewer.NET.slnx -c Release -p:WasmBuildNative=false
 
       # Packaging drift check (docs/architecture/strat-book-plugin.md §7.11): no signing key, so this
-      # only proves staging and zipping still match what the release workflow expects.
+      # only proves staging and zipping still match what the release workflow expects. The script reads
+      # the extension's version from nbgv, hence the tool restore.
+      - name: Restore CLI tools (nbgv)
+        run: dotnet tool restore
+
       - name: Extension packaging dry run (Strat Book)
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 

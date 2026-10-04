@@ -63,7 +63,6 @@ public class CompatibilityMatrixTests
         {
             await Assert.That(fromEmbedded).IsEqualTo(fromBin)
                 .Because("the loader judges the bundled pack by its embedded copy; a mismatch here ships a pack that judges itself differently than its own file does");
-            await Assert.That(fromBin.Version.ToString()).IsNotEqualTo("{nbgv}");
             await Assert.That(SemVersion.TryParseInformational(informational, out SemVersion? stamped)).IsTrue()
                 .Because($"the extension assembly carries an NBGV informational version; got '{informational}'");
             await Assert.That((fromBin.Version.Major, fromBin.Version.Minor, fromBin.Version.Patch))

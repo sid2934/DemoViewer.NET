@@ -2029,20 +2029,28 @@ is a Nerdbank.GitVersioning file that inherits the root one and sets `version` t
 is `0.1.<height>` where the height counts the commits that touched `src/Extensions/StratBook/` (its
 `pathFilters` are `.` and an exclusion for the test project) since that line was last changed;
 `versionHeightOffset` is -1 so the commit that introduced the file reads `0.1.0`. A change anywhere else
-in the repo leaves the extension's version alone, which is the independent cadence decision 5 asked for.
-Its `publicReleaseRefSpec` is `main` and the extension's own release tags, so a build off any other ref
-carries a `-g<sha>` prerelease label and sorts below the release it precedes; `release.tagName` is
-`extensions/net.demoviewer.pack.stratbook/v{version}`, which is what `nbgv tag` creates.
+in the repo leaves the extension's version alone, which is the independent cadence decision 5 asked for;
+that includes `src/Extensions/ExtensionManifest.targets` itself, one level up, so a fix to the stamping
+ships under the extension's current version. Its `publicReleaseRefSpec` is `main`, the app's own `v*`
+release tags (an app release builds from its tag, not from `main`, and bundles the extension, so the
+bundled copy must read clean) and the extension's release tags; a build off any other ref carries a
+`-g<sha>` prerelease label and sorts below the release it precedes. Two such dev builds of the same
+`major.minor.patch` compare by the hash text, which says nothing about which is newer: the loader's
+"strictly newer than shipped" rule is only meaningful between releases, or between a release and a dev
+build. `release.tagName` is `extensions/net.demoviewer.pack.stratbook/v{version}`, which is what
+`nbgv tag` creates, from the plain `major.minor.patch` on any commit.
 
 The committed `extension.json` is a template whose `version` is the literal `{nbgv}`.
 `src/Extensions/ExtensionManifest.targets`, imported by the extension csproj, runs before
 `AssignTargetPaths` (after NBGV's `GetBuildVersion`), writes the template with `$(NuGetPackageVersion)`
 in place of the placeholder to `obj/.../extension.json`, and adds that file as the embedded resource and
 the copy beside the DLL; the placeholder must appear exactly once or the build fails. A second extension
-imports the same file and gets the same behaviour from its own `version.json`. `pack-extension.sh` asks
-`nbgv` for the version first (restoring the tool manifest if needed), checks the tag against it before
-building, and after the build checks that the stamped copy says that version, equals the embedded copy
-byte for byte, and equals the template with the placeholder filled in. `CompatibilityMatrixTests` asserts
+would import the same file and get the same behaviour from its own `version.json`. `pack-extension.sh`
+asks `nbgv` for the version first (restoring the tool manifest if needed), checks the tag against it
+before building, and, since the tag is itself a public-release ref and reads clean from any commit, a
+real run also refuses a tagged commit that is not on `origin/main`. After the build it checks that the
+stamped copy says that version, equals the embedded copy byte for byte, and equals the template with the
+placeholder filled in. `CompatibilityMatrixTests` asserts
 the same three things from the test binary's side, plus that the manifest's major.minor.patch equals the
 assembly's informational version. The first minor of the extension is 0.1; `requiresHost` is unchanged.
 
