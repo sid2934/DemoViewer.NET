@@ -3,8 +3,8 @@
 # pushed to nuget.org.
 #
 # Publishes only on a tag push matching sdk/v<version>, which must equal the computed version (create it with
-# `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main). A workflow_dispatch run packs and
-# reports without pushing. Needs the NUGET_API_KEY repository secret.
+# `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh). A
+# workflow_dispatch run packs and reports without pushing. Needs the NUGET_API_KEY repository secret.
 name: release-sdk
 
 on:
@@ -52,6 +52,19 @@ jobs:
           else
             echo "publish=0" >> "$GITHUB_OUTPUT"
           fi
+
+      # A published API is a promise: it is listed as shipped before the tag, so removing any of it later
+      # fails the build. scripts/ship-public-api.sh moves the lists.
+      - name: Public API is shipped
+        if: steps.version.outputs.publish == '1'
+        run: |
+          set -euo pipefail
+          for list in src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt; do
+            if grep -qv '^#nullable' "$list"; then
+              echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
+              exit 1
+            fi
+          done
 
       - name: Pack
         run: |

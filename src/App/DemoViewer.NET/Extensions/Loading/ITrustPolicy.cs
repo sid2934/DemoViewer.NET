@@ -77,6 +77,23 @@ public static class TrustPolicy
     }
 
     /// <summary>
+    ///     The policy a launch judges staged copies of the shipped extensions with: signed only, unless the user
+    ///     turned on "Allow unverified and potentially dangerous extensions", and only then does
+    ///     <see cref="TrustUnsignedEnvVar" /> count.
+    /// </summary>
+    public static ITrustPolicy ForLaunch(bool allowUnverified) =>
+        ForLaunch(allowUnverified, static name => Environment.GetEnvironmentVariable(name));
+
+    /// <summary><see cref="ForLaunch(bool)" /> over an injected environment.</summary>
+    public static ITrustPolicy ForLaunch(bool allowUnverified, Func<string, string?> getEnvironmentVariable)
+    {
+        ArgumentNullException.ThrowIfNull(getEnvironmentVariable);
+        return allowUnverified
+            ? SignedOrOptIn(PublisherKeys.Current, getEnvironmentVariable)
+            : new SignedTrustPolicy(PublisherKeys.Current);
+    }
+
+    /// <summary>
     ///     <see cref="SignedTrustPolicy" /> over <paramref name="publisherKeysBase64Spki" />, falling back
     ///     to <see cref="UnsignedOptIn" /> when nothing in that list verifies the directory. On a full
     ///     refusal the reported reason is the signing failure's, not the opt-in's, since that is the one a

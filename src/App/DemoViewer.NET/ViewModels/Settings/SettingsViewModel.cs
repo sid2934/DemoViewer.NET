@@ -1937,7 +1937,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // arrive with the app; a desktop head with no updater (tests) gets no line at all.
     private ExtensionUpdateRow? UpdateRow(PackStatus? status)
     {
-        if (status is null)
+        // A third-party extension is the user's to replace; this app's feed has nothing for it.
+        if (status is null || status.Source is PackSource.External)
         {
             return null;
         }

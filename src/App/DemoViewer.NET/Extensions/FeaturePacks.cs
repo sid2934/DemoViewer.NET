@@ -64,12 +64,19 @@ public static class FeaturePacks
     ///     <see cref="ConfigureResolved(IReadOnlyList{PackStatus})" /> plus the third-party copies the loader
     ///     refused, which no status carries because none of them loaded.
     /// </summary>
-    public static void ConfigureResolved(IReadOnlyList<PackStatus> statuses, IReadOnlyList<LoadOutcome> externalRejected)
+    public static void ConfigureResolved(IReadOnlyList<PackStatus> statuses, IReadOnlyList<LoadOutcome> externalRejected,
+        IReadOnlyList<string>? claimedRulesets = null)
     {
         ArgumentNullException.ThrowIfNull(externalRejected);
         List.Set(statuses);
         _externalRejected = externalRejected;
+        _claimedRulesets = claimedRulesets ?? [];
     }
+
+    /// <summary>Rulesets the shipped extensions own, whether or not this launch composed them.</summary>
+    public static IReadOnlyList<string> ClaimedRulesets => _claimedRulesets;
+
+    private static volatile IReadOnlyList<string> _claimedRulesets = [];
 
     /// <summary>Third-party copies under the extensions folder that did not load, with the reason.</summary>
     public static IReadOnlyList<LoadOutcome> ExternalRejected => _externalRejected;

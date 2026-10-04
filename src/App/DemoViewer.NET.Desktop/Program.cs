@@ -11,6 +11,7 @@ using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Options;
@@ -76,15 +77,16 @@ internal sealed class Program
         // froze until it was killed. Third-party extensions load beside the shipped one, and an unverified
         // copy only while the user has allowed unverified extensions in Settings.
         LaunchGuard launch = LaunchGuard.Begin(AppPaths.ConfigRoot, args).Install();
+        bool allowUnverified = ExtensionStartup.ReadAllowUnverified(AppPaths.SettingsFile);
         ExtensionStartupResult extensions = ExtensionStartup.Resolve(
             AppPaths.ConfigRoot,
-            [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack())],
+            [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack(), [RoundFactsFingerprint.RulesetId])],
             ExtensionHost.Current,
-            TrustPolicy.Default,
+            TrustPolicy.ForLaunch(allowUnverified),
             PublisherKeys.Current,
-            ExtensionStartup.ReadAllowUnverified(AppPaths.SettingsFile),
+            allowUnverified,
             launch.Decision.IsActive);
-        FeaturePacks.ConfigureResolved(extensions.Statuses, extensions.ExternalRejected);
+        FeaturePacks.ConfigureResolved(extensions.Statuses, extensions.ExternalRejected, extensions.ClaimedRulesets);
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack, and tell the

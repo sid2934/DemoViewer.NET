@@ -80,16 +80,13 @@ mkdir -p "$STAGE_DIR"
 echo "[pack-extension] id=$ID csproj=$CSPROJ_FILE manifest=$MANIFEST_PATH out=$OUT_BASE"
 
 # ── Host values this build offers, for the compatibility report ───────────────────────────────────────
-# Read from source rather than restated: a contract or CS2DemoKit bump that forgets one of these two
-# files is a real defect this step should catch.
-CONTRACT_HOST_FILE="src/App/DemoViewer.NET/Extensions/ExtensionHost.cs"
-CONTRACT_MATCHES="$(grep -oE 'ContractVersion \{ get; \} = new\([0-9]+, *[0-9]+, *[0-9]+\)' "$CONTRACT_HOST_FILE" || true)"
-CONTRACT_COUNT="$(printf '%s\n' "$CONTRACT_MATCHES" | grep -c . || true)"
-if [ "$CONTRACT_COUNT" -ne 1 ]; then
-    echo "error: expected exactly one 'ContractVersion' literal in $CONTRACT_HOST_FILE, found $CONTRACT_COUNT" >&2
-    exit 2
+# Read from source rather than restated, so a contract or CS2DemoKit bump cannot leave this report behind.
+# The contract is the extension SDK's version without prerelease or build metadata, which is what
+# ExtensionHost.ContractVersion reads from the SDK assembly at run time.
+if ! dotnet nbgv --version >/dev/null 2>&1; then
+    dotnet tool restore >/dev/null
 fi
-CONTRACT_VERSION="$(printf '%s\n' "$CONTRACT_MATCHES" | grep -oE '[0-9]+' | tr '\n' '.' | sed 's/\.$//')"
+CONTRACT_VERSION="$(dotnet nbgv get-version -p src/Sdk/DemoViewer.NET.Extensions.Sdk -v SimpleVersion)"
 
 PACKAGES_PROPS="Directory.Packages.props"
 KIT_MATCHES="$(grep -c 'PackageVersion Include="CS2DemoKit.Analysis"' "$PACKAGES_PROPS" || true)"

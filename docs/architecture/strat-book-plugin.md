@@ -813,7 +813,8 @@ before. The same prototype confirmed the other half of the trap: a method that m
 check and before the assembly is touched; a policy that throws reads as untrusted. As built (section 2.9),
 `TrustPolicy.Default` trusts a directory signed by one of `PublisherKeys.Current`, or,
 failing that, the developer opt-in `DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1` set in the process
-environment, which trusts every staged copy regardless of its signature. Nothing in the app or the
+environment, which trusts every staged copy regardless of its signature. At launch the opt-in counts only
+while the user has turned on "Allow unverified and potentially dangerous extensions" (`TrustPolicy.ForLaunch`). Nothing in the app or the
 installer sets the variable; it is the documented way to run an unsigned local build.
 
 **Logging.** The loader runs before any logger exists, so it records its outcome on each `PackStatus`

@@ -30,7 +30,9 @@ public sealed class UiWatchdog : IDisposable
     {
         ArgumentNullException.ThrowIfNull(report);
         _report = report;
-        _post = post ?? (action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background));
+        // Input priority: the ping measures whether the UI answers, not whether it is idle. Playback keeps the
+        // dispatcher busy without freezing it, and a Background ping would starve there.
+        _post = post ?? (action => Dispatcher.UIThread.Post(action, DispatcherPriority.Input));
         _limit = limit ?? TimeSpan.FromSeconds(10);
         _clock = clock ?? TimeProvider.System;
         _lastAnswerTicks = _clock.GetTimestamp();

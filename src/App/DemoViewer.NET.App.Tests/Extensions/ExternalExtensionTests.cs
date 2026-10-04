@@ -196,11 +196,13 @@ public class ExternalExtensionTests
         {
             Install(root);
             ExtensionStartupResult result = ExtensionStartup.Resolve(root,
-                [ShippedPack.BesideApp(StratBookPackId, static () => new global::DemoViewer.NET.Extensions.StratBook.StratBookPack())],
+                [ShippedPack.BesideApp(StratBookPackId, static () => new global::DemoViewer.NET.Extensions.StratBook.StratBookPack(), ["round_facts"])],
                 ExtensionHost.Current, TrustPolicy.Nothing, PublisherKeys.Current, allowUnverified: true, safeMode: true);
 
             await Assert.That(result.Statuses).IsEmpty();
             await Assert.That(result.ExternalRejected).IsEmpty();
+            await Assert.That(result.ClaimedRulesets).IsEquivalentTo(["round_facts"])
+                .Because("the shipped extension's ruleset stays claimed, so safe mode leaves the highlights fingerprint alone");
         }
         finally
         {
@@ -258,6 +260,61 @@ public class ExternalExtensionTests
         }
     }
 
+    // Loaded in its own context, the sample still contributes through the host's own types: its tab module
+    // builds a view, and its Match Overview action reaches the composition.
+    [Test]
+    public async Task ALoadedExtension_Contributes_ItsTabAndItsDemoAction()
+    {
+        string root = NewRoot();
+        string? previous = Environment.GetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar);
+        try
+        {
+            Install(root);
+            IExtension hello = Resolve(root, allowUnverified: true).Loaded.Single().Pack;
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, root);
+
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                Microsoft.Extensions.DependencyInjection.ServiceCollection services =
+                    App.ComposeServices(new Services.DesktopWindowService(() => null), [hello]);
+                using Microsoft.Extensions.DependencyInjection.ServiceProvider provider =
+                    Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+                PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<PackContributionSet>(provider).Packs.Single();
+
+                Modules.Abstractions.WorkspaceTabDescriptor tab = contributed.Modules.Single().CreateTabs(new NoHost()).Single();
+                Avalonia.Controls.Control view = tab.ViewFactory();
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(tab.TabId).IsEqualTo("hello.tab");
+                    await Assert.That(tab.FeatureId).IsEqualTo("tab.hello");
+                    await Assert.That(view).IsNotNull();
+                    await Assert.That(contributed.DemoActions.Single().Action.Id).IsEqualTo("hello.greet");
+                    await Assert.That(contributed.DemoActions.Single().FeatureId).IsEqualTo("pack.hello")
+                        .Because("an action with no feature of its own shows under the extension's master switch");
+                    await Assert.That(contributed.PlaybackContributions.Single()).IsTypeOf<SdkPlaybackContribution>();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, previous);
+            Cleanup(root);
+        }
+    }
+
+    private sealed class NoHost : Modules.Abstractions.IModuleHost
+    {
+        public Modules.Abstractions.IModuleContext Context => null!;
+
+        public bool HasCapability(string capability) => true;
+
+        public void Log(Modules.Abstractions.ModuleLogLevel level, string message)
+        {
+        }
+    }
+
     private const string StratBookPackId = "net.demoviewer.pack.stratbook";
 
     private sealed class TakenFeatureId : IExtension, IManifestSource
@@ -274,6 +331,35 @@ public class ExternalExtensionTests
 
         public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
+        }
+    }
+}
+
+/// <summary>The developer opt-in never loads an unsigned copy unless the user also allowed unverified extensions.</summary>
+public class LaunchTrustPolicyTests
+{
+    [Test]
+    public async Task TheEnvironmentOptIn_CountsOnlyWithTheSetting()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dv-trust-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            ExtensionManifest manifest = FakeManifests.For("net.demoviewer.pack.fake");
+            bool settingOff = TrustPolicy.ForLaunch(false, static _ => "1").Judge(dir, manifest).Trusted;
+            bool settingOn = TrustPolicy.ForLaunch(true, static _ => "1").Judge(dir, manifest).Trusted;
+            bool settingOnNoOptIn = TrustPolicy.ForLaunch(true, static _ => null).Judge(dir, manifest).Trusted;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(settingOff).IsFalse();
+                await Assert.That(settingOn).IsTrue();
+                await Assert.That(settingOnNoOptIn).IsFalse();
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
         }
     }
 }

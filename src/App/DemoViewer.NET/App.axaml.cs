@@ -808,7 +808,19 @@ public class App : Application
         services.AddSingleton(sp =>
         {
             IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            return new MergedRulesBuild(() => sp.GetRequiredService<PackContributionSet>().GatedRulesets(gate));
+            // A shipped extension's ruleset stays out of the core set even when the extension is not composed
+            // (safe mode): as an always-off claim, so the highlights fingerprint never moves with safe mode.
+            return new MergedRulesBuild(() =>
+            {
+                IReadOnlyList<GatedRuleset> gated = sp.GetRequiredService<PackContributionSet>().GatedRulesets(gate);
+                return
+                [
+                    .. gated,
+                    .. FeaturePacks.ClaimedRulesets
+                        .Where(id => !gated.Any(g => string.Equals(g.RulesetId, id, StringComparison.Ordinal)))
+                        .Select(id => new GatedRuleset(id, static () => false))
+                ];
+            });
         });
         services.AddSingleton(sp =>
         {

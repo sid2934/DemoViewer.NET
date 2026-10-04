@@ -119,6 +119,7 @@ jobs:
           # no filesystem for the loose assets/ copy the desktop head probes), so if it fails to ship
           # the failure surfaces to a user, not to us.
           ls "$FW" | grep -q '^DemoViewer\.NET\.GameIcons\..*\.wasm$' || { echo "DemoViewer.NET.GameIcons did not ship, every icon will throw at runtime"; exit 1; }
+          ls "$FW" | grep -q '^DemoViewer\.NET\.Extensions\.Sdk\..*\.wasm$' || { echo "the extension SDK did not ship, the app's own types reference it"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
   # The ONE core/pipeline test invocation. Do not add a second.

@@ -127,11 +127,11 @@ public class FeaturePacksTests
     // only applies it inside Configure. An incompatible pack stays in the declared list (so Settings can
     // name it) and leaves the compatible one, which is all the catalog, the registries and the composition
     // root read: none of them sees its descriptors, job kinds or commands. The real Strat Book pack rides
-    // along because the job-kind registry must cover every QueueJobKind to build at all.
+    // along as the compatible one.
     [Test]
     public async Task AnIncompatiblePack_IsDeclaredButNotCompatible_AndNothingBuiltFromCompatibleSeesIt()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("2.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
         IncompatibleFakePack incompatible = new();
         StratBookPack stratBook = new();
 
@@ -144,7 +144,7 @@ public class FeaturePacksTests
             await Assert.That(declared.Select(p => p.Id)).IsEquivalentTo([incompatible.Id, stratBook.Id]);
             await Assert.That(compatible.Select(p => p.Id)).IsEquivalentTo([stratBook.Id]);
             await Assert.That(statuses[0].Compatibility is PackCompatibility.HostContractMismatch).IsTrue();
-            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.0.0");
+            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^3.0; this app provides 2.0.0");
 
             FeatureDescriptor[] catalog = FeatureCatalog.Build(compatible);
             await Assert.That(catalog.Any(d => d.Id == IncompatibleFakePack.PackFeatureId)).IsFalse()
@@ -166,7 +166,7 @@ public class FeaturePacksTests
     [Test]
     public async Task TheDerivedViews_AgreeInEitherReadOrder_AndFreezeOnFirstRead()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("2.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
         IncompatibleFakePack incompatible = new();
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
 
@@ -235,7 +235,7 @@ public class FeaturePacksTests
         }
     }
 
-    // A pack built against contract 2.x on a 1.x host, with a job kind and a command each registry would
+    // A pack built against contract 3.x on a 2.x host, with a job kind and a command each registry would
     // refuse, so the checks above can tell whether a registry saw it.
     private sealed class IncompatibleFakePack : IExtension, IManifestSource
     {
@@ -244,7 +244,7 @@ public class FeaturePacksTests
         public string Id => "net.demoviewer.pack.incompatible";
         public string FeatureId => PackFeatureId;
 
-        public ExtensionManifest Manifest => FakeManifests.For(Id, "Incompatible", "2.0.0", "^2.0", "*");
+        public ExtensionManifest Manifest => FakeManifests.For(Id, "Incompatible", "2.0.0", "^3.0", "*");
 
         public IEnumerable<ExtensionFeature> Features =>
         [
