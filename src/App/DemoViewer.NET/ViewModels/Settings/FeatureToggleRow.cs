@@ -89,11 +89,13 @@ public sealed partial class FeatureToggleRow : ObservableObject
     ///     Why a staged update of this extension was not loaded (<c>PackStatus.Rejected</c>, one line per
     ///     candidate), or null. Informational: the row stays interactive, since the bundled copy is running.
     /// </param>
+    /// <param name="update">The extension's update line (item 36); a pack master row only, else null.</param>
     internal FeatureToggleRow(
         SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
         bool platformUnavailable = false, string? version = null, string? incompatibility = null,
-        PackSource? source = null, string? loadNote = null)
+        PackSource? source = null, string? loadNote = null, ExtensionUpdateRow? update = null)
     {
+        Update = update;
         _owner = owner;
         _gate = gate;
         FeatureId = descriptor.Id;
@@ -204,6 +206,15 @@ public sealed partial class FeatureToggleRow : ObservableObject
 
     /// <summary>Whether <see cref="LoadNote" /> is set.</summary>
     public bool HasLoadNote => LoadNote is not null;
+
+    /// <summary>
+    ///     The extension's update line (item 36): installed against the feed, with Check and Update. Set on a
+    ///     pack master row only; null on every other row.
+    /// </summary>
+    public ExtensionUpdateRow? Update { get; }
+
+    /// <summary>Whether <see cref="Update" /> is set.</summary>
+    public bool HasUpdate => Update is not null;
 
     /// <summary>
     ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor

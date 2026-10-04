@@ -58,6 +58,37 @@
                                Foreground="{DynamicResource AccentAmber}" FontSize="10"
                                TextWrapping="Wrap"
                                IsVisible="{Binding HasLoadNote}" />
+                    <!-- Item 36: the update line, a pack master row only. The verdict of the last feed check,
+                         Check and Update, and the download's progress while it runs. -->
+                    <StackPanel Spacing="3" Margin="0,3,0,0" IsVisible="{Binding HasUpdate}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding Update.Message}"
+                                       Foreground="{DynamicResource TextMid}" FontSize="10"
+                                       TextWrapping="Wrap" VerticalAlignment="Center"
+                                       IsVisible="{Binding Update.HasMessage}" />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" VerticalAlignment="Center"
+                                    Content="Update"
+                                    Command="{Binding Update.UpdateCommand}"
+                                    IsVisible="{Binding Update.CanUpdate}"
+                                    ToolTip.Tip="Downloads this version and installs it for the next start. The copy that is running stays as it is until then." />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" VerticalAlignment="Center"
+                                    Content="Check for updates"
+                                    Command="{Binding Update.CheckCommand}"
+                                    IsVisible="{Binding Update.ShowCheck}"
+                                    IsEnabled="{Binding Update.CanCheck}" />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" VerticalAlignment="Center"
+                                    Content="Cancel"
+                                    Command="{Binding Update.CancelDownloadCommand}"
+                                    IsVisible="{Binding Update.IsDownloading}" />
+                        </StackPanel>
+                        <ProgressBar Minimum="0" Maximum="100" Height="4" MaxWidth="320" HorizontalAlignment="Left"
+                                     Value="{Binding Update.ProgressPercent}"
+                                     IsVisible="{Binding Update.IsDownloading}" />
+                        <TextBlock Text="{Binding Update.Failure}"
+                                   Foreground="{DynamicResource AccentAmber}" FontSize="10"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding Update.HasFailure}" />
+                    </StackPanel>
                 </StackPanel>
                 <Button Grid.Column="1" Classes="icon-btn" Content="↺"
                         VerticalAlignment="Center"

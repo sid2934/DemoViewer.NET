@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Extensions.Updates;
 ///     One extension's update feed, <c>extensions.json</c> (strat-book-plugin.md §7.10): the extension id and
 ///     every published version, each with its manifest (so the app can judge compatibility before it downloads
 ///     anything), the zip to fetch, and what that zip must weigh and hash to. Published as a release asset by
-///     item 37's workflow; read by <c>ExtensionUpdateService</c>. Parsing is strict about every member
+///     item 37's workflow; read by <see cref="ExtensionUpdateService" />. Parsing is strict about every member
 ///     it knows and ignores the ones it does not, so a newer feed still reads on an older app.
 /// </summary>
 /// <param name="Id">The extension id every entry's manifest must carry.</param>

@@ -13,6 +13,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -98,6 +99,9 @@ public class App : Application
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab + file
             LogExtensionStatuses();
+            // Item 36: drop an unfinished download and the staged versions the running copy supersedes. A
+            // background queue item; nothing waits on it.
+            _ = services.GetService<ExtensionUpdateService>()?.CleanupOnStartAsync();
             // Careful: host services MUST attach BEFORE RestoreSession. RestoreSession activates the persisted tab,
             // and a restored-active Reels tab builds HighlightsTabViewModel (→ HighlightReelDialogViewModel),
             // which captures Shell().ReelJob / Shell().ReelJobStatus ONCE in its constructor. Attaching after
@@ -739,7 +743,24 @@ public class App : Application
             sp.GetRequiredService<PackContributionSet>().DataRemovals,
             // Every declared pack's compatibility verdict (item 33): versions, and the locked row with
             // the reason for a pack that did not compose.
-            FeaturePacks.Statuses));
+            FeaturePacks.Statuses,
+            // The extension updater (item 36); absent where there is no config root to stage into.
+            sp.GetService<ExtensionUpdateService>()));
+
+        // The extension updater (item 36, strat-book-plugin.md §7.10): checks each extension's feed, stages a
+        // newer version under <config root>/extensions/ for the loader to take at the next start. Judged by
+        // the same trust policy the loader runs in Main. Desktop only: the browser has no config root.
+        if (AppPaths.ConfigRoot is { } extensionsConfigRoot)
+        {
+            services.AddSingleton(sp => new ExtensionUpdateService(
+                extensionsConfigRoot,
+                FeaturePacks.Statuses,
+                ExtensionHost.Current,
+                TrustPolicy.Default,
+                HttpExtensionFeedClient.Shared,
+                id => ExtensionFeedSource.Resolve(sp.GetRequiredService<IOptionsMonitor<AppSettings>>().CurrentValue.Extensions.FeedUrl, id),
+                sp.GetRequiredService<IDemoProcessingQueue>()));
+        }
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and

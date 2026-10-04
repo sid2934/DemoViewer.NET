@@ -11,6 +11,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
@@ -84,6 +85,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // Every declared pack's verdict (item 33), read once at construction: the list is frozen for the process.
     private readonly IReadOnlyList<PackStatus> _packStatuses;
+
+    // The extension updater (item 36), or null where updates do not apply. Its check runs through the queue;
+    // the token stops a check this VM started when the window closes first.
+    private readonly ExtensionUpdateService? _extensionUpdates;
+    private readonly CancellationTokenSource _extensionUpdatesCts = new();
 
     // The live show/hide authority. Its GET is the source of truth for every FeatureToggleRow.IsEnabled; its
     // Changed event is the cue to refresh the rows. A SINGLETON shared with the shell (composition root), so a
@@ -419,9 +425,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
         IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
-        IReadOnlyList<PackStatus>? packStatuses = null)
+        IReadOnlyList<PackStatus>? packStatuses = null, ExtensionUpdateService? extensionUpdates = null)
         : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
-            reindexEstimates, dataRemovals, packStatuses)
+            reindexEstimates, dataRemovals, packStatuses, extensionUpdates)
     {
     }
 
@@ -455,13 +461,19 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     locked row with the reason for a pack that failed the check (such a pack has no catalog row).
     ///     Null reads <see cref="FeaturePacks.Statuses" />.
     /// </param>
+    /// <param name="extensionUpdates">
+    ///     The extension updater (item 36): the update line under each master row, checked on open at most
+    ///     once an hour. Null (the browser head, most tests) shows no line on the desktop and the "updates
+    ///     come with the app" line on the browser.
+    /// </param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Func<bool> isBrowser, Action? replayWalkthrough = null,
         IReadOnlyList<SettingsPageContribution>? settingsPages = null,
         IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null,
         IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
-        IReadOnlyList<PackStatus>? packStatuses = null)
+        IReadOnlyList<PackStatus>? packStatuses = null,
+        ExtensionUpdateService? extensionUpdates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -474,6 +486,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
         _packStatuses = packStatuses ?? FeaturePacks.Statuses;
+        _extensionUpdates = extensionUpdates;
         _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
         foreach (IPackDataRemoval removal in dataRemovals ?? [])
         {
@@ -551,6 +564,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         WireDataActionRowLocks();
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
+
+        // Item 36: the feeds are asked on open, at most once an hour; the per-row button always asks.
+        if (ShouldAutoCheckExtensionUpdates(current.Extensions.LastUpdateCheckUtc, DateTimeOffset.UtcNow))
+        {
+            _ = CheckExtensionUpdatesAsync();
+        }
 
         // The 2D keybinding rows: the shipped table is the list, the resolved profile is the state.
         BuildKeybindRows();
@@ -762,6 +781,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _disposed = true;
         _gate.Changed -= OnGateChanged;
         _onChange?.Dispose();
+        _extensionUpdatesCts.Cancel();
+        _extensionUpdatesCts.Dispose();
+        foreach (ExtensionUpdateRow row in ExtensionUpdateRows)
+        {
+            row.Dispose();
+        }
 
         foreach (MountedSettingsPage page in ContributedSettingsPages)
         {
@@ -1814,7 +1839,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
             PackStatus? status = _packStatuses.FirstOrDefault(s => s.Pack.FeatureId == pack.Id);
             AddFeatureRow(ExtensionsFeatureRows, pack, 0, status?.Manifest?.Version.ToString(),
-                source: status?.Source, loadNote: LoadNote(status));
+                source: status?.Source, loadNote: LoadNote(status), update: UpdateRow(status));
 
             HashSet<string> ownTabIds = new(StringComparer.Ordinal);
             foreach (FeatureDescriptor tab in FeatureCatalog.All)
@@ -1855,7 +1880,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 "This extension cannot load on this version of the app.",
                 null, null, false, new Dictionary<UserCategory, bool>());
             AddFeatureRow(ExtensionsFeatureRows, placeholder, 0, status.Manifest?.Version.ToString(), status.Problem,
-                status.Source, LoadNote(status));
+                status.Source, LoadNote(status), UpdateRow(status));
         }
     }
 
@@ -1865,6 +1890,84 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         status is null || status.Rejected.Count == 0
             ? null
             : string.Join(Environment.NewLine, status.Rejected.Select(o => o.UserMessage));
+
+    // Item 36: the update line for a pack master row. The browser head gets the line that says updates
+    // arrive with the app; a desktop head with no updater (tests) gets no line at all.
+    private ExtensionUpdateRow? UpdateRow(PackStatus? status)
+    {
+        if (status is null)
+        {
+            return null;
+        }
+
+        if (_isBrowser())
+        {
+            return new ExtensionUpdateRow(status.Pack.Id, null);
+        }
+
+        if (_extensionUpdates is null)
+        {
+            return null;
+        }
+
+        ExtensionUpdateRow row = new(status.Pack.Id, _extensionUpdates, RecordExtensionUpdateCheck);
+        ExtensionUpdateRows.Add(row);
+        return row;
+    }
+
+    /// <summary>The update line of every declared extension, in row order; empty where updates do not apply.</summary>
+    public List<ExtensionUpdateRow> ExtensionUpdateRows { get; } = [];
+
+    /// <summary>
+    ///     The open-time rule: check when nothing was ever recorded, or the last check is at least
+    ///     <see cref="ExtensionUpdateService.AutoCheckInterval" /> ago. A clock that moved backwards reads
+    ///     as due as well.
+    /// </summary>
+    internal static bool ShouldAutoCheckExtensionUpdates(DateTimeOffset? lastCheckUtc, DateTimeOffset now) =>
+        lastCheckUtc is not { } last || now - last >= ExtensionUpdateService.AutoCheckInterval || last > now;
+
+    /// <summary>
+    ///     Asks every extension's feed at once, as the open-time check does. The rows show "Checking" while
+    ///     it runs and each one's verdict after; the time is recorded so the next open within the hour
+    ///     seeds the rows from the service instead of asking again.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckExtensionUpdatesAsync()
+    {
+        if (_extensionUpdates is null || ExtensionUpdateRows.Count == 0 || _disposed || ExtensionUpdateRows.Any(r => r.IsChecking))
+        {
+            return;
+        }
+
+        foreach (ExtensionUpdateRow row in ExtensionUpdateRows)
+        {
+            row.IsChecking = true;
+        }
+
+        try
+        {
+            IReadOnlyList<ExtensionUpdateState> states = await _extensionUpdates.CheckAsync(_extensionUpdatesCts.Token);
+            foreach (ExtensionUpdateState state in states)
+            {
+                ExtensionUpdateRows.FirstOrDefault(r => r.PackId == state.PackId)?.Apply(state);
+            }
+
+            RecordExtensionUpdateCheck();
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed first; nothing to show.
+        }
+        finally
+        {
+            foreach (ExtensionUpdateRow row in ExtensionUpdateRows)
+            {
+                row.IsChecking = false;
+            }
+        }
+    }
+
+    private void RecordExtensionUpdateCheck() => Persist(s => s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
 
     // Locks a pack's own master row (FeatureToggleRow.IsDeleteBusy) for exactly as long as its
     // ExtensionDataActionViewModel.IsBusy is true, so the switch cannot start the re-enable race the
@@ -1893,7 +1996,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     private void AddFeatureRow(
         ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel,
-        string? version = null, string? incompatibility = null, PackSource? source = null, string? loadNote = null)
+        string? version = null, string? incompatibility = null, PackSource? source = null, string? loadNote = null,
+        ExtensionUpdateRow? update = null)
     {
         // The PLATFORM half of the answer, which the raw IFeatureGate does not know. See
         // FeatureToggleRow.IsPlatformUnavailable for why this matters on the browser head.
@@ -1905,7 +2009,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         bool platformUnavailable =
             _isBrowser() && ShellModuleFeatureGate.DesktopOnlyIds.Contains(descriptor.Id);
 
-        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable, version, incompatibility, source, loadNote);
+        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable, version, incompatibility, source, loadNote, update);
         group.Add(row);
         _featureRows.Add(row);
     }
