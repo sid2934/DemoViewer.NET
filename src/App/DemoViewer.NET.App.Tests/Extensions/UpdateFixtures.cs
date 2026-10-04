@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 /// </summary>
 internal static class UpdateFixtures
 {
-    public static readonly ExtensionHostInfo Host = new(SemVersion.Parse("2.0.0"), SemVersion.Parse("0.9.0"), SemVersion.Parse("0.13.0-beta0001"));
+    public static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.1.0"), SemVersion.Parse("0.9.0"), SemVersion.Parse("0.13.0-beta0001"));
 
     /// <summary>The feed URL the tests hand the service for every pack.</summary>
     public static Uri FeedUrl(string packId) => new($"https://example.invalid/feeds/{packId}/{ExtensionFeed.FileName}");

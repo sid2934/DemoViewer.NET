@@ -29,7 +29,8 @@ public static class ExtensionHost
 {
     /// <summary>
     ///     The extension SDK version this app implements: the SDK assembly's release, without prerelease or
-    ///     build metadata, so a manifest's <c>requiresHost</c> range compares against a plain version.
+    ///     build metadata, so a manifest's <c>requiresHost</c> range compares against a plain version. Apps
+    ///     from before the SDK reported 1.0.0, so the SDK line starts at 1.1.
     /// </summary>
     public static SemVersion ContractVersion { get; } = ReadContractVersion();
 

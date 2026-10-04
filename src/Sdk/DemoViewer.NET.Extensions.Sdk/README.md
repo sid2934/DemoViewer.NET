@@ -15,7 +15,7 @@ this package and nothing else of the app's.
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="2.0.*" />
+    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.1.*" />
     <PackageReference Include="Avalonia" Version="12.1.2" />
   </ItemGroup>
 </Project>
@@ -31,7 +31,7 @@ package version, embed the result in the assembly and copy it beside the DLL:
   "version": "{version}",
   "assembly": "MyExtension.dll",
   "entryType": "MyExtension.MyExtension",
-  "requiresHost": "^2.0",
+  "requiresHost": "^1.1",
   "requiresCs2DemoKit": "*"
 }
 ```
@@ -130,5 +130,6 @@ them did not load.
 ## Compatibility
 
 The SDK follows semantic versioning, and the app never makes a breaking change to it outside a new major
-version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 2.x SDK binds to
-every 2.x host. The SDK starts at 2.0 because 1.0 was the app's earlier, internal extension contract.
+version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 1.x SDK binds to
+every 1.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for its earlier, internal
+extension contract; `^1.1` keeps those builds from loading SDK extensions.

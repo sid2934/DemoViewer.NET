@@ -37,10 +37,10 @@ public class ExtensionUpdateServiceTests
             client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.0.0"), new FakeFeeds.Entry("0.9.0"));
             ExtensionUpdateState upToDate = await service.CheckAsync(Id);
 
-            client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.0.1"), new FakeFeeds.Entry("1.2.0", RequiresHost: "^3.0"));
+            client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.0.1"), new FakeFeeds.Entry("1.2.0", RequiresHost: "^2.0"));
             ExtensionUpdateState available = await service.CheckAsync(Id);
 
-            client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.2.0", RequiresHost: "^3.0"));
+            client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.2.0", RequiresHost: "^2.0"));
             ExtensionUpdateState needsApp = await service.CheckAsync(Id);
 
             client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.1.0", MinAppVersion: "0.9.5"));
@@ -115,7 +115,7 @@ public class ExtensionUpdateServiceTests
         try
         {
             FakeFeedClient client = new();
-            client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.0.1"), new FakeFeeds.Entry("1.2.0", RequiresHost: "^3.0"));
+            client.Feeds[FeedUrl(Id)] = FakeFeeds.Json(new FakeFeeds.Entry("1.0.1"), new FakeFeeds.Entry("1.2.0", RequiresHost: "^2.0"));
 
             ExtensionUpdateState strict = await NewService(root, client, isOffered: (_, _) => false).CheckAsync(Id);
             ExtensionUpdateState loose = await NewService(root, client, isOffered: (_, _) => true).CheckAsync(Id);
@@ -613,7 +613,7 @@ public class ExtensionUpdateServiceTests
             string older = StageVersion(extensions, "0.9.0");
             string running = StageVersion(extensions, "1.0.0");
             string newer = StageVersion(extensions, "1.0.1");
-            string incompatible = StageVersion(extensions, "1.2.0", requiresHost: "^3.0");
+            string incompatible = StageVersion(extensions, "1.2.0", requiresHost: "^2.0");
             string otherPack = StageVersion(extensions, "0.1.0", id: "net.demoviewer.pack.other");
             string stray = Path.Combine(extensions, Id, "not-a-version");
             Directory.CreateDirectory(stray);
@@ -680,7 +680,7 @@ public class ExtensionUpdateServiceTests
         return stream.ToArray();
     }
 
-    private static string StageVersion(string extensions, string version, string id = Id, string requiresHost = "^2.0")
+    private static string StageVersion(string extensions, string version, string id = Id, string requiresHost = "^1.1")
     {
         string dir = Path.Combine(extensions, id, version);
         Directory.CreateDirectory(dir);
