@@ -1276,10 +1276,13 @@ variant `settings-extensions-staged` renders it. Copy says "extension" and "upda
 pack contract type is the default context's; a manifest bumped over an unchanged assembly is an
 `IdentityMismatch`; a corrupt file, a missing entry type and a non-pack entry type are reasons; a
 symlinked folder or manifest is `PathEscapes`; and `Resolve` with a shipped manifest that says 0.9.0 loads
-the 1.0.0 copy on disk without ever invoking the shipped factory. The published Desktop head was run once
-with a staged 1.0.1 (the extension rebuilt with its manifest bumped) under a temp config root with the
-opt-in set, and once without; the log carried `loaded (installed update)` and `loaded (bundled)`
-respectively.
+the 1.0.0 copy on disk without ever invoking the shipped factory. The published Desktop head
+(`dotnet publish -c Release -r osx-arm64`) was run three times under temp config roots: with a staged
+1.0.1 (the extension rebuilt with its manifest bumped) and the opt-in set, the log read `Extension Strat
+Book 1.0.1 loaded (installed update) from '<root>/extensions/net.demoviewer.pack.stratbook/1.0.1'` and
+the pack's index loads followed from the staged code; with nothing staged, `Strat Book 1.0.0 loaded
+(bundled)`; with the same staged copy and no opt-in, `loaded (bundled)` followed by `Staged extension at
+'<dir>' not loaded (Untrusted): the copy is not signed by this app's publisher`.
 
 ---
 
