@@ -5,18 +5,17 @@ using System.Xml.Linq;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.TestSupport;
-using TUnit.Core.Exceptions;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     Item 38: the release gate. Every axis of the shipped manifest against this build's host (not just
-///     the first failure <see cref="PackCompatibility.Check" /> returns), the extension assembly's compiled
-///     references against the versions this process actually loads, the <c>requiresCs2DemoKit</c> exact
-///     pin, and <see cref="PackCompatibility" />'s semantics over a representative matrix.
+///     Guards against a release shipping an app and an extension that would refuse to load together:
+///     every axis of the shipped manifest against this build's host (not just the first failure
+///     <see cref="PackCompatibility.Check" /> returns), the extension assembly's compiled references
+///     against the versions this process actually loads, the <c>requiresCs2DemoKit</c> exact pin, and
+///     <see cref="PackCompatibility" />'s semantics over a representative matrix.
 /// </summary>
 public class CompatibilityMatrixTests
 {
@@ -25,7 +24,7 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task ShippedManifest_InTheRepo_SatisfiesEveryAxis_OfThisBuildsHost()
     {
-        string repoRoot = RepoRootOrSkip();
+        string repoRoot = RepoRoot();
         string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
         ExtensionManifest manifest = ExtensionManifest.Parse(await File.ReadAllTextAsync(path));
         await AssertSatisfiesEveryAxis(manifest);
@@ -34,17 +33,26 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task ShippedManifest_BesideTheExtensionBinary_SatisfiesEveryAxis_AndMatchesTheRepoCopy()
     {
-        string repoRoot = RepoRootOrSkip();
+        string repoRoot = RepoRoot();
         string repoPath = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
         string binPath = Path.Combine(AppContext.BaseDirectory, ExtensionManifest.FileName);
 
+        using (Assert.Multiple())
+        {
+            await Assert.That(File.Exists(repoPath)).IsTrue().Because($"the repo copy must exist at {repoPath}");
+            await Assert.That(File.Exists(binPath)).IsTrue().Because($"the bin copy must exist at {binPath}");
+        }
+
         ExtensionManifest fromRepo = ExtensionManifest.Parse(await File.ReadAllTextAsync(repoPath));
         ExtensionManifest fromBin = ExtensionManifest.Parse(await File.ReadAllTextAsync(binPath));
+        ExtensionManifest fromEmbedded = new StratBookPack().Manifest;
 
         using (Assert.Multiple())
         {
             await Assert.That(fromBin).IsEqualTo(fromRepo)
                 .Because("a stale PreserveNewest copy beside the DLL would ship a manifest nobody edited");
+            await Assert.That(fromEmbedded).IsEqualTo(fromRepo)
+                .Because("the loader judges the bundled pack by its embedded copy; a mismatch here ships a pack that judges itself differently than its own file does");
             await AssertSatisfiesEveryAxis(fromBin);
         }
     }
@@ -191,7 +199,7 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task RequiresCs2DemoKit_EqualsTheDirectoryPackagesPropsPin_Exactly()
     {
-        string repoRoot = RepoRootOrSkip();
+        string repoRoot = RepoRoot();
         XDocument props = XDocument.Load(Path.Combine(repoRoot, "Directory.Packages.props"));
         string[] pins =
         [
@@ -215,7 +223,7 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task RequiresHost_IsSatisfiedByTheCurrentContract_AndWouldBeViolatedByTheNextMajor()
     {
-        string repoRoot = RepoRootOrSkip();
+        string repoRoot = RepoRoot();
         string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
         ExtensionManifest manifest = ExtensionManifest.Parse(await File.ReadAllTextAsync(path));
         SemVersion nextMajor = new(ExtensionHost.ContractVersion.Major + 1, 0, 0);
@@ -340,6 +348,23 @@ public class CompatibilityMatrixTests
             + "host contract 1.0.0, CS2DemoKit 0.13.0-beta0001, app unstamped. Compatible.");
     }
 
-    private static string RepoRootOrSkip() =>
-        DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
+    // A release gate must fail, not skip: unlike DemoTestHelper.FindRepoRoot (capped at 8 levels, for
+    // tests where a detached binary is a legitimate case to shrug off), this walks to the filesystem
+    // root with no cap, and trims BaseDirectory's trailing separator so the first comparison counts.
+    private static string RepoRoot()
+    {
+        string? dir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir, "DemoViewer.NET.slnx")))
+            {
+                return dir;
+            }
+
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        throw new InvalidOperationException(
+            $"could not find DemoViewer.NET.slnx above {AppContext.BaseDirectory}; the compatibility gate cannot verify the shipped manifest without it");
+    }
 }

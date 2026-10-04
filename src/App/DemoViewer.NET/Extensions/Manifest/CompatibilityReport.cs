@@ -1,11 +1,8 @@
 namespace DemoViewer.NET.Extensions.Manifest;
 
 /// <summary>
-///     The one-paragraph text a release prints: every value <see cref="PackCompatibility.Check" /> judges,
-///     plus its verdict, so a reader never has to cross-reference the manifest against the host by hand.
-///     Item 37's packaging step prints it for the zip it just built; item 36's updater logs it before it
-///     decides whether to apply a feed entry. One line, no newline, so either caller can print or log it
-///     as a single record.
+///     One line, no newline: every value <see cref="PackCompatibility.Check" /> judges, plus its verdict.
+///     Item 37 prints it; item 36 logs it.
 /// </summary>
 public static class CompatibilityReport
 {
