@@ -15,11 +15,14 @@ namespace DemoViewer.NET.Extensions;
 ///     third; <see cref="PackCompatibility.Check" /> compares them.
 ///     <para>
 ///         <b>Contract version rule.</b> <see cref="ContractVersion" /> is bumped by hand with the change
-///         that needs it. Major: a breaking change to any type under <c>DemoViewer.NET.Extensions</c>, or
-///         to <c>IModuleContext</c>, <c>IHostTabViewModel</c> or the <c>IPlaybackSurface</c> family (a
-///         removed or renamed member, a changed signature, a new abstract member on an interface a pack
-///         implements). Minor: an additive change (a new contribution kind, a new optional member with a
-///         default). Patch: never; a contract has no behaviour of its own to fix.
+///         that needs it. The contract is the surface a pack's own assembly references or implements, not
+///         every type under <c>DemoViewer.NET.Extensions</c>: host-side types that no pack touches
+///         (<c>Loading</c>, <c>CompatibilityReport</c>) change freely. Major: a breaking change to a type a
+///         pack does reference or implement, including <c>IModuleContext</c>, <c>IHostTabViewModel</c> or
+///         the <c>IPlaybackSurface</c> family (a removed or renamed member, a changed signature, a new
+///         abstract member on an interface a pack implements). Minor: an additive change (a new
+///         contribution kind, a new optional member with a default). Patch: never; a contract has no
+///         behaviour of its own to fix.
 ///     </para>
 /// </summary>
 public static class ExtensionHost
