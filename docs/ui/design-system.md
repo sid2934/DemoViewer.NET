@@ -775,8 +775,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
   (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as
   on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. A drag is a Set on map pick
-  on the field the row shows, with the drop as the click (docs/strat-book/drag-semantics.md, option A;
-  `StratDragTarget.Resolve`, `StratDragPatches.Ops`): move, push, rotate and `other` take the slot's `to`; hold,
+  on the field the row shows, with the drop as the click (`StratDragTarget.Resolve`, `StratDragPatches.Ops`): move, push, rotate and `other` take the slot's `to`; hold,
   peek, fake, plant and defuse their `at` or `site`, and the slot's own position entry on the step goes with it; a lurk
   takes the drop as lurk area 1, or `rotate to` once its rotate has started at the playhead; throw, wait and call edit
   the step that placed the player; a player the step does not name joins it as a line; a lineup thrower is refused.
@@ -918,7 +917,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   positions-only one says so in its summary line.
 - **Contract:** the detail pane takes the editor's column while the inbox is up and gives back the editor on
   Add to book, which opens the new strat. Only new patterns show: dismissed and in-book ones come back under
-  "Show settled (n)", the one generated-content toggle (`docs/strat-book/generated-content.md`). Dismiss is
+  "Show settled (n)", the one generated-content toggle. Dismiss is
   permanent across re-mines until Restore. Deleting a mined strat makes its pattern new again. A refused
   `strat-mining.json` is named above the list, and Add to book and Dismiss say why they did not save. A member round opens in 2D Playback through `ISituationPlayback`, the Utility map's seam.
 - **Preview:** "Preview" on a pattern not yet in a book swaps the detail pane for `DetectedPreview` and the right
@@ -1287,8 +1286,7 @@ over the core table with no DI, so `Playback2DKeymapProfile` resolves them exact
 Suggested Tags, Review Mode and Step Authoring rows (`FocusTagPalette`/`TagNote`/`TagClearSticky`/
 `TagLabelMode`/`TagLabelGroupNext`, the six-key Suggested Tags queue, `ToggleReviewMode`, and
 `ToolToken`/`AddStep`/`DuplicateStep`/`DeleteStep`/`PrevStep`/`NextStep`) moved the same way; they were
-never listed in this table and still are not, see tag-store.md, suggested-tags.md and step-authoring.md
-§3.7 for those. The keybind settings list groups a pack's rows under its label and hides them while the
+never listed in this table and still are not. The keybind settings list groups a pack's rows under its label and hides them while the
 Strat Book extension's master switch is off.
 
 <a id="playback2d-keybind-profile"></a>
@@ -1630,8 +1628,7 @@ for every audience; first-run + skippable.
   MainView/MainViewModel yet (engine phase owns integration).
 
 ### FirstRunWizardView Extensions step: one card per FeatureScope.Pack row (feature/strat-book-ext-6-first-run, 2026-10-02)
-Item 6 of the Strat Book extension plan (`docs/architecture/strat-book-plugin.md` section 6, section 8,
-section 10 decision 2, section 11.1). Asks whether to turn each installed extension on, generically over
+Asks whether to turn each installed extension on, generically over
 the catalog rather than a hardcoded Strat Book reference.
 - **Placement.** A new step inserted before Done (`FirstRunWizardViewModel.WizardStep`: Welcome, Category,
   Folders, **Extensions**, Done), so every earlier index (`IsCategoryStep` = 1, `IsFoldersStep` = 2) stays
@@ -1643,7 +1640,7 @@ the catalog rather than a hardcoded Strat Book reference.
   gets its own card from the same loop, with no new VM or view code.
 - **Copy.** A small `_packCopy` lookup in the VM keyed by pack id supplies a richer "what it adds, what it
   costs" paragraph for a known pack (Strat Book's cites the M0 memory figure in round terms, "a few hundred
-  MB of memory on a large library", `docs/architecture/strat-book-plugin.md` section 12); an id with no
+  MB of memory on a large library"); an id with no
   entry falls back to the descriptor's own one-line `Description`, which is what keeps a future pack's
   question working before anyone writes bespoke copy for it.
 - **Visibility.** The step exists only when `SettingsService.NeedsFirstRun` is true at construction

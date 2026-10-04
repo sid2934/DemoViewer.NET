@@ -9,8 +9,6 @@ read them. A committed sample strat and its scripted history live under
 [`tests/fixtures/strats/`](../tests/fixtures/strats/), pinned by `StratSchemaSnapshotTests`; a committed
 call sheet golden lives beside them, pinned by `StratTextExporterTests`.
 
-**A location note.** `strat-model.md` names this page `docs/strat-format.md`.
-
 The format is modelled on the [annotation sidecar](playback2d-v2/annotations-format.md), which settled
 identity, clock and forward compatibility the same way.
 
@@ -645,7 +643,7 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
 ### What a token drag writes
 
 A drag on the editing canvas edits the step's own fields, through the writers above, as one undo entry
-(docs/strat-book/drag-semantics.md, option A; `StratDragTarget`, `StratDragPatches`). It never writes `positions[]` for
+(`StratDragTarget`, `StratDragPatches`). It never writes `positions[]` for
 A to E unless Alt is held. Nothing seeks: a press while playing pauses where it is.
 
 * **Which step.** Paused on the selected step's tick: the step that wins that tick for the slot (the later one naming

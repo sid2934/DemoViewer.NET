@@ -33,7 +33,7 @@ is the intended end state but deferred.
 > GitHub releases (a per-version release plus a rolling `extensions-<id>` feed release), never into the
 > Velopack `current/` channel this page describes. The app installer still bundles whichever extension
 > version the heads reference at the time the app itself is released; that part of this page's plan is
-> unchanged. See `docs/architecture/strat-book-plugin.md` §7.7 to §7.11 for the extension's manifest,
+> unchanged. See `docs/architecture/strat-book-plugin.md` for the extension's manifest,
 > loader, signing and release pipeline in full.
 
 ---

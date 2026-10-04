@@ -142,7 +142,6 @@ document away and asking the evaluator to rebuild it, never by guessing.
 Not one of the two files this page documents (proposals and verdicts), but the third input that decides
 what a proposals file contains, so a reader of one usually wants the other close by. It is a plain JSON
 document: `schemaVersion`, `id`, the detector run `order`, one object per detector with its tunable
-numbers, and a `siteRegionOverrides` map. `DetectorProfile.ToJson()`/`.Parse()` is the shape (writer
-comments in `suggested-tags.md` §3.7 show a worked example); a value the file does not name falls back to
+numbers, and a `siteRegionOverrides` map. `DetectorProfile.ToJson()`/`.Parse()` is the shape; a value the file does not name falls back to
 the shipped default, so a profile naming only `execute.N` is a whole profile. The Settings app's tuning
 section reads and writes this file directly; nothing else needs to.

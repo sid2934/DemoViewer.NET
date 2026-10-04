@@ -177,7 +177,7 @@ Cost tags (at least one tier drops each):
 
 `KnownFailure` is dropped by every tier, including `full`. Not a cost tag: a deterministic failure
 carried until it is fixed, excluded by category rather than tracked by eye, so CI and a local run
-agree on what is known broken (strat-book-plugin.md §11.1).
+agree on what is known broken.
 
 Informational tags (pre-existing, descriptive, no tier reads them): `Unit`, `Probe`.
 

@@ -1,18 +1,15 @@
 # Token pathing: routing strat tokens around walls
 
-Request, 2026-10-01: tokens in the strat preview move in straight lines between keyframes and pass
-through walls. This note covers what map data we already have, the approaches we could take, a prototype
-measured on three maps, and a recommendation.
+This note covers what map data already exists, the approaches considered, a prototype measured on three
+maps, and how the result was integrated.
 
-**Status (2026-10-01): built** on `feature/strat-book-pathing` from the decisions in section 7. The
-production pathfinder, the projection, the wiring, authored-segment bending, the route line and `via` are in; the
-baker change (item 5) is not. docs/strat-format.md ("Motion on the canvas", "Via") is the reference for what ships;
-this note stays as the spike's record.
+**Built** on `feature/strat-book-pathing`. The production pathfinder, the projection, the wiring,
+authored-segment bending, the route line and `via` are in; the baker change is not.
+docs/strat-format.md ("Motion on the canvas", "Via") is the reference for what ships.
 
 Spike branch: `spike/strat-book-pathing`. Prototype code:
 
 - `src/Playback2D/DemoViewer.NET.Playback2D.Core/Zones/NavPathfinder.cs`: A* over nav areas plus a funnel pass.
-  Nothing in production calls it.
 - `tools/NavPathSpike/`: the measurement harness. It is outside the `.slnx`. `tools/NavPathSpike/render.sh`
   reruns everything and renders the images.
 
@@ -26,8 +23,8 @@ their connections. That covers all ten maps, it is VRF-free, and the app already
 - A query takes 7 to 74 us (p50) and 15 to 160 us (p99).
 - Building the graph takes 7 to 10 ms per map, and it keeps about 0.4 MB.
 
-**Recommendation: approach (a), nav-area A* with a funnel pass. The work is three core items,
-plus two optional ones: bending authored segments, and a baker change.**
+**Recommendation: approach (a), nav-area A* with a funnel pass.** Built: the pathfinder, the projection,
+the wiring and authored-segment bending. Not built: the baker change.
 
 ## 1. What map data exists
 
@@ -43,8 +40,8 @@ reads `maps/<map>.nav` out of the map vpk through VRF's `NavMeshFile` and writes
 `tools/DemoViewer.NET.AssetBaker/Zones.cs` shows. So the baker can reach everything the nav has, and the app
 sees only what `zones.json` carries.
 
-Do the zones carry adjacency? Yes, at two levels. `areaLinks` is area-to-area, which is the graph we need, and
-`adjacency` is place-to-place. Portals are not stored, but they can be derived from the geometry (the same
+Do the zones carry adjacency? Yes, at two levels. `areaLinks` is area-to-area, which is the walk graph
+itself, and `adjacency` is place-to-place. Portals are not stored, but they can be derived from the geometry (the same
 edge-overlap test `NavPathfinder.Build` runs):
 
 | map | links | share a collinear edge (portal = overlap) | no shared edge (drop, jump, gap) | median XY gap of the rest |
@@ -77,6 +74,10 @@ What `zones.json` loses, and VRF still has at bake time:
 4. **Per-corner Z.** Only the mean is kept, which is enough for floor keys but not for slopes or step
    heights.
 
+Production keeps this heuristic (gap links climbed up to 64 u, shared-edge links two-way, no ladders)
+rather than re-baking `zones.json` with directed links, the portal edge id and ladders; that stays a
+possible follow-up.
+
 Connectivity is fine as baked. One component covers every map except for 1 to 8 stray areas (nuke has an
 8-area island). A start or end on an island returns no route, and the caller falls back to a straight line.
 
@@ -87,7 +88,7 @@ Connectivity is fine as baked. One component covers every map except for 1 to 8 
 | Data | `zones.json`, shipped, all 10 maps | `collision.tris.gz`, shipped, all 10 maps | demos in the library, parsed one at a time |
 | What has to be built | graph + portals (done in the spike) | a walkability rasteriser: floor detection, step height, slope, headroom, player clips. In effect Recast, rebuilt | trace extraction, a density graph, then still a path search over it |
 | Quality | Valve's own walkable mesh; routes follow corridors and doors | only as good as the rasteriser; thin walls, props and stairs are hard; diagonal grid artefacts without smoothing | realistic where players go, but gaps and wrong results where data is thin; biased by meta and by side |
-| Floors | each area has a floor key, so floor changes come for free | one grid per floor band, plus stair connectors you have to find | per-sample Z, workable |
+| Floors | each area has a floor key, so floor changes come for free | one grid per floor band, plus stair connectors that still need finding | per-sample Z, workable |
 | Build cost | 7 to 10 ms, 0.4 MB per map | estimated 100s of ms to seconds over 0.4 to 2 M tris; 230 k cells per floor at 16 u on dust2 | seconds of parsing per demo, but coverage needs many demos per map and side, and only one heavy parse can run at a time on 16 GB |
 | Query cost | 7 to 74 us p50, up to 160 us p99 (measured) | JPS on 230 k cells: roughly 0.1 to 1 ms (estimate, not measured) | same as (a) once the graph exists |
 | Risk | lost link direction and ladders (see above) | correctness of walkability; large effort | coverage, staleness after map updates, heavy-parse cost |
@@ -188,7 +189,8 @@ with a floor key per waypoint, and the projection treats it as follows:
   `Arrival = true`, because the cut rule (`RemoveAll(x => x.Arrival && ...)`) is what clears a run a later
   destination interrupts, and it has to clear the corners too. Each corner gets its own segment heading,
   not the single `runYaw`, or the token faces through the wall while it rounds a corner. The final arrival
-  keeps the watched yaw.
+  keeps the watched yaw. This applies to existing strats too: a stored run retimes to the routed length,
+  not the straight-line one, the next time it is opened.
 - **Easing.** `TokenTrack` applies the step's interpolation per segment. Corners turn one eased move into
   thirty small stop-start ones. Either mark the corner segments linear and place the corner ticks along an
   eased arc-length curve, which keeps the ease over the whole run, or teach the track a multi-keyframe run.
@@ -202,8 +204,10 @@ with a floor key per waypoint, and the projection treats it as follows:
   `Locate(placeId)` and route to it. A spot that does not snap uses the place arrival.
 - **Authored entries** are drag placements with fixed ticks. Their timing belongs to the author, so routing
   only bends the line: in a post-pass over the built track, insert corners between two authored keyframes
-  at arc-length-proportional ticks inside that segment's window. Whether to do this at all is an open
-  question, listed below.
+  at arc-length-proportional ticks inside that segment's window. Built: the token follows the route and
+  still arrives at the keyframe's tick; its speed fits the time, and an impossible route still arrives on
+  time. The same applies to every segment whose ticks a step fixed (a position verb's walk, a run cut
+  short).
 - **Off-mesh points.** A drop inside a wall snaps to the nearest area within 256 u. The route goes there,
   then straight to the point. A point that does not snap gets a straight line, as today.
 
@@ -222,59 +226,9 @@ which is 2 to 9 ms on the UI thread. That fits within a frame, but it is not fre
 shared across rebuilds. A projection-level cache keyed by query, cleared when the map changes, brings a
 typical edit back to a handful of misses. Queries are not the whole cost: `TrackOf` rebuilds the slot's
 track once per event, and every run adds 5 to 45 corner entries to it. That cost grows with the corner
-count and should be measured in item 2.
+count; section 5 below has the measured per-edit cost.
 
-## 5. Effort, in items
-
-1. **Productionise `NavPathfinder` in Playback2D.Core.** Pooled scratch, the `Locate` place filter, the
-   memo, and unit tests over the shipped `zones.json` fixtures: routes stay on the mesh, floor keys change
-   at the right portal, an island returns null. Small.
-2. **Projection: `PathResolver` through `Build`, `Run` and `TrackOf`.** Arrival-flagged corners, per-corner
-   yaw, eased arc-length ticks, floor keys, fan snapping, lurk legs, and tests beside
-   `StratStepMotionTests` with a small synthetic graph. Medium, and the main item.
-3. **App wiring.** Build the graph in `ZonePlaceResolverAdapter`, expose it like `PlaceArrival`, pass it from
-   the canvas, drag preview and export, behind a setting until it is verified. Then a UiCapture or dv2d
-   check on dust2 and nuke. Small.
-4. **Authored-segment bending,** if wanted. A post-pass over built tracks, with tests. Small.
-5. **Optional baker change** (Windows lane, needs the vpk). Emit directed links, the portal edge id and
-   ladders as additive `zones.json` fields, re-bake the ten maps, and drop the climb heuristic when the
-   fields are present. Small to medium, plus a re-bake.
-
-Items 1 to 3 give routed tokens. Item 5 can come later without blocking anything.
-
-## 6. Risks
-
-- **One-way drops read as two-way** until item 5. Drops sit on gap links, and the 64 u climb rule covers
-  those. Mirage window, the case checked, now routes correctly. A drop whose areas' mean Z differ by 64 u
-  or less, because the areas are sloped or large, can still be climbed in the preview. A real step-up
-  whose mean Z differs by more than 64 u gets refused, and the route goes the long way. Only the baker
-  change removes both errors.
-- **No ladders.** Nuke, train and vertigo take the long way where a ladder is shorter. No route is lost
-  outright, because every map is connected without them.
-- **Stored strats retime.** Every travel run arrives 14 to 40% later, more on stacked maps, so the
-  transport's end and the export length grow for existing documents.
-- **Routes are shortest, not tactical.** A* has no notion of cover or the usual lane. An author who wants a
-  specific route has to add an intermediate step, the same way "via Upper Tunnel" is done in the spike.
-- **XY-overlapping levels on one floor key**, such as mirage Underpass under Mid. Snapping by XY alone can
-  pick the wrong level. Snapping by place id, as the spike does, fixes it for place targets. A free point
-  dropped over both levels picks the smaller of the areas containing it, which may be the wrong one.
-
-## 7. Decisions (2026-10-01)
-
-1. **Timing follows the real path.** Decided: yes. Runs walk the route at run and walk speed, so arrivals and
-   `ContentEndTick` land later, existing strats included.
-2. **Authored drag segments bend.** Decided: yes. Between two keyframes the user placed the token follows the route
-   and still arrives at the keyframe's tick; its speed fits the time, and an impossible route still arrives on time.
-   The same applies to every segment whose ticks a step fixed (a position verb's walk, a run cut short).
-3. **No re-bake.** Decided: keep the heuristic (gap links climbed up to 64 u, shared-edge links two-way, no ladders).
-   Item 5 stays open.
-4. **Faint route line.** Decided: yes, on the canvas and the Detected preview, in the side colour at low alpha through
-   theme tokens (`Pb2dCanvasRouteT`/`Ct`). The export draws it too: it is the same projection, the line is faint and
-   only shows while a token moves, and it answers the question a viewer of the clip has.
-5. **Via.** Decided: a step, or a line, can name places to go through, as `via` (places) and `viaPoints` (points), the
-   `watch.points` shape. Routing goes through each in order.
-
-## 8. What was built, and measured
+## 5. What was built, and measured
 
 - `NavPathfinder` (Playback2D.Core): per-thread search scratch with generation stamps, so a miss allocates only its
   answer (about 1 KB for a 43-point route on dust2) and a repeat is answered from a bounded memo of exact queries with
@@ -288,6 +242,11 @@ Items 1 to 3 give routed tokens. Item 5 can come later without blocking anything
   build on the Mac: a full projection build is 0.17 ms straight and 1.7 ms routed with a warm memo (3.1 ms
   on a fresh graph), and 1.7 ms after a one-token edit; the drag preview (`TrackWith`) is 0.14 ms per pointer move.
   Under a frame, so no per-slot cache was added. Keyframes go from 63 straight to 313 routed.
+- **Route line.** Drawn on the canvas and the Detected preview, in the side colour at low alpha through
+  theme tokens (`Pb2dCanvasRouteT`/`Ct`). The export draws it too: it is the same projection, the line is
+  faint and only shows while a token moves, and it answers the question a viewer of the clip has.
+- **Via.** A step, or a line, can name places to go through, as `via` (places) and `viaPoints` (points),
+  the `watch.points` shape. Routing goes through each in order.
 - UiCapture at 1280x800 (`strat-routing-execute-b`, `strat-routing-execute-b-push`, `strat-routing-via`):
   `docs/strat-book/token-pathing/routing-execute-b.png` (1:44, the split out of spawn: A, B and C on their way to the
   tunnels, D to top of mid, E walking to Middle, each with its faint line ahead),

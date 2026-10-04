@@ -181,7 +181,7 @@ Entries marked `"pending": true` in the manifest are **skipped**, not failed. Th
 later phase register the fixture it will author before it can render it.
 
 **The four `strat-mirage-exec-*` entries are pending for a different reason than a missing input**:
-they are the Strat Book canvas's goldens (step-authoring.md §7), captured and gated entirely by the
+they are the Strat Book canvas's goldens, captured and gated entirely by the
 App suite's `StratGoldenCaptureTests`, which projects a strat through `StratSceneProjection` and plays
 it back through `StratFrameSource`, a reader `dv2d` does not have and does not need, since the strat
 JSON reader stays in the App (decision 6). Each entry's `layers` names `hud.clock`, and every one of
