@@ -1451,9 +1451,10 @@ Everything here lives in the app under `DemoViewer.NET.Extensions.Loading` (`Ext
 referencing the app.
 
 **Algorithm.** ECDSA P-256 with SHA-256, not Ed25519. .NET 10's `System.Security.Cryptography` has no
-standalone Ed25519 sign/verify: the only Ed25519-related surface is the composite ML-DSA-with-Ed25519
-hybrid tied to `MLDsa`, not a plain signer, and `ECDsa.Create()` is the one new-key-pair factory the
-runtime ships without a third-party package. Signatures use the fixed-length IEEE P1363 encoding
+standalone Ed25519 sign or verify: the only Ed25519-related surface is the composite
+ML-DSA-with-Ed25519 hybrid tied to `MLDsa`, not a plain signer. `ECDsa` is the asymmetric signer the
+runtime ships without pulling in a third-party package, so that is what this uses. Signatures use the
+fixed-length IEEE P1363 encoding
 (`DSASignatureFormat.IeeeP1363FixedFieldConcatenation`), 64 bytes for P-256, never the DER form, so the
 byte length alone is a cheap sanity check.
 
@@ -1470,8 +1471,8 @@ fields is ambiguous (`"ab"` then `"c"` hashes the same as `"a"` then `"bc"` with
 manual, never `Directory.EnumerateFiles(..., AllDirectories)`: every entry, file or directory, is
 checked for a reparse point before it is used, and refused (`ExtensionSignatureException`) rather than
 followed, matching the loader's own rule for the staged folder one level up. `EnumerationOptions` sets
-`AttributesToSkip = 0`; the default skips `Hidden`, and a dotfile is `Hidden` on every OS .NET runs on,
-so a committed default would let an added dotfile hide from the digest. The walk also refuses more than
+`AttributesToSkip = 0`; the default skips `Hidden`, and .NET marks a Unix dotfile `Hidden`, so leaving
+the default in place would let an added dotfile hide from the digest. The walk also refuses more than
 `MaxFiles` (2000) files or more than `MaxTotalBytes` (512 MB) total content, checked from `FileInfo.Length`
 before a file is opened, so a tree that is too big to safely hash fails fast rather than streaming
 hundreds of megabytes first. This is the form item 37's CI step must reproduce byte for byte; nothing
@@ -1520,12 +1521,12 @@ Every failure path is a `SignatureCheck`, never an exception; `ComputeDigest` it
 rather than letting it escape. `Verify` never throws.
 
 **The app's seam.** `ITrustPolicy` gained a second, default-implemented member,
-`TrustVerdict Judge(directory, manifest)`, additive over the item 33 contract rule in section 7.7 (a
-new member with a default is "minor"); `ContractVersion` stays at 1.0.0 since `^1.0` admits a minor bump
-either way, left for the orchestrator to take up separately if it wants the version to say so.
-`IsTrusted` is unchanged, so every policy written before item 35 still compiles and reports the one
-generic reason it always gave; `ExtensionLoader.Select` now calls `Judge`, not `IsTrusted`, and copies
-its `Reason`/`LogDetail` onto the `Untrusted` `LoadOutcome`.
+`TrustVerdict Judge(directory, manifest)`. No pack references or implements anything under
+`Extensions.Loading` (item 38 names `Loading` explicitly as a host-side area that "changes freely"),
+so per the contract rule in section 7.7 this needs no `ContractVersion` bump, the same reasoning
+`CompatibilityReport.Describe` above it relies on. `IsTrusted` is unchanged, so every policy written
+before item 35 still compiles and reports the one generic reason it always gave; `ExtensionLoader.Select`
+now calls `Judge`, not `IsTrusted`, and copies its `Reason`/`LogDetail` onto the `Untrusted` `LoadOutcome`.
 
 `SignedTrustPolicy(publicKeysBase64Spki = null)` calls `ExtensionSignature.Verify` against
 `PublisherKeys.Current` by default, or an injected list for a test. `TrustPolicy.Default` is
@@ -1558,6 +1559,9 @@ extension-signing sign <dir> --key <private.pem> writes <dir>/extension.sig
 extension-signing verify <dir>                   checks <dir>/extension.sig against PublisherKeys.Current
 ```
 
+`<AssemblyName>` is `extension-signing`, so a publish produces that binary name; from source,
+`dotnet run --project tools/extension-signing -c Release -- <command> ...` runs the same thing.
+
 It links `Extensions/Loading/ExtensionSignature.cs` and `PublisherKeys.cs` from the app via MSBuild
 `<Compile Include="..." Link="..."/>`, not a project reference, so the tool and the app run the exact
 same digest and verify code without pulling Avalonia into a CI utility, and there is one implementation
@@ -1576,6 +1580,13 @@ owner is ready). Rotating the key is `keygen` again, adding the new public const
 `PublisherKeys.Current` ahead of removing the old one (so an extension signed with the old key still
 loads until every shipped build has the new constant), then updating the stored secret once releases
 move to the new key.
+
+**What item 36 must not leave behind.** Because the digest covers the whole tree, nothing may land in
+`<id>/<version>/` beside the files `extension.sig` actually signs: no staging marker, no temp file left
+over from an interrupted download, no `.DS_Store`, no `__MACOSX/` from a zip extracted on macOS. Any of
+those reads as "a file changed after signing" by construction, since it was never part of what was
+hashed. Item 36's staging step must write the signed files and nothing else into the version directory,
+or clean up anything it used to get them there before the loader ever sees it.
 
 **Tests.** `src/App/DemoViewer.NET.App.Tests/Extensions/ExtensionSignatureTests.cs`: sign-then-verify
 round trip with a key generated in process; a byte change, a rename, an added file, a removed file, and
