@@ -54,8 +54,69 @@ public static class QueueWork
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(CancellationToken.None)) : handle.Completion;
     }
 
+    /// <summary>
+    ///     <see cref="Run" /> for asynchronous work that reports progress: the body gets the item's own
+    ///     <see cref="IQueueJobContext" /> (its token, <see cref="IQueueJobContext.Report" />). A host with no
+    ///     queue gets a context whose token never fires and whose report is a no-op. The queue records a body
+    ///     that throws as a failed item and still completes the returned task.
+    /// </summary>
+    /// <param name="queue">The processing queue, or null to run on the pool.</param>
+    /// <param name="kind">The item's kind.</param>
+    /// <param name="title">The line the queue list shows.</param>
+    /// <param name="owner">The submitting module.</param>
+    /// <param name="work">The work, given the item's context.</param>
+    /// <param name="priority">UserRequested for work a click asked for.</param>
+    /// <param name="key">One queued item per key; a newer submit replaces the queued one's work.</param>
+    public static Task RunJob(IDemoProcessingQueue? queue, QueueJobKind kind, string title, string owner,
+        Func<IQueueJobContext, Task> work, DemoJobPriority priority = DemoJobPriority.Background, string? key = null)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        if (queue is null || Bypass)
+        {
+            return Task.Run(() => work(PoolContext.Instance));
+        }
+
+        if (_userAction.Value && priority < DemoJobPriority.UserRequested)
+        {
+            priority = DemoJobPriority.UserRequested;
+        }
+
+        IDemoQueueHandle handle = queue.SubmitJob(new QueueJobRequest(kind, title, owner, priority, async ctx =>
+        {
+            CancellationToken outer = _current.Value;
+            _current.Value = ctx.CancellationToken;
+            try
+            {
+                await work(ctx).ConfigureAwait(false);
+            }
+            finally
+            {
+                _current.Value = outer;
+            }
+        }, key, ReplacePending: key is not null, Preemptible: false));
+
+        return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(PoolContext.Instance)) : handle.Completion;
+    }
+
     private static readonly AsyncLocal<bool> _userAction = new();
     private static readonly AsyncLocal<CancellationToken> _current = new();
+
+    // The context a body gets when there is no queue: nothing to report to, nothing that stops it.
+    private sealed class PoolContext : IQueueJobContext
+    {
+        public static PoolContext Instance { get; } = new();
+        public CancellationToken CancellationToken => CancellationToken.None;
+
+        public void Report(int done, int total, string? detail = null)
+        {
+        }
+
+        public Task StepAsideAsync() => Task.CompletedTask;
+
+        public void ReleaseSlot()
+        {
+        }
+    }
 
     /// <summary>
     ///     Throws when the queue item running this work has been stopped: by the user, or for a user's item.

@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -75,6 +76,43 @@ public class ExtensionLoaderTests
             await Assert.That(found.Candidates).IsEmpty();
             await Assert.That(found.Rejected).IsEmpty();
             await Assert.That(ExtensionLoader.ExtensionsDirectory(null)).IsNull().Because("the browser has no config root");
+        }
+    }
+
+    // Item 36 stages through ExtensionUpdateService; what it leaves under <id>/<version>/ is a candidate
+    // here, and whatever it has in flight under .staging/ is not an extension and is not reported.
+    [Test]
+    public async Task Discover_FindsWhatTheUpdaterStaged_AndIgnoresItsStagingFolder()
+    {
+        string root = NewRoot();
+        try
+        {
+            byte[] zip = UpdateFixtures.ExtensionZip(FakeId, "1.0.1");
+            FakeFeeds.Entry entry = new("1.0.1", zip);
+            UpdateFixtures.FakeFeedClient client = new();
+            client.Zips[entry.Url] = zip;
+            ExtensionUpdateService updater = new(root, [UpdateFixtures.Status(FakeId)], Host, TrustAll, client, UpdateFixtures.FeedUrl);
+
+            StageResult staged = await updater.DownloadAndStageAsync(ExtensionFeed.Parse(FakeFeeds.Json(entry)).Entries.Single());
+            string inFlight = Path.Combine(root, "extensions", ExtensionStaging.StagingDirectoryName, FakeId, "1.0.2");
+            Directory.CreateDirectory(inFlight);
+            File.WriteAllText(Path.Combine(inFlight, ExtensionManifest.FileName), ManifestJson(FakeId, "1.0.2"));
+
+            ExtensionLoader.Discovery found = ExtensionLoader.Discover(Path.Combine(root, "extensions"));
+            ExtensionLoader.Selection selection = ExtensionLoader.Select(found.Candidates, FakeId, SemVersion.Parse("1.0.0"), Host, TrustAll);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(staged.Outcome).IsEqualTo(StageOutcome.Installed);
+                await Assert.That(found.Candidates.Select(c => c.Directory)).IsEquivalentTo([staged.Directory!]);
+                await Assert.That(found.Rejected).IsEmpty().Because("a dot folder is skipped, not reported");
+                await Assert.That(selection.Chosen?.Manifest.Version).IsEqualTo(SemVersion.Parse("1.0.1"));
+                await Assert.That(selection.Chosen?.AssemblyPath).IsEqualTo(Path.Combine(staged.Directory!, "Fake.dll"));
+            }
+        }
+        finally
+        {
+            Cleanup(root);
         }
     }
 

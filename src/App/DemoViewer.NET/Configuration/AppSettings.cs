@@ -72,6 +72,9 @@ public sealed class AppSettings
     /// <summary>The grenade walk's settings: the library sweep and the trajectory stride.</summary>
     public GrenadesSettings Grenades { get; set; } = new();
 
+    /// <summary>The extension updater's settings: the feed URL and when Settings last checked (strat-book-plugin.md §7.10).</summary>
+    public ExtensionsSettings Extensions { get; set; } = new();
+
     /// <summary>
     ///     The app version (x.y.z) whose release notes the user has been shown, the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
@@ -399,6 +402,25 @@ public sealed class GrenadesSettings
     ///     nothing.
     /// </summary>
     public int LineupClipsMaxMegabytes { get; set; } = 1024;
+}
+
+/// <summary>
+///     The extension updater's settings (strat-book-plugin.md §7.10). Desktop only: the browser head has no
+///     filesystem to stage into, so it never reads these.
+/// </summary>
+public sealed class ExtensionsSettings
+{
+    /// <summary>
+    ///     The feed URL template, with <c>{id}</c> standing for the extension id. Null (the default) reads
+    ///     the feed from this repository's releases; anything that is not an https URL falls back to that.
+    /// </summary>
+    public string? FeedUrl { get; set; }
+
+    /// <summary>
+    ///     When Settings last checked every extension's feed, UTC. Opening Settings checks again only after
+    ///     an hour; the per-extension button always does.
+    /// </summary>
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
 }
 
 /// <summary>Demo-library settings.</summary>
