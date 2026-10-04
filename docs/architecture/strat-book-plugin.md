@@ -600,6 +600,15 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     `<config root>/extensions/<id>/<version>/` when present, else the copy shipped in the installer. Loads
     into the default context (no unload: "off" is the Phase 1 switch, not an unload). Browser head
     unchanged: it compile-links the version it was built with.
+    *As built (2026-10-03):* `ExtensionLoader.Resolve` in `Program.Main` picks, per shipped pack, the
+    highest staged version that is newer than the bundled one, passes the section 7.7 check and is
+    accepted by an `ITrustPolicy` (item 35's seam; until then nothing on disk is trusted without the
+    developer opt-in `DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1`), loads it, and falls back to the shipped
+    copy on any failure, each refusal a `LoadOutcome` Settings shows under the row. Not the default
+    context after all: the shipped assembly is on the trusted platform list, so a by-path load into the
+    default context returns the app-directory copy; a staged copy loads into a named non-collectible
+    `ExtensionLoadContext` that resolves everything else through the default context. Section 7.8 has
+    the directory, the rule, the constraints and the evidence.
 35. **Signing and trust.** Only assemblies signed with the project's key load from the config root;
     anything else is ignored with a log line. First-party only; the add-on design's consent UX is not
     pulled in.
@@ -1254,6 +1263,144 @@ fake second extension in that state.
 **The browser head** is unchanged: it compile-links the extension, the same check runs at configuration
 and passes.
 
+### 7.8 Loading (as built by item 34)
+
+Everything here lives in the app under `DemoViewer.NET.Extensions.Loading` (`ExtensionLoader`,
+`ExtensionCandidate`, `ExtensionLoadContext`, `ShippedPack`, `ITrustPolicy` and `TrustPolicy`,
+`LoadOutcome` and `LoadFailure`) plus `PackSource` beside `PackStatus`. Only the Desktop head calls it;
+the browser head, UiCapture and the test assembly still compile-link the pack and configure it as before.
+
+**The directory.** Item 36 stages a downloaded extension under the config root, one directory per version:
+
+```
+<config root>/extensions/<id>/<version>/
+  extension.json                            the manifest (section 7.7); id and version must equal the folder names
+  DemoViewer.NET.Extensions.StratBook.dll   the assembly the manifest names
+```
+
+The loader reads only under `<config root>/extensions/`; it never writes, moves or deletes (item 36 owns
+staging and cleanup). A directory, a manifest or an assembly that is a reparse point, or whose full path
+resolves outside the extensions folder, is refused the way `PackDataRemover.ResolveSafe` refuses one
+(`LoadFailure.PathEscapes`), never followed.
+
+**The choice.** `ExtensionLoader.Resolve(configRoot, shipped, host, trust)` runs once in `Program.Main`,
+after `VelopackApp.Build().Run()` and before Avalonia starts, and returns the `PackStatus` list that
+`FeaturePacks.ConfigureResolved` takes. Per shipped pack:
+
+1. `Discover` lists every `<id>/<version>/` whose manifest parses and whose folder names equal the
+   manifest's id and version (`FolderMismatch` otherwise, `ManifestInvalid` for a missing or malformed
+   file), ordered highest version first.
+2. `Select` walks that pack's candidates from the top and takes the first that is **newer than the shipped
+   version** (`NotNewer` otherwise; equal is not newer), that **`PackCompatibility.Check` accepts**
+   (`Incompatible`, with the section 7.7 message), and that the **trust policy allows** (`Untrusted`).
+   Every higher candidate it passed over is recorded with its reason; candidates below the chosen one are
+   not examined.
+3. `Load` loads the chosen assembly, resolves `entryType` by name (`EntryTypeMissing`), requires it to
+   implement `IFeaturePack` with a public parameterless constructor (`NotAPack`), constructs it, and
+   checks that the pack's `Id` and the version of its embedded manifest equal the on-disk manifest
+   (`IdentityMismatch`). A corrupt or missing file is `AssemblyLoadFailed`.
+4. Two skew checks run on the loaded copy before it is accepted. `CheckReferences` compares every assembly
+   the staged copy references against the version the default context runs (the loaded assembly's, else
+   the file beside the app, read without loading; `System.*`, `netstandard` and `mscorlib` come from the
+   shared runtime and are skipped): a difference is `ReferenceMismatch` ("it was built against SkiaSharp
+   3.119.0.0; this app ships 3.116.1.0"). `Probe` then reads `Id`, `FeatureId`, `Manifest`, `Features`,
+   `Commands` and `JobKinds` and runs `Register` on a scratch `ServiceCollection`, so a member compiled
+   against a type or method the running app no longer has throws here, as `ProbeFailed` ("registering its
+   services failed (TypeLoadException)"), rather than later in the composition root after the loader
+   reported success. What the probe does not catch: anything compiled on first use, that is the bodies of
+   the lambdas `Register` and `Contribute` hand the container, `Contribute` itself, the views and the view
+   models. A staged copy that passes both can still fail lazily there; the reference check narrows that to
+   packages whose assembly version does not move with the package version (CommunityToolkit.Mvvm stays
+   8.0.0.0 across patches; NBGV stamps the first-party assemblies at major.minor, so a patch release of
+   the app is invisible to it). Section 10 decision 6 is the owner's call on how much tighter to pin.
+5. Anything that fails falls back to the shipped copy. The whole resolve is wrapped: a loader bug is a
+   `LoaderFailed` outcome on the shipped pack, never a crash at startup.
+
+Every `LoadOutcome.Detail` is in user terms and carries at most a bare file name, since Settings shows it;
+the exception message behind it (which the runtime fills with the full path) rides on `LogDetail` and
+reaches only the log line.
+
+The shipped version comes from the `extension.json` the build copies beside the app
+(`ShippedPack.BesideApp`), never from the type (see the constraint below). An unreadable shipped manifest
+means no staged copy can be shown to be newer (`ShippedUnknown`), so the shipped copy runs. One shipped
+extension per output directory for now: the copied file keeps the bare name `extension.json`, which a
+second extension would collide with; renaming the copy to `<id>.extension.json` is item 37's to do with
+the packaging.
+
+**The load context.** A staged copy loads into `ExtensionLoadContext`, a named (`extension:<id>@<version>`)
+non-collectible `AssemblyLoadContext` whose `Load` returns null for everything, so every reference the
+extension makes (the app assembly, Avalonia, CS2DemoKit) falls through to the default context and binds to
+the copy the app runs on. Only the extension's own assembly lives in the child context. No unload: "off"
+is the Phase 1 switch.
+
+This was not the first choice. The plan said "default context", and the simpler design is to load the
+staged copy into `AssemblyLoadContext.Default` and skip it whenever the shipped assembly is already loaded.
+A prototype against the built extension showed it cannot work: the shipped
+`DemoViewer.NET.Extensions.StratBook.dll` is on the trusted platform assembly list (it is in the app
+directory and the deps file), and `AssemblyLoadContext.Default.LoadFromAssemblyPath` of a same-named
+assembly returns the TPA copy from the app directory, not the file named, whether or not it was loaded
+before. The same prototype confirmed the other half of the trap: a method that merely mentions
+`StratBookPack` on a branch not taken loads the shipped assembly when the JIT compiles the method.
+
+**Constraints the child context imposes.**
+
+- *Two assemblies of one name.* Once a staged copy wins, `DemoViewer.NET.Extensions.StratBook` may exist
+  twice in the process: the staged one in its context, and the shipped one in the default context if
+  anything resolves it by name. Nothing in the app should, but anything that does gets the shipped copy
+  silently: `Assembly.Load`, `Type.GetType("..., DemoViewer.NET.Extensions.StratBook")`, and Avalonia's
+  `avares://DemoViewer.NET.Extensions.StratBook/...` URIs (the asset loader resolves the authority by
+  name). The extension has none of these today; `ExtensionLoaderTests.TheExtension_ResolvesNothingByAssemblyName`
+  scans its source for them. The `ViewLocator` already reads `pack.GetType().Assembly`; DI, STJ, Avalonia
+  properties and compiled XAML resolve by `Type`, which is the staged type.
+- *The head must not name the type.* `Program.Main` passes the shipped pack as
+  `ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack())` (the id is a `const`,
+  inlined by the compiler) and `BuildAvaloniaApp` uses `FeaturePacks.ConfigureIfUnset(static () => [...])`,
+  so the only methods that mention the type are the two factories, compiled only when invoked: the loader's
+  factory never when the staged copy wins, the previewer's never after Main. The shipped `StratBookPack`
+  is then neither loaded, instantiated nor configured.
+- *Dependencies come from the app.* A staged copy may reference only assemblies the app ships (the
+  contract and CS2DemoKit ranges in its manifest cover the first-party ones); a new package reference in an
+  extension release needs an app release that carries it, which items 37 and 38 enforce.
+- *Internals.* The app's `InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")` matches by simple name,
+  so the staged copy sees the same internals the shipped one does.
+
+**Trust.** `ITrustPolicy.IsTrusted(directory, manifest)` is asked once per candidate, after the
+compatibility check and before the assembly is touched; a policy that throws reads as untrusted.
+`TrustPolicy.Default` is the seam item 35 fills with the signature check. Until then it trusts nothing on
+disk, so **loading from the config root is off in a release build**, unless the developer opt-in
+`DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1` is set in the process environment, which trusts every staged
+copy. The variable is for building and testing the loader and for running an extension built from a local
+checkout; nothing in the app or the installer sets it, and item 35 keeps it as the documented way to run
+an unsigned local build.
+
+**Logging.** The loader runs before any logger exists, so it records its outcome on each `PackStatus`
+(`Source`, `Rejected`) and `App.axaml.cs` writes the report once the diagnostics pillar is up, under the
+`App.Extensions` category: one line per pack, `Extension Strat Book 1.0.1 loaded (installed update) from
+'<dir>'` or the incompatible form, then one `Staged extension at '<dir>' not loaded (<failure>): <detail>`
+per refused candidate. It lands in the Diagnostics tab and the rolling `logs/diagnostics.log`.
+
+**The Settings surface.** `PackStatus.Source` is `PackSource.Bundled` or `PackSource.Staged(directory)`,
+with a user label ("bundled", "installed update") that the pack master row shows in parentheses after
+the version: `1.0.1 (installed update)`. `PackStatus.Rejected` holds every staged candidate the loader
+refused for that pack, newest first; the row shows one amber line per candidate beneath the description,
+`Update 1.1.0 was not loaded: Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.13.0-beta0001`
+(or `An update in '<folder>' was not loaded: ...` when its manifest did not parse). Unlike the
+incompatible row of item 33 this locks nothing, since the copy that is running works. The UiCapture
+variant `settings-extensions-staged` renders it. Copy says "extension" and "update", never "pack".
+
+**Verified.** `ExtensionLoaderTests` copies the extension assembly this test process runs into a temp
+`extensions/<id>/<version>/`, loads it, and asserts a second `Assembly` in an `ExtensionLoadContext` whose
+pack contract type is the default context's; a manifest bumped over an unchanged assembly is an
+`IdentityMismatch`; a corrupt file, a missing entry type and a non-pack entry type are reasons; a
+symlinked folder or manifest is `PathEscapes`; and `Resolve` with a shipped manifest that says 0.9.0 loads
+the 1.0.0 copy on disk without ever invoking the shipped factory. The published Desktop head
+(`dotnet publish -c Release -r osx-arm64`) was run three times under temp config roots: with a staged
+1.0.1 (the extension rebuilt with its manifest bumped) and the opt-in set, the log read `Extension Strat
+Book 1.0.1 loaded (installed update) from '<root>/extensions/net.demoviewer.pack.stratbook/1.0.1'` and
+the pack's index loads followed from the staged code; with nothing staged, `Strat Book 1.0.0 loaded
+(bundled)`; with the same staged copy and no opt-in, `loaded (bundled)` followed by `Staged extension at
+'<dir>' not loaded (Untrusted): the copy is not signed by this app's publisher`.
+
 ---
 
 ## 8. Disable semantics
@@ -1401,6 +1548,24 @@ data for the session only.
 5. **Structure:** each extension lives in its own directory from the start (Phase 0b) and becomes its own
    csproj once the edges are cut (Phase 5), so extensions can be released on a different cadence from the
    app (Phase 6).
+6. **(pending) How strictly a staged extension is pinned to the app build.** The extension compiles
+   against the app assembly, Avalonia, CS2DemoKit, Playback2D and the rest of the app's packages, and a
+   staged copy built against a different patch of any of them loads and fails only when the mismatched
+   member is first called. Two options:
+   - **(A) Exact pin.** The manifest carries a `builtAgainst` block (app version, Avalonia, CS2DemoKit,
+     Playback2D, the other shared packages) written by CI, and the loader refuses any staged copy not
+     built against the running app's exact versions. Safest: a staged copy can never meet a member it was
+     not compiled against. Cost: every app release that bumps a shared package needs an extension
+     re-release, and an extension release targets exactly one app release.
+   - **(B) Contract range plus checks.** The manifest's `requiresHost`, `requiresCs2DemoKit` and
+     `minAppVersion` ranges, plus the loader's reference-version check and load-time probe (section 7.8).
+     An extension release rides across app releases that keep the shared package versions, and a bump
+     that changes an assembly version is caught at load. Residual risk: a package whose assembly version
+     does not move with its package version, and anything compiled on first use (lambda bodies,
+     `Contribute`, views), can still fail after the loader reported success.
+
+   Item 34 implements (B). Items 36 and 37 follow whichever the owner picks: (A) adds the CI-written block
+   and a loader check against it; (B) stands as built. Not decided here.
 
 
 ---
@@ -1851,6 +2016,15 @@ src/Extensions/StratBook/
   extension.json                                    the manifest (item 33, section 7.7); embedded and copied beside the DLL
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the item 28 move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; item 28 did not touch this
+src/App/DemoViewer.NET/Extensions/Loading/        the loader (item 34, section 7.8); the app, so every head can use it
+```
+
+At run time, under the config root (`AppPaths.ConfigRoot`), item 36 stages what item 34 loads:
+
+```
+<config root>/extensions/<id>/<version>/          one staged extension version; read by the Desktop head at startup
+  extension.json                                  id and version equal to the folder names
+  DemoViewer.NET.Extensions.StratBook.dll         the assembly the manifest names
 ```
 
 Item 26's namespace rule: a moved type keeps its original namespace when the move vacates that namespace

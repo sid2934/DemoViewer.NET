@@ -11,6 +11,8 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -95,6 +97,7 @@ public class App : Application
             WireTheme(services); // L0c: apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab + file
+            LogExtensionStatuses();
             // Careful: host services MUST attach BEFORE RestoreSession. RestoreSession activates the persisted tab,
             // and a restored-active Reels tab builds HighlightsTabViewModel (→ HighlightReelDialogViewModel),
             // which captures Shell().ReelJob / Shell().ReelJobStatus ONCE in its constructor. Attaching after
@@ -434,6 +437,7 @@ public class App : Application
             WireTheme(services); // L0c: apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab (file no-ops on WASM)
+            LogExtensionStatuses();
 
             // Same ordering contract as the desktop root above: after the singleton is cached, never in
             // the ctor. No-ops on WASM (fileless settings persist no session), but the call site stays so
@@ -452,6 +456,37 @@ public class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    ///     The extension loader's one-time report (strat-book-plugin.md §7.8): the head resolved the packs
+    ///     in Main, before any logger existed, and recorded the outcome on each <see cref="PackStatus" />;
+    ///     this writes it once the diagnostics pillar is up. One line per pack (loaded, with its source, or
+    ///     incompatible), then one per staged candidate the loader refused.
+    /// </summary>
+    private static void LogExtensionStatuses()
+    {
+        ILogger log = DiagnosticsLog.CreateLogger(AppLog.ExtensionsCategory);
+        foreach (PackStatus status in FeaturePacks.Statuses)
+        {
+            string name = status.Manifest?.Name ?? status.Pack.Id;
+            string version = status.Manifest?.Version.ToString() ?? "?";
+            if (status.IsCompatible)
+            {
+                string location = status.Source is PackSource.Staged staged ? staged.Directory : status.Pack.GetType().Assembly.Location;
+                AppLog.ExtensionLoaded(log, name, version, status.Source.Label, location);
+            }
+            else
+            {
+                AppLog.ExtensionIncompatible(log, name, version, status.Source.Label, status.Problem ?? "incompatible");
+            }
+
+            foreach (LoadOutcome outcome in status.Rejected)
+            {
+                AppLog.ExtensionCandidateRejected(log, outcome.Directory, outcome.Failure, outcome.Detail,
+                    outcome.LogDetail is null ? string.Empty : " [" + outcome.LogDetail + "]");
+            }
+        }
     }
 
     /// <summary>
