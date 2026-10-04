@@ -175,6 +175,10 @@ Cost tags (at least one tier drops each):
 | `RealDemo` | reads a CS2 `.dem` off disk, and usually parses and replays it | fast, standard |
 | `Render` | rasterises a production-sized frame, or compares against a committed golden image | fast |
 
+`KnownFailure` is dropped by every tier, including `full`. Not a cost tag: a deterministic failure
+carried until it is fixed, excluded by category rather than tracked by eye, so CI and a local run
+agree on what is known broken (strat-book-plugin.md §11.1).
+
 Informational tags (pre-existing, descriptive, no tier reads them): `Unit`, `Probe`.
 
 `Budget`, `Gpu`, `Integration`, `Unit` and `Probe` all predate this phase and keep their exact
@@ -185,9 +189,9 @@ count (§6.3).
 
 | Tier | Drops | For |
 |---|---|---|
-| `fast` | `Budget` `Environmental` `Gpu` `Integration` `RealDemo` `Render` | the sanity sweep: pure unit and contract tests, no demo, no pixels, no process, no benchmark |
-| `standard` | `Budget` `Environmental` `Integration` `RealDemo` | **the in-flight default**: `fast` plus the render and golden gates |
-| `full` | *(nothing)* | CI, and a pre-push review |
+| `fast` | `Budget` `Environmental` `Gpu` `Integration` `KnownFailure` `RealDemo` `Render` | the sanity sweep: pure unit and contract tests, no demo, no pixels, no process, no benchmark |
+| `standard` | `Budget` `Environmental` `Integration` `KnownFailure` `RealDemo` | **the in-flight default**: `fast` plus the render and golden gates |
+| `full` | `KnownFailure` | CI, and a pre-push review |
 
 `fast ⊆ standard ⊆ full` holds by construction because the exclusion sets nest, and
 `TestTierContractTests.TierExclusionSets_Nest_FromFastDownToFull` asserts it rather than trusting it,
@@ -231,13 +235,13 @@ The canonical filter strings, for anyone driving the runner directly:
 
 ```bash
 # fast
---treenode-filter "/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]"
+--treenode-filter "/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)&(Category!=Render)]"
 
 # standard
---treenode-filter "/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=RealDemo)]"
+--treenode-filter "/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)]"
 
 # full
---treenode-filter "/*/*/*/*"
+--treenode-filter "/*/*/*/*[(Category!=KnownFailure)]"
 ```
 
 `scripts/test-app-suite.sh`, the memory-safe batched runner for the App suite, takes the same `-t`
