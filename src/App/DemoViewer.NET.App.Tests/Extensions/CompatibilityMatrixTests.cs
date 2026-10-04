@@ -21,38 +21,54 @@ public class CompatibilityMatrixTests
 {
     // ── 1: the shipped manifest against this build's host, every axis ─────────────────────────────
 
-    [Test]
-    public async Task ShippedManifest_InTheRepo_SatisfiesEveryAxis_OfThisBuildsHost()
-    {
-        string repoRoot = RepoRoot();
-        string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
-        ExtensionManifest manifest = ExtensionManifest.Parse(await File.ReadAllTextAsync(path));
-        await AssertSatisfiesEveryAxis(manifest);
-    }
+    // The repo copy is a template: its version is the literal "{nbgv}" and the build stamps the value
+    // Nerdbank.GitVersioning computes from src/Extensions/StratBook/version.json (§7.11). The placeholder
+    // must not parse as a version, so an unstamped copy can never load.
+    private const string VersionPlaceholder = "\"{nbgv}\"";
 
     [Test]
-    public async Task ShippedManifest_BesideTheExtensionBinary_SatisfiesEveryAxis_AndMatchesTheRepoCopy()
+    public async Task ManifestTemplate_InTheRepo_CarriesThePlaceholderOnce_AndStampsToTheBinCopy()
     {
         string repoRoot = RepoRoot();
         string repoPath = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
         string binPath = Path.Combine(AppContext.BaseDirectory, ExtensionManifest.FileName);
+        string template = await File.ReadAllTextAsync(repoPath);
+        string stampedText = await File.ReadAllTextAsync(binPath);
+        ExtensionManifest fromBin = ExtensionManifest.Parse(stampedText);
 
+        int first = template.IndexOf(VersionPlaceholder, StringComparison.Ordinal);
         using (Assert.Multiple())
         {
-            await Assert.That(File.Exists(repoPath)).IsTrue().Because($"the repo copy must exist at {repoPath}");
-            await Assert.That(File.Exists(binPath)).IsTrue().Because($"the bin copy must exist at {binPath}");
+            await Assert.That(first).IsGreaterThanOrEqualTo(0).Because($"{repoPath} must carry {VersionPlaceholder}");
+            await Assert.That(template.IndexOf(VersionPlaceholder, first + 1, StringComparison.Ordinal)).IsEqualTo(-1)
+                .Because("the placeholder appears exactly once");
+            Assert.Throws<ExtensionManifestException>(() => ExtensionManifest.Parse(template));
+            await Assert.That(template.Replace(VersionPlaceholder, $"\"{fromBin.Version}\"", StringComparison.Ordinal)).IsEqualTo(stampedText)
+                .Because("the stamped copy is the template with only its version filled in; anything else means a template edit without a rebuild");
+            await AssertSatisfiesEveryAxis(fromBin);
         }
+    }
 
-        ExtensionManifest fromRepo = ExtensionManifest.Parse(await File.ReadAllTextAsync(repoPath));
+    [Test]
+    public async Task ShippedManifest_BesideTheExtensionBinary_MatchesTheEmbeddedCopy_AndTheAssemblyVersion()
+    {
+        string binPath = Path.Combine(AppContext.BaseDirectory, ExtensionManifest.FileName);
+        await Assert.That(File.Exists(binPath)).IsTrue().Because($"the bin copy must exist at {binPath}");
+
         ExtensionManifest fromBin = ExtensionManifest.Parse(await File.ReadAllTextAsync(binPath));
         ExtensionManifest fromEmbedded = new StratBookPack().Manifest;
+        string? informational = typeof(StratBookPack).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
         using (Assert.Multiple())
         {
-            await Assert.That(fromBin).IsEqualTo(fromRepo)
-                .Because("a stale PreserveNewest copy beside the DLL would ship a manifest nobody edited");
-            await Assert.That(fromEmbedded).IsEqualTo(fromRepo)
+            await Assert.That(fromEmbedded).IsEqualTo(fromBin)
                 .Because("the loader judges the bundled pack by its embedded copy; a mismatch here ships a pack that judges itself differently than its own file does");
+            await Assert.That(fromBin.Version.ToString()).IsNotEqualTo("{nbgv}");
+            await Assert.That(SemVersion.TryParseInformational(informational, out SemVersion? stamped)).IsTrue()
+                .Because($"the extension assembly carries an NBGV informational version; got '{informational}'");
+            await Assert.That((fromBin.Version.Major, fromBin.Version.Minor, fromBin.Version.Patch))
+                .IsEqualTo((stamped!.Major, stamped.Minor, stamped.Patch))
+                .Because("the manifest version and the assembly version come from the same version.json");
             await AssertSatisfiesEveryAxis(fromBin);
         }
     }
@@ -196,6 +212,14 @@ public class CompatibilityMatrixTests
 
     // ── 3: requiresCs2DemoKit is the pin EXACTLY; requiresHost is bounded below the next major ────────
 
+    // The repo template with its placeholder filled by a stand-in version: these axes do not depend on it.
+    private static async Task<ExtensionManifest> RepoTemplateManifest(string repoRoot)
+    {
+        string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
+        string template = await File.ReadAllTextAsync(path);
+        return ExtensionManifest.Parse(template.Replace(VersionPlaceholder, "\"0.0.0\"", StringComparison.Ordinal));
+    }
+
     [Test]
     public async Task RequiresCs2DemoKit_EqualsTheDirectoryPackagesPropsPin_Exactly()
     {
@@ -208,8 +232,7 @@ public class CompatibilityMatrixTests
                 .Select(e => e.Attribute("Version")!.Value)
         ];
 
-        string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
-        ExtensionManifest manifest = ExtensionManifest.Parse(await File.ReadAllTextAsync(path));
+        ExtensionManifest manifest = await RepoTemplateManifest(repoRoot);
 
         using (Assert.Multiple())
         {
@@ -224,8 +247,7 @@ public class CompatibilityMatrixTests
     public async Task RequiresHost_IsSatisfiedByTheCurrentContract_AndWouldBeViolatedByTheNextMajor()
     {
         string repoRoot = RepoRoot();
-        string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
-        ExtensionManifest manifest = ExtensionManifest.Parse(await File.ReadAllTextAsync(path));
+        ExtensionManifest manifest = await RepoTemplateManifest(repoRoot);
         SemVersion nextMajor = new(ExtensionHost.ContractVersion.Major + 1, 0, 0);
 
         using (Assert.Multiple())

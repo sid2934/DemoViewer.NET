@@ -102,21 +102,35 @@ CS2DEMOKIT_VERSION="$(grep -oE 'PackageVersion Include="CS2DemoKit.Analysis" Ver
 
 echo "[pack-extension] host: contract=$CONTRACT_VERSION cs2demokit=$CS2DEMOKIT_VERSION"
 
-# ── The manifest's own version is the version being released ──────────────────────────────────────────
-MANIFEST_VERSION="$(jq -r .version "$MANIFEST_PATH")"
+# ── The version being released is the one Nerdbank.GitVersioning computes for the extension ───────────
+# The repo manifest is a template: its "version" is the literal "{nbgv}" and the build stamps the real
+# value from the extension directory's version.json (src/Extensions/ExtensionManifest.targets). The
+# same nbgv call the build makes decides the version here, so the tag check runs before any build.
+MANIFEST_TEMPLATE_VERSION="$(jq -r .version "$MANIFEST_PATH")"
+if [ "$MANIFEST_TEMPLATE_VERSION" != "{nbgv}" ]; then
+    echo "error: $MANIFEST_PATH must keep \"version\": \"{nbgv}\"; the build stamps the version from version.json." >&2
+    exit 2
+fi
+if ! dotnet nbgv --version >/dev/null 2>&1; then
+    dotnet tool restore >/dev/null
+fi
+MANIFEST_VERSION="$(dotnet nbgv get-version -p "$CSPROJ_DIR" -v NuGetPackageVersion)"
 MANIFEST_ASSEMBLY="$(jq -r .assembly "$MANIFEST_PATH")"
 ASSEMBLY_BASENAME="${MANIFEST_ASSEMBLY%.dll}"
-echo "[pack-extension] manifest version=$MANIFEST_VERSION assembly=$MANIFEST_ASSEMBLY"
+echo "[pack-extension] version=$MANIFEST_VERSION (nbgv) assembly=$MANIFEST_ASSEMBLY"
 
 # A tag push names the version being released; a dispatch run or a local invocation has none, which
-# is not an error (pack-velopack.sh's own tag guard is the same shape).
+# is not an error (pack-velopack.sh's own tag guard is the same shape). nbgv never reads the version
+# from the tag, so a tag that disagrees with the computed version would ship one version under
+# another's name.
 TAG_REF="${GITHUB_REF:-}"
 case "$TAG_REF" in
     refs/tags/extensions/"$ID"/v*)
         TAG_VER="${TAG_REF#refs/tags/extensions/"$ID"/v}"
         if [ "$TAG_VER" != "$MANIFEST_VERSION" ]; then
-            echo "error: tag extensions/$ID/v$TAG_VER does not match the manifest version $MANIFEST_VERSION." >&2
-            echo "       $MANIFEST_PATH drives the release version; bump it to $TAG_VER, or re-tag to extensions/$ID/v$MANIFEST_VERSION." >&2
+            echo "error: tag extensions/$ID/v$TAG_VER does not match the computed version $MANIFEST_VERSION." >&2
+            echo "       The tag must be cut with 'dotnet nbgv tag -p $(dirname "$MANIFEST_PATH")' on the commit being released;" >&2
+            echo "       re-tag to extensions/$ID/v$MANIFEST_VERSION." >&2
             exit 2
         fi
         echo "[pack-extension] tag/version agreement: extensions/$ID/v$TAG_VER == $MANIFEST_VERSION"
@@ -197,27 +211,43 @@ if [ -f "$XML_PATH" ]; then
     cp "$XML_PATH" "$STAGE_DIR/"
 fi
 
-# The repo copy is canonical; the build's PreserveNewest copy beside the DLL should be byte-identical
-# (same source file, via the csproj's Link), which the embedded-manifest check below confirms.
-cp "$MANIFEST_PATH" "$STAGE_DIR/extension.json"
+# The stamped copy beside the DLL is the manifest that ships. Three checks tie it to its sources: its
+# version is the one nbgv computed above, it equals the embedded copy byte for byte, and it equals the
+# repo template with the placeholder replaced (so a template edit without a rebuild is caught).
+BUILT_MANIFEST_PATH="${TARGET_DIR}extension.json"
+if [ ! -f "$BUILT_MANIFEST_PATH" ]; then
+    echo "error: the build left no stamped extension.json beside $DLL_PATH." >&2
+    exit 2
+fi
+BUILT_VERSION="$(jq -r .version "$BUILT_MANIFEST_PATH")"
+if [ "$BUILT_VERSION" != "$MANIFEST_VERSION" ]; then
+    echo "error: the stamped manifest says $BUILT_VERSION but nbgv computed $MANIFEST_VERSION." >&2
+    exit 2
+fi
+EMBEDDED_MANIFEST_PATH="$OUT_BASE/embedded-manifest.json"
+dotnet "$TOOL_DLL" manifest "$DLL_PATH" > "$EMBEDDED_MANIFEST_PATH"
+if ! cmp -s "$EMBEDDED_MANIFEST_PATH" "$BUILT_MANIFEST_PATH"; then
+    echo "error: the manifest embedded in $DLL_PATH does not match the stamped copy $BUILT_MANIFEST_PATH." >&2
+    exit 2
+fi
+rm -f "$EMBEDDED_MANIFEST_PATH"
+EXPECTED_MANIFEST_PATH="$OUT_BASE/expected-manifest.json"
+sed "s/\"{nbgv}\"/\"$MANIFEST_VERSION\"/" "$MANIFEST_PATH" > "$EXPECTED_MANIFEST_PATH"
+if ! cmp -s "$EXPECTED_MANIFEST_PATH" "$BUILT_MANIFEST_PATH"; then
+    echo "error: the stamped manifest $BUILT_MANIFEST_PATH is not the template $MANIFEST_PATH with its version filled in." >&2
+    echo "       rebuild after editing extension.json." >&2
+    exit 2
+fi
+rm -f "$EXPECTED_MANIFEST_PATH"
+cp "$BUILT_MANIFEST_PATH" "$STAGE_DIR/extension.json"
+echo "[pack-extension] stamped manifest $MANIFEST_VERSION matches the embedded copy and the template"
 
 echo "[pack-extension] staged:"
 (cd "$STAGE_DIR" && find . -type f | sort | sed 's/^/  /')
 
-# ── The embedded manifest must equal the repo file, byte for byte ─────────────────────────────────────
-EMBEDDED_MANIFEST_PATH="$OUT_BASE/embedded-manifest.json"
-dotnet "$TOOL_DLL" manifest "$DLL_PATH" > "$EMBEDDED_MANIFEST_PATH"
-if ! cmp -s "$EMBEDDED_MANIFEST_PATH" "$MANIFEST_PATH"; then
-    echo "error: the manifest embedded in $DLL_PATH does not match $MANIFEST_PATH." >&2
-    echo "       rebuild after editing extension.json, or check the csproj's EmbeddedResource Link." >&2
-    exit 2
-fi
-rm -f "$EMBEDDED_MANIFEST_PATH"
-echo "[pack-extension] embedded manifest matches $MANIFEST_PATH"
-
 # ── Compatibility report ───────────────────────────────────────────────────────────────────────────────
 echo "[pack-extension] compatibility report:"
-if ! dotnet "$TOOL_DLL" report "$MANIFEST_PATH" --contract "$CONTRACT_VERSION" --cs2demokit "$CS2DEMOKIT_VERSION"; then
+if ! dotnet "$TOOL_DLL" report "$STAGE_DIR/extension.json" --contract "$CONTRACT_VERSION" --cs2demokit "$CS2DEMOKIT_VERSION"; then
     echo "error: this extension build is not compatible with its own host values; refusing to release it." >&2
     exit 1
 fi
@@ -313,7 +343,7 @@ PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 FEED_ENTRY_PATH="$OUT_BASE/feed-entry.json"
 
 jq -n \
-    --argjson manifest "$(cat "$MANIFEST_PATH")" \
+    --argjson manifest "$(cat "$STAGE_DIR/extension.json")" \
     --arg version "$MANIFEST_VERSION" \
     --arg url "$ASSET_URL" \
     --arg sha256 "$SHA256" \

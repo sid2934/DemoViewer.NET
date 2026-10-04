@@ -96,7 +96,8 @@ public sealed class StratBookPack : IFeaturePack
             () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
     }
 
-    // The embedded extension.json (the csproj embeds src/Extensions/StratBook/extension.json), read once.
+    // The embedded extension.json (src/Extensions/StratBook/extension.json stamped with the version from
+    // version.json at build; see src/Extensions/ExtensionManifest.targets), read once.
     private static readonly Lazy<ExtensionManifest> _manifest =
         new(() => ExtensionManifest.ReadEmbedded(typeof(StratBookPack).Assembly));
 

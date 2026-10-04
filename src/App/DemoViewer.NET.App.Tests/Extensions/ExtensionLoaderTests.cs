@@ -352,7 +352,7 @@ public class ExtensionLoaderTests
 
     // ── Resolve: the head's call, end to end ─────────────────────────────────────────────────────
 
-    // The shipped manifest the test writes says 0.9.0, so the real 1.0.0 copy on disk is the newer one:
+    // The shipped manifest the test writes says 0.0.0, so the real copy on disk is the newer one:
     // it loads, the status says where from, and the shipped factory is never invoked.
     [Test]
     public async Task Resolve_LoadsTheStagedCopy_WhenNewerCompatibleAndTrusted_AndNeverBuildsTheShippedOne()
@@ -366,7 +366,7 @@ public class ExtensionLoaderTests
             {
                 created++;
                 return new StratBookPack();
-            }, WriteShippedManifest(root, "0.9.0"));
+            }, WriteShippedManifest(root, OlderThanBuilt));
 
             IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustAll);
 
@@ -395,13 +395,13 @@ public class ExtensionLoaderTests
         string root = NewRoot();
         try
         {
-            ExtensionCandidate staged = StageRealCopy(root, versionOverride: "1.0.5");
+            ExtensionCandidate staged = StageRealCopy(root, versionOverride: NewerThanBuilt);
             int created = 0;
             ShippedPack shipped = new(StratBookPack.PackId, () =>
             {
                 created++;
                 return new StratBookPack();
-            }, WriteShippedManifest(root, "0.9.0"));
+            }, WriteShippedManifest(root, OlderThanBuilt));
 
             IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustAll);
 
@@ -428,7 +428,7 @@ public class ExtensionLoaderTests
         try
         {
             StageRealCopy(root, versionOverride: null);
-            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "0.9.0"));
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, OlderThanBuilt));
 
             IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustPolicy.UnsignedOptIn(_ => null));
 
@@ -437,7 +437,7 @@ public class ExtensionLoaderTests
                 await Assert.That(statuses[0].Source).IsEqualTo(PackSource.Bundled);
                 await Assert.That(statuses[0].Rejected.Single().Failure).IsEqualTo(LoadFailure.Untrusted);
                 await Assert.That(statuses[0].Rejected.Single().UserMessage)
-                    .IsEqualTo("Update 1.0.0 was not loaded: the copy is not signed by this app's publisher");
+                    .IsEqualTo($"Update {BuiltVersion} was not loaded: the copy is not signed by this app's publisher");
             }
         }
         finally
@@ -458,7 +458,7 @@ public class ExtensionLoaderTests
         {
             ExtensionCandidate staged = StageRealCopy(root, versionOverride: null);
             File.WriteAllText(Path.Combine(staged.Directory, ExtensionSignature.FileName), ExtensionSignature.Sign(staged.Directory, key));
-            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "0.9.0"));
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, OlderThanBuilt));
 
             IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustPolicy.SignedOrOptIn([publicKey], static _ => null));
 
@@ -489,7 +489,7 @@ public class ExtensionLoaderTests
             byte[] dllBytes = File.ReadAllBytes(staged.AssemblyPath);
             dllBytes[^1] ^= 0xFF;
             File.WriteAllBytes(staged.AssemblyPath, dllBytes);
-            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "0.9.0"));
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, OlderThanBuilt));
 
             IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustPolicy.SignedOrOptIn([publicKey], static _ => null));
 
@@ -512,7 +512,7 @@ public class ExtensionLoaderTests
         string root = NewRoot();
         try
         {
-            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "1.0.0"));
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, BuiltVersion));
             IReadOnlyList<PackStatus> noRoot = ExtensionLoader.Resolve(null, [shipped], Host, TrustAll);
             IReadOnlyList<PackStatus> empty = ExtensionLoader.Resolve(root, [shipped], Host, TrustAll);
 
@@ -677,7 +677,7 @@ public class ExtensionLoaderTests
                 // the condition the test needs
             }
 
-            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "0.9.0"));
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, OlderThanBuilt));
             IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustAll);
 
             using (Assert.Multiple())
@@ -773,6 +773,33 @@ public class ExtensionLoaderTests
 
     private static ExtensionCandidate Candidate(string version, string id = FakeId, string requiresHost = "^1.0", string requiresCs2DemoKit = "*") =>
         new(Path.Combine("/extensions", id, version), FakeManifests.For(id, "Fake", version, requiresHost, requiresCs2DemoKit));
+
+    // The real extension's version is stamped at build from its version.json, so fakes that must sort
+    // below, equal to or above it derive from the copy beside the DLL rather than naming a literal.
+    private const string OlderThanBuilt = "0.0.0";
+
+    private static string BuiltVersion => BuiltManifest().Version.ToString();
+
+    private static string NewerThanBuilt
+    {
+        get
+        {
+            SemVersion built = BuiltManifest().Version;
+            return new SemVersion(built.Major, built.Minor + 1, 0).ToString();
+        }
+    }
+
+    private static ExtensionManifest BuiltManifest()
+    {
+        string shippedDll = typeof(StratBookPack).Assembly.Location;
+        string path = Path.Combine(Path.GetDirectoryName(shippedDll)!, ExtensionManifest.FileName);
+        if (!File.Exists(path))
+        {
+            throw new SkipTestException($"no {ExtensionManifest.FileName} beside {shippedDll}");
+        }
+
+        return ExtensionManifest.Parse(File.ReadAllText(path));
+    }
 
     // Copies the extension assembly this test process runs (and the manifest beside it) into
     // <root>/extensions/<id>/<version>/. With versionOverride the on-disk manifest and folder say that
