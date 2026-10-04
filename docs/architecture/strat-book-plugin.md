@@ -502,18 +502,31 @@ Browser head builds in Release). Item 32 needs nothing until item 28 creates the
 `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests/DemoViewer.NET.Extensions.StratBook.Tests.csproj`,
 mirroring `DemoViewer.NET.App.Tests.csproj` (TUnit, Avalonia.Headless/Skia/Fonts.Inter, the same
 `System.GC.ConserveMemory` option, `RootNamespace` set to `DemoViewer.NET.AppTests` rather than its own
-name). `git mv` moved the 172 files under `App.Tests/Extensions/StratBook/` whole, plus eight files that
+name). `git mv` moved the 172 files under `App.Tests/Extensions/StratBook/` whole, plus seven files that
 lived at the App.Tests root but tested pack types directly rather than core behaviour with the pack as a
-fixture: `AppCompositionRootTests` (its composition-root assertions reach into
-`Modules.SuggestedTags.SuggestedTagsService` and `Modules.UtilityBook.GrenadeIndexEvaluator`, not just the
-pack root), `ReviewModeTests`, `StratBookShellTests`, `StratBookShellRenderTests`, `StratBookHubAccess`,
+fixture: `ReviewModeTests`, `StratBookShellTests`, `StratBookShellRenderTests`, `StratBookHubAccess`,
 `SuggestedTagsTuningViewModelTests` (its subject, `SuggestedTagsTuningViewModel`, is itself in the
 extension), `GeneratedInboxTests` and `DeferredStoreLoadTests` (both render or drive pack viewmodels
 directly: `Views.SuggestedTags`, `ViewModels.Teams`). The rule applied uniformly: a root file moves when
 its assertions reach a pack-owned type beyond the pack's own root namespace; it stays when a core
 mechanism (feature gating, the cache record's pack-payload seam, the deferred-store-load pattern, the
 Review Queue, the generated-items inbox rule, the UI-thread audit) is tested with a pack type only as a
-concrete fixture. `PackOffCompositionTests` and `StratBookPackBaselineTests`, already inside
+concrete fixture.
+
+`AppCompositionRootTests` moved whole on the first pass, on the same reasoning (several of its cases
+reach into `Modules.SuggestedTags.SuggestedTagsService` and `Modules.UtilityBook.GrenadeIndexEvaluator`,
+not just the pack root), and a review of this item reversed that: a composition-root smoke test is core's
+regression gate regardless of which cases happen to touch a pack type, and moving it whole left App.Tests
+with no such gate at all. It is split per test instead, the same treatment `ReviewQueueTests` got below.
+9 of its 14 cases (desktop/browser resolve, the launch-hang regression, the three singleton checks,
+`NeedsFirstRun`, the `IOptionsMonitor` wiring, `WireTheme`) test core only, with the real configured pack
+list as their fixture exactly as before, and stayed `AppCompositionRootTests` in App.Tests. The other 5
+(the hub/Strats layout, the two evaluator fan-out-order cases, the Situation/Grenade index coordinator
+wiring, and the pack-off evaluator/badge case) reach pack-owned types for their own assertions, not merely
+to build the fixture, and moved to the extension project as `StratBookCompositionRootTests`; both classes
+duplicate the shared `WithProvider` harness rather than reference each other's assembly.
+
+`PackOffCompositionTests` and `StratBookPackBaselineTests`, already inside
 `Extensions/StratBook/`, moved with the batch for the same reason (both construct `GrenadeIndexEvaluator`
 and `SuggestedTagsService` instances directly). `PackBoundaryTests` is the one exception pulled back out:
 it has no pack-owned using anywhere in its body (it scans csproj XML and namespace text), so it moved to
@@ -521,29 +534,31 @@ it has no pack-owned using anywhere in its body (it scans csproj XML and namespa
 into the extension project. `ReviewQueueTests` was split rather than moved or kept whole: its "Review tab"
 section drove `ReviewQueueTabViewModel` and `ReviewQueueModule` (both pack-owned) directly, so those three
 tests became `ReviewQueueTabTests` in the extension project; the rest of the file, which exercises
-`ReviewQueue` itself (core, per section 13), stayed. Namespaces are untouched everywhere: the 160 files
-already in the flat `DemoViewer.NET.AppTests` namespace and the 13 in
-`DemoViewer.NET.AppTests.Extensions.StratBook` kept whatever they had, because the project's own namespace
+`ReviewQueue` itself (core, per section 13), stayed. Namespaces are untouched everywhere: of the 182 files
+in the extension test project, 170 are in the flat `DemoViewer.NET.AppTests` namespace and 12 in
+`DemoViewer.NET.AppTests.Extensions.StratBook`, kept whatever they had, because the project's own namespace
 convention was already inconsistent before this item and fixing that was not this item's job.
 
 Shared test support is compile-linked, not a `ProjectReference` to `App.Tests`: both assemblies'
 `[ModuleInitializer]`s would run in one process when the ext suite touches an App.Tests type
 (`CompiledInPacks` calling `FeaturePacks.Configure` a second time throws on the `FrozenList`;
 `SessionIsolation` would repoint `DEMOVIEWER_CONFIG_DIR` out from under the first assembly), and TUnit would
-likely register App.Tests' own tests a second time in the ext process. Nine files stay physically in
-App.Tests and are linked into the extension project's compilation (`GlobalUsings.cs`, `CompiledInPacks.cs`,
+likely register App.Tests' own tests a second time in the ext process. Twelve files stay physically in
+App.Tests and are linked into the extension project's compilation: `GlobalUsings.cs`, `CompiledInPacks.cs`,
 `SessionIsolation.cs`, `HeadlessSession.cs`, `Playback2DFakeContext.cs`,
-`Playback2DTimelineHeadlessSupport.cs`, `SyntheticParsedDemo.cs`, `QueuedPost.cs`, and two helpers pulled out
-of test classes that have their own tests so linking the whole file would double-register them:
-`FakeTimelineData.cs` out of `TimelineTrackTests.cs`, `Playback2DActivation.cs` out of
-`Playback2DActionDispatchTests.cs`). Three files moved to the extension project with the batch and are
-linked back into App.Tests, because core-mechanism tests that stayed need them as fixtures:
-`RoundIndexTestData.cs` and `CacheRecordTestExtensions.cs` (used by `DemoCachePackPayloadTests`,
-`DemoCacheRoundIndexStampTests`, `PackDataRemoverTests`, `ReviewQueueTests`, `SidecarFormatTests`,
-`BackgroundPlanRealDemoTests`, `ForwardPassRealDemoTests`, `ForwardQueueTests`) and `StratBookHubAccess.cs`
-(used by `UiThreadAuditTests`, which walks the StratBook hub the same way it walks every other section). A
-fourth, `ToleranceSliderHarness.cs`, was extracted from `ToleranceSliderTests.cs` (which has its own tests)
-for the same reason, needed by `ZonePlaceResolverSourceTests`. `src/Testing/DemoViewer.NET.TestSupport`
+`Playback2DTimelineHeadlessSupport.cs`, `SyntheticParsedDemo.cs`, `QueuedPost.cs`, `TestLibraries.cs` (used
+by `StratBookShellTests` and `StratBookShellRenderTests`), `Extensions/FakeManifests.cs` (item 33's manifest
+fixtures, used by `StratBookPackTests`' `FakePack`), and two helpers pulled out of test classes that have
+their own tests so linking the whole file would double-register them: `FakeTimelineData.cs` out of
+`TimelineTrackTests.cs`, `Playback2DActivation.cs` out of `Playback2DActionDispatchTests.cs`. Four files
+moved to the extension project with the batch and are linked back into App.Tests, because core-mechanism
+tests that stayed need them as fixtures: `RoundIndexTestData.cs` and `CacheRecordTestExtensions.cs` (used,
+between the two, by `DemoCachePackPayloadTests`, `DemoCacheRoundIndexStampTests`, `PackDataRemoverTests`,
+`ReviewQueueTests`, `SidecarFormatTests`, `BackgroundPlanRealDemoTests`, `ForwardPassRealDemoTests`,
+`ForwardQueueTests`), `StratBookHubAccess.cs` (used by `UiThreadAuditTests`, which walks the StratBook hub
+the same way it walks every other section), and `ToleranceSliderHarness.cs`, extracted from
+`ToleranceSliderTests.cs` (which has its own tests) for the same reason, needed by
+`ZonePlaceResolverSourceTests`. `src/Testing/DemoViewer.NET.TestSupport`
 (the `DemoTestHelper`/`GameEventPayloadExtensions` project) is referenced by both projects as before; it
 needed no change. `tests/shared/*.cs` (the test-tier contract) is picked up automatically, the same
 `Directory.Build.props` rule that reaches every `*.Tests` project.
@@ -1401,18 +1416,26 @@ one branch per item, a read-only review before every merge, and the standard tie
   reports blockers, should-fixes and nits; the builder fixes on the same branch; the orchestrator merges
   `--no-ff` in wave order, runs the standard tier, `AppCompositionRootTests` and the Strat window
   classes, pushes, records the item in `plan.md`, and removes the worktree. The WASM head builds in
-  Release after each wave.
+  Release after each wave. Since item 28, `AppCompositionRootTests` (the 9 core cases) is back in
+  App.Tests; its 5 pack-reaching cases are `StratBookCompositionRootTests` in
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests`. A builder runs both with the
+  same `--treenode-filter "/*/*/<Class>/*"` form, one project at a time.
 - **Testing without duplication.** Three roles, three budgets. A builder runs only the test classes its
-  item touches or adds, plus `AppCompositionRootTests`, and never the standard tier, the bench or the
-  WASM build. A reviewer reads the diff and runs nothing, except the item's new test class when a claim
-  needs checking. The orchestrator owns the one **heavy lane**: the standard tier once per wave on the
-  merged head (per merge, only the affected classes and `AppCompositionRootTests`), the WASM Release
-  build once per wave, and the Environmental items (M0, 2, 9) one at a time. Nothing in the heavy lane
-  ever runs concurrently with another heavy-lane process. If a wave's tier fails, the orchestrator
-  bisects by running the failing class on each merge commit of the wave rather than re-running the tier.
-- **Done means:** the standard tier passes apart from the known `ThePinnedRounds_ExerciseEveryDetector`;
-  the pack-on behaviour is unchanged (goldens and window tests); the pack-off composition-root test
-  (item 7) passes from item 7 onward; and no core namespace imports a pack namespace (item 7's guard).
+  item touches or adds, plus `AppCompositionRootTests` (and `StratBookCompositionRootTests` from the ext
+  project when the item touches the pack), and never the standard tier, the bench or the WASM build. A
+  reviewer reads the diff and runs nothing, except the item's new test class when a claim needs
+  checking. The orchestrator owns the one **heavy lane**: the standard tier once per wave on the merged
+  head (per merge, only the affected classes, `AppCompositionRootTests` and
+  `StratBookCompositionRootTests`), the WASM Release build once per wave, and the Environmental items
+  (M0, 2, 9) one at a time. Nothing in the heavy lane ever runs concurrently with another heavy-lane
+  process. If a wave's tier fails, the orchestrator bisects by running the failing class on each merge
+  commit of the wave rather than re-running the tier.
+- **Done means:** the standard tier passes; the pack-on behaviour is unchanged (goldens and window
+  tests); the pack-off composition-root test (item 7) passes from item 7 onward; and no core
+  namespace imports a pack namespace (item 7's guard). `ThePinnedRounds_ExerciseEveryDetector`
+  (`SuggestedTagsGoldenTests`) is excluded by `[Category("KnownFailure")]`, which every tier drops
+  including `full` (item 28 review; `tests/shared/TestTiers.cs`), not ignored by eye: a green run at
+  any tier says nothing about it, and a red one at any tier means something else broke.
 
 ### 11.2 Items
 
@@ -1922,7 +1945,13 @@ src/Extensions/StratBook/
     Modules/ Services/ ViewModels/ Views/ Controls/ Assets/   the Phase 0b tree, moved whole, namespaces unchanged
     Services/Zones/AssetZonePlaceResolverSource.cs  the one file that moved in from core (it implements a pack interface)
   DemoViewer.NET.Extensions.StratBook.Tests/        item 28: RootNamespace DemoViewer.NET.AppTests (the App.Tests one)
-    *.cs                                             172 moved files plus 8 that lived at App.Tests' root
+    *.cs                                             182 files: 172 moved whole, 7 that lived at App.Tests'
+                                                       root, and 3 new ones: StratBookCompositionRootTests.cs
+                                                       (5 cases split out of AppCompositionRootTests, which
+                                                       stayed) and ReviewQueueTabTests.cs (3 cases split out of
+                                                       ReviewQueueTests, which stayed), plus
+                                                       ToleranceSliderHarness.cs (extracted from one of the
+                                                       172, ToleranceSliderTests.cs, to link back)
     RoundIndexTestData.cs, CacheRecordTestExtensions.cs, StratBookHubAccess.cs, ToleranceSliderHarness.cs
                                                        linked back into App.Tests: core tests use them as fixtures
   extension.json                                    the manifest (item 33, section 7.7); embedded and copied beside the DLL
