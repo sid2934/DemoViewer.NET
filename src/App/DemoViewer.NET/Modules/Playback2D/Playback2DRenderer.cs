@@ -18,7 +18,7 @@ public enum Playback2DRendererKind
 
     /// <summary>
     ///     The pre-v2 <see cref="Playback2DViewport" />. A parity escape hatch, deleted the release AFTER
-    ///     v2 ships; <c>docs/playback2d-v2/old-control-removal.md</c> carries the trigger conditions.
+    ///     v2 ships.
     /// </summary>
     Legacy
 }

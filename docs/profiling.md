@@ -158,8 +158,7 @@ dv2d export --demo match.dem --from t72000 --to t79680 --size 1280x720 --fps 60 
 `Profiling.Enabled` (i.e. `CS2DEMOKIT_PROFILE=1`, or the legacy `DEMOVIEWER_PROFILE=1`, both of which
 `dv2d` reads) turns the scene capture on implicitly. The reverse is not true: `--perf` deliberately
 does **not** set `Profiling.Enabled`, because the tracker decode is one of the stages being timed.
-Full contract: [`playback2d-v2/dv2d.md`](playback2d-v2/dv2d.md#performance-capture---perf) and
-[`playback2d-v2/plans/P1-perf-instrumentation.md`](playback2d-v2/plans/P1-perf-instrumentation.md).
+Full contract: [`playback2d-v2/dv2d.md`](playback2d-v2/dv2d.md#performance-capture---perf).
 
 ## Micro-benchmarks (`tools/EntityMicroBench`)
 

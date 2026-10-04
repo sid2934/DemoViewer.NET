@@ -5,7 +5,6 @@ It references `DemoViewer.NET.Playback2D.Pipeline` and nothing from `src/App/*`;
 is loaded at any point, and that is asserted by test (`NoAvaloniaArchitectureTests`) on every CI run.
 
 Design authority: [`design.md`](design.md) §4, §5.7, §5.8, §6, §7.7, §9, §11.
-Plan: [`plans/C1-cli.md`](plans/C1-cli.md).
 
 ```
 dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
@@ -476,7 +475,7 @@ and it is counted apart so it does not read as a permanent cache failure).
 > first three built from a second table holding only `playback2d.debuggrid` (the seam C1 deviation 14
 > left open), which made `export --no-encode --perf` the sole per-layer authority. The one remaining
 > difference is what FEEDS a layer, not which layers exist: `bench` has no HUD source and no
-> visibility engine. See [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §8.
+> visibility engine.
 
 Measured: `export --from 72000 --to 79680 --size 1280x720 --fps 60 --hud --perf` on a de_inferno
 MM demo, CPU raster, libvpx-vp9 (this is the real output, not an illustration):
@@ -498,12 +497,12 @@ MM demo, CPU raster, libvpx-vp9 (this is the real output, not an illustration):
 
 Read that way round it is unambiguous: the frame is libvpx plus one radar `DrawImage` plus a
 read-back, and the entity decode everyone suspects (`source`) is 3 % of it. The full analysis,
-including the ablation that checks the per-layer column against reality, is in
-[`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §7.
+including the ablation that checks the per-layer column against reality, was measured before the
+default was set.
 
 Capture itself allocates nothing per frame in steady state (the ring buffers are filled during the
 warmup), which is asserted by `ScenePerfRecorderTests` alongside the 0 B assertion for the detached
-default path. Design and rationale: [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md).
+default path.
 
 ---
 
@@ -544,7 +543,7 @@ against re-baked radar art.
 
 ## Render backend
 
-Precedence (design §5.8, plans/C2-gpu-provider.md §2.5):
+Precedence:
 
 1. `--cpu` / `--gpu` / `--backend <auto|cpu|gpu|angle|gl|force-gpu>`: mutually exclusive; `angle`
    and `gl` are accepted aliases for `gpu` (which GL stack gets used is the probe's decision).

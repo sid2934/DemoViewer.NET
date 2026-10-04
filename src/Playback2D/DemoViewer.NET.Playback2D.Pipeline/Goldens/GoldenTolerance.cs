@@ -261,8 +261,7 @@ public readonly record struct GoldenDeltaProfile(
 ///         from "a regression" here is how much of the frame sits within a delta anyone could see.
 ///     </para>
 ///     <para>
-///         The two numbers are the ones measured for <c>GoldenParityTests</c> and written up in
-///         <c>docs/playback2d-v2/plans/B1-text-metrics-review.md</c>, set just below the observed curve so
+///         The two numbers are the ones measured for <c>GoldenParityTests</c>, set just below the observed curve so
 ///         a mis-placed layer, a wrong colour or a dropped pass moves it far enough to fail. They live
 ///         here so that both readers of the golden are held to one curve.
 ///     </para>

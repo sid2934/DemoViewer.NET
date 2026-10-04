@@ -87,8 +87,7 @@ the offscreen CPU provider works on the browser head, and B5 verified the whole 
 §12 Q3 (B2 ships the markers, B3 the drag handles).
 
 **Scheduled, not open:** deleting the pre-v2 control. §9 keeps it one release behind the toggle; the
-plan for removing it is [`old-control-removal.md`](old-control-removal.md), with its trigger
-conditions stated.
+it goes the release after v2 ships.
 
 ---
 
@@ -523,8 +522,7 @@ Rules locked in by the review:
   `CS2DemoKit.Parser.EntityTracking.EntitySeekService`; `MainViewModel` owns only an *instance* of it,
   and `MainViewModel.CreateTracker` is UI/debugger-specific and must never back an export.
   `TrackerFrameSource` builds its own service over `() => new EntityTracker()` and accepts one
-  from-zero replay to reach `StartFrame`. No checkpoint cache exists to reuse. See
-  `plans/B4-export.md` D1/D2.
+  from-zero replay to reach `StartFrame`. No checkpoint cache exists to reuse.
 - Fixed timestep `dt = 1/fps` through the same layer stack (`RenderPurpose.Export`), rendering to an
   `SKSurface` from the provider, `ReadPixels` → sink. Determinism is guaranteed by §5.1, verified by
   golden tests.
@@ -821,8 +819,7 @@ actually shipped and where it departed from its plan.
 1. Exact extraction boundary of the checkpoint-replay seek core out of `MainViewModel` (the review
    found proposals disagreed on its current shape/name; confirm at implementation start).
    **Resolved (B4):** the core is `CS2DemoKit.Parser.EntityTracking.EntitySeekService`, a package
-   type, already standalone. `MainViewModel` owns only an instance, and was not modified by B4.
-   See `plans/B4-export.md` D1.
+   type, already standalone. `MainViewModel` owns only an instance.
 2. Windowless GPU backend choice (ANGLE/EGL vs native GL vs SkiaSharp Vulkan). Resolved by the
    time-boxed C2 spike; macOS Metal support is a separate later decision.
 3. ~~Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).~~

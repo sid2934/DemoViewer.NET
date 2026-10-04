@@ -3,7 +3,7 @@
 #
 #   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-n] [-l]
 #
-#   -t  tier (default: standard, the in-flight default; see docs/playback2d-v2/plans/P3-test-tiers.md)
+#   -t  tier (default: standard, the in-flight default; see tests/shared/TestTiers.cs)
 #   -p  project key or `all` (default: all).  Keys: playback2d cli app ext livesync trimmer
 #       visualization gameicons ruleauthoring
 #   -c  configuration (default: Release, matching CI)

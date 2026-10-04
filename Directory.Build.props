@@ -5,7 +5,7 @@
     </ItemGroup>
 
     <!--
-        The test-tier taxonomy (docs/playback2d-v2/plans/P3-test-tiers.md), compiled into every test
+        The test-tier taxonomy, compiled into every test
         assembly as LINKED SOURCE rather than reached through a shared test-support assembly.
 
         Linked, because two suites cannot take the reference: the Playback2D and dv2d suites assert

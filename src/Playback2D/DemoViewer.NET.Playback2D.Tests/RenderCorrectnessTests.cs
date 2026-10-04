@@ -18,8 +18,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Render, camera and resource correctness: one case per finding in
-///     <c>docs/playback2d-v2/plans/D6-audit-findings.md</c>. Each is a defect the unit suite missed
+///     Render, camera and resource correctness: one case per audit finding. Each is a defect the unit suite missed
 ///     because it lives in a <b>relationship</b> no single unit instantiates: a producer feeding a
 ///     camera, a palette outliving a picture, two HUD layers claiming one rectangle, a cache describing
 ///     a handle that has already been freed.

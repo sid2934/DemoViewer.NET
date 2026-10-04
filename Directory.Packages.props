@@ -36,7 +36,7 @@
         <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4"/>
         <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="3.119.4"/>
         <!-- ANGLE (EGL + GLES2 over D3D11) native binaries: the windowless GPU render-surface backend
-             (docs/playback2d-v2/design.md §5.8, plans/C2-gpu-provider.md §8.1).
+             (docs/playback2d-v2/design.md).
 
              This is ALREADY in the desktop graph: Avalonia.Win32 11.3.12 depends on exactly this
              version, and the Desktop publish has been shipping av_libglesv2.dll all along. The explicit

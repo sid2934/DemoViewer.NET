@@ -139,7 +139,7 @@ public class StratExportTests
                 await File.WriteAllBytesAsync(Path.Combine(artifacts, "strat-export-five-steps.actual.png"), actual);
             }
 
-            await Assert.That(result.FailureReason).IsNull();
+            await Assert.That(result.FailureReason).IsNull().Because(result.FailureReason ?? "the export succeeded");
             await Assert.That(result.Match).IsTrue();
         }
         finally

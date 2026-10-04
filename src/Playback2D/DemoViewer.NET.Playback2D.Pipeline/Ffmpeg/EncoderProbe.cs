@@ -35,8 +35,7 @@ public readonly record struct EncoderProbeResult(string Encoder, bool Works, str
 }
 
 /// <summary>
-///     Answers "can this machine actually run this encoder". See
-///     <c>docs/playback2d-v2/plans/P2-export-throughput.md</c>.
+///     Answers "can this machine actually run this encoder".
 ///     <para>
 ///         The seam exists so <see cref="EncoderSelector" />'s ladder walk can be tested with no ffmpeg,
 ///         no GPU and no subprocess, which is the only way the fallback behaviour can be asserted on a

@@ -10,8 +10,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     A probe that answers from a script instead of from a machine. See
-///     <c>docs/playback2d-v2/plans/P2-export-throughput.md</c>.
+///     A probe that answers from a script instead of from a machine.
 ///     <para>
 ///         This is what makes the fallback behaviour assertable on a CI runner with no GPU, no driver and
 ///         no ffmpeg. Every case below runs identically on a workstation with an RTX card and on a hosted
