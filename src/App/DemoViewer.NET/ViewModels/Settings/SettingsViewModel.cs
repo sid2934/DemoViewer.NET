@@ -1813,7 +1813,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             }
 
             PackStatus? status = _packStatuses.FirstOrDefault(s => s.Pack.FeatureId == pack.Id);
-            AddFeatureRow(ExtensionsFeatureRows, pack, 0, status?.Manifest?.Version.ToString());
+            AddFeatureRow(ExtensionsFeatureRows, pack, 0, status?.Manifest?.Version.ToString(),
+                source: status?.Source, loadNote: LoadNote(status));
 
             HashSet<string> ownTabIds = new(StringComparer.Ordinal);
             foreach (FeatureDescriptor tab in FeatureCatalog.All)
@@ -1853,9 +1854,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 status.Pack.FeatureId, FeatureScope.Pack, label,
                 "This extension cannot load on this version of the app.",
                 null, null, false, new Dictionary<UserCategory, bool>());
-            AddFeatureRow(ExtensionsFeatureRows, placeholder, 0, status.Manifest?.Version.ToString(), status.Problem);
+            AddFeatureRow(ExtensionsFeatureRows, placeholder, 0, status.Manifest?.Version.ToString(), status.Problem,
+                status.Source, LoadNote(status));
         }
     }
+
+    // Item 34: the staged updates the loader looked at and did not load, one line each, newest first
+    // (PackStatus.Rejected is already in that order), or null when there were none.
+    private static string? LoadNote(PackStatus? status) =>
+        status is null || status.Rejected.Count == 0
+            ? null
+            : string.Join(Environment.NewLine, status.Rejected.Select(o => o.UserMessage));
 
     // Locks a pack's own master row (FeatureToggleRow.IsDeleteBusy) for exactly as long as its
     // ExtensionDataActionViewModel.IsBusy is true, so the switch cannot start the re-enable race the
@@ -1884,7 +1893,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     private void AddFeatureRow(
         ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel,
-        string? version = null, string? incompatibility = null)
+        string? version = null, string? incompatibility = null, PackSource? source = null, string? loadNote = null)
     {
         // The PLATFORM half of the answer, which the raw IFeatureGate does not know. See
         // FeatureToggleRow.IsPlatformUnavailable for why this matters on the browser head.
@@ -1896,7 +1905,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         bool platformUnavailable =
             _isBrowser() && ShellModuleFeatureGate.DesktopOnlyIds.Contains(descriptor.Id);
 
-        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable, version, incompatibility);
+        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable, version, incompatibility, source, loadNote);
         group.Add(row);
         _featureRows.Add(row);
     }
