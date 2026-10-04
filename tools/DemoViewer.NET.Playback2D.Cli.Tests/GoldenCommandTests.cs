@@ -123,12 +123,11 @@ public class GoldenCommandTests
     }
 
     /// <summary>
-    ///     The glyph budget is reported, and its denominator with it: a payload that omits the label
-    ///     count cannot be checked against the manifest a reader has open, and
-    ///     <c>above_ceiling_fraction</c> is the quantity that denominator is spent on.
+    ///     The label count and the glyph-ink figures are reported beside the geometry rules: a payload
+    ///     that omits them cannot say how much of a frame was text or how far that text differed.
     /// </summary>
     [Test]
-    public async Task Verify_ReportsTheGlyphBudgetAndWhatSpentIt()
+    public async Task Verify_ReportsTheLabelsAndTheInkItMeasured()
     {
         CliRun run = Dv2d.InProcess("golden", "verify", "--corpus", Dv2d.CorpusDirectory, "--json");
 
@@ -141,10 +140,11 @@ public class GoldenCommandTests
         await Assert.That(row["above_ceiling_fraction"]).IsNotNull();
         await Assert.That(row["min_window_ssim"]).IsNotNull();
 
-        // 6 px per label over the frame's area off the authoring platform, and a closed tier on it.
-        double budget = row["glyph_budget"]!.GetValue<double>();
-        double expected = GoldenTolerance.GlyphsMatchTheCorpus ? 0 : 6.0 * 10 / (640.0 * 360.0);
-        await Assert.That(budget).IsEqualTo(expected).Within(1e-12);
+        // The glyph mask the gate forgave under, so a log reader can see how much text there was and
+        // how far it differed.
+        await Assert.That(row["ink_pixels"]!.GetValue<long>()).IsGreaterThan(0L);
+        await Assert.That(row["worst_under_ink"]).IsNotNull();
+        await Assert.That(row["under_ink_over_ceiling"]).IsNotNull();
     }
 
     [Test]

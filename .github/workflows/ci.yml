@@ -154,13 +154,15 @@ jobs:
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           golden verify --cpu --json --diff-dir artifacts/playback2d-goldens
 
-      # Now SceneLayerCatalog builds the real stack, this gate times ~4.9 ms p99 against the scaled
-      # 16 ms rather than a 0.094 ms debug grid, so it can fail for a render regression and may flap on
+      # Now SceneLayerCatalog builds the real stack, this gate times the real render against the scaled
+      # budget rather than a 0.094 ms debug grid, so it can fail for a render regression and may flap on
       # a slow runner. Raise DV2D_BUDGET_SCALE with a measurement if it does; do not restore the
-      # removed --budget-bytes-per-frame override or swap the fixture.
+      # removed --budget-bytes-per-frame override or swap the fixture. Measured: 11.1 ms p99 on
+      # 2026-09-23, 16.1 and 17.8 ms p99 on 2026-10-04 for a render that benches identically on one
+      # machine at both commits (1.5 ms p99), so 3.0 is runner headroom, not a looser render bar.
       - name: Frame-budget gate
         env:
-          DV2D_BUDGET_SCALE: '2.0'
+          DV2D_BUDGET_SCALE: '3.0'
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           bench --name duel-mirage-b --frames 512 --cpu --gate --json
@@ -281,7 +283,11 @@ jobs:
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
+      # One test at a time: the suite's window-booting classes share static state and race each
+      # other on a two-core runner (a different test fails each run). Serial costs about a minute.
       - name: Extension (Strat Book) suite, full tier
+        env:
+          DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
         run: bash scripts/test.sh -t full -p ext -c Release
 
   # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and

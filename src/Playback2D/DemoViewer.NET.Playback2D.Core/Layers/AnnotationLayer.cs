@@ -139,6 +139,9 @@ public sealed class AnnotationLayer : ISceneLayer
     /// <inheritdoc />
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>Draw text elements. Off, a text annotation draws nothing; shapes are unaffected.</summary>
+    public bool DrawTextElements { get; set; } = true;
+
     /// <inheritdoc />
     public int ContentVersion => _session.Document.Version;
 
@@ -459,7 +462,11 @@ public sealed class AnnotationLayer : ISceneLayer
     {
         if (kind == AnnotationKind.Text)
         {
-            DrawText(canvas, points, widthWorld, text, colour);
+            if (DrawTextElements)
+            {
+                DrawText(canvas, points, widthWorld, text, colour);
+            }
+
             return;
         }
 

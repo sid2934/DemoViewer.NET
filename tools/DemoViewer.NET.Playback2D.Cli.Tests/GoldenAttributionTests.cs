@@ -40,8 +40,8 @@ public class GoldenAttributionTests
 {
     /// <summary>
     ///     Every entry <c>golden verify</c> actually judges, read off the manifest rather than listed
-    ///     here, so a corpus entry added tomorrow is attributed tomorrow and cannot be quietly relaxed
-    ///     by <see cref="GoldenTolerance.ForLabelledFrame" /> while nothing proves what it forgives.
+    ///     here, so a corpus entry added tomorrow is attributed tomorrow, and the glyph mask the gate
+    ///     forgives under is measured here rather than taken on trust.
     ///     <see cref="EveryEntryTheGateJudges_IsAlsoAttributed" /> asserts the two sets are the same.
     /// </summary>
     public static IEnumerable<Func<string>> AttributedEntries()
@@ -166,12 +166,7 @@ public class GoldenAttributionTests
 
         if (!drawText)
         {
-            if (plan.Compositor.Find(SceneLayerIds.Markers) is MarkerLayer markers)
-            {
-                markers.DrawLabels = false;
-            }
-
-            plan.Compositor.SetEnabled(SceneLayerIds.FloorLabel, false);
+            GoldenCommand.SilenceText(plan);
         }
 
         return GoldenCommand.RenderEntry(plan, entry, fixture);

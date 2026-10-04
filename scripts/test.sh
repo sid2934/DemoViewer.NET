@@ -130,6 +130,11 @@ for entry in "${SELECTED[@]}"; do
 
   ARGS=(--treenode-filter "$TIER_FILTER" --disable-logo --no-progress)
   [ "$LIST_ONLY" -eq 1 ] && ARGS+=(--list-tests)
+  # DV_TEST_EXTRA_ARGS: runner options appended verbatim (CI serialises the ext suite with it).
+  if [ -n "${DV_TEST_EXTRA_ARGS:-}" ]; then
+    # shellcheck disable=SC2206
+    ARGS+=($DV_TEST_EXTRA_ARGS)
+  fi
 
   START=$(date +%s%N)
   OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
