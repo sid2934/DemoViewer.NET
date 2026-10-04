@@ -1282,8 +1282,26 @@ after `VelopackApp.Build().Run()` and before Avalonia starts, and returns the `P
    implement `IFeaturePack` with a public parameterless constructor (`NotAPack`), constructs it, and
    checks that the pack's `Id` and the version of its embedded manifest equal the on-disk manifest
    (`IdentityMismatch`). A corrupt or missing file is `AssemblyLoadFailed`.
-4. Anything that fails falls back to the shipped copy. The whole resolve is wrapped: a loader bug is a
+4. Two skew checks run on the loaded copy before it is accepted. `CheckReferences` compares every assembly
+   the staged copy references against the version the default context runs (the loaded assembly's, else
+   the file beside the app, read without loading; `System.*`, `netstandard` and `mscorlib` come from the
+   shared runtime and are skipped): a difference is `ReferenceMismatch` ("it was built against SkiaSharp
+   3.119.0.0; this app ships 3.116.1.0"). `Probe` then reads `Id`, `FeatureId`, `Manifest`, `Features`,
+   `Commands` and `JobKinds` and runs `Register` on a scratch `ServiceCollection`, so a member compiled
+   against a type or method the running app no longer has throws here, as `ProbeFailed` ("registering its
+   services failed (TypeLoadException)"), rather than later in the composition root after the loader
+   reported success. What the probe does not catch: anything compiled on first use, that is the bodies of
+   the lambdas `Register` and `Contribute` hand the container, `Contribute` itself, the views and the view
+   models. A staged copy that passes both can still fail lazily there; the reference check narrows that to
+   packages whose assembly version does not move with the package version (CommunityToolkit.Mvvm stays
+   8.0.0.0 across patches; NBGV stamps the first-party assemblies at major.minor, so a patch release of
+   the app is invisible to it). Section 10 decision 6 is the owner's call on how much tighter to pin.
+5. Anything that fails falls back to the shipped copy. The whole resolve is wrapped: a loader bug is a
    `LoaderFailed` outcome on the shipped pack, never a crash at startup.
+
+Every `LoadOutcome.Detail` is in user terms and carries at most a bare file name, since Settings shows it;
+the exception message behind it (which the runtime fills with the full path) rides on `LogDetail` and
+reaches only the log line.
 
 The shipped version comes from the `extension.json` the build copies beside the app
 (`ShippedPack.BesideApp`), never from the type (see the constraint below). An unreadable shipped manifest
@@ -1513,6 +1531,24 @@ data for the session only.
 5. **Structure:** each extension lives in its own directory from the start (Phase 0b) and becomes its own
    csproj once the edges are cut (Phase 5), so extensions can be released on a different cadence from the
    app (Phase 6).
+6. **(pending) How strictly a staged extension is pinned to the app build.** The extension compiles
+   against the app assembly, Avalonia, CS2DemoKit, Playback2D and the rest of the app's packages, and a
+   staged copy built against a different patch of any of them loads and fails only when the mismatched
+   member is first called. Two options:
+   - **(A) Exact pin.** The manifest carries a `builtAgainst` block (app version, Avalonia, CS2DemoKit,
+     Playback2D, the other shared packages) written by CI, and the loader refuses any staged copy not
+     built against the running app's exact versions. Safest: a staged copy can never meet a member it was
+     not compiled against. Cost: every app release that bumps a shared package needs an extension
+     re-release, and an extension release targets exactly one app release.
+   - **(B) Contract range plus checks.** The manifest's `requiresHost`, `requiresCs2DemoKit` and
+     `minAppVersion` ranges, plus the loader's reference-version check and load-time probe (section 7.8).
+     An extension release rides across app releases that keep the shared package versions, and a bump
+     that changes an assembly version is caught at load. Residual risk: a package whose assembly version
+     does not move with its package version, and anything compiled on first use (lambda bodies,
+     `Contribute`, views), can still fail after the loader reported success.
+
+   Item 34 implements (B). Items 36 and 37 follow whichever the owner picks: (A) adds the CI-written block
+   and a loader check against it; (B) stands as built. Not decided here.
 
 
 ---
