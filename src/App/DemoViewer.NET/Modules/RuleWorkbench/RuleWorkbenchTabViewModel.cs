@@ -21,6 +21,8 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Diagnostics;
+using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
@@ -141,6 +143,11 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         StartWatcher();
         Check();
 
+        // A zones overlay the 2D Playback tab loaded (or reloaded) reports what it skipped here, the
+        // surface the author already watches for a ruleset they wrote. Published from the UI thread in
+        // practice, but the hub makes no promise, so the re-check is marshalled.
+        ZoneOverlayDiagnostics.Changed += OnZoneDiagnosticsChanged;
+
         // Live developer-mode toggle: re-evaluate shipped-file editability when settings change. External
         // edits arrive on a threadpool thread (SettingsService.Write's file watcher), so marshal to the UI
         // thread before touching the observable IsReadOnlyFile / CanSave surface.
@@ -234,6 +241,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// </summary>
     public void Dispose()
     {
+        ZoneOverlayDiagnostics.Changed -= OnZoneDiagnosticsChanged;
         _settingsSub?.Dispose();
         if (_watcher is not null)
         {
@@ -941,6 +949,14 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                 }
             }
 
+            // The zones overlay is not a ruleset, so it is neither counted in fileCount nor opened
+            // here; its rows sit under the ruleset rows so a skipped zone is seen where skipped rules are.
+            string? overlayPath = ZoneOverlayDiagnostics.OverlayPath;
+            foreach (ZoneDiagnostic d in ZoneOverlayDiagnostics.Current)
+            {
+                Diagnostics.Add(WorkbenchDiagnostic.FromZones(d, overlayPath));
+            }
+
             IsClean = Diagnostics.Count == 0;
             Summary = IsClean
                 ? $"✓ {fileCount} ruleset(s) — no problems."
@@ -956,6 +972,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             Summary = UserFacingError.Describe("check the rulesets", ex);
         }
     }
+
+    private void OnZoneDiagnosticsChanged() => Dispatcher.UIThread.Post(Check);
 
     /// <summary>Yields (path, text) for every shipped + user ruleset; the open file comes from the buffer.</summary>
     private IEnumerable<(string Path, string Text)> EnumerateSources()

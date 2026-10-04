@@ -28,14 +28,62 @@ public enum Playback2DAction
     ClearFollow,
     FitCamera,
 
-    // Declared in A1, bound by B2 (annotations):
+    // Annotations:
     ToolDraw,
     ToolErase,
     CancelGesture,
     Undo,
     Redo,
     ClearAnnotations,
-    HoldPan
+    HoldPan,
+
+    // Bound by the Strat Book extension's StratBookCommands (Playback2DKeymap's own table no longer
+    // carries these rows; CommandRegistry composes them back in). Find Rounds Like This:
+    FindRoundsLikeThis,
+
+    // J / K over the Situations result set, pack-bound.
+    NextSituationResult,
+    PrevSituationResult,
+
+    // Tag Palette, pack-bound. The first is how the keyboard reaches the palette; the rest are
+    // palette-scoped, so they only act while it has focus.
+    FocusTagPalette,
+    TagPaletteBack,
+    TagNote,
+    TagClearSticky,
+
+    // Label Mode, pack-bound: palette-scoped like the three above.
+    TagLabelMode,
+    TagLabelGroupNext,
+
+    // Suggested Tags Review, pack-bound: the Proposal Queue's walk and verdicts.
+    SuggestionNext,
+    SuggestionPrev,
+    SuggestionAccept,
+    SuggestionReject,
+    SuggestionEdit,
+    SuggestionAcceptAll,
+
+    // Review mode, pack-bound: the labelling panels, the tag and suggestion lanes and every tagging key.
+    ToggleReviewMode,
+
+    // Bound by Shape Tools: the annotation toolbar's shape and
+    // text tools. Core: Playback2DKeymap's own table still carries these rows.
+    ToolLine,
+    ToolArrow,
+    ToolRect,
+    ToolEllipse,
+    ToolText,
+
+    // Step Authoring, pack-bound: the strat canvas's token tool and step keys. Rows in this shared enum
+    // so one set of overrides and one Settings list cover both tabs; the 2D Playback tab leaves every
+    // one of them unhandled.
+    ToolToken,
+    AddStep,
+    DuplicateStep,
+    DeleteStep,
+    PrevStep,
+    NextStep
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -45,7 +93,21 @@ public enum Playback2DBindingScope
     Always,
 
     /// <summary>Applies only while a pointer TOOL (draw / erase) is active, and then shadows <see cref="Always" />.</summary>
-    WhenToolActive
+    WhenToolActive,
+
+    /// <summary>
+    ///     Applies only while the Tag Palette has focus, and then shadows both scopes above.
+    ///     The palette's own button hotkeys are routed at this scope too, after its rows.
+    /// </summary>
+    WhenPaletteFocused,
+
+    /// <summary>
+    ///     Applies only while a proposal is selected in the Suggested Tags queue, and then shadows
+    ///     <see cref="Always" /> and <see cref="WhenToolActive" />; the palette scope still wins. It exists for
+    ///     J / K, which walk the Situations result set otherwise: both walks keep the same keys,
+    ///     and the one on screen is the one they drive.
+    /// </summary>
+    WhenSuggestionSelected
 }
 
 /// <summary>One row of the declarative keymap.</summary>
@@ -301,6 +363,10 @@ public static class Playback2DKeymap
         Key.Escape => "Esc",
         Key.Space => "Space",
         Key.Home => "Home",
+        Key.Back => "Backspace",
+        Key.OemOpenBrackets => "[",
+        Key.OemCloseBrackets => "]",
+        Key.Enter => "Enter", // the same value as Key.Return, which is what ToString names it
         _ => key.ToString()
     };
 
@@ -337,7 +403,7 @@ public static class Playback2DKeymap
         new(Playback2DAction.ClearFollow, Key.Escape, KeyModifiers.None, Playback2DBindingScope.Always,
             "Clear the follow target and re-fit the camera", false),
 
-        // ── Annotations (declared by A1, BOUND by B2). ──
+        // ── Annotations ──
         new(Playback2DAction.ToolDraw, Key.D, KeyModifiers.None, Playback2DBindingScope.Always,
             "Draw tool (press again for pan)", false),
         new(Playback2DAction.ToolErase, Key.X, KeyModifiers.None, Playback2DBindingScope.Always,
@@ -353,7 +419,27 @@ public static class Playback2DKeymap
         new(Playback2DAction.CancelGesture, Key.Escape, KeyModifiers.None,
             Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture", false),
 
-        // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
+        // Situation Search, result walking, review mode, the Tag Palette, Label Mode, the Suggested Tags
+        // queue and Step Authoring belong to the Strat Book extension (StratBookCommands), read by
+        // CommandRegistry through IFeaturePack.Commands. This table stays core-only: its static
+        // constructor conflict-checks eagerly, which a pack's own commands must never be able to trip.
+
+        // ── Shape Tools. Bare letters in the Always scope like D and X, each
+        //    pressed again to go back to pan. None collides with the shipped rows, the shell list or the
+        //    browser list, and the Tag Palette's own letters are palette-scoped, so a palette's "A" is a
+        //    site while it has focus and the Arrow tool otherwise.
+        new(Playback2DAction.ToolArrow, Key.A, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Arrow tool (press again for pan)", false),
+        new(Playback2DAction.ToolText, Key.T, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Text tool (press again for pan)", false),
+        new(Playback2DAction.ToolLine, Key.L, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Line tool (press again for pan)", false),
+        new(Playback2DAction.ToolRect, Key.R, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Rectangle tool (press again for pan)", false),
+        new(Playback2DAction.ToolEllipse, Key.O, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Ellipse tool (press again for pan)", false),
+
+        // ── Reserved: declared so the conflict checker guards them. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,
             "Fit the camera to the map (reserved)", true)
     ];

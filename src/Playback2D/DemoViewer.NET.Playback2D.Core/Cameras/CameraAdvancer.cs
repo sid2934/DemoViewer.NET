@@ -87,8 +87,7 @@ public static class CameraRigFactory
 
     /// <summary>
     ///     The rig for a mode. <see cref="Kind.Fit" /> deliberately returns <see cref="ManualRig" />:
-    ///     the one-shot fit is applied by <c>PaneSet.FitAll</c>, and the rig's job afterwards is to hold
-    ///     (plan decision D-3).
+    ///     the one-shot fit is applied by <c>PaneSet.FitAll</c>, and the rig's job afterwards is to hold.
     /// </summary>
     /// <param name="kind">The requested mode.</param>
     /// <param name="followSlot">The slot for <see cref="Kind.FollowPlayer" />.</param>

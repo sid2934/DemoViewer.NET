@@ -48,9 +48,7 @@ public sealed class SceneExportRunner : IExportRunner
         "No ffmpeg was found, so only GIF can be exported. Install ffmpeg — or use the export pane's " +
         "Download button where one is offered — then press Re-check, or switch the format to GIF.";
 
-    private readonly EncoderSelector _encoders;
-    private readonly Action<string>? _log;
-    private readonly Func<string?> _managedFfmpegDirectory;
+    private readonly ExportEncoding _encoding;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup?> _setup;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
 
@@ -63,7 +61,7 @@ public sealed class SceneExportRunner : IExportRunner
     /// </param>
     /// <param name="log">Optional line sink; the chosen encoder and ffmpeg's stderr flow through it.</param>
     /// <param name="encoderProbe">
-    ///     How <c>EncoderLadder</c> rungs are verified (plan P2 D1). Defaults to
+    ///     How <c>EncoderLadder</c> rungs are verified. Defaults to
     ///     <c>EncoderProbeCache.Shared</c>, so an app session pays for one two-frame test encode per
     ///     encoder rather than one per export. The seam is here so a test can drive the fallback path
     ///     without a GPU, a driver or a subprocess.
@@ -78,9 +76,8 @@ public sealed class SceneExportRunner : IExportRunner
         ArgumentNullException.ThrowIfNull(setup);
         _setup = setup;
         _surfaces = surfaces ?? (static () => new CpuSurfaceProvider());
-        _managedFfmpegDirectory = managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory);
-        _log = log;
-        _encoders = new EncoderSelector(encoderProbe);
+        _encoding = new ExportEncoding(managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory),
+            FfmpegLocator.Locate, log, new EncoderSelector(encoderProbe));
     }
 
     /// <inheritdoc />
@@ -93,34 +90,46 @@ public sealed class SceneExportRunner : IExportRunner
                                  ?? throw new ExportRefusedException(
                                      "There is no loaded demo to export.");
 
-        FfmpegLocation ffmpeg = FfmpegLocator.Locate(_managedFfmpegDirectory());
-        bool gif = string.Equals(request.Core.FormatId, ExportFormats.Gif, StringComparison.Ordinal);
-
-        if (!ffmpeg.Found && !gif)
-        {
-            throw new ExportRefusedException(NoFfmpegRefusal);
-        }
-
         // BEFORE the replay: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal
         // ("you asked for h264_nvenc and this driver cannot run it") has to arrive before the export
-        // spends a minute seeking rather than after it spends ten encoding into a pipe (plan P2 D1).
-        EncoderSelection? encoder = gif && !ffmpeg.Found
-            ? null
-            : _encoders.Select(request.Core.FormatId, request.EncoderOverride,
-                ExportQualities.ParseOrDefault(request.Quality), ffmpeg.Directory, ct);
+        // spends a minute seeking rather than after it spends ten encoding into a pipe.
+        (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
-        if (encoder is not null)
+        IFrameSink sink = _encoding.BuildSink(request, request.Core, ffmpeg, encoder);
+        using IRenderSurfaceProvider surfaces = _surfaces();
+        await RenderSceneAsync(request, setup, sink, surfaces, progress, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Renders one demo range into a sink the caller built: the source, the HUD, the compositor and the
+    ///     session, everything <see cref="RunAsync" /> does after the encoder is chosen. Pack Export calls it
+    ///     once per clip with the pack's one sink behind a <c>PackSegmentSink</c>, so many clips from many
+    ///     demos land in one encode.
+    /// </summary>
+    /// <param name="request">The range and the output settings; <c>Core</c>'s frame range is re-stamped here.</param>
+    /// <param name="setup">The scene captured for this run.</param>
+    /// <param name="sink">Where frames go. <b>Disposed by the session</b>, as every export sink is.</param>
+    /// <param name="surfaces">The render surface provider. Owned by the caller.</param>
+    /// <param name="progress">Progress reports, or null.</param>
+    /// <param name="ct">Cancels the render.</param>
+    /// <param name="maxFrames">Renders at most this many frames from the start of the range, or all of it when null.</param>
+    internal static async Task RenderSceneAsync(Scene2DExportRequest request, ExportSceneSetup setup, IFrameSink sink,
+        IRenderSurfaceProvider surfaces, IProgress<ExportProgress>? progress, CancellationToken ct,
+        int? maxFrames = null)
+    {
+        using TrackerFrameSource source = BuildSource(request, setup);
+        int last = Math.Max(0, source.FrameCount - 1);
+        if (maxFrames is int cap)
         {
-            _log?.Invoke("video encoder: " + encoder.Describe());
+            last = Math.Min(last, Math.Max(0, cap - 1));
         }
 
-        using TrackerFrameSource source = BuildSource(request, setup);
         ExportRequest core = request.Core with
         {
             // Re-stamped from the source itself: the dialog sized the range with
             // TrackerFrameSource.OutputFrameCount, and this is the assertion that the two agree.
             StartFrame = 0,
-            EndFrame = Math.Max(0, source.FrameCount - 1)
+            EndFrame = last
         };
 
         // After BuildSource, because the HUD's clock reads the source's own last-built frame: the whole
@@ -128,7 +137,6 @@ public sealed class SceneExportRunner : IExportRunner
         IHudDataSource? hud = setup.Hud?.Invoke(source);
 
         using SceneCompositor compositor = BuildCompositor(core, setup, hud);
-        using IRenderSurfaceProvider surfaces = _surfaces();
 
         SceneExportSession session = new(compositor)
         {
@@ -138,7 +146,6 @@ public sealed class SceneExportRunner : IExportRunner
             RadarBinder = setup.MapAssets is null ? null : new MapRadarBinder(setup.MapAssets)
         };
 
-        IFrameSink sink = BuildSink(request, core, ffmpeg, encoder);
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
     }
 
@@ -167,25 +174,5 @@ public sealed class SceneExportRunner : IExportRunner
         // Empty LayerIds means "the scene, nothing opt-in": CreateSceneStack's own null-include behaviour.
         IReadOnlyList<string>? include = core.LayerIds.Count == 0 ? null : [.. core.LayerIds];
         return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud, setup.Annotations);
-    }
-
-    private IFrameSink BuildSink(Scene2DExportRequest request, ExportRequest core, FfmpegLocation ffmpeg,
-        EncoderSelection? encoder)
-    {
-        if (!ffmpeg.Found)
-        {
-            // The floor. Reached only for GIF: RunAsync refused the video formats above.
-            return new ManagedGifSink(request.OutputPath, core.Fps);
-        }
-
-        return new FfmpegFrameSink(new FfmpegSinkOptions(
-            request.OutputPath,
-            core.FormatId,
-            core.Size.Width,
-            core.Size.Height,
-            core.Fps,
-            ffmpeg.Directory,
-            encoder,
-            Log: _log));
     }
 }

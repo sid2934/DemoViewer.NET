@@ -11,7 +11,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
-///     The phase's headline validation: GPU output must match CPU output within the §7.3 perceptual
+///     The headline validation: GPU output must match CPU output within perceptual
 ///     tolerance, <b>never</b> byte equality, since a GPU legitimately rounds anti-aliased coverage
 ///     differently from a software rasteriser.
 ///     <para>
@@ -37,7 +37,7 @@ public class BackendParityTests
 
     /// <summary>
     ///     <see cref="GoldenTolerance.CrossBackend" /> with the single-pixel ceiling raised from 32 to 48,
-    ///     <b>here only</b>: §7.3 forbids loosening a global threshold to accommodate one corpus.
+    ///     <b>here only</b>: a global threshold is never loosened to accommodate one corpus.
     ///     <para>
     ///         On an RTX 4070 Ti SUPER through ANGLE 2.1.27952 / D3D11, this corpus differs from software
     ///         raster on <b>0.026–0.24 % of pixels</b>, worst single-channel delta <b>46</b>, alpha delta

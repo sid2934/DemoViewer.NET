@@ -21,14 +21,20 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Builds the app's REAL composition root (<see cref="DemoViewer.NET.App.BuildServices" />) and proves
-///     it resolves. The launch-time container is otherwise untested, so a bad/missing registration would
-///     surface only as a first-launch crash that the green suite never catches. Each case pins
-///     <see cref="AppPaths.ConfigDirEnvVar" /> to its own temp dir (so <c>new SettingsService()</c> and the
-///     eager-singleton stores stay out of the real user config) and builds on the headless UI thread
+///     Builds the app's REAL composition root (<see cref="DemoViewer.NET.App.BuildServices(IWindowService)" />) and proves
+///     it resolves, apart from the pack. The launch-time container is otherwise untested, so a bad/missing
+///     registration would surface only as a first-launch crash that the green suite never catches. Each
+///     case pins <see cref="AppPaths.ConfigDirEnvVar" /> to its own temp dir (so <c>new SettingsService()</c>
+///     and the eager-singleton stores stay out of the real user config) and builds on the headless UI thread
 ///     because <c>ValidateOnBuild</c> constructs the singleton <see cref="MainViewModel" /> (which starts a
 ///     <c>DispatcherTimer</c>) at build time. <see cref="NotInParallelAttribute" /> because it mutates the
 ///     process-global <c>DEMOVIEWER_CONFIG_DIR</c>.
+///     <para>
+///         Split from the pack-reaching cases: the hub layout, the evaluator fan-out order
+///         (on and off), the Situation/Grenade index coordinator wiring, and the pack-off evaluator/badge
+///         case are <c>StratBookCompositionRootTests</c> in the extension test project. This file is the
+///         composition-root smoke test core keeps regardless of the pack.
+///     </para>
 /// </summary>
 [NotInParallel]
 [Category("Integration")]

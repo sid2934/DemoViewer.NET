@@ -179,7 +179,7 @@ public class Playback2DBrowserHonestyTests
     public async Task TheExportButtonsAbsence_SaysWhichAbsenceItIs()
     {
         (Playback2DTabViewModel browser, Playback2DFakeContext browserCtx) =
-            Playback2DActionDispatchTests.Activated();
+            Playback2DActivation.Activated();
         browser.IsBrowserHost = static () => true;
         browserCtx.Gate!.SetEnabled("playback2d.export", true);
         browser.OnActivated(browserCtx); // re-run the gate sweep under the browser predicate
@@ -192,7 +192,7 @@ public class Playback2DBrowserHonestyTests
         // Desktop, feature on, no demo yet: a DIFFERENT sentence, which is the whole point. The two
         // absences were indistinguishable, and only one of them is something the user can act on.
         (Playback2DTabViewModel desktop, Playback2DFakeContext desktopCtx) =
-            Playback2DActionDispatchTests.Activated();
+            Playback2DActivation.Activated();
         desktop.IsBrowserHost = static () => false;
         desktopCtx.HasDemo = false;
         desktop.OnActivated(desktopCtx);

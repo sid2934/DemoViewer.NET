@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Scanner queue/staleness battery, now over the GLOBAL demo-
-///     processing queue (demo-processing-queue.md). The scanner FEEDS Pending rows into a real
+///     processing queue. The scanner FEEDS Pending rows into a real
 ///     <see cref="DemoProcessingQueue" /> (fake parser, no demos), which owns the newest-first drain,
 ///     the gate yielding, and the one-at-a-time invariant. The behaviours asserted here are the ones
 ///     that stayed the scanner's: forced-vs-opt-in gating, staleness reconciliation, the piggyback
@@ -141,7 +141,7 @@ public class HighlightScanServiceTests
     [Test]
     public async Task GotvProfileId_PinsTheBuildersResolvedProfileTypeName()
     {
-        // The A2 fingerprint stamps this literal while the real build composes with
+        // The fingerprint stamps this literal while the real build composes with
         // RuleChainBuilder.Profile.GetType().Name. A profile-class rename must break HERE,
         // loudly, instead of silently invalidating every cached fingerprint.
         await Assert.That(typeof(Cs2GotvProfile).Name)
@@ -293,7 +293,7 @@ public class HighlightScanServiceTests
         // replay (library indexing stays single-pass), and writes no row.
         scanner.OnParsedOpportunistically("/d/a.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(0)
-            .Because("the piggyback analysis is gated behind the D8 opt-in");
+            .Because("the piggyback analysis is gated behind the opt-in");
         await Assert.That(store.TryLoadRecord("/d/a.dem")).IsNull().Because("no analysis, no row");
 
         // Opt-in ON: the same missing row now drives the bare analysis (the fake records the call).
@@ -346,7 +346,7 @@ public class HighlightScanServiceTests
         });
 
         // …a manual retry on ONE demo drains exactly that demo, even though it is the OLDEST,
-        // and leaves the rest queued (D8: no whole-library marathon from a single retry click).
+        // and leaves the rest queued: no whole-library marathon from a single retry click.
         scanner.RequestScan("/d/wanted.dem");
         await WaitForAsync(() => processed.Count > 0 && !scanner.IsScanning, "scoped forced drain");
         // Settle: give any (wrongly) enqueued auto rows a chance to run. They must not.

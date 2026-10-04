@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
 /// <summary>
-///     The ordered encoder candidates per output format: plan <c>P2-export-throughput</c> D2.
+///     The ordered encoder candidates per output format.
 ///     <para>
 ///         Best rung first. <see cref="EncoderSelector" /> walks the list and takes the first rung that a
 ///         probe verifies; the last rung of every ladder is software, and is therefore the answer on a
@@ -45,7 +45,7 @@ public static class EncoderLadder
     ///     AV1 on NVENC. Ada's AV1 block; on Turing and older the probe fails and the ladder moves on.
     ///     <para>
     ///         B-frames and a look-ahead are on from <see cref="ExportQuality.Standard" /> up because they
-    ///         are close to free here. Plan D3 measured 0.99785 → 0.99862 SSIM for 135 → 156 kbps at the
+    ///         are close to free here: 0.99785 → 0.99862 SSIM for 135 → 156 kbps at the
     ///         same throughput. <c>-rc vbr</c> with <c>-b:v 0</c> is NVENC's constant-quality mode; without
     ///         the zero bitrate, <c>-cq</c> is ignored.
     ///     </para>
@@ -56,7 +56,7 @@ public static class EncoderLadder
         "-preset p4 -rc vbr -cq 34 -b:v 0 -bf 3 -rc-lookahead 8",
         "-preset p6 -rc vbr -cq 28 -b:v 0 -bf 3 -rc-lookahead 20");
 
-    /// <summary>AV1 on Intel Quick Sync. Shipped unprobed on the development hardware: see the plan's D2.</summary>
+    /// <summary>AV1 on Intel Quick Sync. Shipped unprobed on the development hardware.</summary>
     public static VideoEncoder Av1Qsv { get; } = new(
         "av1_qsv", "av1", EncoderAcceleration.QuickSync,
         "-preset veryfast -global_quality 40",
@@ -77,14 +77,14 @@ public static class EncoderLadder
     ///     VP9 on libvpx. The WebM floor, and the rung every LGPL ffmpeg build carries.
     ///     <para>
     ///         <b>The <c>-deadline</c>/<c>-cpu-used</c> pair is the whole point of this rung's rewrite.</b>
-    ///         Before P2 this invocation carried neither, which is libvpx's slowest setting on a codec
+    ///         Before this rewrite this invocation carried neither, which is libvpx's slowest setting on a codec
     ///         whose speed control is exactly those two flags: 97 fps for CRF 30.
     ///         <c>
     ///             -deadline realtime
     ///             -cpu-used 5
     ///         </c>
-    ///         at CRF 32 is 526 fps for 15 % more bits and an SSIM still above 0.999
-    ///         (plan D3). <c>-row-mt 1</c> stays on every rung; it is what lets libvpx use more than one
+    ///         at CRF 32 is 526 fps for 15 % more bits and an SSIM still above 0.999.
+    ///         <c>-row-mt 1</c> stays on every rung; it is what lets libvpx use more than one
     ///         core per tile.
     ///     </para>
     /// </summary>
@@ -118,7 +118,7 @@ public static class EncoderLadder
     /// <summary>
     ///     H.264 on x264. The MP4 floor.
     ///     <para>
-    ///         Today's default was <c>-preset medium -crf 30</c>, which plan D3 measured as beaten on both
+    ///         Today's default was <c>-preset medium -crf 30</c>, which was measured as beaten on both
     ///         axes by <c>-preset veryfast -crf 21</c>: faster AND a higher SSIM at a higher bitrate. CRF 30
     ///         on x264 throws the quality away before the preset can spend any effort on it.
     ///     </para>
@@ -130,7 +130,7 @@ public static class EncoderLadder
         "-preset medium -crf 18");
 
     /// <summary>
-    ///     The GIF pseudo-rung. There is no <c>-c:v</c> for it, plan D6's palettegen/paletteuse filter
+    ///     The GIF pseudo-rung. There is no <c>-c:v</c> for it, the palettegen/paletteuse filter
     ///     chain is the encoder, but a ladder entry means a GIF export reports through the same
     ///     <see cref="EncoderSelection" /> shape as every other export instead of a special case in three
     ///     callers.

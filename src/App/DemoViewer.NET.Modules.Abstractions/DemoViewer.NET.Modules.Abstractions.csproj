@@ -10,8 +10,7 @@
       The two Avalonia-shaped members of the contract (WorkspaceTabDescriptor, IWorkspaceModule) live in
       the sibling DemoViewer.NET.Modules.Abstractions.Ui project, which keeps THIS namespace. That split
       is what lets DemoViewer.NET.Playback2D.Pipeline consume IPlaybackSnapshot / IPlayerState /
-      IReadOnlyEntityView while staying Avalonia-free (docs/playback2d-v2/plans/
-      B0-core-pipeline-foundations.md decision D1), and it is enforced by an architecture test.
+      IReadOnlyEntityView while staying Avalonia-free, and it is enforced by an architecture test.
     -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>

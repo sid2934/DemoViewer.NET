@@ -12,7 +12,7 @@ using SysAssembly = System.Reflection.Assembly;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Determinism, enforced by test rather than by convention (design §5.1). A wall clock, a stopwatch
+///     Determinism, enforced by test rather than by convention. A wall clock, a stopwatch
 ///     or an RNG anywhere in the render path means an export cannot be reproduced and a golden image is
 ///     not a gate, so the ban is checked against compiled IL, where a call cannot hide behind a helper
 ///     method or a lambda.
@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         <b>Offenders are attributed to the type that makes the call</b>, by walking each method's IL
 ///         rather than just listing the assembly's member references. That costs a little more code and
 ///         buys the one thing a reference list cannot give: an exemption that is scoped to a namespace
-///         instead of switching the whole assembly off. B1's benchmark harness has to read a stopwatch
+///         instead of switching the whole assembly off. The benchmark harness has to read a stopwatch
 ///         and stamp a report, that is its entire job, while <c>SceneFrameBuilder</c>, three
 ///         namespaces away in the same assembly, must never touch either.
 ///     </para>
@@ -40,14 +40,14 @@ public class BannedApiTests
 
     /// <summary>
     ///     The measurement harness. It exists to time the pipeline from OUTSIDE it, so a stopwatch and a
-    ///     timestamp are the deliverable, not a leak, which is exactly why plan T16 puts it in Pipeline
+    ///     timestamp are the deliverable, not a leak, which is exactly why it lives in Pipeline
     ///     rather than Core in the first place.
     /// </summary>
     private static readonly string[] _exemptNamespacePrefixes =
     [
         "DemoViewer.NET.Playback2D.Pipeline.Benchmarking.",
 
-        // B4: SceneExportSession's progress report carries elapsed time, throughput and an ETA. Those are
+        // SceneExportSession's progress report carries elapsed time, throughput and an ETA. Those are
         // wall-clock quantities by definition, a progress bar measuring scene time would be useless, and
         // none of them reaches a layer: frames advance on the injected SceneTime, which is what
         // ExportDeterminismTests pins.

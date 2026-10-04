@@ -54,8 +54,41 @@ public interface IDemoEvaluator
     /// </summary>
     DemoJobPriority PriorityFor(string path) => DemoJobPriority.Background;
 
+    /// <summary>
+    ///     Whether <see cref="Evaluate" /> reads the parse's user commands. The shared background parse drops
+    ///     them when no evaluator on the demo does.
+    /// </summary>
+    bool ReadsUserCommands => true;
+
+    /// <summary>
+    ///     What a forward pass must produce for <see cref="EvaluateForward" /> on <paramref name="path" />, or
+    ///     null when this evaluator needs the retained parse. The queue reads a demo forward only when every
+    ///     owner on the entry can take it.
+    /// </summary>
+    ForwardNeeds? ForwardFor(string path) => null;
+
+    /// <summary>Like <see cref="Evaluate" />, on a forward pass. Only called when <see cref="ForwardFor" /> was non-null.</summary>
+    void EvaluateForward(string path, ForwardDemoResult pass)
+    {
+        // no-op by default
+    }
+
+    /// <summary>Like <see cref="OnParsedOpportunistically" />, for a forward pass another evaluator produced.</summary>
+    void OnForwardOpportunistically(string path, ForwardDemoResult pass)
+    {
+        // no-op by default
+    }
+
     /// <summary>Within-tier ordering hint, higher = sooner (typically the file's mtime ticks, newest first).</summary>
     long OrderHint(string path) => 0;
+
+    /// <summary>
+    ///     Paths this evaluator still wants, read from the worker-readable backlog (never the UI-bound
+    ///     Entries collection). The coordinator's candidate universe on <see cref="IDemoProcessingQueue.CapacityAvailable" />
+    ///     is the union of every registered evaluator's snapshot. Default empty for an evaluator with no
+    ///     backlog of its own.
+    /// </summary>
+    IReadOnlyList<string> PendingPaths() => [];
 
     /// <summary>
     ///     Opportunistic hand-off of a demo that is ALREADY parsed elsewhere (an interactive open, or

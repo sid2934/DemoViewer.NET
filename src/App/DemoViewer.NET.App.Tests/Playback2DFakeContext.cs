@@ -15,6 +15,7 @@ namespace DemoViewer.NET.AppTests;
 internal sealed class Playback2DFakeContext : IModuleContext
 {
     private readonly List<IPlayerState> _players = [];
+    private readonly Dictionary<Type, object?> _services = new();
 
     public List<PlayerRosterEntry> Roster { get; } = [];
     public Dictionary<string, List<GameEventView>> Timelines { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -38,6 +39,12 @@ internal sealed class Playback2DFakeContext : IModuleContext
     // arrived".
     public string? DemoPath { get; set; }
 
+    // Known to the tag session's attach, which otherwise hashes the file at DemoPath (none, for a fake).
+    public string? DemoSha256 { get; set; }
+
+    // The map the tab selects baked assets (and zones) by. Null, the interface default, means no bundle.
+    public string? MapName { get; set; }
+
     // The annotation session's tick rate is sourced from this, through the ClockIdentity the tab builds,
     // so a fake that could only ever be 64-tick could not reproduce a tick-rate-dependent bug.
     public int TickRate { get; set; } = 64;
@@ -46,6 +53,11 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public bool IsPlaying { get; set; }
     public double Speed { get; set; } = 1.0;
     public int TotalFrames { get; set; } = 1000;
+
+    // The clock header the tab writes is built from these; a fake pinned at 0, 0 could only ever produce
+    // the all-zero header that ClockIdentity.Matches treats as unknown.
+    public int FirstTick { get; set; }
+    public int LastTick { get; set; }
     public bool IsSpeedLocked { get; set; }
 
     public IModuleFeatureGate? Features => Gate;
@@ -69,6 +81,11 @@ internal sealed class Playback2DFakeContext : IModuleContext
         Timelines.TryGetValue(eventName, out List<GameEventView>? views)
             ? views
             : Array.Empty<GameEventView>();
+
+    /// <summary>Wires a value <see cref="GetService{T}" /> returns for <typeparamref name="T" />; null unregisters it.</summary>
+    public void SetService<T>(T? value) where T : class => _services[typeof(T)] = value;
+
+    public T? GetService<T>() where T : class => _services.TryGetValue(typeof(T), out object? value) ? (T?)value : null;
 
     public void RequestSeekToFrame(int frameIndex) => SeekFrames.Add(frameIndex);
     public void RequestSeekToTick(int tick) => SeekTicks.Add(tick);
@@ -153,6 +170,26 @@ internal sealed class Playback2DFakeContext : IModuleContext
         Advanced?.Invoke(new FakeSnapshot(CurrentFrameIndex, CurrentTick, Entities, states));
     }
 
+    /// <summary>
+    ///     <see cref="PushMarkers" /> with the pawn's place: what Find Rounds Like This reads off the
+    ///     scene. A null place is a pawn that has not stood in a named area.
+    /// </summary>
+    /// <param name="markers">Slot, team, world X/Y/Z and place per player.</param>
+    public void PushPlacedMarkers(params (int Slot, int Team, float X, float Y, float Z, string? Place)[] markers)
+    {
+        ArgumentNullException.ThrowIfNull(markers);
+
+        List<IPlayerState> states = new(markers.Length);
+        foreach ((int slot, int team, float x, float y, float z, string? place) in markers)
+        {
+            states.Add(LivePlayerState.Alive(slot, team, x, y, z, 0, place));
+        }
+
+        CurrentFrameIndex++;
+        CurrentTick += 2;
+        Advanced?.Invoke(new FakeSnapshot(CurrentFrameIndex, CurrentTick, Entities, states));
+    }
+
     public void RaiseDemoReset() => DemoReset?.Invoke();
 
     private sealed class FakeSnapshot(
@@ -212,7 +249,8 @@ internal sealed class Playback2DFakeContext : IModuleContext
         public IReadOnlyEntity? Controller { get; }
         public (float X, float Y, float Z)? WorldPosition { get; }
 
-        public static LivePlayerState Alive(int slot, int team, float x, float y, float z, float yaw)
+        public static LivePlayerState Alive(int slot, int team, float x, float y, float z, float yaw,
+            string? place = null)
         {
             FieldEntity pawn = new("CCSPlayerPawn");
             pawn.Fields["m_iHealth"] = 100;
@@ -221,6 +259,10 @@ internal sealed class Playback2DFakeContext : IModuleContext
             pawn.Fields["m_flFlashDuration"] = 0f;
             pawn.Fields["m_angEyeAngles"] = new Vector3(0, yaw, 0);
             pawn.Fields["m_ArmorValue"] = 100;
+            if (place is not null)
+            {
+                pawn.Fields["m_szLastPlaceName"] = place;
+            }
 
             FieldEntity controller = new("CCSPlayerController");
             return new LivePlayerState(slot, team, pawn, controller, (x, y, z));

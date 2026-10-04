@@ -5,7 +5,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 /// <summary>
 ///     Turns the strings the outside world speaks, a CLI flag, an environment variable, a persisted
 ///     settings value, into a <see cref="RenderBackendPreference" />, and applies the precedence chain
-///     between them (plans/C2-gpu-provider.md §2.5, §6.2).
+///     between them.
 ///     <para>
 ///         <b>Nothing here throws.</b> An unrecognised value is a warning-worthy typo, not a reason to
 ///         fail somebody's export: it resolves to <see cref="RenderBackendPreference.Auto" />, which is
@@ -24,7 +24,7 @@ public static class RenderBackendPreferenceParser
     ///     Parses <c>auto | cpu | gpu | angle | gl | force-gpu</c>, case- and whitespace-insensitive.
     ///     <para>
     ///         <c>angle</c> and <c>gl</c> are accepted as aliases for <c>gpu</c>: the grammar reserves
-    ///         them (§2.6) but v1 exposes no per-API forcing: which specific GL stack gets used is the
+    ///         them, but v1 exposes no per-API forcing: which specific GL stack gets used is the
     ///         probe's decision, reported in <see cref="RenderSurfaceProbe.Reason" />. Accepting and
     ///         mapping them beats rejecting a spelling the documented grammar promises.
     ///     </para>
@@ -88,7 +88,7 @@ public static class RenderBackendPreferenceParser
     }
 
     /// <summary>
-    ///     Applies the §2.5 precedence chain: explicit API argument → command-line flag → environment
+    ///     Applies the precedence chain: explicit API argument → command-line flag → environment
     ///     variable → persisted setting → <see cref="RenderBackendPreference.Auto" />. Any argument may
     ///     be null or absent, and an unparseable string is skipped rather than short-circuiting the
     ///     chain: a typo in a settings file must not mask a valid <c>--cpu</c> on the command line.

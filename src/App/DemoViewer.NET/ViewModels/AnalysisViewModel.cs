@@ -19,10 +19,12 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 // The v2 model also defines a TriggerDef; explicit aliases keep the v1 Config.TriggerDef
 // references in this file unambiguous.
@@ -236,7 +238,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isComputingEntityCache;
 
-    // ── Rule diagnostics (P1-2.2) ─────────────────────────────────────────────
+    // ── Rule diagnostics ───────────────────────────────────────────────────────
 
     /// <summary>Whether the rule-diagnostics overlay is open.</summary>
     [ObservableProperty]
@@ -328,7 +330,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     private IReadOnlyList<RuleFireStat> _ruleFireStats = [];
 
-    // Owns the in-flight evaluation's lifetime; a new RunAsync cancels and replaces it (P1-5.2).
+    // Owns the in-flight evaluation's lifetime; a new RunAsync cancels and replaces it.
     private CancellationTokenSource? _runCts;
 
     // Suppresses re-compose/validate while BeginEdit is seeding the editor from a saved condition (the
@@ -414,14 +416,14 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Toolbar toggle label: the diagnostic count when there are issues, otherwise the
     ///     fire-badge entry point (the toggle stays reachable on lint-free runs, since authoring
-    ///     visibility is work item 0.2's whole point).
+    ///     visibility is the whole point).
     /// </summary>
     public string RuleDiagnosticsLabel => _ruleDiagnostics.Count > 0
         ? $"⚠ {_ruleDiagnostics.Count} rule issue(s)"
         : "✓ rule fires";
 
     /// <summary>
-    ///     Per-rule fire-count badges for the last run (work item 0.2): every trigger-backed
+    ///     Per-rule fire-count badges for the last run: every trigger-backed
     ///     authored rule with its total edge applies, per-player rules aggregated across
     ///     materialized players. Rebuilt by <see cref="PopulateRuleDiagnostics" /> on every run.
     /// </summary>
@@ -642,7 +644,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>Reset.</summary>
     public void Reset()
     {
-        // The demo is going away, so abort any in-flight evaluation with it (P1-5.2).
+        // The demo is going away, so abort any in-flight evaluation with it.
         _runCts?.Cancel();
 
         RuleDiagnostics = [];
@@ -1116,8 +1118,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Pure computation behind the rule-diagnostics panel: the loader's attributed errors,
-    ///     plus the per-stat fire-count badge rows and never-fired lints (work item 0.2, fed by
-    ///     0.1's always-on counters). Internal + static so tests can pin the contract from the
+    ///     plus the per-stat fire-count badge rows and never-fired lints, fed by the always-on
+    ///     counters. Internal + static so tests can pin the contract from the
     ///     engine thread without booting the UI.
     /// </summary>
     internal static (List<RuleDiagnostic> Diagnostics, List<RuleFireStat> FireStats)
@@ -1267,7 +1269,24 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules);
+        // Pack-owned rulesets run at index time; evaluating them here too would only cost time.
+        return (DemoAnalysis.Build(demo, CoreRulesets(rules.Rulesets), options), rules);
+    }
+
+    // The composition root's merged build knows which rulesets a pack owns. In production there is
+    // always a container here: BuildServices assigns App.Services before the shell exists, and only the
+    // shell starts a run. A null or disposed container is the designer or a test, and then the read is
+    // used as it is.
+    private static IReadOnlyList<RulesetDoc> CoreRulesets(IReadOnlyList<RulesetDoc> rulesets)
+    {
+        try
+        {
+            return App.Services?.GetService<MergedRulesBuild>()?.WithoutPackRulesets(rulesets) ?? rulesets;
+        }
+        catch (ObjectDisposedException)
+        {
+            return rulesets;
+        }
     }
 
     /// <summary>
@@ -1759,7 +1778,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         IReadOnlyList<AnalysisChainSummaryViewModel> summaries)
     {
         // Chains carry no scope any more. The game-scope signal was BuildResult.NodeChains, which
-        // the engine documents as always null, so every chip resolved PerPlayer regardless
+        // was always null and is gone in 0.13, so every chip resolved PerPlayer regardless
         // (CS2DemoKit#50). Carrying an enum whose other value was unreachable made the join look
         // conditional when it never was.
 
@@ -1923,7 +1942,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Reloads the rule config from disk and re-evaluates the already-loaded demo (P1-1.3):
+    ///     Reloads the rule config from disk and re-evaluates the already-loaded demo:
     ///     the edit-a-rule → see-the-stat loop, without re-parsing the demo. Rules are read fresh
     ///     inside <see cref="RunAsync" /> on every run; the entity-value cache survives (same demo,
     ///     same frames), so breakpoint recompute usually re-filters without a second ~14 s replay.
@@ -2649,7 +2668,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // build, supersedes any in-flight entity build. Without this, a recompute that resolves synchronously
         // (the pending==0 or cache-reuse path below) would leave a prior build's token valid; its later
         // hand-back would then clobber the hits we just set. Capture it locally for the build we may kick.
-        // The CTS additionally ABORTS the superseded build mid-replay (P1-5.2): the token alone only
+        // The CTS additionally ABORTS the superseded build mid-replay: the token alone only
         // discarded its result, leaving the ~14 s replay burning CPU to completion.
         int token = ++_entityRecomputeToken;
         _entityBuildCts?.Cancel();
@@ -3211,10 +3230,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         IReadOnlyList<GraphNodeViewModel> renderNodes;
         IReadOnlyList<GraphEdgeViewModel> renderEdges;
-        // Always null. Cluster groups came from BuildResult.GroupHints, which the engine declares
-        // and never appends to, so the app has never had a group to draw (CS2DemoKit#50). The
-        // parameter stays on the calls because the visualization library supports groups; nothing
-        // here produces one. Restore the builder from git history when the engine fills the hints.
+        // Always null. Cluster groups came from BuildResult.GroupHints, which the engine never
+        // appended to and removed in 0.13, so the app has never had a group to draw (CS2DemoKit#50).
+        // The parameter stays on the calls because the visualization library supports groups;
+        // nothing here produces one. The 0.13 clustering source is RuleGraphNode.Ruleset.
         IReadOnlyList<INodeGroup>? renderGroups;
         IReadOnlyList<PlayerTableViewModel> renderTables;
 
@@ -3287,7 +3306,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         List<GraphNodeViewModel> members = new();
 
         // There is no game-scope seed. Nodes used to be seeded by chain membership, but that read
-        // BuildResult.NodeChains, which the engine documents as always null, so the set was always
+        // BuildResult.NodeChains, which was always null and is gone in 0.13, so the set was always
         // empty (CS2DemoKit#50). The per-player column seed below is the one that has real data:
         // PerPlayerColumnAssignment.ChainId is populated, and it is what a chain selection actually
         // resolves through. Seed the graph context from the lifecycle source nodes feeding a selected

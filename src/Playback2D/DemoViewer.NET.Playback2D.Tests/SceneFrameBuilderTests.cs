@@ -32,7 +32,8 @@ public class SceneFrameBuilderTests
         FakeEntity pawn = new FakeEntity("CCSPlayerPawn")
             .With("m_iHealth", 87)
             .With("m_angEyeAngles", new Vector3(-11f, 42f, 0f))
-            .With("m_pMovementServices.m_flDuckAmount", 0.25f);
+            .With("m_pMovementServices.m_flDuckAmount", 0.25f)
+            .With("m_szLastPlaceName", "BombsiteA");
 
         FakePlayer alive = new()
         {
@@ -56,6 +57,7 @@ public class SceneFrameBuilderTests
         await Assert.That(marker.DuckAmount).IsEqualTo(0.25f);
         await Assert.That(marker.Label).IsEqualTo("P0");
         await Assert.That(marker.SteamId).IsEqualTo(76561197960265728UL);
+        await Assert.That(marker.Place).IsEqualTo("BombsiteA");
 
         // The pawn orphans on death: no live position this tick, so the death marker holds the last
         // known spot with a Dead ring rather than vanishing.

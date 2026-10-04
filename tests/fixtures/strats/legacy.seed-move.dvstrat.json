@@ -1,0 +1,336 @@
+{
+  "schemaVersion": 1,
+  "id": "7b1e2c3d-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
+  "owner": {
+    "kind": "team",
+    "teamId": "3f2a9c1e-5b7d-4e2f-8a61-0c9d4b3e2f10"
+  },
+  "name": "Execute B",
+  "map": "de_dust2",
+  "side": "T",
+  "type": "execute",
+  "targetSite": "B",
+  "status": "Theory",
+  "revision": 16,
+  "createdUtc": "2026-09-30T03:07:52.337043Z",
+  "modifiedUtc": "2026-10-02T06:42:07.98528Z",
+  "tags": [],
+  "clock": {
+    "kind": "round",
+    "roundSeconds": 115
+  },
+  "slots": [
+    {
+      "slot": "A",
+      "role": "entry"
+    },
+    {
+      "slot": "B",
+      "role": "support"
+    },
+    {
+      "slot": "C",
+      "role": "smokes"
+    },
+    {
+      "slot": "D",
+      "role": "flashes"
+    },
+    {
+      "slot": "E",
+      "role": "lurk"
+    }
+  ],
+  "steps": [
+    {
+      "id": "aa3268dc-9f75-40c3-ac43-be9824b20d72",
+      "atSeconds": 115,
+      "actor": "all",
+      "verb": "move",
+      "note": "Default 1-2-2",
+      "positions": [
+        {
+          "slot": "E",
+          "x": -608,
+          "y": -800,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "O1",
+          "x": 195,
+          "y": 2300,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "O2",
+          "x": 177,
+          "y": 2168,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "O3",
+          "x": 90,
+          "y": 2248,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "O4",
+          "x": 318,
+          "y": 2250,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "O5",
+          "x": 125,
+          "y": 2367,
+          "levelMinZ": -99968
+        }
+      ],
+      "strokes": [],
+      "assignments": [
+        {
+          "slot": "A",
+          "to": {
+            "place": "UpperTunnel"
+          }
+        },
+        {
+          "slot": "B",
+          "to": {
+            "place": "TopofMid",
+            "x": -185.33,
+            "y": 453.15,
+            "levelMinZ": -99968
+          }
+        },
+        {
+          "slot": "C",
+          "to": {
+            "place": "LongDoors",
+            "x": 646.59,
+            "y": 480.5,
+            "levelMinZ": -99968
+          }
+        },
+        {
+          "slot": "D",
+          "to": {
+            "place": "UpperTunnel",
+            "x": -1958.08,
+            "y": 1072.62,
+            "levelMinZ": -99968
+          }
+        }
+      ]
+    },
+    {
+      "id": "b810a73d-4f8b-4a9f-95ed-43dfa709620c",
+      "atSeconds": 108,
+      "actor": "E",
+      "verb": "lurk",
+      "positions": [
+        {
+          "slot": "A",
+          "x": -750,
+          "y": -791,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "B",
+          "x": -736,
+          "y": -912,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "C",
+          "x": -777,
+          "y": -690,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "D",
+          "x": -864,
+          "y": -737,
+          "levelMinZ": -99968
+        },
+        {
+          "slot": "E",
+          "x": 929.29,
+          "y": 767.42,
+          "levelMinZ": -99968
+        }
+      ],
+      "strokes": [],
+      "assignments": [
+        {
+          "slot": "E",
+          "via": [
+            "LongDoors"
+          ],
+          "watch": {
+            "places": [
+              "LongDoors",
+              "TopofMid",
+              "Catwalk",
+              "Middle",
+              "MidDoors"
+            ]
+          }
+        }
+      ],
+      "lurk": {
+        "areas": [
+          "LongDoors",
+          "TopofMid",
+          "Catwalk",
+          "MidDoors"
+        ],
+        "rotate": {
+          "atSeconds": 39,
+          "to": {
+            "place": "LowerTunnel",
+            "x": -582.8,
+            "y": 1435.34,
+            "levelMinZ": -99968
+          }
+        }
+      }
+    },
+    {
+      "id": "76f683cb-895d-4567-b61c-6f5cfc293bb5",
+      "atSeconds": 75,
+      "actor": "all",
+      "verb": "move",
+      "note": "group up for the B execute",
+      "positions": [],
+      "strokes": [],
+      "assignments": [
+        {
+          "slot": "A",
+          "to": {
+            "place": "TunnelStairs",
+            "x": -1091.53,
+            "y": 1103.7,
+            "levelMinZ": -99968
+          }
+        },
+        {
+          "slot": "B",
+          "to": {
+            "place": "UpperTunnel",
+            "x": -1748.68,
+            "y": 1363.83,
+            "levelMinZ": -99968
+          }
+        },
+        {
+          "slot": "C",
+          "to": {
+            "place": "OutsideTunnel",
+            "x": -1310.58,
+            "y": 480.77,
+            "levelMinZ": -99968
+          }
+        },
+        {
+          "slot": "D",
+          "to": {
+            "place": "UpperTunnel",
+            "x": -1796.6,
+            "y": 980.49,
+            "levelMinZ": -99968
+          }
+        }
+      ]
+    },
+    {
+      "id": "861df99f-7b8d-4f1f-a845-2caee9711687",
+      "atSeconds": 62,
+      "actor": "C",
+      "verb": "throw",
+      "utility": {
+        "kind": "smoke",
+        "lineupId": "9bdc63a6-7153-4cdf-e791-d84d5049ac2d",
+        "technique": "stand-jump-left"
+      },
+      "note": "CT-side smoke",
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "b2bed35c-89d5-4fb8-a32d-fd76dda4d33a",
+      "atSeconds": 62,
+      "actor": "C",
+      "verb": "throw",
+      "utility": {
+        "kind": "smoke",
+        "lineupId": "3ab5b3ea-a767-5f4d-9f76-18dd914fb8a9",
+        "technique": "stand-jump-left"
+      },
+      "note": "cross smoke",
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "3da8c16b-0f5a-4189-8aa1-781239eccbf1",
+      "atSeconds": 58,
+      "actor": "D",
+      "verb": "throw",
+      "utility": {
+        "kind": "molotov",
+        "lineupId": "4e4e9c22-b1e1-d0c1-8890-4f80c17f7873",
+        "technique": "stand-throw-left"
+      },
+      "note": "clear the close corner",
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "14206a7b-519d-4d00-9b37-d1a1fa464284",
+      "atSeconds": 57,
+      "actor": "D",
+      "verb": "throw",
+      "utility": {
+        "kind": "flash",
+        "lineupId": "195f675b-91f8-a013-fbb7-a17b3dd3b5d4",
+        "technique": "run-jump-left"
+      },
+      "note": "entry flash",
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "c357a3b5-1d3e-40ef-94a6-97d22feb49a0",
+      "atSeconds": 53,
+      "actor": "all",
+      "verb": "push",
+      "note": "entry, A holds under",
+      "positions": [],
+      "strokes": [],
+      "assignments": [
+        {
+          "slot": "B",
+          "to": {
+            "place": "BombsiteB"
+          }
+        },
+        {
+          "slot": "D",
+          "to": {
+            "place": "BombsiteB"
+          }
+        },
+        {
+          "slot": "C",
+          "to": {
+            "place": "BombsiteB",
+            "x": -2050.49,
+            "y": 3016.72,
+            "levelMinZ": -99968
+          }
+        }
+      ]
+    }
+  ],
+  "branches": []
+}

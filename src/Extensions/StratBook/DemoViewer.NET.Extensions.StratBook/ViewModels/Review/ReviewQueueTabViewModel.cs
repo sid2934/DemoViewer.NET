@@ -1,0 +1,928 @@
+#region
+
+using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Services.Export.Pack;
+using DemoViewer.NET.Services.Review;
+
+#endregion
+
+namespace DemoViewer.NET.ViewModels.Review;
+
+/// <summary>
+///     The Review tab: the <see cref="ReviewQueue" /> as a list a reviewer walks top to bottom. Title
+///     cards open sections; each clip shows its demo, its range on the demo's clock, the note the
+///     surface that queued it wrote, and the one-line question the reviewer answers. A click opens 2D
+///     playback at the clip's first tick through the same seek seam Result Cards use.
+///     <para>
+///         <b>Rows are reconciled, not rebuilt.</b> Every edit in a row writes through to the queue,
+///         and the queue's <see cref="ReviewQueue.Changed" /> comes back here. When the ids are the
+///         same ones in the same order, each row takes its entry in place, so the text box being typed
+///         in keeps its focus and caret; only a structural change (an add, a remove, a move) rebuilds
+///         the list.
+///     </para>
+///     <para>
+///         <b>Thousands of rows.</b> Only the rows on screen get a row view model: a section over
+///         <see cref="CollapseAbove" /> clips starts collapsed, the source filter and the search hide the
+///         rest, and a structural change swaps the visible list in with one reset. While the tab is
+///         deactivated a queue change only marks the rows stale.
+///     </para>
+///     <para>
+///         <b>A manual pick</b> is a clip around the playhead of the demo the workspace has open, read
+///         from the module context the tab was last activated with; with no demo open there is nothing
+///         to pick and the action says so.
+///     </para>
+///     <para>
+///         <b>Export pack</b> renders the whole queue as one video (Pack Export): the sections become
+///         title cards and the clips play in order from however many demos, each demo's saved ink burned
+///         in. The export is a delegate from the composition root; a host without one (the browser) hides
+///         the row.
+///     </para>
+/// </summary>
+public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+{
+    /// <summary>What the browser host says about a queue that does not outlive the tab.</summary>
+    public const string BrowserNote = "session only: this browser tab forgets the queue when it reloads";
+
+    /// <summary>How far either side of the playhead a manual pick reaches.</summary>
+    public const int PickSeconds = 5;
+
+    /// <summary>A section with more clips than this starts collapsed.</summary>
+    public const int CollapseAbove = 50;
+
+    /// <summary>The source filter's "every source" value.</summary>
+    public const string AllSources = "all sources";
+
+    /// <summary>The map filter's "every map" value.</summary>
+    public const string AllMaps = "all maps";
+
+    /// <summary>The map filter's value for a clip whose demo the cache does not know.</summary>
+    public const string NoMap = "no map";
+
+    /// <summary>The team filter's "every team" value.</summary>
+    public const string AllTeams = "all teams";
+
+    /// <summary>The team filter's value for a clip sent without a team, as every clip before teams were recorded.</summary>
+    public const string NoTeam = "no team";
+
+    /// <summary>The team filter's value for a clip whose team Team Identity no longer has.</summary>
+    public const string UnknownTeam = "unknown team";
+
+    private readonly Func<ReviewEntry, string?> _mapOf;
+    private readonly Dictionary<string, string> _maps = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<Guid, string?> _teamName;
+
+    private readonly HashSet<Guid> _collapsed = [];
+    private readonly HashSet<Guid> _seenSections = [];
+    private Dictionary<Guid, ReviewRowViewModel> _rowsById = [];
+
+    // Per title card, the clips the filters and the search leave (reviewed or not): what marking a section acts on.
+    private Dictionary<Guid, List<Guid>> _inScope = [];
+    private bool _active = true;
+    private bool _stale;
+
+    // PackSummary re-plans the whole pack; only a queue change can move it, not a filter or a toggle.
+    private bool _queueChanged = true;
+    private string _headerLine = "";
+
+    private readonly Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? _exportPack;
+    private readonly Func<string, bool> _fileExists;
+    private readonly Func<ISituationPlayback?> _playback;
+    private readonly ReviewQueue _queue;
+
+    private IModuleContext? _context;
+
+    /// <summary>A pack export is running.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportPackCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelPackCommand))]
+    private bool _isPackRunning;
+
+    private CancellationTokenSource? _packCts;
+
+    /// <summary>Where the pack goes; for GIF, the folder is this path without its extension.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportPackCommand))]
+    private string _packOutputPath;
+
+    /// <summary>What the pack export is doing, did, or why it did not start.</summary>
+    [ObservableProperty]
+    private string _packStatus = "";
+
+    /// <summary>The pack's format: one of <see cref="PackFormats" />.</summary>
+    [ObservableProperty]
+    private string _selectedPackFormat = ExportFormats.Mp4;
+
+    /// <summary>The inline guard on Clear: armed by the button, never a modal.</summary>
+    [ObservableProperty]
+    private bool _showClearConfirm;
+
+    /// <summary>What the last open or pick did, when it did not simply work.</summary>
+    [ObservableProperty]
+    private string _statusLine = "";
+
+    /// <summary>Text a clip's note, question or demo, or a section's title, must contain; empty shows all.</summary>
+    [ObservableProperty]
+    private string _searchText = "";
+
+    /// <summary>One of <see cref="SourceFilters" />.</summary>
+    [ObservableProperty]
+    private string _selectedSource = AllSources;
+
+    /// <summary>One of <see cref="MapFilters" />.</summary>
+    [ObservableProperty]
+    private string _selectedMap = AllMaps;
+
+    /// <summary><see cref="AllMaps" /> and every map a queued clip's demo is on.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _mapFilters = [AllMaps];
+
+    /// <summary>One of <see cref="TeamFilters" />.</summary>
+    [ObservableProperty]
+    private string _selectedTeam = AllTeams;
+
+    /// <summary><see cref="AllTeams" /> and every team a queued clip was sent for.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _teamFilters = [AllTeams];
+
+    /// <summary>Reviewed clips are listed too; hidden by default.</summary>
+    [ObservableProperty]
+    private bool _showReviewed;
+
+    /// <summary><see cref="AllSources" /> and every source a queued clip has.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _sourceFilters = [AllSources];
+
+    /// <param name="queue">The shared queue.</param>
+    /// <param name="playback">The seek seam a clip opens through; null on a host with no 2D tab.</param>
+    /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
+    /// <param name="exportPack">Renders a planned pack off the UI thread; null hides Export pack.</param>
+    /// <param name="packDirectory">The folder a new pack's path starts in; the user's videos folder when null.</param>
+    /// <param name="fileExists">The existence probe for a clip's demo; <see cref="File.Exists" /> when null.</param>
+    /// <param name="mapOf">A clip's map from the demo cache, by hash then path; no maps when null.</param>
+    /// <param name="teamName">A team's name from Team Identity, or null when it has none; no names when null.</param>
+    public ReviewQueueTabViewModel(ReviewQueue queue, Func<ISituationPlayback?>? playback = null, bool? isBrowser = null,
+        Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null,
+        string? packDirectory = null, Func<string, bool>? fileExists = null, Func<ReviewEntry, string?>? mapOf = null,
+        Func<Guid, string?>? teamName = null)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        _mapOf = mapOf ?? (static _ => null);
+        _teamName = teamName ?? (static _ => null);
+        _queue = queue;
+        _playback = playback ?? (() => null);
+        _exportPack = exportPack;
+        _fileExists = fileExists ?? File.Exists;
+        IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
+        string directory = string.IsNullOrWhiteSpace(packDirectory)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
+            : packDirectory;
+        _packOutputPath = Path.Combine(directory, DefaultPackName(DateTime.Now, ExportFormats.Mp4));
+        _queue.Changed += OnQueueChanged;
+        Reconcile();
+    }
+
+    /// <summary>True on the WASM head: the queue lives for the session only.</summary>
+    public bool IsBrowser { get; }
+
+    /// <summary>The rows on screen, in queue order: title cards, and the clips of expanded sections that pass the filter.</summary>
+    public BulkObservableCollection<ReviewRowViewModel> Rows { get; } = [];
+
+    /// <summary>There is anything queued.</summary>
+    public bool HasRows { get; private set; }
+
+    /// <summary>"12 clips · 3 sections · 4 demos", or empty with nothing queued.</summary>
+    public string HeaderLine => _headerLine;
+
+    /// <summary>The formats a pack can be written as. MP4 is the one every phone plays.</summary>
+    public IReadOnlyList<string> PackFormats { get; } = [ExportFormats.Mp4, ExportFormats.WebM, ExportFormats.Gif];
+
+    /// <summary>This host can export a pack.</summary>
+    public bool CanPack => _exportPack is not null;
+
+    /// <summary>
+    ///     "3 clips from 3 demos · 2 title cards · 1:12", then the clips that will be left out and the GIF
+    ///     clips cut at the frame cap; empty with nothing queued.
+    /// </summary>
+    public string PackSummary
+    {
+        get
+        {
+            if (_queue.ClipCount == 0)
+            {
+                return "";
+            }
+
+            PackPlan plan = PlanPack();
+            int cards = plan.Segments.Count(s => s is PackTitleCard);
+            int seconds = (int)Math.Round(plan.Seconds);
+            List<string> parts = [$"{Plural(plan.Clips.Count, "clip")} from {Plural(plan.DemoCount, "demo")}"];
+            if (cards > 0)
+            {
+                parts.Add(Plural(cards, "title card"));
+            }
+
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{seconds / 60}:{seconds % 60:D2}"));
+            if (plan.Skipped.Count > 0)
+            {
+                parts.Add($"{plan.Skipped.Count} left out ({string.Join(", ", plan.Skipped.Select(k => k.Reason).Distinct())})");
+            }
+
+            int trimmed = plan.Clips.Count(c => c.Trimmed);
+            if (trimmed > 0)
+            {
+                parts.Add($"{Plural(trimmed, "clip")} cut at the GIF frame cap");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>"review-pack-20260926-1412.mp4".</summary>
+    /// <param name="now">The moment the name stamps.</param>
+    /// <param name="formatId">The format, for the extension.</param>
+    public static string DefaultPackName(DateTime now, string formatId) =>
+        string.Create(CultureInfo.InvariantCulture, $"review-pack-{now:yyyyMMdd-HHmm}.{formatId}");
+
+    /// <summary>The pack the queue plans to right now, at the tab's format and path.</summary>
+    public PackPlan PlanPack()
+    {
+        // Thousands of clips share a few hundred demos; probe each path once per plan.
+        Dictionary<string, bool> probed = new(StringComparer.Ordinal);
+        return PackPlanner.Plan(_queue.Entries, PackSettings.For(PackOutputPath, SelectedPackFormat),
+            path => probed.TryGetValue(path, out bool exists) ? exists : probed[path] = _fileExists(path));
+    }
+
+    /// <summary>Why the queue file was not read, or null; while set the file is left alone.</summary>
+    public string? FileProblem => _queue.FileProblem;
+
+    /// <summary>There is a file problem to show.</summary>
+    public bool HasFileProblem => _queue.FileProblem is not null;
+
+    /// <inheritdoc />
+    public void OnActivated(IModuleContext context)
+    {
+        _context = context;
+        _active = true;
+        if (_stale)
+        {
+            Reconcile();
+        }
+
+        AddAtPlayheadCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <inheritdoc />
+    public void OnDeactivated() => _active = false;
+
+    /// <inheritdoc />
+    public void Dispose() => _queue.Changed -= OnQueueChanged;
+
+    /// <summary>Opens 2D playback at the clip's first tick; a title card opens nothing.</summary>
+    /// <param name="row">The row clicked.</param>
+    public async Task OpenAsync(ReviewRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (!row.IsClip)
+        {
+            return;
+        }
+
+        string file = Path.GetFileName(row.Entry.DemoPath);
+        if (_playback() is not { } playback)
+        {
+            StatusLine = "no 2D playback on this host";
+            return;
+        }
+
+        try
+        {
+            StatusLine = await playback.SeekAsync(row.Entry.DemoPath, row.Entry.FromTick)
+                ? ""
+                : $"could not open {file}";
+        }
+        catch (Exception ex)
+        {
+            StatusLine = $"could not open {file}: {ex.Message}";
+        }
+    }
+
+    internal void Toggle(ReviewRowViewModel row)
+    {
+        if (!_collapsed.Remove(row.Entry.Id))
+        {
+            _collapsed.Add(row.Entry.Id);
+        }
+
+        Reconcile();
+    }
+
+    /// <summary>Opens every section.</summary>
+    [RelayCommand]
+    private void ExpandAll()
+    {
+        _collapsed.Clear();
+        Reconcile();
+    }
+
+    /// <summary>Closes every section to its title card.</summary>
+    [RelayCommand]
+    private void CollapseAll()
+    {
+        _collapsed.UnionWith(_queue.Entries.Where(e => e.Kind == ReviewEntryKind.Section).Select(e => e.Id));
+        Reconcile();
+    }
+
+    partial void OnSearchTextChanged(string value) => Reconcile();
+
+    partial void OnSelectedSourceChanged(string value) => Reconcile();
+
+    partial void OnShowReviewedChanged(bool value) => Reconcile();
+
+    partial void OnSelectedMapChanged(string value) => Reconcile();
+
+    partial void OnSelectedTeamChanged(string value) => Reconcile();
+
+    // One cache lookup per demo, not per clip per reconcile; forgotten when the queue changes.
+    private string MapOf(ReviewEntry clip)
+    {
+        string key = clip.Sha256 ?? clip.DemoPath;
+        if (!_maps.TryGetValue(key, out string? map))
+        {
+            _maps[key] = map = _mapOf(clip) is { Length: > 0 } found ? found : NoMap;
+        }
+
+        return map;
+    }
+
+    private string TeamOf(ReviewEntry clip) =>
+        clip.TeamId is not { } id ? NoTeam : _teamName(id) is { Length: > 0 } name ? name : UnknownTeam;
+
+    internal void ToggleReviewed(ReviewRowViewModel row)
+    {
+        if (row.IsClip)
+        {
+            _queue.SetReviewed([row.Entry.Id], !row.Entry.Reviewed);
+            return;
+        }
+
+        HashSet<Guid> scope = _inScope.TryGetValue(row.Entry.Id, out List<Guid>? ids) ? [.. ids] : [];
+        List<ReviewEntry> clips = [.. _queue.ClipsUnder(row.Entry.Id).Where(c => scope.Contains(c.Id))];
+        _queue.SetReviewed(clips.Select(c => c.Id), clips.Any(c => !c.Reviewed));
+    }
+
+    internal void Move(ReviewRowViewModel row, int delta) => _queue.Move(row.Entry.Id, delta);
+
+    internal void Remove(ReviewRowViewModel row) => _queue.Remove([row.Entry.Id]);
+
+    internal void EditText(ReviewRowViewModel row, ReviewTextField field, string value)
+    {
+        switch (field)
+        {
+            case ReviewTextField.Title:
+                _queue.SetTitle(row.Entry.Id, value);
+                break;
+            case ReviewTextField.Note:
+                _queue.SetNote(row.Entry.Id, value);
+                break;
+            case ReviewTextField.Question:
+                _queue.SetQuestion(row.Entry.Id, value);
+                break;
+        }
+    }
+
+    private bool CanExportPack() =>
+        _exportPack is not null && !IsPackRunning && _queue.ClipCount > 0 && !string.IsNullOrWhiteSpace(PackOutputPath);
+
+    /// <summary>Renders the queue as one pack; the status line follows it and names what was left out.</summary>
+    [RelayCommand(CanExecute = nameof(CanExportPack))]
+    private async Task ExportPack()
+    {
+        if (_exportPack is null)
+        {
+            return;
+        }
+
+        PackPlan plan = PlanPack();
+        if (PackPlanner.Validate(plan.Settings) is { } problem)
+        {
+            PackStatus = problem;
+            return;
+        }
+
+        if (plan.Clips.Count == 0)
+        {
+            PackStatus = "no queued clip can be rendered: " + string.Join(", ", plan.Skipped.Select(k => k.Reason).Distinct());
+            return;
+        }
+
+        using CancellationTokenSource cts = new();
+        _packCts = cts;
+        IsPackRunning = true;
+        PackStatus = "starting";
+        Progress<PackProgress> progress = new(p => PackStatus = string.Create(CultureInfo.InvariantCulture,
+            $"{p.Segment} of {p.SegmentCount}: {p.Label}"));
+        try
+        {
+            PackResult result = await _exportPack(plan, progress, cts.Token);
+            string where = plan.Settings.IsGif ? PackPlanner.GifFolder(plan.Settings.OutputPath) : plan.Settings.OutputPath;
+            List<string> leftOut = [.. plan.Skipped.Select(k => k.Reason).Concat(result.Failed.Select(f => f.Reason)).Distinct()];
+            string written = $"{Plural(result.ClipsRendered, "clip")} written to {where}";
+            PackStatus = leftOut.Count == 0
+                ? written
+                : $"{written}; left out: {string.Join("; ", leftOut)}";
+        }
+        catch (OperationCanceledException)
+        {
+            PackStatus = "pack export cancelled";
+        }
+        catch (Exception ex)
+        {
+            PackStatus = "pack export failed: " + ex.Message;
+        }
+        finally
+        {
+            _packCts = null;
+            IsPackRunning = false;
+        }
+    }
+
+    /// <summary>Stops the running pack; the half-written file is removed.</summary>
+    [RelayCommand(CanExecute = nameof(IsPackRunning))]
+    private void CancelPack() => _packCts?.Cancel();
+
+    // A new format moves the path's extension with it, so the name on screen is the file that is written.
+    partial void OnSelectedPackFormatChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(PackOutputPath))
+        {
+            PackOutputPath = Path.ChangeExtension(PackOutputPath, value);
+        }
+
+        OnPropertyChanged(nameof(PackSummary));
+    }
+
+    partial void OnPackOutputPathChanged(string value) => OnPropertyChanged(nameof(PackSummary));
+
+    /// <summary>A new title card at the end.</summary>
+    [RelayCommand]
+    private void AddSection() => _queue.AddSection("New section");
+
+    private bool CanAddAtPlayhead() => _context is { HasDemo: true, DemoPath.Length: > 0 };
+
+    /// <summary>A clip <see cref="PickSeconds" /> either side of the open demo's playhead.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddAtPlayhead))]
+    private void AddAtPlayhead()
+    {
+        if (_context is not { HasDemo: true, DemoPath: { Length: > 0 } path } context)
+        {
+            StatusLine = "open a demo to pick a clip at its playhead";
+            return;
+        }
+
+        int rate = context.TickRate > 0 ? context.TickRate : 64;
+        int tick = context.CurrentTick;
+        ReviewEntry clip = ReviewEntry.Clip(path, tick - PickSeconds * rate, tick + PickSeconds * rate,
+            $"picked at {Clock(tick, rate)}", ReviewSources.Manual, rate, context.DemoSha256);
+        StatusLine = _queue.Add([clip]) == 0 ? "that clip is already queued" : "";
+    }
+
+    /// <summary>Arms the Clear confirmation.</summary>
+    [RelayCommand(CanExecute = nameof(HasRows))]
+    private void Clear() => ShowClearConfirm = true;
+
+    /// <summary>Empties the queue, the Reels tray's clips with it, once confirmed.</summary>
+    [RelayCommand]
+    private void ConfirmClear()
+    {
+        ShowClearConfirm = false;
+        _queue.Clear();
+    }
+
+    /// <summary>Dismisses the Clear confirmation.</summary>
+    [RelayCommand]
+    private void CancelClear() => ShowClearConfirm = false;
+
+    /// <summary>"m:ss" from a frame-clock tick.</summary>
+    /// <param name="tick">Frame-clock tick.</param>
+    /// <param name="tickRate">The demo's tick rate; 64 when unknown.</param>
+    public static string Clock(int tick, int tickRate)
+    {
+        int whole = (int)Math.Floor(Math.Max(0, tick) / (double)(tickRate > 0 ? tickRate : 64));
+        return string.Create(CultureInfo.InvariantCulture, $"{whole / 60}:{whole % 60:D2}");
+    }
+
+    private static string Plural(int count, string noun) =>
+        string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? "" : "s")}");
+
+    private void OnQueueChanged()
+    {
+        _queueChanged = true;
+        _maps.Clear();
+        Reconcile();
+    }
+
+    private void Reconcile()
+    {
+        if (!_active)
+        {
+            _stale = true;
+            return;
+        }
+
+        _stale = false;
+        IReadOnlyList<ReviewEntry> entries = _queue.Entries;
+        string search = SearchText.Trim();
+        string? source = SelectedSource == AllSources ? null : SelectedSource;
+        string? mapFilter = SelectedMap == AllMaps ? null : SelectedMap;
+        string? teamFilter = SelectedTeam == AllTeams ? null : SelectedTeam;
+        bool filtering = search.Length > 0 || source is not null || mapFilter is not null || teamFilter is not null;
+        SortedSet<string> maps = new(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> teams = new(StringComparer.OrdinalIgnoreCase);
+
+        List<ReviewRowViewModel> visible = [];
+        Dictionary<Guid, List<Guid>> inScope = [];
+        Dictionary<Guid, ReviewRowViewModel> rows = [];
+        SortedSet<string> sources = new(StringComparer.Ordinal);
+        HashSet<string> demos = new(StringComparer.OrdinalIgnoreCase);
+        int unreviewedAll = 0;
+        int position = 0;
+        int sections = 0;
+        int i = 0;
+        while (i < entries.Count)
+        {
+            ReviewEntry? card = entries[i].Kind == ReviewEntryKind.Section ? entries[i++] : null;
+            int start = i;
+            while (i < entries.Count && entries[i].Kind == ReviewEntryKind.Clip)
+            {
+                i++;
+            }
+
+            int total = i - start;
+            bool titleMatches = card is not null && search.Length > 0
+                                                 && card.Title.Contains(search, StringComparison.OrdinalIgnoreCase);
+            if (card is not null)
+            {
+                sections++;
+                if (_seenSections.Add(card.Id) && total > CollapseAbove)
+                {
+                    _collapsed.Add(card.Id);
+                }
+            }
+
+            // A search opens what it finds; a collapsed section otherwise shows only its card.
+            bool collapsed = card is not null && _collapsed.Contains(card.Id) && search.Length == 0;
+            List<ReviewRowViewModel> shown = [];
+            int matches = 0;
+            int unreviewed = 0;
+            int unreviewedInScope = 0;
+            List<Guid> scope = [];
+            for (int k = start; k < i; k++)
+            {
+                ReviewEntry clip = entries[k];
+                position++;
+                sources.Add(clip.Source);
+                demos.Add(clip.DemoPath);
+                unreviewed += clip.Reviewed ? 0 : 1;
+                string map = MapOf(clip);
+                string team = TeamOf(clip);
+                maps.Add(map);
+                teams.Add(team);
+                if (!Matches(clip, source, titleMatches ? "" : search)
+                    || (mapFilter is not null && !string.Equals(map, mapFilter, StringComparison.OrdinalIgnoreCase))
+                    || (teamFilter is not null && !string.Equals(team, teamFilter, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                scope.Add(clip.Id);
+                unreviewedInScope += clip.Reviewed ? 0 : 1;
+                if (clip.Reviewed && !ShowReviewed)
+                {
+                    continue;
+                }
+
+                matches++;
+                if (!collapsed)
+                {
+                    ReviewRowViewModel row = RowFor(clip, rows);
+                    row.SetPosition(position);
+                    shown.Add(row);
+                }
+            }
+
+            if (card is not null && (!filtering || matches > 0))
+            {
+                ReviewRowViewModel row = RowFor(card, rows);
+                row.SetSection(total, unreviewed, filtering ? matches : total, _collapsed.Contains(card.Id), filtering,
+                    unreviewedInScope, scope.Count);
+                inScope[card.Id] = scope;
+                visible.Add(row);
+            }
+
+            visible.AddRange(shown);
+            unreviewedAll += unreviewed;
+        }
+
+        _rowsById = rows;
+        _inScope = inScope;
+        // Ranged, not a Reset: a batch landing must not recreate the container of a text box being typed in.
+        Rows.SyncTo(visible);
+
+        int clips = position;
+        _headerLine = entries.Count == 0
+            ? ""
+            : string.Create(CultureInfo.InvariantCulture,
+                $"{Plural(clips, "clip")}, {unreviewedAll} unreviewed · {Plural(sections, "section")} · {Plural(demos.Count, "demo")}");
+        HasRows = entries.Count > 0;
+        List<string> filters = [AllSources, .. sources.Where(s => s.Length > 0)];
+        if (!filters.SequenceEqual(SourceFilters))
+        {
+            SourceFilters = filters;
+        }
+
+        // The "none" values last, after the named ones.
+        List<string> mapFilters = [AllMaps, .. maps.Where(m => m != NoMap), .. maps.Where(m => m == NoMap)];
+        if (!mapFilters.SequenceEqual(MapFilters))
+        {
+            MapFilters = mapFilters;
+        }
+
+        List<string> teamFilters = [AllTeams, .. teams.Where(t => t is not (NoTeam or UnknownTeam)), .. teams.Where(t => t is NoTeam or UnknownTeam)];
+        if (!teamFilters.SequenceEqual(TeamFilters))
+        {
+            TeamFilters = teamFilters;
+        }
+
+        if (!HasRows)
+        {
+            ShowClearConfirm = false;
+        }
+
+        OnPropertyChanged(nameof(HasRows));
+        OnPropertyChanged(nameof(HeaderLine));
+        if (_queueChanged)
+        {
+            _queueChanged = false;
+            OnPropertyChanged(nameof(PackSummary));
+        }
+        ClearCommand.NotifyCanExecuteChanged();
+        ExportPackCommand.NotifyCanExecuteChanged();
+
+        // Last, since each setter reconciles again.
+        if (Gone(SelectedSource, SourceFilters, AllSources))
+        {
+            SelectedSource = AllSources;
+        }
+
+        if (Gone(SelectedMap, MapFilters, AllMaps))
+        {
+            SelectedMap = AllMaps;
+        }
+
+        if (Gone(SelectedTeam, TeamFilters, AllTeams))
+        {
+            SelectedTeam = AllTeams;
+        }
+    }
+
+    // A picked filter value no queued clip has any more.
+    private static bool Gone(string selected, IReadOnlyList<string> options, string all) =>
+        !string.Equals(selected, all, StringComparison.Ordinal) && !options.Contains(selected, StringComparer.Ordinal);
+
+    private ReviewRowViewModel RowFor(ReviewEntry entry, Dictionary<Guid, ReviewRowViewModel> rows)
+    {
+        if (_rowsById.TryGetValue(entry.Id, out ReviewRowViewModel? row))
+        {
+            if (!ReferenceEquals(row.Entry, entry))
+            {
+                row.Apply(entry);
+            }
+        }
+        else
+        {
+            row = new ReviewRowViewModel(this, entry);
+        }
+
+        rows[entry.Id] = row;
+        return row;
+    }
+
+    private static bool Matches(ReviewEntry clip, string? source, string search) =>
+        (source is null || string.Equals(clip.Source, source, StringComparison.Ordinal))
+        && (search.Length == 0
+            || clip.Note.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || clip.Question.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || Path.GetFileName(clip.DemoPath).Contains(search, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>Which text a row edit writes.</summary>
+public enum ReviewTextField
+{
+    Title,
+    Note,
+    Question
+}
+
+/// <summary>
+///     One row of the Review tab: a title card or a clip. The editable texts write through to the
+///     queue on commit; <see cref="Apply" /> takes the queue's value back without overwriting a text
+///     that differs from it only by the trimming the queue does, so a trailing space being typed is
+///     not eaten.
+/// </summary>
+public sealed partial class ReviewRowViewModel : ViewModelBase
+{
+    private readonly ReviewQueueTabViewModel _owner;
+
+    /// <summary>A clip's question, or empty.</summary>
+    [ObservableProperty]
+    private string _question = "";
+
+    /// <summary>A clip's note, or a title card's subtitle.</summary>
+    [ObservableProperty]
+    private string _note = "";
+
+    /// <summary>A title card's title.</summary>
+    [ObservableProperty]
+    private string _title = "";
+
+    private bool _applying;
+
+    /// <param name="owner">The tab the row belongs to.</param>
+    /// <param name="entry">The queue entry.</param>
+    public ReviewRowViewModel(ReviewQueueTabViewModel owner, ReviewEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(entry);
+        _owner = owner;
+        Entry = entry;
+        Apply(entry);
+    }
+
+    /// <summary>The entry as the queue last had it.</summary>
+    public ReviewEntry Entry { get; private set; }
+
+    public bool IsClip => Entry.Kind == ReviewEntryKind.Clip;
+
+    public bool IsSection => Entry.Kind == ReviewEntryKind.Section;
+
+    /// <summary>The clip's number in the queue, one-based, counting clips only; 0 on a title card.</summary>
+    public int Position { get; private set; }
+
+    /// <summary>"4 of 12 clips unreviewed" under a title card; "3 of 40 clips match" under a filter.</summary>
+    public string ClipCountText { get; private set; } = "";
+
+    /// <summary>A title card whose clips are hidden.</summary>
+    public bool IsCollapsed { get; private set; }
+
+    /// <summary>The reviewed button's label: a clip's state, or what a title card's button does to its section.</summary>
+    public string ReviewText { get; private set; } = "";
+
+    /// <summary>The clip has been marked reviewed.</summary>
+    public bool IsReviewed => Entry.Reviewed;
+
+    /// <summary>The toggle's label on a title card.</summary>
+    public string ToggleText => IsCollapsed ? "Show" : "Hide";
+
+    /// <summary>The demo's file name.</summary>
+    public string DemoLabel => Path.GetFileName(Entry.DemoPath);
+
+    /// <summary>"12:04 to 12:24 · 20 s" on the demo's clock.</summary>
+    public string RangeText
+    {
+        get
+        {
+            string range = $"{ReviewQueueTabViewModel.Clock(Entry.FromTick, Entry.TickRate)} to "
+                           + ReviewQueueTabViewModel.Clock(Entry.ToTick, Entry.TickRate);
+            return Entry.Seconds is double seconds
+                ? string.Create(CultureInfo.InvariantCulture, $"{range} · {Math.Round(seconds)} s")
+                : range;
+        }
+    }
+
+    /// <summary>Where the clip came from, as a word.</summary>
+    public string SourceText => Entry.Source;
+
+    internal void Apply(ReviewEntry entry)
+    {
+        Entry = entry;
+        _applying = true;
+        try
+        {
+            if (Normalize(Title) != entry.Title)
+            {
+                Title = entry.Title;
+            }
+
+            if (Normalize(Note) != entry.Note)
+            {
+                Note = entry.Note;
+            }
+
+            if (Normalize(Question) != entry.Question)
+            {
+                Question = entry.Question;
+            }
+        }
+        finally
+        {
+            _applying = false;
+        }
+
+        OnPropertyChanged(nameof(Entry));
+        OnPropertyChanged(nameof(DemoLabel));
+        OnPropertyChanged(nameof(RangeText));
+        OnPropertyChanged(nameof(SourceText));
+        OnPropertyChanged(nameof(IsReviewed));
+        if (IsClip)
+        {
+            ReviewText = entry.Reviewed ? "Reviewed" : "Mark reviewed";
+            OnPropertyChanged(nameof(ReviewText));
+        }
+    }
+
+    internal void SetPosition(int position)
+    {
+        if (Position != position)
+        {
+            Position = position;
+            OnPropertyChanged(nameof(Position));
+        }
+    }
+
+    internal void SetSection(int total, int unreviewed, int matching, bool collapsed, bool filtering,
+        int unreviewedInScope, int inScope)
+    {
+        string clips = string.Create(CultureInfo.InvariantCulture, $"{total} clip{(total == 1 ? "" : "s")}");
+        string text = filtering
+            ? string.Create(CultureInfo.InvariantCulture, $"{matching} of {clips} match")
+            : total == 0
+                ? clips
+                : unreviewed == 0
+                    ? $"all {clips} reviewed"
+                    : string.Create(CultureInfo.InvariantCulture, $"{unreviewed} of {clips} unreviewed");
+        // Under a filter the button acts on the clips the filter leaves, and says so.
+        string reviewText = filtering
+            ? unreviewedInScope == 0 && inScope > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"Mark {inScope} unreviewed")
+                : string.Create(CultureInfo.InvariantCulture, $"Mark {unreviewedInScope} shown reviewed")
+            : unreviewed == 0 && total > 0 ? "Mark unreviewed" : "Mark section reviewed";
+        if (ReviewText != reviewText)
+        {
+            ReviewText = reviewText;
+            OnPropertyChanged(nameof(ReviewText));
+        }
+
+        if (ClipCountText != text)
+        {
+            ClipCountText = text;
+            OnPropertyChanged(nameof(ClipCountText));
+        }
+
+        if (IsCollapsed != collapsed)
+        {
+            IsCollapsed = collapsed;
+            OnPropertyChanged(nameof(IsCollapsed));
+            OnPropertyChanged(nameof(ToggleText));
+        }
+    }
+
+    [RelayCommand]
+    private void Toggle() => _owner.Toggle(this);
+
+    [RelayCommand]
+    private void ToggleReviewed() => _owner.ToggleReviewed(this);
+
+    partial void OnTitleChanged(string value) => Write(ReviewTextField.Title, value);
+
+    partial void OnNoteChanged(string value) => Write(ReviewTextField.Note, value);
+
+    partial void OnQuestionChanged(string value) => Write(ReviewTextField.Question, value);
+
+    private void Write(ReviewTextField field, string value)
+    {
+        if (!_applying)
+        {
+            _owner.EditText(this, field, value);
+        }
+    }
+
+    private static string Normalize(string? text) => (text ?? "").ReplaceLineEndings(" ").Trim();
+
+    [RelayCommand]
+    private Task Open() => _owner.OpenAsync(this);
+
+    [RelayCommand]
+    private void MoveUp() => _owner.Move(this, -1);
+
+    [RelayCommand]
+    private void MoveDown() => _owner.Move(this, 1);
+
+    [RelayCommand]
+    private void Remove() => _owner.Remove(this);
+}

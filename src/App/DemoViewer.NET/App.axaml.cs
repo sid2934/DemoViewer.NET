@@ -10,9 +10,14 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
+using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
@@ -23,6 +28,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -42,6 +48,9 @@ namespace DemoViewer.NET;
 /// <summary>App.</summary>
 public class App : Application
 {
+    /// <summary>Lineup Clip Render's folder under the config root.</summary>
+    public const string LineupClipDirectoryName = "lineup-clips";
+
     // Re-entrancy tripwire for BuildShell. Deliberately NOT [ThreadStatic]: the recursion it guards
     // against HOPS THREADS (ServiceProvider's StackGuard.RunOnEmptyStack moves to a fresh thread as the
     // stack deepens), so a per-thread flag would never see it. The shell is resolved on the UI thread, so
@@ -49,13 +58,12 @@ public class App : Application
     private static bool _shellUnderConstruction;
 
     /// <summary>
-    ///     The application's composition-root service provider, set once by <see cref="BuildServices" />
+    ///     The application's composition-root service provider, set once by <see cref="BuildServices(IWindowService, IReadOnlyList{IFeaturePack})" />
     ///     during framework init. A deliberate service-locator seam so later Settings / first-run-wizard
     ///     commands can resolve the long-lived <see cref="SettingsService" /> /
     ///     <c>IOptionsMonitor&lt;AppSettings&gt;</c> without threading them through every view-model.
-    ///     <c>null</c> only before init (e.g. the XAML designer). See the design notes in git history
-    ///     (SUPERSEDED: the app now uses a bare Microsoft.Extensions DI container as the single
-    ///     composition root).
+    ///     <c>null</c> only before init (e.g. the XAML designer). The app uses a bare Microsoft.Extensions
+    ///     DI container as the single composition root.
     /// </summary>
     public static IServiceProvider? Services { get; private set; }
 
@@ -86,9 +94,13 @@ public class App : Application
             // The DI container is the single composition root: it constructs + HOLDS the
             // ModuleRegistry and resolves the shell.
             ServiceProvider services = BuildServices(windowService);
-            WireTheme(services); // L0c: apply persisted theme + keep it live
+            WireTheme(services); // apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab + file
+            LogExtensionStatuses();
+            // Drop an unfinished download and the staged versions the running copy supersedes. A
+            // background queue item; nothing waits on it.
+            _ = services.GetService<ExtensionUpdateService>()?.CleanupOnStartAsync();
             // Careful: host services MUST attach BEFORE RestoreSession. RestoreSession activates the persisted tab,
             // and a restored-active Reels tab builds HighlightsTabViewModel (→ HighlightReelDialogViewModel),
             // which captures Shell().ReelJob / Shell().ReelJobStatus ONCE in its constructor. Attaching after
@@ -109,7 +121,7 @@ public class App : Application
             }
 
             // CSVG reel generation: same static-seam pattern as
-            // Live Sync. The job service takes the (possibly null) live-sync engine so the F1↔F3b single-CS2
+            // Live Sync. The job service takes the (possibly null) live-sync engine so the single-CS2
             // interlock can suspend an active session. Unset on Browser/tests → reel generation absent.
             IReelJobService? reelJob = null;
             if (AppHostHooks.ReelJobFactory is { } f)
@@ -118,7 +130,7 @@ public class App : Application
                 viewModel.AttachReelJob(reelJob);
             }
 
-            // 2D video export (docs/playback2d-v2/export.md). Everything reusable is in Core/Pipeline and
+            // 2D video export. Everything reusable is in Core/Pipeline and
             // the 2D tab composes the job itself. What it cannot see through IModuleContext, such as the frame
             // list, the heavy-job gate, and whether Live Sync or a reel already owns the machine, is
             // handed to it here, the same way the live-sync HUD projection and the speed lock are.
@@ -246,6 +258,55 @@ public class App : Application
             // exit while CS2 kill / install restore is still mid-flight.
             bool csvgTornDown = false;
             bool csvgTeardownStarted = false;
+
+            // Runs only on the request that really exits, after any CSVG or export teardown: a store that
+            // throws or hangs here must never cost the machine its restored CS2 install.
+            static void FlushStores(ServiceProvider services)
+            {
+                // Shutdown is a strat commit trigger; the user-truth stores defer their
+                // index to it. The Review Queue is core (Reels uses it too), so its flush stays unconditional
+                // here; the Strat Book's and the Tag Store's run through the pack's lifecycle below.
+                // Idempotent, so a re-fired request writes nothing new.
+                ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+                Action[] flushes =
+                [
+                    () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
+                    () =>
+                    {
+                        // Every pack's lifecycle, unconditionally: whether OnEnabledAsync ran at startup is
+                        // not whether there is anything to flush now (a pack turned on and off in session,
+                        // or one whose tab was opened and written to). Each lifecycle's own "is live" guards
+                        // decide what, if anything, to touch; one lifecycle's failure must not skip the others.
+                        foreach (IFeaturePack pack in FeaturePacks.Compatible)
+                        {
+                            if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
+                            {
+                                continue;
+                            }
+
+                            try
+                            {
+                                lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+                            }
+                            catch (Exception ex)
+                            {
+                                AppLog.OperationFailed(log, "shutdown flush", ex);
+                            }
+                        }
+                    }
+                ];
+                foreach (Action flush in flushes)
+                {
+                    try
+                    {
+                        flush();
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog.OperationFailed(log, "shutdown flush", ex);
+                    }
+                }
+            }
             desktop.ShutdownRequested += (_, e) =>
             {
                 // Geometry snapshot first (idempotent: this handler can re-fire after a cancelled
@@ -261,6 +322,7 @@ public class App : Application
                 }
 
                 viewModel.SaveSession();
+
                 bool reelRunning = reelJob is { Status.IsRunning: true };
 
                 // A running 2D export owns an ffmpeg subprocess and a half-written video file. Exiting
@@ -271,6 +333,7 @@ public class App : Application
 
                 if (csvgTornDown || liveSync is null && !reelRunning && !exportRunning)
                 {
+                    FlushStores(services);
                     return;
                 }
 
@@ -374,9 +437,11 @@ public class App : Application
             // root; only first-party modules are registered on WASM (no filesystem / assembly probing).
             BrowserWindowService windowService = new();
             ServiceProvider services = BuildServices(windowService);
-            WireTheme(services); // L0c: apply persisted theme + keep it live
+            WireTheme(services); // apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab (file no-ops on WASM)
+            LogExtensionStatuses();
+
             // Same ordering contract as the desktop root above: after the singleton is cached, never in
             // the ctor. No-ops on WASM (fileless settings persist no session), but the call site stays so
             // the two roots do not drift.
@@ -394,6 +459,37 @@ public class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    ///     The extension loader's one-time report: the head resolved the packs
+    ///     in Main, before any logger existed, and recorded the outcome on each <see cref="PackStatus" />;
+    ///     this writes it once the diagnostics pillar is up. One line per pack (loaded, with its source, or
+    ///     incompatible), then one per staged candidate the loader refused.
+    /// </summary>
+    private static void LogExtensionStatuses()
+    {
+        ILogger log = DiagnosticsLog.CreateLogger(AppLog.ExtensionsCategory);
+        foreach (PackStatus status in FeaturePacks.Statuses)
+        {
+            string name = status.Manifest?.Name ?? status.Pack.Id;
+            string version = status.Manifest?.Version.ToString() ?? "?";
+            if (status.IsCompatible)
+            {
+                string location = status.Source is PackSource.Staged staged ? staged.Directory : status.Pack.GetType().Assembly.Location;
+                AppLog.ExtensionLoaded(log, name, version, status.Source.Label, location);
+            }
+            else
+            {
+                AppLog.ExtensionIncompatible(log, name, version, status.Source.Label, status.Problem ?? "incompatible");
+            }
+
+            foreach (LoadOutcome outcome in status.Rejected)
+            {
+                AppLog.ExtensionCandidateRejected(log, outcome.Directory, outcome.Failure, outcome.Detail,
+                    outcome.LogDetail is null ? string.Empty : " [" + outcome.LogDetail + "]");
+            }
+        }
     }
 
     /// <summary>
@@ -472,10 +568,11 @@ public class App : Application
     internal static void WireTheme(IServiceProvider services)
     {
         ThemeRegistry registry = services.GetRequiredService<ThemeRegistry>();
-        // T3: ensure the drop-in folder exists (so users have somewhere to add themes), then scan it BEFORE
+        // Ensure the drop-in folder exists (so users have somewhere to add themes), then scan it BEFORE
         // Install merges the override dictionaries, so a persisted drop-in theme resolves at launch. (No
         // subscribers yet, so this startup reload paints nothing extra. ApplyTheme below does the initial paint.)
         AppPaths.EnsureThemesDirectory();
+        AppPaths.EnsureZonesDirectory();
         registry.Reload();
         registry.Install(Current!);
 
@@ -498,7 +595,7 @@ public class App : Application
         Current!.RequestedThemeVariant = registry.VariantFor(theme);
 
     /// <summary>
-    ///     Repaints the running app after a theme reload (T3). The syntax highlighter caches its definition per
+    ///     Repaints the running app after a theme reload. The syntax highlighter caches its definition per
     ///     variant, so an edit to the active variant would otherwise stay stale. <c>ClearCache</c> drops it.
     ///     Then it BOUNCES the active variant (→ <c>Default</c> → back): a same-variant re-apply short-circuits,
     ///     but the bounce forces every <c>{DynamicResource}</c> and the code-held surfaces (2D viewport, Analysis
@@ -518,6 +615,11 @@ public class App : Application
         Current.RequestedThemeVariant = active;
     }
 
+    // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
+        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
+            DemoJobPriority.UserRequested);
+
     /// <summary>
     ///     Builds the app's single composition root: a bare Microsoft.Extensions DI container (NO
     ///     Microsoft.Extensions.Hosting). It owns the long-lived <see cref="SettingsService" />, a live
@@ -534,8 +636,61 @@ public class App : Application
     ///         starts a <c>DispatcherTimer</c>) at build time.
     ///     </para>
     /// </summary>
-    internal static ServiceProvider BuildServices(IWindowService windowService)
+    internal static ServiceProvider BuildServices(IWindowService windowService) =>
+        BuildServices(windowService, FeaturePacks.Compatible);
+
+    /// <summary>
+    ///     <see cref="BuildServices(IWindowService)" /> over an explicit pack list. The packs' descriptors
+    ///     join the <see cref="FeatureCatalog" /> here, once; each pack then registers its services and,
+    ///     in <see cref="BuildRegistry" />, contributes its modules.
+    /// </summary>
+    internal static ServiceProvider BuildServices(IWindowService windowService, IReadOnlyList<IFeaturePack> packs)
     {
+        ArgumentNullException.ThrowIfNull(packs);
+        FeatureCatalog.Compose(packs);
+        ServiceCollection services = ComposeServices(windowService, packs);
+
+        // ValidateOnBuild: a missing/broken registration fails HERE (a loud construction error on the UI
+        // thread at framework-init) instead of silently at the first GetRequiredService<MainViewModel>().
+        // It eagerly constructs the singletons, all of which the shell resolves immediately anyway, so
+        // there is no extra side-effect beyond building them a few lines earlier, on the same UI thread.
+        ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true
+        });
+        QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
+        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
+        // any rescan, independent of ValidateOnBuild's eager-construction behavior. ValidateEvaluators
+        // populates and sorts the evaluator registry right away, so a cycle or an unknown After id fails
+        // here, loudly, at startup, instead of waiting for the first real poll to find it.
+        provider.GetRequiredService<DemoEvaluationCoordinator>().ValidateEvaluators();
+        // Each pack whose feature id resolves on gets its lifecycle's startup loads. A pack that is off
+        // never resolves its lifecycle, so none of this runs: no index load, no Team Identity rebuild, no
+        // queue item.
+        StartPacks(provider);
+        Services = provider;
+        return provider;
+    }
+
+    /// <summary>
+    ///     Starts the <see cref="PackSwitch" />: each pack whose <see cref="IFeaturePack.FeatureId" /> resolves
+    ///     on gets its <see cref="IPackLifecycle.OnEnabledAsync" /> (fire-and-forget: the loads are queue
+    ///     items), and from then on the gate's <see cref="IFeatureGate.Changed" /> drives the lifecycle both
+    ///     ways. On a fresh desktop install nothing starts until the first-run wizard has asked. Shutdown
+    ///     does not read anything this records: every pack's lifecycle gets an unconditional
+    ///     <see cref="IPackLifecycle.OnShutdown" /> instead, each deciding for itself what it actually built.
+    /// </summary>
+    internal static void StartPacks(IServiceProvider provider) => provider.GetRequiredService<PackSwitch>().Start();
+
+    /// <summary>
+    ///     Every registration of the composition root, before the provider is built: the core services,
+    ///     then each pack's <see cref="IFeaturePack.Register" />. Kept apart from
+    ///     <see cref="BuildServices(IWindowService, IReadOnlyList{IFeaturePack})" /> so a test can enumerate
+    ///     what is registered without constructing the singletons.
+    /// </summary>
+    internal static ServiceCollection ComposeServices(IWindowService windowService, IReadOnlyList<IFeaturePack> packs)
+    {
+        ArgumentNullException.ThrowIfNull(packs);
         ServiceCollection services = new();
 
         // SINGLETON via a constructed instance: SettingsService holds a live reloadOnChange
@@ -576,7 +731,35 @@ public class App : Application
             sp.GetRequiredService<ThemeRegistry>(),
             // Replay-walkthrough starter: resolves the singleton shell lazily (never at ctor time, which
             // would recurse through the shell factory). Null-safe if the shell isn't built yet.
-            () => Services?.GetService<MainViewModel>()?.StartWalkthrough()));
+            () => Services?.GetService<MainViewModel>()?.StartWalkthrough(),
+            // The settings pages the packs contribute: the Suggested Tags tuning card and the
+            // Grenade Index card. Read fresh on every Settings open, same as the pages' own VMs.
+            sp.GetRequiredService<PackContributionSet>().SettingsPages,
+            // The Extensions "N demos will be re-indexed" notice's count; SettingsViewModel
+            // watches only the first entry.
+            sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
+            // Each pack's "delete extension data" action, one row per entry.
+            sp.GetRequiredService<PackContributionSet>().DataRemovals,
+            // Every declared pack's compatibility verdict: versions, and the locked row with
+            // the reason for a pack that did not compose.
+            FeaturePacks.Statuses,
+            // The extension updater; absent where there is no config root to stage into.
+            sp.GetService<ExtensionUpdateService>()));
+
+        // The extension updater: checks each extension's feed, stages a
+        // newer version under <config root>/extensions/ for the loader to take at the next start. Judged by
+        // the same trust policy the loader runs in Main. Desktop only: the browser has no config root.
+        if (AppPaths.ConfigRoot is { } extensionsConfigRoot)
+        {
+            services.AddSingleton(sp => new ExtensionUpdateService(
+                extensionsConfigRoot,
+                FeaturePacks.Statuses,
+                ExtensionHost.Current,
+                TrustPolicy.Default,
+                HttpExtensionFeedClient.Shared,
+                id => ExtensionFeedSource.Resolve(sp.GetRequiredService<IOptionsMonitor<AppSettings>>().CurrentValue.Extensions.FeedUrl, id),
+                sp.GetRequiredService<IDemoProcessingQueue>()));
+        }
 
         // First-run wizard VM (P2b), a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
@@ -589,18 +772,36 @@ public class App : Application
         // through (interactive preempts background; reel sessions exclude both). MaxConcurrency default 1.
         services.AddSingleton<HeavyJobGate>();
 
-        // The global demo-processing queue (demo-processing-queue.md): the single source all background
+        // The global demo-processing queue: the single source all background
         // demo parse/analyse work is pulled from, plus the awaitable highest-priority foreground open.
         // SINGLETON: it owns the worker loops and the observable item set the UI binds to. Its three
         // persisted settings (max concurrency / max queue size / background-enable) are applied from the
         // live AppSettings and re-applied on change (self-writes fire OnChange inline; external edits on a
         // threadpool thread, the queue setters are all lock-guarded, so either is safe). The OnChange
         // callback is rooted by the singleton IOptionsMonitor for the app's lifetime; nothing to dispose.
+        // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
+        // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
+        // A pack-owned ruleset (round_facts) rides the merged set only while its pack is on; the pack
+        // contributions are read on the first build, never at construction, since Contribute resolves services.
         services.AddSingleton(sp =>
         {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            return new MergedRulesBuild(() => sp.GetRequiredService<PackContributionSet>().GatedRulesets(gate));
+        });
+        services.AddSingleton(sp =>
+        {
+            ForwardPassRunner? forward = OperatingSystem.IsBrowser()
+                ? null
+                : new ForwardPassRunner(sp.GetRequiredService<MergedRulesBuild>());
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
-                action => Dispatcher.UIThread.Post(action));
+                action => Dispatcher.UIThread.Post(action),
+                forwardPass: forward is null ? null : forward.Run,
+                parseReleased: sp.GetRequiredService<MergedRulesBuild>().Forget,
+                // DI-free, like CommandRegistry.Build(packs): reads IFeaturePack.JobKinds directly, no
+                // PackContributionSet, so building the queue can never re-enter its own DI resolution
+                // through a pack's Contribute (e.g. ReviewQueue resolves IDemoProcessingQueue eagerly).
+                jobKinds: JobKindRegistry.Build(packs));
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -644,9 +845,9 @@ public class App : Application
             demoCache: sp.GetRequiredService<DemoCacheStore>()));
 
         // Highlights pipeline: the library-wide cache store and the
-        // scanner over it. The scanner's library universe is the indexer's current entries; the D8
+        // scanner over it. The scanner's library universe is the indexer's current entries; the
         // background-scan opt-in is read live from settings; UI marshalling via the dispatcher.
-        services.AddSingleton<IHighlightHarvester, RulesHighlightHarvester>();
+        services.AddSingleton<IHighlightHarvester>(sp => new RulesHighlightHarvester(sp.GetRequiredService<MergedRulesBuild>()));
         // The scan chip's mapper. A container singleton so the shell (which registers the chip into
         // the status strip) and the Reels tab (which shows the same state inline) share ONE instance.
         // The Reels tab VM is a container SINGLETON: the module framework already caches one instance per
@@ -679,7 +880,9 @@ public class App : Application
                 // v0.6.0 ffmpeg pre-flight (Services/Dependencies): detect up front and guide the
                 // user to a self-install, instead of a raw CSVG failure after CS2 launches. Real
                 // probe ONLY here. The VM's null default keeps pure-VM tests machine-independent.
-                FfmpegDependency.Locate)
+                FfmpegDependency.Locate,
+                // The tray is a client of the Review Queue: what it stages is queued there.
+                sp.GetRequiredService<ReviewQueue>())
             {
                 // The SAME instances the status-strip chips are bound to.
                 JobStatus = Shell().ReelJobStatus,
@@ -702,26 +905,61 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
+        // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
+        // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
+        // all mutate the same list. Null config root (the browser) keeps it for the session.
+        services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
+            scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
+            scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
         // The "one parse, many evaluators" coordinator: the single submitter
-        // that polls the registered IDemoEvaluators (Library + Highlights) for a demo and coalesces their
-        // queue submissions onto ONE parse. The candidate universe re-polled on CapacityAvailable is the
-        // UNION of each evaluator's worker-readable pending snapshot (never the UI-bound Entries collection).
-        // Setting .Coordinator on each flips it off its inline/feeder path onto the coordinator; the
-        // construction side-effect runs under ValidateOnBuild (+ the explicit force-resolve below).
+        // that polls the registered IDemoEvaluators for a demo and coalesces their queue submissions onto
+        // ONE parse. Library and Highlights are core, always in the fan-out; a pack's evaluators come from
+        // an EvaluatorRegistry built over its Evaluator contributions, ordered by declared After ids rather
+        // than a hand-written array. The registry reads PackContributionSet lazily, on the
+        // coordinator's first poll, not here: resolving it during this factory would run every pack's
+        // Contribute() during container build, well before anything needs it. A disabled pack's evaluator
+        // factories are never invoked here, so those services are not constructed by THIS path while the
+        // pack is off (a resident like SituationIndex or GrenadeIndex may still resolve one directly at
+        // StartPacks time; each such evaluator sets its own .Coordinator in its own factory, below). The
+        // candidate universe re-polled on CapacityAvailable is the UNION of the CURRENTLY resolved
+        // evaluators' PendingPaths. The ORDER is a contract (the round index reads the round facts written
+        // in the same pass) and is pinned by AppCompositionRootTests.
         services.AddSingleton(sp =>
         {
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
-            HighlightScanService highlights =
-                sp.GetRequiredService<HighlightScanService>();
+            HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
+
+            EvaluatorRegistry registry = new();
+            registry.AddCore(library.Id, () => library);
+            registry.AddCore(highlights.Id, () => highlights);
+
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights],
+                registry.Resolve,
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                () => library.Tier2Backlog()
-                    .Concat(highlights.PendingPaths())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList());
+                () => registry.Resolve().SelectMany(e => e.PendingPaths()).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                sp.GetRequiredService<MergedRulesBuild>().Forget,
+                registry.Validate);
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
+
+            registry.AddPacksLazily(() =>
+            {
+                IFeatureGate? features = sp.GetService<IFeatureGate>();
+                foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
+                {
+                    IFeaturePack pack = contributions.Pack;
+                    foreach (EvaluatorContribution contribution in contributions.Evaluators)
+                    {
+                        // .Coordinator (where the evaluator type has one) is set by the evaluator's own DI
+                        // factory, not here: a wrapper assignment only runs once something has already
+                        // polled, but GrenadeIndexEvaluator can also be built earlier, through GrenadeIndex
+                        // at StartPacks time.
+                        registry.AddPackEvaluator(contribution.Id, contribution.Factory, contribution.After,
+                            () => features?.IsEnabled(pack.FeatureId) ?? true);
+                    }
+                }
+            });
+
             return coordinator;
         });
 
@@ -732,32 +970,40 @@ public class App : Application
         // ctor param.
         services.AddSingleton(sp => new RecentFilesStore(sp.GetRequiredService<SettingsService>()));
 
+        // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
+        // not what is registered.
+        foreach (IFeaturePack pack in packs)
+        {
+            pack.Register(services);
+        }
+
+        // Every pack's Contribute, run once on first resolve: the module registry reads the modules, the
+        // merged rules build the ruleset claims.
+        services.AddSingleton(sp => new PackContributionSet(packs, sp));
+
+        // The live toggle: started by StartPacks, driven by the gate's Changed after that. The re-poll after a
+        // switch-on is the coordinator's capacity re-feed, run as a queue item. The browser never shows the
+        // wizard (NeedsFirstRun is always true there), so it never waits for it.
+        services.AddSingleton(sp => new PackSwitch(packs,
+            sp.GetRequiredService<IFeatureGate>(),
+            pack => sp.GetKeyedService<IPackLifecycle>(pack.Id),
+            sp.GetRequiredService<IDemoProcessingQueue>(),
+            () => sp.GetRequiredService<DemoEvaluationCoordinator>().ConsiderAll(),
+            () => !OperatingSystem.IsBrowser() && sp.GetRequiredService<SettingsService>().NeedsFirstRun));
+
         // The first-party module registry, built ONCE by BuildRegistry and held by the container (the
         // reconciliation), injected into the shell so there is no stray second construction. The provider is
         // passed so BuildRegistry can DI-resolve module deps (the Highlights cache/scanner) + defer the
         // shell-bound delegates (never eagerly resolving MainViewModel here, which would recurse through
         // ModuleRegistry).
-        services.AddSingleton(sp => BuildRegistry(sp));
+        services.AddSingleton(sp => BuildRegistry(sp, packs));
 
         // The shell, constructed by an explicit factory so DI does not auto-fill every optional ctor param:
         // only the deps it needs are supplied; the rest default. The feature gate is
         // handed in so the shell FILTERS the workspace tab strip per user category (and reconciles live on
         // IFeatureGate.Changed). A null gate (the designer / unit-test path) fails open: no tab filtering.
         services.AddSingleton(BuildShell);
-
-        // ValidateOnBuild: a missing/broken registration fails HERE (a loud construction error on the UI
-        // thread at framework-init) instead of silently at the first GetRequiredService<MainViewModel>().
-        // It eagerly constructs the singletons, all of which the shell resolves immediately anyway, so
-        // there is no extra side-effect beyond building them a few lines earlier, on the same UI thread.
-        ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
-        {
-            ValidateOnBuild = true
-        });
-        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
-        // any rescan, independent of ValidateOnBuild's eager-construction behavior.
-        provider.GetRequiredService<DemoEvaluationCoordinator>();
-        Services = provider;
-        return provider;
+        return services;
     }
 
     /// <summary>
@@ -795,7 +1041,7 @@ public class App : Application
         _shellUnderConstruction = true;
         try
         {
-            return new MainViewModel(
+            MainViewModel shell = new(
                 sp.GetRequiredService<IWindowService>(),
                 sp.GetRequiredService<ModuleRegistry>(),
                 sp.GetRequiredService<DemoLibraryService>(),
@@ -820,7 +1066,32 @@ public class App : Application
                 TourDemoLocator.FindSampleDemo,
                 // The unified demo cache: what a Library single-click renders on Match Overview without
                 // parsing anything.
-                sp.GetRequiredService<DemoCacheStore>());
+                sp.GetRequiredService<DemoCacheStore>(),
+                // The Library's filter/badge contributions (the Team filter, the provenance chip).
+                sp.GetRequiredService<PackContributionSet>().LibraryContributions,
+                // The host tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
+                sp.GetRequiredService<PackContributionSet>().HostTabs);
+
+            // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
+            // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.
+            if (shell.ModuleContext is ModuleContext moduleContext)
+            {
+                moduleContext.SetServices(sp);
+            }
+
+            // The chip slots the packs contribute (the Strat export chip, in a slot the pack
+            // mounts into on the first Export). A post-construction call, not a ctor parameter: the ctor
+            // parameter list is the next thing to edit.
+            shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
+
+            // The packs' shell attachments: the delegate slots core pages expose, set here where the
+            // composition root used to set them by hand, with the shell instance, before anything resolves it.
+            foreach (Action<MainViewModel> attach in sp.GetRequiredService<PackContributionSet>().ShellAttachments)
+            {
+                attach(shell);
+            }
+
+            return shell;
         }
         finally
         {
@@ -833,15 +1104,18 @@ public class App : Application
     // additional modules here. DELIBERATE: the production shell stays built-ins-only. PlaceholderModule
     // is NOT registered here (it would show an empty "Sandbox" tab to users; it exists to prove the
     // framework end-to-end and is registered by the test that exercises it). This path registers the
-    // real 2D pilot. Both hosts use this path (only first-party modules on WASM). This
-    // is now invoked exactly once, by the DI factory that HOLDS the resulting registry (see BuildServices).
-    private static ModuleRegistry BuildRegistry(IServiceProvider sp)
+    // real 2D pilot, then asks each pack for its modules. Both hosts use this path (only first-party
+    // modules on WASM). This is now invoked exactly once, by the DI factory that HOLDS the resulting
+    // registry (see BuildServices).
+    private static ModuleRegistry BuildRegistry(IServiceProvider sp, IReadOnlyList<IFeaturePack> packs)
     {
         IOptionsMonitor<AppSettings>? settings = sp.GetService<IOptionsMonitor<AppSettings>>();
         ModuleRegistry registry = new();
-        // The 2D Playback pilot. First-party,
-        // granted Playback.Control. Both desktop and browser hosts use this path.
-        registry.Register(new Playback2DModule());
+        // The 2D Playback pilot. First-party, granted Playback.Control. Both desktop and browser hosts
+        // use this path. The packs' playback contributions (band menus, panes) attach to each tab
+        // view-model through the host, gated live by the pack's umbrella id.
+        registry.Register(new Playback2DModule(() => PlaybackContributionHost.From(
+            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>())));
         // The Rulesets v2 authoring Workbench.
         // Registered on both hosts; desktop-only features (editor save, FileSystemWatcher, code --goto)
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles
@@ -867,6 +1141,38 @@ public class App : Application
         // The tab VM is a container singleton (see BuildServices) so Match Overview's [ + ] and the tab
         // itself share ONE tray. Still resolved lazily. The module only invokes this on first activation.
         registry.Register(new HighlightsModule(sp.GetRequiredService<HighlightsTabViewModel>));
+
+        // Each pack's modules, in pack order, after the core modules. The pack owns which modules it
+        // contributes and their order. Rulesets are consumed by MergedRulesBuild.
+        foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
+        {
+            IFeaturePack pack = contributions.Pack;
+            // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory
+            // builds; job kinds by JobKindRegistry.Build(packs), DI-free like
+            // CommandRegistry.Build. Same drift check as the Commands block below: the Contribute(...)
+            // call and the DI-free property must agree.
+            if (!contributions.JobKinds.SequenceEqual(pack.JobKinds))
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed different job kinds through Contribute than its JobKinds property declares.");
+            }
+
+            // CommandRegistry.Default reads IFeaturePack.Commands directly (no DI, so a bare-constructed
+            // view model resolves pack chords in a headless test too). This is the consumer for the
+            // IPackContributions.Commands(...) call: not a second registration, a check that the two
+            // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
+            if (!CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]))
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' contributed different commands through Contribute than its Commands property declares.");
+            }
+
+            foreach (IWorkspaceModule module in contributions.Modules)
+            {
+                registry.Register(module);
+            }
+        }
+
         return registry;
     }
 

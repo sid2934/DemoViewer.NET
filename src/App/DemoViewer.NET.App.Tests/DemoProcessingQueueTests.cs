@@ -28,8 +28,14 @@ public class DemoProcessingQueueTests
     {
         gate = new HeavyJobGate();
         return new DemoProcessingQueue(gate, a => a(), parser.ParseFile,
-            parser.ParseBytes);
+            parser.ParseBytes, NoCompact);
     }
+
+    private static Task NoCompact() => Task.CompletedTask;
+
+    // The stack frame of the mapped entry point. The type name alone also appears in DemoReader's ctor
+    // signature on the byte[] path.
+    private const string MappedParseFrame = "MemoryMappedDemoSource.ParseFile(";
 
     private static DemoProcessingRequest Req(string path, string owner, DemoJobPriority priority,
         long orderHint, Action<ParsedDemo>? onParsed = null, Action<Exception>? onFailed = null) =>
@@ -444,6 +450,585 @@ public class DemoProcessingQueueTests
             {
                 3
             }, cts.Token));
+        }
+    }
+
+    // ── History retention + drain compaction ─────────────────────────────────
+
+    [Test]
+    public async Task CoalescedForeground_TerminalHistory_DoesNotRootTheParsedDemo()
+    {
+        using ManualResetEventSlim block = new(false);
+        int byteCalls = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ =>
+            {
+                block.Wait();
+                return SyntheticDemo();
+            },
+            _ =>
+            {
+                Interlocked.Increment(ref byteCalls);
+                return SyntheticDemo();
+            },
+            NoCompact);
+
+        WeakReference demo = await CoalesceOntoRunningParseAsync(queue, block);
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+
+        await Assert.That(byteCalls).IsEqualTo(0); // the open coalesced; it did not parse on its own
+        await Assert.That(queue.Snapshot().Single().State).IsEqualTo(DemoQueueItemState.Completed);
+
+        // Polled: this continuation can run inline inside the helper's completion, before the
+        // runtime clears the helper's state machine.
+        await WaitForAsync(() =>
+        {
+            Collect();
+            return !demo.IsAlive;
+        }, "the coalesced demo to be collected", 2000);
+    }
+
+    [Test]
+    public async Task Drain_AfterNonParseJobs_CompactsOnce()
+    {
+        RecordingParser parser = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = CountingQueue(parser, new ManualClock(), () => Interlocked.Increment(ref compactions));
+        using ManualResetEventSlim block = new(false);
+
+        queue.SubmitJob(Job("a", _ => Task.Run(block.Wait)));
+        queue.SubmitJob(Job("b", _ => Task.CompletedTask));
+        block.Set();
+        await WaitForAsync(() => Volatile.Read(ref compactions) == 1 && queue.ActiveWorkerCount == 0, "drain");
+        await Assert.That(queue.Snapshot().All(x => x.State == DemoQueueItemState.Completed)).IsTrue();
+
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task EachParse_IsFollowedByACompaction_BeforeTheNextQueuedParse()
+    {
+        List<string> order = [];
+        using ManualResetEventSlim block = new(false);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            path =>
+            {
+                block.Wait();
+                lock (order)
+                {
+                    order.Add(Path.GetFileName(path));
+                }
+
+                return SyntheticDemo();
+            }, _ => SyntheticDemo(), () =>
+            {
+                lock (order)
+                {
+                    order.Add("compact");
+                }
+
+                return Task.CompletedTask;
+            }, new ManualClock());
+
+        queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.Background, 3));
+        queue.SubmitBackground(Req("b.dem", "o", DemoJobPriority.Background, 2));
+        queue.SubmitBackground(Req("c.dem", "o", DemoJobPriority.Background, 1));
+        block.Set();
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && queue.Snapshot().All(s => s.State == DemoQueueItemState.Completed),
+            "drain");
+
+        // No throttle between parses, and the drain adds nothing after the last one.
+        await Assert.That(string.Join(",", order)).IsEqualTo("a.dem,compact,b.dem,compact,c.dem,compact");
+    }
+
+    [Test]
+    public async Task FailedParse_DoesNotCompact_ButAJobThatNotesAParse_Does()
+    {
+        RecordingParser parser = new();
+        parser.FailPaths.Add("bad.dem");
+        ManualClock clock = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = CountingQueue(parser, clock, () => Interlocked.Increment(ref compactions));
+
+        await RunOneAsync(queue, "ok.dem");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+
+        // Inside the 30 s window: a failed parse is a non-parse job and defers to the window end.
+        await RunOneAsync(queue, "bad.dem");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+        await Assert.That(clock.PendingTimers).IsEqualTo(1);
+
+        IDemoQueueHandle clips = queue.SubmitJob(Job("clips", ctx =>
+        {
+            ctx.NoteDemoParsed();
+            return Task.CompletedTask;
+        }));
+        await clips.Completion;
+        await WaitForAsync(() => Volatile.Read(ref compactions) == 2 && queue.ActiveWorkerCount == 0, "the clip job's compaction");
+        await Assert.That(clock.PendingTimers).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task Compaction_OutranksAUserRequestedParse_AndRunsWithBackgroundDisabled()
+    {
+        List<string> order = [];
+        using ManualResetEventSlim block = new(false);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            path =>
+            {
+                block.Wait();
+                lock (order)
+                {
+                    order.Add(Path.GetFileName(path));
+                }
+
+                return SyntheticDemo();
+            }, _ => SyntheticDemo(), () =>
+            {
+                lock (order)
+                {
+                    order.Add("compact");
+                }
+
+                return Task.CompletedTask;
+            }, new ManualClock());
+
+        queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.UserRequested, 1));
+        await WaitForAsync(() => queue.RunningCount == 1, "a running");
+        queue.BackgroundEnabled = false;
+        queue.SubmitBackground(Req("b.dem", "o", DemoJobPriority.UserRequested, 1));
+        block.Set();
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && queue.Snapshot().All(s => s.State == DemoQueueItemState.Completed),
+            "drain");
+
+        await Assert.That(string.Join(",", order)).IsEqualTo("a.dem,compact,b.dem,compact");
+    }
+
+    [Test]
+    public async Task Drain_WithinThrottleWindow_DefersOneCompactionToTheWindowEnd()
+    {
+        RecordingParser parser = new();
+        ManualClock clock = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = CountingQueue(parser, clock, () => Interlocked.Increment(ref compactions));
+
+        await RunJobOnceAsync(queue, "a");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+
+        clock.Advance(TimeSpan.FromSeconds(5));
+        await RunJobOnceAsync(queue, "b");
+        await RunJobOnceAsync(queue, "c");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+        await Assert.That(clock.PendingTimers).IsEqualTo(1); // two drains, one scheduled compaction
+
+        clock.Advance(TimeSpan.FromSeconds(24));
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+
+        clock.Advance(TimeSpan.FromSeconds(1)); // window ends 30 s after the first compaction
+        // The compaction is a queue item, so the timer only submits it.
+        await WaitForAsync(() => Volatile.Read(ref compactions) == 2, "the deferred compaction");
+        await Assert.That(clock.PendingTimers).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task DeferredCompaction_IsCancelledByAJobStart_AndTheNextDrainDecides()
+    {
+        RecordingParser parser = new();
+        ManualClock clock = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = CountingQueue(parser, clock, () => Interlocked.Increment(ref compactions));
+
+        await RunJobOnceAsync(queue, "a");
+        clock.Advance(TimeSpan.FromSeconds(5));
+        await RunJobOnceAsync(queue, "b"); // deferred to T+30
+        await Assert.That(clock.PendingTimers).IsEqualTo(1);
+
+        using ManualResetEventSlim block = new(false);
+        IDemoQueueHandle c = queue.SubmitJob(Job("c", _ => Task.Run(block.Wait)));
+        await WaitForAsync(() => queue.RunningCount == 1, "c running");
+        await Assert.That(clock.PendingTimers).IsEqualTo(0);
+
+        clock.Advance(TimeSpan.FromSeconds(30)); // past the old due time; nothing may fire
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
+
+        block.Set();
+        await c.Completion;
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit c");
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(2); // T+35: outside the window, runs now
+    }
+
+    // ── Per-entry decode plan ────────────────────────────────────────────────
+
+    private static bool HasUserCommands(DecodePlan plan) => (plan.Categories & MessageCategories.UserCmds) != 0;
+
+    private static DemoProcessingQueue PlanQueue(Dictionary<string, DecodePlan> plans, ManualResetEventSlim? block = null,
+        Func<ReadOnlyMemory<byte>, ParsedDemo>? parseBytes = null) =>
+        new(new HeavyJobGate(), a => a(), parseBytes: parseBytes ?? (_ => SyntheticDemo()), compactHeap: NoCompact,
+            timeProvider: new ManualClock(), parseFileWithPlan: (path, plan) =>
+            {
+                block?.Wait();
+                lock (plans)
+                {
+                    plans[path] = plan;
+                }
+
+                return SyntheticParsedDemo.Create(plan: plan);
+            });
+
+    [Test]
+    public async Task Plan_DropsUserCommands_OnlyWhenNoOwnerReadsThem()
+    {
+        Dictionary<string, DecodePlan> plans = [];
+        using ManualResetEventSlim block = new(false);
+        using DemoProcessingQueue queue = PlanQueue(plans, block);
+
+        queue.SubmitBackground(Req("hold.dem", "o", DemoJobPriority.Background, 9));
+        await WaitForAsync(() => queue.RunningCount == 1, "hold running");
+        queue.SubmitBackground(Req("narrow.dem", "library", DemoJobPriority.Background, 3) with { NeedsUserCommands = false });
+        queue.SubmitBackground(Req("mixed.dem", "library", DemoJobPriority.Background, 2) with { NeedsUserCommands = false });
+        queue.SubmitBackground(Req("mixed.dem", "grenades", DemoJobPriority.Background, 2));
+        queue.SubmitBackground(Req("full.dem", "grenades", DemoJobPriority.Background, 1));
+        block.Set();
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 4, "drain");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(HasUserCommands(plans["narrow.dem"])).IsFalse();
+            await Assert.That(plans["narrow.dem"].Categories).IsEqualTo(MessageCategories.All & ~MessageCategories.UserCmds);
+            await Assert.That(plans["mixed.dem"].DecodesEverything).IsTrue().Because("a queued entry takes the union");
+            await Assert.That(plans["full.dem"].DecodesEverything).IsTrue();
+            await Assert.That(plans["hold.dem"].DecodesEverything).IsTrue().Because("requests default to needing them");
+        }
+    }
+
+    [Test]
+    public async Task ARunningNarrowParse_IsNotJoinedByAReaderOrAForegroundOpen()
+    {
+        Dictionary<string, DecodePlan> plans = [];
+        using ManualResetEventSlim block = new(false);
+        int byteCalls = 0;
+        using DemoProcessingQueue queue = PlanQueue(plans, block, _ =>
+        {
+            Interlocked.Increment(ref byteCalls);
+            return SyntheticDemo();
+        });
+        List<DecodePlan> seen = [];
+
+        IDemoQueueHandle narrow = queue.SubmitBackground(
+            Req("a.dem", "library", DemoJobPriority.Background, 1, p => seen.Add(p.Plan)) with { NeedsUserCommands = false });
+        await WaitForAsync(() => queue.RunningCount == 1, "a running");
+
+        IDemoQueueHandle reader = queue.SubmitBackground(
+            Req("a.dem", "grenades", DemoJobPriority.Background, 1, p => seen.Add(p.Plan)));
+        Task<ParsedDemo> open = queue.RequestForegroundAsync("a.dem", ReadOnlyMemory<byte>.Empty);
+        await Assert.That(reader.Id).IsNotEqualTo(narrow.Id);
+
+        block.Set();
+        ParsedDemo opened = await open;
+        await narrow.Completion;
+        await reader.Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(byteCalls).IsEqualTo(1).Because("the open parsed its own bytes");
+            await Assert.That(opened.Plan.DecodesEverything).IsTrue();
+            await Assert.That(seen.Count).IsEqualTo(2);
+            await Assert.That(HasUserCommands(seen[0])).IsFalse();
+            await Assert.That(seen[1].DecodesEverything).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Coordinator_PassesEachEvaluatorsUserCommandNeed()
+    {
+        Dictionary<string, DecodePlan> plans = [];
+        using DemoProcessingQueue queue = PlanQueue(plans);
+        PlanEvaluator library = new("library", false) { Wanted = { "a.dem", "b.dem" } };
+        PlanEvaluator grenades = new("grenades", true) { Wanted = { "b.dem" } };
+        using DemoEvaluationCoordinator coordinator = new([library, grenades], queue, () => []);
+
+        queue.Pause();
+        coordinator.Consider("a.dem");
+        coordinator.Consider("b.dem");
+        queue.Resume();
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 2, "drain");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(HasUserCommands(plans["a.dem"])).IsFalse();
+            await Assert.That(plans["b.dem"].DecodesEverything).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Coordinator_OnAnIdleQueue_ParsesOnceWithTheUnion()
+    {
+        Dictionary<string, DecodePlan> plans = [];
+        int parses = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parseBytes: _ => SyntheticDemo(),
+            compactHeap: NoCompact, timeProvider: new ManualClock(), parseFileWithPlan: (path, plan) =>
+            {
+                Interlocked.Increment(ref parses);
+                Thread.Sleep(50);
+                lock (plans)
+                {
+                    plans[path] = plan;
+                }
+
+                return SyntheticParsedDemo.Create(plan: plan);
+            });
+        PlanEvaluator library = new("library", false) { Wanted = { "a.dem" } };
+        PlanEvaluator grenades = new("grenades", true) { Wanted = { "a.dem" } };
+        using DemoEvaluationCoordinator coordinator = new([library, grenades], queue, () => []);
+
+        coordinator.Consider("a.dem");
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 1 && !coordinator.HasOutstanding("grenades"),
+            "drain");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Volatile.Read(ref parses)).IsEqualTo(1);
+            await Assert.That(plans["a.dem"].DecodesEverything).IsTrue();
+        }
+    }
+
+    private sealed class PlanEvaluator(string id, bool readsUserCommands) : IDemoEvaluator
+    {
+        public HashSet<string> Wanted { get; } = [];
+        public string Id => id;
+        public bool ReadsUserCommands => readsUserCommands;
+        public bool Wants(string path) => Wanted.Contains(path);
+
+        public void Evaluate(string path, ParsedDemo parsed)
+        {
+        }
+    }
+
+    [Test]
+    public async Task SettledFile_IsMapped_RecentOrChangingFileIsNot()
+    {
+        ManualClock clock = new();
+        DateTimeOffset now = clock.GetUtcNow();
+        FileStat old = new(1000, now - TimeSpan.FromSeconds(61));
+
+        await Assert.That(MappedParsePolicy.IsSettled("x", clock, _ => old)).IsTrue();
+
+        FileStat recent = new(1000, now - TimeSpan.FromSeconds(59));
+        await Assert.That(MappedParsePolicy.IsSettled("x", clock, _ => recent)).IsFalse();
+
+        int calls = 0;
+        FileStat Growing(string _) => ++calls == 1 ? old : old with { Length = 2000 };
+        await Assert.That(MappedParsePolicy.IsSettled("x", clock, Growing)).IsFalse();
+        await Assert.That(calls).IsEqualTo(2);
+    }
+
+    private static DemoProcessingQueue CountingQueue(RecordingParser parser, ManualClock clock, Action onCompact) =>
+        new(new HeavyJobGate(), a => a(), parser.ParseFile, parser.ParseBytes, () =>
+        {
+            onCompact();
+            return Task.CompletedTask;
+        }, clock);
+
+    private static QueueJobRequest Job(string key, Func<IQueueJobContext, Task> body) =>
+        new(QueueJobKind.StratMining, key, "o", DemoJobPriority.Background, body, key);
+
+    private static async Task RunJobOnceAsync(DemoProcessingQueue queue, string key)
+    {
+        IDemoQueueHandle h = queue.SubmitJob(Job(key, _ => Task.CompletedTask));
+        await h.Completion;
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit " + key);
+    }
+
+    private static async Task RunOneAsync(DemoProcessingQueue queue, string path)
+    {
+        IDemoQueueHandle h = queue.SubmitBackground(Req(path, "o", DemoJobPriority.Background, 1));
+        await h.Completion;
+        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit " + path);
+    }
+
+    [Test]
+    public async Task Drain_WithNoJobRun_DoesNotCompact()
+    {
+        RecordingParser parser = new();
+        int compactions = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parser.ParseFile,
+            parser.ParseBytes, () =>
+            {
+                Interlocked.Increment(ref compactions);
+                return Task.CompletedTask;
+            });
+
+        queue.Pause();
+        IDemoQueueHandle h = queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.Background, 1));
+        queue.RemoveByUser(h.Id);
+
+        await Assert.That(queue.Snapshot().Single().State).IsEqualTo(DemoQueueItemState.Cancelled);
+        await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task DefaultParse_OnRecentNonDemoFile_ReadsBytes_AndFailsTheEntry()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"dv-queue-{Guid.NewGuid():N}.bin");
+        await File.WriteAllBytesAsync(path, new byte[4096]);
+        try
+        {
+            using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), compactHeap: NoCompact);
+            Exception? failure = null;
+            IDemoQueueHandle h = queue.SubmitBackground(
+                Req(path, "o", DemoJobPriority.Background, 1, onFailed: ex => failure = ex));
+            await h.Completion;
+
+            await Assert.That(h.State).IsEqualTo(DemoQueueItemState.Failed);
+            await Assert.That(failure).IsNotNull();
+            await Assert.That(failure!.ToString()).DoesNotContain(MappedParseFrame);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
+    public async Task DefaultParse_OnSettledNonDemoFile_TakesTheMappedPath_AndFailsTheEntry()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"dv-queue-{Guid.NewGuid():N}.bin");
+        await File.WriteAllBytesAsync(path, new byte[4096]);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(-5));
+        try
+        {
+            using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), compactHeap: NoCompact);
+            Exception? failure = null;
+            IDemoQueueHandle h = queue.SubmitBackground(
+                Req(path, "o", DemoJobPriority.Background, 1, onFailed: ex => failure = ex));
+            await h.Completion;
+
+            await Assert.That(h.State).IsEqualTo(DemoQueueItemState.Failed);
+            await Assert.That(failure).IsNotNull();
+            await Assert.That(failure!.ToString()).Contains(MappedParseFrame);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
+    public async Task FailedCompaction_DoesNotStartTheThrottle()
+    {
+        RecordingParser parser = new();
+        ManualClock clock = new();
+        int attempts = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), parser.ParseFile, parser.ParseBytes,
+            () =>
+            {
+                return Interlocked.Increment(ref attempts) == 1
+                    ? Task.FromException(new InvalidOperationException("compaction failed"))
+                    : Task.CompletedTask;
+            }, clock);
+
+        await RunJobOnceAsync(queue, "a"); // fails
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await RunJobOnceAsync(queue, "b"); // not throttled: runs now
+
+        await Assert.That(Volatile.Read(ref attempts)).IsEqualTo(2);
+        await Assert.That(clock.PendingTimers).IsEqualTo(0);
+    }
+
+    // The foreground result lives only in this method's frame, which is gone once it returns.
+    private static async Task<WeakReference> CoalesceOntoRunningParseAsync(DemoProcessingQueue queue,
+        ManualResetEventSlim block)
+    {
+        queue.SubmitBackground(Req("a.dem", "o", DemoJobPriority.Background, 1));
+        await WaitForAsync(() => queue.RunningCount == 1, "running");
+        Task<ParsedDemo> open = queue.RequestForegroundAsync("a.dem", ReadOnlyMemory<byte>.Empty);
+        block.Set();
+        return new WeakReference(await open);
+    }
+
+    private static void Collect()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            GC.WaitForPendingFinalizers();
+        }
+    }
+
+    // One-shot timers only; they fire on the Advance caller's thread.
+    private sealed class ManualClock : TimeProvider
+    {
+        private readonly object _lock = new();
+        private readonly List<ManualTimer> _timers = [];
+        private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        public int PendingTimers
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _timers.Count(t => !t.Disposed);
+                }
+            }
+        }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (_lock)
+            {
+                return _now;
+            }
+        }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            lock (_lock)
+            {
+                ManualTimer t = new(() => callback(state), _now + dueTime);
+                _timers.Add(t);
+                return t;
+            }
+        }
+
+        public void Advance(TimeSpan by)
+        {
+            List<ManualTimer> due;
+            lock (_lock)
+            {
+                _now += by;
+                due = _timers.Where(t => !t.Disposed && t.Due <= _now).ToList();
+                _timers.RemoveAll(t => t.Disposed || t.Due <= _now);
+            }
+
+            foreach (ManualTimer t in due)
+            {
+                t.Fire();
+            }
+        }
+    }
+
+    private sealed class ManualTimer(Action fire, DateTimeOffset due) : ITimer
+    {
+        public DateTimeOffset Due { get; } = due;
+        public bool Disposed { get; private set; }
+
+        public bool Change(TimeSpan dueTime, TimeSpan period) => throw new NotSupportedException();
+
+        public void Fire()
+        {
+            if (!Disposed)
+            {
+                fire();
+            }
+        }
+
+        public void Dispose() => Disposed = true;
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 

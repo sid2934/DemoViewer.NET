@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>
-///     The coarse z-band a layer draws in (design §5.2). Layer order is one interleaved
+///     The coarse z-band a layer draws in. Layer order is one interleaved
 ///     <c>(Slot, Order)</c> list, so annotations sit above actors and below the HUD regardless of who
 ///     registered them or when.
 /// </summary>

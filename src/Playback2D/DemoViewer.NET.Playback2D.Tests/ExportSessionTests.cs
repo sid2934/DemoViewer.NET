@@ -492,7 +492,7 @@ public class ExportOptInLayerTests
         IReadOnlyList<string> blank = await Export(Ink(0));
         IReadOnlyList<string> drawn = await Export(Ink());
 
-        // The end of the promise design §1 goal 2 makes: not "the id is accepted" but "the ink is in the
+        // This is the promise an export makes: not "the id is accepted" but "the ink is in the
         // file". Hashes of the rendered RGBA, so nothing short of pixels satisfies it.
         await Assert.That(blank.Count).IsEqualTo(drawn.Count);
 

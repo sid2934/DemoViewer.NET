@@ -12,6 +12,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.RuleWorkbench;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.Views.RuleWorkbench;
@@ -54,7 +55,15 @@ public class RuleWorkbenchGraphTests
         // whose source or destination misses the node map on a bare `if`, with nothing counting it
         // (RuleGraphSkeleton.cs:76-83, one of the sites docs/rule-graph/design.md 1.1 tabulates).
         // Equality here is that property, and unlike the node count it can fail.
-        await Assert.That(skeleton.Edges.Count).IsEqualTo(build.Edges.Count)
+        //
+        // Since 0.13, build.Edges also carries rows drawn to ExternalStateNode stand-ins
+        // (player_context, entity_state), which the engine keeps out of build.Nodes by design
+        // (BuildResult.ExternalNodes). The skeleton draws build.Nodes only, as it did on 0.12 when
+        // those rows did not exist, so they are the one kind of row it leaves out; any other row
+        // missing is still the silent loss this guards.
+        int graphRows = build.Edges.Count(e => e.Source is not ExternalStateNode
+                                               && e.Destination is not ExternalStateNode);
+        await Assert.That(skeleton.Edges.Count).IsEqualTo(graphRows)
             .Because("an edge whose endpoint misses the node map is dropped silently, and a node the "
                      + "conversion fails to map takes its edges down with it");
 
@@ -87,9 +96,18 @@ public class RuleWorkbenchGraphTests
         // too; nothing in this file exercises that, by design.
         await Assert.That(skeleton.Nodes.Any(n => n.IsRoot)).IsTrue()
             .Because("the scaffolding is anchored on a root node");
-        await Assert.That(skeleton.Nodes.Select(n => n.Name).Distinct().Count())
-            .IsEqualTo(skeleton.Nodes.Count)
-            .Because("game-scope names are unique; it is only per-player copies that repeat a name");
+        // round_facts is `for: each_team`, so the engine builds each of its states, and the per-team
+        // aggregates it reads, once per side under the same name (the copies carry a CT / T subtitle,
+        // except money_reliable, which carries none). Names stopped being unique when it shipped
+        // (142 nodes, 107 names); what still holds is that a repeated name is exactly one copy per
+        // side, and that round_facts is the only ruleset that does it.
+        List<IGrouping<string, GraphNodeViewModel>> repeated = [.. concrete.GroupBy(n => n.Name).Where(g => g.Count() > 1)];
+        HashSet<string> roundFacts = [.. DemoAnalysis.Build(demo, [.. docs.Where(d => d.Id == RoundFactsFingerprint.RulesetId)])
+            .Nodes.Where(n => n is not CS2DemoKit.Analysis.Abstractions.RootNode).Select(n => n.Name)];
+        await Assert.That(repeated.All(g => g.Count() == 2)).IsTrue()
+            .Because("game-scope names are unique; it is only per-player copies, and a per-team state's one copy per side, that repeat a name");
+        await Assert.That(repeated.All(g => roundFacts.Contains(g.Key))).IsTrue()
+            .Because("every repeated name is one round_facts builds on its own");
         await Assert.That(skeleton.Edges.Count).IsGreaterThan(0)
             .Because("the rule chain connects nodes with edges");
         await Assert.That(skeleton.Nodes.All(n => !string.IsNullOrEmpty(n.Name))).IsTrue()
@@ -98,7 +116,7 @@ public class RuleWorkbenchGraphTests
 
     /// <summary>
     ///     The graph builds structurally from the OPEN ruleset with NO demo and NO evaluation
-    ///     (a review fix): toggling it on publishes the node count, and a simple 1-stat ruleset is far smaller than
+    ///     and toggling it on publishes the node count, and a simple 1-stat ruleset is far smaller than
     ///     the whole shipped corpus. It reflects the open selection, not "all rulesets".
     /// </summary>
     [Test]

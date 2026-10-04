@@ -8,9 +8,9 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
-///     The GPU provider's own contract (plans/C2-gpu-provider.md §7.2). Every case skips with the probe's
-///     reason on a machine without a backend, and the suite being green in that state is not a gap: it
-///     is the design's rule that GPU is opportunistic and never required (§10 risk 7).
+///     The GPU provider's own contract. Every case skips with the probe's
+///     reason on a machine without a backend, and the suite being green in that state is not a gap:
+///     GPU is opportunistic and never required.
 ///     <para>
 ///         Serialised on <see cref="ProbeSerialization.Key" />: an EGL context is current on one thread,
 ///         and TUnit's parallel runner would otherwise hand a second provider to a thread the first one
@@ -58,7 +58,7 @@ public class GpuSurfaceProviderTests
     }
 
     /// <summary>
-    ///     Gate G1 as a test: twenty full create → render → read → dispose cycles at 1080p in one
+    ///     A release gate as a test: twenty full create → render → read → dispose cycles at 1080p in one
     ///     process. A backend that leaks or crashes on the nineteenth cycle is a backend that fails
     ///     halfway through somebody's export, which is worse than never having worked.
     /// </summary>
@@ -115,7 +115,7 @@ public class GpuSurfaceProviderTests
     }
 
     /// <summary>
-    ///     The §2.7 guard. Without it, a caller that hops threads gets an undebuggable driver crash
+    ///     The cross-thread guard. Without it, a caller that hops threads gets an undebuggable driver crash
     ///     somewhere else entirely; with it, the exception names the two thread ids.
     /// </summary>
     [Test]

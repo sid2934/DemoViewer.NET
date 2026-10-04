@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.UtilityBook"
+             xmlns:utility="using:DemoViewer.NET.Modules.UtilityBook"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Views.UtilityBook.UtilityBookTabView"
+             x:DataType="vm:UtilityBookTabViewModel">
+
+    <!--
+      THE UTILITY BOOK: the grenade index on the map.
+
+      Top: the status line, the browser note, and the pickers (map, kind, landing place, side, and whether
+      positions thrown from only once are shown). Middle: the radar with an icon where each landing group goes
+      off. Clicking an icon focuses the group and draws where it was thrown from, with a flight from each
+      position; clicking a position opens its card over the map's right edge: the throw style, how often and
+      in how many demos it was used, the console line with a Copy button, and every throw from there, each
+      with an Open button that shows it in 2D Playback. Escape or a click on empty map steps back.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <DockPanel Margin="16">
+
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding StatusLine}" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextValue}" />
+                <TextBlock Text="{x:Static vm:UtilityBookTabViewModel.BrowserNote}" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+                <WrapPanel Orientation="Horizontal">
+                    <ComboBox ItemsSource="{Binding Maps}" SelectedItem="{Binding SelectedMap}" MinWidth="140"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="Map" />
+                    <ComboBox ItemsSource="{Binding Kinds}" SelectedItem="{Binding SelectedKind}" MinWidth="120"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="What was thrown" />
+                    <ComboBox ItemsSource="{Binding Places}" SelectedItem="{Binding SelectedPlace}" MinWidth="140"
+                              FontSize="12" Margin="0 0 8 4" ToolTip.Tip="Where it landed" />
+                    <ComboBox ItemsSource="{Binding Sides}" SelectedItem="{Binding SelectedSide}" MinWidth="110"
+                              FontSize="12" Margin="0 0 12 4" ToolTip.Tip="The thrower's side" />
+                    <CheckBox IsChecked="{Binding ShowSingleThrows}" Content="show positions thrown from once"
+                              FontSize="12" Margin="0 0 8 4" VerticalAlignment="Center"
+                              ToolTip.Tip="A lineup is a position thrown from twice or more; single throws are hidden by default" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="2" Margin="0 8 0 0">
+            <TextBlock Text="{Binding FocusLine}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextValue}"
+                       IsVisible="{Binding FocusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Text="{Binding HiddenLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                       IsVisible="{Binding HiddenLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Text="{Binding FooterLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+        </StackPanel>
+
+        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+            <Panel>
+                <utility:UtilityMapHost x:Name="Map" />
+
+                <TextBlock Text="no map art for this map on this host" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding HasNoMapArt}" />
+                <TextBlock Text="no lineups match these filters" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0 0 0 12"
+                           IsVisible="{Binding !HasGroups}" />
+
+                <!-- The details card of the selected throw position. -->
+                <Panel IsVisible="{Binding HasDetail}">
+                <!-- The card opens on the side away from the selected position (CardOnLeft), so it never covers it. -->
+                <Border x:Name="Card" DataContext="{Binding Detail}" x:DataType="vm:LineupDetail"
+                        HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="360" Margin="10"
+                        Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="1" CornerRadius="6" Padding="12 10">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" Foreground="{DynamicResource TextValue}" />
+                                <Button Grid.Column="1" Content="✕" Classes="icon-btn" ToolTip.Tip="Close (Escape)"
+                                        Command="{Binding $parent[UserControl].((vm:UtilityBookTabViewModel)DataContext).BackCommand}" />
+                            </Grid>
+                            <TextBlock Text="{Binding StyleLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <TextBlock Text="{Binding UsedLine}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding TechniquesLine}" IsVisible="{Binding HasTechniques}" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <!-- The position's clip: read only while the card is open, released when it closes. -->
+                            <controls:GifView Source="{Binding ClipPath}" IsVisible="{Binding HasClip}" MaxHeight="220"
+                                              HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding ClipLine}" IsVisible="{Binding HasClipLine}" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBox Grid.Column="0" Text="{Binding ConsoleText}" IsReadOnly="True" FontSize="11"
+                                         Classes="mono" Padding="6 4" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                    <Button Content="Copy" Classes="primary" Command="{Binding CopyConsoleCommand}"
+                                            IsEnabled="{Binding HasConsole}"
+                                            ToolTip.Tip="Copy the setpos and setang line to paste into the console" />
+                                    <TextBlock Text="{Binding CopyStatus}" FontSize="10" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Every throw from here" Classes="col-label"
+                                       Foreground="{DynamicResource TextCardHeader}" FontSize="11" Margin="0 4 0 0" />
+                        </StackPanel>
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Instances}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:LineupInstanceRow">
+                                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="0 4">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                <StackPanel Grid.Column="0" Spacing="1">
+                                                    <TextBlock Text="{Binding DemoName}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextValue}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding PlayerText}" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Text="{Binding Date}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                        <TextBlock Text="{Binding RoundText}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                        <TextBlock Text="{Binding SideText}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Open" Classes="ghost" FontSize="11" Padding="8 3"
+                                                        VerticalAlignment="Center" Command="{Binding WatchCommand}"
+                                                        ToolTip.Tip="Open this demo in 2D Playback two seconds before the throw" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+                </Panel>
+            </Panel>
+        </Border>
+    </DockPanel>
+</UserControl>

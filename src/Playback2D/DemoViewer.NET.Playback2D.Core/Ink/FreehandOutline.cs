@@ -22,8 +22,8 @@ namespace DemoViewer.NET.Playback2D.Core.Ink;
 ///     </para>
 ///     <para>
 ///         <b>Allocation discipline.</b> Every entry point writes into caller-supplied lists, and the
-///         internal left/right/cap buffers are <c>[ThreadStatic]</c> and reused: the §6 budget is zero
-///         bytes per frame, and a stroke is redrawn on every frame it is wet.
+///         internal left/right/cap buffers are <c>[ThreadStatic]</c> and reused: the per-frame allocation
+///         budget is zero bytes, and a stroke is redrawn on every frame it is wet.
 ///     </para>
 /// </summary>
 public static class FreehandOutline

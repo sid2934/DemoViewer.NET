@@ -7,11 +7,17 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.Setup;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 #endregion
 
@@ -174,16 +180,22 @@ public class FirstRunWizardTests
         }
     }
 
-    // (d) Step navigation clamps at both ends; the footer flags track the step.
+    // (d) Step navigation clamps at both ends; the footer flags track the step. An EXISTING install (first
+    // run already completed) has no Extensions step, so these are the original four: Welcome/Category/
+    // Folders/Done at 0..3, same indices this test has always pinned.
     [Test]
     public async Task StepNavigation_ClampsAtBounds_AndTracksFooter()
     {
         string dir = NewTempDir();
         try
         {
-            FirstRunWizardViewModel vm = new(new SettingsService(dir));
+            SettingsService existing = new(dir);
+            existing.Write(s => s.FirstRunCompleted = true);
+            FirstRunWizardViewModel vm = new(existing);
 
             await Assert.That(vm.CurrentStep).IsEqualTo(0);
+            await Assert.That(vm.IsExtensionsStep).IsFalse()
+                .Because("an existing install never gets the Extensions step");
             await Assert.That(vm.CanGoBack).IsFalse();
             await Assert.That(vm.ShowNext).IsTrue();
             await Assert.That(vm.ShowFinish).IsFalse();
@@ -207,6 +219,45 @@ public class FirstRunWizardTests
             await Assert.That(vm.CurrentStep).IsEqualTo(2);
             await Assert.That(vm.IsFoldersStep).IsTrue();
             await Assert.That(vm.CanGoBack).IsTrue();
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // A FRESH install (no settings.json yet) inserts Extensions right before Done, one card per
+    // FeatureScope.Pack catalog row: five steps, 0..4. Folders stays at index 2 either way.
+    [Test]
+    public async Task StepNavigation_FreshInstall_InsertsExtensionsStep_BeforeDone()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FirstRunWizardViewModel vm = new(new SettingsService(dir));
+            await Assert.That(vm.PackOptions.Count).IsGreaterThan(0)
+                .Because("the Strat Book pack row is in the live catalog");
+
+            vm.CurrentStep = 2;
+            await Assert.That(vm.IsFoldersStep).IsTrue();
+
+            vm.NextCommand.Execute(null); // 3: Extensions
+            await Assert.That(vm.CurrentStep).IsEqualTo(3);
+            await Assert.That(vm.IsExtensionsStep).IsTrue();
+            await Assert.That(vm.ShowNext).IsTrue();
+            await Assert.That(vm.ShowFinish).IsFalse();
+
+            vm.NextCommand.Execute(null); // 4: Done
+            await Assert.That(vm.CurrentStep).IsEqualTo(4);
+            await Assert.That(vm.IsDoneStep).IsTrue();
+            await Assert.That(vm.ShowNext).IsFalse();
+            await Assert.That(vm.ShowFinish).IsTrue();
+
+            vm.NextCommand.Execute(null); // clamp at 4
+            await Assert.That(vm.CurrentStep).IsEqualTo(4);
+
+            vm.BackCommand.Execute(null); // back to 3: Extensions
+            await Assert.That(vm.IsExtensionsStep).IsTrue();
         }
         finally
         {
@@ -413,6 +464,340 @@ public class FirstRunWizardTests
                 Console.WriteLine($"[wizard-notfound] {outPath} nonBg={ScanNonBackground(frame)}");
 
                 await Assert.That(vm.ShowNotFoundNotice).IsTrue();
+            });
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // ── The Extensions step (one card per FeatureScope.Pack catalog row) ───────────────────
+
+    // Builds a live FeatureGate over svc's configuration (the FeatureGateTests wiring) so a test can
+    // check what the gate resolves after the wizard writes, not just what landed in the override dict.
+    private static async Task WithGate(SettingsService svc, Func<FeatureGate, Task> body)
+    {
+        ServiceCollection services = new();
+        services.Configure<AppSettings>(svc.Configuration);
+        using ServiceProvider sp = services.BuildServiceProvider();
+        IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
+        using FeatureGate gate = new(monitor, false);
+        await body(gate);
+    }
+
+    // The step asks only about packs in the catalog, and the catalog is composed from the
+    // compatible packs, so an extension that failed the compatibility check is absent here (Settings is
+    // where its reason shows). Proven on the live catalog against FeaturePacks.Compatible, and on a fake
+    // pair where one pack fails: the catalog built from the compatible subset drives a wizard with one card.
+    [Test]
+    public async Task ExtensionsStep_AsksOnlyAboutCompatibleExtensions()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FirstRunWizardViewModel live = new(new SettingsService(dir));
+            await Assert.That(live.PackOptions.Select(o => o.FeatureId))
+                .IsEquivalentTo(FeaturePacks.Compatible.Select(p => p.FeatureId));
+
+            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+            IFeaturePack incompatible = new CatalogPack("pack.future", FakeManifests.For("net.demoviewer.pack.future", "Future", "2.0.0", "^2.0", "*"));
+            IFeaturePack fine = new CatalogPack("pack.fine", FakeManifests.For("net.demoviewer.pack.fine", "Fine"));
+            IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, fine], host);
+            FeatureDescriptor[] catalog = FeatureCatalog.Build([.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)]);
+
+            FirstRunWizardViewModel vm = new(new SettingsService(dir), packs: catalog.Where(d => d.Scope == FeatureScope.Pack));
+            using (Assert.Multiple())
+            {
+                await Assert.That(statuses[0].IsCompatible).IsFalse();
+                await Assert.That(vm.PackOptions.Select(o => o.FeatureId)).IsEquivalentTo(["pack.fine"]);
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // A pack with one catalog row, so FeatureCatalog.Build accepts it.
+    private sealed class CatalogPack(string featureId, ExtensionManifest manifest) : IFeaturePack
+    {
+        public string Id => manifest.Id;
+        public string FeatureId => featureId;
+        public ExtensionManifest Manifest => manifest;
+
+        public IEnumerable<FeatureDescriptor> Features =>
+            [new(featureId, FeatureScope.Pack, manifest.Name, "d", null, null, false, new Dictionary<UserCategory, bool> { [UserCategory.PowerUser] = true })];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
+        }
+    }
+
+    // The step appears on a fresh config dir (CurrentStep==3 after three Nexts) and not on an existing
+    // one (the same three Nexts land on Done instead).
+    [Test]
+    public async Task ExtensionsStep_OnFreshDir_NotOnExistingDir()
+    {
+        string freshDir = NewTempDir();
+        string existingDir = NewTempDir();
+        try
+        {
+            FirstRunWizardViewModel fresh = new(new SettingsService(freshDir));
+            fresh.NextCommand.Execute(null); // 1
+            fresh.NextCommand.Execute(null); // 2
+            fresh.NextCommand.Execute(null); // 3
+            await Assert.That(fresh.IsExtensionsStep).IsTrue();
+
+            SettingsService existingSvc = new(existingDir);
+            existingSvc.Write(s => s.FirstRunCompleted = true);
+            FirstRunWizardViewModel existing = new(existingSvc);
+            existing.NextCommand.Execute(null); // 1
+            existing.NextCommand.Execute(null); // 2
+            existing.NextCommand.Execute(null); // 3
+            await Assert.That(existing.IsDoneStep).IsTrue()
+                .Because("an existing install has no Extensions step to land on");
+        }
+        finally
+        {
+            Cleanup(freshDir);
+            Cleanup(existingDir);
+        }
+    }
+
+    // Declining writes an explicit "off" override and the gate cascades every tab the pack owns off
+    // with it, the same as StratBookPackTests pins for a hand-written override.
+    [Test]
+    public async Task ExtensionsStep_Decline_WritesOverrideOff_AndGateResolvesOff()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            FirstRunWizardViewModel vm = new(svc);
+            PackOptionViewModel stratbook = vm.PackOptions.Single(p => p.FeatureId == "pack.stratbook");
+            await Assert.That(stratbook.Enabled).IsTrue().Because("default selection is on");
+
+            stratbook.Enabled = false;
+            vm.FinishCommand.Execute(null);
+
+            await Assert.That(svc.Current.Features.Overrides["pack.stratbook"]).IsFalse();
+            await WithGate(svc, async gate =>
+            {
+                await Assert.That(gate.IsEnabled("pack.stratbook")).IsFalse();
+                await Assert.That(gate.IsEnabled("tab.stratbook")).IsFalse()
+                    .Because("every tab the pack owns cascades off with it");
+            });
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Regression: a category change must never undo a decline. pack.stratbook defaults on for every
+    // category, so a Reseed that ignored the "already answered" guard would flip this back to true.
+    [Test]
+    public async Task ExtensionsStep_Decline_ThenChangeCategory_StaysDeclined()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FirstRunWizardViewModel vm = new(new SettingsService(dir));
+            PackOptionViewModel stratbook = vm.PackOptions.Single(p => p.FeatureId == "pack.stratbook");
+
+            stratbook.Enabled = false;
+            vm.SelectCategoryCommand.Execute(UserCategory.Developer);
+
+            await Assert.That(stratbook.Enabled).IsFalse()
+                .Because("the question is already answered; a later category change must not reseed it");
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Accepting (the default, unchanged) writes an explicit "on" override and the gate resolves on.
+    [Test]
+    public async Task ExtensionsStep_Accept_ResolvesOn()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            FirstRunWizardViewModel vm = new(svc);
+            vm.FinishCommand.Execute(null); // every PackOptions.Enabled left at its default-on seed
+
+            await Assert.That(svc.Current.Features.Overrides["pack.stratbook"]).IsTrue()
+                .Because("Finish writes the answer explicitly, on or off, like Category and Folders");
+            await WithGate(svc, async gate =>
+                await Assert.That(gate.IsEnabled("pack.stratbook")).IsTrue());
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Skip never answers the pack question (basis-preserving, like Category and Folders): no override
+    // is written, so the pack resolves on purely from the catalog default.
+    [Test]
+    public async Task Skip_NeverWritesPackOverride_AndGateResolvesOn()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            FirstRunWizardViewModel vm = new(svc);
+            vm.SkipCommand.Execute(null);
+
+            await Assert.That(svc.Current.Features.Overrides.ContainsKey("pack.stratbook")).IsFalse();
+            await WithGate(svc, async gate =>
+                await Assert.That(gate.IsEnabled("pack.stratbook")).IsTrue());
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // The upgrade case: a settings.json that predates pack.stratbook (FirstRunCompleted
+    // true, no override for the key at all) never shows the Extensions step, and the gate still
+    // resolves the pack on purely from the catalog default.
+    [Test]
+    public async Task SettingsWithNoPackKey_NeverShowsExtensionsStep_AndGateResolvesOn()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            string json = """
+                {
+                  "FirstRunCompleted": true,
+                  "UserCategory": "PowerUser",
+                  "Features": { "Overrides": { "chrome.output": true } }
+                }
+                """;
+            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), json);
+
+            SettingsService svc = new(dir);
+            await Assert.That(svc.NeedsFirstRun).IsFalse().Because("FirstRunCompleted is already true");
+
+            FirstRunWizardViewModel vm = new(svc);
+            vm.NextCommand.Execute(null); // 1
+            vm.NextCommand.Execute(null); // 2
+            vm.NextCommand.Execute(null); // 3
+            await Assert.That(vm.IsDoneStep).IsTrue().Because("no Extensions step for this upgrade");
+
+            await WithGate(svc, async gate =>
+                await Assert.That(gate.IsEnabled("pack.stratbook")).IsTrue()
+                    .Because("no override means the catalog default, which is on for every category"));
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Generic over FeatureScope.Pack rows: two synthetic packs (never registered in the real catalog)
+    // each get their own card, seeded from their own Defaults, with no new code in the VM or view.
+    [Test]
+    public async Task ExtensionsStep_IsGeneric_TwoPacks_EachGetsItsOwnQuestion()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            FeatureDescriptor[] packs =
+            [
+                new(
+                    "pack.testone", FeatureScope.Pack, "Test Pack One", "First synthetic pack.",
+                    null, null, false, new Dictionary<UserCategory, bool>
+                    {
+                        [UserCategory.Consumer] = true,
+                        [UserCategory.PowerUser] = true,
+                        [UserCategory.Developer] = true
+                    }),
+                new(
+                    "pack.testtwo", FeatureScope.Pack, "Test Pack Two", "Second synthetic pack.",
+                    null, null, false, new Dictionary<UserCategory, bool>
+                    {
+                        [UserCategory.Consumer] = false,
+                        [UserCategory.PowerUser] = false,
+                        [UserCategory.Developer] = true
+                    })
+            ];
+
+            SettingsService svc = new(dir);
+            FirstRunWizardViewModel vm = new(svc, packs: packs);
+
+            await Assert.That(vm.PackOptions.Count).IsEqualTo(2);
+            await Assert.That(vm.PackOptions[0].FeatureId).IsEqualTo("pack.testone");
+            await Assert.That(vm.PackOptions[0].Copy).IsEqualTo("First synthetic pack.")
+                .Because("an id with no bespoke copy entry falls back to the descriptor's own Description");
+            await Assert.That(vm.PackOptions[0].Enabled).IsTrue();
+
+            await Assert.That(vm.PackOptions[1].FeatureId).IsEqualTo("pack.testtwo");
+            await Assert.That(vm.PackOptions[1].Enabled).IsFalse()
+                .Because("PowerUser (the first-run default category) has no default-on entry for this pack");
+
+            // Category (step 1) is reached before Extensions (step 3): picking Developer reseeds the
+            // untouched, unoverridden pack.testtwo to ITS default for that category.
+            vm.SelectCategoryCommand.Execute(UserCategory.Developer);
+            await Assert.That(vm.PackOptions[1].Enabled).IsTrue()
+                .Because("Developer has a default-on entry for this pack, and the question is not yet answered");
+
+            vm.FinishCommand.Execute(null);
+            await Assert.That(svc.Current.Features.Overrides["pack.testone"]).IsTrue();
+            await Assert.That(svc.Current.Features.Overrides["pack.testtwo"]).IsTrue();
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Render the EXTENSIONS step on a fresh dir (CurrentStep 3): the pack card(s) draw.
+    [Test]
+    public async Task FirstRunWizardView_ExtensionsStep_Renders()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                FirstRunWizardViewModel vm = new(new SettingsService(dir))
+                {
+                    CurrentStep = 3
+                };
+                FirstRunWizardView view = new()
+                {
+                    DataContext = vm
+                };
+                Window window = new()
+                {
+                    Width = 640,
+                    Height = 560,
+                    Content = view
+                };
+                window.Show();
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+
+                WriteableBitmap? frame = window.CaptureRenderedFrame();
+                await Assert.That(frame).IsNotNull();
+
+                string outPath = Path.Combine(HeadlessSession.ArtifactDir, "first-run-wizard-extensions.png");
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
+                int nonBg = ScanNonBackground(frame);
+                Console.WriteLine($"[wizard-extensions] {outPath} nonBg={nonBg}");
+
+                await Assert.That(vm.IsExtensionsStep).IsTrue();
+                await Assert.That(nonBg).IsGreaterThan(200);
             });
         }
         finally

@@ -12,7 +12,7 @@ using SysAssembly = System.Reflection.Assembly;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The phase's hard constraint: <c>dv2d</c> loads <b>zero</b> Avalonia assemblies (design §4, §11).
+///     The hard constraint: <c>dv2d</c> loads <b>zero</b> Avalonia assemblies.
 ///     <para>
 ///         Three prongs, because one is not enough. A deps.json scan proves what was <i>referenced</i>;
 ///         it cannot prove the render happened. A loaded-assembly dump from a real subprocess proves what
@@ -90,8 +90,8 @@ public class NoAvaloniaArchitectureTests
     /// <summary>
     ///     Asserts that no Avalonia-named package in the deps graph contributes a <b>managed assembly</b>.
     ///     <para>
-    ///         The rule is "zero Avalonia assemblies", not "no package whose id starts with Avalonia": as
-    ///         of C2 this tool references <c>Avalonia.Angle.Windows.Natives</c> for <c>av_libglesv2.dll</c>,
+    ///         The rule is "zero Avalonia assemblies", not "no package whose id starts with Avalonia": this
+    ///         tool references <c>Avalonia.Angle.Windows.Natives</c> for <c>av_libglesv2.dll</c>,
     ///         which ships only <c>runtimeTargets</c> of <c>assetType: native</c> and therefore cannot be
     ///         loaded as an assembly, referenced at compile time, or drag Avalonia's graph in. Classify
     ///         structurally rather than by a by-name allowlist: the day somebody references

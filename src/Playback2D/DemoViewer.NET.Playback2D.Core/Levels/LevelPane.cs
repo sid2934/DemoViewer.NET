@@ -26,7 +26,7 @@ public sealed class LevelPane
     /// </summary>
     [SuppressMessage("Design", "CA1051:Do not declare visible instance fields",
         Justification = "Deliberate: SliceCamera is a mutable struct that pointer tools update in place. " +
-                        "A property would hand out a copy and break pan/zoom — design §5.3, plan correction 4.")]
+                        "A property would hand out a copy and break pan/zoom.")]
     public SliceCamera Camera;
 
     private ViewportTransform _epochTransform;

@@ -20,8 +20,8 @@
     -->
 
     <!-- ── Button.primary — the filled interactive CTA (Add / Continue / Apply / Clear all) ─────────
-         Binds the PrimaryButton* token family. Closes the design-system open question ("no shared
-         interactive-primary button"): the tokens existed, only the class was re-declared per view. -->
+         Binds the PrimaryButton* token family, closing the gap where there was no shared
+         interactive-primary button: the tokens existed, only the class was re-declared per view. -->
     <Style Selector="Button.primary">
         <Setter Property="Background" Value="{DynamicResource PrimaryButtonBg}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBorder}" />
@@ -57,6 +57,42 @@
          exact inverse of its meaning. Caught in a Reels-tray capture where the disabled ▲ looked like the
          active one. Opacity alone does not fix it; it only dims the wrong box. -->
     <Style Selector="Button.ghost:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
+    <!-- A type selector matches the style key, not subclasses: Button.ghost reaches neither DropDownButton nor
+         SplitButton. A SplitButton's halves are template Buttons, so hover and disabled land on their presenters. -->
+    <Style Selector="DropDownButton.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="DropDownButton.ghost:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+    </Style>
+    <Style Selector="DropDownButton.ghost:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="SplitButton.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="SplitButton.ghost /template/ Button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+    </Style>
+    <Style Selector="SplitButton.ghost /template/ Border#SeparatorBorder">
+        <Setter Property="Background" Value="{DynamicResource BorderSubtle}" />
+    </Style>
+    <Style Selector="SplitButton.ghost:disabled">
+        <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="SplitButton.ghost:disabled /template/ Button /template/ ContentPresenter">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
@@ -110,6 +146,27 @@
         <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
     </Style>
 
+    <!-- ── Button.pane-toggle: collapses and reopens a side pane (the Strat Book rail and strat list) ──
+         A 24px square ghost glyph: « collapses, » reopens. See "Collapsible side pane" in design-system.md. -->
+    <Style Selector="Button.pane-toggle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.pane-toggle:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+    </Style>
+
     <!-- ── Button.ctx-action — left-aligned, stretched flyout/menu action row (from NavStrip) ────────
          For rows inside a .card-flyout ("Select all", "Deselect all", jump targets). -->
     <Style Selector="Button.ctx-action">
@@ -132,7 +189,7 @@
          MainView's shell TabControl (#ShellTabs) is DATA-GENERATED (ItemsSource="{Binding Tabs}"), so it keeps
          its `TabControl#ShellTabs > TabItem` container selector — the idiomatic way to style generated
          containers. Attaching this class to generated containers would require a template-replacing
-         ItemContainerTheme (against the additive-only rule, D6) or duplicating the setters, for ZERO visual
+         ItemContainerTheme (against the additive-only rule) or duplicating the setters, for ZERO visual
          change — so that migration is deliberately NOT done. The four setters below are
          kept value-identical to that selector. -->
     <Style Selector="TabItem.shell-tab">

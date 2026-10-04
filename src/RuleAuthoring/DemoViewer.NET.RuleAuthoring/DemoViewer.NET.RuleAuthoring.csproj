@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The editable model behind the node editor (docs/rule-graph/design.md §6.1).
+      The editable model behind the node editor.
 
       Its whole reason to exist is the round trip. A ruleset is hand-authored and its comments carry
       the reasoning: rules/kast.rules.yaml opens with sixteen lines explaining how each v1 chain maps
-      onto a v2 stat, and every other shipped file is the same. §9 decision 4 chose to PRESERVE
-      comments and key order, so this library never regenerates a document. It splices the original
+      onto a v2 stat, and every other shipped file is the same. Comments and key order are PRESERVED,
+      so this library never regenerates a document. It splices the original
       text, which preserves comments, key order, indentation and quoting style by not touching them.
 
       What it does NOT do is edit every construct YAML has. Anchors, aliases, merge keys, explicit

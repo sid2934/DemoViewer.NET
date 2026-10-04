@@ -19,7 +19,7 @@ internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string R
     ///         <c>GoldenCommand</c> keeps the first entry's <see cref="ResolvedBackend" /> for its summary
     ///         payload but disposes each entry's plan, and with it that provider, at the end of every
     ///         loop iteration. Reading the provider afterwards is a use-after-dispose: inert against
-    ///         <c>CpuSurfaceProvider</c> (constant property, no-op <c>Dispose</c>), a fault against C2's
+    ///         <c>CpuSurfaceProvider</c> (constant property, no-op <c>Dispose</c>), a fault against
     ///         <c>GpuSurfaceProvider</c>, which owns an EGL context and is handed over by this very type.
     ///     </para>
     /// </summary>
@@ -27,13 +27,13 @@ internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string R
 }
 
 /// <summary>
-///     Applies design §5.8's precedence for the surface backend: explicit flag → <c>--backend</c> →
+///     Applies the precedence for the surface backend: explicit flag → <c>--backend</c> →
 ///     <c>DV2D_RENDER_BACKEND</c> → auto-probe. The app's fourth rung (
 ///     <c>
 ///         AppSettings.Playback2D
 ///         .RenderBackend
 ///     </c>
-///     ) is deliberately absent: a headless tool reads no UI state (§7.7).
+///     ) is deliberately absent: a headless tool reads no UI state.
 ///     <para>
 ///         Every construction goes through <see cref="RenderSurfaceProviderFactory" />, the single site
 ///         in the repo that knows how to stand an EGL context up. A <c>--gpu</c> request on a machine
@@ -147,7 +147,7 @@ internal static class BackendResolver
             cpu ? RenderBackendPreference.ForceCpu : gpu ? RenderBackendPreference.PreferGpu : null,
             backend,
             environment,
-            // The parser's fourth rung is AppSettings for the app; dv2d reads none (§7.7), so the slot
+            // The parser's fourth rung is AppSettings for the app; dv2d reads none, so the slot
             // carries the CALLER's default instead. It is reached only when neither a flag nor the
             // environment said anything, so an explicit `--backend auto` still means auto.
             Token(fallback));

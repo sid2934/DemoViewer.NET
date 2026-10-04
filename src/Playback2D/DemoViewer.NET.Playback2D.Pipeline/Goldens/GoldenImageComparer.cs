@@ -103,7 +103,7 @@ public static class GoldenImageComparer
             Ssim.Compute(lumaExpected!, lumaActual!, width, height, out meanSsim, out minWindowSsim);
         }
 
-        // The §7.3 rule, in the order that makes a failure message most informative: a wrong colour
+        // The comparison rule, in the order that makes a failure message most informative: a wrong colour
         // first, then wrong coverage, then too much AA disagreement, then structure. Note that
         // MaxChannelDelta is a BUDGET THRESHOLD, not a hard ceiling: the ceiling is
         // OutlierChannelDelta. One edge pixel landing on the far side of a coverage rounding must not

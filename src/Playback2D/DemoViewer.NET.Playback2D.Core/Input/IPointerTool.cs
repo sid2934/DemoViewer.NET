@@ -18,7 +18,60 @@ public enum ToolKind
     Draw,
 
     /// <summary>Stroke-level eraser.</summary>
-    Erase
+    Erase,
+
+    /// <summary>
+    ///     The Situations tab's query canvas: places, moves and lifts place tokens. Registered only on
+    ///     that tab's host, so the playback surface never selects it and <c>LastTool</c> never holds it.
+    /// </summary>
+    QueryToken,
+
+    /// <summary>Straight segment from press to release.</summary>
+    Line,
+
+    /// <summary>Straight segment with a head at the release point.</summary>
+    Arrow,
+
+    /// <summary>Axis-aligned rectangle spanned by press and release.</summary>
+    Rect,
+
+    /// <summary>Ellipse inscribed in the rectangle spanned by press and release.</summary>
+    Ellipse,
+
+    /// <summary>A text label placed at the press point and typed into the host's editor.</summary>
+    Text,
+
+    /// <summary>
+    ///     The strat canvas's token tool: drags a token, or turns it by its heading stub. Registered on every
+    ///     host but does nothing without an <see cref="IToolServices.Tokens" /> editor, so on the 2D Playback
+    ///     tab a press with it falls through unhandled.
+    /// </summary>
+    Token
+}
+
+/// <summary>What each <see cref="ToolKind" /> means to the annotation document.</summary>
+public static class ToolKinds
+{
+    /// <summary>
+    ///     True for every tool that writes or erases annotation elements: what the keymap's tool scope
+    ///     keys off, so Space holds to pan and Esc cancels under a shape tool exactly as under the pen.
+    ///     Pan/zoom and the Situations tab's query token are not annotation tools.
+    /// </summary>
+    /// <param name="kind">The tool.</param>
+    public static bool IsAnnotationTool(ToolKind kind) =>
+        kind is ToolKind.Draw or ToolKind.Erase or ToolKind.Line or ToolKind.Arrow or ToolKind.Rect
+            or ToolKind.Ellipse or ToolKind.Text;
+
+    /// <summary>The element kind a two-point shape tool commits, or null for any other tool.</summary>
+    /// <param name="kind">The tool.</param>
+    public static AnnotationKind? ShapeKindOf(ToolKind kind) => kind switch
+    {
+        ToolKind.Line => AnnotationKind.Line,
+        ToolKind.Arrow => AnnotationKind.Arrow,
+        ToolKind.Rect => AnnotationKind.Rect,
+        ToolKind.Ellipse => AnnotationKind.Ellipse,
+        _ => null
+    };
 }
 
 /// <summary>Which physical button produced the event.</summary>
@@ -61,7 +114,7 @@ public enum ToolModifiers
 ///     One pointer sample, already resolved to a pane and to world coordinates by the host. A
 ///     <c>ref struct</c> so the coalesced sample span never has to be copied onto the heap: a fast drag
 ///     delivers dozens of intermediate points per event, and allocating an array for each would blow the
-///     §6 budget on the exact frames where it matters most.
+///     per-frame allocation budget on the exact frames where it matters most.
 /// </summary>
 public readonly ref struct ToolPointerEvent
 {
@@ -108,7 +161,7 @@ public readonly record struct ToolWheelEvent(
     ToolModifiers Modifiers);
 
 /// <summary>
-///     A pointer tool, design §5.5 verbatim: four methods and <b>no wheel member</b>. Wheel is
+///     A pointer tool: four methods and <b>no wheel member</b>. Wheel is
 ///     router-level because zoom-to-cursor is universal drawing-app behaviour that no tool should be able
 ///     to take away.
 /// </summary>
@@ -140,7 +193,7 @@ public interface IPointerTool
 /// <summary>
 ///     Everything a tool needs from the host, and nothing that would tie it to Avalonia. This is the seam
 ///     that lets <c>DrawTool</c> and <c>EraseTool</c> be exercised in a direct-execution test with no
-///     window, no dispatcher and no platform (design §11).
+///     window, no dispatcher and no platform.
 /// </summary>
 public interface IToolServices
 {
@@ -215,6 +268,20 @@ public interface IToolServices
     /// <param name="offsetY">World Y offset applied to the element's samples when drawn here.</param>
     bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
         out float offsetX, out float offsetY);
+
+    /// <summary>
+    ///     Asks the host to open its text editor over a just-committed <see cref="AnnotationKind.Text" />
+    ///     element. The host shows the editor at the element's anchor and hands the typed string back
+    ///     through <c>TextTool.CompleteEdit</c>; Core never sees a text box.
+    /// </summary>
+    /// <param name="elementId">The text element being edited.</param>
+    void RequestTextEdit(Guid elementId);
+
+    /// <summary>
+    ///     The strat canvas's token editor, or null on a host with no tokens (the 2D Playback tab, the query
+    ///     canvas). Null is what makes the strat canvas's token tool a no-op there.
+    /// </summary>
+    ITokenEditor? Tokens { get; }
 
     /// <summary>Asks the host to repaint. Coalesced by the host; safe to call per sample.</summary>
     void RequestRender();

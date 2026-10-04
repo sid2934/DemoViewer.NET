@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <!--
-        WASM runtime configuration (docs/playback2d-v2/wasm-matrix.md).
+        WASM runtime configuration.
 
         Both properties below are what make the published head BOOT. They are stated explicitly rather
         than inherited, because both are SDK defaults today and a default that flips takes the app with
@@ -22,7 +22,6 @@
             whether or not anything of ours touches SkiaSharp, because Avalonia's own browser renderer
             needs the same native. `dotnet build` still SUCCEEDS in that state, which is why the
             wasm-build CI job builds with this on rather than trusting a green build to mean anything.
-            Recorded as B0 D11 finding 1.
         -->
         <WasmBuildNative>true</WasmBuildNative>
 
@@ -39,11 +38,11 @@
             Trimming them safely means source-generated JSON contexts and a compiled ViewLocator across
             the whole app: a program of work, not a publish flag. Forcing the publish through with
             SuppressTrimAnalysisWarnings would produce a head that builds and then throws
-            `JsonSerializerIsReflectionDisabled` on the way up (B0 D11 finding 3 saw exactly that), which
+            `JsonSerializerIsReflectionDisabled` on the way up, which
             is strictly worse than a larger download.
 
             The cost is download size, and it is paid by the target that is already explicitly a
-            degraded one (design §8). Revisit when the JSON stores are source-generated; the day
+            degraded one. Revisit when the JSON stores are source-generated; the day
             `dotnet publish` is green with this removed is the day to remove it.
         -->
         <PublishTrimmed>false</PublishTrimmed>
@@ -62,5 +61,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
+        <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
     </ItemGroup>
 </Project>

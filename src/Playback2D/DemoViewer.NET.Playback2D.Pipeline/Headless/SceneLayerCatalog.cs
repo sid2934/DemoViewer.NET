@@ -5,7 +5,10 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Overlay;
+using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Core.Vision;
+using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
@@ -13,7 +16,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 /// <summary>
 ///     The one place a headless consumer builds a layer stack. <c>dv2d</c> never reads a feature gate
-///     or an <c>AppSettings</c> value (design §7.7); it takes explicit ids, so the set of layers a
+///     or an <c>AppSettings</c> value; it takes explicit ids, so the set of layers a
 ///     render can contain has to be enumerable from Pipeline alone.
 ///     <para>
 ///         <b>One table, one entry point.</b> <see cref="SceneStackIds" /> is the only table of layer
@@ -22,7 +25,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///         asking for that. <c>playback2d.debuggrid</c> is not one of the registered ids: it stays a
 ///         smoke layer that Core's own test suites construct directly.
 ///     </para>
-///     <para>The registered ids are the persisted keys from the design doc and are never renamed.</para>
+///     <para>The registered ids are persisted keys and are never renamed.</para>
 /// </summary>
 public static class SceneLayerCatalog
 {
@@ -39,7 +42,8 @@ public static class SceneLayerCatalog
 
     /// <summary>
     ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: the seven scene
-    ///     layers, the ink, and the three HUD layers. The last four are
+    ///     layers, the ink, the zone outlines, the three HUD layers, the query tokens and the overlay
+    ///     heatmap. The last seven are
     ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
     ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
     ///     <para>
@@ -58,10 +62,13 @@ public static class SceneLayerCatalog
         SceneLayerIds.Markers,
         SceneLayerIds.Bomb,
         SceneLayerIds.FloorLabel,
+        SceneLayerIds.Zones,
         SceneLayerIds.Annotations,
         SceneLayerIds.HudRoster,
         SceneLayerIds.HudClock,
-        SceneLayerIds.HudKillFeed
+        SceneLayerIds.HudKillFeed,
+        SceneLayerIds.Query,
+        SceneLayerIds.Overlay
     ];
 
     /// <summary>The ids in <paramref name="ids" /> that no layer answers to. Empty when all are known.</summary>
@@ -88,7 +95,7 @@ public static class SceneLayerCatalog
 
     /// <summary>
     ///     Canonicalises a command-line id: a bare word gets the <see cref="IdPrefix" />. Both spellings
-    ///     are accepted because the design's JSON samples show bare names while the persisted keys are
+    ///     are accepted because JSON samples show bare names while the persisted keys are
     ///     prefixed; only the prefixed form is ever written back out.
     /// </summary>
     /// <param name="id">A bare or prefixed layer id.</param>
@@ -103,6 +110,38 @@ public static class SceneLayerCatalog
     }
 
     /// <summary>
+    ///     Turns off every layer's text so a second render marks the glyph pixels: marker labels, the
+    ///     floor caption, text annotations, zone names and the clock's figures. Shapes, markers,
+    ///     outlines and boxes still draw. Used by the golden gates, which judge text under its own ink.
+    /// </summary>
+    /// <param name="compositor">The stack to switch; the change is not undone.</param>
+    public static void SilenceText(SceneCompositor compositor)
+    {
+        ArgumentNullException.ThrowIfNull(compositor);
+        if (compositor.Find(SceneLayerIds.Markers) is MarkerLayer markers)
+        {
+            markers.DrawLabels = false;
+        }
+
+        if (compositor.Find(SceneLayerIds.Annotations) is AnnotationLayer annotations)
+        {
+            annotations.DrawTextElements = false;
+        }
+
+        if (compositor.Find(SceneLayerIds.Zones) is ZoneOutlineLayer zones)
+        {
+            zones.DrawLabels = false;
+        }
+
+        if (compositor.Find(SceneLayerIds.HudClock) is ClockLayer clock)
+        {
+            clock.DrawLabels = false;
+        }
+
+        compositor.SetEnabled(SceneLayerIds.FloorLabel, false);
+    }
+
+    /// <summary>
     ///     Builds the <b>full v2 scene stack</b>: what the window draws, plus the export HUD.
     ///     <para>
     ///         <b>The only entry point.</b> <c>dv2d render</c>, <c>golden</c>, <c>bench</c> and
@@ -110,7 +149,7 @@ public static class SceneLayerCatalog
     ///         stack.
     ///     </para>
     ///     <para>
-    ///         The <see cref="SceneLayerIds.OptIn" /> layers (the three HUD layers and the ink) are
+    ///         The <see cref="SceneLayerIds.OptIn" /> layers (the three HUD layers, the ink and the zones) are
     ///         registered only when named in <paramref name="include" /> AND only when the source that
     ///         feeds them was supplied, so an export never burns in a scoreboard or someone else's
     ///         telestration by accident; <c>SceneExportSession.OptInLayerIds</c> enforces the same rule
@@ -134,11 +173,27 @@ public static class SceneLayerCatalog
     ///     the feed to artwork changes every frame it appears in, so it comes with a re-baseline and is
     ///     therefore the caller's decision, not this method's.
     /// </param>
+    /// <param name="zones">
+    ///     The place resolver the outline layer draws; null leaves <c>playback2d.zones</c> unregistered.
+    ///     Comes from <c>ZoneAssetPipeline.TryLoad</c> over the map's bundle directory, so a map with no
+    ///     <c>zones.json</c> starves the layer the same way a fixture starves the HUD.
+    /// </param>
+    /// <param name="query">
+    ///     The Query Canvas document to draw; null leaves <c>playback2d.query</c> unregistered. A
+    ///     fixture render hands over the corpus's <c>.dvquery.json</c>; the Situations tab mounts its own
+    ///     layer over the live document and never comes through here.
+    /// </param>
+    /// <param name="overlay">
+    ///     The Overlay View points to draw; null leaves <c>playback2d.overlay</c> unregistered. A fixture
+    ///     render hands over the corpus's <c>.dvoverlay.json</c>; the Situations tab mounts its own layer
+    ///     over the live document and never comes through here.
+    /// </param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
     public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
         AnnotationSession? annotations = null, MarkerSmoother? smoother = null,
-        IIconSource? icons = null)
+        IIconSource? icons = null, PlaceResolver? zones = null, QueryCanvasDocument? query = null,
+        OverlayDocument? overlay = null)
     {
         HashSet<string>? wanted = include is null
             ? null
@@ -185,12 +240,12 @@ public static class SceneLayerCatalog
                     continue;
                 }
 
-                if (optIn && Starved(id, hud, annotations))
+                if (optIn && Starved(id, hud, annotations, zones, query, overlay))
                 {
                     continue; // asked for, but nothing to feed it. Draw nothing rather than an empty box.
                 }
 
-                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons));
+                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons, zones, query, overlay));
             }
         }
         catch
@@ -202,17 +257,23 @@ public static class SceneLayerCatalog
         return compositor;
     }
 
-    // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink feeds from the HUD
-    // source, so hud.roster needs no line here. Only a genuinely new kind of source would. The check
-    // is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
-    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations) =>
-        string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal)
-            ? annotations is null
-            : hud is null;
+    // Which source an opt-in id starves without. The ink, the zones, the query tokens and the overlay
+    // each feed from their own source; everything else opt-in feeds from the HUD source, so hud.roster
+    // needs no line here. Only a genuinely new kind of source would. The check is what lets BuildLayer
+    // keep its `hud!` / `annotations!` / `zones!` / `query!` / `overlay!`: an unfed layer never reaches it.
+    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations,
+        PlaceResolver? zones, QueryCanvasDocument? query, OverlayDocument? overlay) => id switch
+    {
+        SceneLayerIds.Annotations => annotations is null,
+        SceneLayerIds.Zones => zones is null,
+        SceneLayerIds.Query => query is null,
+        SceneLayerIds.Overlay => overlay is null,
+        _ => hud is null
+    };
 
     private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
         AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text,
-        IIconSource? icons) => id switch
+        IIconSource? icons, PlaceResolver? zones, QueryCanvasDocument? query, OverlayDocument? overlay) => id switch
     {
         SceneLayerIds.Radar => new RadarLayer(),
         SceneLayerIds.Trails => new TrailLayer(),
@@ -222,8 +283,11 @@ public static class SceneLayerCatalog
         SceneLayerIds.Bomb => new BombLayer(),
         SceneLayerIds.FloorLabel => new FloorLabelLayer(text),
         SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
+        SceneLayerIds.Zones => new ZoneOutlineLayer(zones!, text),
         SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
         SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
+        SceneLayerIds.Query => new QueryTokenLayer(query!),
+        SceneLayerIds.Overlay => new OverlayHeatmapLayer(overlay!),
         _ => new KillFeedLayer(hud!, text: text, icons: icons)
     };
 }

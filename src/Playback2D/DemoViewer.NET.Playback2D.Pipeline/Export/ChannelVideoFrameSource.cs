@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     <para>
 ///         Buffers are rented from <see cref="ArrayPool{T}" /> by the writer and returned by the reader
 ///         once <c>Serialize</c> has copied them into the pipe, so a steady-state export allocates
-///         nothing here (design §6).
+///         nothing here.
 ///     </para>
 /// </summary>
 internal sealed class ChannelVideoFrameSource : IEnumerable<IVideoFrame>, IEnumerator<IVideoFrame>

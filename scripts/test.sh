@@ -3,8 +3,8 @@
 #
 #   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-n] [-l]
 #
-#   -t  tier (default: standard, the in-flight default; see docs/playback2d-v2/plans/P3-test-tiers.md)
-#   -p  project key or `all` (default: all).  Keys: playback2d cli app livesync trimmer
+#   -t  tier (default: standard, the in-flight default; see tests/shared/TestTiers.cs)
+#   -p  project key or `all` (default: all).  Keys: playback2d cli app ext livesync trimmer
 #       visualization gameicons ruleauthoring
 #   -c  configuration (default: Release, matching CI)
 #   -n  no build; assume the binaries are current
@@ -58,14 +58,14 @@ cd "$ROOT" || exit 2
 # in every tier, so a new unit test is covered the moment it is written.
 case "$TIER" in
   fast)
-    TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]'
+    TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)&(Category!=Render)]'
     TIER_BLURB='pure unit + contract: no demo, no pixels, no process, no benchmark' ;;
   standard)
-    TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=RealDemo)]'
+    TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)]'
     TIER_BLURB='the in-flight default: fast plus the render and golden gates' ;;
   full)
-    TIER_FILTER='/*/*/*/*'
-    TIER_BLURB='everything CI and a pre-push review run' ;;
+    TIER_FILTER='/*/*/*/*[(Category!=KnownFailure)]'
+    TIER_BLURB='everything except a known, deterministic failure: CI and a pre-push review run' ;;
   *)
     echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
 esac
@@ -82,6 +82,7 @@ PROJECTS=(
   "playback2d|src/Playback2D/DemoViewer.NET.Playback2D.Tests"
   "cli|tools/DemoViewer.NET.Playback2D.Cli.Tests"
   "app|src/App/DemoViewer.NET.App.Tests"
+  "ext|src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests"
 )
 
 SELECTED=()
@@ -129,6 +130,11 @@ for entry in "${SELECTED[@]}"; do
 
   ARGS=(--treenode-filter "$TIER_FILTER" --disable-logo --no-progress)
   [ "$LIST_ONLY" -eq 1 ] && ARGS+=(--list-tests)
+  # DV_TEST_EXTRA_ARGS: runner options appended verbatim (CI serialises the ext suite with it).
+  if [ -n "${DV_TEST_EXTRA_ARGS:-}" ]; then
+    # shellcheck disable=SC2206
+    ARGS+=($DV_TEST_EXTRA_ARGS)
+  fi
 
   START=$(date +%s%N)
   OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)

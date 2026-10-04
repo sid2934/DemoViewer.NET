@@ -148,7 +148,14 @@ public readonly record struct ScenePalette(
         SKColor.Parse("#C8881F"),
         SKColor.Parse("#357ABD"),
         SKColor.Parse("#666666"),
-        SceneStrokeWidths.Default);
+        SceneStrokeWidths.Default)
+    {
+        RouteT = SKColor.Parse("#59E0A030"),
+        RouteCt = SKColor.Parse("#594A90D9"),
+        RouteGhostT = SKColor.Parse("#B3E0A030"),
+        RouteGhostCt = SKColor.Parse("#B34A90D9"),
+        DropTarget = SKColor.Parse("#A99CF0")
+    };
 
     /// <summary>
     ///     The Light-variant values from the app's theme dictionary (<c>Styles/DarkPalette.axaml</c>'s
@@ -191,7 +198,74 @@ public readonly record struct ScenePalette(
         SKColor.Parse("#A66A15"),
         SKColor.Parse("#285F9E"),
         SKColor.Parse("#8A8F96"),
-        SceneStrokeWidths.Default);
+        SceneStrokeWidths.Default)
+    {
+        RouteT = SKColor.Parse("#66C9821C"),
+        RouteCt = SKColor.Parse("#662F73BE"),
+        RouteGhostT = SKColor.Parse("#B3A66A15"),
+        RouteGhostCt = SKColor.Parse("#B3285F9E"),
+        DropTarget = SKColor.Parse("#5B4BC4")
+    };
+
+    private readonly SKColor? _routeT;
+    private readonly SKColor? _routeCt;
+
+    /// <summary>T-side strat route line: the side colour at low alpha. Falls back to <see cref="TeamT" /> at 35%.</summary>
+    public SKColor RouteT
+    {
+        get => _routeT ?? TeamT.WithAlpha(0x59);
+        init => _routeT = value;
+    }
+
+    /// <summary>CT-side strat route line. Falls back to <see cref="TeamCt" /> at 35%.</summary>
+    public SKColor RouteCt
+    {
+        get => _routeCt ?? TeamCt.WithAlpha(0x59);
+        init => _routeCt = value;
+    }
+
+    private readonly SKColor? _routeGhostT;
+    private readonly SKColor? _routeGhostCt;
+    private readonly SKColor? _dropTarget;
+
+    /// <summary>T-side dashed ghost route of a token drag. Falls back to <see cref="TeamT" /> at 70%.</summary>
+    public SKColor RouteGhostT
+    {
+        get => _routeGhostT ?? TeamT.WithAlpha(0xB3);
+        init => _routeGhostT = value;
+    }
+
+    /// <summary>CT-side dashed ghost route of a token drag. Falls back to <see cref="TeamCt" /> at 70%.</summary>
+    public SKColor RouteGhostCt
+    {
+        get => _routeGhostCt ?? TeamCt.WithAlpha(0xB3);
+        init => _routeGhostCt = value;
+    }
+
+    /// <summary>The outline of the place a drag would drop into. Falls back to <see cref="Label" />.</summary>
+    public SKColor DropTarget
+    {
+        get => _dropTarget ?? Label;
+        init => _dropTarget = value;
+    }
+
+    /// <summary>The ghost route colour for a CS2 team number; neutral for anything else.</summary>
+    /// <param name="team">The token's side.</param>
+    public SKColor RouteGhost(int team) => team switch
+    {
+        2 => RouteGhostT,
+        3 => RouteGhostCt,
+        _ => Neutral.WithAlpha(0xB3)
+    };
+
+    /// <summary>The route line colour for a CS2 team number (2 = T, 3 = CT); neutral for anything else.</summary>
+    /// <param name="team">The token's side.</param>
+    public SKColor RouteFill(int team) => team switch
+    {
+        2 => RouteT,
+        3 => RouteCt,
+        _ => Neutral.WithAlpha(0x59)
+    };
 
     /// <summary>The team-coloured marker fill for a CS2 team number (2 = T, 3 = CT).</summary>
     public SKColor TeamFill(int team) => team switch

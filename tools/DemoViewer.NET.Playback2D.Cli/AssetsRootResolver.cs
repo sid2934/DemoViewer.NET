@@ -38,7 +38,7 @@ internal sealed record AssetsRoot(string? Path, AssetsRootSource Source, IReadOn
 
 /// <summary>
 ///     Resolves the baked <c>assets/</c> root that <c>tools/DemoViewer.NET.AssetBaker</c> writes: one
-///     subdirectory per map holding <c>bundle.json</c> plus its radar PNGs (C1 decision 6).
+///     subdirectory per map holding <c>bundle.json</c> plus its radar PNGs.
 ///     <para>
 ///         The ladder is <c>--assets</c> → <c>DV2D_ASSETS</c> → a walk-up probe, and the winning rung is
 ///         reported, not just the path: a golden failure caused by a different asset root has to be

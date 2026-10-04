@@ -8,7 +8,7 @@
              MinWidth="380">
 
     <UserControl.Resources>
-        <!-- ONE feature-toggle row template (v0.6.0 findability pass) — was duplicated verbatim
+        <!-- ONE feature-toggle row template (v0.6.0), was duplicated verbatim
              for the Tabs and Chrome ItemsControls; extracting it means one place to fix row styling. -->
         <DataTemplate x:Key="FeatureRowTemplate" x:DataType="settings:FeatureToggleRow">
             <Grid Margin="{Binding IndentMargin}" ColumnDefinitions="*,Auto,Auto">
@@ -22,6 +22,17 @@
                                        Foreground="{DynamicResource TextChainBadge}"
                                        Text="{Binding ScopeLabel}" />
                         </Border>
+                        <TextBlock Classes="mono" Text="{Binding Version}" FontSize="9"
+                                   Foreground="{DynamicResource TextDim}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding HasVersion}"
+                                   ToolTip.Tip="The extension's version, from its manifest." />
+                        <!-- Where the running copy came from, "(bundled)" or "(installed update)". -->
+                        <TextBlock Text="{Binding SourceLabel}" FontSize="9"
+                                   Foreground="{DynamicResource TextDim}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding HasSource}"
+                                   ToolTip.Tip="Bundled: the copy that came with this app. Installed update: a newer copy the updater staged under the app's data folder." />
                         <TextBlock Text="{Binding LockHint}" FontSize="9"
                                    Foreground="{DynamicResource TextDim}"
                                    VerticalAlignment="Center"
@@ -35,6 +46,49 @@
                     <TextBlock Text="{Binding Description}"
                                Foreground="{DynamicResource TextDim}" FontSize="10"
                                TextWrapping="Wrap" />
+                    <!-- Why an extension did not load. Only a pack master row that failed the
+                         compatibility check sets it; the toggle above it is locked off. -->
+                    <TextBlock Text="{Binding Incompatibility}"
+                               Foreground="{DynamicResource AccentError}" FontSize="10"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding IsIncompatible}" />
+                    <!-- A staged update that did not load, with the reason. The copy that is running
+                         still works, so nothing is locked. -->
+                    <TextBlock Text="{Binding LoadNote}"
+                               Foreground="{DynamicResource AccentAmber}" FontSize="10"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding HasLoadNote}" />
+                    <!-- The update line, a pack master row only. The verdict of the last feed check,
+                         Check and Update, and the download's progress while it runs. -->
+                    <StackPanel Spacing="3" Margin="0,3,0,0" IsVisible="{Binding HasUpdate}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding Update.Message}"
+                                       Foreground="{DynamicResource TextMid}" FontSize="10"
+                                       TextWrapping="Wrap" VerticalAlignment="Center"
+                                       IsVisible="{Binding Update.HasMessage}" />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" VerticalAlignment="Center"
+                                    Content="Update"
+                                    Command="{Binding Update.UpdateCommand}"
+                                    IsVisible="{Binding Update.CanUpdate}"
+                                    ToolTip.Tip="Downloads this version and installs it for the next start. The copy that is running stays as it is until then." />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" VerticalAlignment="Center"
+                                    Content="Check for updates"
+                                    Command="{Binding Update.CheckCommand}"
+                                    IsVisible="{Binding Update.ShowCheck}"
+                                    IsEnabled="{Binding Update.CanCheck}" />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" VerticalAlignment="Center"
+                                    Content="Cancel"
+                                    Command="{Binding Update.CancelDownloadCommand}"
+                                    IsVisible="{Binding Update.IsDownloading}" />
+                        </StackPanel>
+                        <ProgressBar Minimum="0" Maximum="100" Height="4" MaxWidth="320" HorizontalAlignment="Left"
+                                     Value="{Binding Update.ProgressPercent}"
+                                     IsVisible="{Binding Update.IsDownloading}" />
+                        <TextBlock Text="{Binding Update.Failure}"
+                                   Foreground="{DynamicResource AccentAmber}" FontSize="10"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding Update.HasFailure}" />
+                    </StackPanel>
                 </StackPanel>
                 <Button Grid.Column="1" Classes="icon-btn" Content="↺"
                         VerticalAlignment="Center"
@@ -68,7 +122,7 @@
             </Grid>
         </Border>
 
-        <!-- ── Search + jump chips (v0.6.x findability, review R1+R5) ────────
+        <!-- ── Search + jump chips (v0.6.x) ───────────────────────────────────
              The filter hides non-matching sections (fuzzy over titles + keywords; matches
              auto-expand their group). Each chip mirrors its section's Can* platform gate, so WASM
              shows only its 5 live sections. Click → the code-behind expands the section's group and
@@ -92,6 +146,8 @@
                             Tag="SectionPlayback2DKeys" Click="OnJumpChipClick" />
                     <Button Classes="chip" Content="Features" Margin="0,2,6,2" FontSize="11" Padding="8,3"
                             Tag="SectionFeatures" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Extensions" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionExtensions" Click="OnJumpChipClick" />
                     <Button Classes="chip" Content="Live Sync" Margin="0,2,6,2" FontSize="11" Padding="8,3"
                             Tag="SectionLiveSync" Click="OnJumpChipClick"
                             IsVisible="{Binding CanManageLiveSync}" />
@@ -116,7 +172,7 @@
                       HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0">
 
-                <!-- ══ GROUPED SECTIONS (v0.6.x findability, review R4+R5) ══════════════════════
+                <!-- ══ GROUPED SECTIONS (v0.6.x) ══════════════════════════════════════════════════
                      Five collapsible audience groups over the ten sections. Group visibility = any
                      member visible; ShowSection* folds each section's platform gate into the fuzzy
                      search filter; a non-empty filter auto-expands matching groups (VM:
@@ -191,7 +247,7 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- 2D playback controls (D1) — the keybinding surface. In GENERAL because it is an
+                        <!-- 2D playback controls, the keybinding surface. In GENERAL because it is an
                      everyday preference like Theme, and it is NOT platform-gated: the 2D tab (and so its
                      keymap) is WASM-reachable. Each row shows the gesture the RESOLVED profile hands
                      back, so a rebound key shows the user's gesture and not the shipped one. -->
@@ -220,12 +276,11 @@
                                                 ToolTip.Tip="Clear every 2D keybinding override and return to the shipped gestures." />
                                     </Grid>
 
-                                    <!-- Browser honesty (D6 §4b). SettingsService has no file on the WASM head —
+                                    <!-- Browser honesty. SettingsService has no file on the WASM head ,
                                  every write goes to the in-memory provider and dies with the page — so a
                                  user could rebind the whole table, watch all of it apply live, and lose
-                                 the lot on refresh with nothing anywhere saying so. B5 fixed exactly this
-                                 class for annotations ("session only — this browser tab forgets…") and
-                                 D1 shipped a new persisted surface without repeating it.
+                                 the lot on refresh with nothing anywhere saying so. Same caveat the
+                                 annotations carry ("session only, this browser tab forgets…").
                                  Collapsed entirely on desktop: it is not a caveat there. -->
                                     <TextBlock x:Name="KeybindPersistenceNote"
                                                Foreground="{DynamicResource AccentCaution}" FontSize="11"
@@ -237,7 +292,7 @@
                                     <!-- Only ever non-empty for a HAND-edited settings file: this screen validates
                                  before it writes, so nothing it persists can be dropped on load. The
                                  sentence is BOUND rather than literal because "settings.json" is a file
-                                 the browser head does not have (D6 §4b) — see KeybindRejectionSource. -->
+                                 the browser head does not have, see KeybindRejectionSource. -->
                                     <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4" Padding="8,6"
                                             IsVisible="{Binding HasKeybindRejections}">
                                         <Grid ColumnDefinitions="Auto,*">
@@ -258,7 +313,8 @@
                                     <ItemsControl ItemsSource="{Binding Playback2DKeybindRows}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="settings:KeybindRow">
-                                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3"
+                                                      IsVisible="{Binding IsVisible}">
                                                     <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                             <TextBlock Text="{Binding Label}"
@@ -277,6 +333,13 @@
                                                                 <TextBlock Classes="mono" FontSize="9"
                                                                            Foreground="{DynamicResource TextChainBadge}"
                                                                            Text="reserved" />
+                                                            </Border>
+                                                            <Border Classes="badge" Padding="4,1"
+                                                                    VerticalAlignment="Center"
+                                                                    IsVisible="{Binding HasPackLabel}">
+                                                                <TextBlock Classes="mono" FontSize="9"
+                                                                           Foreground="{DynamicResource TextChainBadge}"
+                                                                           Text="{Binding PackLabel}" />
                                                             </Border>
                                                             <Ellipse Width="6" Height="6" VerticalAlignment="Center"
                                                                      Fill="{DynamicResource AccentAmber}"
@@ -550,7 +613,7 @@
 
                 <!-- FEATURES is its own group: ~25 toggle rows are ~35% of the whole page, so it starts
                      COLLAPSED — the wall the grouping exists to remove. The hidden-count badge rides the
-                     group header so a collapsed group still reports "N hidden" (review quick-win 7). -->
+                     group header so a collapsed group still reports "N hidden". -->
                 <Expander IsVisible="{Binding ShowGroupFeatures}"
                           IsExpanded="{Binding IsGroupFeaturesExpanded, Mode=TwoWay}"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -601,6 +664,109 @@
 
                             </StackPanel>
                         </Border>
+
+                    </StackPanel>
+                </Expander>
+
+                <!-- EXTENSIONS: one master switch per FeatureScope.Pack row in FeatureCatalog,
+                     its own tabs and sub-features listed beneath it (ExtensionsFeatureRows is built from
+                     the catalog, so a second pack appears here with no XAML change), followed by any
+                     dedicated settings a pack contributes through a SettingsPage contribution:
+                     today the Suggested Tags tuning card and the Grenade Index card, both Strat Book-only
+                     and both hidden while the pack is off. -->
+                <Expander IsVisible="{Binding ShowGroupExtensions}"
+                          IsExpanded="{Binding IsGroupExtensionsExpanded, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          Padding="0" Background="Transparent">
+                    <Expander.Header>
+                        <TextBlock Classes="sectionLabel" Text="EXTENSIONS" />
+                    </Expander.Header>
+                    <StackPanel Spacing="0">
+
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionExtensions}">
+                            <Border Classes="card" Margin="12,10" x:Name="SectionExtensions">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Text="Feature packs you can switch off as a whole. Off hides its tabs and stops its background work; the data it already wrote stays on disk." />
+
+                                    <ItemsControl ItemsSource="{Binding ExtensionsFeatureRows}"
+                                                  ItemTemplate="{StaticResource FeatureRowTemplate}" />
+
+                                    <TextBlock Foreground="{DynamicResource TextMid}" FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding StratBookToggleNotice}"
+                                               IsVisible="{Binding StratBookToggleNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Contributed settings pages: Content is null until the page's own
+                     gate first resolves on, so ContentControl shows nothing for an unbuilt page; its
+                     DataContext is set explicitly when built, not resolved through ViewLocator. -->
+                        <ItemsControl ItemsSource="{Binding ContributedSettingsPages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="settings:MountedSettingsPage">
+                                    <StackPanel Spacing="0" IsVisible="{Binding IsVisible}">
+                                        <Border Classes="sectionHeader">
+                                            <TextBlock Classes="sectionLabel" Text="{Binding Header}" />
+                                        </Border>
+                                        <Border Classes="card" Margin="12,10">
+                                            <ContentControl Content="{Binding Content}" />
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Delete extension data: one row per pack's IPackDataRemoval, available
+                     whether the pack is on or off (deleting while off is the main use), so it is NOT
+                     gated by a FeatureId the way a contributed page is. Arm counts what is there and
+                     shows the confirmation inline (no modal dialog exists in this app to reuse); Confirm
+                     turns the extension off first if it is still on, deletes, and reports a count. -->
+                        <ItemsControl ItemsSource="{Binding ExtensionDataActions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="settings:ExtensionDataActionViewModel">
+                                    <Border Classes="card" Margin="12,10">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Spacing="1">
+                                                    <TextBlock Text="{Binding Label, StringFormat='Delete {0} data'}"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                                    <TextBlock
+                                                        Text="Removes everything this extension wrote, on and off disk alike. Regenerable caches are rebuilt automatically; anything you wrote by hand is gone."
+                                                        Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
+                                                        Content="Delete extension data" Foreground="{DynamicResource AccentError}"
+                                                        Command="{Binding ArmCommand}" IsEnabled="{Binding !IsBusy}"
+                                                        IsVisible="{Binding !IsConfirming}" />
+                                            </Grid>
+
+                                            <Border IsVisible="{Binding IsConfirming}" Classes="card"
+                                                    Background="{DynamicResource PanelHeaderHoverDeep}">
+                                                <StackPanel Spacing="8" Margin="10">
+                                                    <TextBlock Text="{Binding ConfirmationText}"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                                        <Button Classes="ghost" Padding="10,4" Content="Cancel"
+                                                                Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}" />
+                                                        <Button Classes="ghost" Padding="10,4" Content="Delete"
+                                                                Foreground="{DynamicResource AccentError}"
+                                                                Command="{Binding ConfirmCommand}" IsEnabled="{Binding !IsBusy}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextMid}"
+                                                       FontSize="11" TextWrapping="Wrap"
+                                                       IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
                     </StackPanel>
                 </Expander>
@@ -748,7 +914,7 @@
                                                               ToolTip.Tip="Connect even when the plugin/game build pair is flagged incompatible (expert)." />
                                             </Grid>
 
-                                            <!-- D2 tick-offset shim (v0.6.0): editable at last — its own docs said
+                                            <!-- Tick-offset shim (v0.6.0): editable at last, its own docs said
                                          "override only if validation finds a fixed skew", and until now the
                                          only override path was hand-editing settings.json. -->
                                             <StackPanel Spacing="4">
@@ -928,7 +1094,7 @@
                                     </StackPanel>
 
                                     <!-- Live-applying window cap stays at full prominence; the set-once file
-                                 tuning collapses below (R3 of the findability review). -->
+                                 tuning collapses below. -->
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="Max rows in the log window"
                                                    Foreground="{DynamicResource TextValue}"

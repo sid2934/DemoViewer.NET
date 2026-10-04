@@ -6,8 +6,7 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///     adds the tool protocol and nothing else, so pan behaviour cannot drift between the router path and
 ///     the host's own.
 ///     <para>
-///         The permanent fallback tool: it is never disposed and it is what hold-Space diverts to
-///         (plan decision D3).
+///         The permanent fallback tool: it is never disposed and it is what hold-Space diverts to.
 ///     </para>
 /// </summary>
 public sealed class PanZoomTool : IPointerTool

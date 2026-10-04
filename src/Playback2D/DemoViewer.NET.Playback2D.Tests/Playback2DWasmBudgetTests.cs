@@ -16,15 +16,14 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Design §6's "WASM frame-budget smoke test (relaxed budget, CPU path)", as B5 decision D5 shapes it:
+///     The WASM frame-budget smoke test (relaxed budget, CPU path):
 ///     a <b>browser-shaped proxy on the desktop CPU path</b>, not an in-browser run. This repo has no WASM
 ///     test host and CI has no browser runner, so claiming automated browser coverage would be false; what
 ///     is real is the code path (the same <c>CpuSurfaceProvider</c> the browser head uses offscreen), the
 ///     browser's viewport (1280×720, not 1080p), and the budget a single-threaded runtime deserves.
 ///     <para>
 ///         The automatic half of the WASM story is completed by the <c>wasm-build</c> CI job (the head
-///         still compiles and links its natives) and the manual per-release checklist in
-///         <c>docs/playback2d-v2/wasm-matrix.md</c>.
+///         still compiles and links its natives) and the manual per-release checklist.
 ///     </para>
 ///     <para>
 ///         Relaxed timings, advance p99 ≤ 4 ms, render p99 ≤ 24 ms, combined ≤ 32 ms, but the
@@ -41,12 +40,12 @@ public class Playback2DWasmBudgetTests
     // The browser's viewport, not the desktop's. A WASM canvas at 1080p is not the case worth gating.
     private static readonly SKSizeI _size = new(1280, 720);
 
-    // B5's relaxed numbers. Deliberately NOT scaled by DV2D_BUDGET_SCALE: these are already the loose
+    // Relaxed numbers. Deliberately NOT scaled by DV2D_BUDGET_SCALE: these are already the loose
     // lane, and scaling a loose lane produces a gate that cannot fail.
     private static readonly BudgetPolicy _wasmBudget = new(4.0, 24.0, 0);
 
     /// <summary>
-    ///     The full scene, ten players, trails, area effects, vision, two levels, plus B2's ink layer,
+    ///     The full scene, ten players, trails, area effects, vision, two levels, plus the ink layer,
     ///     at a browser viewport through the CPU provider.
     /// </summary>
     [Test]
@@ -61,7 +60,7 @@ public class Playback2DWasmBudgetTests
         using CpuSurfaceProvider provider = new();
 
         await Assert.That(provider.Backend).IsEqualTo(RenderBackend.CpuRaster)
-            .Because("the browser head's only offscreen path is the CPU rasteriser (design §8)");
+            .Because("the browser head's only offscreen path is the CPU rasteriser");
 
         ScenePipelineBenchmark benchmark = new(stage.Compositor, provider, new StackedLayout(),
             ScenePalette.Dark)

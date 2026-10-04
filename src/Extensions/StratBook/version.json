@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/Nerdbank.GitVersioning/main/src/NerdBank.GitVersioning/version.schema.json",
+  "inherit": true,
+  "version": "0.1",
+  "versionHeightOffset": -1,
+  "pathFilters": [
+    ".",
+    ":!DemoViewer.NET.Extensions.StratBook.Tests"
+  ],
+  "publicReleaseRefSpec": [
+    "^refs/heads/main$",
+    "^refs/tags/v\\d+\\.\\d+",
+    "^refs/tags/extensions/net\\.demoviewer\\.pack\\.stratbook/v\\d+\\.\\d+\\.\\d+$"
+  ],
+  "release": {
+    "tagName": "extensions/net.demoviewer.pack.stratbook/v{version}"
+  },
+  "cloudBuild": {
+    "setVersionVariables": false,
+    "buildNumber": {
+      "enabled": false
+    }
+  }
+}

@@ -26,10 +26,9 @@ using DemoViewer.NET.Views.RuleWorkbench;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Phase 3 gates for the Rulesets v2 authoring Workbench
-///     : M0 the module registers a Main-strip
-///     "Authoring" tab and its View renders; M1 the in-process demo-less checker reports the shipped
-///     rulesets clean; M2 the editor's file lifecycle (New/Save), buffer-aware inline diagnostics, and
+///     Gates for the Rulesets v2 authoring Workbench: the module registers a Main-strip
+///     "Authoring" tab and its View renders; the in-process demo-less checker reports the shipped
+///     rulesets clean; the editor's file lifecycle (New/Save), buffer-aware inline diagnostics, and
 ///     caret-jump. Filesystem tests pin the rules dirs via the RuleSetLocator env overrides and dispose
 ///     the VM's watcher for determinism.
 /// </summary>
@@ -37,7 +36,7 @@ namespace DemoViewer.NET.AppTests;
 [Category("Integration")]
 public class RuleWorkbenchModuleTests
 {
-    // ── M0 ───────────────────────────────────────────────────────────────────────────────────────
+    // ── The module registers its Authoring tab on the Main strip ──────────────────────────────────
     [Test]
     public async Task RuleWorkbenchModule_RegistersAuthoringTab_OnMainStrip()
     {
@@ -68,7 +67,7 @@ public class RuleWorkbenchModuleTests
         (vm as IDisposable)?.Dispose();
     }
 
-    // ── M1 ───────────────────────────────────────────────────────────────────────────────────────
+    // ── The in-process checker reports the shipped rulesets clean ─────────────────────────────────
     [Test]
     public async Task RuleWorkbench_Check_ShippedV2Rules_ReportsClean()
     {
@@ -82,7 +81,7 @@ public class RuleWorkbenchModuleTests
         });
     }
 
-    // ── M2 ───────────────────────────────────────────────────────────────────────────────────────
+    // ── File lifecycle, inline diagnostics, and caret-jump ────────────────────────────────────────
     [Test]
     public async Task RuleWorkbench_NewFile_CreatesAndOpensDraft()
     {
@@ -129,7 +128,7 @@ public class RuleWorkbenchModuleTests
             vm.SaveCommand.Execute(null);
 
             await Assert.That(vm.DocumentText).Contains("catalog_version:")
-                .Because("Save stamps the current catalog version (M7 provenance)");
+                .Because("Save stamps the current catalog version");
             string onDisk = File.ReadAllText(file);
             await Assert.That(onDisk).Contains("catalog_version:");
             await Assert.That(vm.IsDirty).IsFalse().Because("stamping does not leave the buffer dirty");
@@ -198,7 +197,7 @@ public class RuleWorkbenchModuleTests
         });
     }
 
-    // ── M3 ───────────────────────────────────────────────────────────────────────────────────────
+    // ── Completion vocabulary ──────────────────────────────────────────────────────────────────────
     [Test]
     public async Task Completion_Vocabulary_IncludesCatalogTermsAndBufferStats()
     {
@@ -335,7 +334,7 @@ public class RuleWorkbenchModuleTests
         await Assert.That(valueInStats.Contains("scoreboard")).IsFalse();
     }
 
-    // ── M4 ───────────────────────────────────────────────────────────────────────────────────────
+    // ── Data Browser paths ─────────────────────────────────────────────────────────────────────────
     [Test]
     public async Task DataBrowser_Paths_FromCatalog()
     {
@@ -352,7 +351,7 @@ public class RuleWorkbenchModuleTests
         });
     }
 
-    // ── M5 ───────────────────────────────────────────────────────────────────────────────────────
+    // ── Evaluate against a loaded demo ─────────────────────────────────────────────────────────────
     [Test]
     public async Task Evaluate_OnLoadedDemo_ProducesGameBoard()
     {
@@ -572,7 +571,7 @@ public class RuleWorkbenchModuleTests
         });
     }
 
-    // ── M6 (trace: applied-fire slice) ─────────────────────────────────────────────────────────────
+    // ── Trace: applied-fire slice ──────────────────────────────────────────────────────────────────
 
     /// <summary>
     ///     The data model reconciles with a real evaluation of the shipped rulesets on whichever demo
@@ -708,7 +707,7 @@ public class RuleWorkbenchModuleTests
             .Because("the shipped rulesets are for: each_player, so fires attribute to a player");
     }
 
-    /// <summary>The VM captures the trace on Evaluate and repopulates fires when a target is picked (M6).</summary>
+    /// <summary>The VM captures the trace on Evaluate and repopulates fires when a target is picked.</summary>
     [Test]
     public async Task Trace_VmEvaluate_PopulatesTargetsAndFires()
     {
@@ -900,7 +899,7 @@ public class RuleWorkbenchModuleTests
 
     /// <summary>
     ///     A minimal <see cref="IModuleContext" /> that also carries a loaded demo via
-    ///     <see cref="ICurrentDemoSource" />, the M5 first-party demo-access seam. Only the members the
+    ///     <see cref="ICurrentDemoSource" />, the first-party demo-access seam. Only the members the
     ///     Workbench actually touches (Players / CurrentPlayers / Advanced / the demo) are functional; the
     ///     rest are unused stubs.
     /// </summary>

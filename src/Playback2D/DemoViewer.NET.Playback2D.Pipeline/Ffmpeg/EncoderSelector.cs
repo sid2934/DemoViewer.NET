@@ -8,12 +8,12 @@ using DemoViewer.NET.Playback2D.Core.Export;
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
 /// <summary>
-///     Which encoder one export will use, at what quality, and why: plan <c>P2-export-throughput</c> D5.
+///     Which encoder one export will use, at what quality, and why.
 ///     <para>
 ///         <b>A per-session value.</b> It is resolved by the caller, handed to
 ///         <c>FfmpegSinkOptions</c>, and lives exactly as long as that sink. Two exports in one process
 ///         may hold two different selections at once; nothing here is static, and nothing here is
-///         mutable. That is what a future multi-export node needs from this phase (plan §7), and it is
+///         mutable. That is what a future multi-export node needs, and it is
 ///         the same argument that already keeps <c>GlobalFFOptions</c> out of the sink.
 ///     </para>
 /// </summary>
@@ -76,11 +76,10 @@ public sealed class EncoderUnavailableException : InvalidOperationException
 }
 
 /// <summary>
-///     Walks an <see cref="EncoderLadder" /> and returns the first rung this machine can actually run,
-///     plan <c>P2-export-throughput</c> D1 and D4.
+///     Walks an <see cref="EncoderLadder" /> and returns the first rung this machine can actually run.
 ///     <para>
 ///         <b>Stateless.</b> The only thing it holds is the probe, which is where the caching lives. Two
-///         threads may select concurrently; that is a requirement, not an accident (plan §7).
+///         threads may select concurrently; that is a requirement, not an accident.
 ///     </para>
 /// </summary>
 /// <param name="probe">
@@ -105,7 +104,7 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
     /// <param name="ct">Cancels the probes.</param>
     /// <exception cref="ExportValidationException"><paramref name="request" /> names nothing on the ladder.</exception>
     /// <exception cref="EncoderUnavailableException">
-    ///     A rung was named explicitly and does not verify. <b>Never substituted silently</b> (plan D4):
+    ///     A rung was named explicitly and does not verify. <b>Never substituted silently</b>:
     ///     a user who asked for <c>h264_nvenc</c> and quietly got <c>libx264</c> has been told a lie about
     ///     what their file is. <c>auto</c> is the default so that this refusal is opt-in.
     /// </exception>
@@ -114,7 +113,7 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
     {
         if (string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal))
         {
-            // Plan D6's palettegen/paletteuse chain is not an encoder choice, so there is nothing to
+            // The palettegen/paletteuse chain is not an encoder choice, so there is nothing to
             // probe and nothing to override. Reporting it as a rung keeps the JSON one shape.
             return new EncoderSelection(EncoderLadder.Gif, quality,
                 "gif is the palette filter chain; it has no encoder ladder", []);

@@ -5,9 +5,11 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
@@ -70,6 +72,12 @@ public partial class MapFilterItem(string display, string mapKey) : ObservableOb
 /// </summary>
 public sealed record CardRow(IReadOnlyList<DemoEntry> Items);
 
+/// <summary>One row of the card badge's picker menu, templated by the view (a divider sits above an <see cref="IsReset" /> row).</summary>
+/// <param name="Label">The row's text: a settable label, or the reset entry's own label.</param>
+/// <param name="IsReset">True for the "go back to automatic" row.</param>
+/// <param name="Tooltip">The row's tooltip, or null for none.</param>
+public sealed record LibraryBadgeMenuEntry(string Label, bool IsReset, string? Tooltip);
+
 /// <summary>
 ///     View-model for the demo-library landing tab. Wraps the <see cref="DemoLibraryService" /> indexer and
 ///     exposes a filtered/sorted view (<see cref="FilteredEntries" />) over its discovered demos, plus the
@@ -87,6 +95,15 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly Func<Task<IReadOnlyList<string>>> _pickFolders; // folder picker
     private readonly RecentFilesStore? _recentFiles; // recent-files store (null on designer / older tests)
     private readonly string? _sampleDemoPath; // bundled tour sample (null = none ships / designer / tests)
+
+    // The Library hosts a pack's filter/badge contributions generically. _contributionOn and
+    // _filterVms are parallel to _contributions; _changedHandlers are the bound Action instances a
+    // contribution's Changed is (un)subscribed with, so subscribe/unsubscribe target the same delegate.
+    private readonly IReadOnlyList<ILibraryContribution> _contributions;
+    private readonly Func<string, bool> _isFeatureEnabled;
+    private readonly bool[] _contributionOn;
+    private readonly LibraryFilterViewModel?[] _filterVms;
+    private readonly Action[] _changedHandlers;
 
     [ObservableProperty]
     private bool _isCardView = true; // user default: card view
@@ -123,7 +140,9 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         Func<Task<IReadOnlyList<string>>> pickFolders,
         Func<Task>? openFilePicker = null,
         RecentFilesStore? recentFiles = null,
-        string? sampleDemoPath = null)
+        string? sampleDemoPath = null,
+        IReadOnlyList<ILibraryContribution>? contributions = null,
+        Func<string, bool>? isFeatureEnabled = null)
     {
         _library = library;
         _openDemo = openDemo;
@@ -131,6 +150,25 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         _openFilePicker = openFilePicker;
         _recentFiles = recentFiles;
         _sampleDemoPath = sampleDemoPath;
+        _contributions = contributions ?? [];
+        _isFeatureEnabled = isFeatureEnabled ?? (_ => true);
+        _contributionOn = new bool[_contributions.Count];
+        _filterVms = new LibraryFilterViewModel?[_contributions.Count];
+        _changedHandlers = new Action[_contributions.Count];
+        for (int i = 0; i < _contributions.Count; i++)
+        {
+            int idx = i;
+            _changedHandlers[idx] = () => OnContributionChanged(idx);
+            if (IsFeatureOn(idx))
+            {
+                _contributionOn[idx] = true;
+                // Subscribed only while on: an off contribution's Changed is never wired, so a fake
+                // contribution in a test can throw on add_Changed while its gate is off.
+                _contributions[idx].Changed += _changedHandlers[idx];
+            }
+        }
+
+        Sections.PropertyChanged += OnSectionsChanged;
 
         _library.Entries.CollectionChanged += OnEntriesChanged;
         _library.Folders.CollectionChanged += OnFoldersChanged;
@@ -144,6 +182,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         RefreshMapFilters();
         RefreshAvailablePlayers();
+        RebuildFilters();
+        RefreshBadges();
         ApplyFilter();
     }
 
@@ -182,6 +222,48 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     /// <summary>The multi-select map filter: one checkable item per distinct map. None checked = all maps.</summary>
     public ObservableCollection<MapFilterItem> MapFilters { get; } = [];
 
+    /// <summary>
+    ///     Every contributed filter whose gate currently resolves on, in contribution order. One
+    ///     stable <see cref="LibraryFilterViewModel" /> instance per on contribution; the Team filter is the
+    ///     only one today, but a second pack's filter would simply appear alongside it.
+    /// </summary>
+    public ObservableCollection<LibraryFilterViewModel> Filters { get; } = [];
+
+    /// <summary>True while a contributed badge is on (the provenance chip).</summary>
+    public bool HasBadge => ActiveBadgeContribution() is not null;
+
+    /// <summary>The active badge contribution's menu labels, or empty when none is on.</summary>
+    public IReadOnlyList<string> BadgeLabels => ActiveBadgeContribution()?.BadgeLabels ?? [];
+
+    /// <summary>The active badge contribution's "go back to automatic" label, or null.</summary>
+    public string? BadgeResetLabel => ActiveBadgeContribution()?.BadgeResetLabel;
+
+    /// <summary>
+    ///     The chip's flyout, flattened for an <c>ItemsSource</c>: <see cref="BadgeLabels" /> then, if the
+    ///     active contribution offers one, a <see cref="LibraryBadgeMenuEntry.IsReset" /> row carrying its
+    ///     own tooltip. The view-side click handler treats a picked <see cref="LibraryBadgeMenuEntry.IsReset" />
+    ///     row as "clear the pin".
+    /// </summary>
+    public IReadOnlyList<LibraryBadgeMenuEntry> BadgeMenuEntries
+    {
+        get
+        {
+            ILibraryContribution? active = ActiveBadgeContribution();
+            if (active is null)
+            {
+                return [];
+            }
+
+            List<LibraryBadgeMenuEntry> entries = [.. active.BadgeLabels.Select(l => new LibraryBadgeMenuEntry(l, false, null))];
+            if (active.BadgeResetLabel is { } reset)
+            {
+                entries.Add(new LibraryBadgeMenuEntry(reset, true, active.BadgeResetTooltip));
+            }
+
+            return entries;
+        }
+    }
+
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
     public ObservableCollection<string> AvailablePlayers { get; } = [AllPlayers];
 
@@ -206,6 +288,54 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>True when no folders are configured yet (drives the empty-state prompt).</summary>
     public bool HasNoFolders => Folders.Count == 0;
+
+    /// <summary>
+    ///     The id a section names in <see cref="WorkspaceTabDescriptor.HostId" /> to sit behind the Library's
+    ///     Demos / Teams toggle. The Library's own tab id; a persisted key.
+    /// </summary>
+    public const string HostId = "builtin.library";
+
+    /// <summary>
+    ///     The views the Library hosts behind its Demos / Teams toggle (Teams, from the Teams module). No
+    ///     selection means the demo browser; the shell fills and gates the list.
+    /// </summary>
+    public TabSectionHost Sections { get; } = new(autoSelectFirst: false);
+
+    /// <summary>True while the demo browser shows (no hosted view selected). Settable from the toggle.</summary>
+    public bool IsDemosView
+    {
+        get => !Sections.HasSelection;
+        set
+        {
+            if (value)
+            {
+                Sections.SelectedSection = null;
+            }
+        }
+    }
+
+    /// <summary>True while a hosted view (Teams) shows in place of the demo browser. Settable from the toggle.</summary>
+    public bool IsTeamsView
+    {
+        get => Sections.HasSelection;
+        set
+        {
+            if (value && Sections.Sections.Count > 0)
+            {
+                Sections.SelectedSection = Sections.Sections[0];
+            }
+            else if (!value)
+            {
+                Sections.SelectedSection = null;
+            }
+        }
+    }
+
+    /// <summary>True when the toggle has somewhere to go: a hosted view is enabled.</summary>
+    public bool HasTeamsView => Sections.HasSections;
+
+    /// <summary>The demo browser's own chrome (folder chips, filters) shows only with folders and in the demo view.</summary>
+    public bool ShowDemoChrome => !HasNoFolders && IsDemosView;
 
     /// <summary>
     ///     True when folders ARE configured but the indexer found zero demos in them (v0.6.0). Without
@@ -244,9 +374,10 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         }
     }
 
-    /// <summary>True when any filter (search / map / player) is narrowing the list: drives the Clear button.</summary>
+    /// <summary>True when any filter (search / map / player / a contributed filter) is narrowing the list: drives the Clear button.</summary>
     public bool HasActiveFilters =>
-        !string.IsNullOrWhiteSpace(SearchText) || SelectedPlayer != AllPlayers || MapFilters.Any(m => m.IsSelected);
+        !string.IsNullOrWhiteSpace(SearchText) || SelectedPlayer != AllPlayers || MapFilters.Any(m => m.IsSelected)
+        || Filters.Any(f => f.IsActive);
 
     /// <summary>How many demos are waiting on a score re-derivation.</summary>
     public int ScoreRepairCount => _library.ScoreRepairPendingCount;
@@ -270,10 +401,24 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             _scannedOnce = true;
             _ = _library.RescanAsync();
         }
+
+        Sections.OnHostActivated(context);
     }
 
-    public void OnDeactivated()
+    public void OnDeactivated() => Sections.OnHostDeactivated();
+
+    private void OnSectionsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(TabSectionHost.SelectedSection) or nameof(TabSectionHost.HasSelection))
+        {
+            OnPropertyChanged(nameof(IsDemosView));
+            OnPropertyChanged(nameof(IsTeamsView));
+            OnPropertyChanged(nameof(ShowDemoChrome));
+        }
+        else if (e.PropertyName == nameof(TabSectionHost.HasSections))
+        {
+            OnPropertyChanged(nameof(HasTeamsView));
+        }
     }
 
     /// <summary>
@@ -467,6 +612,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             m.IsSelected = false;
         }
 
+        foreach (LibraryFilterViewModel f in Filters)
+        {
+            f.Reset();
+        }
+
         _suppressApply = false;
         OnPropertyChanged(nameof(MapFilterSummary));
         ApplyFilter();
@@ -476,6 +626,123 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedPlayerChanged(string value) => ApplyFilter();
+
+    private bool IsFeatureOn(int i)
+    {
+        string? id = _contributions[i].FeatureId;
+        return id is null || _isFeatureEnabled(id);
+    }
+
+    // A contribution's own data changed (a rename, a merge, a pin) while its gate is on. Re-checks the
+    // gate first: Changed is unsubscribed on the same pass that turns a contribution off, but a handler
+    // already queued ahead of that pass could still arrive.
+    private void OnContributionChanged(int i)
+    {
+        if (!_contributionOn[i])
+        {
+            return;
+        }
+
+        LibraryFilter? filter = _contributions[i].Filter;
+        if (_filterVms[i] is { } vm)
+        {
+            if (filter is not null)
+            {
+                vm.Rebuild(filter);
+            }
+            else
+            {
+                Filters.Remove(vm);
+                _filterVms[i] = null;
+            }
+        }
+        else if (filter is not null)
+        {
+            // The contribution started offering a filter it did not have at construction or its last
+            // transition on (no contribution does this today; kept for a future one that can).
+            LibraryFilterViewModel added = new(filter, ApplyFilter);
+            _filterVms[i] = added;
+            Filters.Add(added);
+        }
+
+        // Only the active badge contribution's own data change is worth a refresh: a filter-only
+        // contribution's Changed (e.g. a team rename) must not re-run BadgesFor.
+        if (ReferenceEquals(ActiveBadgeContribution(), _contributions[i]))
+        {
+            RefreshBadges();
+        }
+
+        ApplyFilter();
+    }
+
+    /// <summary>
+    ///     Re-reads every contribution's gate and reconciles the Library's filters and badge to it. The
+    ///     shell calls this on every gate change (<c>ApplyGateChange</c>); a steady state (no contribution
+    ///     actually flipped) is a cheap no-op, so an unrelated gate change never touches a contribution.
+    /// </summary>
+    public void RefreshContributions()
+    {
+        bool anyTransition = false;
+        for (int i = 0; i < _contributions.Count; i++)
+        {
+            bool on = IsFeatureOn(i);
+            if (on == _contributionOn[i])
+            {
+                continue;
+            }
+
+            anyTransition = true;
+            if (on)
+            {
+                _contributions[i].Changed += _changedHandlers[i];
+            }
+            else
+            {
+                _contributions[i].Changed -= _changedHandlers[i];
+            }
+
+            _contributionOn[i] = on;
+        }
+
+        if (!anyTransition)
+        {
+            return;
+        }
+
+        RebuildFilters();
+        RefreshBadges();
+        OnPropertyChanged(nameof(HasBadge));
+        OnPropertyChanged(nameof(BadgeLabels));
+        OnPropertyChanged(nameof(BadgeResetLabel));
+        OnPropertyChanged(nameof(BadgeMenuEntries));
+        ApplyFilter();
+    }
+
+    // Adds a LibraryFilterViewModel for a contribution that just turned on, removes one for a contribution
+    // that just turned off; leaves an already-on contribution's instance untouched so the bound ComboBox
+    // is never recreated. Safe to call unconditionally at construction too (every _filterVms starts null).
+    private void RebuildFilters()
+    {
+        for (int i = 0; i < _contributions.Count; i++)
+        {
+            if (_contributionOn[i])
+            {
+                if (_filterVms[i] is null && _contributions[i].Filter is { } filter)
+                {
+                    LibraryFilterViewModel vm = new(filter, ApplyFilter);
+                    _filterVms[i] = vm;
+                    Filters.Add(vm);
+                }
+            }
+            else if (_filterVms[i] is { } vm)
+            {
+                Filters.Remove(vm);
+                _filterVms[i] = null;
+            }
+        }
+
+        OnPropertyChanged(nameof(HasActiveFilters));
+    }
 
     partial void OnSortChanged(LibrarySort value)
     {
@@ -487,12 +754,14 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     {
         RefreshMapFilters();
         RefreshAvailablePlayers();
+        RefreshBadges();
         ApplyFilter();
     }
 
     private void OnFoldersChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasNoFolders));
+        OnPropertyChanged(nameof(ShowDemoChrome));
         OnPropertyChanged(nameof(ShowHeaderRecents));
         RaiseEmptyStates();
     }
@@ -502,7 +771,52 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RefreshMapFilters();
         RefreshAvailablePlayers();
         RaiseScoreRepairState();
+        RefreshBadges();
         ApplyFilter();
+    }
+
+    // ── Badge ─────────────────────────────────────────────────────────────────
+
+    // The first on contribution with HasBadge. One slot rendered today (the provenance chip); a second
+    // badge-granting pack would need the card to render a list instead of picking one.
+    private ILibraryContribution? ActiveBadgeContribution()
+    {
+        for (int i = 0; i < _contributions.Count; i++)
+        {
+            if (_contributionOn[i] && _contributions[i].HasBadge)
+            {
+                return _contributions[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Pins a label on a card's badge, or with null goes back to automatic. The chip re-reads through
+    ///     the contribution's Changed, so nothing is written onto the entry here.
+    /// </summary>
+    /// <param name="entry">The card.</param>
+    /// <param name="label">One of the active contribution's <see cref="ILibraryContribution.BadgeLabels" />, or null for automatic.</param>
+    public void SetBadgeLabel(DemoEntry entry, string? label)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        ActiveBadgeContribution()?.SetLabel(entry, label);
+    }
+
+    // One BadgesFor call per refresh, not one BadgeFor per entry: a contribution whose per-entry answer
+    // shares state (Team Identity's override list) would otherwise re-scan it once per card.
+    private void RefreshBadges()
+    {
+        ILibraryContribution? active = ActiveBadgeContribution();
+        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries);
+        foreach (DemoEntry entry in _library.Entries)
+        {
+            LibraryBadge? badge = badges?.GetValueOrDefault(entry.FilePath);
+            entry.BadgeLabel = badge?.Label;
+            entry.BadgeTooltip = badge?.Tooltip;
+            entry.BadgeIsPinned = badge?.IsPinned ?? false;
+        }
     }
 
     private void RaiseScoreRepairState()
@@ -630,6 +944,12 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         if (SelectedPlayer != AllPlayers)
         {
             q = q.Where(e => e.Players.Any(p => string.Equals(p, SelectedPlayer, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        // Every contributed filter, e.g. the Team filter: "" (All) applies no predicate.
+        foreach (LibraryFilterViewModel filter in Filters)
+        {
+            q = q.Where(filter.Matches);
         }
 
         q = Sort switch

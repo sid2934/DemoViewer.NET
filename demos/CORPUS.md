@@ -13,7 +13,14 @@ Keep this current when the corpus changes.
 |---|---|
 | `AnalysisBench --suite` | every `.dem` in `demos/benchmarks/` |
 | `scripts/perf-sweep.sh` | `demos/benchmarks/` and `demos/pro/` |
-| `[Category("RealDemo")]` tests | `DemoTestHelper`: `DEMO_PATH`, then `TestData/`, then `demos/benchmarks/`, then `demos/` |
+| `[Category("RealDemo")]` tests | `DemoTestHelper`: `DEMO_PATH` (a `.dem`, or a folder of them), then the reference demo `003816248937665266002_0544286934.dem` if present, then `TestData/`, then `demos/benchmarks/`, then `demos/` |
+
+A folder `DEMO_PATH` (the Steam replays directory, read in place) resolves to ONE demo for the whole
+run: `DEMO_PATH_PICK=<filename>` when set, else the reference demo when the folder holds it, else the
+`.dem` whose name sorts first by ordinal comparison, top level only. A `DEMO_PATH_PICK` that is not in
+the folder resolves to nothing rather than to the first file, and the skip reason says so. The
+pinned-name lookups (`RequireDemo("furia-vs-vitality-m1-mirage.dem")` and the golden candidate
+lists) do not look inside a folder `DEMO_PATH`, for the reason in the `_410.dem` section below.
 
 Absent demos are a SKIP, not a failure: with an empty corpus the App suite still passes and simply
 runs 84 fewer tests. CI has never had the corpus, which is why CI is green regardless.

@@ -29,6 +29,58 @@ public enum DemoJobPriority
     Foreground = 2
 }
 
+/// <summary>What a queue item does. Every heavy background job in the app is one of these.</summary>
+public enum QueueJobKind
+{
+    /// <summary>A demo parse and its owners' post-processing (<see cref="IDemoProcessingQueue.SubmitBackground" />).</summary>
+    DemoProcessing,
+
+    /// <summary>A user-started Pack Export.</summary>
+    PackExport,
+
+    /// <summary>The one-off re-encode of pre-gzip sidecars.</summary>
+    SidecarMigration,
+
+    /// <summary>A Strat Mining pass over the library's cached files.</summary>
+    StratMining,
+
+    /// <summary>Building one detected pattern's strat for the Detected preview, from cached files.</summary>
+    StratPreview,
+
+    /// <summary>One demo's batch of Lineup Clip GIFs.</summary>
+    LineupClips,
+
+    /// <summary>Reading every demo's Suggested Tags proposals for the Strat Book's Suggested section.</summary>
+    SuggestionsInbox,
+
+    /// <summary>The heap compaction after the queue drains.</summary>
+    HeapCompaction,
+
+    /// <summary>A store writing its file. Light: needs no heavy slot and runs beside a parse.</summary>
+    StoreSave,
+
+    /// <summary>A store reading its file at startup. Light.</summary>
+    StoreLoad,
+
+    /// <summary>A section building what it shows. Light.</summary>
+    SectionCompute,
+
+    /// <summary>A Team Identity command the user gave. Light.</summary>
+    TeamsCommand,
+
+    /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
+    LibraryScan,
+
+    /// <summary>An extension feed check, a download being staged, or the staging cleanup at startup. Light.</summary>
+    ExtensionUpdate,
+
+    /// <summary>
+    ///     A user opening a demo (<see cref="IDemoProcessingQueue.BeginOpen" />). It sits at the front, ignores
+    ///     pause and the background switch, and no other heavy item starts while it is active.
+    /// </summary>
+    DemoOpen
+}
+
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
 public enum DemoQueueItemState
 {
@@ -73,6 +125,15 @@ public enum DemoQueueItemState
 /// <param name="OnParsed">Runs inside the slot after a successful parse (the owner's post-processing).</param>
 /// <param name="OnFailed">Runs on a parse failure (the owner marks its own row failed). Optional.</param>
 /// <param name="DisplayName">Human label for the UI (e.g. file name). Optional.</param>
+/// <param name="NeedsUserCommands">
+///     False when <see cref="OnParsed" /> never reads user commands. The parse leaves them out only when no
+///     owner on the entry needs them.
+/// </param>
+/// <param name="OnForward">
+///     The owner's post-processing on a forward pass, or null when it needs the retained parse. The entry is
+///     read forward only when every owner on it supplies one.
+/// </param>
+/// <param name="ForwardNeeds">What the forward pass must produce for <see cref="OnForward" />.</param>
 public sealed record DemoProcessingRequest(
     string Path,
     string OwnerTag,
@@ -80,7 +141,72 @@ public sealed record DemoProcessingRequest(
     long OrderHint,
     Action<ParsedDemo> OnParsed,
     Action<Exception>? OnFailed = null,
-    string? DisplayName = null);
+    string? DisplayName = null,
+    bool NeedsUserCommands = true,
+    Action<ForwardDemoResult>? OnForward = null,
+    ForwardNeeds ForwardNeeds = ForwardNeeds.None);
+
+/// <summary>What a running <see cref="QueueJobRequest" /> body gets from the queue.</summary>
+public interface IQueueJobContext
+{
+    /// <summary>Fires when the user cancels the item or the app shuts down.</summary>
+    CancellationToken CancellationToken { get; }
+
+    /// <summary>Progress for the list: <paramref name="done" /> of <paramref name="total" />, and a short detail.</summary>
+    void Report(int done, int total, string? detail = null);
+
+    /// <summary>
+    ///     Releases the heavy-job slot, waits until a background slot is free again (an interactive open, a reel
+    ///     or an export goes first) and takes it back. Call between batches of a long job.
+    /// </summary>
+    Task StepAsideAsync();
+
+    /// <summary>
+    ///     Gives the slot up for the rest of the item, for a body that takes its own gate slots. The item still
+    ///     counts as the one running job.
+    /// </summary>
+    void ReleaseSlot();
+
+    /// <summary>Tells the queue this item parsed a demo, so it compacts the heap after it.</summary>
+    void NoteDemoParsed()
+    {
+    }
+}
+
+/// <summary>
+///     A queue item that is not a demo parse: it runs <see cref="RunAsync" /> on the queue worker, holding a
+///     background heavy-job slot. It runs exclusively: it starts only when nothing else is running, and nothing
+///     starts while it runs, whatever MaxConcurrency allows demo parses.
+/// </summary>
+/// <param name="Kind">What it is.</param>
+/// <param name="Title">The line the queue list shows.</param>
+/// <param name="OwnerTag">Submitting module.</param>
+/// <param name="Priority"><see cref="DemoJobPriority.Background" /> or <see cref="DemoJobPriority.UserRequested" />.</param>
+/// <param name="RunAsync">The work. Must not take a heavy-job gate slot while it holds the queue's.</param>
+/// <param name="Key">
+///     A submit with the same kind and key while one is still queued joins it instead of adding another; while
+///     one is running it queues one rerun, which later submits join.
+/// </param>
+/// <param name="Target">A file the item is about (the row tooltip), or null.</param>
+/// <param name="OrderHint">Within a priority and kind, higher = sooner.</param>
+/// <param name="ReplacePending">A keyed submit replaces the queued item's work instead of keeping the first.</param>
+/// <param name="Preemptible">
+///     Whether a user's item may stop it. False for work that cannot stop part-way (a file write), which
+///     would otherwise keep running beside the user's item while counted as stopped.
+/// </param>
+/// <param name="Serial">Items sharing it never run at the same time; one runs, the rest wait.</param>
+public sealed record QueueJobRequest(
+    QueueJobKind Kind,
+    string Title,
+    string OwnerTag,
+    DemoJobPriority Priority,
+    Func<IQueueJobContext, Task> RunAsync,
+    string? Key = null,
+    string? Target = null,
+    long OrderHint = 0,
+    bool ReplacePending = false,
+    bool Preemptible = true,
+    string? Serial = null);
 
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
@@ -93,7 +219,10 @@ public sealed record DemoQueueItemSnapshot(
     IReadOnlyList<string> Owners,
     DemoJobPriority Priority,
     DemoQueueItemState State,
-    string? Error);
+    string? Error,
+    QueueJobKind Kind = QueueJobKind.DemoProcessing,
+    double? Progress = null,
+    string? Detail = null);
 
 /// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
@@ -155,6 +284,9 @@ public interface IDemoProcessingQueue
 
     /// <summary>Items being parsed right now.</summary>
     int RunningCount { get; }
+
+    /// <summary>Queued plus running items of one kind.</summary>
+    int ActiveCount(QueueJobKind kind);
     // ── Foreground (awaitable, highest priority) ──────────────────────────────
 
     /// <summary>
@@ -168,6 +300,15 @@ public interface IDemoProcessingQueue
     Task<ParsedDemo> RequestForegroundAsync(string? path, ReadOnlyMemory<byte> bytes,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    ///     Starts a user's demo open as a <see cref="QueueJobKind.DemoOpen" /> item at the front of the queue.
+    ///     A newer open replaces this one. The caller runs the stages and ends the item through the ticket.
+    /// </summary>
+    /// <param name="path">The demo's path, the key for joining a running parse of it; null when it has none.</param>
+    /// <param name="fileName">The file name the list shows.</param>
+    IDemoOpenTicket BeginOpen(string? path, string fileName) =>
+        new PassThroughDemoOpen((bytes, ct) => RequestForegroundAsync(path, bytes, ct));
+
     // ── Background (fire-and-forget, coalesced) ───────────────────────────────
 
     /// <summary>
@@ -178,6 +319,12 @@ public interface IDemoProcessingQueue
     ///     queued/running (Foreground/UserRequested never rejected).
     /// </summary>
     IDemoQueueHandle SubmitBackground(DemoProcessingRequest request);
+
+    /// <summary>
+    ///     Submits a job that is not a demo parse. It is never rejected for size, obeys pause and cancel, and runs
+    ///     exclusively: never beside another item, even when demo parses may run side by side.
+    /// </summary>
+    IDemoQueueHandle SubmitJob(QueueJobRequest request);
 
     /// <summary>A thread-safe immutable snapshot of every item (state reads off the UI thread).</summary>
     IReadOnlyList<DemoQueueItemSnapshot> Snapshot();
@@ -205,6 +352,13 @@ public interface IDemoProcessingQueue
     /// </summary>
     void CancelOwned(string ownerTag, string path);
 
+    /// <summary>
+    ///     A module cancels EVERY submission it owns: its queued jobs are dropped, a running one is told
+    ///     through its token and finishes its current unit, and its attachment leaves every coalesced parse
+    ///     (a co-owner keeps the parse alive). An open is never touched.
+    /// </summary>
+    void CancelOwned(string ownerTag);
+
     /// <summary>Pause background processing (transient; in-flight parses finish; foreground unaffected).</summary>
     void Pause();
 
@@ -212,4 +366,56 @@ public interface IDemoProcessingQueue
     [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords",
         Justification = "Pause/Resume is the domain vocabulary for the queue control.")]
     void Resume();
+}
+
+/// <summary>A user's demo open as a queue item, driven by the caller from start to end.</summary>
+public interface IDemoOpenTicket : IDisposable
+{
+    /// <summary>Fires when a newer open replaces this one, the user removes it, or the app shuts down.</summary>
+    CancellationToken CancellationToken { get; }
+
+    /// <summary>True when a newer open replaced this one; that open owns the shell from then on.</summary>
+    bool IsSuperseded { get; }
+
+    /// <summary>
+    ///     Parses the bytes in hand, or joins a running parse of the same demo. Waits while a heavy item that
+    ///     cannot stop holds the slot. Throws <see cref="OperationCanceledException" /> once cancelled.
+    /// </summary>
+    Task<ParsedDemo> ParseAsync(ReadOnlyMemory<byte> bytes);
+
+    /// <summary>The stage the list shows, and the fraction done.</summary>
+    void Report(double progress, string stage);
+
+    /// <summary>Ends the item as completed, or cancelled when it was cancelled.</summary>
+    void Complete();
+
+    /// <summary>Ends the item as failed.</summary>
+    void Fail(Exception failure);
+}
+
+/// <summary>An open with no queue item: a host without the queue, or a queue double.</summary>
+public sealed class PassThroughDemoOpen(Func<ReadOnlyMemory<byte>, CancellationToken, Task<ParsedDemo>> parse)
+    : IDemoOpenTicket
+{
+    public CancellationToken CancellationToken => CancellationToken.None;
+
+    public bool IsSuperseded => false;
+
+    public Task<ParsedDemo> ParseAsync(ReadOnlyMemory<byte> bytes) => parse(bytes, CancellationToken.None);
+
+    public void Report(double progress, string stage)
+    {
+    }
+
+    public void Complete()
+    {
+    }
+
+    public void Fail(Exception failure)
+    {
+    }
+
+    public void Dispose()
+    {
+    }
 }

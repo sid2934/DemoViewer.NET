@@ -142,7 +142,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// </summary>
     public ScenePalette Palette { get; set; }
 
-    /// <summary>How levels are laid out. B1 only ever uses <see cref="LevelDisplayMode.Stacked" />.</summary>
+    /// <summary>How levels are laid out. Defaults to <see cref="LevelDisplayMode.Stacked" />.</summary>
     public LevelDisplayMode DisplayMode { get; set; } = LevelDisplayMode.Stacked;
 
     /// <summary>Why the scene is being rendered; reaches every layer through the context.</summary>
@@ -339,7 +339,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// <summary>
     ///     Advance + render into a caller-owned surface, against an <b>explicit</b> clock.
     ///     <para>
-    ///         The injected clock is the whole determinism contract (design §5.1): motion is a function of
+    ///         The injected clock is the whole determinism contract: motion is a function of
     ///         <see cref="SceneTime" />, never of a wall clock, and on the demo path the frame's own
     ///         <c>Time</c> and the source's <c>TimeAt</c> are not the same value.
     ///         <c>TrackerFrameSource.TimeAt</c> derives <c>DeltaSeconds</c> from fps/speed and authors
@@ -394,7 +394,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     }
 
     // Indexed, allocation-free: a dictionary write over an existing key and one level resolution per
-    // marker. The §6 budget is zero bytes per steady-state frame and this runs inside it.
+    // marker. The allocation budget is zero bytes per steady-state frame and this runs inside it.
     private void UpdateCrossings(Scene2DFrame frame)
     {
         MapSpace space = Levels.Space;

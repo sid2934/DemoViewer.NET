@@ -73,8 +73,8 @@ public sealed class KillFeedLayer : ISceneLayer
         _ownsText = text is null;
         _text = text ?? new TextBlobCache();
 
-        // Hoisted, not per-draw. Design §6 requires 0 B/frame in steady state, and a paint plus a
-        // blend-mode colour filter built per icon per frame is exactly the allocation it forbids. The
+        // Hoisted, not per-draw. Steady state must allocate 0 B/frame, and a paint plus a
+        // blend-mode colour filter built per icon per frame is exactly the allocation that would violate it. The
         // tint never varies — the feed draws its icons in the same dim colour as its middle run — so
         // both are built once here. The CI allocation bench mounts no HUD layer, so nothing else would
         // have caught this.
@@ -316,7 +316,7 @@ public sealed class KillFeedLayer : ISceneLayer
     };
 
     // Composed once per distinct row and kept: a demo has a few hundred kills, six of which are on
-    // screen, and re-composing six strings every frame is exactly the per-frame allocation §6 forbids.
+    // screen, and re-composing six strings every frame is exactly the per-frame allocation that is forbidden.
     private RowVisual Compose(KillFeedRow row)
     {
         if (_rendered.TryGetValue(row, out RowVisual cached))

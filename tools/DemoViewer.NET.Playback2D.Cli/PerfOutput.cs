@@ -10,12 +10,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     The <c>--perf</c> flag surface and the two shapes a <see cref="PerfReport" /> comes out in
-///     (plan <c>P1-perf-instrumentation</c> §2, §4).
+///     The <c>--perf</c> flag surface and the two shapes a <see cref="PerfReport" /> comes out in.
 ///     <para>
 ///         <b>The switch is the repo's existing one, extended.</b>
 ///         <see cref="Profiling.Enabled" /> is the single process-wide runtime gate for every profiling
-///         accumulator in the stack (<c>docs/profiling.md</c>); <c>dv2d</c> had no flag surface of its
+///         accumulator in the stack; <c>dv2d</c> had no flag surface of its
 ///         own. <c>--perf</c> attaches the scene recorder for one run, and the env switch (read through
 ///         <see cref="Profiling.Enabled" />, which resolves <c>CS2DEMOKIT_PROFILE</c> on first touch)
 ///         turns it on implicitly, alongside the parse and entity trees it already governs.
@@ -30,7 +29,7 @@ namespace DemoViewer.NET.Playback2D.Cli;
 internal static class PerfOutput
 {
     /// <summary>
-    ///     The spelling <c>docs/profiling.md</c> and <c>RuntimeEnvInfo</c> still carry. The switch itself
+    ///     The spelling <c>RuntimeEnvInfo</c> still carries. The switch itself
     ///     moved into the CS2DemoKit package, whose own variable is <c>CS2DEMOKIT_PROFILE</c> and is
     ///     resolved by <see cref="Profiling.Enabled" />; honouring both means neither spelling silently
     ///     does nothing.

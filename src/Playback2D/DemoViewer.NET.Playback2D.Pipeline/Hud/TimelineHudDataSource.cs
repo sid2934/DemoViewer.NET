@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
 ///         want.
 ///     </para>
 ///     <para>
-///         <b>One list, reused.</b> <see cref="At" /> caches its last answer by tick (design §6), so the
+///         <b>One list, reused.</b> <see cref="At" /> caches its last answer by tick, so the
 ///         three HUD layers asking for the same frame do the windowing once and neither the window nor
 ///         the snapshot allocates per frame.
 ///     </para>

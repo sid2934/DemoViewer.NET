@@ -1,0 +1,1094 @@
+#region
+
+using DemoViewer.NET.Services.DemoProcessing;
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Overlay;
+using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Teams;
+
+#endregion
+
+namespace DemoViewer.NET.ViewModels.Dossier;
+
+/// <summary>
+///     The Opponent Dossier tab: a team picker over Team Identity and its built
+///     sections. The Map Pool Record: maps played, win rate, side wins, the decider record where a
+///     best-of series is inferable, and the optional user-entered veto history filed beside it. The
+///     Setup Heatmaps By Buy: one heatmap per map and CT buy with its fixed and rotating places, each of
+///     which sends its rounds to the Review Queue. The Opening Tendencies, a section VM of its own
+///     (<see cref="OpeningTendenciesSectionViewModel" />) whose every number opens its rounds the same
+///     way. The Post-Plant And Retake (<see cref="PostPlantSectionViewModel" />): plant clusters,
+///     post-plant holds and retake grouping, every number opening its rounds too. The Situational
+///     Behaviour (<see cref="SituationalBehaviourSectionViewModel" />): pistol patterns and their
+///     follow-up, anti-eco setups, man-advantage handling and save discipline, over Round Facts alone.
+///     The Period Diff: the team's last <see cref="WindowSize" /> demos against the
+///     <see cref="WindowSize" /> before those, roster to roster (<see cref="PeriodDiffService" />). And
+///     Dossier Editing And Export (<see cref="DossierEditorViewModel" />): every section's numbers as
+///     findings, re-collected whenever a section lands, starred into the one-pager and exported.
+///     <para>
+///         <b>Heatmaps build on a worker.</b> They read every one of the team's positions files and
+///         render one picture per heatmap, so the build runs off the UI thread and posts the rows first
+///         and each picture as it lands; a selection change while it runs bumps the generation and the
+///         old build posts nothing.
+///     </para>
+///     <para>
+///         Delegate-injected (the Teams tab's own precedent): the VM owns no clustering and no
+///         aggregation of its own; it reads <see cref="TeamIdentityService" /> through
+///         <see cref="MapPoolRecordService.Build" /> and re-projects on every <c>Changed</c>.
+///     </para>
+/// </summary>
+public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+{
+    private readonly DemoCacheStore _demoCache;
+
+    // One runner per section (openings, post-plant, situational, heatmaps): a queue item keyed by section in
+    // the app, so a newer build replaces a queued one.
+    private readonly Func<string, Func<Action, Task>> _runSection;
+
+    // The Opening Tendencies read it; its load and merges land after the page may have rendered.
+    private readonly GrenadeIndex? _grenades;
+    private readonly Func<byte[], Bitmap?> _decode;
+    private readonly SetupHeatmapService? _heatmaps;
+    private readonly Action<Action> _post;
+    private readonly Func<SetupHeatmapRenderer> _renderer;
+    private readonly ReviewQueue? _review;
+    private readonly Func<string, bool>? _selectTab;
+    private readonly TeamIdentityService _teams;
+    private readonly VetoHistoryStore _vetoes;
+    private bool _disposed;
+    private bool _shown = true;
+
+    // What the shown projection was built from; a Refresh that finds the same inputs keeps it.
+    private string? _projectedKey;
+
+    // Bumped per heatmap build; a worker whose generation is behind posts nothing.
+    private int _generation;
+
+    /// <summary>"12 heatmaps over 80 CT rounds", or why there are none; empty with no team selected.</summary>
+    [ObservableProperty]
+    private string _heatmapLine = "";
+
+    /// <summary>True while the heatmap worker is reading or rendering.</summary>
+    [ObservableProperty]
+    private bool _isHeatmapBuilding;
+
+    /// <summary>"12 rounds sent to Review", or why none were; empty until a heatmap is opened.</summary>
+    [ObservableProperty]
+    private string _reviewLine = "";
+
+    [ObservableProperty]
+    private VetoAction _newVetoAction = VetoAction.Ban;
+
+    [ObservableProperty]
+    private bool _newVetoByOpponent;
+
+    [ObservableProperty]
+    private string _newVetoMap = "";
+
+    [ObservableProperty]
+    private DossierTeamRow? _selectedTeam;
+
+    /// <summary>Demos per Period Diff period; one of <see cref="WindowSizeOptions" />.</summary>
+    [ObservableProperty]
+    private int _windowSize = PeriodDiffService.DefaultWindowSize;
+
+    [ObservableProperty]
+    private PeriodDiffRowViewModel? _periodDiffRecent;
+
+    [ObservableProperty]
+    private PeriodDiffRowViewModel? _periodDiffPrevious;
+
+    /// <summary>"same roster across both periods", "roster changed: r1 then r2", or why there is no diff yet.</summary>
+    [ObservableProperty]
+    private string _periodDiffNote = "";
+
+    /// <param name="teams">Team Identity, for the team picker and the sides the record is built from.</param>
+    /// <param name="demoCache">The cache a demo's map, score and side-round totals come from.</param>
+    /// <param name="vetoes">The user's manually entered veto steps, filed per opponent.</param>
+    /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
+    /// <param name="heatmaps">Builds the Setup Heatmaps By Buy; null hides the section.</param>
+    /// <param name="review">The Review Queue a heatmap's rounds are sent to; null says so on open.</param>
+    /// <param name="selectTab">Shows a tab by id, for the Review tab after a send; null stays on the Dossier.</param>
+    /// <param name="renderer">Builds the heatmap renderer per build; the pipeline's bundle loader when null.</param>
+    /// <param name="post">UI-thread marshal for the worker's results; the dispatcher when null.</param>
+    /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
+    /// <param name="openings">Builds the Opening Tendencies; null hides the section.</param>
+    /// <param name="postPlant">Builds the Post-Plant And Retake; null hides the section.</param>
+    /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
+    /// <param name="grenades">The grenade index the Opening Tendencies read; its changes re-project the team.</param>
+    /// <param name="runSection">Runs a named section's build; the pool when null.</param>
+    /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
+    /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
+    public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
+        SetupHeatmapService? heatmaps = null,
+        ReviewQueue? review = null,
+        Func<string, bool>? selectTab = null,
+        Func<SetupHeatmapRenderer>? renderer = null,
+        Action<Action>? post = null,
+        Func<byte[], Bitmap?>? decode = null,
+        OpeningTendenciesService? openings = null,
+        PostPlantService? postPlant = null,
+        SituationalBehaviourService? situational = null,
+        DossierNotesStore? notes = null,
+        Func<string, string, string, string?>? export = null,
+        GrenadeIndex? grenades = null,
+        Func<string, Func<Action, Task>>? runSection = null)
+    {
+        _grenades = grenades;
+        ArgumentNullException.ThrowIfNull(teams);
+        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(vetoes);
+        _teams = teams;
+        _demoCache = demoCache;
+        _vetoes = vetoes;
+        _heatmaps = heatmaps;
+        _review = review;
+        _selectTab = selectTab;
+        _renderer = renderer ?? (() => new SetupHeatmapRenderer());
+        _post = post ?? (action => Dispatcher.UIThread.Post(action));
+        _decode = decode ?? DecodePng;
+        IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
+        _runSection = runSection ?? (_ => work => Task.Run(work));
+        Openings = new OpeningTendenciesSectionViewModel(openings, review, selectTab, _post, _runSection("openings"));
+        PostPlant = new PostPlantSectionViewModel(postPlant, review, selectTab, _post, _runSection("post-plant"));
+        Situational = new SituationalBehaviourSectionViewModel(situational, review, selectTab, _post, _runSection("situational"));
+        Editor = new DossierEditorViewModel(notes ?? new DossierNotesStore(null), IsBrowser, export);
+        Openings.PropertyChanged += OnSectionChanged;
+        PostPlant.PropertyChanged += OnSectionChanged;
+        Situational.PropertyChanged += OnSectionChanged;
+        Editor.Projected += OnEditorProjected;
+        foreach (DossierSectionViewModel section in (DossierSectionViewModel[])[RecordSection, RosterSection, VetoSection, NotesSection])
+        {
+            section.PropertyChanged += OnSectionToggled;
+        }
+
+        _teams.Changed += Refresh;
+        _vetoes.Changed += ProjectVetoes;
+        if (_grenades is not null)
+        {
+            _grenades.Changed += Refresh;
+        }
+        Refresh();
+    }
+
+    /// <summary>The line the panel shows on the browser host: nothing here outlives the tab.</summary>
+    public static string BrowserNote => TeamIdentityService.BrowserNote;
+
+    public bool IsBrowser { get; }
+
+    public ObservableCollection<DossierTeamRow> Teams { get; } = [];
+
+    public ObservableCollection<MapPoolRowViewModel> Maps { get; } = [];
+
+    public ObservableCollection<VetoRowViewModel> Vetoes { get; } = [];
+
+    /// <summary>A section starts open with this many findings or fewer, the Review queue's rule.</summary>
+    public const int OpenSectionLimit = 50;
+
+    // Open or closed per section key, for the session.
+    private readonly Dictionary<string, bool> _expanded = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>One section per map the team has numbers on, in map pool order.</summary>
+    public ObservableCollection<DossierMapSectionViewModel> MapSections { get; } = [];
+
+    public DossierGeneralSectionViewModel RecordSection { get; } = new("record", "Overall record", true);
+
+    public DossierGeneralSectionViewModel RosterSection { get; } = new("roster", "Roster and form", true);
+
+    public DossierGeneralSectionViewModel VetoSection { get; } = new("vetoes", "Veto history", true);
+
+    public DossierGeneralSectionViewModel NotesSection { get; } = new("notes", "Notes and findings", true);
+
+    public bool HasMapSections => MapSections.Count > 0;
+
+    private IEnumerable<DossierSectionViewModel> AllSections =>
+        [RecordSection, .. MapSections, RosterSection, VetoSection, NotesSection];
+
+    [RelayCommand]
+    private void ExpandAll()
+    {
+        foreach (DossierSectionViewModel section in AllSections)
+        {
+            section.IsExpanded = true;
+        }
+    }
+
+    [RelayCommand]
+    private void CollapseAll()
+    {
+        foreach (DossierSectionViewModel section in AllSections)
+        {
+            section.IsExpanded = false;
+        }
+    }
+
+    // True while the tab itself opens or closes a section by the findings rule, so only the user's own
+    // clicks are remembered.
+    private bool _applyingDefault;
+
+    private void OpenByDefault(DossierSectionViewModel section, int findings)
+    {
+        if (_expanded.ContainsKey(section.Key))
+        {
+            return;
+        }
+
+        _applyingDefault = true;
+        section.IsExpanded = findings <= OpenSectionLimit;
+        _applyingDefault = false;
+    }
+
+    private void OnSectionToggled(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (!_applyingDefault && e.PropertyName == nameof(DossierSectionViewModel.IsExpanded) && sender is DossierSectionViewModel section)
+        {
+            _expanded[section.Key] = section.IsExpanded;
+        }
+    }
+
+    // Regroups every section's lists by map. Sections that stay keep their view model, so an open one
+    // stays open and its rows are not rebuilt for a map whose lists did not change.
+    private void RebuildSections()
+    {
+        List<string> maps = [.. Maps.Select(m => m.Map)];
+        foreach (string map in Heatmaps.Select(h => h.Map)
+                     .Concat(Openings.Blocks.Select(b => b.Map))
+                     .Concat(PostPlant.Blocks.Select(b => b.Map))
+                     .Concat(Situational.Blocks.Select(b => b.Map))
+                     .Concat(Editor.MapFindings.Keys)
+                     .Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!maps.Contains(map, StringComparer.OrdinalIgnoreCase))
+            {
+                maps.Add(map);
+            }
+        }
+
+        Dictionary<string, DossierMapSectionViewModel> existing = MapSections.ToDictionary(m => m.Map, StringComparer.OrdinalIgnoreCase);
+        List<DossierMapSectionViewModel> wanted = [];
+        foreach (string map in maps)
+        {
+            List<DossierFindingViewModel> findings = Editor.MapFindings.TryGetValue(map, out List<DossierFindingViewModel>? f) ? f : [];
+            if (!existing.TryGetValue(map, out DossierMapSectionViewModel? section))
+            {
+                section = new DossierMapSectionViewModel(map, _expanded.TryGetValue("map|" + map, out bool open) && open);
+                section.PropertyChanged += OnSectionToggled;
+            }
+
+            OpenByDefault(section, findings.Count);
+
+            bool same(string m) => string.Equals(m, map, StringComparison.OrdinalIgnoreCase);
+            section.Set(Maps.FirstOrDefault(m => same(m.Map)), [.. Heatmaps.Where(h => same(h.Map))],
+                [.. Openings.Blocks.Where(b => same(b.Map))], [.. PostPlant.Blocks.Where(b => same(b.Map))],
+                [.. Situational.Blocks.Where(b => same(b.Map))], findings);
+            wanted.Add(section);
+        }
+
+        if (!wanted.SequenceEqual(MapSections))
+        {
+            foreach (DossierMapSectionViewModel gone in MapSections.Except(wanted))
+            {
+                gone.PropertyChanged -= OnSectionToggled;
+            }
+
+            MapSections.Clear();
+            foreach (DossierMapSectionViewModel section in wanted)
+            {
+                MapSections.Add(section);
+            }
+        }
+
+        RecordSection.SetCount(Maps.Count == 0 ? "" : OpeningTendenciesSectionViewModel.Plural(Maps.Count, "map"));
+        VetoSection.SetCount(Vetoes.Count == 0 ? "" : OpeningTendenciesSectionViewModel.Plural(Vetoes.Count, "step"));
+        SetNotesCount();
+        OnPropertyChanged(nameof(HasMapSections));
+    }
+
+    private void OnEditorProjected()
+    {
+        foreach (DossierMapSectionViewModel section in MapSections)
+        {
+            List<DossierFindingViewModel> findings = Editor.MapFindings.TryGetValue(section.Map, out List<DossierFindingViewModel>? f) ? f : [];
+            section.SetFindings(findings);
+            OpenByDefault(section, findings.Count);
+        }
+
+        SetNotesCount();
+    }
+
+    private void SetNotesCount()
+    {
+        int general = Editor.GeneralFindings.Count;
+        NotesSection.SetCount(OpeningTendenciesSectionViewModel.Plural(general, "finding"));
+        OpenByDefault(NotesSection, general);
+    }
+
+    public bool HasTeams => Teams.Count > 0;
+
+    public bool HasSelection => SelectedTeam is not null;
+
+    public bool HasMaps => Maps.Count > 0;
+
+    public bool HasVetoes => Vetoes.Count > 0;
+
+    /// <summary>The selected team's Setup Heatmaps By Buy, in the service's order.</summary>
+    public ObservableCollection<SetupHeatmapViewModel> Heatmaps { get; } = [];
+
+    /// <summary>This host builds heatmaps at all.</summary>
+    public bool HasHeatmapSection => _heatmaps is not null;
+
+    public bool HasHeatmaps => Heatmaps.Count > 0;
+
+    /// <summary>The selected team's Opening Tendencies.</summary>
+    public OpeningTendenciesSectionViewModel Openings { get; }
+
+    /// <summary>The selected team's Post-Plant And Retake.</summary>
+    public PostPlantSectionViewModel PostPlant { get; }
+
+    /// <summary>The selected team's Situational Behaviour.</summary>
+    public SituationalBehaviourSectionViewModel Situational { get; }
+
+    /// <summary>The selected team's findings, the long form, the one-pager and the export.</summary>
+    public DossierEditorViewModel Editor { get; }
+
+    /// <summary>The running heatmap build; tests await it.</summary>
+    internal Task HeatmapTask { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The two veto step kinds, for the add-row picker.</summary>
+    public static IReadOnlyList<VetoAction> VetoActionOptions { get; } = Enum.GetValues<VetoAction>();
+
+    /// <summary>The window sizes the Period Diff picker offers.</summary>
+    public static IReadOnlyList<int> WindowSizeOptions { get; } = [3, 5, 10, 20];
+
+    public bool HasPeriodDiff => PeriodDiffRecent is not null;
+
+    /// <summary>"18 demos": the section's own overall sample size, or the empty-state line.</summary>
+    public string SampleSizeLine { get; private set; } = "";
+
+    /// <summary>"Deciders: 3-1 (4)" or "" when nothing is inferable.</summary>
+    public string DeciderLine { get; private set; } = "";
+
+    public bool HasDeciderData => DeciderLine.Length > 0;
+
+    public bool VetoesAreSessionOnly => _vetoes.IsSessionOnly;
+
+    /// <inheritdoc />
+    public void OnActivated(IModuleContext context)
+    {
+        _shown = true;
+        using (QueueWork.UserAction())
+        {
+            Refresh();
+        }
+    }
+
+    /// <inheritdoc />
+    public void OnDeactivated() => _shown = false;
+
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        Interlocked.Increment(ref _generation);
+        RetireHeatmaps();
+        Openings.Dispose();
+        PostPlant.Dispose();
+        Situational.Dispose();
+        Openings.PropertyChanged -= OnSectionChanged;
+        PostPlant.PropertyChanged -= OnSectionChanged;
+        Situational.PropertyChanged -= OnSectionChanged;
+        Editor.Projected -= OnEditorProjected;
+        _teams.Changed -= Refresh;
+        _vetoes.Changed -= ProjectVetoes;
+        if (_grenades is not null)
+        {
+            _grenades.Changed -= Refresh;
+        }
+    }
+
+    partial void OnSelectedTeamChanged(DossierTeamRow? value)
+    {
+        NewVetoMap = "";
+        using (QueueWork.UserAction())
+        {
+            Project();
+        }
+
+        OnPropertyChanged(nameof(HasSelection));
+    }
+
+    partial void OnWindowSizeChanged(int value)
+    {
+        ProjectPeriodDiff();
+        CollectFindings();
+    }
+
+    // A section's worker landed (or the section cleared): its numbers are the findings' source.
+    private void OnSectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OpeningTendenciesSectionViewModel.IsBuilding) && sender is ObservableObject section
+                                                                                     && !IsSectionBuilding(section))
+        {
+            CollectFindings();
+        }
+    }
+
+    private static bool IsSectionBuilding(ObservableObject section) => section switch
+    {
+        OpeningTendenciesSectionViewModel o => o.IsBuilding,
+        PostPlantSectionViewModel p => p.IsBuilding,
+        SituationalBehaviourSectionViewModel s => s.IsBuilding,
+        _ => false
+    };
+
+    /// <summary>
+    ///     Re-collects every section's lines into the editor, in the tab's own order: the Map Pool Record,
+    ///     the Setup Heatmaps, the Opening Tendencies, the Post-Plant And Retake, the Situational
+    ///     Behaviour, the Period Diff and the veto history.
+    /// </summary>
+    private void CollectFindings()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (SelectedTeam is not { } row)
+        {
+            Editor.Load(null, "", "", []);
+            RebuildSections();
+            return;
+        }
+
+        List<DossierFindingSource> sources =
+        [
+            .. DossierEditorViewModel.FromMapPool(Maps, DeciderLine),
+            .. DossierEditorViewModel.FromHeatmaps(Heatmaps),
+            .. DossierEditorViewModel.FromOpenings(Openings.Blocks),
+            .. DossierEditorViewModel.FromPostPlant(PostPlant.Blocks),
+            .. DossierEditorViewModel.FromSituational(Situational.Blocks),
+            .. DossierEditorViewModel.FromPeriodDiff(PeriodDiffRecent, PeriodDiffPrevious, PeriodDiffNote),
+            .. DossierEditorViewModel.FromVetoes(Vetoes)
+        ];
+        Editor.Load(row.Id, row.Name, SampleSizeLine, sources);
+        RebuildSections();
+    }
+
+    [RelayCommand]
+    private void AddVeto()
+    {
+        if (SelectedTeam is not { } team || string.IsNullOrWhiteSpace(NewVetoMap))
+        {
+            return;
+        }
+
+        _vetoes.Add(new VetoEntry
+        {
+            OpponentTeamId = team.Id,
+            Order = Vetoes.Count + 1,
+            Map = NewVetoMap.Trim(),
+            Action = NewVetoAction,
+            ByOpponent = NewVetoByOpponent
+        });
+        NewVetoMap = "";
+    }
+
+    [RelayCommand]
+    private void RemoveVeto(VetoRowViewModel? row)
+    {
+        if (row is not null)
+        {
+            _vetoes.Remove(row.Id);
+        }
+    }
+
+    private void Refresh()
+    {
+        if (!_shown)
+        {
+            return;
+        }
+
+        List<DossierTeamRow> rows = [.. _teams.Teams.Select(t => new DossierTeamRow(t))];
+        if (rows.Count == Teams.Count && rows.Zip(Teams).All(p => p.First.SameAs(p.Second)))
+        {
+            // Same rows: the selection stays put, and only a change in what the selected team is built from
+            // re-projects. Every Team Identity recompute raises Changed, whichever team it touched.
+            if (SelectedTeam is { } selected && ProjectionKey(selected) != _projectedKey)
+            {
+                Project();
+            }
+
+            return;
+        }
+
+        Guid? keep = SelectedTeam?.Id;
+        Teams.Clear();
+        foreach (DossierTeamRow row in rows)
+        {
+            Teams.Add(row);
+        }
+
+        OnPropertyChanged(nameof(HasTeams));
+        SelectedTeam = keep is { } id ? Teams.FirstOrDefault(t => t.Id == id) : null;
+        if (keep is not null && SelectedTeam is null)
+        {
+            Project();
+        }
+    }
+
+    // The team, its sides with their assignments, and the cache stamps of those demos: everything the
+    // projection reads that a Team Identity change can move.
+    private string ProjectionKey(DossierTeamRow row)
+    {
+        StringBuilder key = new();
+        key.Append(JsonSerializer.Serialize(_teams.AllTeams.FirstOrDefault(t => t.Id == row.Id)));
+        key.Append(CultureInfo.InvariantCulture, $"|grenades:{_grenades?.IsReady}");
+        foreach ((DemoRef demo, int side, TeamAssignment assignment) in _teams.SidesOf(row.Id))
+        {
+            key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
+            if (_demoCache.TryGetIndex(demo.Path) is { } entry)
+            {
+                key.Append(CultureInfo.InvariantCulture,
+                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsStamp()?.Fingerprint}/{entry.RoundIndexStamp()?.Fingerprint}/{entry.RoundIndexComputedAtTicks()}/{entry.GrenadesStamp()?.State ?? DemoAnalysisState.Pending}/{entry.GrenadesStamp()?.Count ?? 0}/{entry.GrenadesStamp()?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
+            }
+        }
+
+        return key.ToString();
+    }
+
+    private void Project()
+    {
+        _projectedKey = SelectedTeam is { } selected ? ProjectionKey(selected) : null;
+        Maps.Clear();
+        if (SelectedTeam is not { } row)
+        {
+            SampleSizeLine = "";
+            DeciderLine = "";
+            OnPropertyChanged(nameof(HasMaps));
+            OnPropertyChanged(nameof(SampleSizeLine));
+            OnPropertyChanged(nameof(DeciderLine));
+            OnPropertyChanged(nameof(HasDeciderData));
+            ProjectVetoes(collect: false);
+            BuildHeatmaps();
+            Openings.Load(null, "");
+            PostPlant.Load(null, "");
+            Situational.Load(null, "");
+            ProjectPeriodDiff();
+            CollectFindings();
+            return;
+        }
+
+        MapPoolRecord record = MapPoolRecordService.Build(_teams, _demoCache, row.Id);
+        foreach (MapPoolMapRow map in record.Maps)
+        {
+            Maps.Add(new MapPoolRowViewModel(map));
+        }
+
+        SampleSizeLine = record.TotalDemos == 0
+            ? "no demos yet: this team has no side assigned in any indexed demo"
+            : $"{record.TotalDemos} demo{(record.TotalDemos == 1 ? "" : "s")} across {record.Maps.Count} map{(record.Maps.Count == 1 ? "" : "s")}";
+        DeciderLine = record.Deciders.Played == 0
+            ? ""
+            : $"Deciders: {record.Deciders.Wins}-{record.Deciders.Losses} ({record.Deciders.Played} inferable)";
+
+        OnPropertyChanged(nameof(HasMaps));
+        OnPropertyChanged(nameof(SampleSizeLine));
+        OnPropertyChanged(nameof(DeciderLine));
+        OnPropertyChanged(nameof(HasDeciderData));
+        ProjectVetoes(collect: false);
+        BuildHeatmaps();
+        Openings.Load(row.Id, row.Name);
+        PostPlant.Load(row.Id, row.Name);
+        Situational.Load(row.Id, row.Name);
+        ProjectPeriodDiff();
+        CollectFindings();
+    }
+
+    // Synchronous like the Map Pool Record: SidesOf is already in memory, so a window-size change
+    // (or a team change) re-derives without a worker.
+    private void ProjectPeriodDiff()
+    {
+        if (SelectedTeam is not { } row)
+        {
+            PeriodDiffRecent = null;
+            PeriodDiffPrevious = null;
+            PeriodDiffNote = "";
+            OnPropertyChanged(nameof(HasPeriodDiff));
+            return;
+        }
+
+        PeriodDiffSet set = PeriodDiffService.Build(_teams, _demoCache, row.Id, WindowSize);
+        PeriodDiffRecent = new PeriodDiffRowViewModel(set.Recent);
+        PeriodDiffPrevious = new PeriodDiffRowViewModel(set.Previous);
+        PeriodDiffNote = PeriodDiffNoteFor(set);
+        OnPropertyChanged(nameof(HasPeriodDiff));
+    }
+
+    /// <summary>The section's own summary line for a finished build.</summary>
+    /// <param name="set">The build.</param>
+    public static string PeriodDiffNoteFor(PeriodDiffSet set)
+    {
+        ArgumentNullException.ThrowIfNull(set);
+        if (!set.HasBothPeriods)
+        {
+            return set.TotalDemos == 0
+                ? "no demos yet: this team has no side assigned in any indexed demo"
+                : $"only {Plural(set.TotalDemos, "demo")} so far: not enough for two periods of {set.WindowSize}";
+        }
+
+        if (!set.RosterChanged)
+        {
+            return set.Recent.DominantRoster is null
+                ? "no roster resolved in either period"
+                : "same roster across both periods";
+        }
+
+        return $"roster changed: {set.Previous.DominantRoster!.Label} then {set.Recent.DominantRoster!.Label}";
+    }
+
+    /// <summary>The Review Queue clip for one of a heatmap's rounds: freeze end to the setup window's end plus the tail.</summary>
+    /// <param name="heatmap">The heatmap.</param>
+    /// <param name="round">One of its rounds.</param>
+    /// <param name="teamId">The dossier's team.</param>
+    public static ReviewEntry ReviewClipFor(SetupHeatmap heatmap, SetupHeatmapRound round, Guid? teamId = null)
+    {
+        ArgumentNullException.ThrowIfNull(heatmap);
+        ArgumentNullException.ThrowIfNull(round);
+        return ReviewEntry.Clip(round.DemoPath, round.FreezeEndTick, round.ClipEndTick,
+            $"{heatmap.Map} · {SetupHeatmapViewModel.BuyLabelFor(heatmap.Buy)} · round {round.RoundNumber}",
+            ReviewSources.Dossier, round.TickRate, round.Sha256) with { TeamId = teamId };
+    }
+
+    /// <summary>The section line for a finished build.</summary>
+    /// <param name="set">The build.</param>
+    public static string HeatmapLineFor(SetupHeatmapSet set)
+    {
+        ArgumentNullException.ThrowIfNull(set);
+        if (set.Heatmaps.Count == 0)
+        {
+            return set.DemosRead + set.DemosWithoutPositions == 0
+                ? "no CT rounds yet: no demo of this team has round facts"
+                : "no CT rounds: Team Identity put this team on CT in no round with facts";
+        }
+
+        int rounds = set.Heatmaps.Sum(h => h.Rounds.Count);
+        string line = $"{Plural(set.Heatmaps.Count, "heatmap")} over {Plural(rounds, "CT round")}";
+        return set.DemosWithoutPositions == 0
+            ? line
+            : $"{line} · {Plural(set.DemosWithoutPositions, "demo")} without positions; rebuild the index";
+    }
+
+    /// <summary>
+    ///     Sends a heatmap's rounds to the Review Queue under one title card naming the team, the map and
+    ///     the buy, then shows the Review tab. Rounds already queued are skipped.
+    /// </summary>
+    /// <param name="heatmap">The heatmap clicked.</param>
+    [RelayCommand]
+    private void OpenRounds(SetupHeatmapViewModel? heatmap)
+    {
+        if (heatmap is null || heatmap.Heatmap.Rounds.Count == 0)
+        {
+            return;
+        }
+
+        if (_review is null)
+        {
+            ReviewLine = "no Review Queue on this host";
+            return;
+        }
+
+        SetupHeatmap model = heatmap.Heatmap;
+        string team = SelectedTeam?.Name ?? "";
+        Guid? teamId = SelectedTeam?.Id;
+        int added = _review.Add(model.Rounds.Select(r => ReviewClipFor(model, r, teamId)),
+            $"Dossier · {team} · {model.Map} {heatmap.BuyLabel}", Plural(model.Rounds.Count, "CT round"));
+        ReviewLine = added == 0 ? "already in Review" : $"{Plural(added, "round")} sent to Review";
+        _selectTab?.Invoke(ReviewQueueModule.TabId);
+    }
+
+    private void BuildHeatmaps()
+    {
+        int generation = Interlocked.Increment(ref _generation);
+        RetireHeatmaps();
+        ReviewLine = "";
+        OnPropertyChanged(nameof(HasHeatmaps));
+        if (_heatmaps is null || SelectedTeam is not { } row)
+        {
+            HeatmapLine = "";
+            IsHeatmapBuilding = false;
+            HeatmapTask = Task.CompletedTask;
+            return;
+        }
+
+        IsHeatmapBuilding = true;
+        HeatmapLine = "reading positions";
+        Guid teamId = row.Id;
+        HeatmapTask = _runSection("heatmaps")(() => RunHeatmaps(generation, teamId));
+    }
+
+    // The worker: one build, the rows posted at once, then one render per heatmap from its own
+    // OverlayDocument, each picture posted as it lands.
+    private void RunHeatmaps(int generation, Guid teamId)
+    {
+        SetupHeatmapSet set;
+        try
+        {
+            set = _heatmaps!.Build(teamId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _post(() =>
+            {
+                if (generation == Volatile.Read(ref _generation))
+                {
+                    IsHeatmapBuilding = false;
+                    HeatmapLine = $"heatmaps unavailable: {ex.Message}";
+                }
+            });
+            return;
+        }
+
+        List<SetupHeatmapViewModel> rows = [.. set.Heatmaps.Select(h => new SetupHeatmapViewModel(h))];
+        _post(() =>
+        {
+            if (generation != Volatile.Read(ref _generation))
+            {
+                return;
+            }
+
+            foreach (SetupHeatmapViewModel heatmap in rows)
+            {
+                Heatmaps.Add(heatmap);
+            }
+
+            OnPropertyChanged(nameof(HasHeatmaps));
+            HeatmapLine = HeatmapLineFor(set);
+            CollectFindings();
+        });
+
+        using (SetupHeatmapRenderer renderer = _renderer())
+        {
+            foreach (SetupHeatmapViewModel heatmap in rows)
+            {
+                if (generation != Volatile.Read(ref _generation))
+                {
+                    return;
+                }
+
+                byte[]? png = heatmap.Overlay.IsEmpty ? null : renderer.Render(heatmap.Overlay);
+                Bitmap? bitmap = png is null ? null : _decode(png);
+                _post(() =>
+                {
+                    if (generation == Volatile.Read(ref _generation))
+                    {
+                        heatmap.ApplyImage(png, bitmap);
+                    }
+                    else
+                    {
+                        bitmap?.Dispose();
+                    }
+                });
+            }
+        }
+
+        _post(() =>
+        {
+            if (generation == Volatile.Read(ref _generation))
+            {
+                IsHeatmapBuilding = false;
+            }
+        });
+    }
+
+    // Empties the list and disposes its pictures one post later, once the view has let go of them.
+    private void RetireHeatmaps()
+    {
+        if (Heatmaps.Count == 0)
+        {
+            return;
+        }
+
+        SetupHeatmapViewModel[] retired = [.. Heatmaps];
+        Heatmaps.Clear();
+        _post(() =>
+        {
+            foreach (SetupHeatmapViewModel heatmap in retired)
+            {
+                heatmap.ReleaseImage();
+            }
+        });
+    }
+
+    private static string Plural(int count, string noun) =>
+        count == 1 ? $"1 {noun}" : $"{count.ToString("N0", CultureInfo.InvariantCulture)} {noun}s";
+
+    private static Bitmap? DecodePng(byte[] png)
+    {
+        try
+        {
+            using MemoryStream stream = new(png);
+            return new Bitmap(stream);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private void ProjectVetoes() => ProjectVetoes(collect: true);
+
+    private void ProjectVetoes(bool collect)
+    {
+        Vetoes.Clear();
+        if (SelectedTeam is { } row)
+        {
+            foreach (VetoEntry entry in _vetoes.For(row.Id))
+            {
+                Vetoes.Add(new VetoRowViewModel(entry));
+            }
+        }
+
+        OnPropertyChanged(nameof(VetoesAreSessionOnly));
+        OnPropertyChanged(nameof(HasVetoes));
+        if (collect)
+        {
+            CollectFindings();
+        }
+    }
+}
+
+/// <summary>One team in the Dossier's picker.</summary>
+public sealed class DossierTeamRow(Team team)
+{
+    public Guid Id { get; } = team.Id;
+
+    public string Name { get; } = DisplayText.Sanitize(team.Name);
+
+    public bool IsUs { get; } = team.IsUs;
+
+    /// <summary>Whether <paramref name="other" /> shows the same team the same way.</summary>
+    public bool SameAs(DossierTeamRow other) =>
+        Id == other.Id && IsUs == other.IsUs && string.Equals(Name, other.Name, StringComparison.Ordinal);
+}
+
+/// <summary>One map row of the selected team's Map Pool Record, worded for display.</summary>
+public sealed class MapPoolRowViewModel
+{
+    public MapPoolRowViewModel(MapPoolMapRow row)
+    {
+        Map = row.Map;
+        PlayedLabel = $"{row.Played} played";
+        RecordLabel = row.Wins + row.Losses == 0
+            ? "no resolved score"
+            : $"{row.Wins}-{row.Losses}" + (row.Undetermined > 0 ? $" ({row.Undetermined} undetermined)" : "");
+        WinRateLabel = row.WinRate is { } wr
+            ? wr.ToString("P0", CultureInfo.InvariantCulture)
+            : "—";
+        SideLabel = row.HasRoundData
+            ? $"CT {row.CtRoundsWon}-{row.TRoundsWon} T ({row.CtRoundShare!.Value:P0} CT)"
+            : "no round data";
+    }
+
+    public string Map { get; }
+
+    public string PlayedLabel { get; }
+
+    public string RecordLabel { get; }
+
+    public string WinRateLabel { get; }
+
+    public string SideLabel { get; }
+}
+
+/// <summary>One period (last or previous) of a Period Diff, worded for display.</summary>
+public sealed class PeriodDiffRowViewModel
+{
+    public PeriodDiffRowViewModel(PeriodDiffPeriod period)
+    {
+        ArgumentNullException.ThrowIfNull(period);
+        Label = period.Label;
+        CountLabel = period.Count == 1 ? "1 demo" : $"{period.Count} demos";
+        RecordLabel = period.Wins + period.Losses == 0
+            ? "no resolved score"
+            : $"{period.Wins}-{period.Losses}" + (period.Undetermined > 0 ? $" ({period.Undetermined} undetermined)" : "");
+        WinRateLabel = period.WinRate is { } wr
+            ? wr.ToString("P0", CultureInfo.InvariantCulture)
+            : "—";
+        SideLabel = period.HasRoundData
+            ? $"CT {period.CtRoundsWon}-{period.TRoundsWon} T ({period.CtRoundShare!.Value:P0} CT)"
+            : "no round data";
+        RosterLabel = period.DominantRoster is not { } roster
+            ? "no roster resolved"
+            : period.Rosters.Count > 1
+                ? $"{roster.Label} (+{period.Rosters.Count - 1} more)"
+                : roster.Label;
+        StandInLabel = period.StandInCount == 0 ? "" : $"{period.StandInCount} with a stand-in";
+    }
+
+    /// <summary>"last" or "previous".</summary>
+    public string Label { get; }
+
+    public string CountLabel { get; }
+
+    public string RecordLabel { get; }
+
+    public string WinRateLabel { get; }
+
+    public string SideLabel { get; }
+
+    /// <summary>The period's dominant roster, or the count of rosters it spans when more than one played it.</summary>
+    public string RosterLabel { get; }
+
+    public string StandInLabel { get; }
+
+    public bool HasStandIn => StandInLabel.Length > 0;
+}
+
+/// <summary>One user-entered veto step, worded for display.</summary>
+public sealed class VetoRowViewModel(VetoEntry entry)
+{
+    public Guid Id { get; } = entry.Id;
+
+    public int Order { get; } = entry.Order;
+
+    public string Map { get; } = entry.Map;
+
+    public string ActionLabel { get; } = entry.Action == VetoAction.Ban ? "Ban" : "Pick";
+
+    public string ByLabel { get; } = entry.ByOpponent ? "them" : "us";
+
+    public string Note { get; } = entry.Note;
+}
+
+/// <summary>
+///     One Setup Heatmap, worded for display: the map and buy, the sample, the fixed and rotating
+///     places, and the picture. The heatmap's points sit in its own <see cref="OverlayDocument" />, the
+///     Overlay View's input, which the renderer draws through the Overlay View's own layer.
+/// </summary>
+public sealed partial class SetupHeatmapViewModel : ObservableObject
+{
+    /// <summary>The note in place of a picture when no round of the heatmap had a sampled setup.</summary>
+    public const string NoPositionsNote = "no positions in the setup window; rebuild the index";
+
+    [ObservableProperty]
+    private Bitmap? _image;
+
+    [ObservableProperty]
+    private string _imageNote = "";
+
+    public SetupHeatmapViewModel(SetupHeatmap heatmap)
+    {
+        ArgumentNullException.ThrowIfNull(heatmap);
+        Heatmap = heatmap;
+        Overlay = new OverlayDocument();
+        if (heatmap.Points.Count > 0)
+        {
+            Overlay.Replace(heatmap.Map, heatmap.Points, heatmap.StateCount);
+        }
+        else
+        {
+            _imageNote = NoPositionsNote;
+        }
+
+        BuyLabel = BuyLabelFor(heatmap.Buy);
+        int rounds = heatmap.Rounds.Count;
+        RoundsLabel = $"{rounds} round{(rounds == 1 ? "" : "s")} · {heatmap.SampledRounds} with a setup sampled";
+        OpenLabel = $"Open {rounds} round{(rounds == 1 ? "" : "s")}";
+        FixedLabel = PlacesLabel("fixed", heatmap.Positions.Where(p => p.IsFixed));
+        RotatingLabel = PlacesLabel("rotating", heatmap.Positions.Where(p => !p.IsFixed));
+    }
+
+    public SetupHeatmap Heatmap { get; }
+
+    /// <summary>The heatmap's points, the Overlay View's document; empty when no round was sampled.</summary>
+    public OverlayDocument Overlay { get; }
+
+    public string Map => Heatmap.Map;
+
+    /// <summary>"full buy".</summary>
+    public string BuyLabel { get; }
+
+    /// <summary>"12 rounds · 10 with a setup sampled".</summary>
+    public string RoundsLabel { get; }
+
+    /// <summary>"fixed: BombsiteA 9/10, Ramp 7/10", or "fixed: none".</summary>
+    public string FixedLabel { get; }
+
+    /// <summary>"rotating: Heaven 3/10", or "rotating: none".</summary>
+    public string RotatingLabel { get; }
+
+    /// <summary>"Open 12 rounds".</summary>
+    public string OpenLabel { get; }
+
+    /// <summary>The rendered PNG, kept for a test; null until rendered or with nothing to draw.</summary>
+    public byte[]? ImagePng { get; private set; }
+
+    public bool HasImage => Image is not null;
+
+    public bool HasImageNote => ImageNote.Length > 0;
+
+    /// <summary>The label for a buy class, lower case the way the fact vocabulary spells it.</summary>
+    /// <param name="buy">The buy.</param>
+    public static string BuyLabelFor(BuyType buy) => buy switch
+    {
+        BuyType.Pistol => "pistol",
+        BuyType.Eco => "eco",
+        BuyType.Semi => "semi buy",
+        BuyType.Force => "force buy",
+        BuyType.Full => "full buy",
+        _ => "unknown buy"
+    };
+
+    /// <summary>Lands a rendered picture; a null PNG leaves the note.</summary>
+    /// <param name="png">The PNG, or null.</param>
+    /// <param name="bitmap">The decoded bitmap, or null.</param>
+    public void ApplyImage(byte[]? png, Bitmap? bitmap)
+    {
+        ImagePng = png;
+        Image = bitmap;
+        ImageNote = png is null ? NoPositionsNote : "";
+        OnPropertyChanged(nameof(HasImage));
+        OnPropertyChanged(nameof(HasImageNote));
+    }
+
+    /// <summary>Drops the picture and disposes it; the note stays. For a heatmap no longer shown.</summary>
+    public void ReleaseImage()
+    {
+        if (Image is not { } image)
+        {
+            return;
+        }
+
+        Image = null;
+        OnPropertyChanged(nameof(HasImage));
+        image.Dispose();
+    }
+
+    private static string PlacesLabel(string kind, IEnumerable<SetupPosition> places)
+    {
+        string[] parts = [.. places.Select(p => $"{p.Place} {p.RoundsHeld}/{p.SampledRounds}")];
+        return $"{kind}: {(parts.Length == 0 ? "none" : string.Join(", ", parts))}";
+    }
+}

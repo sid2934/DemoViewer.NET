@@ -452,7 +452,7 @@ public class SyncEngineTests
                 "degraded with the CS2-side demo path");
             await Assert.That(probe.Current.Reason).Contains("user_pick.dem");
 
-            // D7: the reconciler must NOT fight the user by re-pushing DV's demo uninvited.
+            // The reconciler must NOT fight the user by re-pushing DV's demo uninvited.
             await Task.Delay(_fast.Settle * 6);
             await Assert.That(client.Count("load:")).IsEqualTo(loadsBefore);
 

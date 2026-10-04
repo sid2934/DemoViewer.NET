@@ -179,7 +179,7 @@ public class SceneFixtureTests
         Markers =
         [
             new PlayerMarker(0, 2, 10.5f, -20.25f, 64f, 91.5f, RingState.Shooting, 0.75, "NE", true,
-                -12.5f, 0.4f, 76561197960265728),
+                -12.5f, 0.4f, 76561197960265728, "BombsiteA"),
             new PlayerMarker(5, 3, -300f, 400f, 128f, 12f, RingState.Dead, 1.0, "KI", false)
         ],
         AreaEffects =
@@ -198,6 +198,18 @@ public class SceneFixtureTests
                 {
                     new GrenadeTrailPoint(1f, 2f, 3f),
                     new GrenadeTrailPoint(4f, 5f, 6f)
+                }
+            }
+        ],
+        Routes =
+        [
+            new TokenRouteLine
+            {
+                Team = 2,
+                Points =
+                {
+                    new GrenadeTrailPoint(10f, 20f, 30f),
+                    new GrenadeTrailPoint(40f, 50f, 30f)
                 }
             }
         ],
@@ -292,6 +304,7 @@ public class SceneFixtureTests
             yield return item switch
             {
                 GrenadeTrail t => $"Trail({t.Kind},{t.LastTick},{t.Alpha},{Describe(t.Points)})",
+                TokenRouteLine r => $"Route({r.Team},{Describe(r.Points)})",
                 MapRadarImage r => $"Radar({r.Name},{r.Bounds},{r.MinZ},{r.MaxZ})",
                 VisionCone c => $"Cone({c.Slot},{c.Team},{c.ApexX},{c.ApexY},{c.ApexZ},{Describe(c.Fan)})",
                 _ => Describe(item)

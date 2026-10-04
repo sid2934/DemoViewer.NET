@@ -28,6 +28,56 @@ public class InputToolRouterTests
     }
 
     /// <summary>
+    ///     The keymap's tool scope keys off this flag, so Space holds to pan and Esc cancels under every
+    ///     authoring tool: the pen, the shapes, text, the token tool, anything but
+    ///     pan/zoom. <see cref="ToolKinds.IsAnnotationTool" /> stays the narrower "does it write ink".
+    /// </summary>
+    [Test]
+    public async Task IsDrawingToolActive_ForEveryKindButPanZoom()
+    {
+        (InputToolRouter router, FakeToolServices _, PaneSet _) = Build();
+        router.Register(new ShapeTool(ToolKind.Line));
+        router.Register(new ShapeTool(ToolKind.Arrow));
+        router.Register(new ShapeTool(ToolKind.Rect));
+        router.Register(new ShapeTool(ToolKind.Ellipse));
+        router.Register(new TextTool());
+        router.Register(new InertTool(ToolKind.Token));
+        router.Register(new InertTool(ToolKind.QueryToken));
+
+        List<string> wrong = [];
+        foreach (ToolKind kind in Enum.GetValues<ToolKind>())
+        {
+            router.SetActive(kind);
+            if (router.ActiveKind != kind || router.IsDrawingToolActive != (kind != ToolKind.PanZoom))
+            {
+                wrong.Add(kind.ToString());
+            }
+        }
+
+        await Assert.That(wrong).IsEmpty();
+        await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.Token)).IsFalse();
+        await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.QueryToken)).IsFalse();
+    }
+
+    [Test]
+    public async Task AShapeGesture_ThroughTheRouter_CommitsOneShape()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.Register(new ShapeTool(ToolKind.Rect));
+        router.SetActive(ToolKind.Rect);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        router.OnMoved(Sample(pane, new SKPoint(260, 140)));
+        router.OnReleased(Sample(pane, new SKPoint(300, 160)));
+
+        await Assert.That(services.Session.Document.Elements.Count).IsEqualTo(1);
+        await Assert.That(services.Session.Document.Elements[0].Kind).IsEqualTo(AnnotationKind.Rect);
+        await Assert.That(services.Session.Document.Elements[0].Points.Count).IsEqualTo(2);
+    }
+
+    /// <summary>
     ///     The invariant the pre-v2 viewport encodes by capturing <c>_dragSlice</c> at press: a drag that
     ///     wanders into another band keeps panning the band it began on, or a fast diagonal drag would
     ///     yank two floors at once.
@@ -484,5 +534,25 @@ public class InputToolRouterTests
         router.Register(new DrawTool());
         router.Register(new EraseTool());
         return (router, services, panes);
+    }
+
+    // Stands in for a tool that lives outside Core (the query canvas's), so every kind can be selected.
+    private sealed class InertTool(ToolKind kind) : IPointerTool
+    {
+        public ToolKind Kind => kind;
+
+        public bool OnPressed(in ToolPointerEvent e, IToolServices s) => false;
+
+        public void OnMoved(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnReleased(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnCancelled(IToolServices s)
+        {
+        }
     }
 }

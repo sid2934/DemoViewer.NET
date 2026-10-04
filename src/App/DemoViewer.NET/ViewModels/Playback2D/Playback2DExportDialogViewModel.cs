@@ -35,6 +35,29 @@ public sealed record ExportRangeOption(string Label, int StartFrame, int EndFram
 public sealed record ExportSizeOption(string Label, int Width, int Height);
 
 /// <summary>
+///     What the dialog is exporting: the 2D tab's demo (<see cref="Demo" />) or a strat. The rules are the same
+///     either way, since they are <c>SceneExportSession</c>'s; what differs is the heading, the sizes offered,
+///     the default file name and the layer set, because a strat has no kill feed, no roster and no vision.
+/// </summary>
+/// <param name="Title">The pane's heading.</param>
+/// <param name="FileStem">The default file name, without its extension.</param>
+/// <param name="Sizes">The size presets, the default first.</param>
+/// <param name="Layers">
+///     Builds the layer set from the ink and clock choices, or null for the demo's set (the scene, vision when
+///     asked for, and the three HUD layers). Non-null hides the demo-only toggles.
+/// </param>
+public sealed record ExportDialogScene(
+    string Title,
+    string FileStem,
+    IReadOnlyList<ExportSizeOption> Sizes,
+    Func<bool, bool, HashSet<string>>? Layers)
+{
+    /// <summary>The 2D tab's export: its sizes, its file name, its layers.</summary>
+    public static ExportDialogScene Demo { get; } =
+        new("Export video", "demoviewer-2d", Playback2DExportDialogViewModel.SizePresets, null);
+}
+
+/// <summary>
 ///     Fetches the pinned LGPL ffmpeg build: download, verify against the pinned SHA-256, show the
 ///     <c>LICENSE.txt</c> read out of the verified bytes, and install only if that returns true.
 ///     <para>
@@ -80,6 +103,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     private readonly IExportJobService? _job;
     private readonly Func<int, int, int, double, int> _outputFrameCount;
     private readonly Action<Action<AppSettings>>? _persistDefaults;
+    private readonly ExportDialogScene _scene;
 
     [ObservableProperty]
     private string _customHeightText = "1080";
@@ -198,7 +222,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <param name="defaults">Saved defaults to seed the fields with, or null for the built-ins.</param>
     /// <param name="job">The service Start hands off to. Null makes the dialog inert (design preview).</param>
     /// <param name="captureLiveCamera">
-    ///     Snapshots the live host's panes. Called <b>on Start</b>, never on selection, plan D12: mirroring
+    ///     Snapshots the live host's panes. Called <b>on Start</b>, never on selection: mirroring
     ///     the live view is a capture, so panning after pressing Start must change nothing.
     /// </param>
     /// <param name="outputFrameCount">
@@ -223,6 +247,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///     Fetches the pinned LGPL build for the Download button. Null hides the button entirely, which is
     ///     the correct state on every platform with nothing pinned for it.
     /// </param>
+    /// <param name="scene">What is being exported; <see cref="ExportDialogScene.Demo" /> when omitted.</param>
     public Playback2DExportDialogViewModel(
         IReadOnlyList<ExportRangeOption> ranges,
         Playback2DSettings? defaults = null,
@@ -235,9 +260,12 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         Func<string, bool>? fileExists = null,
         Func<AnnotationSession?>? captureInk = null,
         FfmpegAcquire? acquireFfmpeg = null,
-        Func<ScenePalette>? capturePalette = null)
+        Func<ScenePalette>? capturePalette = null,
+        ExportDialogScene? scene = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
+
+        _scene = scene ?? ExportDialogScene.Demo;
 
         Ranges = new ObservableCollection<ExportRangeOption>(ranges);
         _job = job;
@@ -263,11 +291,11 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         _includeHudRoster = seed.ExportIncludeHudRoster;
         _includeAnnotations = seed.ExportIncludeAnnotations;
         _includeVision = seed.ExportIncludeVision;
-        _selectedSize = SizePresets.FirstOrDefault(s => s.Width == seed.ExportWidth && s.Height == seed.ExportHeight)
-                        ?? SizePresets[0];
+        _selectedSize = Sizes.FirstOrDefault(s => s.Width == seed.ExportWidth && s.Height == seed.ExportHeight)
+                        ?? Sizes[0];
         _customWidthText = seed.ExportWidth.ToString(CultureInfo.InvariantCulture);
         _customHeightText = seed.ExportHeight.ToString(CultureInfo.InvariantCulture);
-        _outputPath = BuildDefaultPath(seed);
+        _outputPath = BuildDefaultPath(seed, _scene.FileStem);
 
         RebuildFps(seed.ExportFps);
         RebuildEncoders(_selectedEncoder);
@@ -288,11 +316,20 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         new("Square (1080×1080)", 1080, 1080)
     ];
 
+    /// <summary>The pane's heading.</summary>
+    public string Title => _scene.Title;
+
+    /// <summary>The size presets this export offers: <see cref="SizePresets" /> for a demo.</summary>
+    public IReadOnlyList<ExportSizeOption> Sizes => _scene.Sizes;
+
+    /// <summary>Whether the vision, kill feed and roster toggles apply: false for a strat, which has none of them.</summary>
+    public bool ShowDemoLayers => _scene.Layers is null;
+
     /// <summary>The container formats, in dialog order.</summary>
     public static IReadOnlyList<string> Formats => ExportFormats.All;
 
     /// <summary>
-    ///     The quality rungs, fastest first, plan P2 D3. They are an intent, not a codec setting: every
+    ///     The quality rungs, fastest first. They are an intent, not a codec setting: every
     ///     encoder maps the three onto its own rate and speed controls, so "standard" means the same thing
     ///     whether the file is coming off NVENC or off libvpx.
     /// </summary>
@@ -357,7 +394,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             }
 
             // Snap DOWN to even rather than refusing: a user typing 1921 meant 1920, and yuv420p's chroma
-            // subsampling is not something they should have to know about (plan D8).
+            // subsampling is not something they should have to know about.
             int width = SnapEven(CustomWidthText, 1920);
             int height = SnapEven(CustomHeightText, 1080);
             return new SKSizeI(width, height);
@@ -574,8 +611,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <param name="range">The range to export.</param>
     /// <param name="camera">
     ///     The camera, or null to capture the live one now. Validation passes a placeholder: the camera
-    ///     cannot make a request invalid, and capturing on every keystroke would defeat D12's "captured
-    ///     once, at Start".
+    ///     cannot make a request invalid, and capturing on every keystroke would break the rule that the
+    ///     camera is captured once, at Start.
     /// </param>
     public ExportRequest BuildRequest(ExportRangeOption range, CameraScript? camera = null)
     {
@@ -590,12 +627,17 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             1.0,
             SelectedFormat,
             BuildLayerIds(),
-            // D12: the capture happens HERE, at Start, not when the user picked the camera option.
+            // The capture happens HERE, at Start, not when the user picked the camera option.
             camera ?? _captureLiveCamera());
     }
 
     private HashSet<string> BuildLayerIds()
     {
+        if (_scene.Layers is { } layers)
+        {
+            return layers(IncludeAnnotations, IncludeHud && IncludeHudClock);
+        }
+
         HashSet<string> ids = new(StringComparer.Ordinal)
         {
             SceneLayerIds.Radar,
@@ -608,7 +650,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
         if (IncludeVision)
         {
-            // Off by default: the vision solve is §6's biggest per-frame consumer and R3's first lever
+            // Off by default: the vision solve is the biggest per-frame consumer and the first lever
             // for holding the ≥ realtime budget at 1080p.
             ids.Add(SceneLayerIds.Vision);
         }
@@ -830,10 +872,33 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         }
         catch (ExportValidationException ex)
         {
-            return ex.Message;
+            return ex.Message + GifCapHint(range, gif);
         }
 
         return null;
+    }
+
+    // A strat's whole round at 20 fps runs past the GIF cap, and the lower rate that fits is one pick away,
+    // so the refusal names it with its frame count rather than leaving the user to
+    // try each rate. Only for a strat: the demo dialog's copy is the validator's own.
+    private string GifCapHint(ExportRangeOption range, bool gif)
+    {
+        if (ShowDemoLayers || !gif || _outputFrameCount(range.StartFrame, range.EndFrame, SelectedFps, 1.0)
+            <= SceneExportSession.GifMaxFrames)
+        {
+            return "";
+        }
+
+        foreach (int fps in AvailableFps.Where(f => f < SelectedFps).OrderByDescending(f => f))
+        {
+            int frames = _outputFrameCount(range.StartFrame, range.EndFrame, fps, 1.0);
+            if (frames <= SceneExportSession.GifMaxFrames)
+            {
+                return string.Create(CultureInfo.InvariantCulture, $" At {fps} fps it is {frames} frames and fits.");
+            }
+        }
+
+        return "";
     }
 
     // The camera a dialog with no live host captures: an empty Fixed script, which leaves every pane on
@@ -854,14 +919,14 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         return value - (value & 1);
     }
 
-    private static string BuildDefaultPath(Playback2DSettings seed)
+    private static string BuildDefaultPath(Playback2DSettings seed, string fileStem)
     {
         string directory = string.IsNullOrWhiteSpace(seed.ExportOutputDirectory)
             ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
             : seed.ExportOutputDirectory;
 
         string extension = Normalize(seed.ExportFormatId);
-        return Path.Combine(directory, $"demoviewer-2d.{extension}");
+        return Path.Combine(directory, $"{fileStem}.{extension}");
     }
 
     // No mention of the in-app download here: whether that rung exists on this machine is a question only

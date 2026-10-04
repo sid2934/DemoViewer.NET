@@ -8,7 +8,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The embedded-typeface contract (integrator correction 6) and the LRU that stops the pre-v2
+///     The embedded-typeface contract and the LRU that stops the pre-v2
 ///     per-marker-per-frame text allocation.
 /// </summary>
 public class TextBlobCacheTests

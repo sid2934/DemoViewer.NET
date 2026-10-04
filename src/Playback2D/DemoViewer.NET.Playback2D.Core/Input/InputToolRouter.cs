@@ -80,10 +80,13 @@ public sealed class InputToolRouter
     public IPointerTool? GestureTool { get; private set; }
 
     /// <summary>
-    ///     True while a DRAWING tool is selected: what the app's keymap passes as its <c>toolActive</c>
-    ///     flag, so the tool-scoped Space / Esc bindings shadow the transport ones only when they should.
+    ///     True while any tool but pan/zoom is selected: what the app's keymap passes as its
+    ///     <c>toolActive</c> flag, so the tool-scoped Space / Esc bindings shadow the transport ones under
+    ///     every authoring tool. The token tool drags as much as the pen does, and
+    ///     Esc has to cancel that drag rather than stop playback. Wider than
+    ///     <see cref="ToolKinds.IsAnnotationTool" />, which still answers "does this tool write ink".
     /// </summary>
-    public bool IsDrawingToolActive => ActiveKind is ToolKind.Draw or ToolKind.Erase;
+    public bool IsDrawingToolActive => ActiveKind != ToolKind.PanZoom;
 
     // No ActiveToolChanged event: the selection round-trips through AnnotationsPanelViewModel's own
     // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives
@@ -148,6 +151,16 @@ public sealed class InputToolRouter
 
         IPointerTool tool = divert ? _panZoom : ToolForButton(e.Button);
 
+        // Under pan, a left press on a token drags the token; the token tool refuses a miss, and with no token
+        // editor (the 2D tab) it refuses everything, so the press pans.
+        if (ReferenceEquals(tool, _panZoom) && !divert && e.Button == ToolPointerButton.Left
+            && _tools.TryGetValue(ToolKind.Token, out IPointerTool? token) && token.OnPressed(in e, _services))
+        {
+            GestureTool = token;
+            _gestureButton = e.Button;
+            return true;
+        }
+
         if (!tool.OnPressed(in e, _services))
         {
             return false;
@@ -166,7 +179,7 @@ public sealed class InputToolRouter
     ///     Routes a release. Returns true when it actually closed the gesture: the host drops pointer
     ///     capture on that answer and on nothing else.
     ///     <para>
-    ///         <b>The mirror of <see cref="OnPressed" />'s chord refusal</b>, and the half D2 forgot.
+    ///         <b>The mirror of <see cref="OnPressed" />'s chord refusal</b>, the half that was missing before.
     ///         Brushing the middle button halfway through a stroke and letting go is a release for a
     ///         button that owns nothing: closing here committed the stroke at the chord point and dropped
     ///         capture, so the rest of the drag drew nothing and the real left release was a no-op.

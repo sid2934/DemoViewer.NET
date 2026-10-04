@@ -21,7 +21,7 @@ namespace DemoViewer.NET.AppTests;
 ///     sensible value bounded by <c>m_flDefuseLength</c> at a real defuse frame.
 ///     <para>
 ///         Independent cross-check of the shared offset: the SAME <c>clockBase</c> derived from the first
-///         <c>round_freeze_end</c> (Phase 1) lands the bomb timer at ≈40. <c>m_flC4Blow</c> is unrelated
+///         <c>round_freeze_end</c> lands the bomb timer at ≈40. <c>m_flC4Blow</c> is unrelated
 ///         to <c>m_fRoundStartTime</c>, so 40 here proves the offset is genuinely shared, not fitted to
 ///         the round clock.
 ///     </para>

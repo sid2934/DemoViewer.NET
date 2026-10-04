@@ -8,11 +8,11 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     How the camera behaves for the whole export: design §5.7's
+///     How the camera behaves for the whole export:
 ///     <c>Fixed(transform) | FollowPlayer(steamId) | MirrorLiveView</c>.
 ///     <para>
 ///         Every case is a pure function of the request plus the frame, so two runs of the same request
-///         produce the same framing (design §5.1). Nothing here reads a wall clock or a live control.
+///         produce the same framing. Nothing here reads a wall clock or a live control.
 ///     </para>
 /// </summary>
 public abstract record CameraScript
@@ -26,9 +26,9 @@ public abstract record CameraScript
     /// <summary>
     ///     Per-level transforms held for the whole export.
     ///     <para>
-    ///         Keyed by <see cref="MapLevelId" /> and not by index (integrator correction 5): a level set
-    ///         that gains a floor mid-export must not slide every camera down one band, which is design
-    ///         risk 5. A level with no entry keeps whatever fit its pane was created with.
+    ///         Keyed by <see cref="MapLevelId" /> and not by index: a level set
+    ///         that gains a floor mid-export must not slide every camera down one band.
+    ///         A level with no entry keeps whatever fit its pane was created with.
     ///     </para>
     /// </summary>
     /// <param name="PaneTransforms">Transform per level id. Re-fitted to the export pane size.</param>
@@ -48,8 +48,8 @@ public abstract record CameraScript
     public sealed record FollowPlayer(ulong SteamId, double DeadzoneHalfExtentWorld = 900d) : CameraScript;
 
     /// <summary>
-    ///     The live view's framing, <b>captured once</b> when the user pressed Start and never re-read
-    ///     (plan D12). Panning the real window during the export changes nothing.
+    ///     The live view's framing, <b>captured once</b> when the user pressed Start and never re-read.
+    ///     Panning the real window during the export changes nothing.
     ///     <para>
     ///         Behaviourally identical to <see cref="Fixed" /> once captured; it stays a distinct case so
     ///         the dialog can label it and so a serialized headless request can refuse it with

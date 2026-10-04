@@ -24,11 +24,21 @@ public static class SceneLayerIds
     /// <summary>Planted-C4 diamond and timer rings.</summary>
     public const string Bomb = "playback2d.bomb";
 
+    /// <summary>The strat canvas's drag ghost and destination pins; empty on every other frame.</summary>
+    public const string Guides = "playback2d.guides";
+
     /// <summary>Per-band floor caption.</summary>
     public const string FloorLabel = "playback2d.floorlabel";
 
     /// <summary>User ink: dry, animated and wet annotation strokes.</summary>
     public const string Annotations = "playback2d.annotations";
+
+    /// <summary>
+    ///     Place outlines and labels from the baked <c>zones.json</c> plus the user overlay. Opt-in and
+    ///     off by default like the ink: it needs a <c>PlaceResolver</c>, which only a map with a zones
+    ///     file can supply, and a map overlay nobody asked for is clutter.
+    /// </summary>
+    public const string Zones = "playback2d.zones";
 
     /// <summary>
     ///     Player cards down both pane edges, T on one side and CT on the other. Ordered 65, between the
@@ -48,6 +58,26 @@ public static class SceneLayerIds
     public const string HudKillFeed = "hud.killfeed";
 
     /// <summary>
+    ///     The Query Canvas tokens: the Situations tab's placed place tokens. Opt-in like the ink, and for
+    ///     the same reason: it draws a document a caller has to supply, so an export or a fixture render
+    ///     that did not name it never grows ten discs it did not ask for.
+    /// </summary>
+    public const string Query = "playback2d.query";
+
+    /// <summary>
+    ///     The Overlay View heatmap: every matched state of a Situations result set stacked onto the
+    ///     map. Opt-in for the query tokens' reason: it draws a document a caller has to supply, and
+    ///     an export or a fixture render that did not name it never grows a heat wash it did not ask for.
+    /// </summary>
+    public const string Overlay = "playback2d.overlay";
+
+    /// <summary>
+    ///     The Utility Book map: landing groups and a focused group's throw positions and flights. Opt-in
+    ///     like the overlay: it draws a document the caller supplies.
+    /// </summary>
+    public const string Utility = "playback2d.utility";
+
+    /// <summary>
     ///     The layers a stack registers <b>only when the caller names them</b>. Off under a null or empty
     ///     include set: an export that silently burned in a scoreboard, or someone else's telestration,
     ///     would be a surprise rather than a feature.
@@ -61,8 +91,11 @@ public static class SceneLayerIds
         new HashSet<string>(StringComparer.Ordinal)
         {
             Annotations,
+            Zones,
             HudRoster,
             HudClock,
-            HudKillFeed
+            HudKillFeed,
+            Query,
+            Overlay
         };
 }

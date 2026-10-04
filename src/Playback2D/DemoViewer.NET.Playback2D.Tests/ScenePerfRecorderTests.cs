@@ -14,7 +14,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Plan <c>P1-perf-instrumentation</c> §5: capture must be free when off and allocation-free when
+///     Capture must be free when off and allocation-free when
 ///     on.
 ///     <para>
 ///         The zero-byte assertions are the load-bearing ones and they are <b>not</b> scaled by anything:

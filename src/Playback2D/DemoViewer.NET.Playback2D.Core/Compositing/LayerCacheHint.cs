@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>
-///     How cacheable a layer's drawing is (design §5.2). Declared rather than inferred so caching is
+///     How cacheable a layer's drawing is. Declared rather than inferred so caching is
 ///     auditable: a layer that lies about this is a rendering bug with a name.
 /// </summary>
 public enum LayerCacheHint

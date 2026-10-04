@@ -8,8 +8,8 @@ namespace DemoViewer.NET.Visualization.Tests;
 
 /// <summary>
 ///     <see cref="GraphViewModel.NodePlacements" />, the one part of the layout result that is
-///     public. It exists so a second renderer can put its nodes where MSAGL decided they go
-///     (docs/rule-graph/design.md §6.4), and it is the whole of what that costs: routes, label
+///     public. It exists so a second renderer can put its nodes where MSAGL decided they go,
+///     and it is the whole of what that costs: routes, label
 ///     rectangles, group bounds and table placements stay internal.
 /// </summary>
 public class GraphNodePlacementTests

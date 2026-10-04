@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "cs2-default",
+  "name": "CS2 default",
+  "panels": [
+    {
+      "id": "root",
+      "buttons": [
+        { "code": "A execute", "hotkey": "1", "leadSeconds": 5, "lagSeconds": 10, "then": "outcome", "colorArgb": 4293467747 },
+        { "code": "B execute", "hotkey": "2", "leadSeconds": 5, "lagSeconds": 10, "then": "outcome", "colorArgb": 4282159833 },
+        { "code": "Default", "hotkey": "3", "leadSeconds": 0, "lagSeconds": 20, "colorArgb": 4284264538 },
+        { "code": "Retake", "hotkey": "4", "leadSeconds": 3, "lagSeconds": 15, "then": "site", "colorArgb": 4290145496 }
+      ]
+    },
+    {
+      "id": "outcome",
+      "kind": "labels",
+      "group": "outcome",
+      "buttons": [
+        { "value": "won", "hotkey": "W" },
+        { "value": "lost", "hotkey": "L" }
+      ],
+      "then": "site"
+    },
+    {
+      "id": "site",
+      "kind": "labels",
+      "group": "site",
+      "buttons": [
+        { "value": "A", "hotkey": "A" },
+        { "value": "B", "hotkey": "B" }
+      ]
+    }
+  ],
+  "stickyGroups": ["opponent", "map"],
+  "clampToRound": true
+}

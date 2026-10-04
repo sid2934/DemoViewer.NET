@@ -8,12 +8,12 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The successor to A1's <c>TimelineCoreCleanTests</c>. A1 shipped the timeline contract Core-clean
-///     under an architecture test precisely so B1's move (integrator correction 10) would be a namespace
+///     The successor to <c>TimelineCoreCleanTests</c>: the timeline contract shipped Core-clean
+///     under an architecture test precisely so a later move into Core would be a namespace
 ///     rewrite; that test's job is done, so it is deleted and this one takes over, asserting that the
 ///     seven declared members now live in Core with their signatures unchanged.
 ///     <para>
-///         R9 (the "land it in Pipeline instead" fallback) did <b>not</b> fire: <c>ITimelineData</c>
+///         The "land it in Pipeline instead" fallback did <b>not</b> fire: <c>ITimelineData</c>
 ///         reaches only BCL types, so <c>ArchitectureTests.Core_ReferencesOnlySkiaSharpAndBcl</c> stays
 ///         green with it in Core.
 ///     </para>
@@ -38,8 +38,8 @@ public class TimelineContractTests
     }
 
     /// <summary>
-    ///     The six members correction 10 froze. Every implementer ships all six, so a silent addition
-    ///     here breaks A1's tracks and B2's <c>AnnotationTrack</c> at once.
+    ///     The six members this interface freezes. Every implementer ships all six, so a silent addition
+    ///     here breaks <c>AnnotationTrack</c> and every other track at once.
     /// </summary>
     [Test]
     public async Task ITimelineTrack_HasExactlySixMembers()
@@ -59,7 +59,7 @@ public class TimelineContractTests
     }
 
     /// <summary>
-    ///     Design §5.6: the x-axis domain is FRAME INDEX. <c>TimelineMarker</c> carries the tick too, but
+    ///     The x-axis domain is FRAME INDEX. <c>TimelineMarker</c> carries the tick too, but
     ///     a consumer that lays out on <c>Tick</c> is drawing on the wrong axis.
     /// </summary>
     [Test]

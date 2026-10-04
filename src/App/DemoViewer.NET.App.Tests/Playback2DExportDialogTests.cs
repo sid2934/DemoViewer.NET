@@ -600,10 +600,23 @@ public class Playback2DExportDialogTests
             .IsEquivalentTo(BareSceneSet().Order());
     }
 
-    /// <summary>Every scene-stack id except vision: `dv2d export --hud --annotations`.</summary>
+    /// <summary>
+    ///     Every scene-stack id except vision, the zone outlines, the query tokens and the overlay
+    ///     heatmap: `dv2d export --hud --annotations`. Zones are left out on both sides for the same
+    ///     reason vision is: neither export front end feeds the layer (the runner builds its stack with
+    ///     no place resolver), so naming it would request a layer the compositor silently starves.
+    ///     Burning outlines into a video is its own item, and when it lands this filter loses that id.
+    ///     <c>playback2d.query</c> and <c>playback2d.overlay</c> are opt-in like the ink but no export
+    ///     feeds them: the Situations tab's canvas draws them over a static map frame, and a video comes
+    ///     off a demo with no query or overlay document, so neither front end names them
+    ///     (<c>ExportCommand.BuildLayerIds</c> adds the HUD ids and the ink by name for the same reason).
+    /// </summary>
     internal static IEnumerable<string> FullOverlaySet() =>
         SceneLayerCatalog.SceneStackIds
-            .Where(id => !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal));
+            .Where(id => !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal) &&
+                         !string.Equals(id, SceneLayerIds.Zones, StringComparison.Ordinal) &&
+                         !string.Equals(id, SceneLayerIds.Query, StringComparison.Ordinal) &&
+                         !string.Equals(id, SceneLayerIds.Overlay, StringComparison.Ordinal));
 
     /// <summary>Every non-opt-in scene-stack id except vision: bare `dv2d export`.</summary>
     internal static IEnumerable<string> BareSceneSet() =>
@@ -991,7 +1004,7 @@ public class Playback2DExportFeatureGateTests
         int first = ids.IndexOf("playback2d.timeline");
         int export = ids.IndexOf("playback2d.export");
 
-        // The block's order is documented in plans/00-overview.md §3.10 and read as one group in
+        // The block's order is fixed and read as one group in
         // Settings; the leader-lock tests above it depend on nothing here moving.
         await Assert.That(export).IsGreaterThan(first);
         for (int i = first; i <= export; i++)

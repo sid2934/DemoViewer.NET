@@ -8,7 +8,7 @@ using System.Globalization;
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     The single construction site for render surfaces (plans/C2-gpu-provider.md §6.2). Export, the
+///     The single construction site for render surfaces. Export, the
 ///     CLI, tests and thumbnails all come through here, which is what makes "swap CPU for GPU" a
 ///     one-line change instead of a search-and-replace.
 ///     <para>
@@ -63,7 +63,7 @@ public static class RenderSurfaceProviderFactory
     ///         Passing <see cref="RenderBackendPreference.Auto" />, including by omitting the argument,
     ///         consults <c>DV2D_RENDER_BACKEND</c>, so <c>DV2D_RENDER_BACKEND=cpu</c> forces the whole
     ///         process onto the CPU path without every call site threading a flag through. An explicitly
-    ///         non-Auto argument outranks the environment, which is §2.5's precedence exactly.
+    ///         non-Auto argument outranks the environment.
     ///     </para>
     /// </summary>
     /// <param name="preference">What the caller wants. Auto defers to the environment, then the probe.</param>
@@ -87,10 +87,10 @@ public static class RenderSurfaceProviderFactory
 
         // The cached probe short-circuits to "forced-cpu" when the AMBIENT DV2D_RENDER_BACKEND says cpu.
         // That is a policy answer, not a capability one, and an explicit argument outranks the
-        // environment (§2.5); control only reaches here with a non-Auto preference, because Auto
+        // environment; control only reaches here with a non-Auto preference, because Auto
         // resolved to ForceCpu and returned above. Letting the ambient variable stand would make
-        // Create(ForceGpu) throw on a machine whose GPU works perfectly, contradicting §6.2's "throws
-        // only ... when no GPU backend is available", and would let a stale shell variable silently
+        // Create(ForceGpu) throw on a machine whose GPU works perfectly, breaking the contract that it
+        // throws only when no GPU backend is available, and would let a stale shell variable silently
         // override a --gpu flag or the export dialog's advanced option.
         bool declinedByPolicy = !probe.GpuAvailable && string.Equals(probe.Reason, ForcedCpuReason,
             StringComparison.Ordinal);
@@ -126,7 +126,7 @@ public static class RenderSurfaceProviderFactory
     ///     The decision itself, with its two environmental inputs injected: the host platform and the
     ///     GPU attempt. Split out so the browser and macOS short-circuits are unit-testable on a
     ///     developer's desktop: running the suite on WASM to prove a WASM branch is not a trade worth
-    ///     making (plan §7.1).
+    ///     making.
     /// </summary>
     /// <param name="platform">The host platform to decide for.</param>
     /// <param name="preference">The environment's preference, used only for the forced-CPU shortcut.</param>
@@ -146,7 +146,7 @@ public static class RenderSurfaceProviderFactory
             : platform switch
             {
                 // WASM surfaces belong to Avalonia's compositor; the CPU provider is the only offscreen
-                // path there (design §8), and there is no EGL to bind to anyway.
+                // path there, and there is no EGL to bind to anyway.
                 ProbeHostPlatform.Browser => "browser",
                 ProbeHostPlatform.MacOs => "macos-deferred",
                 ProbeHostPlatform.Other => "unsupported-platform",
@@ -239,7 +239,7 @@ internal enum ProbeHostPlatform
     /// <summary>Linux: EGL, surfaceless first so containers work.</summary>
     Linux,
 
-    /// <summary>macOS: deferred by design §5.8 point 3.</summary>
+    /// <summary>macOS: deferred; CPU only.</summary>
     MacOs,
 
     /// <summary>WASM: Avalonia owns the surface; CPU is the only offscreen path.</summary>

@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.SuggestedTags"
+             x:Class="DemoViewer.NET.Views.SuggestedTags.SuggestedInboxView"
+             x:DataType="vm:SuggestedInboxViewModel">
+
+    <!--
+      THE SUGGESTED SECTION: every demo's tag suggestions in one inbox. New ones only until
+      "Show settled" is on. The list is virtualized under its own ScrollViewer: a real library holds thousands.
+      Colour: tokens only; state is carried by words.
+    -->
+
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0 0 0 12">
+            <TextBlock Text="{Binding StatusLine}" FontSize="12" Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+            <WrapPanel Orientation="Horizontal">
+                <ComboBox ItemsSource="{Binding Maps}" SelectedItem="{Binding MapFilter}" FontSize="11" MinWidth="120"
+                          Margin="0 0 8 6" ToolTip.Tip="Show one map's suggestions" />
+                <ComboBox ItemsSource="{Binding Sides}" SelectedItem="{Binding SideFilter}" FontSize="11" MinWidth="100"
+                          Margin="0 0 8 6" ToolTip.Tip="Show one side's suggestions" />
+                <ComboBox ItemsSource="{Binding Detectors}" SelectedItem="{Binding DetectorFilter}" FontSize="11" MinWidth="120"
+                          Margin="0 0 8 6" ToolTip.Tip="Show one detector's suggestions" />
+                <TextBlock Text="min confidence" FontSize="11" VerticalAlignment="Center" Margin="0 0 6 6"
+                           Foreground="{DynamicResource TextMid}" />
+                <Slider Width="110" Minimum="0" Maximum="0.95" SmallChange="0.05" LargeChange="0.1" TickFrequency="0.05"
+                        IsSnapToTickEnabled="True" Value="{Binding MinConfidence}" Margin="0 0 12 6" />
+                <CheckBox Content="{Binding SettledLabel}" IsChecked="{Binding ShowSettled}" FontSize="11" Margin="0 0 0 6"
+                          ToolTip.Tip="Also list the suggestions you accepted or dismissed" />
+            </WrapPanel>
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasRows}" FontSize="11" TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextMid}"
+                   Text="Nothing to review here. Suggestions are made as demos with round facts are processed; turn on background detection in 2D Playback's Review mode to cover the whole library." />
+
+        <ItemsControl Name="RowsList" ItemsSource="{Binding Rows}" IsVisible="{Binding HasRows}">
+            <ItemsControl.Template>
+                <ControlTemplate TargetType="ItemsControl">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                        <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                    </ScrollViewer>
+                </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SuggestedInboxRow">
+                    <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                            CornerRadius="6" Padding="10 6" Margin="0 0 0 6">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10">
+                            <TextBlock Grid.Row="0" Grid.Column="0" FontSize="12" TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding Title}" Foreground="{DynamicResource TextValue}" />
+                                <Run Text="  " />
+                                <Run Text="{Binding MetaText}" Foreground="{DynamicResource TextMid}" FontSize="11" />
+                            </TextBlock>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding WhereText}" FontSize="10"
+                                       Foreground="{DynamicResource TextMid}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding ReasonText}" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMid}" />
+                            <StackPanel Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                        VerticalAlignment="Center">
+                                <Button Content="Open" Classes="ghost" FontSize="11" Padding="10 4"
+                                        Command="{Binding $parent[ItemsControl].((vm:SuggestedInboxViewModel)DataContext).OpenCommand}"
+                                        CommandParameter="{Binding}" ToolTip.Tip="Open the demo in 2D Playback at this suggestion" />
+                                <Button Content="Accept" Classes="ghost" FontSize="11" Padding="10 4" IsVisible="{Binding IsNew}"
+                                        Command="{Binding $parent[ItemsControl].((vm:SuggestedInboxViewModel)DataContext).AcceptCommand}"
+                                        CommandParameter="{Binding}" ToolTip.Tip="Write this tag into the demo's tags as proposed" />
+                                <Button Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 4" IsVisible="{Binding IsNew}"
+                                        Command="{Binding $parent[ItemsControl].((vm:SuggestedInboxViewModel)DataContext).DismissCommand}"
+                                        CommandParameter="{Binding}" />
+                                <Button Content="Restore" Classes="ghost" FontSize="11" Padding="10 4" IsVisible="{Binding IsDismissed}"
+                                        Command="{Binding $parent[ItemsControl].((vm:SuggestedInboxViewModel)DataContext).RestoreCommand}"
+                                        CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </DockPanel>
+</UserControl>

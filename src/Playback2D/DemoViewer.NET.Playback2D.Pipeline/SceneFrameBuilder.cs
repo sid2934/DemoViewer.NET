@@ -266,6 +266,13 @@ public sealed class SceneFrameBuilder
 
                 float duck = ReadFloat(pawn, "m_pMovementServices.m_flDuckAmount", 0);
 
+                // The empty string is what the pawn carries before it has stood in a named area; the
+                // round index treats that as no place, so the marker does too.
+                string? place = pawn is not null && pawn.TryGet("m_szLastPlaceName", out string? name)
+                                                 && !string.IsNullOrEmpty(name)
+                    ? name
+                    : null;
+
                 (RingState ring, double ringAlpha) =
                     _ringTracker.Evaluate(p.Slot, input.FrameIndex, alive, flash, health, shotsFired);
 
@@ -282,7 +289,8 @@ public sealed class SceneFrameBuilder
                     alive,
                     pitch,
                     duck,
-                    steamId));
+                    steamId,
+                    place));
             }
             else if (!alive && _lastKnownPos.TryGetValue(p.Slot, out (float X, float Y, float Z) last))
             {
@@ -926,7 +934,9 @@ public sealed class SceneFrameBuilder
     private static float ReadFloat(IReadOnlyEntity? entity, string path, float fallback) =>
         entity is not null && entity.TryGet(path, out float v) ? v : fallback;
 
-    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant.
+    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant. Mirrors
+    // CS2DemoKit.Parser.EntityTracking.PawnLookup.IsAlive(EntityState), which this builder cannot call
+    // directly: it reads through the IReadOnlyEntity facade and holds no EntityState of its own.
     private static bool IsAlive(IReadOnlyEntity? pawn)
     {
         if (pawn is null)

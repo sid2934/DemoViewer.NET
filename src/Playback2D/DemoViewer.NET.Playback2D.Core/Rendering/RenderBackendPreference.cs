@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     How a consumer wants its render backend chosen (plans/C2-gpu-provider.md §6.2). This is a
+///     How a consumer wants its render backend chosen. This is a
 ///     <i>preference</i>, not a backend: what actually gets used is
 ///     <see cref="RenderSurfaceProbe.Backend" />, because a GPU that is asked for but absent must still
 ///     produce a working renderer.

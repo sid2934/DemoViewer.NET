@@ -27,6 +27,9 @@ public sealed class GrenadeTrail
 {
     public GrenadeKind Kind { get; init; }
 
+    /// <summary>The thrower's side, 2 = T and 3 = CT, which colours the trail; 0 colours it by <see cref="Kind" />.</summary>
+    public int Team { get; set; }
+
     /// <summary>The sampled flight points, oldest → newest.</summary>
     public List<GrenadeTrailPoint> Points { get; } = new(64);
 

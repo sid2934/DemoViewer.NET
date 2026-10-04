@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Library"
+             xmlns:ext="using:DemoViewer.NET.Extensions"
              xmlns:theming="using:DemoViewer.NET.Theming"
              xmlns:model="using:DemoViewer.NET.Modules.Library"
              xmlns:controls="using:DemoViewer.NET.Controls"
@@ -37,6 +38,35 @@
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="8 2" />
             <Setter Property="Margin" Value="0 0 6 0" />
+        </Style>
+        <!-- The card badge chip (a pack's badge contribution, e.g. the provenance chip): a text
+             button on the card's bottom row that opens the label menu. The pinned state is text-carried
+             (the tooltip says "set by you") and brightened; the automatic state stays dim like the row. -->
+        <Style Selector="Button.badgeChip">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LibraryCardTextFaint}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="4 0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.badgeChip:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource LibraryCardBadgeBg}" />
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
+        </Style>
+        <Style Selector="Button.badgeChip.pinned">
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LibraryCardTextMid}" />
+        </Style>
+        <!-- The badge menu's reset row: a divider above it, since MenuFlyout's ItemsSource
+             renders one MenuItem per LibraryBadgeMenuEntry and can't mix in a literal Separator. -->
+        <Style Selector="MenuItem.reset">
+            <Setter Property="BorderThickness" Value="0 1 0 0" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HexRowSeparator}" />
+            <Setter Property="Margin" Value="0 4 0 0" />
         </Style>
         <Style Selector="TextBlock.metaLabel">
             <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
@@ -87,7 +117,7 @@
         <DockPanel Background="{DynamicResource ShellBg}">
 
             <!-- ── Toolbar ─────────────────────────────────────────────────────────────
-             RESPONSIVE (R2): the LIBRARY identity label is pinned Dock="Left"; every interactive control
+             RESPONSIVE: the LIBRARY identity label is pinned Dock="Left"; every interactive control
              lives in a fill WrapPanel so the filter/view groups REFLOW to a second row instead of clipping
              at narrow widths (~700px), rather than crowding a fixed-column Grid. sectionHeader has no fixed
              height, so the band grows to fit the wrapped row. See docs/ui/design-system.md (responsive-strip). The
@@ -100,7 +130,19 @@
 
                     <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
 
+                        <!-- Demos / Teams: the Library hosts Team Identity's view behind this toggle (the Teams
+                             module's section), so the roster work stays beside the demos it clusters. Absent
+                             when no hosted view is enabled. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0 3 12 3"
+                                    IsVisible="{Binding HasTeamsView}">
+                            <ToggleButton IsChecked="{Binding IsDemosView}" Content="Demos" FontSize="11"
+                                          Padding="8 3" />
+                            <ToggleButton IsChecked="{Binding IsTeamsView}" Content="Teams" FontSize="11"
+                                          Padding="8 3" Margin="4 0 0 0" />
+                        </StackPanel>
+
                         <Button Content="+ Add folder" Command="{Binding AddFolderCommand}"
+                                IsVisible="{Binding IsDemosView}"
                                 FontSize="11" Padding="10 3" Margin="0 3 8 3" VerticalAlignment="Center" />
 
                         <!-- The filter cluster (search / map / player / sort / view / refresh) is only meaningful
@@ -108,7 +150,7 @@
                          LIBRARY + Add folder + the hero, not a wall of inert dropdowns. Collapsed WrapPanel
                          children reserve no space, so the empty state stays clean. -->
                         <TextBox Text="{Binding SearchText}" Watermark="Search map, player, file…"
-                                 IsVisible="{Binding !HasNoFolders}"
+                                 IsVisible="{Binding ShowDemoChrome}"
                                  FontSize="12" Margin="0 3 8 3" MinWidth="220" MaxWidth="360"
                                  VerticalAlignment="Center" />
 
@@ -116,7 +158,7 @@
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0 3 8 3">
                             <!-- Multi-select map filter: a flyout button (scales to many maps) whose label shows the count. -->
                             <Button Content="{Binding MapFilterSummary}" FontSize="12" MinWidth="86"
-                                    IsVisible="{Binding !HasNoFolders}"
+                                    IsVisible="{Binding ShowDemoChrome}"
                                     VerticalAlignment="Center" Margin="0 0 8 0"
                                     ToolTip.Tip="Filter by map (multi-select)">
                                 <Button.Flyout>
@@ -148,11 +190,34 @@
                             <ComboBox ItemsSource="{Binding AvailablePlayers}"
                                       SelectedItem="{Binding SelectedPlayer}" FontSize="12" MinWidth="120"
                                       MaxWidth="180"
-                                      IsVisible="{Binding !HasNoFolders}"
+                                      IsVisible="{Binding ShowDemoChrome}"
                                       VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by player" />
 
+                            <!-- Contributed filters: one ComboBox per currently-on filter contribution (e.g. Team). -->
+                            <ItemsControl ItemsSource="{Binding Filters}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:LibraryFilterViewModel">
+                                        <ComboBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}"
+                                                  FontSize="12" MinWidth="110" MaxWidth="180"
+                                                  VerticalAlignment="Center" Margin="0 0 8 0"
+                                                  ToolTip.Tip="{Binding Tooltip}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="ext:LibraryFilterItem">
+                                                    <TextBlock Text="{Binding Display}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
                             <ComboBox SelectedIndex="{Binding SortIndex}" FontSize="12"
-                                      IsVisible="{Binding !HasNoFolders}"
+                                      IsVisible="{Binding ShowDemoChrome}"
                                       MinWidth="110" VerticalAlignment="Center" Margin="0 0 8 0">
                                 <ComboBoxItem>Newest</ComboBoxItem>
                                 <ComboBoxItem>Oldest</ComboBoxItem>
@@ -169,7 +234,7 @@
                         <!-- View + refresh group — the layout controls, kept together so they wrap as a unit. -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0 3 0 3">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                                        IsVisible="{Binding !HasNoFolders}">
+                                        IsVisible="{Binding ShowDemoChrome}">
                                 <ToggleButton IsChecked="{Binding IsCardView}" Content="▦ Cards" FontSize="11"
                                               Padding="8 3" />
                                 <ToggleButton IsChecked="{Binding IsListView}" Content="☰ List" FontSize="11"
@@ -179,7 +244,7 @@
 
                             <Button Content="⟳" Command="{Binding RefreshCommand}"
                                     AutomationProperties.Name="Rescan folders"
-                                    IsVisible="{Binding !HasNoFolders}"
+                                    IsVisible="{Binding ShowDemoChrome}"
                                     FontSize="13" Padding="8 3" Margin="8 0 0 0" VerticalAlignment="Center"
                                     ToolTip.Tip="Rescan folders" />
 
@@ -201,8 +266,8 @@
             <!-- ── Folder chips + count + persistent library actions ───────────────────
              Only shown once the browser is populated (folders configured); the empty state's hero owns the
              open surface instead. A persistent compact "Open Demo…" (single-file open) + a "Recent ▾" flyout
-             dock RIGHT so the single-file open + recents stay reachable while browsing folders (R1). -->
-            <Border DockPanel.Dock="Top" IsVisible="{Binding !HasNoFolders}"
+             dock RIGHT so the single-file open + recents stay reachable while browsing folders. -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding ShowDemoChrome}"
                     Background="{DynamicResource FrameHeaderStripBg}"
                     BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="12 5">
                 <DockPanel LastChildFill="True" VerticalAlignment="Center">
@@ -283,6 +348,15 @@
 
             <!-- ── Body ────────────────────────────────────────────────────────────── -->
             <Panel>
+
+                <!-- The hosted view (Teams) replaces the demo browser while the toggle is on it. Declared
+                     first and the browser's layers hidden by IsDemosView, so the hero's on-top rule below is
+                     unaffected. -->
+                <ContentControl Content="{Binding Sections.SelectedSection.ActiveContent}"
+                                IsVisible="{Binding IsTeamsView}" />
+
+                <!-- The demo browser: every layer below keeps its own visibility inside this one. -->
+                <Panel IsVisible="{Binding IsDemosView}">
 
                 <!-- The landing hero is declared LAST in this Panel (see below) so it renders AND hit-tests ON
                  TOP of the card/list bodies: those stay realized (IsCardView defaults true) even in the empty
@@ -365,6 +439,27 @@
                                                                        FontSize="10"
                                                                        IsVisible="{Binding HasDuplicates}"
                                                                        ToolTip.Tip="{Binding DuplicateTooltip}" />
+                                                            <!-- Card badge chip: the active badge contribution's label, editable
+                                                     in place through a menu built from BadgeMenuEntries. The pick routes
+                                                     through the code-behind because a MenuItem cannot carry both the card
+                                                     and the picked label as one command parameter. -->
+                                                            <Button Classes="badgeChip"
+                                                                    Classes.pinned="{Binding BadgeIsPinned}"
+                                                                    Content="{Binding BadgeLabel}"
+                                                                    ToolTip.Tip="{Binding BadgeTooltip}"
+                                                                    IsVisible="{Binding $parent[UserControl].((vm:LibraryTabViewModel)DataContext).HasBadge}">
+                                                                <Button.Flyout>
+                                                                    <MenuFlyout ItemsSource="{Binding $parent[UserControl].((vm:LibraryTabViewModel)DataContext).BadgeMenuEntries}">
+                                                                        <MenuFlyout.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:LibraryBadgeMenuEntry">
+                                                                                <MenuItem Header="{Binding Label}" Tag="{Binding}"
+                                                                                          Classes.reset="{Binding IsReset}"
+                                                                                          ToolTip.Tip="{Binding Tooltip}" Click="OnBadgeLabelPicked" />
+                                                                            </DataTemplate>
+                                                                        </MenuFlyout.ItemTemplate>
+                                                                    </MenuFlyout>
+                                                                </Button.Flyout>
+                                                            </Button>
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}"
                                                                    Foreground="{DynamicResource LibraryCardTextDim}"
@@ -539,7 +634,7 @@
                 </Border>
 
                 <!-- ── Landing hero (no-demos state) — declared LAST so it's topmost (see note above) ──────
-                 The primary open surface (R1): app title + tagline, a big primary "Open Demo…", a recent-files
+                 The primary open surface: app title + tagline, a big primary "Open Demo…", a recent-files
                  list (when any), a secondary "+ Add a folder", and the drag-drop hint. Scrolls if short. -->
                 <ScrollViewer IsVisible="{Binding HasNoFolders}"
                               VerticalScrollBarVisibility="Auto"
@@ -614,6 +709,7 @@
                         </StackPanel>
                     </Border>
                 </ScrollViewer>
+                </Panel>
             </Panel>
         </DockPanel>
 

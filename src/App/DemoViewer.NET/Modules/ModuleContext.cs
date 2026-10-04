@@ -7,6 +7,7 @@ using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.ViewModels.Playback;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -48,6 +49,11 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     private readonly PlaybackSnapshot _snapshot;
     private readonly Dictionary<string, IReadOnlyList<GameEventView>> _timelineCache = new();
 
+    // Explicit registration wins over the DI container. Checked fresh on every call, never cached,
+    // so a live pack toggle is always reflected.
+    private readonly Dictionary<Type, Func<object?>> _serviceLookups = new();
+    private IServiceProvider? _services;
+
     // The demo's pre-decoded flat event list (set once at load, mirroring SetRoster) + a per-name cache of
     // the projected GameEventView timeline. A module pre-builds its own windowed view from a timeline; the
     // host materializes a given name's views ONCE on first request (so high-volume names it never asks for,
@@ -88,6 +94,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
         // Re-raise the controller's coalesced PlaybackFrame as the module-facing IPlaybackSnapshot,
         // ONLY while a module is subscribed (active tab). Two deliberate layers.
         _controller.Advanced += OnControllerAdvanced;
+
+        // ExportHost is set later, by SetExportHost; the closure reads it live rather than snapshotting
+        // the (currently null) property.
+        RegisterService<Playback2DExportHost>(() => ExportHost);
     }
 
     private static EntitySet EmptyEntitySet { get; } = new();
@@ -109,6 +119,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public bool HasDemo => _controller.HasDemo;
     public string? DemoPath => _demoPath();
     public string? MapName { get; private set; }
+    public string? DemoSha256 { get; private set; }
 
     public ILiveSyncHudState? LiveSyncHud { get; private set; }
 
@@ -133,6 +144,11 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     // ── Timeline / transport seams (Playback2D v2 A1) ──
     public int TotalFrames => _controller.TotalFrames;
+
+    // Frame clock, read off the frame list the controller already holds rather than ParsedDemo.TickCount:
+    // the two agree on every measured demo, and the frame list is what the playhead actually walks.
+    public int FirstTick => _controller.Frames is { Count: > 0 } frames ? frames[0].ServerTick : 0;
+    public int LastTick => _controller.Frames is { Count: > 0 } frames ? frames[^1].ServerTick : 0;
     public int FrameIndexAtTick(int tick) => _controller.FrameIndexAtTick(tick);
 
     public IReadOnlyList<int> EventFrames(string eventName) =>
@@ -244,6 +260,12 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// </summary>
     public void SetMapName(string? mapName) => MapName = mapName;
 
+    /// <summary>
+    ///     Sets the loaded demo's content hash on load (mirrors <see cref="SetMapName" />): the shell hashes
+    ///     the raw bytes once, for its own breakpoint key, and hands the same value here. Pass null on unload.
+    /// </summary>
+    public void SetDemoSha256(string? sha256) => DemoSha256 = sha256;
+
     /// <summary>Sets the loaded demo on load / clears it on unload (mirrors <see cref="SetRoster" />).</summary>
     public void SetDemo(ParsedDemo? demo) => CurrentDemo = demo;
 
@@ -267,6 +289,40 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <summary>Wires the export host once at composition (mirrors <see cref="SetLiveSyncHud" />).</summary>
     /// <param name="host">The host, or null for a build with no export.</param>
     public void SetExportHost(Playback2DExportHost? host) => ExportHost = host;
+
+    /// <summary>
+    ///     Wires the app's DI container as <see cref="GetService{T}" />'s fallback for anything not
+    ///     explicitly registered through <see cref="RegisterService{T}" />: a pack's capture or export
+    ///     host, resolved by type. Null (tests, designer) leaves every unregistered lookup at null.
+    /// </summary>
+    public void SetServices(IServiceProvider? services) => _services = services;
+
+    /// <summary>
+    ///     Registers a lazy, typed lookup for a first-party host this context does not otherwise expose
+    ///     (mirrors <see cref="SetExportHost" />'s reason, generalized): resolved fresh on every
+    ///     <see cref="GetService{T}" /> call, so a host wired or swapped after this call is still the
+    ///     current one. Last registration for a type wins.
+    /// </summary>
+    public void RegisterService<T>(Func<T?> resolve) where T : class => _serviceLookups[typeof(T)] = () => resolve();
+
+    /// <inheritdoc />
+    public T? GetService<T>() where T : class
+    {
+        if (_serviceLookups.TryGetValue(typeof(T), out Func<object?>? resolve))
+        {
+            return (T?)resolve();
+        }
+
+        try
+        {
+            return _services?.GetService<T>();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A host torn down before this context (a headless test, shutdown) has nothing to resolve.
+            return null;
+        }
+    }
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The

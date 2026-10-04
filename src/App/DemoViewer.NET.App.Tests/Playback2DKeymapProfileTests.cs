@@ -1,6 +1,7 @@
 #region
 
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 
 #endregion
@@ -23,24 +24,26 @@ public class Playback2DKeymapProfileTests
             out IReadOnlyList<string> rejected);
 
         await Assert.That(rejected).IsEmpty();
-        await Assert.That(profile.Bindings).IsEquivalentTo(Playback2DKeymap.Default);
+        // The shipped table is core (Playback2DKeymap) union every pack's commands (CommandRegistry):
+        // with no overrides, the profile is exactly that, not the bare core table.
+        await Assert.That(profile.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings);
         await Assert.That(profile.IsOverridden(Playback2DAction.NextRound)).IsFalse();
     }
 
     [Test]
     public async Task ValidOverride_MovesOneActionAndLeavesEverythingElseAlone()
     {
-        Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(["NextRound=Shift+R"],
+        Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(["NextRound=Shift+W"],
             out IReadOnlyList<string> rejected);
 
         await Assert.That(rejected).IsEmpty();
-        await Assert.That(Resolve(profile, Key.R, KeyModifiers.Shift))
+        await Assert.That(Resolve(profile, Key.W, KeyModifiers.Shift))
             .IsEqualTo(Playback2DAction.NextRound);
-        await Assert.That(profile.GestureText(Playback2DAction.NextRound)).IsEqualTo("Shift+R");
+        await Assert.That(profile.GestureText(Playback2DAction.NextRound)).IsEqualTo("Shift+W");
         await Assert.That(profile.IsOverridden(Playback2DAction.NextRound)).IsTrue();
 
         // The vacated key really is vacated: an override that only ADDS a gesture would pass a
-        // "Shift+R works" test while leaving two keys doing the same thing.
+        // "Shift+W works" test while leaving two keys doing the same thing.
         await Assert.That(profile.TryResolve(Key.E, KeyModifiers.None, false, out _)).IsFalse();
 
         // …and nothing else moved.
@@ -62,7 +65,7 @@ public class Playback2DKeymapProfileTests
     {
         string[] rows =
         [
-            "NextRoundShift+R", // malformed, no '='
+            "NextRoundShift+W", // malformed, no '='
             "NextRound=Bogus", // unparseable gesture
             "Teleport=Y", // unknown action
             "NextRound=Ctrl+O", // shell accelerator (MainView.axaml's Open)
@@ -87,7 +90,7 @@ public class Playback2DKeymapProfileTests
             .Because("a rejection that names no row in the file is one the user cannot act on");
 
         await Assert.That(profile.Rejected).IsEquivalentTo(rejected);
-        await Assert.That(profile.Bindings).IsEquivalentTo(Playback2DKeymap.Default)
+        await Assert.That(profile.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings)
             .Because("no row survived, so the profile is the shipped table exactly");
 
         // Every shipped gesture still resolves, including the one all five rows were aiming at.
@@ -105,17 +108,17 @@ public class Playback2DKeymapProfileTests
     public async Task AGoodRowSurvivesABadNeighbour()
     {
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
-            ["Teleport=Y", "NextRound=Shift+R", "NextRound=Ctrl+O"],
+            ["Teleport=Y", "NextRound=Shift+W", "NextRound=Ctrl+O"],
             out IReadOnlyList<string> rejected);
 
         await Assert.That(rejected.Any(r => r.StartsWith("Teleport=Y:", StringComparison.Ordinal))).IsTrue();
         await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Ctrl+O:", StringComparison.Ordinal)))
             .IsTrue();
-        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+R:", StringComparison.Ordinal)))
+        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+W:", StringComparison.Ordinal)))
             .IsFalse()
             .Because("the good row is the one that has to survive its neighbours");
 
-        await Assert.That(Resolve(profile, Key.R, KeyModifiers.Shift))
+        await Assert.That(Resolve(profile, Key.W, KeyModifiers.Shift))
             .IsEqualTo(Playback2DAction.NextRound);
     }
 
@@ -222,15 +225,15 @@ public class Playback2DKeymapProfileTests
     public async Task TheSameActionTwice_KeepsTheFirstRowAndReportsTheSecond()
     {
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
-            ["NextRound=Shift+R", "NextRound=Shift+T"], out IReadOnlyList<string> rejected);
+            ["NextRound=Shift+W", "NextRound=Shift+T"], out IReadOnlyList<string> rejected);
 
         await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+T:", StringComparison.Ordinal)))
             .IsTrue();
-        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+R:", StringComparison.Ordinal)))
+        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+W:", StringComparison.Ordinal)))
             .IsFalse()
             .Because("the FIRST row wins, so it is the second that must be reported");
 
-        await Assert.That(Resolve(profile, Key.R, KeyModifiers.Shift)).IsEqualTo(Playback2DAction.NextRound);
+        await Assert.That(Resolve(profile, Key.W, KeyModifiers.Shift)).IsEqualTo(Playback2DAction.NextRound);
     }
 
     /// <summary>
@@ -242,9 +245,11 @@ public class Playback2DKeymapProfileTests
     [Test]
     public async Task EveryShippedGesture_RoundTripsThroughItsPersistedRow()
     {
+        // The full shipped table, core and every pack's commands: a core and a pack action round-trip
+        // the same way.
         string[] rows =
         [
-            .. Playback2DKeymap.Default.Where(b => !b.IsReserved)
+            .. CommandRegistry.Default.EffectiveBindings.Where(b => !b.IsReserved)
                 .Select(b => Playback2DKeymapProfile.Row(b.Action, b.Key, b.Modifiers))
         ];
 
@@ -253,7 +258,7 @@ public class Playback2DKeymapProfileTests
 
         await Assert.That(rejected).IsEmpty()
             .Because("a row this type wrote must be a row this type can read: " + string.Join(",", rows));
-        await Assert.That(profile.Bindings).IsEquivalentTo(Playback2DKeymap.Default);
+        await Assert.That(profile.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings);
     }
 
     [Test]
@@ -276,18 +281,18 @@ public class Playback2DKeymapProfileTests
     [Test]
     public async Task ValidateOverride_AnswersForTheCandidateOnly()
     {
-        await Assert.That(Playback2DKeymapProfile.ValidateOverride([], "NextRound=Shift+R")).IsEqualTo("");
+        await Assert.That(Playback2DKeymapProfile.ValidateOverride([], "NextRound=Shift+W")).IsEqualTo("");
         await Assert.That(Playback2DKeymapProfile.ValidateOverride([], "NextRound=Ctrl+O"))
             .Contains("app-wide");
         await Assert.That(Playback2DKeymapProfile.ValidateOverride([], "NextRound=D")).IsNotEmpty();
         await Assert.That(Playback2DKeymapProfile.ValidateOverride([], "FitCamera=G")).Contains("reserved");
 
         // Re-binding an action that is ALREADY overridden replaces its row rather than colliding with it.
-        await Assert.That(Playback2DKeymapProfile.ValidateOverride(["NextRound=Shift+R"], "NextRound=Shift+T"))
+        await Assert.That(Playback2DKeymapProfile.ValidateOverride(["NextRound=Shift+W"], "NextRound=Shift+T"))
             .IsEqualTo("");
 
         // …but it still has to clear everyone else's.
-        await Assert.That(Playback2DKeymapProfile.ValidateOverride(["PrevRound=Shift+R"], "NextRound=Shift+R"))
+        await Assert.That(Playback2DKeymapProfile.ValidateOverride(["PrevRound=Shift+W"], "NextRound=Shift+W"))
             .IsNotEmpty();
     }
 

@@ -7,7 +7,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime;
 using System.Text.Json;
 using System.Windows.Input;
 using Avalonia.Platform.Storage;
@@ -24,12 +23,14 @@ using CS2DemoKit.Parser.GameEvents;
 using CS2DemoKit.Parser.Models;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -83,10 +84,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             "highlights"
         };
 
-    // Maps a WorkspaceTabDescriptor.TabId (module-owned, e.g. "builtin.parser") to its FeatureCatalog tab
-    // feature id (e.g. "tab.parser"). A descriptor whose TabId is ABSENT here is never gated → always shown
-    // (fail-open); a mapped id not in the catalog also fails open via IFeatureGate.IsEnabled. Static +
-    // readonly (CA1861/CA1859-clean; the value type is the concrete Dictionary the lookup uses directly).
+    // Fallback for a descriptor with no WorkspaceTabDescriptor.FeatureId of its own: maps its TabId
+    // (e.g. "builtin.parser") to a FeatureCatalog tab id (e.g. "tab.parser"), built-ins only. A TabId
+    // absent here, with no descriptor FeatureId, is never gated → always shown (fail-open); a mapped id
+    // not in the catalog also fails open via IFeatureGate.IsEnabled. Static + readonly (CA1861/CA1859-clean;
+    // the value type is the concrete Dictionary the lookup uses directly).
     private static readonly Dictionary<string, string> _tabFeatureIds = new(StringComparer.Ordinal)
     {
         ["builtin.library"] = "tab.library",
@@ -106,6 +108,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // by reference from this cache, so a re-enabled tab keeps its cached module-tab VM state (tabs reconcile by TabId:
     // never re-running CreateTabs, which would tear down that state).
     private readonly List<WorkspaceTabDescriptor> _allTabDescriptors = [];
+
+    // The tabs that host sections, keyed by host id: the Library (built in, always on the strip) and every
+    // host tab a pack contributed. Each entry caches its sections unfiltered, like _allTabDescriptors; they
+    // never enter Tabs, their host reconciles them by the same gate on the same events.
+    private readonly List<SectionHostEntry> _hosts = [];
+    private readonly IReadOnlyList<HostTabContribution> _hostTabs;
+
+    // One host tab and what it carries. The host VM exists from BuildWorkspaceTabs: the shell reconciles
+    // sections and restores the session through it before the tab is ever selected.
+    private sealed class SectionHostEntry(
+        string hostId, WorkspaceTabDescriptor tab, TabSectionHost sections, IHostTabViewModel? viewModel, bool contributed)
+    {
+        public string HostId { get; } = hostId;
+        public WorkspaceTabDescriptor Tab { get; } = tab;
+        public TabSectionHost Sections { get; } = sections;
+        public IHostTabViewModel? ViewModel { get; } = viewModel;
+
+        // A contributed host shows only while a hosted section does and falls back to Library when it goes;
+        // the Library is a strip tab with a body of its own and never hides for want of sections.
+        public bool Contributed { get; } = contributed;
+        public List<WorkspaceTabDescriptor> AllSections { get; } = [];
+    }
 
     // The unified demo cache, the source for a cached Match Overview render. Null on WASM and in tests
     // that do not exercise the preview path.
@@ -166,8 +190,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Null on the WASM head. System.Diagnostics.Process does not exist in a browser and
     // Process.GetCurrentProcess() throws PlatformNotSupportedException, from a FIELD INITIALIZER, so
     // constructing MainViewModel threw before its constructor body ran and the whole app came up black
-    // with one line in the console (`Process_PlatformNotSupported`). Found by B5's WASM verification
-    // pass, which is the first thing to actually boot the published head. There is nothing to degrade
+    // with one line in the console (`Process_PlatformNotSupported`). There is nothing to degrade
     // to: a browser tab has no OS process to report, and the readout it feeds is a desktop diagnostics
     // affordance (a PID to hand to dotnet-dump), so the title simply stays the product name there.
     private readonly Process? _process =
@@ -327,7 +350,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance")]
     private IReadOnlyDictionary<int, string> _nameByUserId = new Dictionary<int, string>();
 
-    // ── Nav-strip frame readout (navigation-review Phase C) ───────────────────
+    // ── Nav-strip frame readout ────────────────────────────────────────────────
     // The shell nav strip's editable "frame N / MAX" box. Movement is frame-index based (the user's
     // locked decision); the tick is shown as a read-only label via Playback.CurrentTick. NavFrameText
     // mirrors Playback.CurrentFrameIndex (kept in sync via the controller's PropertyChanged) and commits
@@ -351,6 +374,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     flips true after the next file load. Cleared after a one-shot restore.
     /// </summary>
     private SessionPayload? _pendingRestore;
+
+    /// <summary>
+    ///     The pack session blobs loaded at startup, kept for the life of the session (unlike
+    ///     <see cref="_pendingRestore" />, which clears on the first demo load). A pack that has never been
+    ///     enabled this session is never asked to snapshot, so this is the only source for carrying its
+    ///     blob through unchanged on the next save.
+    /// </summary>
+    private Dictionary<string, JsonElement>? _loadedPackSessions;
+
+    /// <summary>
+    ///     Pack ids <c>RestorePackState</c> has been called for this session, at startup or on a live
+    ///     enable. Once a pack is in here, <c>SnapshotPackSessions</c> trusts its host's current value over
+    ///     <see cref="_loadedPackSessions" /> even after the pack goes off again, so a value set while it
+    ///     was on is never lost to a later disable.
+    /// </summary>
+    private readonly HashSet<string> _restoredPackIds = new(StringComparer.Ordinal);
 
     // ── 2D export chip ─────────────────────────────────────────────────────────
     // The FIFTH StatusChip consumer, and the only one attached from a tab rather than at composition:
@@ -484,6 +523,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     that demo's cached record on Match Overview without parsing anything. Null (WASM, most tests) →
     ///     the preview is simply inert.
     /// </param>
+    /// <param name="libraryContributions">
+    ///     The packs' Library filter/badge contributions (the Team filter, the provenance chip).
+    ///     Null (designer, most tests) hosts none, so the Library offers neither.
+    /// </param>
+    /// <param name="hostTabs">
+    ///     The host tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
+    ///     the Library, so a section naming another host is dropped with a module log line.
+    /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -493,8 +540,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IDemoProcessingQueue? processingQueue = null,
         DemoEvaluationCoordinator? evaluationCoordinator = null,
         Func<string?>? tourSampleLocator = null,
-        DemoCacheStore? demoCache = null)
+        DemoCacheStore? demoCache = null,
+        IReadOnlyList<ILibraryContribution>? libraryContributions = null,
+        IReadOnlyList<HostTabContribution>? hostTabs = null)
     {
+        _hostTabs = hostTabs ?? [];
         _demoCache = demoCache;
         _windowService = windowService;
         _settingsService = settingsService;
@@ -537,7 +587,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // and the frame list. Refreshes lazily on tab activation and after each evaluation.
         Diagnostics = new DiagnosticsTabViewModel(AnalysisTab, () => _loadedDemoPath, () => _allFrames, Telemetry);
 
-        // Stats tab (release plan P1-3.1): the user-facing scoreboard. Subscribes to the engine's
+        // Stats tab: the user-facing scoreboard. Subscribes to the engine's
         // EvaluationCompleted and projects the MetricTables itself; reads (never owns) analysis state.
         StatsTab = new StatsTabViewModel(Analysis, () => _loadedDemoPath);
 
@@ -675,7 +725,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             () => _protoIndex,
             () => Frames.Count);
 
-        // navigation-review Phase D: the per-tab SeekControls (control + VM) is fully retired: Phase C
+        // The per-tab SeekControls (control + VM) is fully retired: the nav strip
         // removed its last view mount, so the shell NavStrip is the single nav surface. The six legacy
         // *Frame* wrapper methods remain (they delegate to the SemanticNavigator and are still the
         // implementation the NavStrip's Nav*Command targets route through indirectly).
@@ -797,7 +847,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReplayTab.ParserCardFactory = (msg, msgBytes, normOffset) =>
             ParserTab.BuildHarvestCardExternal(msg, msgBytes, normOffset);
         ReplayTab.SlotNameResolver = SlotToName;
-        // navigation-review Phase D: ReplayTab.GameEventFilterProvider removed with the orphaned
+        // ReplayTab.GameEventFilterProvider removed with the orphaned
         // NextGameEventTick; the single demo-derived filter (GameEventFilters) now drives the NavStrip.
         ReplayTab.OnTickGroupSelected = group => _ = EntityTab.SeekEntitiesWithDeltaAsync(group);
         ReplayTab.OnTickFrameSelected = frame =>
@@ -837,7 +887,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             PickFoldersAsync,
             OpenFileAsync, // the Library's "Open Demo…" CTA shares the one picker → LoadDemoFromBytesAsync funnel
             _recentFiles,
-            _tourSamplePath); // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
+            _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
+            libraryContributions, // the Team filter and the provenance chip
+            isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
@@ -972,7 +1024,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     The shared semantic navigator. Read-only access for the nav strip
-    ///     (Phase C) and tests; movement happens through its <c>Next*</c>/<c>Prev*</c> methods, which
+    ///     and tests; movement happens through its <c>Next*</c>/<c>Prev*</c> methods, which
     ///     binary-search the precomputed boundaries and drive <see cref="Playback" />.
     /// </summary>
     public SemanticNavigator Navigator { get; }
@@ -980,7 +1032,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     The strip-ready event-filter flyout VM. Wraps the
     ///     demo-derived <see cref="GameEventFilters" /> with Select-all / Deselect-all + a live tooltip;
-    ///     the Phase C nav strip's event-jump flyout binds to this. One filter, one source.
+    ///     the nav strip's event-jump flyout binds to this. One filter, one source.
     /// </summary>
     public EventFilterFlyoutViewModel EventFilterFlyout { get; }
 
@@ -1003,11 +1055,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<StatusChipViewModel> Chips { get; } = [];
 
+    // The pack-contributed chip slots, set once by AttachStatusChips. Each contribution's own
+    // Source.PropertyChanged subscription is kept so Dispose can detach it; _shownContributedChips tracks
+    // which Chip instance this slot last added to Chips, keyed by the contribution's own id.
+    private IReadOnlyList<StatusChipContribution> _statusChipContributions = [];
+    private readonly List<(IContributedStatusChip Source, PropertyChangedEventHandler Handler)> _statusChipSubscriptions = [];
+    private readonly Dictionary<string, StatusChipViewModel> _shownContributedChips = new(StringComparer.Ordinal);
+
     /// <summary>The background reel-generation service, when the host provides one (desktop). Null otherwise.</summary>
     public IReelJobService? ReelJob { get; private set; }
 
     /// <summary>Demo-library landing tab (folder scan + filterable card/list browser).</summary>
     public LibraryTabViewModel LibraryTab { get; }
+
+    /// <summary>
+    ///     The Strat Book tab's rail and selection. Built eagerly (it is a list and a pointer); the sections
+    ///     it holds stay as lazy as any module tab. Its strip descriptor exists only when a module
+    ///     contributed a section.
+    /// </summary>
+    /// <summary>The view model of the host tab with this host id, or null when no pack contributed one.</summary>
+    /// <param name="hostId">The id sections name, e.g. <c>"stratbook.hub"</c>.</param>
+    internal IHostTabViewModel? HostViewModel(string hostId) =>
+        _hosts.FirstOrDefault(h => h.HostId == hostId)?.ViewModel;
 
     /// <summary>
     ///     The workspace tab strip. ItemsSource-driven; the four built-in tabs are registered
@@ -1121,7 +1190,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public DiagnosticsTelemetryHub Telemetry { get; }
 
-    /// <summary>Stats tab (release plan P1-3.1): the user-facing scoreboard + per-round browser.</summary>
+    /// <summary>Stats tab: the user-facing scoreboard + per-round browser.</summary>
     public StatsTabViewModel StatsTab { get; }
 
     /// <summary>Match Overview tab: the demo landing page (identity + load progress + summary).</summary>
@@ -1580,6 +1649,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _gate.Changed -= OnGateChanged;
         }
 
+        foreach ((IContributedStatusChip source, PropertyChangedEventHandler handler) in _statusChipSubscriptions)
+        {
+            source.PropertyChanged -= handler;
+        }
+
+        _statusChipSubscriptions.Clear();
+
         if (LiveSync is not null)
         {
             LiveSync.StateChanged -= OnLiveSyncStateChanged;
@@ -1960,7 +2036,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetSummary(path, parsed);
-        MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
+        MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // damaged-demo banner
         TryPushTeamNames(path);
 
         if (StatsTab.GameTable is not null)
@@ -2245,14 +2321,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // Shown while running, or while a finished result has not been dismissed. An idle mapper adds nothing
     // to the strip: the tab attaches it on the first Export, which is long before the first Start.
-    private void ReconcileExportChip()
+    private void ReconcileExportChip() =>
+        ReconcileExportChip(Playback2DExportStatus, _exportChipDismissed, allowed: true);
+
+    private void ReconcileExportChip(Playback2DExportStatusViewModel? mounted, bool dismissed, bool allowed)
     {
-        if (Playback2DExportStatus is not { } status)
+        if (mounted is not { } status)
         {
             return;
         }
 
-        bool shouldShow = status.IsRunning || !status.IsIdle && !_exportChipDismissed;
+        bool shouldShow = allowed && (status.IsRunning || !status.IsIdle && !dismissed);
         bool present = Chips.Contains(status.Chip);
         if (shouldShow && !present)
         {
@@ -2261,6 +2340,67 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         else if (!shouldShow && present)
         {
             Chips.Remove(status.Chip);
+        }
+    }
+
+    /// <summary>
+    ///     Mounts the chip slots the packs contributed: a generic replacement for what used to be
+    ///     a dedicated Strat-export slot. Each slot's own <see cref="IContributedStatusChip.IsShown" />
+    ///     decides presence once its owning pack's gate allows it; a slot may mount its chip long after this
+    ///     runs (the Strat Book builds its export job lazily, on the first Export), so this subscribes to
+    ///     the slot rather than reading it once. Called once by the composition root after the shell is
+    ///     built.
+    /// </summary>
+    internal void AttachStatusChips(IReadOnlyList<StatusChipContribution> chips)
+    {
+        ArgumentNullException.ThrowIfNull(chips);
+        _statusChipContributions = chips;
+        foreach (StatusChipContribution contribution in chips)
+        {
+            PropertyChangedEventHandler handler = (_, _) => ReconcileContributedChip(contribution);
+            contribution.Source.PropertyChanged += handler;
+            _statusChipSubscriptions.Add((contribution.Source, handler));
+            ReconcileContributedChip(contribution);
+        }
+    }
+
+    // Re-checks every contributed slot against the gate (a pack toggle may have flipped which ones are
+    // allowed). Called from ApplyGateChange; a slot's OWN mount/dismiss changes reconcile themselves
+    // through the per-contribution subscription AttachStatusChips installs.
+    private void ReconcileContributedChips()
+    {
+        foreach (StatusChipContribution contribution in _statusChipContributions)
+        {
+            ReconcileContributedChip(contribution);
+        }
+    }
+
+    // A contributed chip's Chip reference can change identity across a remount (a new job, a new mapper);
+    // _shownContributedChips tracks which instance THIS slot last added, so a stale one is removed rather
+    // than orphaned in Chips forever.
+    private void ReconcileContributedChip(StatusChipContribution contribution)
+    {
+        bool allowed = contribution.FeatureId is null || (_gate?.IsEnabled(contribution.FeatureId) ?? true);
+        StatusChipViewModel? current = contribution.Source.Chip;
+
+        if (_shownContributedChips.TryGetValue(contribution.Id, out StatusChipViewModel? previous)
+            && !ReferenceEquals(previous, current))
+        {
+            Chips.Remove(previous);
+            _shownContributedChips.Remove(contribution.Id);
+        }
+
+        bool shouldShow = allowed && current is not null && contribution.Source.IsShown;
+        bool present = current is not null && Chips.Contains(current);
+        if (shouldShow && !present)
+        {
+            Chips.Add(current!);
+            _shownContributedChips[contribution.Id] = current!;
+        }
+        else if (!shouldShow && present)
+        {
+            Chips.Remove(current!);
+            _shownContributedChips.Remove(contribution.Id);
         }
     }
 
@@ -2279,7 +2419,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _moduleContext = new ModuleContext(
             Playback,
             () => _loadedDemoPath,
-            Navigator); // Phase E: modules drive "jump to next event of its own type" through the shared navigator
+            Navigator); // modules drive "jump to next event of its own type" through the shared navigator
 
         // The 2D tab's ↑/↓ speed keys must honour the same Live Sync speed lock the NavStrip speed
         // ComboBox binds its IsEnabled to (IsPlaybackSpeedLocked): a parallel path would let a keypress
@@ -2312,10 +2452,48 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
+        // The hosts: the Library (its own descriptor is a built-in above) and one strip tab per contributed
+        // host, its VM built now so the sections and the session have somewhere to land before activation.
+        _hosts.Clear();
+        _hosts.Add(new SectionHostEntry(LibraryTabViewModel.HostId, descriptors.First(d => d.TabId == LibraryTabViewModel.HostId),
+            LibraryTab.Sections, null, contributed: false));
+        foreach (HostTabContribution host in _hostTabs)
+        {
+            IHostTabViewModel viewModel = host.ViewModelFactory();
+            viewModel.RailLabel = host.RailLabel;
+            WorkspaceTabDescriptor tab = new()
+            {
+                TabId = host.TabId,
+                Header = host.Header,
+                Order = host.Order,
+                FeatureId = host.FeatureId,
+                ViewModelFactory = () => viewModel,
+                ViewFactory = host.ViewFactory
+            };
+            descriptors.Add(tab);
+            _hosts.Add(new SectionHostEntry(host.HostId, tab, viewModel.Sections, viewModel, contributed: true));
+        }
+
+        // Sections leave the strip here, each to the host it names.
+        foreach (WorkspaceTabDescriptor section in descriptors.Where(d => d.HostId is not null).ToList())
+        {
+            descriptors.Remove(section);
+            if (_hosts.FirstOrDefault(h => h.HostId == section.HostId) is { } host)
+            {
+                host.AllSections.Add(section);
+            }
+            else
+            {
+                RouteModuleLog(ModuleLogLevel.Error,
+                    $"Section '{section.TabId}' names host '{section.HostId}', which nothing contributes; dropped.");
+            }
+        }
+
         // Cache the FULL descriptor set (every module, unfiltered) so the live reconcile can re-add a
         // re-enabled tab by reference without re-running CreateTabs. Built once, never rebuilt.
         _allTabDescriptors.Clear();
         _allTabDescriptors.AddRange(descriptors);
+        ReconcileSections();
 
         // The gate FILTERS which descriptors become Tabs. A null gate fails open
         // (IsTabEnabled returns true for every tab), preserving the pre-gating behaviour for the
@@ -2344,15 +2522,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // True when the tab should be shown. Fail-open in two ways: a null gate (no filtering at all) and a
-    // TabId with no mapped feature (an ungated tab is always shown).
+    // descriptor with no FeatureId and no entry in the built-in fallback map (an ungated tab is always
+    // shown). A contributed host tab is the exception to the null-gate rule: with or without a gate it
+    // shows only while its own id resolves on AND some section it hosts does, so a host nothing targets
+    // (or whose every section is off) has no tab.
     private bool IsTabEnabled(WorkspaceTabDescriptor descriptor)
     {
+        if (HostFor(descriptor) is { Contributed: true } host)
+        {
+            return (host.Tab.FeatureId is null || _gate is null || _gate.IsEnabled(host.Tab.FeatureId))
+                   && host.AllSections.Any(IsTabEnabled);
+        }
+
         if (_gate is null)
         {
             return true;
         }
 
-        if (!_tabFeatureIds.TryGetValue(descriptor.TabId, out string? featureId))
+        string? featureId = descriptor.FeatureId;
+        if (featureId is null && !_tabFeatureIds.TryGetValue(descriptor.TabId, out featureId))
         {
             return true;
         }
@@ -2386,6 +2574,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         ReconcileTabs();
 
+        // A pack that just turned on restores its carried-forward blob here (RestorePackSessions is a
+        // once-per-pack no-op otherwise), so a mid-session enable shows the saved layout, not defaults.
+        RestorePackSessions(_loadedPackSessions);
+
         // Force owned panels closed when their chrome is now gated off. Without this a drawer/rail a
         // developer left open would stay open after a downgrade even though its toggle button is hidden.
         if (!IsDebuggerChromeEnabled)
@@ -2414,6 +2606,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReconcileChips();
         // The chrome.processingQueue gate may have flipped: add/remove the Processing chip to match.
         ReconcileQueueChip();
+
+        // A contributed filter/badge's own gate id may have flipped (the hub and its sections already
+        // went through ReconcileTabs above).
+        LibraryTab.RefreshContributions();
+        ReconcileExportChip();
+        // Any contributed chip's own feature id (the Strat export chip's, among others) may have flipped.
+        ReconcileContributedChips();
     }
 
     /// <summary>
@@ -2430,6 +2629,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        ReconcileSections();
+
         // Desired = every cached descriptor the gate now enables, in the strip's sort order.
         List<WorkspaceTabDescriptor> desired = _allTabDescriptors
             .Where(IsTabEnabled)
@@ -2444,8 +2645,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (ReferenceEquals(SelectedTab, removed))
             {
                 // Neighbor-select BEFORE the remove so the selection is already on a surviving tab when
-                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard.
-                SelectedTab = ChooseNeighbor(removed, desired);
+                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard. A contributed
+                // host is special-cased: its order-neighbor can be any tab to its left, but a disabled pack
+                // must land on Library specifically, not whatever happens to sort just before it.
+                SelectedTab = HostFor(removed) is { Contributed: true }
+                    ? Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId) ?? ChooseNeighbor(removed, desired)
+                    : ChooseNeighbor(removed, desired);
             }
 
             removed.Deactivate(); // idempotent; drops the realized View if it was the (old) selected tab.
@@ -2472,6 +2677,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SelectedTab = Tabs[0];
         }
     }
+
+    // Hands each host the sections the gate enables, in rail order. Same descriptor objects every time, so
+    // a section's cached VM survives a gate flip the way a strip tab's does.
+    private void ReconcileSections()
+    {
+        foreach (SectionHostEntry host in _hosts)
+        {
+            host.Sections.Reconcile(host.AllSections.Where(IsTabEnabled).OrderBy(d => d.Order).ToList());
+        }
+    }
+
+    // The host entry whose strip tab this descriptor is, or null for an ordinary tab.
+    private SectionHostEntry? HostFor(WorkspaceTabDescriptor descriptor) =>
+        _hosts.FirstOrDefault(h => ReferenceEquals(h.Tab, descriptor));
+
+    // The id a session or idle snapshot records for "where the user was": the selected section's own id when
+    // a host tab is selected with a section live on it, else the strip tab's. TrySelectTab resolves a section id
+    // back through its host, so this is one key for both, and it needs no demo to restore (module-tab state
+    // waits for a load; the rail position must not).
+    private string? PersistedActiveTabId =>
+        SelectedTab switch
+        {
+            { } tab when HostFor(tab)?.Sections.SelectedSection is { } section => section.TabId,
+            { } tab => tab.TabId,
+            null => null
+        };
+
+    // Every descriptor with a VM the session file may hold state for: the strip tabs and the hosted sections.
+    private IEnumerable<WorkspaceTabDescriptor> TabsAndSections() =>
+        Tabs.Concat(_hosts.SelectMany(h => h.Sections.Sections));
 
     // The tab selection lands on when the SELECTED tab is removed: the nearest still-enabled tab with a
     // LOWER sort position, else the first (Library) tab. `desired` is already sorted, so the last entry
@@ -2560,6 +2795,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        IDemoOpenTicket open = BeginOpenItem(path, Path.GetFileName(path));
+        byte[] rawBytes;
+        try
+        {
+            rawBytes = await ReadDemoBytes(path, open.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            EndUnreadOpen(open, Path.GetFileName(path), ex);
+            return;
+        }
+
+        if (IsStale(open))
+        {
+            open.Dispose();
+            return;
+        }
+
         UnloadDemoState();
 
         IsLoading = true;
@@ -2568,24 +2821,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetStage(path, "Parsing demo…", 0.15);
+        bool superseded = false;
 
         try
         {
-            byte[] rawBytes = await File.ReadAllBytesAsync(path);
             _demoBytes = rawBytes;
             _loadedDemoPath = path; // Diagnostics Session card
-            // The interactive load takes the machine-wide
-            // heavy-parse gate: background indexing/scanning yields at its next demo boundary.
-            // During a reel render the acquisition throws ReelInProgressException, which the
-            // site's existing failure handling surfaces with its clear user-facing message.
-            ParsedDemo parsed;
-            using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync())
-            {
-                parsed = await Task.Run(() => DemoParser.Parse(rawBytes.AsMemory()));
-            }
+            // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it:
+            // it keys the graph breakpoints and is published to modules, and computing it here costs no
+            // wall time on the load. See LoadDemoFromBytesAsync for the same shape.
+            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
+            // The same open item as the interactive funnel. During a reel render the parse throws
+            // ReelInProgressException, which the failure handling below surfaces.
+            ParsedDemo parsed = await open.ParseAsync(rawBytes);
 
+            string demoKey = await demoKeyTask;
+            open.CancellationToken.ThrowIfCancellationRequested();
+            open.Report(0.5, "Building the views");
             MatchOverviewTab.SetSummary(path, parsed);
-            MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
+            MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // damaged-demo banner
             FrameRows.Clear();
             int frameNum = 0;
             foreach (DemoFrame frame in parsed.Frames)
@@ -2616,13 +2870,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }));
             _moduleContext?.SetGameEvents(parsed.AllGameEvents); // pre-decoded timeline for event-driven modules
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
-            _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
+            _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
+            _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
-            // navigation-review Phase A: precompute round / event / tick boundary indices once,
-            // drained alongside the unknown-message census. The six *Frame* nav methods + the Phase C
+            // Precompute round / event / tick boundary indices once,
+            // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // #4/#5: calibrate the shared game-clock once (first round_freeze_end) for the 2D round
+            // Calibrate the shared game-clock once (first round_freeze_end) for the 2D round
             // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
             ApplyGameClock(_allFrames, parsed.TickRate);
             // Mirror the production load path: signal active modules to resync to the new demo (see the
@@ -2637,9 +2892,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // Match Overview stage parity with the interactive funnel (see LoadDemoFromBytesAsync).
             MatchOverviewTab.BeginAnalysis(path);
-            // SHA-256 the demo bytes (off-thread) to key its persisted graph breakpoints.
-            string demoKey = await Task.Run(() => GraphBreakpointStore.ComputeDemoKey(rawBytes));
+            open.Report(0.6, "Analysing");
             await Analysis.RunAsync(parsed, demoKey);
+            ThrowIfSuperseded(open);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
             MatchOverviewTab.SetTeamScores(
@@ -2653,15 +2908,30 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Parity with the interactive load path: resume the walkthrough's deferred demo segment if a
             // first-run user's first demo arrives via CLI/debug auto-load. No-op unless the tour is awaiting.
             _tutorial.NotifyDemoLoaded();
+            open.Complete();
+        }
+        catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
+        {
+            superseded = open.IsSuperseded;
+            open.Dispose();
+            if (!superseded)
+            {
+                StatusText = $"Auto-load of {Path.GetFileName(path)} was cancelled";
+                MatchOverviewTab.Fail(path, StatusText);
+            }
         }
         catch (Exception ex)
         {
+            open.Fail(ex);
             StatusText = $"Auto-load failed: {ex.Message}";
             MatchOverviewTab.Fail(path, ex.Message);
         }
         finally
         {
-            IsLoading = false;
+            if (!superseded)
+            {
+                IsLoading = false;
+            }
         }
     }
 
@@ -2900,7 +3170,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return null;
     }
 
-    // FrameContainsGameEvent / FrameContainsRoundEvent retired in navigation-review Phase A: the
+    // FrameContainsGameEvent / FrameContainsRoundEvent are retired: the
     // per-frame scans they backed are now precomputed once in SemanticNavigator.Build (the *Frame*
     // methods delegate to the navigator). FrameHasRoundTransition stays: it serves StepRoundToBreakpoint.
 
@@ -3016,11 +3286,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // ── Semantic-nav delegating wrappers (navigation-review Phase A) ──────────
+    // ── Semantic-nav delegating wrappers ───────────────────────────────────────
     // The six *Frame* methods below delegate to the shell-owned SemanticNavigator, which
     // binary-searches the precomputed boundary indices from PlaybackController.CurrentFrameIndex and
     // drives PlaybackController.SeekToFrame. SeekControls still calls these wrappers (behavior-identical
-    // to the legacy per-press scans); the strip (Phase C) calls the navigator directly.
+    // to the legacy per-press scans); the strip calls the navigator directly.
 
     private void NextFrameByRound() => Navigator.NextRound();
 
@@ -3166,20 +3436,66 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         IStorageFile file = files[0];
         string? pickedLocalPath = file.TryGetLocalPath();
+        IDemoOpenTicket open = BeginOpenItem(pickedLocalPath, file.Name);
         byte[] pickedBytes;
-        if (pickedLocalPath is not null)
+        try
         {
-            pickedBytes = await File.ReadAllBytesAsync(pickedLocalPath);
+            if (pickedLocalPath is not null)
+            {
+                pickedBytes = await ReadDemoBytes(pickedLocalPath, open.CancellationToken);
+            }
+            else
+            {
+                await using Stream rawStream = await file.OpenReadAsync();
+                MemoryStream ms = new();
+                await rawStream.CopyToAsync(ms, open.CancellationToken);
+                pickedBytes = ms.ToArray();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await using Stream rawStream = await file.OpenReadAsync();
-            MemoryStream ms = new();
-            await rawStream.CopyToAsync(ms);
-            pickedBytes = ms.ToArray();
+            EndUnreadOpen(open, file.Name, ex);
+            return;
         }
 
-        await LoadDemoFromBytesAsync(pickedBytes, pickedLocalPath, file.Name);
+        await LoadDemoFromBytesAsync(pickedBytes, pickedLocalPath, file.Name, open);
+    }
+
+    private static bool IsStale(IDemoOpenTicket open) =>
+        open.IsSuperseded || open.CancellationToken.IsCancellationRequested;
+
+    /// <summary>Test seam: how an open reads its file.</summary>
+    internal Func<string, CancellationToken, Task<byte[]>> ReadDemoBytes { get; set; } = File.ReadAllBytesAsync;
+
+    private static void ThrowIfSuperseded(IDemoOpenTicket open)
+    {
+        if (open.IsSuperseded)
+        {
+            throw new OperationCanceledException(open.CancellationToken);
+        }
+    }
+
+    // Every open is one queue item at the front. A host without the queue parses under the gate, as before.
+    private IDemoOpenTicket BeginOpenItem(string? path, string fileName) =>
+        _processingQueue?.BeginOpen(path, fileName) ?? new PassThroughDemoOpen(async (bytes, ct) =>
+        {
+            using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync(ct))
+            {
+                return await Task.Run(() => DemoParser.Parse(bytes), ct);
+            }
+        });
+
+    // An open that ended before the load core ran: replaced or removed while reading, or the read failed.
+    private void EndUnreadOpen(IDemoOpenTicket open, string fileName, Exception ex)
+    {
+        if (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested)
+        {
+            open.Dispose();
+            return;
+        }
+
+        open.Fail(ex);
+        StatusText = $"Error reading {fileName}: {ex.Message}";
     }
 
     /// <summary>
@@ -3195,18 +3511,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        string fileName = Path.GetFileName(path);
+        IDemoOpenTicket open = BeginOpenItem(path, fileName);
         byte[] rawBytes;
         try
         {
-            rawBytes = await File.ReadAllBytesAsync(path);
+            rawBytes = await ReadDemoBytes(path, open.CancellationToken);
         }
         catch (Exception ex)
         {
-            StatusText = $"Error reading {Path.GetFileName(path)}: {ex.Message}";
+            EndUnreadOpen(open, fileName, ex);
             return;
         }
 
-        await LoadDemoFromBytesAsync(rawBytes, path, Path.GetFileName(path));
+        await LoadDemoFromBytesAsync(rawBytes, path, fileName, open);
     }
 
     /// <summary>
@@ -3216,6 +3534,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Parser only produced a one-frame Parser flash before the funnel took over.
     /// </summary>
     public async Task OpenDemoInWorkspaceAsync(string path) => await LoadDemoFromPathAsync(path);
+
+    /// <summary>
+    ///     The path of the loaded demo as the library knows it, or null with none. The Situations
+    ///     tab's seek seam reads it to skip the re-open when a Result Card names the demo already on
+    ///     the clock; the Diagnostics card and the idle resume read the same field.
+    /// </summary>
+    internal string? LoadedDemoPath => _loadedDemoPath;
 
     /// <summary>
     ///     Drops every shell-held reference to the currently-loaded demo. Shared by the two load entry
@@ -3261,6 +3586,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _moduleContext?.SetGameEvents([]);
         _moduleContext?.SetGameClock(0);
         _moduleContext?.SetMapName(null);
+        _moduleContext?.SetDemoSha256(null);
         _moduleContext?.SetDemo(null);
         // ClearAndTrim, not Clear: these grow to one slot per frame (~131k on a long demo) and
         // Clear() does not shrink the backing array, so a closed demo left 1 MB of nulls in each.
@@ -3348,15 +3674,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StatusText = "No demo loaded.";
         AppLog.DemoClosed(DiagLog);
 
-        // Off the UI thread: a blocking gen-2 compacting collection over a demo-sized heap is long
-        // enough to be felt as a hitch.
-        await Task.Run(static () =>
-        {
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-        });
+        await HeapCompactor.CompactAsync();
     }
 
     // ── Idle mode ─────────────────────────────────────────────────────────────
@@ -3385,12 +3703,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Switches the workspace to the tab with the given TabId (null / absent = no-op). Wired to the tutorial
     // controller so a step can bring its target region on screen; a gated-off tab simply isn't found, and the
     // step degrades to a callout with no spotlight (anchor-missing → graceful).
-    private void SelectTabById(string? tabId)
+    private void SelectTabById(string? tabId) => TrySelectTab(tabId);
+
+    /// <summary>
+    ///     Switches to the tab with the given TabId and says whether it was there. A gated-off tab is
+    ///     absent from the strip, so false is how a module learns its target has nowhere to show (Find
+    ///     Rounds Like This leaves its key unhandled on that answer). A section's id selects its host tab
+    ///     and then the section, so every caller that named a strip tab before the Strat Book rail keeps
+    ///     working unchanged.
+    /// </summary>
+    /// <param name="tabId">The persisted tab id.</param>
+    internal bool TrySelectTab(string? tabId)
     {
-        if (tabId is { Length: > 0 } && Tabs.FirstOrDefault(t => t.TabId == tabId) is { } tab)
+        if (tabId is not { Length: > 0 })
+        {
+            return false;
+        }
+
+        if (Tabs.FirstOrDefault(t => t.TabId == tabId) is { } tab)
         {
             SelectedTab = tab;
+            return true;
         }
+
+        // The host must be on the strip before its sections are asked: a section of a hidden host is "not
+        // here", and asking first would move the host's selection as a side effect of a false answer.
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (Tabs.Contains(host.Tab) && host.Sections.TrySelect(tabId))
+            {
+                SelectedTab = host.Tab;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -3439,7 +3786,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             if (HasFile && _loadedDemoPath is { Length: > 0 } path && File.Exists(path))
             {
-                _idleResume = new IdleResumeState(path, Playback.CurrentFrameIndex, SelectedTab?.TabId);
+                _idleResume = new IdleResumeState(path, Playback.CurrentFrameIndex, PersistedActiveTabId);
                 IdleView.SessionStateText = Playback.CurrentFrameIndex >= 0
                     ? $"Closed {Path.GetFileName(path)} — resumes at frame {Playback.CurrentFrameIndex}."
                     : $"Closed {Path.GetFileName(path)} — resumes at the start.";
@@ -3507,11 +3854,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await LoadDemoFromPathAsync(resume.DemoPath);
 
         // Restore the active tab + playback position now that the reopened demo is fully loaded.
-        if (resume.ActiveTabId is { Length: > 0 } tabId
-            && Tabs.FirstOrDefault(t => t.TabId == tabId) is { } match)
-        {
-            SelectedTab = match;
-        }
+        TrySelectTab(resume.ActiveTabId);
 
         if (resume.ResumeFrameIndex >= 0 && resume.ResumeFrameIndex < Playback.TotalFrames)
         {
@@ -3583,8 +3926,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     here so there is exactly one load path. <paramref name="localPath" /> is retained for the Diagnostics
     ///     Session card (null on browser hosts with no local path).
     /// </summary>
-    private async Task LoadDemoFromBytesAsync(byte[] rawBytes, string? localPath, string fileName)
+    private async Task LoadDemoFromBytesAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
     {
+        // An open item left active holds every heavy item until restart.
+        try
+        {
+            await LoadDemoFromBytesCoreAsync(rawBytes, localPath, fileName, open);
+        }
+        catch (Exception ex)
+        {
+            open.Fail(ex);
+            throw;
+        }
+    }
+
+    private async Task LoadDemoFromBytesCoreAsync(byte[] rawBytes, string? localPath, string fileName, IDemoOpenTicket open)
+    {
+        // A read that finished after a newer open started must not reset the shell under it.
+        if (IsStale(open))
+        {
+            open.Dispose();
+            return;
+        }
+
         UnloadDemoState();
 
         IsLoading = true;
@@ -3625,6 +3989,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         List<DemoFrame> allFrames = new();
+        bool superseded = false;
 
         try
         {
@@ -3634,32 +3999,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Retain the full path for the Diagnostics Session card; null on browser hosts.
             _loadedDemoPath = localPath ?? fileName;
 
-            // Parse on a background thread, zero-copy: the parser slices directly into rawBytes for
-            // uncompressed frames via ReadOnlyMemory<byte>. The open is the HIGHEST-priority, awaitable
-            // FOREGROUND request on the global demo-processing queue: it
-            // preempts background indexing/scanning (which yields at its next demo boundary), best-effort
-            // coalesces onto an in-flight parse of the same demo, and during a reel render throws
-            // ReelInProgressException, surfaced by this site's existing failure handling. The queue
-            // parses the in-hand rawBytes (no re-read). Legacy fallbacks: the direct gate, then ungated.
+            // Zero-copy parse of rawBytes through the open item: frames slice into the buffer, so it must stay
+            // held. During a reel render the parse throws ReelInProgressException, handled below.
             MatchOverviewTab.SetStage(subjectKey, "Parsing demo…", 0.15);
-            ParsedDemo parsed;
-            if (_processingQueue is not null)
-            {
-                parsed = await _processingQueue.RequestForegroundAsync(_loadedDemoPath, rawBytes);
-            }
-            else
-            {
-                using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync())
-                {
-                    parsed = await Task.Run(() => DemoParser.Parse(rawBytes.AsMemory()));
-                }
-            }
+            // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it. It
+            // keys the persisted graph breakpoints and is published on the module context, where the
+            // annotation, breakpoint and tag stores join on it; hashing here costs no wall time on the load,
+            // and hashing once here is what lets every module read the value instead of hashing again.
+            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
+            ParsedDemo parsed = await open.ParseAsync(rawBytes);
 
             // Fill the Match Overview quick facts + rosters from the parsed result and advance its stage strip
             // to "Enriching". The page does NOT leave its loading state here: the score and scoreboard are
             // still placeholders until the analysis run below lands.
+            string demoKey = await demoKeyTask;
+            // Last point where stopping is safe: past it the shell holds this demo.
+            open.CancellationToken.ThrowIfCancellationRequested();
+            open.Report(0.5, "Building the views");
             MatchOverviewTab.SetSummary(subjectKey, parsed);
-            MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
+            MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // damaged-demo banner
 
             FrameRows.Clear();
             int frameNum = 0;
@@ -3702,13 +4060,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }));
             _moduleContext?.SetGameEvents(parsed.AllGameEvents); // pre-decoded timeline for event-driven modules
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
-            _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
+            _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
+            _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
-            // navigation-review Phase A: precompute round / event / tick boundary indices once,
-            // drained alongside the unknown-message census. The six *Frame* nav methods + the Phase C
+            // Precompute round / event / tick boundary indices once,
+            // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // #4/#5: calibrate the shared game-clock once (first round_freeze_end) for the 2D round
+            // Calibrate the shared game-clock once (first round_freeze_end) for the 2D round
             // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
             ApplyGameClock(_allFrames, parsed.TickRate);
             // The context now holds the NEW demo's roster / events / map / clock. Signal any ACTIVE module to
@@ -3730,9 +4089,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Everything above this line is the Match Overview's "Enriching" stage (roster, navigation index,
             // game clock, module fan-out); the run below is its "Analysing" stage.
             MatchOverviewTab.BeginAnalysis(subjectKey);
-            // SHA-256 the demo bytes (off-thread) to key its persisted graph breakpoints.
-            string demoKey = await Task.Run(() => GraphBreakpointStore.ComputeDemoKey(rawBytes));
+            open.Report(0.6, "Analysing");
             await Analysis.RunAsync(parsed, demoKey);
+            ThrowIfSuperseded(open);
             // StatsTab is fed by AnalysisViewModel.EvaluationCompleted, which is raised SYNCHRONOUSLY inside
             // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await
             // returns. Reading them here rather than subscribing keeps the Match Overview's score and
@@ -3789,14 +4148,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a
                 // running fan-out roots the demo, so an un-awaited close would free nothing.
                 _openFanOutTask = Task.Run(() => coordinator.FanOutParsed(openPath, openParsed, _openFanOutSkip));
+                open.Report(0.9, "Updating the library");
+                _ = _openFanOutTask.ContinueWith(_ => open.Complete(), CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+            else
+            {
+                open.Complete();
             }
 
             // Resume the walkthrough's demo segment (stats / playback) if it was deferred at first run for
             // want of an open demo. No-op unless the tour is awaiting a load, so it is safe on every open.
             _tutorial.NotifyDemoLoaded();
         }
+        catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
+        {
+            superseded = open.IsSuperseded;
+            open.Dispose();
+            if (!superseded)
+            {
+                StatusText = $"Opening {fileName} was cancelled";
+                MatchOverviewTab.Fail(subjectKey, StatusText);
+            }
+        }
         catch (Exception ex)
         {
+            open.Fail(ex);
             // Clean text on the user surfaces (v0.6.0, a corrupt .dem used to surface as raw CLR
             // text like "Index was outside the bounds of the array"); the full exception goes to
             // the Diagnostics tab + file.
@@ -3813,7 +4190,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            IsLoading = false;
+            // A newer open owns the spinner and the tick groups.
+            if (!superseded)
+            {
+                IsLoading = false;
+            }
+        }
+
+        if (superseded)
+        {
+            return;
         }
 
         // Always build tick groups: needed by both the legacy Tick View and the Replay tab.
@@ -3997,7 +4383,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void PreviousSpecialFrame() => Navigator.PrevEvent(SelectedSpecialFilter());
 
     /// <summary>
-    ///     The currently-selected special-seek event names. navigation-review Phase B: the single
+    ///     The currently-selected special-seek event names. The single
     ///     filter is now the demo-derived <c>GameEventFilters</c> (the hardcoded 7-event
     ///     <c>EventTypeFilters</c> list is retired as the source). Returns null when nothing is enabled
     ///     so the navigator falls back to "match any" (preserving the legacy convenience so the
@@ -4010,7 +4396,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return enabled.Count > 0 ? enabled : null;
     }
 
-    // ── Nav-strip semantic commands (navigation-review Phase C) ───────────────
+    // ── Nav-strip semantic commands ────────────────────────────────────────────
     // The shell nav strip binds these. They delegate to the SemanticNavigator (the same service the
     // legacy *Frame* wrappers route through), so the strip and the per-tab SeekControls drive one
     // implementation. Gated on a loaded demo; the navigator no-ops when no boundary exists.
@@ -4080,7 +4466,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Computes the shared game-clock calibration once per demo load and hands it to the module context
     // (mirrors SetRoster). Both demo-load paths call this AFTER _navigator.Build, so the precomputed
     // round_freeze_end frames are available: the first one calibrates the curtime offset that the 2D
-    // round timer (#4) and bomb/defuse timers (#5) consume via IModuleContext.CurtimeSeconds. Reads
+    // round timer and bomb/defuse timers consume via IModuleContext.CurtimeSeconds. Reads
     // game-rules entity state by advancing a fresh tracker to that early frame (cheap, run-once).
     private void ApplyGameClock(IReadOnlyList<DemoFrame> frames, int tickRate)
     {
@@ -4165,6 +4551,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _loadedPackSessions = p.Packs;
+        RestorePackSessions(p.Packs);
+
         RestoreActiveTab(p);
         // Never restore an owned panel OPEN when its chrome is gated off for the current
         // category: otherwise a drawer/rail a developer left open would return open at startup with its
@@ -4182,10 +4571,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // Re-selects the persisted tab by its durable TabId: the ONLY key, because the tab
     // set is dynamic (feature gating, new built-ins landing mid-strip) and a position means a different tab
-    // from one build to the next. A stale, gated-out, or absent id falls back to the first tab (Library);
-    // for a session predating TabId persistence that is a one-time, self-healing loss of the remembered
-    // tab, which beats confidently restoring the wrong one. Called after BuildWorkspaceTabs, so Tabs is
-    // already populated.
+    // from one build to the next. A stale, gated-out, or absent id falls back to Library by id, never a
+    // position. Called after BuildWorkspaceTabs, so Tabs is already populated.
     private void RestoreActiveTab(SessionPayload p)
     {
         if (Tabs.Count == 0)
@@ -4193,10 +4580,44 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        SelectedTab = p.ActiveTabId is { Length: > 0 } tabId
-            ? Tabs.FirstOrDefault(t => t.TabId == tabId) ?? Tabs[0]
-            : Tabs[0];
+        // A section id here is a session written when the Strat Book sections were strip tabs, or a pack
+        // section/hub id from a session where the pack was on and is now off.
+        if (!TrySelectTab(p.ActiveTabId))
+        {
+            SelectedTab = Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId) ?? Tabs[0];
+        }
     }
+
+    // Walks every host in _hosts, not TabsAndSections, so a host's pack state lands before any tab
+    // activates. Called at startup (RestoreSession) and on every live gate change (ApplyGateChange): a
+    // pack id already in _restoredPackIds is skipped, so a mid-session enable restores exactly once, and
+    // an unrelated gate change afterward is a no-op here.
+    private void RestorePackSessions(Dictionary<string, JsonElement>? packs)
+    {
+        if (packs is null)
+        {
+            return;
+        }
+
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel?.SessionPackId is not { } packId
+                || _restoredPackIds.Contains(packId)
+                || !IsPackSessionEnabled(host)
+                || !packs.TryGetValue(packId, out JsonElement state))
+            {
+                continue;
+            }
+
+            host.ViewModel.RestorePackState(state);
+            _restoredPackIds.Add(packId);
+        }
+    }
+
+    // Whether the host's own umbrella gate is on; fail-open with no gate or no FeatureId, matching
+    // every other gate read in this file.
+    private bool IsPackSessionEnabled(SectionHostEntry host) =>
+        host.Tab.FeatureId is not { } featureId || (_gate?.IsEnabled(featureId) ?? true);
 
     /// <summary>
     ///     Switches to the Entity Tracking tab and reveals <paramref name="className" /> by setting the
@@ -4264,9 +4685,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AnalysisTab.SnapshotState(),
         IsDebuggerPanelVisible,
         Output.IsVisible,
-        SelectedTab?.TabId, // the durable, name-based key, the only tab identity persisted.
+        PersistedActiveTabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
-        WindowBounds);
+        WindowBounds,
+        SnapshotPackSessions());
+
+    // Snapshots every host's pack session state under its pack id. Starts from what was loaded (so an id
+    // with no host today carries through byte for byte) and overwrites a host that is either enabled now
+    // or was restored into earlier this session (_restoredPackIds): the latter is what keeps a value set
+    // while the pack was on from being lost to a later disable, instead of falling back to the stale blob.
+    private Dictionary<string, JsonElement>? SnapshotPackSessions()
+    {
+        Dictionary<string, JsonElement> packs = _loadedPackSessions is { } loaded
+            ? new(loaded, StringComparer.Ordinal)
+            : new(StringComparer.Ordinal);
+
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel?.SessionPackId is not { } packId
+                || (!IsPackSessionEnabled(host) && !_restoredPackIds.Contains(packId)))
+            {
+                continue;
+            }
+
+            if (host.ViewModel.SnapshotPackState() is { } state)
+            {
+                packs[packId] = state;
+            }
+            else
+            {
+                packs.Remove(packId);
+            }
+        }
+
+        return packs.Count > 0 ? packs : null;
+    }
 
     /// <summary>
     ///     Collects session state from MODULE-contributed tabs. The framework has always declared
@@ -4282,7 +4735,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Dictionary<string, JsonElement>? SnapshotModuleTabs()
     {
         Dictionary<string, JsonElement> states = [];
-        foreach (WorkspaceTabDescriptor tab in Tabs)
+        foreach (WorkspaceTabDescriptor tab in TabsAndSections())
         {
             if (tab.TabViewModel?.SnapshotState() is not { } state)
             {
@@ -4316,7 +4769,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        foreach (WorkspaceTabDescriptor tab in Tabs)
+        foreach (WorkspaceTabDescriptor tab in TabsAndSections())
         {
             if (states.TryGetValue(tab.TabId, out JsonElement state))
             {

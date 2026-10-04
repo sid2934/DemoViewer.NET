@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Views.Playback2D;
@@ -14,13 +15,17 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Shared scaffolding for the A1 headless tests: one activated tab, one shown window, and the two
+///     Shared scaffolding for the Playback2D headless tests: one activated tab, one shown window, and the two
 ///     control lookups (viewport, scrub bar) every one of them needs.
 /// </summary>
 internal static class Playback2DTimelineHarness
 {
     /// <summary>Builds an activated tab over a recording context carrying rounds, kills and bomb events.</summary>
-    public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab(int totalFrames = 1000)
+    /// <param name="totalFrames">The fake demo's length.</param>
+    /// <param name="contributions">The packs' contributions to attach on activation, or none.</param>
+    /// <param name="configure">Runs on the context before activation: services, the demo path.</param>
+    public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab(int totalFrames = 1000,
+        PlaybackContributionHost? contributions = null, Action<Playback2DFakeContext>? configure = null)
     {
         Playback2DFakeContext ctx = new()
         {
@@ -37,8 +42,9 @@ internal static class Playback2DTimelineHarness
             Death(40), Death(400), Death(900), Death(1400)
         ];
         ctx.Timelines["bomb_planted"] = [Bomb("bomb_planted", 700)];
+        configure?.Invoke(ctx);
 
-        Playback2DTabViewModel vm = new();
+        Playback2DTabViewModel vm = new() { Contributions = contributions };
         vm.OnActivated(ctx);
         return (vm, ctx);
     }
@@ -48,7 +54,7 @@ internal static class Playback2DTimelineHarness
     ///     <para>
     ///         The surface kind is pinned rather than left to <c>Playback2DRenderer.Selected</c>: these
     ///         are the CARRIED-FORWARD suites, whose job is to prove the pre-v2 control still works
-    ///         behind B1's toggle (plan §6.3). Tests that want the v2 host pass
+    ///         behind the renderer-kind toggle. Tests that want the v2 host pass
     ///         <see cref="Playback2DRendererKind.Scene" /> explicitly.
     ///     </para>
     /// </summary>

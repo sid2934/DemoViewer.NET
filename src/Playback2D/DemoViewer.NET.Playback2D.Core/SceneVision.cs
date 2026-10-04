@@ -52,8 +52,8 @@ public readonly record struct Sightline(
 /// <summary>
 ///     The frame's line-of-sight geometry, already solved. The visibility engine lives in
 ///     <c>CS2DemoKit.Analysis.Visibility</c>, which Core may not reference, so the solve happens in
-///     Pipeline and Core's <c>VisionLayer</c> only draws the result (decision D4). That also
-///     pre-satisfies the §6 mitigation "vision Advance moves off the UI thread".
+///     Pipeline and Core's <c>VisionLayer</c> only draws the result. That also means vision Advance
+///     can move off the UI thread without touching Core.
 /// </summary>
 public sealed class SceneVision
 {

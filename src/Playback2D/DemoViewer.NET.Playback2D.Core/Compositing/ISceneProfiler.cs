@@ -27,14 +27,14 @@ public enum PictureCacheOutcome
 }
 
 /// <summary>
-///     The optional per-layer measurement seam on <see cref="SceneCompositor" /> (plan
-///     <c>P1-perf-instrumentation</c> §3.1). Null on the default path, where the whole mechanism costs
+///     The optional per-layer measurement seam on <see cref="SceneCompositor" />. Null on the default
+///     path, where the whole mechanism costs
 ///     one field read and one predicted branch per layer per phase.
 ///     <para>
 ///         <b>There is no clock in this interface, and that is the point.</b>
 ///         <see cref="System.Diagnostics.Stopwatch" /> is banned outright in Core, the entire type, not
 ///         just its timestamp, because a render that can observe wall time is a render that cannot be
-///         reproduced (design §5.1), and <c>BannedApiTests</c> enforces it against compiled IL. So the
+///         reproduced, and <c>BannedApiTests</c> enforces it against compiled IL. So the
 ///         compositor reports <i>events</i>: began, ended, cache did this. Whoever implements this
 ///         interface does the timestamping, from a namespace allowed to own a stopwatch:
 ///         <c>Pipeline.Benchmarking</c>, exactly where the benchmark harness already lives for exactly

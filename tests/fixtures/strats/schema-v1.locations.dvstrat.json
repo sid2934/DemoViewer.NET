@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "id": "7e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b",
+  "owner": {
+    "kind": "team",
+    "teamId": "3f2a9c1e-5b7d-4e2f-8a61-0c9d4b3e2f10"
+  },
+  "name": "A exec",
+  "map": "de_mirage",
+  "side": "T",
+  "type": "execute",
+  "targetSite": "A",
+  "status": "Theory",
+  "revision": 0,
+  "createdUtc": "2026-09-23T14:02:11Z",
+  "modifiedUtc": "2026-09-23T14:02:11Z",
+  "tags": [],
+  "clock": {
+    "kind": "round",
+    "roundSeconds": 115
+  },
+  "slots": [
+    {
+      "slot": "A"
+    },
+    {
+      "slot": "B"
+    },
+    {
+      "slot": "C"
+    },
+    {
+      "slot": "D"
+    },
+    {
+      "slot": "E"
+    }
+  ],
+  "steps": [
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000001",
+      "atSeconds": 90,
+      "actor": "B",
+      "verb": "throw",
+      "from": {
+        "place": "TRamp"
+      },
+      "to": {
+        "place": "BombsiteA",
+        "x": -300.5,
+        "y": -2100,
+        "levelMinZ": -256
+      },
+      "utility": {
+        "kind": "smoke",
+        "landing": {
+          "x": -1024.5,
+          "y": -1616,
+          "levelMinZ": -256
+        }
+      },
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000002",
+      "atSeconds": 82,
+      "actor": "C",
+      "verb": "throw",
+      "from": {
+        "x": 1234.4,
+        "y": -560.6,
+        "levelMinZ": -256
+      },
+      "to": {
+        "place": "BombsiteA"
+      },
+      "positions": [],
+      "strokes": []
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000003",
+      "atSeconds": 65,
+      "actor": "all",
+      "verb": "move",
+      "from": {
+        "place": "TRamp"
+      },
+      "positions": [],
+      "strokes": [],
+      "assignments": [
+        {
+          "slot": "B",
+          "to": {
+            "place": "PalaceInterior"
+          },
+          "watch": {
+            "places": [
+              "BombsiteA",
+              "CTSpawn"
+            ],
+            "points": [
+              {
+                "x": -900,
+                "y": -1500,
+                "levelMinZ": -256
+              }
+            ]
+          }
+        },
+        {
+          "slot": "C",
+          "to": {
+            "x": -700,
+            "y": -1300,
+            "levelMinZ": -256
+          },
+          "watch": {
+            "places": [
+              "Stairs"
+            ]
+          }
+        },
+        {
+          "slot": "D",
+          "to": {
+            "place": "Stairs"
+          },
+          "watch": {
+            "places": [
+              "TRamp"
+            ],
+            "yawDegrees": 135
+          },
+          "futureLine": 1
+        }
+      ]
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-000000000004",
+      "atSeconds": 60,
+      "actor": "E",
+      "verb": "lurk",
+      "positions": [],
+      "strokes": [],
+      "lurk": {
+        "areas": [
+          "PalaceInterior"
+        ],
+        "areaPoints": [
+          {
+            "x": -500,
+            "y": -900,
+            "levelMinZ": -256
+          }
+        ],
+        "rotate": {
+          "atSeconds": 40,
+          "to": {
+            "x": -100,
+            "y": -200,
+            "levelMinZ": -256
+          }
+        }
+      }
+    }
+  ],
+  "branches": []
+}

@@ -357,6 +357,37 @@ public static class Icons
         return log.ToString();
     }
 
+    /// <summary>Writes the original SVG of each named icon to <paramref name="outDir" />, unrasterised.</summary>
+    /// <param name="pakPath">Path to CS2's <c>game/csgo/pak01_dir.vpk</c>.</param>
+    /// <param name="keys">Icon keys as the bake names them, e.g. <c>equipment/knife_karambit</c>.</param>
+    /// <param name="outDir">Directory the <c>.svg</c> files are written to.</param>
+    public static string ExportSvg(string pakPath, IReadOnlyList<string> keys, string outDir)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pakPath);
+
+        using Package pak = new();
+        pak.Read(pakPath);
+        Dictionary<string, PackageEntry> wanted = Select(pak);
+
+        string[] unknown = keys.Where(k => !wanted.ContainsKey(k)).ToArray();
+        if (unknown.Length > 0)
+        {
+            throw new InvalidOperationException("no such icon key: " + string.Join(", ", unknown));
+        }
+
+        Directory.CreateDirectory(outDir);
+        StringBuilder log = new();
+        foreach (string key in keys)
+        {
+            byte[] svg = ReadSvg(pak, wanted[key]);
+            string file = Path.Combine(outDir, key.Replace('/', '_') + ".svg");
+            File.WriteAllBytes(file, svg);
+            log.AppendLine(string.Create(CultureInfo.InvariantCulture, $"{key} -> {file} ({svg.Length} B)"));
+        }
+
+        return log.ToString();
+    }
+
     /// <summary>The manifest-relative path of one baked icon, e.g. <c>equipment/ak47@32.png</c>.</summary>
     /// <param name="key">The icon key, namespace included.</param>
     /// <param name="scale">One of <see cref="Scales" />.</param>

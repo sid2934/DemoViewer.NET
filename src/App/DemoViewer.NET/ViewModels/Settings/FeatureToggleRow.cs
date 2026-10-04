@@ -3,6 +3,7 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 
 #endregion
@@ -40,16 +41,61 @@ public sealed partial class FeatureToggleRow : ObservableObject
     private bool _isEnabled;
 
     /// <summary>
+    ///     True while this row's owning pack (<see cref="OwnerPackId" />) resolves on. Always true for a row
+    ///     with no owning pack (including a pack's own master row: a pack is not owned by itself). A pack
+    ///     CHILD row is interactive only while its pack is on, "enabled only while the master is on", even
+    ///     though the cascade already resolves <see cref="IsEnabled" /> off by itself; the row's own stored
+    ///     override is untouched either way, so it keeps its value for when the pack comes back.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInteractive))]
+    [NotifyPropertyChangedFor(nameof(HasLockHint))]
+    [NotifyPropertyChangedFor(nameof(LockHint))]
+    private bool _isPackEnabled = true;
+
+    /// <summary>
     ///     Whether an explicit override exists for this feature (it differs from the category default), drives
     ///     the subtle "overridden" indicator and the per-row clear-override affordance.
     /// </summary>
     [ObservableProperty]
     private bool _isOverridden;
 
+    /// <summary>
+    ///     True while this row's own pack is running "delete extension data". Set by
+    ///     <see cref="SettingsViewModel" /> from the matching <c>ExtensionDataActionViewModel.IsBusy</c>,
+    ///     the one case where a pack's MASTER row needs to lock on something other than
+    ///     <see cref="IsPackEnabled" /> (a pack does not own itself, so that is always true for its own row):
+    ///     flipping the pack on mid-delete is exactly the race the delete's own gate re-checks guard against,
+    ///     and locking the switch here keeps the user from starting that race from the UI.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInteractive))]
+    [NotifyPropertyChangedFor(nameof(HasLockHint))]
+    [NotifyPropertyChangedFor(nameof(LockHint))]
+    private bool _isDeleteBusy;
+
+    /// <param name="owner">The settings view model that persists this row's overrides.</param>
+    /// <param name="gate">The live gate; the source of truth for <see cref="IsEnabled" />.</param>
+    /// <param name="descriptor">The catalog row.</param>
+    /// <param name="indentLevel">Nesting depth for the indent.</param>
+    /// <param name="platformUnavailable">True when the feature cannot exist on this host.</param>
+    /// <param name="version">The extension's version from its manifest; a pack master row only.</param>
+    /// <param name="incompatibility">
+    ///     Why the extension cannot load on this app (<c>PackStatus.Problem</c>), or null. A row with one is
+    ///     locked off: its pack composed nothing, so no override could take effect.
+    /// </param>
+    /// <param name="source">Where the extension's assembly came from (<c>PackStatus.Source</c>); a pack master row only.</param>
+    /// <param name="loadNote">
+    ///     Why a staged update of this extension was not loaded (<c>PackStatus.Rejected</c>, one line per
+    ///     candidate), or null. Informational: the row stays interactive, since the bundled copy is running.
+    /// </param>
+    /// <param name="update">The extension's update line; a pack master row only, else null.</param>
     internal FeatureToggleRow(
         SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
-        bool platformUnavailable = false)
+        bool platformUnavailable = false, string? version = null, string? incompatibility = null,
+        PackSource? source = null, string? loadNote = null, ExtensionUpdateRow? update = null)
     {
+        Update = update;
         _owner = owner;
         _gate = gate;
         FeatureId = descriptor.Id;
@@ -59,6 +105,11 @@ public sealed partial class FeatureToggleRow : ObservableObject
         IndentLevel = indentLevel;
         IsRequired = descriptor.Required;
         IsPlatformUnavailable = platformUnavailable;
+        OwnerPackId = descriptor.OwnerPackId;
+        Version = version;
+        Incompatibility = incompatibility;
+        Source = source;
+        LoadNote = loadNote;
 
         // A grouped feature toggles atomically from its LEADER (the gate resolves every member's own-state
         // from the leader). So a NON-leader member's own override is inert. The row must not offer an
@@ -116,33 +167,93 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public bool IsPlatformUnavailable { get; }
 
     /// <summary>
-    ///     The toggle is interactive only when the feature is neither Required, nor a group follower,
-    ///     nor unavailable on this platform.
+    ///     The pack that owns this row (<see cref="FeatureDescriptor.OwnerPackId" />), or null for a row not
+    ///     contributed by any pack, including a pack's own master row. Drives <see cref="IsPackEnabled" />.
     /// </summary>
-    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable;
+    public string? OwnerPackId { get; }
+
+    /// <summary>The extension's version (its manifest's), shown beside a pack master row's label; null elsewhere.</summary>
+    public string? Version { get; }
+
+    /// <summary>Whether <see cref="Version" /> is set.</summary>
+    public bool HasVersion => Version is not null;
+
+    /// <summary>
+    ///     Why this extension cannot load on this app, in user terms, or null when it can. Set only on the
+    ///     master row of a pack that failed the compatibility check, which Settings synthesizes
+    ///     since such a pack has no catalog row.
+    /// </summary>
+    public string? Incompatibility { get; }
+
+    /// <summary>Whether <see cref="Incompatibility" /> is set.</summary>
+    public bool IsIncompatible => Incompatibility is not null;
+
+    /// <summary>Where the extension's assembly came from; null on every row but a pack master row.</summary>
+    public PackSource? Source { get; }
+
+    /// <summary>The source in user terms beside the version, "(bundled)" or "(installed update)"; null when <see cref="Source" /> is.</summary>
+    public string? SourceLabel => Source is null ? null : $"({Source.Label})";
+
+    /// <summary>Whether <see cref="SourceLabel" /> is set.</summary>
+    public bool HasSource => Source is not null;
+
+    /// <summary>
+    ///     Why a staged update of this extension did not load, one line per rejected candidate, or
+    ///     null. Shown under the description; unlike <see cref="Incompatibility" /> it locks nothing, since the
+    ///     copy that is running works.
+    /// </summary>
+    public string? LoadNote { get; }
+
+    /// <summary>Whether <see cref="LoadNote" /> is set.</summary>
+    public bool HasLoadNote => LoadNote is not null;
+
+    /// <summary>
+    ///     The extension's update line: installed against the feed, with Check and Update. Set on a
+    ///     pack master row only; null on every other row.
+    /// </summary>
+    public ExtensionUpdateRow? Update { get; }
+
+    /// <summary>Whether <see cref="Update" /> is set.</summary>
+    public bool HasUpdate => Update is not null;
+
+    /// <summary>
+    ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor
+    ///     unavailable on this platform, nor an incompatible extension, nor a pack child whose pack is
+    ///     currently off.
+    /// </summary>
+    public bool IsInteractive =>
+        !IsRequired && !IsGroupFollower && !IsPlatformUnavailable && !IsIncompatible && IsPackEnabled && !IsDeleteBusy;
 
     /// <summary>Whether a locked-state hint chip should show.</summary>
-    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable;
+    public bool HasLockHint =>
+        IsRequired || IsGroupFollower || IsPlatformUnavailable || IsIncompatible || !IsPackEnabled || IsDeleteBusy;
 
     /// <summary>
     ///     The locked-state hint text. The platform answer comes FIRST: it is the one the user cannot
     ///     change from anywhere, so telling them "required" or "follows X" would send them looking for a
-    ///     lever that would not help.
+    ///     lever that would not help. An incompatible extension is the same kind of answer.
     /// </summary>
     public string LockHint => IsPlatformUnavailable
         ? "unavailable in the browser"
-        : IsRequired
-            ? "required"
-            : IsGroupFollower
-                ? $"follows {FollowsLabel}"
-                : string.Empty;
+        : IsIncompatible
+            ? "incompatible"
+            : IsRequired
+                ? "required"
+                : IsGroupFollower
+                    ? $"follows {FollowsLabel}"
+                    : !IsPackEnabled
+                        ? "extension is off"
+                        : IsDeleteBusy
+                            ? "deleting extension data"
+                            : string.Empty;
 
-    /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome").</summary>
+    /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome" / "Extension").</summary>
     public string ScopeLabel => Scope switch
     {
         FeatureScope.Tab => "Tab",
         FeatureScope.SubFeature => "Sub",
         FeatureScope.Chrome => "Chrome",
+        FeatureScope.Pack => "Extension",
         _ => Scope.ToString()
     };
 
@@ -160,8 +271,9 @@ public sealed partial class FeatureToggleRow : ObservableObject
             // A platform-unavailable row shows OFF regardless of what the raw gate answers: the gate
             // resolves catalog + override and does not know the host, and this row has to agree with
             // what the module will actually see through ShellModuleFeatureGate.
-            IsEnabled = !IsPlatformUnavailable && gate.IsEnabled(FeatureId);
+            IsEnabled = !IsPlatformUnavailable && !IsIncompatible && gate.IsEnabled(FeatureId);
             IsOverridden = overrides is not null && overrides.ContainsKey(FeatureId);
+            IsPackEnabled = OwnerPackId is null || gate.IsEnabled(OwnerPackId);
         }
         finally
         {
@@ -176,11 +288,12 @@ public sealed partial class FeatureToggleRow : ObservableObject
             return; // a gate-driven refresh, not a user toggle: never persist it back.
         }
 
-        if (IsPlatformUnavailable)
+        if (IsPlatformUnavailable || IsIncompatible)
         {
             // Locked the hardest of the three: no override the user could write would make the module's
             // own gate answer true here, so persisting one would be a preference that can never take
-            // effect and would then follow them to a desktop head where they never asked for it.
+            // effect and would then follow them to a desktop head where they never asked for it. An
+            // incompatible extension composed nothing, so an override for it is just as inert.
             _applyingRefresh = true;
             try
             {
@@ -194,12 +307,16 @@ public sealed partial class FeatureToggleRow : ObservableObject
             return;
         }
 
-        if (IsRequired || IsGroupFollower)
+        if (IsRequired || IsGroupFollower || !IsPackEnabled || IsDeleteBusy)
         {
             // Locked row. Required can never be disabled; a group FOLLOWER's own override is inert (the gate
-            // resolves the whole group from the leader), so persisting one would be a phantom that snaps
-            // back. Bounce the setter to the authoritative gate state WITHOUT writing (the toggle is also
-            // disabled in the UI; this guards the programmatic path). Guarded so the bounce is not a toggle.
+            // resolves the whole group from the leader); a pack CHILD while its pack is off is locked the
+            // same way, so a stray programmatic set never writes a new override here: the row's EXISTING
+            // override (if any) is untouched, which is how it "keeps its own value" for when the pack comes
+            // back. A pack's own MASTER row mid-delete (IsDeleteBusy) is locked the same way, so a stray
+            // flip cannot race the delete. Bounce the setter to the authoritative gate state WITHOUT writing
+            // (the toggle is also disabled in the UI; this guards the programmatic path). Guarded so the
+            // bounce is not a toggle.
             _applyingRefresh = true;
             try
             {

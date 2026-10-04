@@ -5,7 +5,6 @@ It references `DemoViewer.NET.Playback2D.Pipeline` and nothing from `src/App/*`;
 is loaded at any point, and that is asserted by test (`NoAvaloniaArchitectureTests`) on every CI run.
 
 Design authority: [`design.md`](design.md) §4, §5.7, §5.8, §6, §7.7, §9, §11.
-Plan: [`plans/C1-cli.md`](plans/C1-cli.md).
 
 ```
 dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
@@ -39,7 +38,8 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
               [--out <png>]              default ./dv2d-render.png
               [--size WxH]               default: the fixture's size, else 1920x1080
               [--layers a,b] [--exclude-layers a,b]
-              [--ink <file.dvann.json>]
+              [--ink <file.dvann.json>] [--zones-overlay <file.zones.json>]
+              [--query <file.dvquery.json>] [--overlay <file.dvoverlay.json>]
               [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
               [--layout stacked|single] [--level <levelId>]
               [--assets <dir>] [--no-radar]
@@ -58,10 +58,12 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   opt-in chrome, because both go through `SceneLayerCatalog.CreateSceneStack`. Until D6 they did not:
   `render`, `golden` and `bench` built from a second table holding one debug-grid layer, so
   `--layers markers` was an error and every committed golden was a picture of a grid (D6 G-1).
-- The four **opt-in** ids need a source, and this command refuses one it cannot feed rather than
-  handing back a PNG that quietly lacks it. `playback2d.annotations` takes `--ink`; `hud.roster`,
-  `hud.clock` and `hud.killfeed` need a demo's clock, scoreboard and kill timeline, so only
-  `dv2d export --hud` can draw them.
+- The seven **opt-in** ids need a source, and this command refuses one it cannot feed rather than
+  handing back a PNG that quietly lacks it. `playback2d.annotations` takes `--ink`;
+  `playback2d.zones` takes the map bundle's `zones.json` under `--assets` (so `--no-radar`, which
+  disables the asset root, starves it too); `playback2d.query` takes `--query`; `playback2d.overlay`
+  takes `--overlay`; `hud.roster`, `hud.clock` and `hud.killfeed` need a demo's clock, scoreboard
+  and kill timeline, so only `dv2d export --hud` can draw them.
 - `playback2d.vision` is **not** opt-in and needs no flag: it draws the fixture's own pre-solved
   `SceneVision`: the cones and could-see lines a scene file carries. It was in the default set and drew
   nothing until D6 round 3, because the layer read an `IVisionSolver` (which a fixture render has none
@@ -74,6 +76,27 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   `annotations/<name>.dvann.json` beside the corpus entry's scene, so a golden's ink is a committed
   artefact rather than a flag someone has to remember to pass. `annotated-mirage-b` is the entry that
   uses it, and it is the only golden anywhere that covers burned-in ink.
+- `--zones-overlay <file.zones.json>` applies a user zones overlay (the file the app reads from
+  `<config>/zones/<map>.zones.json`, format in [`docs/zones-format.md`](../zones-format.md)) over the
+  baked set before `playback2d.zones` draws, and reports every skipped entry as a warning on stderr.
+  `golden` and `bench` take it **by convention** instead: `zones/<name>.zones.json` beside the corpus
+  entry's scene, exactly as `--ink` works. `zones-nuke-overlay` is the entry that uses it. The
+  `--json` payload carries `zones_version`, the effective stamp (`CRC32(zonesVersion ‖ overlay bytes)`,
+  or the baked `zonesVersion` alone), null when the zones layer was not in the stack. The file is read
+  only when the layer is named, so a render that did not ask for outlines never pays for the parse.
+- `--query <file.dvquery.json>` draws the Situations section's Query Canvas tokens (`playback2d.query`)
+  into a single-frame render, read through the same `QueryFixtureStore` the corpus fixtures are
+  written with. `golden` and `bench` take it by the same convention: `queries/<name>.dvquery.json`
+  beside the entry's scene. `query-nuke-execute` is the entry that uses it: the canvas's own static
+  map frame (the bundle's floors and radar, no markers) with six tokens over it. The layer draws no
+  text, so that golden is judged at the unrelaxed gate on every platform.
+- `--overlay <file.dvoverlay.json>` draws the Situations section's Overlay View (`playback2d.overlay`):
+  every alive position of every matched state of a result set, stacked as a density wash per floor,
+  CT-tinted where CT stood and T-tinted where T stood, read through the same `OverlayFixtureStore`
+  the corpus fixture is written with. `golden` and `bench` take it by the same convention:
+  `overlays/<name>.dvoverlay.json` beside the entry's scene. `overlay-nuke-execute` is the entry that
+  uses it: the same static nuke frame under a synthetic hit set of twenty-four rounds, six steps
+  each. The layer draws no text either, so that golden is judged at the unrelaxed gate too.
 - `--camera` is a single-frame framing. Omit it and the fixture's own camera is used, re-fitted to the
   requested viewport (so `--size` reframes rather than crops).
 - `--diag-assemblies` writes the process's loaded-assembly list to stderr after the render. It exists
@@ -95,66 +118,44 @@ mismatch or missing golden and writes `<name>.actual.png` plus `<name>.diff.png`
 `update` rewrites the PNGs. **Look at them before committing.** A golden that is silently rewritten
 is a test that no longer tests.
 
-A `"tolerance": "perceptual"` entry is compared at `GoldenTolerance.ForLabelledFrame`, which is
-`DefaultPerceptual` **unchanged** on the platform that authored the corpus and opens a small
-per-label glyph allowance anywhere else: Skia's glyph rasteriser is not the same code on every OS, so
-a golden containing text cannot be held to a ceiling sized for anti-aliasing rounding. The allowance
-is denominated in the frame's own labelled markers, never in a manifest field, which a maintainer
-could edit, and every entry it touches is attributed pixel by pixel by
-`GoldenAttributionTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk`, which re-renders with the
-text silenced and re-imposes the whole unrelaxed policy outside the glyph ink. `--tolerance`
-overrides the *mode* the manifest states, not the budget that mode resolves to; `byte-exact` is still
-every channel of every pixel, and is only green on the authoring platform.
+A `"tolerance": "perceptual"` entry is judged at `GoldenTolerance.DefaultPerceptual` over a
+**glyph-patched** render. Skia's glyph rasteriser is not the same code on every operating system, so a
+golden containing text cannot be held to a ceiling sized for anti-aliasing rounding; instead `verify`
+renders each entry twice, the second time with every text layer silenced (`GoldenCommand.SilenceText`:
+marker labels, the floor caption, text annotations and zone names), takes the pixels that differ
+between the two renders as the glyph mask, and under that mask lets the golden stand in for the
+render. The strict tolerance then judges geometry alone, on every platform, with no per-label budget
+and nothing in the manifest a maintainer could loosen. The same mask is what
+`GoldenAttributionTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk` measures and prints, so
+what the gate forgives is on the CI log, not taken on trust. `--tolerance` overrides the *mode* the
+manifest states, not what a mode means; `byte-exact` is still every channel of every pixel, and is
+only green on the authoring platform.
 
-Each result row therefore reports `labels` and `glyph_budget` (the fraction of the frame the tier may
-spend) alongside `above_ceiling_fraction` (what actually spent it) and `min_window_ssim`, the worst
-11×11 window. Those four are what a CI log needs to say *which* rule a red gate broke and how close
-the rest came.
+Each result row reports `above_ceiling_fraction`, `min_window_ssim` (the worst 11×11 window),
+`labels` (marker labels in the frame), and when a mask was used `ink_pixels`, `worst_under_ink` and
+`under_ink_over_ceiling`, so a CI log says *which* rule a red gate broke and how far the text differed.
 
 `--size` is deliberately **not** accepted here: a golden is named for its size, so an override would
 compare one image against a differently-named other.
 
-#### Where the glyph allowance comes from
-
-`GoldenTolerance.GlyphOutlierPixelsPerLabel` is **6**, and this is the measurement behind it. Taken by
-comparing the committed goldens against the frames the ubuntu llvmpipe runner produces (FreeType
-rather than the Windows text stack) as pixels over the strict 32 ceiling per two-letter label:
-
-| Entry | Size | Over 32 / labels | Rate |
-|---|---|---|---|
-| `synthetic-tenplayers` | 640×360, no map | 40 / 10 | **4.00** |
-| `synthetic-utility` | 640×360, no map | 7 / 2 | 3.50 |
-| `fitmap-mirage-eco` | 640×360 over baked radar | 12 / 10 | 1.20 |
-| `bomb-planted-inferno` | 640×360 over baked radar | 7 / 4 | 1.75 |
-| `duel-mirage-b`, `annotated-mirage-b` | 640×360 over baked radar | 2 / 5 | 0.40 |
-| `nuke-single-upper` | 640×360 over baked radar | 12 / 10 | 1.20 |
-| `nuke-multilevel-upper`, `-noradar` | 900×900, two-floor bundle | 14 / 10 | 1.40 |
-| `full-scene-budget` | 1920×1080 | 32 / 10 | 3.20 |
-
-The attribution tests measure the other half of the ratio: marker ink is 58.5-59.2 px per label on the
-synthetics and 44-57 px per label on the radar-backed entries, so the cross-OS disagreement is **at
-most 6.8 % of the glyph ink** across frames whose areas differ ninefold and whose text loads differ
-fivefold. Both quantities come out per-label and neither per-area, which is why the budget is stated
-per label.
-
-6 is 1.5× the worst observed rate and about a tenth of one label's ink. The two ceilings are the tight
-ones and neither moved: worst 11×11 window 0.89976 against the 0.88 floor (no other entry below
-0.90547), worst single channel **94** on `fitmap-mirage-eco` against the 96 the tier allows. That 94
-is deterministic per runner image, not a flake. But it is the number to re-read first if a runner
-bump turns the lane red, and the fix is then a measurement rather than a round-up. Everything else sat
-inside `DefaultPerceptual` and was left there: worst 0.2083 % of pixels over ±8 against the 0.5 %
-budget, worst mean SSIM 0.99979 against the 0.995 floor, alpha delta exactly 0 on every entry.
-
-Outside the glyph mask an ubuntu render is byte-identical to the committed golden on seven of the
-eight text-bearing entries and differs by exactly **1** on the eighth, at both sizes, over baked
-radar art and over the grid fallback, with trails, smokes, bomb rings, view cones and burned-in ink in
-the picture.
-
-The attribution tests print the per-label rate they observe, so these numbers are re-measured off any
-CI log rather than trusted.
+Outside the glyph mask an ubuntu render is byte-identical to a Windows-authored golden on every
+radar-backed entry and differs by at most **1** on the rest, over baked radar art and over the grid
+fallback, with trails, smokes, bomb rings, view cones, zone outlines and burned-in ink in the picture.
+Under the mask the two rasterisers disagree by up to about 150 on a channel for a large text
+annotation and by a few pixels per two-letter marker label; the attribution test prints both.
 
 Entries marked `"pending": true` in the manifest are **skipped**, not failed. That is what lets a
 later phase register the fixture it will author before it can render it.
+
+**The four `strat-mirage-exec-*` entries are pending for a different reason than a missing input**:
+they are the Strat Book canvas's goldens, captured and gated entirely by the
+App suite's `StratGoldenCaptureTests`, which projects a strat through `StratSceneProjection` and plays
+it back through `StratFrameSource`, a reader `dv2d` does not have and does not need, since the strat
+JSON reader stays in the App. Each entry's `layers` names `hud.clock`, and every one of
+`render`/`golden`/`bench` refuses every `hud.*` id outright (the row above this section), so `dv2d
+golden verify` could never judge these four even with a `.dvstrat.json` reader. They are listed here
+only so `dv2d fixture list` and a reviewer scanning the corpus see them; nothing about them is waiting
+on a later phase.
 
 ### `dv2d bench`
 
@@ -331,6 +332,82 @@ deletes the partial output.
 
 ---
 
+### `dv2d pack`
+
+Headless Packs (plan.md §3, Phase 4): a `review-queue.json` file becomes one video, so "every scrim
+from last night, tagged rounds only, rendered by morning" is a scheduled command rather than a click in
+the Review section's Export pack row (on the Strat Book tab).
+
+```bash
+dv2d pack --queue nightly-queue.json --out packs/2026-09-26.mp4
+```
+
+"By morning" is a cron line, nothing more: `dv2d` reads no `AppSettings` and touches no config root, so
+the queue file is the whole input.
+
+```
+0 6 * * * cd /srv/demoviewer && scripts/dv2d.sh pack --queue nightly-queue.json \
+  --out "packs/$(date +\%F).mp4" --json >> logs/nightly-pack.jsonl 2>> logs/nightly-pack.log
+```
+
+`--queue` is the exact file the app's Review Queue reads and writes (`review-queue.json`, schema 1):
+an ordered list of clips (`demo`, `from`, `to`, a note) and section title cards, the same shape
+`ReviewQueueFile` deserializes either side of the App/CLI boundary. `dv2d pack` **filters nothing of
+its own**; which rounds are "tagged" is decided upstream, wherever the queue file was written (the
+Matrix, Result Cards, a hand-built file for a cron job), the same posture `export` takes toward its
+`--from`/`--to` range.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--queue <path>` | required | The `review-queue.json` to render |
+| `--out <file>` | `dv2d-pack.<format>` | The pack's file for a video format; for `gif`, the **folder** the clips go in (the path without its extension) |
+| `--format` | `mp4` | `webm` · `mp4` · `gif` |
+| `--fps` | 30 (20 for gif) | Must be one the format supports: GIF is 10/20/25/50 |
+| `--size` | `1080x1080` (`480x480` for gif) | **Square only**: the radar frame is square, and a pack's clips all share one frame size |
+| `--title-seconds` | `2.5` | How long a section's title card holds, video formats only (GIF gets no cards; see below) |
+| `--encoder` | `auto` | Same ladder as `export`: see [Encoder ladder](#encoder-ladder) |
+| `--quality` | `standard` | `draft` · `standard` · `best` |
+| `--assets <dir>` / `--no-radar` | probed | Same resolution ladder as every other command |
+| `--ffmpeg-log` | off | Echo ffmpeg's stderr |
+| `--json` | off | One JSON object on stdout; every human line (including a left-out clip's warning) moves to stderr |
+
+`dv2d pack` is `PackPlanner` and `PackExporter` (`DemoViewer.NET.Services.Export.Pack`): the **same**
+plan-then-stitch policy the app's Export pack row runs, not a second implementation of it. Only the
+clip renderer and the encoder are per-host: the app's own `PackClipRenderer`/`PackEncoder` need the
+heavy-job gate and an app-managed ffmpeg download this headless tool does not have, so `dv2d` supplies
+its own (`HeadlessPackClipRenderer`, `HeadlessPackEncoder`), built from the same Pipeline primitives
+`export` already assembles by hand (`TrackerFrameSource`, `SceneLayerCatalog.CreateSceneStack`,
+`SceneExportSession`). ffmpeg is PATH-only here too, same as `export`.
+
+**One video, or one GIF per clip.** For a video format, every clip renders into **one** encode: a
+section's title card is drawn once and held, then its clips follow, all through one `SceneExportSession`
+per clip feeding one sink, the same reasoning `export`'s single-timeline `moov` atom relies on, so the
+pack plays on a phone without edit-list seams. GIF instead writes one file per clip into a folder named
+after `--out` (its extension stripped), numbered in play order with its section folded into the file
+name, because a GIF's palette build caps it at 1800 frames and a whole pack in one GIF would blow that
+cap by its third clip.
+
+**Every demo's own ink is burned in, unconditionally**: Pack Export has no `--annotations` flag,
+because a pack spans demos the way `export`'s single range never does, and always drawing what each
+one has (or nothing, when it has none) is simpler than asking per clip. The palette is always dark;
+Pack Export has no `--palette` either, matching the app's own Export pack row, which offers neither.
+
+**Failure is per clip, not per pack.** A clip whose demo cannot be found on disk, or whose range is
+empty, is left out **before anything is rendered or opened** (`PackPlanner.Plan`'s own pass); a clip
+that fails to parse or render on its own is left out and the rest of the pack continues; a title card
+with every one of its clips left out gets no card, so a pack never shows a section heading over
+nothing. Only a failure in the shared encoder (ffmpeg gone, a full disk) ends the pack, the same way
+Ctrl+C does, and removes the half-written file. Both kinds of leaving-out are named in `--json`'s
+`left_out` (pre-render) and `failed` (post-render) arrays, and as `warning:` lines otherwise.
+
+`--size` refuses a non-square value (exit 1): the radar pane is square, and every clip in a pack must
+share one frame size, so there is no per-clip override the way there is nothing per-clip in `export`
+either. A `review-queue.json` at a schema newer than this build reads is refused (exit 3), the same
+refusal `ReviewQueue.Load` gives the app rather than risk misreading a newer file. A video format with
+no ffmpeg on `PATH` is exit 6, same as `export`; GIF still works through the ImageSharp floor.
+
+---
+
 ## Performance capture (`--perf`)
 
 `bench` and `export` accept **`--perf`** (alias `--profile`). It decomposes the frame into stages and
@@ -366,7 +443,7 @@ and it is counted apart so it does not read as a permanent cache failure).
 > first three built from a second table holding only `playback2d.debuggrid` (the seam C1 deviation 14
 > left open), which made `export --no-encode --perf` the sole per-layer authority. The one remaining
 > difference is what FEEDS a layer, not which layers exist: `bench` has no HUD source and no
-> visibility engine. See [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §8.
+> visibility engine.
 
 Measured: `export --from 72000 --to 79680 --size 1280x720 --fps 60 --hud --perf` on a de_inferno
 MM demo, CPU raster, libvpx-vp9 (this is the real output, not an illustration):
@@ -388,12 +465,12 @@ MM demo, CPU raster, libvpx-vp9 (this is the real output, not an illustration):
 
 Read that way round it is unambiguous: the frame is libvpx plus one radar `DrawImage` plus a
 read-back, and the entity decode everyone suspects (`source`) is 3 % of it. The full analysis,
-including the ablation that checks the per-layer column against reality, is in
-[`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §7.
+including the ablation that checks the per-layer column against reality, was measured before the
+default was set.
 
 Capture itself allocates nothing per frame in steady state (the ring buffers are filled during the
 warmup), which is asserted by `ScenePerfRecorderTests` alongside the 0 B assertion for the detached
-default path. Design and rationale: [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md).
+default path.
 
 ---
 
@@ -434,7 +511,7 @@ against re-baked radar art.
 
 ## Render backend
 
-Precedence (design §5.8, plans/C2-gpu-provider.md §2.5):
+Precedence:
 
 1. `--cpu` / `--gpu` / `--backend <auto|cpu|gpu|angle|gl|force-gpu>`: mutually exclusive; `angle`
    and `gl` are accepted aliases for `gpu` (which GL stack gets used is the probe's decision).
@@ -536,10 +613,20 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
  "counts":{"total":10,"matched":6,"mismatched":1,"missing":0,"skipped":3,"updated":0},
  "results":[{"name":"duel-mirage-b","status":"mismatch","mismatched_fraction":0.013,
    "max_channel_delta":37,"ssim":0.981,"tolerance":"perceptual",
-   "above_ceiling_fraction":0.0009,"min_window_ssim":0.973,"labels":5,"glyph_budget":0.000130,
+   "above_ceiling_fraction":0.0009,"min_window_ssim":0.973,"labels":5,"ink_pixels":323,"worst_under_ink":45,"under_ink_over_ceiling":2,
    "golden":"tests/fixtures/playback2d/goldens/cpu/duel-mirage-b@640x360.png",
    "actual":"artifacts/playback2d-goldens/duel-mirage-b.actual.png",
    "diff":"artifacts/playback2d-goldens/duel-mirage-b.diff.png"}]}
+
+// pack
+{"schema_version":1,"command":"pack","ok":true,"queue":"nightly-queue.json",
+ "out":["packs/2026-09-26.mp4"],"format":"mp4","width":1080,"height":1080,"fps":30,
+ "demos":3,"clips_planned":4,"clips_rendered":4,
+ "clips_left_out_before_render":1,"clips_failed_to_render":0,
+ "estimated_seconds":48.2,
+ "left_out":[{"demo":"/scrims/missing.dem","note":"gone","reason":"demo not found"}],
+ "failed":[],
+ "elapsed_ms":91234.5}
 
 // fixture verify / list / capture: same envelope, "command":"fixture" plus an "action"
 ```
@@ -621,6 +708,7 @@ These are phase boundaries, not bugs. Each is an honest failure rather than a si
 | `--layout single`, `--level` | exit 6: `MapSpace`/`StackedLayout` landed with B1, so `--layout stacked` is a real multi-pane render; the single-level policy is still B3's | B3 |
 | `--gpu` on macOS | always degrades to CPU (`macos-deferred`); ANGLE/EGL ships for Windows and Linux only | C2 Stage 1 |
 | `export --gpu` | exit 6: `SceneExportSession` awaits its sink between frames, so the loop resumes on whatever pool thread the continuation lands on, while `GpuSurfaceProvider` is bound to the thread that created its EGL context. `export`'s backend chain therefore ends at `force-cpu` rather than `auto`, exactly as `golden` does, so the default is never a refusal. Pinning the loop to one thread is the work, and it is the same work the ≥2× throughput number needs | C2 Stage 1 |
+| `pack --cpu`/`--gpu`/`--backend` | not offered at all, rather than accepted and forced to CPU: every clip renders on `RenderSurfaceProviderFactory.CreateCpu()`, matching the app's own Export pack row, which never offered a backend choice either. `export --gpu`'s exit 6 above is the reason there would be nothing else to pick | C2 Stage 1 |
 | The `render`/`golden`/`bench` layer set | **closed in D6.** All four commands build through `SceneLayerCatalog.CreateSceneStack`; the second table that held only `playback2d.debuggrid` is gone and the whole CPU corpus was re-baselined in the same commit. `playback2d.debuggrid` is no longer a registrable id | — |
 | The three `hud.*` ids under `render`/`golden`/`bench` | exit 1: a HUD is a function of a parsed match and a fixture carries no clock, scoreboard or kill timeline. `dv2d export --hud` is the command that can feed one | B4 |
 | A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only. That is `synthetic-empty`, and its golden is now that background rather than a skipped entry: whether an empty level set should get one whole-host pane is still open, and the day it is answered the golden moves and a reviewer sees it | B1, B3 |

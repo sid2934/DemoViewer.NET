@@ -176,7 +176,7 @@ public class FreehandOutlineTests
     }
 
     /// <summary>
-    ///     §6's budget is zero bytes per frame, and a wet stroke is re-outlined on every frame it is
+    ///     The budget is zero bytes per frame, and a wet stroke is re-outlined on every frame it is
     ///     live. Warm lists plus the outliner's thread-static buffers must therefore allocate nothing.
     ///     <para>
     ///         <b><c>NotInParallel</c>, like <c>BudgetTests</c>.</b>

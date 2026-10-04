@@ -6,7 +6,7 @@ public enum ExportPhase
     /// <summary>Validating the request and building the sink.</summary>
     Preparing,
 
-    /// <summary>The one from-zero tracker replay that reaches the first frame (plan D2).</summary>
+    /// <summary>The one from-zero tracker replay that reaches the first frame.</summary>
     Seeking,
 
     /// <summary>Frames are being rendered and written.</summary>

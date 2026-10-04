@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
 ///     Windowless GPU-backed surfaces over an EGL context: ANGLE/D3D11 on Windows, EGL surfaceless on
-///     Linux (plans/C2-gpu-provider.md §6.2).
+///     Linux.
 ///     <para>
 ///         <b>THREAD-AFFINE.</b> An EGL context is current on exactly one thread, so
 ///         <see cref="CreateSurface" /> and <see cref="Flush" /> must be called on the thread that
@@ -22,8 +22,8 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 ///         from anywhere; see its remarks for why that asymmetry is right rather than lax.
 ///     </para>
 ///     <para>
-///         <b>Opportunistic, never required.</b> The CPU provider is the contract baseline (design §10
-///         risk 7); this type exists to be faster when it can be, and to get out of the way when it
+///         <b>Opportunistic, never required.</b> The CPU provider is the contract baseline;
+///         this type exists to be faster when it can be, and to get out of the way when it
 ///         cannot. <see cref="TryCreate" /> reports failure as data and never throws.
 ///     </para>
 /// </summary>
@@ -92,8 +92,8 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
         EnsureUsable();
 
         // Order matters and is the thing a wrong readback blames: record the surface's work, hand it to
-        // the driver, then block until the driver has actually done it. Confirmed against hardware in
-        // C2.11. Until then this is the conservative sequence, not the fast one.
+        // the driver, then block until the driver has actually done it. This is the conservative
+        // sequence, not the fast one.
         surface.Flush(true);
         _gr.Flush(true);
         _gr.Submit(true);

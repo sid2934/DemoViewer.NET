@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using SkiaSharp;
 
 #endregion
@@ -13,17 +14,19 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///     A loaded map-asset bundle: the parsed <see cref="MapAssetBundle" /> plus its radar layers
 ///     decoded to <see cref="SKImage" />.
 ///     <para>
-///         Moved out of the App in B1 and re-typed from Avalonia's <c>Bitmap</c> to <c>SKImage</c>, so
+///         Moved out of the App and re-typed from Avalonia's <c>Bitmap</c> to <c>SKImage</c>, so
 ///         the radar draw is renderer-agnostic and export, the CLI and CI can all load a map without a
 ///         windowing system. The App keeps exactly one bitmap job: the library card thumbnail, which
-///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue
-///         (plan decision D-16).
+///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue.
 ///     </para>
 /// </summary>
 public sealed class LoadedMapAsset : IDisposable
 {
+    private readonly Lock _zoneLock = new();
     private bool _disposed;
     private IReadOnlyList<FloorSlice>? _floors;
+    private string? _zoneOverlayDirectory;
+    private ZoneLoadResult? _zones;
 
     /// <summary>The parsed bundle manifest.</summary>
     public required MapAssetBundle Bundle { get; init; }
@@ -39,7 +42,7 @@ public sealed class LoadedMapAsset : IDisposable
     ///     <para>
     ///         <b>Cached.</b> The pre-v2 property projected and materialised a fresh <c>List</c> on every
     ///         read, and the viewport read it once per push: a per-frame allocation for data that is
-    ///         constant for the whole map (plan §4 T15 item 7).
+    ///         constant for the whole map.
     ///     </para>
     /// </summary>
     public IReadOnlyList<FloorSlice> Floors =>
@@ -48,6 +51,78 @@ public sealed class LoadedMapAsset : IDisposable
     /// <summary>Absolute path to the baked collision blob, or null when the bundle has no mesh.</summary>
     public string? CollisionTrisPath =>
         Bundle.CollisionMesh is { } mesh ? Path.Combine(BakedDir, mesh.File) : null;
+
+    /// <summary>
+    ///     The user's <c>zones/</c> directory the overlay is read from, or null for the baked set alone.
+    ///     The App sets it from <c>AppPaths.ZonesDirectory</c> right after loading; Pipeline cannot know
+    ///     the config root. Changing it forgets any zones already loaded.
+    /// </summary>
+    public string? ZoneOverlayDirectory
+    {
+        get => _zoneOverlayDirectory;
+        set
+        {
+            if (string.Equals(_zoneOverlayDirectory, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _zoneOverlayDirectory = value;
+            lock (_zoneLock)
+            {
+                _zones = null;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The place resolver over this map's <c>zones.json</c> plus the user overlay, or null when the
+    ///     bundle directory has no zones file. <b>Lazy</b>: the file is parsed and the grid built on the
+    ///     first read, so <c>EnsureMapAsset</c> needs no new wiring and a map whose zones nobody asks
+    ///     for costs nothing. Consumers outside playback call <see cref="ZoneAssetPipeline.TryLoad" />
+    ///     directly.
+    /// </summary>
+    public PlaceResolver? Zones => ZoneLoad.Resolver;
+
+    /// <summary>The last zones load in full: resolver, baked set, overlay path and diagnostics.</summary>
+    public ZoneLoadResult ZoneLoad
+    {
+        get
+        {
+            lock (_zoneLock)
+            {
+                return _zones ??= ZoneAssetPipeline.Load(BakedDir, _zoneOverlayDirectory);
+            }
+        }
+    }
+
+    /// <summary>True once <see cref="Zones" /> or <see cref="ZoneLoad" /> has been read.</summary>
+    public bool ZonesLoaded
+    {
+        get
+        {
+            lock (_zoneLock)
+            {
+                return _zones is not null;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Re-reads <c>zones.json</c> and the overlay: the "Reload zones" command, so an author sees an
+    ///     edited overlay without a map reload. The previous resolver stays valid for anyone still
+    ///     holding it; a fresh one is built and returned.
+    /// </summary>
+    public ZoneLoadResult ReloadZones()
+    {
+        ZoneLoadResult fresh = ZoneAssetPipeline.Load(BakedDir, _zoneOverlayDirectory);
+        lock (_zoneLock)
+        {
+            _zones = fresh;
+        }
+
+        return fresh;
+    }
 
     /// <summary>
     ///     Releases the decoded radar images. One of the few places <see cref="IDisposable" /> genuinely

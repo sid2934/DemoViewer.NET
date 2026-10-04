@@ -46,7 +46,7 @@ internal static class RealTimeFakes
         return new StrokeTiming(table, runs[^1].Tick);
     }
 
-    /// <summary>One continuous motion at a constant speed, as the two-entry table §2 describes.</summary>
+    /// <summary>One continuous motion at a constant speed, as the two-entry table describes.</summary>
     /// <param name="sampleCount">Samples in the stroke.</param>
     /// <param name="durationTicks">Ticks from the first sample to the last.</param>
     public static StrokeTiming Steady(int sampleCount, int durationTicks) =>
@@ -54,7 +54,7 @@ internal static class RealTimeFakes
 
     /// <summary>
     ///     A stroke drawn straight through, then <b>stopped</b> at the halfway sample, then finished. The
-    ///     pause is what a viewer actually reads as "it is replaying me" (§2), so it is the sharp case.
+    ///     pause is what a viewer actually reads as "it is replaying me", so it is the sharp case.
     /// </summary>
     /// <param name="sampleCount">Samples in the stroke.</param>
     /// <param name="halfTicks">Ticks each moving half takes.</param>

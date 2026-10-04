@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -24,16 +25,21 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
 {
     private readonly DemoQueueItem _item;
+    private readonly JobKindRegistry _jobKinds;
     private readonly IDemoProcessingQueue _queue;
     private bool _disposed;
 
-    /// <summary>Wraps <paramref name="item" /> for display and subscribes to its in-place state updates.</summary>
-    public DemoQueueRowViewModel(DemoQueueItem item, IDemoProcessingQueue queue)
+    /// <summary>
+    ///     Wraps <paramref name="item" /> for display and subscribes to its in-place state updates.
+    ///     <paramref name="jobKinds" /> resolves the kind chip's label; defaults to <see cref="JobKindRegistry.Default" />.
+    /// </summary>
+    public DemoQueueRowViewModel(DemoQueueItem item, IDemoProcessingQueue queue, JobKindRegistry? jobKinds = null)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(queue);
         _item = item;
         _queue = queue;
+        _jobKinds = jobKinds ?? JobKindRegistry.Default;
         _item.PropertyChanged += OnItemChanged;
     }
 
@@ -44,14 +50,34 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     public string DisplayText =>
         !string.IsNullOrEmpty(_item.DisplayName) ? _item.DisplayName! : SafeFileName(_item.Path);
 
-    /// <summary>The full path: the row tooltip, so a trimmed name is still identifiable.</summary>
-    public string Path => _item.Path;
+    /// <summary>The row tooltip: the full path, or the title when the job is about no file.</summary>
+    public string Path => string.IsNullOrEmpty(_item.Path) ? DisplayText : _item.Path;
 
     /// <summary>Comma-joined owning module tags (e.g. "library, highlights"); empty ⇒ the chip hides.</summary>
     public string Owners => _item.Owners;
 
-    /// <summary>True when any owner tag is present (drives the owner chip's visibility).</summary>
-    public bool HasOwners => !string.IsNullOrWhiteSpace(_item.Owners);
+    /// <summary>Owner chip for demo parses only; a job's kind chip already says who it is.</summary>
+    public bool HasOwners => _item.Kind == QueueJobKind.DemoProcessing && !string.IsNullOrWhiteSpace(_item.Owners);
+
+    /// <summary>The job kind's short chip; empty for a demo parse.</summary>
+    public string KindLabel => _jobKinds.Label(_item.Kind);
+
+    /// <summary>True for every kind but a demo parse.</summary>
+    public bool HasKind => _item.Kind != QueueJobKind.DemoProcessing;
+
+    /// <summary>Fraction done, 0 to 1.</summary>
+    public double ProgressValue => _item.Progress ?? 0;
+
+    /// <summary>A running item that reports progress shows the bar.</summary>
+    public bool HasProgress => _item.State == DemoQueueItemState.Running && _item.Progress is not null;
+
+    /// <summary>The running job's latest detail ("48 of 366 demos").</summary>
+    public string Detail => _item.Detail ?? "";
+
+    /// <summary>Shown while running, and while an open waits (it says what for).</summary>
+    public bool HasDetail => (_item.State == DemoQueueItemState.Running
+                              || (_item.State == DemoQueueItemState.Queued && _item.Kind == QueueJobKind.DemoOpen))
+                             && !string.IsNullOrEmpty(_item.Detail);
 
     /// <summary>Short priority label, shown only when the item is elevated above routine background work.</summary>
     public string PriorityLabel => _item.Priority switch
@@ -61,8 +87,8 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         _ => ""
     };
 
-    /// <summary>True for UserRequested/Foreground: routine Background work shows no priority chip (noise).</summary>
-    public bool HasElevatedPriority => _item.Priority != DemoJobPriority.Background;
+    /// <summary>True for UserRequested/Foreground: routine Background work and an open, whose kind chip says it, show none.</summary>
+    public bool HasElevatedPriority => _item.Priority != DemoJobPriority.Background && _item.Kind != QueueJobKind.DemoOpen;
 
     /// <summary>The lifecycle word: the accessible carrier of state (the dot is the redundant colour cue).</summary>
     public string StateLabel => _item.State switch
@@ -111,7 +137,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         _item.PropertyChanged -= OnItemChanged;
     }
 
-    /// <summary>The user (UI) removes THIS item from the queue (any item, any owner).</summary>
+    /// <summary>The user (UI) removes THIS item from the queue (any item, any owner); a running job stops at its next step.</summary>
     [RelayCommand]
     private void Remove() => _queue.RemoveByUser(_item.Id);
 
@@ -123,6 +149,13 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(DisplayText));
         OnPropertyChanged(nameof(Owners));
         OnPropertyChanged(nameof(HasOwners));
+        OnPropertyChanged(nameof(Path));
+        OnPropertyChanged(nameof(KindLabel));
+        OnPropertyChanged(nameof(HasKind));
+        OnPropertyChanged(nameof(ProgressValue));
+        OnPropertyChanged(nameof(HasProgress));
+        OnPropertyChanged(nameof(Detail));
+        OnPropertyChanged(nameof(HasDetail));
         OnPropertyChanged(nameof(PriorityLabel));
         OnPropertyChanged(nameof(HasElevatedPriority));
         OnPropertyChanged(nameof(StateLabel));

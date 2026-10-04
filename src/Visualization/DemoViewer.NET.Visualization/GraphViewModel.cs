@@ -29,7 +29,7 @@ public sealed class GraphViewModel : INotifyPropertyChanged
     ///     <see cref="IsLayoutComplete" /> is true, and replaced wholesale by each layout.
     ///     <para>
     ///         This is the one part of the layout result that is public, because a second renderer
-    ///         needs somewhere to put its nodes and MSAGL is what decides that (design.md §6.4). The
+    ///         needs somewhere to put its nodes and MSAGL is what decides that. The
     ///         rest of <c>LayoutResult</c> stays internal on purpose: routes, label rectangles, group
     ///         bounds and table placements are the pipeline's working shape, not a contract, and the
     ///         readability pass changed three of them in one PR. Widening them now would make the

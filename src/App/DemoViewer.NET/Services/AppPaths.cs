@@ -135,8 +135,8 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     The user theme drop-in directory: <c>&lt;config&gt;/themes/</c> (central theme system,
-    ///     the design notes in git history, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
+    ///     The user theme drop-in directory: <c>&lt;config&gt;/themes/</c> (central theme system).
+    ///     Each <c>*.json</c> here is loaded as a custom theme. A PURE path
     ///     (no directory creation, a side-effect-free getter keeps VM construction hermetic in tests);
     ///     <see cref="EnsureThemesDirectory" /> creates it once at app startup. <c>null</c> on WASM (no filesystem).
     /// </summary>
@@ -146,6 +146,81 @@ public static class AppPaths
         {
             string? root = ConfigRoot;
             return root is null ? null : Path.Combine(root, "themes");
+        }
+    }
+
+    /// <summary>
+    ///     The user zones overlay directory: <c>&lt;config&gt;/zones/</c>, one <c>&lt;map&gt;.zones.json</c>
+    ///     per map, read by <c>ZoneAssetPipeline</c> over the baked <c>zones.json</c> the way
+    ///     <see cref="ThemesDirectory" /> drop-ins are read over the built-in themes. A PURE path;
+    ///     <see cref="EnsureZonesDirectory" /> creates it once at app startup. <c>null</c> on WASM.
+    /// </summary>
+    public static string? ZonesDirectory
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "zones");
+        }
+    }
+
+    /// <summary>
+    ///     The Strat Book's root: <c>&lt;config&gt;/strats/</c>, holding <c>index.json</c> and one folder per book.
+    ///     User truth under the config root, never under <c>cache/</c>. A PURE path; the
+    ///     store creates folders on its first write. Null on the browser host, where the store is in-memory.
+    /// </summary>
+    public static string? StratsDir
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "strats");
+        }
+    }
+
+    /// <summary>
+    ///     The Round Tagger's store: <c>&lt;config&gt;/tags/</c>, holding <c>index.json</c> and one
+    ///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per tagged demo. User truth, so under
+    ///     the config root beside the cache rather than in it. A PURE path: the store creates directories
+    ///     on its first write. <c>null</c> on WASM, where the store keeps tags in memory.
+    /// </summary>
+    public static string? TagsDir
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "tags");
+        }
+    }
+
+    /// <summary>
+    ///     The tag palette drop-in directory: <c>&lt;config&gt;/palettes/</c>, one
+    ///     <c>&lt;name&gt;.tagpalette.json</c> per palette, read by <c>TagPaletteStore</c>
+    ///     over the built-in palette the way <see cref="ThemesDirectory" /> drop-ins are read over the
+    ///     built-in themes. A PURE path; <see cref="EnsurePalettesDirectory" /> creates it once at app startup.
+    ///     <c>null</c> on WASM, where only the built-in palette is offered.
+    /// </summary>
+    public static string? PalettesDirectory
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "palettes");
+        }
+    }
+
+    /// <summary>
+    ///     Suggested Tags' user directory: <c>&lt;config&gt;/suggested-tags/</c>, holding the parameter
+    ///     profile and one learned <c>site-regions.&lt;map&gt;.json</c> per map.
+    ///     A team shares the folder the way it shares a palette. A PURE path: the store creates it
+    ///     on its first write. <c>null</c> on WASM, where the tables live for the session only.
+    /// </summary>
+    public static string? SuggestedTagsDirectory
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "suggested-tags");
         }
     }
 
@@ -212,6 +287,56 @@ public static class AppPaths
         catch
         {
             // Best-effort, the scan (LoadUserThemes) checks Directory.Exists and no-ops when absent.
+        }
+
+        return dir;
+    }
+
+    /// <summary>
+    ///     Best-effort creates <see cref="ZonesDirectory" /> so a user has somewhere to drop a zones
+    ///     overlay (called once at startup, off the hot path). No-op on WASM; a failure is swallowed, the
+    ///     zones loader tolerates a missing directory (no overlay). Returns the path (or <c>null</c> on WASM).
+    /// </summary>
+    public static string? EnsureZonesDirectory()
+    {
+        string? dir = ZonesDirectory;
+        if (dir is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch
+        {
+            // Best-effort, ZoneAssetPipeline checks File.Exists on the overlay and no-ops when absent.
+        }
+
+        return dir;
+    }
+
+    /// <summary>
+    ///     Best-effort creates <see cref="PalettesDirectory" /> so a user has somewhere to drop a palette
+    ///     (called once at startup, off the hot path). No-op on WASM; a failure is swallowed, the palette
+    ///     scan checks <c>Directory.Exists</c> and offers the built-in alone. Returns the path (or <c>null</c> on WASM).
+    /// </summary>
+    public static string? EnsurePalettesDirectory()
+    {
+        string? dir = PalettesDirectory;
+        if (dir is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch
+        {
+            // Best-effort, TagPaletteStore.Reload checks Directory.Exists and no-ops when absent.
         }
 
         return dir;

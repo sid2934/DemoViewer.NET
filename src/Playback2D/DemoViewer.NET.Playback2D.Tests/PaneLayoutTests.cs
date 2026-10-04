@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     <c>StackedLayout</c> reproducing the pre-v2 bands, and <c>PaneSet</c> carrying camera identity
-///     across a rebuild by level id rather than array position (design risk 5).
+///     across a rebuild by level id rather than array position.
 /// </summary>
 public class PaneLayoutTests
 {
@@ -141,7 +141,7 @@ public class PaneLayoutTests
 
     /// <summary>
     ///     The steady-state frame, level set unchanged, same host size, must not reach the layout
-    ///     policy at all, or the §6 zero-allocation budget is unreachable before a single layer is
+    ///     policy at all, or the zero-allocation budget is unreachable before a single layer is
     ///     written.
     /// </summary>
     [Test]

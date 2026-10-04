@@ -116,7 +116,7 @@ internal static class ExportCommand
             throw new BackendUnavailableException(
                 $"export cannot run on the {backend.Backend} surface provider yet: the render loop " +
                 "crosses threads between frames and the GPU provider is bound to the thread that " +
-                "created it (C2 Stage 1). Drop --gpu, or pass --cpu.");
+                "created it. Drop --gpu, or pass --cpu.");
         }
 
         LoadedMapAsset? mapAssets = null;

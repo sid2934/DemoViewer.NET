@@ -1,7 +1,7 @@
-# Build verification (docs/distribution/build-and-packaging-plan.md §8 — "CI is DIY").
+# Build verification.
 #
-# Every lane here runs the `full` tier. The tiers (docs/playback2d-v2/plans/P3-test-tiers.md) are
-# exclusion filters over [Category] built for IN-FLIGHT development; CI is not in-flight.
+# Every lane here runs the `full` tier. The tiers are exclusion filters over [Category] built for
+# IN-FLIGHT development; CI is not in-flight.
 #
 # The one split that is load-bearing: the correctness lanes select `Category!=Budget` and the budget
 # lane selects `Category=Budget`. Complementary, so their union is the whole suite, but only PER
@@ -55,7 +55,16 @@ jobs:
       - name: Build the solution (Release)
         run: dotnet build DemoViewer.NET.slnx -c Release -p:WasmBuildNative=false
 
-  # The WASM regression net (docs/playback2d-v2/wasm-matrix.md). It PUBLISHES rather than builds:
+      # Packaging drift check: no signing key, so this
+      # only proves staging and zipping still match what the release workflow expects. The script reads
+      # the extension's version from nbgv, hence the tool restore.
+      - name: Restore CLI tools (nbgv)
+        run: dotnet tool restore
+
+      - name: Extension packaging dry run (Strat Book)
+        run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
+
+  # The WASM regression net. It PUBLISHES rather than builds:
   # `dotnet build` of this head succeeds even when the app cannot boot, and the two ways it has
   # actually broken (a missing native relink, giving a runtime DllNotFoundException for libSkiaSharp,
   # and the ILLink pass) are both publish-only.
@@ -73,7 +82,7 @@ jobs:
 
       # PINNED to the SDK's own runtime-pack band. Installing the newest manifest relinks against a
       # System.Private.CoreLib the runtime then rejects ("Your mono runtime and class libraries are
-      # out of sync"). B0 D11 finding 2, observed at manifest 10.0.111 against runtime 10.0.103.
+      # out of sync"). Observed at manifest 10.0.111 against runtime 10.0.103.
       # Bump this in the same commit as the SDK, never on its own.
       - name: Install wasm-tools
         run: dotnet workload install wasm-tools --version 10.0.103
@@ -84,7 +93,7 @@ jobs:
       # Boot-critical means STRICTLY: App.Initialize throws if it is missing and the head boots black.
       # That includes every assembly App.axaml <StyleInclude>s by `avares://<assembly>/…`, because the
       # XAML loader resolves those URIs at Initialize time. Add a line here in the same commit that
-      # adds such an include (D6 §4b). Payload names are fingerprinted, so these are patterns.
+      # adds such an include. Payload names are fingerprinted, so these are patterns.
       - name: Verify the published payload
         run: |
           set -e
@@ -145,13 +154,15 @@ jobs:
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           golden verify --cpu --json --diff-dir artifacts/playback2d-goldens
 
-      # Now SceneLayerCatalog builds the real stack, this gate times ~4.9 ms p99 against the scaled
-      # 16 ms rather than a 0.094 ms debug grid, so it can fail for a render regression and may flap on
+      # Now SceneLayerCatalog builds the real stack, this gate times the real render against the scaled
+      # budget rather than a 0.094 ms debug grid, so it can fail for a render regression and may flap on
       # a slow runner. Raise DV2D_BUDGET_SCALE with a measurement if it does; do not restore the
-      # removed --budget-bytes-per-frame override or swap the fixture.
+      # removed --budget-bytes-per-frame override or swap the fixture. Measured: 11.1 ms p99 on
+      # 2026-09-23, 16.1 and 17.8 ms p99 on 2026-10-04 for a render that benches identically on one
+      # machine at both commits (1.5 ms p99), so 3.0 is runner headroom, not a looser render bar.
       - name: Frame-budget gate
         env:
-          DV2D_BUDGET_SCALE: '2.0'
+          DV2D_BUDGET_SCALE: '3.0'
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           bench --name duel-mirage-b --frames 512 --cpu --gate --json
@@ -185,14 +196,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # A hosted runner is not the design §6 baseline laptop. Gate at 2x so the lane catches real
+      # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
       # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
-      # noise; a gate that cries wolf gets disabled within a week. The strict §6 numbers are what a
+      # noise; a gate that cries wolf gets disabled within a week. The strict numbers are what a
       # local run reports against, and are printed here either way.
       #
       # The ZERO-ALLOCATION assertion is deliberately NOT scaled by this. Zero is zero on every
-      # machine, and it is the half of the budget that catches most of the regressions.
-      DV2D_BUDGET_SCALE: '2.0'
+      # machine, and it is the half of the budget that catches most of the regressions. 3.0 since
+      # 2026-10-04: the runner renders the same frame in 15 to 18 ms where it took 11 three weeks
+      # earlier, with the render itself unchanged (identical local bench at both commits).
+      DV2D_BUDGET_SCALE: '3.0'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -221,7 +234,7 @@ jobs:
           path: bench-reports/dv2d-*.json
           if-no-files-found: ignore
 
-  # `App.Tests` holds every mechanical guard for this project's two named defect classes: the D6 §4
+  # `App.Tests` holds every mechanical guard for this project's two named defect classes: the
   # architecture guards, the feature/HUD/key-routing wiring guards, the settings round-trip guards. A
   # guard in a project CI never runs is a guard that does not exist.
   #
@@ -252,6 +265,33 @@ jobs:
       - name: App suite, full tier (batched)
         run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
 
+  # The pack's own tests. Its own job rather than a step in app-tests: a different memory
+  # posture deserves a different timeout, not app-tests' budget shared by subtraction. Single process
+  # for now, unbatched: that follows a measured peak (as app-tests' batching did), not the test count,
+  # and nothing has measured this suite peaking anywhere near app-tests' 4-5 GB.
+  ext-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Same native as app-tests: this suite also renders through Avalonia.Headless + Avalonia.Skia.
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+
+      # One test at a time: the suite's window-booting classes share static state and race each
+      # other on a two-core runner (a different test fails each run). Serial costs about a minute.
+      - name: Extension (Strat Book) suite, full tier
+        env:
+          DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
+        run: bash scripts/test.sh -t full -p ext -c Release
+
   # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
   # `standard` tiers exist to let a developer skip. CI pays the other half of that bargain, so these
   # run at `full`.
@@ -276,7 +316,7 @@ jobs:
       - name: Visualization suite (full tier)
         run: bash scripts/test.sh -t full -p visualization
 
-      # The round-trip gate on the node editor (docs/rule-graph/design.md §9 decision 4). It reads
+      # The round-trip gate on the node editor. It reads
       # the real rules/ directory rather than a copied fixture, so a shipped ruleset that starts
       # using a construct the writer cannot splice turns this lane red rather than going unnoticed.
       #
@@ -295,7 +335,7 @@ jobs:
       - name: GameIcons suite (full tier)
         run: bash scripts/test.sh -t full -p gameicons
 
-  # Render-backend correctness (docs/playback2d-v2/plans/C2-gpu-provider.md §8.4).
+  # Render-backend correctness.
   #
   # Hosted runners have no GPU, but they DO exercise the real GPU code paths: Windows runs ANGLE over
   # D3D11 WARP, Linux runs EGL over llvmpipe. These lanes gate CORRECTNESS AND PERCEPTUAL PARITY ONLY.
@@ -303,8 +343,8 @@ jobs:
   # a software rasteriser's frames-per-second means nothing.
   #
   # A lane that finds no GPU backend SKIPS its GPU cases (SkipTestException) and stays green. That is
-  # the design's rule, not a gap: "CPU provider is the contract baseline; GPU is opportunistic"
-  # (design §10 risk 7). The second pass forces the CPU path back on, which proves the fallback is a
+  # the rule, not a gap: "CPU provider is the contract baseline; GPU is opportunistic".
+  # The second pass forces the CPU path back on, which proves the fallback is a
   # real, exercised path rather than a branch that only compiles.
   render-backends:
     strategy:

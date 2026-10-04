@@ -19,7 +19,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
-///     The export loop: design §5.7. A fixed timestep through the same layer stack the window draws,
+///     The export loop. A fixed timestep through the same layer stack the window draws,
 ///     into an <see cref="IRenderSurfaceProvider" />'s surface, out through an <see cref="IFrameSink" />.
 ///     <para>
 ///         <b>It draws through <c>HeadlessSceneRenderer</c>, never a private loop</b>: a two-floor Nuke
@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///         Every type this session takes and every type it throws is Core's.
 ///     </para>
 ///     <para>
-///         <b>Zero steady-state allocation</b> (design §6): one surface, one pooled RGBA staging buffer,
+///         <b>Zero steady-state allocation</b>: one surface, one pooled RGBA staging buffer,
 ///         one pinned handle per frame, and a progress struct: no per-frame bitmap, no per-frame array,
 ///         no LINQ. <b>The session disposes the sink</b>, exactly once, in a <c>finally</c>, on success,
 ///         cancellation and failure alike: that is what kills an ffmpeg subprocess on cancel, so a caller
@@ -155,7 +155,7 @@ public sealed class SceneExportSession
             throw new ExportValidationException(
                 $"Export cannot run on the {surfaces.Backend} surface provider yet: the render loop " +
                 "crosses threads between frames and the GPU provider is bound to the thread that " +
-                "created it (C2 Stage 1). Export on the CPU provider.");
+                "created it. Export on the CPU provider.");
         }
 
         if (req.EndFrame >= src.FrameCount)
@@ -187,7 +187,7 @@ public sealed class SceneExportSession
 
             if (src is IPreparableFrameSource preparable && preparable.NeedsPreparation)
             {
-                // Plan D2: one from-zero replay to reach StartFrame, surfaced as its own phase because on
+                // One from-zero replay to reach StartFrame, surfaced as its own phase because on
                 // a full demo it is seconds long and a frozen 0/1800 would look like a hang.
                 Report(progress, ExportPhase.Seeking, 0, total, clock, "replaying to the first frame");
                 preparable.Prepare(ct);
@@ -391,7 +391,7 @@ public sealed class SceneExportSession
         string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal) ? _gifFps : _videoFps;
 
     // GCHandle rather than an unsafe block: it pins without turning AllowUnsafeBlocks on for the whole
-    // assembly, and it costs no managed allocation, which the §6 budget is measured against.
+    // assembly, and it costs no managed allocation, which the allocation budget is measured against.
     private static void ReadInto(SKSurface surface, SKImageInfo info, byte[] destination, int rowBytes)
     {
         GCHandle handle = GCHandle.Alloc(destination, GCHandleType.Pinned);

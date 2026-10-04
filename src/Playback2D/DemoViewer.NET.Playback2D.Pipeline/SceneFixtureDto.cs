@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 // System.Text.Json pick a constructor for those is exactly the kind of implicit contract a persisted
 // format should not have. Every level that can carry forward-compatible data has [JsonExtensionData],
 // so a fixture written by a NEWER build survives a read/write round trip through this one intact
-// (design §5.4's tolerant-reader rule, enforced by SceneFixtureTests).
+// (the tolerant-reader rule, enforced by SceneFixtureTests).
 
 internal sealed class SceneFixtureDto
 {
@@ -37,6 +37,9 @@ internal sealed class Scene2DFrameDto
     public List<PlayerMarkerDto>? Markers { get; set; }
     public List<AreaEffectDto>? AreaEffects { get; set; }
     public List<GrenadeTrailDto>? Trails { get; set; }
+
+    // Null, not written, on a frame with none, so every fixture saved before strat routes keeps its bytes.
+    public List<TokenRouteDto>? Routes { get; set; }
     public BombMarkerDto? Bomb { get; set; }
     public List<KillFeedRowDto>? KillFeed { get; set; }
     public SceneGameInfoDto? GameInfo { get; set; }
@@ -98,6 +101,7 @@ internal sealed class PlayerMarkerDto
     public float PitchDegrees { get; set; }
     public float DuckAmount { get; set; }
     public ulong SteamId { get; set; }
+    public string? Place { get; set; }
 }
 
 internal sealed class AreaEffectDto
@@ -115,6 +119,12 @@ internal sealed class GrenadeTrailDto
     public List<TrailPointDto>? Points { get; set; }
     public int LastTick { get; set; }
     public double Alpha { get; set; }
+}
+
+internal sealed class TokenRouteDto
+{
+    public int Team { get; set; }
+    public List<TrailPointDto>? Points { get; set; }
 }
 
 internal sealed class TrailPointDto
@@ -177,7 +187,7 @@ internal sealed class SceneMapInfoDto
 }
 
 // The SKImage itself is never serialized: a fixture describes a scene, not a decoded bitmap.
-// MapAssetPipeline re-attaches the image by Name at load (B1); until then it stays null.
+// MapAssetPipeline re-attaches the image by Name at load; until then it stays null.
 internal sealed class MapRadarImageDto
 {
     public string? Name { get; set; }

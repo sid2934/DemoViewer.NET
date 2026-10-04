@@ -12,8 +12,8 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 /// <summary>
 ///     Library-wide highlight-scan progress as the <b>fourth</b> <c>StatusChip</c> consumer
 ///     (row 2), the home the card grid's
-///     <c>ScanQueueSummary</c> badge and its per-card scanning animation were re-assigned to. The design
-///     system says verbatim that three consumers now share the control and
+///     <c>ScanQueueSummary</c> badge and its per-card scanning animation were re-assigned to. Three
+///     consumers now share the control, and
 ///     <em>
 ///         "a fourth should extend it,
 ///         not fork"
@@ -31,8 +31,8 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///     </para>
 ///     <para>
 ///         <b>It also restores a lost entry point.</b> <c>HighlightScanService.RequestScan(path)</c> lost its
-///         last UI caller when the card grid's per-demo staleness/failed badges went away (recorded in the
-///         design system as a deliberate reduction). <see cref="RetryAllFailedCommand" /> calls it per failed
+///         last UI caller when the card grid's per-demo staleness/failed badges went away.
+///         <see cref="RetryAllFailedCommand" /> calls it per failed
 ///         row, so a failed scan is recoverable again without a whole-library rescan.
 ///     </para>
 /// </summary>
@@ -45,7 +45,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     [ObservableProperty]
     private int _batchDone;
 
-    // ── Determinate batch progress (v0.6.0, item 12) ──────────────────────────
+    // ── Determinate batch progress (v0.6.0) ───────────────────────────────────
     // The scanner exposes only the REMAINING queue, so the batch size is tracked here: the peak of
     // (queued + in-flight) since the last idle. New requests joining mid-batch raise the peak, so
     // the bar never runs backwards; idle resets it for the next batch.

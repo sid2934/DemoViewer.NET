@@ -87,8 +87,7 @@ the offscreen CPU provider works on the browser head, and B5 verified the whole 
 §12 Q3 (B2 ships the markers, B3 the drag handles).
 
 **Scheduled, not open:** deleting the pre-v2 control. §9 keeps it one release behind the toggle; the
-plan for removing it is [`old-control-removal.md`](old-control-removal.md), with its trigger
-conditions stated.
+it goes the release after v2 ships.
 
 ---
 
@@ -523,8 +522,7 @@ Rules locked in by the review:
   `CS2DemoKit.Parser.EntityTracking.EntitySeekService`; `MainViewModel` owns only an *instance* of it,
   and `MainViewModel.CreateTracker` is UI/debugger-specific and must never back an export.
   `TrackerFrameSource` builds its own service over `() => new EntityTracker()` and accepts one
-  from-zero replay to reach `StartFrame`. No checkpoint cache exists to reuse. See
-  `plans/B4-export.md` D1/D2.
+  from-zero replay to reach `StartFrame`. No checkpoint cache exists to reuse.
 - Fixed timestep `dt = 1/fps` through the same layer stack (`RenderPurpose.Export`), rendering to an
   `SKSurface` from the provider, `ReadPixels` → sink. Determinism is guaranteed by §5.1, verified by
   golden tests.
@@ -672,7 +670,25 @@ upstream. Surface SteamId through the chain when that capability reports true.
 ### 7.5 Keybinds
 Declarative `Playback2DKeymap` (action → gesture table, conflict-checked at registration,
 future-rebindable), bound on the focusable host: Space play/pause, ←/→ step, ↑/↓ speed, Q/E round
-nav, F follow-cycle, D draw, E erase, Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity).
+nav, F follow-cycle, D draw, E erase, A arrow, T text, L line, R rectangle, O ellipse (Shape Tools; each
+pressed again goes back to pan), Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity),
+V token tool, Shift+N add a step, Ctrl+D duplicate the step, Ctrl+Delete delete it and [ / ] previous
+and next step (Step Authoring; the same table drives the Strat Book canvas, where Ctrl+Z / Ctrl+Shift+Z
+walk the strat's one history and Ctrl+X clears the active step's strokes, and the 2D tab leaves these six
+unhandled),
+Ctrl+F find rounds like this (the Strat Room's Situation Search; plan D7 there, since F is taken),
+J/K next and previous situation result (walking the Situations section's cards from inside playback).
+C focuses the Tag Palette; while it has focus its own scope wins over the tool and always scopes, so
+Esc steps back out of a panel, Ctrl+M opens a note, Ctrl+Backspace clears the sticky labels, Ctrl+Z /
+Ctrl+Shift+Z undo and redo tags, Ctrl+L switches Label Mode (labels for tags that already exist,
+Ctrl+G the next label group), and the palette file's button hotkeys fire (docs/tags-format.md).
+While it has focus a left click on the map puts a point on the tag being made (else the last one
+written), and a second click on the same tag makes a movement; Space, Ctrl and the middle button
+still pan.
+The Suggested Tags queue docks under the palette: once a proposal is selected (a row, a band on the
+Suggested track, or the queue's Review button) J/K walk the queue instead of the situation results, Y
+accepts, N rejects, Enter opens the editor and Ctrl+Y accepts everything the queue's filter shows after
+a confirm. With nothing selected the six keys do nothing of theirs.
 All playback mutations route through `PlaybackController` commands / capability-gated
 `IModuleContext.Request*`, the exact surfaces `SyncStateObserver` observes; a parallel path would
 silently bypass LiveSync. Must not collide with shell bindings (Ctrl+1..9, Ctrl+P/O/B/W).
@@ -803,8 +819,7 @@ actually shipped and where it departed from its plan.
 1. Exact extraction boundary of the checkpoint-replay seek core out of `MainViewModel` (the review
    found proposals disagreed on its current shape/name; confirm at implementation start).
    **Resolved (B4):** the core is `CS2DemoKit.Parser.EntityTracking.EntitySeekService`, a package
-   type, already standalone. `MainViewModel` owns only an instance, and was not modified by B4.
-   See `plans/B4-export.md` D1.
+   type, already standalone. `MainViewModel` owns only an instance.
 2. Windowless GPU backend choice (ANGLE/EGL vs native GL vs SkiaSharp Vulkan). Resolved by the
    time-boxed C2 spike; macOS Metal support is a separate later decision.
 3. ~~Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).~~

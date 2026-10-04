@@ -83,6 +83,11 @@ public readonly record struct GlyphAttribution(
                 $"the golden is {width}x{height} and the render is not.");
         }
 
+        // The mask is the silenced diff grown by two pixels: a glyph rasterised elsewhere lands a
+        // pixel or two away from where this machine draws it, and those edge pixels belong to the text
+        // as surely as its body does.
+        bool[] mask = InkMask(actual, noText, width, height, 2);
+
         int ceiling = GoldenTolerance.DefaultPerceptual.OutlierChannelDelta;
         int worstOutsideInk = 0, worstUnderInk = 0, worstX = 0, worstY = 0;
         long inkPixels = 0, overCeilingOutsideInk = 0, overCeilingUnderInk = 0;
@@ -91,7 +96,7 @@ public readonly record struct GlyphAttribution(
         {
             SKColor e = golden[i];
             SKColor a = actual[i];
-            bool underInk = a != noText[i];
+            bool underInk = mask[i];
             int delta = Math.Max(Math.Abs(e.Red - a.Red),
                 Math.Max(Math.Abs(e.Green - a.Green), Math.Abs(e.Blue - a.Blue)));
 
@@ -126,6 +131,39 @@ public readonly record struct GlyphAttribution(
 
         return new GlyphAttribution(inkPixels, overCeilingOutsideInk, overCeilingUnderInk,
             worstOutsideInk, worstUnderInk, worstX, worstY, Encode(patched, width, height));
+    }
+
+    private static bool[] InkMask(SKColor[] actual, SKColor[] noText, int width, int height, int radius)
+    {
+        bool[] seed = new bool[actual.Length];
+        for (int i = 0; i < actual.Length; i++)
+        {
+            seed[i] = actual[i] != noText[i];
+        }
+
+        bool[] mask = new bool[actual.Length];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (!seed[y * width + x])
+                {
+                    continue;
+                }
+
+                int y0 = Math.Max(0, y - radius), y1 = Math.Min(height - 1, y + radius);
+                int x0 = Math.Max(0, x - radius), x1 = Math.Min(width - 1, x + radius);
+                for (int yy = y0; yy <= y1; yy++)
+                {
+                    for (int xx = x0; xx <= x1; xx++)
+                    {
+                        mask[yy * width + xx] = true;
+                    }
+                }
+            }
+        }
+
+        return mask;
     }
 
     /// <summary>

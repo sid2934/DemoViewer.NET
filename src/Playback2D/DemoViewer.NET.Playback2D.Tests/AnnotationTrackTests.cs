@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The annotation timeline track. Two things matter and both are easy to get silently wrong: the
-///     markers sit on the FRAME-INDEX axis (A1 D5), and an element whose tick does not resolve is dropped
+///     markers sit on the FRAME-INDEX axis, and an element whose tick does not resolve is dropped
 ///     rather than drawn at frame 0.
 /// </summary>
 public class AnnotationTrackTests
@@ -20,7 +20,7 @@ public class AnnotationTrackTests
         using AnnotationTrack track = new(new AnnotationDocument());
 
         await Assert.That(track.Id).IsEqualTo("annotation")
-            .Because("A1's track ids are bare words; 'playback2d.annotations' is the layer id AND the " +
+            .Because("Track ids are bare words; 'playback2d.annotations' is the layer id AND the " +
                      "feature id, and one string across three registries is a collision waiting to happen");
         await Assert.That(track.DisplayName).IsEqualTo("Annotations");
     }

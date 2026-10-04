@@ -9,9 +9,9 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 /// <summary>
 ///     The stroke-level eraser. Press and every subsequent move hit-test the eraser disc against the
 ///     document and remove whatever it touches; the whole drag is ONE undo entry, and a drag that touched
-///     nothing pushes none at all (plan decision D4).
+///     nothing pushes none at all.
 ///     <para>
-///         <b>There is no pixel erase.</b> Design §5.4 defers it explicitly, and a stroke-level eraser is
+///         <b>There is no pixel erase.</b> A stroke-level eraser is
 ///         what keeps the document a list of vector elements that can be re-rendered at any zoom, at any
 ///         export resolution, by any of B4/C1's headless paths.
 ///     </para>

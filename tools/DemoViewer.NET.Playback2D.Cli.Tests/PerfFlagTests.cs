@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The <c>--perf</c> flag surface (plan <c>P1-perf-instrumentation</c> §2, §4). The block is
+///     The <c>--perf</c> flag surface. The block is
 ///     <b>additive</b>: absent without the flag, and never displacing anything that was already in the
 ///     <c>schema_version: 1</c> payload.
 /// </summary>

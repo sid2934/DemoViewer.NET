@@ -2,7 +2,6 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Clips;
@@ -10,6 +9,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -51,13 +51,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         WriteIndented = true
     };
 
-    // The only class the final-score replay reads, passed as EntityTracker.StoreClassFilter so every
-    // other class is decoded-and-discarded (bits consumed, fields not stored) for a cheaper replay.
-    private static readonly IReadOnlySet<string> _scoreClasses = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "CCSTeam"
-    };
-
+    // The classes the final-state replay reads, passed as EntityTracker.StoreClassFilter so every other
+    // class is decoded-and-discarded (bits consumed, fields not stored) for a cheaper replay. The score
+    // reads CCSTeam; the coach flag reads m_iCoachingTeam off the controllers, in the same pass.
     // Fan-out skip set for this evaluator's own tier-2 hand-off: when the Library slot hands its held
     // parse to the OTHER evaluators (replacing the old Tier2DemoParsed piggyback), Library is the
     // producer and must not be re-fed its own parse.
@@ -191,6 +187,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     public string Id => "library";
 
     /// <inheritdoc />
+    public bool ReadsUserCommands => false;
+
+    /// <inheritdoc />
     /// <remarks>
     ///     Cheap membership test against the tier-2 backlog recorded at reconcile. The coordinator
     ///     re-polls this on every CapacityAvailable, so it MUST go false once processed, which
@@ -212,7 +211,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     UI callback) so a CapacityAvailable re-poll that races this can't see the path as still-wanted and
     ///     double-submit it.
     /// </remarks>
-    public void Evaluate(string path, ParsedDemo parsed) => RunTier2(path, parsed, true);
+    public void Evaluate(string path, ParsedDemo parsed) => RunTier2(path, entry => IndexTier2Core(entry, parsed, true));
 
     /// <inheritdoc />
     /// <remarks>
@@ -230,7 +229,18 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     </para>
     /// </remarks>
     public void OnParsedOpportunistically(string path, ParsedDemo parsed) =>
-        RunTier2(path, parsed, false);
+        RunTier2(path, entry => IndexTier2Core(entry, parsed, false));
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Rules as well as the final state: this pass is the one a new demo's highlights and round facts
+    ///     ride through <see cref="DemoEvaluationCoordinator.FanOutForward" />.
+    /// </remarks>
+    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState | ForwardNeeds.Rules;
+
+    /// <inheritdoc />
+    public void EvaluateForward(string path, ForwardDemoResult pass) =>
+        RunTier2(path, entry => IndexTier2Core(entry, pass, true));
 
     /// <inheritdoc />
     public void OnFailed(string path)
@@ -458,10 +468,22 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // Enumerate (path-canonicalized), then collapse byte-identical COPIES at different real
             // paths onto one primary (content dedup), cheap via a size pre-filter (only same-size
             // files are hashed) with the hash cached on the metadata row.
-            (List<(string Path, long Size, DateTime Modified)> files, List<string> scannedRoots) =
-                await Task.Run(EnumerateFiles, ct);
-            _lastScannedRoots = [.. scannedRoots];
-            (primaries, shadowFolders) = await Task.Run(() => ResolveContentIdentities(files, ct), ct);
+            ((List<(string Path, long Size, DateTime Modified)> Files, List<string> Roots) Listing,
+                    (List<(string, long, DateTime)> Primaries, Dictionary<string, IReadOnlyList<string>> Shadows) Identities)? scan =
+                await QueueWork.RunAsync<((List<(string, long, DateTime)>, List<string>),
+                    (List<(string, long, DateTime)>, Dictionary<string, IReadOnlyList<string>>))?>(
+                    QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: find demos", "library", () =>
+                    {
+                        (List<(string Path, long Size, DateTime Modified)> files, List<string> roots) = EnumerateFiles();
+                        return ((files, roots), ResolveContentIdentities(files, ct));
+                    }, null).WaitAsync(ct).ConfigureAwait(false);
+            if (scan is not { } done)
+            {
+                return; // removed from the queue before it ran
+            }
+
+            _lastScannedRoots = [.. done.Listing.Roots];
+            (primaries, shadowFolders) = done.Identities;
         }
         catch (OperationCanceledException)
         {
@@ -486,13 +508,19 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // Tier 1 (cheap header → map/server). Light parallelism: it only reads ~256 KB per file.
         try
         {
-            await Parallel.ForEachAsync(needMap,
-                new ParallelOptions
+            await QueueWork.Run(QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: read demo headers", "library", _ =>
                 {
-                    MaxDegreeOfParallelism = 4,
-                    CancellationToken = ct
-                },
-                async (entry, c) => { await Task.Run(() => IndexTier1(entry), c); });
+                    try
+                    {
+                        Parallel.ForEach(needMap, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
+                            IndexTier1);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // A newer rescan replaced this one; the wait below returns for it.
+                    }
+                })
+                .WaitAsync(ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -568,7 +596,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // Shared tier-2 body for both held-parse entry points. The in-progress guard dedupes the two callers
     // when they race the same path (queue Evaluate + interactive-open fan-out): the second observes the
     // path in flight and bails, leaving the first to index + clear the backlog.
-    private void RunTier2(string path, ParsedDemo parsed, bool fanOutToOthers)
+    private void RunTier2(string path, Action<DemoEntry> index)
     {
         DemoEntry? entry;
         lock (_tier2Lock)
@@ -585,7 +613,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         {
             if (entry is not null)
             {
-                IndexTier2Core(entry, parsed, fanOutToOthers);
+                index(entry);
             }
         }
         finally
@@ -610,6 +638,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return [.. _pendingFull.Keys];
         }
     }
+
+    /// <inheritdoc />
+    IReadOnlyList<string> IDemoEvaluator.PendingPaths() => Tier2Backlog();
 
     // Removes a path from the tier-2 backlog (worker thread, under the lock) and, when the backlog drains,
     // persists the tail (parity with the inline path's final Save, the every-12 Save in IndexTier2Core
@@ -907,8 +938,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Returns the cached SHA-256 (lowercase hex) for a file when the (path,size,mtime) key still matches,
-    // else streams the bytes to hash it and writes the result back onto the metadata row. Null on an I/O
-    // failure. The caller then treats the file as its own singleton (never wrongly deduped).
+    // else streams the bytes through the shared helper and writes the result back onto the metadata row.
+    // Null on an I/O failure. A reconcile caller then treats the file as its own singleton (never wrongly
+    // deduped); the tier-2 caller leaves the cache record's hash as it was.
     private string? GetOrComputeSha(string path, long size, DateTime modified)
     {
         lock (_cacheLock)
@@ -920,27 +952,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        string? sha = HashFileStreaming(path);
+        string? sha = DemoContentHash.TryCompute(path);
         if (sha is not null)
         {
             UpsertCache(path, c => c.Sha256 = sha);
         }
 
         return sha;
-    }
-
-    // Streaming SHA-256 (constant memory, never loads the whole demo). Best-effort: null on any I/O error.
-    private static string? HashFileStreaming(string path)
-    {
-        try
-        {
-            using FileStream stream = File.OpenRead(path);
-            return Convert.ToHexStringLower(SHA256.HashData(stream));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
     }
 
     // Runs on the post (UI) thread. `primaries` are the deduped demos (one per content group);
@@ -958,12 +976,16 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         // Drop entries whose file no longer exists, moved out of scope, OR became a SHADOW (a smaller-path
         // copy appeared and took over as primary: this card collapses into that one).
-        for (int i = Entries.Count - 1; i >= 0; i--)
+        // One Reset for the lot: every collection change re-runs the Library tab's filters, sort and
+        // provenance over the whole library.
+        List<DemoEntry> staying = [.. Entries.Where(e => wanted.ContainsKey(e.FilePath))];
+        if (staying.Count == Entries.Count - 1)
         {
-            if (!wanted.ContainsKey(Entries[i].FilePath))
-            {
-                Entries.RemoveAt(i);
-            }
+            Entries.Remove(Entries.First(e => !wanted.ContainsKey(e.FilePath)));
+        }
+        else if (staying.Count < Entries.Count)
+        {
+            Entries.ReplaceAll(staying);
         }
 
         PruneStaleCacheRows(wanted);
@@ -1135,16 +1157,52 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // path, or inline on the legacy path. Self-contained failure handling so a throw marks ONLY this row
     // Failed. fanOutToOthers is true when Library is the producer (background tier-2); false when the parse
     // arrived opportunistically (the coordinator already handled the wider fan-out).
-    private void IndexTier2Core(DemoEntry entry, ParsedDemo parsed, bool fanOutToOthers)
+    //
+    // Internal so the real-demo test can drive one entry through it without a folder scan, which would
+    // mean linking or copying a demo into a temp library.
+    internal void IndexTier2Core(DemoEntry entry, ParsedDemo parsed, bool fanOutToOthers) =>
+        IndexTier2Core(entry, new Tier2Input(
+            parsed.Players.Values, parsed.Duration.TotalSeconds, parsed.MapName, parsed.ServerName,
+            parsed.Profile.SourceKind.ToString(), parsed.TickRate, parsed.TickCount, parsed.ServerStartTick,
+            () => ClipRounds.Derive(parsed),
+            () => ExtractFinalState(parsed),
+            fanOutToOthers ? () => Coordinator?.FanOutParsed(entry.FilePath, parsed, _fanOutSkipSelf) : null));
+
+    // The same extraction off a forward pass: the pass already replayed the final state and derived the rounds.
+    internal void IndexTier2Core(DemoEntry entry, ForwardDemoResult pass, bool fanOutToOthers) =>
+        IndexTier2Core(entry, new Tier2Input(
+            pass.Demo.Players.Values, pass.Demo.Duration.TotalSeconds, pass.Demo.MapName, pass.Demo.ServerName,
+            pass.Demo.Profile.SourceKind.ToString(), pass.Demo.TickRate, pass.Demo.TickCount, pass.Demo.ServerStartTick,
+            () => pass.Rounds,
+            () => pass.FinalState is { } s
+                ? (s.Ct, s.T, s.CtClan, s.TClan, s.CoachSlots)
+                : throw new InvalidOperationException("the forward pass read no final state"),
+            fanOutToOthers ? () => Coordinator?.FanOutForward(entry.FilePath, pass, _fanOutSkipSelf) : null));
+
+    private sealed record Tier2Input(
+        IEnumerable<PlayerInfo> Players,
+        double DurationSeconds,
+        string? MapName,
+        string ServerName,
+        string SourceKind,
+        int TickRate,
+        int TickCount,
+        int ServerStartTick,
+        Func<IReadOnlyList<ClipRound>> Rounds,
+        Func<(int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots)> FinalState,
+        Action? FanOut);
+
+    private void IndexTier2Core(DemoEntry entry, Tier2Input parsed)
     {
         List<string> players;
         double duration;
         string? map;
         int? ctScore = null, tScore = null;
         string? ctClan = null, tClan = null;
+        HashSet<int>? coachSlots = null;
         try
         {
-            players = parsed.Players.Values
+            players = parsed.Players
                 // IsHltv as well as IsBot: the GOTV proxy holds a userinfo slot with a name, and
                 // before the CS2-path fakeplayer/ishltv read it landed on library cards and in the
                 // player filter as if it were someone who played.
@@ -1152,7 +1210,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 .Select(p => p.Name)
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
-            duration = parsed.Duration.TotalSeconds;
+            duration = parsed.DurationSeconds;
             map = parsed.MapName;
 
             // Post the primary metadata FIRST (cheap) so the card fills in players/duration immediately;
@@ -1173,7 +1231,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // round_end are absent). Best-effort: a replay failure just leaves the score unset.
             try
             {
-                (ctScore, tScore, ctClan, tClan) = ExtractFinalScore(parsed);
+                (ctScore, tScore, ctClan, tClan, coachSlots) = parsed.FinalState();
             }
             catch (Exception)
             {
@@ -1187,10 +1245,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // FanOutParsed, so a scan failure never marks the LIBRARY row failed. Skipped when the parse
             // arrived opportunistically (the coordinator's FanOutParsed already fanned to the others; re-
             // fanning would double-feed them). Null coordinator (inline/legacy path, tests) → nothing to fan.
-            if (fanOutToOthers)
-            {
-                Coordinator?.FanOutParsed(entry.FilePath, parsed, _fanOutSkipSelf);
-            }
+            parsed.FanOut?.Invoke();
 
             // parsed drops out of scope here → GC can reclaim before the next parse.
         }
@@ -1241,7 +1296,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         List<CachedRound>? rounds = null;
         try
         {
-            (cachedPlayers, rounds) = ProjectTier2(parsed);
+            (cachedPlayers, rounds) = ProjectTier2(parsed.Players, parsed.Rounds(), coachSlots);
         }
         catch (Exception)
         {
@@ -1271,7 +1326,15 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             c.FullyIndexed = true;
         });
 
-        WriteTier2ToDemoCache(entry, parsed, map, duration, ctScore, tScore, ctClan, tClan, cachedPlayers, rounds);
+        // The content hash, for EVERY demo rather than only the size collisions reconcile hashes. The
+        // user-truth stores (annotations, breakpoints, tags) key on it, and a demo they can find again
+        // after a move or a re-download is only one the index already knows by content. Tier 2 is the
+        // pass that has just streamed the whole file through the parser, so the second read is served
+        // warm from the page cache; the (path,size,mtime) row makes a rescan free.
+        string? sha = GetOrComputeSha(entry.FilePath, entry.FileSizeBytes, entry.Modified);
+
+        WriteTier2ToDemoCache(entry, parsed, map, duration, ctScore, tScore, ctClan, tClan, cachedPlayers, rounds,
+            sha);
 
         // Persist periodically so a long scan's progress survives an app close, and nudge the VM so
         // the player/map filters grow during a long sequential scan (its end may be an hour away).
@@ -1299,9 +1362,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // round count too, and this method no-ops entirely when the unified cache is absent. Projecting here
     // would have made the count unobtainable on exactly the path that was writing zeros. Null means the
     // projection threw; every other field is still worth writing.
-    private void WriteTier2ToDemoCache(DemoEntry entry, ParsedDemo parsed, string? map, double duration,
+    private void WriteTier2ToDemoCache(DemoEntry entry, Tier2Input parsed, string? map, double duration,
         int? ctScore, int? tScore, string? ctClan, string? tClan,
-        List<CachedPlayerInfo>? players, List<CachedRound>? rounds)
+        List<CachedPlayerInfo>? players, List<CachedRound>? rounds, string? sha256)
     {
         if (_demoCache is null)
         {
@@ -1317,7 +1380,17 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     record.Map = map;
                 }
 
+                // Null only when the file could not be read back: keep whatever the record holds rather
+                // than erasing a key some sidecar may already be joined on.
+                if (sha256 is not null)
+                {
+                    record.Sha256 = sha256;
+                }
+
                 record.Server = parsed.ServerName;
+                // The header classifier's verdict, stored by name: what Demo Provenance Labels reads
+                // as "matchmaking" without opening the file again.
+                record.SourceKind = parsed.SourceKind;
                 record.DurationSeconds = duration;
                 record.TickRate = parsed.TickRate;
                 record.TickCount = parsed.TickCount;
@@ -1359,11 +1432,24 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     that matters (cached player count agrees with the cached rosters) is one this codebase has broken
     ///     before, when counting every named entry reported 13 players above rosters of ten.
     /// </summary>
-    internal static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(ParsedDemo parsed)
+    internal static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(ParsedDemo parsed) =>
+        ProjectTier2(parsed, null);
+
+    /// <param name="parsed">The parse.</param>
+    /// <param name="coachSlots">
+    ///     Slots whose controller coached a team at the last frame (<see cref="ExtractFinalState" />); null
+    ///     when the replay did not run, which reads as "no coach", the matchmaking truth.
+    /// </param>
+    internal static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(ParsedDemo parsed,
+        IReadOnlySet<int>? coachSlots) =>
+        ProjectTier2(parsed.Players.Values, ClipRounds.Derive(parsed), coachSlots);
+
+    private static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(
+        IEnumerable<PlayerInfo> roster, IReadOnlyList<ClipRound> clipRounds, IReadOnlySet<int>? coachSlots)
     {
         List<CachedPlayerInfo> players =
         [
-            .. parsed.Players.Values
+            .. roster
                 // The GOTV proxy holds a userinfo slot with a name but never played; excluding it here is
                 // what makes the cached player count agree with the cached rosters. Bots and spectators ARE
                 // kept, with their team. The projection decides how to present them, and it cannot recover
@@ -1375,7 +1461,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     Name = p.Name, // RAW: sanitize at the render boundary only
                     SteamId64 = p.SteamId64.ToString(CultureInfo.InvariantCulture),
                     Team = p.Team,
-                    IsBot = p.IsBot
+                    IsBot = p.IsBot,
+                    IsCoach = coachSlots?.Contains(p.Slot) ?? false
                 })
         ];
 
@@ -1390,7 +1477,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // GameTick, not ServerTick: this field is FRAME CLOCK, and the clip math that consumes it
         // (ClipWindows.RoundStartFor) is frame clock throughout. Never offset it by ServerStartTick:
         // DemoAnalyzer's own round list is the ABSOLUTE-clock variant and is not interchangeable here.
-        List<CachedRound> rounds = ClipRounds.Derive(parsed).ToCachedRounds();
+        List<CachedRound> rounds = clipRounds.ToCachedRounds();
 
         return (players, rounds);
     }
@@ -1402,61 +1489,29 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // itself would display. Returns nulls for warmup-only / team-less demos so the card omits the score.
     internal static (int? Ct, int? T, string? CtClan, string? TClan) ExtractFinalScore(ParsedDemo parsed)
     {
+        (int? ct, int? t, string? ctClan, string? tClan, HashSet<int> _) = ExtractFinalState(parsed);
+        return (ct, t, ctClan, tClan);
+    }
+
+    // The score plus the coach slots, from one replay: the coach flag is CCSPlayerController.m_iCoachingTeam
+    // at the last frame, read off the controller seated at entity index slot + 1, so a registered coach
+    // (who sits on a side without being one of its five) stays out of Team Identity's side keys. Coach
+    // slots are returned even when the score is not, so a warmup-only demo still marks its coach.
+    internal static (int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots) ExtractFinalState(
+        ParsedDemo parsed)
+    {
         IReadOnlyList<DemoFrame> frames = parsed.Frames;
         if (frames.Count == 0)
         {
-            return (null, null, null, null);
+            return (null, null, null, null, []);
         }
 
-        // The score reads only CCSTeam. The entity bitstream is sequential (every entity must be
-        // DECODED to reach the next), but we STORE only CCSTeam's fields, skipping the per-field
-        // storage + allocation for every other class. Byte-identical score (proven by
-        // EntityStoreFilterEquivalenceTests over real demos, including buzzer-truncated ones); ~1.2x
-        // faster and ~30-60% less allocation on this replay. The latter eases the Library-backlog RAM
-        // pressure. Unlike the reverted checkpoint approach this replays ALL deltas from frame 0, so it
-        // is truly identical, not merely approximate.
-        EntityTracker tracker = new()
-        {
-            StoreClassFilter = _scoreClasses
-        };
+        // Replays every delta from frame 0 but stores only the two classes the read looks at: the same
+        // score as a full replay (EntityStoreFilterEquivalenceTests), ~1.2x faster and 30-60% less allocation.
+        EntityTracker tracker = FinalTeamState.NewTracker();
         tracker.ReplayToIndex(frames.Count - 1, frames);
-
-        int? ct = null, t = null;
-        string? ctClan = null, tClan = null;
-        foreach ((int _, EntityState ent) in tracker.CurrentEntities.AllIndexed())
-        {
-            if (ent.ClassName != "CCSTeam")
-            {
-                continue;
-            }
-
-            int teamNum = CoerceInt(ent["m_iTeamNum"]);
-            int score = CoerceInt(ent["m_iScore"]);
-            string clan = ent["m_szClanTeamname"] as string ?? "";
-            if (teamNum == 2)
-            {
-                t = score;
-                if (clan.Length > 0)
-                {
-                    tClan = clan;
-                }
-            }
-            else if (teamNum == 3)
-            {
-                ct = score;
-                if (clan.Length > 0)
-                {
-                    ctClan = clan;
-                }
-            }
-        }
-
-        if (ct is null || t is null || ct + t == 0)
-        {
-            return (null, null, null, null); // warmup-only / no teams → omit
-        }
-
-        return (ct, t, ctClan, tClan);
+        FinalTeamState state = FinalTeamState.Read(tracker, parsed.Players.Keys);
+        return (state.Ct, state.T, state.CtClan, state.TClan, state.CoachSlots);
     }
 
     /// <summary>
@@ -1504,19 +1559,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         row.FullyIndexed && !IsScoreResultCoherent(row.CtScore, row.Score, row.CtClan, row.Clan);
 
     // CCSTeam scalars arrive boxed (Int32 on the wire per project_cs2_wire_encoding); coerce defensively.
-    private static int CoerceInt(object? v) => v switch
-    {
-        int i => i,
-        uint u => (int)u,
-        short s => s,
-        ushort u => u,
-        long l => (int)l,
-        ulong u => (int)u,
-        byte b => b,
-        sbyte s => s,
-        _ => 0
-    };
-
     // ── Cache (thread-safe) ───────────────────────────────────────────────────
 
     private DemoLibraryCacheEntry? LookupCache(string path, long size, DateTime modified)

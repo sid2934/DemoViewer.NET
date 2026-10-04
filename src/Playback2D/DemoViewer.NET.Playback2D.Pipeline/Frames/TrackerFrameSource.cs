@@ -13,8 +13,8 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 /// <summary>
 ///     A scene-frame source backed by a <b>private</b> checkpoint-replay tracker over a parsed demo.
 ///     <para>
-///         <b>Private is the contract, not an implementation detail</b> (design §5.7: "export never
-///         touches the shared app clock"). This type builds its own <see cref="EntitySeekService" /> over
+///         <b>Private is the contract, not an implementation detail</b> (export never touches the
+///         shared app clock). This type builds its own <see cref="EntitySeekService" /> over
 ///         <c>() =&gt; new EntityTracker()</c>; it never uses <c>MainViewModel.CreateTracker</c> (which
 ///         wires the interactive Tier-3 debugger and UI dispatch) and never publishes its tracker through
 ///         <c>PlaybackController.PublishTracker</c>. A CLI render, a bench run and an export can therefore
@@ -52,7 +52,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     /// <param name="endFrame">Inclusive last demo frame.</param>
     /// <param name="fps">
     ///     Output frame rate. With <paramref name="speed" /> it fixes
-    ///     <c>SceneTime.DeltaSeconds = speed / fps</c> (design §5.1 determinism).
+    ///     <c>SceneTime.DeltaSeconds = speed / fps</c> (determinism).
     /// </param>
     /// <param name="speed">Playback-rate multiplier; 1 is realtime.</param>
     /// <param name="tickRate">The demo's tick rate; values ≤ 0 are treated as 64.</param>

@@ -89,7 +89,7 @@ public static class LevelLayouts
         LevelDisplayMode.Stacked => new StackedLayout(),
         LevelDisplayMode.Single => new SingleLayout(),
         _ => throw new NotSupportedException(
-            $"{mode} is reserved; no policy returns it in v1 (registry §3.4).")
+            $"{mode} is reserved; no policy returns it in v1.")
     };
 
     /// <summary>

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Core.Cameras;
 ///     Holds whatever the camera already shows. Used for <c>CameraMode.Fit</c>, a one-shot fit applied
 ///     by <c>PaneSet.FitAll</c>, static thereafter, and as the starting rig of a freshly created pane.
 ///     <para>
-///         The naming reads backwards against the mode vocabulary (plan decision D-3): <c>Fit</c> maps
+///         The naming reads backwards against the mode vocabulary: <c>Fit</c> maps
 ///         to <see cref="ManualRig" /> because it fits <i>once</i>, while <c>Map</c> maps to
 ///         <see cref="FitMapRig" /> because it fits <i>continuously</i>. The behaviours are what matter.
 ///     </para>
@@ -128,7 +128,7 @@ public sealed class FitAliveRig : ICameraRig
 ///     keeps a gray marker at their last-known position when dead, so following survives a death; only
 ///     a slot with no marker at all makes the camera hold.
 ///     <para>
-///         <b>The one deliberate behaviour change in B1</b> (plan §4 T4): a deadzone. The committed
+///         <b>The one deliberate behaviour change here</b>: a deadzone. The committed
 ///         centre is held while the marker stays inside a box of half-extent
 ///         <see cref="DeadzoneHalfWorld" /> around it, so small strafes stop dragging the whole map.
 ///         <see cref="DeadzoneHalfWorld" /> = 0 reproduces the pre-v2 behaviour exactly, and that is

@@ -41,7 +41,7 @@ public sealed record SceneFixture
     public string? MapVersion { get; init; }
 
     /// <summary>
-    ///     The annotation document, opaque until B2 gives it a DTO (decision D7). Preserved verbatim
+    ///     The annotation document, kept opaque as a raw <c>JsonElement</c>. Preserved verbatim
     ///     across a read/write round trip either way.
     /// </summary>
     public JsonElement? Annotations { get; init; }

@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -19,6 +20,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using SkiaSharp;
@@ -64,6 +66,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // would drop a live gesture.
     private readonly SceneHostToolServices _toolServices;
 
+    // Held by reference because the text tool's gesture outlives the pointer: the press opens it, and
+    // the view's editor closes it through CompleteTextEdit long after the router has let go.
+    private readonly TextTool _textTool = new();
+
+    // Where the last press landed, in host space: the pane a text label was placed in, so the editor
+    // can be put over the label's anchor through the same camera that drew it.
+    private Point _lastPress;
+
     private LoadedMapAsset? _boundAsset;
     private AnnotationSession? _boundSession;
 
@@ -82,12 +92,28 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     private CameraMode _mode = CameraMode.Fit;
     private ScenePalette _palette = ScenePalette.Dark;
     private TimeSpan _prevFrameTime;
+    private MarkerLayer _markerLayer;
     private RadarLayer _radarLayer;
     private bool _released;
     private long _submissionId;
     private TextBlobCache _text;
     private VisionLayer _visionLayer;
-    private Playback2DTabViewModel? _vm;
+    private ISceneFrameHost? _vm;
+    private ZoneOutlineLayer? _zoneLayer;
+
+    // Layers a caller added through AddLayer (guides, for the strat canvas): kept here so BuildScene can
+    // re-add them after a release/rebuild, which the fixed layer set already does for itself.
+    private readonly Dictionary<string, Func<ISceneLayer>> _extraLayers = new();
+
+    // The ids this host already manages itself (BuildScene's fixed set, plus BindAnnotations' and
+    // BindZones' dynamic ones). AddLayer refuses these outright rather than let a collision surface
+    // later as an obscure duplicate-id failure out of SceneCompositor.Add.
+    private static readonly HashSet<string> OwnLayerIds = new(StringComparer.Ordinal)
+    {
+        SceneLayerIds.Radar, SceneLayerIds.Trails, SceneLayerIds.AreaEffects, SceneLayerIds.Vision,
+        SceneLayerIds.Markers, SceneLayerIds.Bomb, SceneLayerIds.FloorLabel, SceneLayerIds.Annotations,
+        SceneLayerIds.Zones
+    };
 
     /// <summary>Creates the host and registers the seven scene layers.</summary>
     public Scene2DHost()
@@ -106,6 +132,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         Router = new InputToolRouter(_toolServices, new PanZoomTool());
         Router.Register(new DrawTool());
         Router.Register(new EraseTool());
+        Router.Register(new ShapeTool(ToolKind.Line));
+        Router.Register(new ShapeTool(ToolKind.Arrow));
+        Router.Register(new ShapeTool(ToolKind.Rect));
+        Router.Register(new ShapeTool(ToolKind.Ellipse));
+        Router.Register(_textTool);
 
         BuildScene();
     }
@@ -116,13 +147,62 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <summary>The frame currently being shown. Read by the tool services; never retained.</summary>
     internal Scene2DFrame CurrentSceneFrame => _vm?.CurrentFrame ?? Scene2DFrame.Empty;
 
+    /// <summary>
+    ///     What the host is bound to: the 2D Playback tab, the strat canvas, or nothing. Read by the tool
+    ///     services for the token editor; never retained.
+    /// </summary>
+    internal ISceneFrameHost? FrameHost => _vm;
+
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
     internal AnnotationLayer? AnnotationLayerForTest { get; private set; }
 
-    /// <summary>The layer stack. B2 and B4 register their layers on it.</summary>
+    /// <summary>The zone outline layer, once the toggle is on and the map has zones. Test hook.</summary>
+    internal ZoneOutlineLayer? ZoneLayerForTest => _zoneLayer;
+
+    /// <summary>The layer stack other scene layers register themselves on.</summary>
     public SceneCompositor Compositor => _compositor;
 
-    /// <summary>The layout policy. B3 swaps in <c>SingleLayout</c> here.</summary>
+    /// <summary>
+    ///     Registers a pointer tool on this host only: the strat canvas's token tool, never the
+    ///     2D Playback tab's, since nothing calls this for it. A host re-bound away from the registering
+    ///     view model leaves the tool in place but inert, exactly as an unregistered tool would be.
+    /// </summary>
+    /// <param name="tool">The tool.</param>
+    internal void AddTool(IPointerTool tool) => Router.Register(tool);
+
+    /// <summary>
+    ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
+    ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
+    ///     <see cref="ISceneLayer.Id" />; registering the same id again replaces it. Refuses an id this
+    ///     host already manages itself (<see cref="OwnLayerIds" />).
+    /// </summary>
+    /// <param name="layerId">The layer's id.</param>
+    /// <param name="layer">Builds a fresh layer instance.</param>
+    /// <exception cref="ArgumentException"><paramref name="layerId" /> names one of this host's own layers.</exception>
+    internal void AddLayer(string layerId, Func<ISceneLayer> layer)
+    {
+        ArgumentNullException.ThrowIfNull(layerId);
+        ArgumentNullException.ThrowIfNull(layer);
+
+        if (OwnLayerIds.Contains(layerId))
+        {
+            throw new ArgumentException($"'{layerId}' is one of this host's own layers.", nameof(layerId));
+        }
+
+        _extraLayers[layerId] = layer;
+        if (_released)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            _compositor.Remove(layerId);
+            _compositor.Add(layer());
+        }
+    }
+
+    /// <summary>The layout policy. <c>SingleLayout</c> can replace it here.</summary>
     public ILevelLayoutPolicy LayoutPolicy
     {
         get => _panes.Policy;
@@ -130,8 +210,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     }
 
     /// <summary>
-    ///     Follow-camera deadzone half-extent in world units. B1's one deliberate behaviour change;
-    ///     0 reproduces the pre-v2 feel exactly.
+    ///     Follow-camera deadzone half-extent in world units, the one deliberate behaviour change from
+    ///     pre-v2; 0 reproduces the pre-v2 feel exactly.
     /// </summary>
     public double FollowDeadzoneHalfWorld { get; set; } = 180;
 
@@ -182,6 +262,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     void IAnnotationSurface.SetSpacePanHeld(bool held) => SetSpacePanHeld(held);
 
     void IAnnotationSurface.CancelActiveGesture() => CancelActiveGesture();
+
+    /// <inheritdoc />
+    public event Action<Point, double>? TextEditRequested;
+
+    void IAnnotationSurface.CompleteTextEdit(string? text) => CompleteTextEdit(text);
 
     /// <summary>
     ///     Releases the compositor, its layers and the fallback bitmap. Also runs on detach: a tab's
@@ -326,9 +411,54 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         InvalidateVisual();
     }
 
-    /// <summary>Selects the active pointer tool.</summary>
+    /// <summary>
+    ///     Selects the active pointer tool. A label still being typed is closed first with what it holds:
+    ///     the editor commits on losing focus, so by the time a toolbar click lands here there is normally
+    ///     nothing left to close.
+    /// </summary>
     /// <param name="kind">The tool.</param>
-    internal void SetActiveTool(ToolKind kind) => Router.SetActive(kind);
+    internal void SetActiveTool(ToolKind kind)
+    {
+        _textTool.CompleteEdit(_toolServices, null);
+        Router.SetActive(kind);
+    }
+
+    /// <summary>
+    ///     The text tool placed a label: tell the view where to put the editor. The anchor goes through
+    ///     the pane the press landed in and the same draw offset the ink layer applies, so a label on a
+    ///     tracked player opens its editor on the player.
+    /// </summary>
+    /// <param name="elementId">The label being typed.</param>
+    internal void RequestTextEdit(Guid elementId)
+    {
+        Point at = _lastPress;
+        double emPixels = 14;
+
+        LevelPane? pane = _panes.PaneAt((float)_lastPress.X, (float)_lastPress.Y);
+        if (pane is not null
+            && _toolServices.Session.Document.TryGet(elementId, out AnnotationElement element)
+            && element.Points.Count > 0
+            && _toolServices.TryResolveDrawOffset(pane, element, out float offsetX, out float offsetY))
+        {
+            InkPoint anchor = element.Points[0];
+            SKPoint screen = _toolServices.WorldToScreen(pane,
+                new SKPoint(anchor.X + offsetX, anchor.Y + offsetY));
+            at = new Point(screen.X, screen.Y);
+            emPixels = AnnotationText.WorldSize(element.Style.WidthWorld) / _toolServices.WorldUnitsPerPixel(pane);
+        }
+
+        TextEditRequested?.Invoke(at, emPixels);
+    }
+
+    /// <summary>The editor's result: the typed string, or null to cancel.</summary>
+    /// <param name="text">The typed string, or null.</param>
+    internal void CompleteTextEdit(string? text)
+    {
+        if (_textTool.CompleteEdit(_toolServices, text))
+        {
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>
     ///     Builds the text cache, the seven layers and the compositor over them.
@@ -339,7 +469,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///         host that could only be born once renders nothing for the rest of the session.
     ///     </para>
     /// </summary>
-    [MemberNotNull(nameof(_compositor), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
+    [MemberNotNull(nameof(_compositor), nameof(_markerLayer), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
     private void BuildScene()
     {
         _text = new TextBlobCache();
@@ -355,15 +485,24 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _compositor.Add(new TrailLayer());
         _compositor.Add(new AreaEffectLayer());
         _compositor.Add(_visionLayer);
-        _compositor.Add(new MarkerLayer(_smoother, _text));
+        _markerLayer = new MarkerLayer(_smoother, _text);
+        _compositor.Add(_markerLayer);
         _compositor.Add(new BombLayer());
         _compositor.Add(new FloorLabelLayer(_text));
+
+        // A caller's own layers (AddLayer, before or after this build): re-added here too, since a
+        // release wipes the whole compositor and this is the one place every layer is rebuilt.
+        foreach (Func<ISceneLayer> factory in _extraLayers.Values)
+        {
+            _compositor.Add(factory());
+        }
 
         // The map bundle and the annotation session are re-pulled on the next SyncFromViewModel, so the
         // fresh layers are bound.
         _boundAsset = null;
         AnnotationLayerForTest = null;
         _boundSession = null;
+        _zoneLayer = null;
         _released = false;
     }
 
@@ -444,7 +583,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
-        AttachVm(DataContext as Playback2DTabViewModel);
+        AttachVm(BoundFrameHost());
     }
 
     /// <inheritdoc />
@@ -461,7 +600,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         RefreshPalette();
         ActualThemeVariantChanged += OnThemeVariantChanged;
-        AttachVm(DataContext as Playback2DTabViewModel);
+        AttachVm(BoundFrameHost());
     }
 
     /// <inheritdoc />
@@ -469,6 +608,10 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     {
         base.OnDetachedFromVisualTree(e);
         ActualThemeVariantChanged -= OnThemeVariantChanged;
+
+        // A tab switch destroys the view and its editor with it, so an open label is closed here with
+        // what it holds rather than left holding the document's undo mark.
+        _textTool.CompleteEdit(_toolServices, null);
         AttachVm(null);
         _frameLoopArmed = false;
         _havePrevFrameTime = false;
@@ -510,7 +653,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         // next gesture the way a bind-time or frame-time mirror would while the tab sits paused.
         Router.SecondaryTool = _boundSession?.SecondaryTool;
 
+        _lastPress = e.GetPosition(this);
         ToolPointerEvent sample = Translate(e, false);
+        if (TryPrimaryPress(in sample))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (Router.OnPressed(in sample))
         {
             e.Pointer.Capture(this);
@@ -587,6 +737,24 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             new SKPoint((float)p.X - pane.ViewportRect.Left, (float)p.Y - pane.ViewportRect.Top),
             e.Delta.Y, Translate(e.KeyModifiers)));
         e.Handled = true;
+    }
+
+    // A primary press not diverted to pan: offered to the bound host's pointer pre-handler ahead of the
+    // router, so the selected tool never sees it. Everything that diverts a press to pan (Space, Ctrl, the
+    // middle button) still pans, which is how a tagger moves the view meanwhile. A click is a whole
+    // gesture, so nothing is captured and the release reaches a router with no gesture.
+    private bool TryPrimaryPress(in ToolPointerEvent sample)
+    {
+        if (sample.Button != ToolPointerButton.Left || sample.Pane is not { } pane
+            || Router.IsSpaceHeld || (sample.Modifiers & (ToolModifiers.Space | ToolModifiers.Control)) != 0
+            || _vm is not { } vm)
+        {
+            return false;
+        }
+
+        ScenePointer pointer = new(pane.Level, sample.World.X, sample.World.Y, sample.Screen, sample.Modifiers,
+            vm.CurrentFrame, () => vm.Zones);
+        return vm.TryPointerPreHandler(pointer);
     }
 
     // Avalonia event → pane-resolved, world-resolved tool sample. The coalesced samples are the reason
@@ -782,7 +950,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             _panes.RetainUnarranged(_levels.Space.LastChange);
         }
 
-        // The followed player's level wins: A1's follow funnel sets _followSlot, and AutoFollow shows
+        // The followed player's level wins: the follow funnel sets _followSlot, and AutoFollow shows
         // whichever floor that player is on. Nothing followed leaves the choice where the user put it.
         _levelSelection.FollowedSlot =
             _mode == CameraMode.FollowPlayer && _followSlot >= 0 ? _followSlot : null;
@@ -910,7 +1078,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         InvalidateVisual();
     }
 
-    private void AttachVm(Playback2DTabViewModel? vm)
+    // The one discovery site. Through DataContext rather than an explicit Bind: the harness sets it on
+    // the window and a re-attach re-reads it, and a second path to the same state would bypass both. A
+    // host placed under a DataContext that is not a frame host (the Strat Book tab's own view-model)
+    // binds nothing, which is why that view assigns the canvas to the host directly.
+    private ISceneFrameHost? BoundFrameHost() => DataContext as ISceneFrameHost;
+
+    private void AttachVm(ISceneFrameHost? vm)
     {
         if (ReferenceEquals(_vm, vm))
         {
@@ -956,7 +1130,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     }
 
     // Pulls the per-push view-model state the scene cannot derive from the frame: the overlay toggles
-    // (compositor state, decision D5) and the map bundle. Both are cheap comparisons in the steady
+    // (compositor state) and the map bundle. Both are cheap comparisons in the steady
     // state; the bundle is pulled every push so a late-arriving map takes effect without a
     // re-activation, exactly as the pre-v2 AuthoritativeFloors pull did.
     private void SyncFromViewModel()
@@ -971,9 +1145,15 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _compositor.SetEnabled(SceneLayerIds.AreaEffects, vm.ShowAreaEffects);
         _compositor.SetEnabled(SceneLayerIds.Vision, vm.ShowVision);
         _compositor.SetEnabled(SceneLayerIds.Bomb, vm.ShowBombRing);
+        _markerLayer.DrawViewCones = vm.ShowViewCones;
 
         BindAnnotations(vm.AnnotationSession);
         _compositor.SetEnabled(SceneLayerIds.Annotations, vm.IsAnnotationsEnabled);
+
+        // Only asked for when shown: vm.Zones is the lazy read that parses the file, and a map whose
+        // outlines nobody turned on must not pay for them on every sync.
+        BindZones(vm.ShowZones ? vm.Zones : null);
+        _compositor.SetEnabled(SceneLayerIds.Zones, vm.ShowZones && _zoneLayer is not null);
 
         LoadedMapAsset? asset = vm.MapAsset;
         if (!ReferenceEquals(asset, _boundAsset))
@@ -1022,6 +1202,47 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         _toolServices.Session = session;
         Router.SetActive(session.ActiveTool);
+    }
+
+    // Mounts, re-points or drops the zone outline layer. Under the render gate for the same reason
+    // BindAnnotations is: RenderPane walks the layer list by index on the render thread. A reload
+    // hands the same layer a new resolver, which drops its cached pictures and bumps its version.
+    private void BindZones(PlaceResolver? resolver)
+    {
+        if (resolver is null)
+        {
+            if (_zoneLayer is null)
+            {
+                return;
+            }
+
+            using (_gate.Enter())
+            {
+                _compositor.Remove(SceneLayerIds.Zones);
+                _zoneLayer = null;
+            }
+
+            return;
+        }
+
+        if (_zoneLayer is null)
+        {
+            using (_gate.Enter())
+            {
+                _zoneLayer = new ZoneOutlineLayer(resolver, _text);
+                _compositor.Add(_zoneLayer);
+            }
+
+            return;
+        }
+
+        if (!ReferenceEquals(_zoneLayer.Resolver, resolver))
+        {
+            using (_gate.Enter())
+            {
+                _zoneLayer.Resolver = resolver;
+            }
+        }
     }
 
     private void ArmFrameLoopIfNeeded()

@@ -374,6 +374,566 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   every node and destroy virtualization.
 - **Used in:** the 4 message-card list surfaces (Parser card list + descendants).
 
+### Hosted tab sections (the Strat Book rail, the Library's Teams view)
+- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle) and
+  `ViewModels/Shell/IHostTabViewModel.cs` (what a host tab's VM exposes) in the shell; the Strat Book hub is
+  pack-owned: `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookHubViewModel.cs`,
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail) and `StratBookPack.HubHostTab`
+  (the contribution); the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
+- **Purpose:** a module tab that belongs to a workflow rather than the strip. A descriptor names its host by
+  id in `WorkspaceTabDescriptor.HostId`: `"stratbook.hub"` puts it on the Strat Book tab's left rail (164px,
+  collapsible to a 32px strip, `PanelHeaderBg`, `sectionHeader` band bound to the host's rail label, "STRAT BOOK",
+  `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
+  `"builtin.library"` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from four
+  tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
+- **Contract:** a host tab is a pack contribution (`IPackContributions.HostTab`, a `HostTabContribution`: host
+  id, tab id, header, strip order, rail label, feature id, VM and view factories); the shell builds the host VM
+  with the strip and keys one `TabSectionHost` per host id, the Library being the built-in host. The descriptor
+  keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session file treat a section exactly as
+  they treated the strip tab (the shell resolves a section id through its host and persists the section id as
+  the active tab; a section of a hidden host answers false). A section is `Activate`d only while it is selected
+  AND its host tab is, so the one-realized-View invariant holds one level down. A contributed host tab shows
+  only while its feature id resolves on and some hosted section does, and the selection lands on Library when
+  it goes away. A section naming a host nothing contributes is dropped with a module log line, never put on the
+  strip.
+- **Do not:** add a Main-strip tab for a Strat Book feature; add a section. Do not add a `TabPlacement`
+  member for a new host; contribute a host tab and name it.
+
+### Collapsible side pane (the Strat Book rail and the strat list)
+- **Files:** `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle
+  commands), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the
+  `StratPicker` header in `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in
+  `Styles/Primitives.axaml`.
+- **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
+  1280 wide with the rail (164) and the strat list (280) open.
+- **Contract:** the pane's own header carries `«` (a `Button.pane-toggle`, 24 px). Collapsed, the pane becomes a
+  32 px strip: `»` at the top, then either the pane's items read top to bottom (the rail keeps every section and
+  its badge, rotated 90 degrees in a `LayoutTransformControl`, same `ItemsSource` and `SelectedItem`) or the
+  pane's name when its items cannot be read that way (the list strip reads STRATS or DETECTED). Navigation the
+  pane was the only way to reach moves next to the content while it is collapsed: a header over the list's
+  neighbour column carries the Book / Detected toggle, a combo box that follows it (the book's strats or the
+  detected patterns) and a Callouts button whose flyout holds the alias editor (`CalloutsEditorTemplate`, the
+  same template the list column uses). List management (Delete, Find strats, Show settled) stays in the pane;
+  `»` reopens it. The column is `Auto`; the open pane sets its own `Width`.
+- **State:** one `StratBookLayout` is shared by the hub and the Strats section (a DI singleton, passed to both)
+  and lives in the session file as `SessionPayload.StratBook`. It is restored with the active tab in
+  `RestoreSession`, not through module-tab state, because module-tab state waits for a demo load and a
+  descriptor's VM is built only on activation, so a collapsed pane would reopen whenever the user did not
+  open a demo or the Strat Book that session.
+- **Do not:** hide a pane without leaving the strip and its `»`; drive the collapse from a view-local flag
+  (it would not persist); add a second copy of a pane's items unless the strip shows them.
+
+### Strat step row (the Strats editor)
+- **Files:** the `StepRows` template in `Views/StratBook/StratBookTabView.axaml`, `StratStepRow` in
+  `ViewModels/StratBook/StratEditorViewModel.cs`, the table in `Services/Strats/StratStepFields.cs`.
+- **Layout:** line one is `#`, at, who and verb in fixed columns (20, 56, 64, 84) with move up and move down
+  stacked (`.icon-btn.stepMove`, 15 px each), duplicate and remove (`.icon-btn`) on the right; line two is a
+  `WrapPanel` of label-over-field pairs indented under "at". At 1280 with the rail and the list open the editor is
+  315 px and line one fills it: a fifth button or a wider column needs room taken from somewhere else.
+  The editor's `ScrollViewer` has `HorizontalScrollBarVisibility="Disabled"`; every row in it must wrap or
+  shrink (metadata is a `WrapPanel` of 132 px pairs, slots are `44,*,Auto,*`, record rows `*,32,...,64`).
+  `StratEditorRoomTests` walks the editor's fields at 1280 wide and fails on any right edge past the viewport.
+- **Fields by verb** (note is always there; a member the verb does not use still shows while it holds a
+  value, so nothing an export prints is hidden):
+
+  | Verb | Fields | `to` reads |
+  |---|---|---|
+  | move | from, to (the validator warns on a move without `to`), via | to |
+  | rotate | from, to, via | to |
+  | push | from, to, watching, via | to |
+  | hold, peek | to, watching | at |
+  | plant, defuse | to (`StratFromRound` writes a plant's place there) | site |
+  | throw | utility, then lineup, then lands at only while no lineup is picked | |
+  | fake | to, utility, watching | at |
+  | lurk | watching, via, lurk areas, rotate at, or when, rotate to | |
+  | wait, call | note only | |
+  | other, or a verb outside the vocabulary | from, to, utility, watching, via | to |
+
+  Move and rotate take no watching: a moving player watches their path, and the facing that matters belongs to
+  the hold or push after it.
+
+- **Who** (`Button.stratWho`, styled like the combo boxes beside it, with a `▾`): the step's players, `all` or
+  `B, C`. Its flyout holds A to E as 30 px toggles and an `all` button; the toggles are staged and written when the
+  flyout closes (`StratStepRow.CommitWho`, `StratLinePatches.SetWho`), so picking two players is one undo entry. None
+  checked writes nothing and the toggles show the step again. Opening takes a snapshot (`BeginWho`); a reprojection
+  while it is open (an edit elsewhere, the zones landing) leaves the toggles alone, and closing writes the players
+  added and removed since the snapshot onto the step as it then is, by the step's id. A player unticked and ticked
+  again in one session is no change, so their line is kept. The write is by slot: a remove per player dropped and
+  an add per player added, never an index-wise rewrite that would hand one player's line to another. A step deleted, or a strat
+  switched, while it is open writes nothing. A flyout rather than a wider control: the 64 px column
+  is all line one has at 1280.
+- **One place and watching for players who agree** (`ShowCompact`): while every line says the same apart from its
+  slot (place, watch and angle), the row shows one `to` and one `watching` under line one, a `*,*,Auto` grid (a
+  field takes both columns while the other is hidden), and an edit writes every line (`StratLinePatches.EditAll`).
+  A step for everyone is five agreeing lines; one player is one. The compact `via` (travel verbs, or while the lines
+  hold one) sits on a second row of the grid across both columns, labelled `via`, multi like watching
+  (`GroupViaField`). `split` (shown with more than one player and a place, watching or via to differ in) shows the
+  lines one per player; `join` under the lines shows once they agree again. The
+  row only goes apart on split or on an edit that makes the lines differ (a cone drag on one player), and only
+  comes back on join, so a commit never swaps the fields under the caret. Lines that already differ open apart.
+  Split on a step for everyone shows five lines, and a line's edit writes all five (the others keep the step's place);
+  editing them back to agree folds the file to `all` while the row stays apart until join.
+- **Lines** (`StratLineRow`, written only through `Services/Strats/StratLinePatches.cs`): shown apart, under line one, indented
+  like the fields, a `48,*,*,Auto` grid per player: slot, place (labelled with the verb's `to`, `at` or `site`, shown
+  when the verb uses it or it holds one), watching, then the angle and remove buttons; a second row, when the verb
+  travels or the line holds one, has a right-aligned `via` label under the slot and the line's via across the place
+  and watching columns (`LineViaField`); a `who / to / watching` label row above, and `+ player` under them. A step for everyone has no lines and keeps its own `to` field; a one-player
+  step shows one implicit line (the slot as text, changed with the actor combo, no remove); a step with stored lines
+  greys the actor combo, whose value is their summary. `+ player` adds the first slot without a line: on a step for
+  everyone that names the first player, who takes the step's place. The writer keeps the stored shape on every edit:
+  no lines is a step for everyone, one line with no watch is a plain step (the actor rewritten, `assignments`
+  removed), five bare lines to one place fold back into a step for everyone, anything else is `assignments` with the
+  summary actor and no step-level `to`. A line's slot combo lists all five and is a burst field like the verb. The
+  whole line moves to the slot picked, watch and angle included, and the player's position on that step moves with
+  it; a slot another line holds swaps the two lines' slots and positions (`StratLinePatches.ChangeSlot`), so
+  re-lettering players never needs a remove and `+ player`, which would drop the removed player's line. Swap rather
+  than refuse: refusing left remove and re-add as the only way to re-letter. A split step for everyone lists only
+  the line's own slot, since any change folds back to the same step. A combo pick that writes nothing reprojects the
+  row, so a combo never shows a value the file does not hold. A line's watching shows when the verb uses it or the
+  line holds one. Every place and watching field in the row (and from, lands at, lurk areas and rotate to) is a
+  location field (see "Location field"): stored canonical, shown as callouts or coordinates, written on focus loss
+  or a pick. The angle button (`135°`) shows only while `watch.yawDegrees` is set and clears it, so the cone faces
+  the first watched place again. The line Set On Map writes has a 2 px `AccentInteractive` bar on its left
+  (`Border.stratLine.lineSelected`); focus or a press in a line's field selects its step and the line. At 1280 with
+  the rail and list open the line's fields are about 95 px each, so a watching list's chips wrap onto more lines and a
+  long callout trims inside its chip; from, lands at and rotate to are 150 px, so a coordinate with both buttons reads
+  whole.
+- **Verb change:** the verb and a remove for each member the new verb does not use and the step has (a lurk
+  included); each line's `to`, watch and via the verb does not use are cleared through `StratLinePatches` in the same
+  entry, so a one-player line that loses its watch folds back into a plain step. Via goes with any verb that does
+  not travel (hold, peek, fake, plant, defuse, throw, wait, call).
+  Positions, strokes, hold and note are never touched. RoleSheet, StratTextExporter and LAN print print
+  whatever is set, which is why the clear is not optional.
+- **Combo box bursts:** a closed combo box changes value on the mouse wheel and on Up/Down, so the verb, kind
+  and lineup combos pass through values the user never meant. Consecutive changes of one combo on one step are a
+  burst (`StratEditorViewModel.ApplyInBurst`): the ops are computed from the step as it was when the burst began
+  and replace the burst's own undo entry (`StratSession.ReplaceLast`). Passing through "none" or "wait" and back
+  restores everything and leaves no entry; ending elsewhere leaves one. A burst ends when the combo loses focus
+  (the view calls `EndEditBurst`) or on any other edit (the session's version moved).
+- **Utility edits:** a kind change replaces `kind` and removes `lineupId` and `technique` (they belong to the
+  old kind) but keeps the landing; a lineup change drops the old lineup's `technique`; typing "lands at"
+  writes `landing/place` only, so a captured landing point survives, and clearing a place that was the landing's
+  only member removes the landing. A lineup id the lookup does not offer is
+  added to the row's options as its raw id (a combo box shows nothing for a selection outside its items).
+  The lineup options are filtered by kind, so the kind always matches a picked lineup; a picker that sets
+  both must write the kind first, in the same ops list, because a kind change drops the lineup.
+- **Lineup and technique:** the lineup combo lists the strat map's lineups of the step's kind from
+  `StratLineupCatalog`, which reads `LineupOriginSource`'s per-map grouping (off the UI thread; the editor
+  re-projects on `Changed`). A stored id resolves through every alias id to its lineup's name; projection never
+  rewrites it. A lineup thrown more than one way adds a "thrown" combo (label and throw count), a burst field like
+  the others; a stored null technique shows the most thrown one without writing it, and the burst compares with
+  that effective value, so wheeling back to the most thrown leaves no explicit copy. "Pick on map" sits last in the
+  wrap and opens the lineup picker.
+- **New step and duplicate:** Add step, and Enter, insert after the row focus was last in, or at the end, 5 s later
+  on the strat's clock than the step before (a lower time on the round clock, a higher one from a trigger), held
+  between its neighbours and, on the round clock, no earlier than -1:00 unless that step already is, so it is never
+  refused. The first step goes at the start: 1:55, or +0:00 from a trigger. The new step is a move by `all` that starts with every token written where
+  the projection has it at the step before, and no strokes (`StepAuthoringPatches.AddCarriedStep`, which the
+  canvas's Add step uses too), each marked `carried`. A copy, not a reference: the stationary rule would show the same
+  places without one, but then a later drag on the earlier step would move the new step's tokens too. The mark lets
+  the new step's destination win over the copy; a token a destination has already sent somewhere is not carried. A thrower whose lineup resolves
+  is written at the lineup origin (level on the canvas's floors, the throw's yaw); an unresolved lineup (still
+  grouping, or a stale id) carries the thrower's last authored place, as the projection shows it. Duplicate is
+  the canvas's (`StepAuthoringPatches.DuplicateStep`): the same fields, positions and strokes (strokes under new
+  ids), a fresh step id, 5 s later held before the next step. Each is one undo entry and focuses the new row's time.
+- **Times** follow the strat's clock (`StratClock.Format` and `TryParse` with the clock block): `1:15` and `+0:05`
+  after the plant on the round clock, `+0:08` from a trigger, where `0:08` and `8` read the same and `-0:02` is before
+  the trigger. The steps heading says which: `Steps (round clock remaining, m:ss; +m:ss after the timer stopped)` or
+  `Steps (from the trigger, +m:ss)`.
+- **Lurk fields** (`ShowLurk`): lurk areas (a multi location field like watching, 200 px), rotate at
+  (56 px, a time on the strat's clock; text that is not one shows the stored time again), or when (an `AutoCompleteBox`
+  suggesting `StratVocabulary.RotateConditions`, free text stored), rotate to (128 px, like `to`). All written
+  through `StratLurkPatches` on focus loss, one entry each. The place fields are the plain ones the row uses for
+  `to` and watching, named `LurkAreasField` and `RotateToField` (and `GroupPlaceField`, `GroupWatchField` on the
+  compact row) so a shared location field can replace them by name.
+- **Inline checks:** each row marks the validator's warnings and refusals beside the field their pointer names
+  (`StratStepRow.SetIssues`): a `⚠` in `AccentCaution` for a warning, a filled `!` badge on `AccentError` for a
+  refusal, the message in the tooltip, and every message again as a text line under the row for keyboard and
+  screen-reader users. A pointer under `/steps/i/assignments/j` marks line j's slot, place or watching field (the
+  text line names the slot and field, `(B to)`), and a one-player step's `/to` marks its implicit line's place.
+  Unknown places (step `from`, `to` and landing, a line's place and watched callouts) are warnings, never refusals,
+  checked against the map's zones the canvas already loaded (`StratSession.PlaceLookup` over
+  `StratCanvasViewModel.LoadedPlaces`); none are shown while the zones load, and the rows revalidate when they land.
+  A step-level `to` beside stored lines shows read-only with a clear button, which writes through `StratLinePatches`. Place fields carry the marker after their label; at, actor and verb on the field's top right
+  corner. An issue about the step itself (`/positions`, `/interpolation`, unknown fields), or about a field the row
+  hides (a technique warning while the "thrown" combo is hidden), marks the number. Infos stay in the Checks list
+  only. `StratSession.Issues` validates at most once per document version, with the commit's rules, so the rows and
+  the bottom Checks summary always agree; text fields write on focus loss, so a strat is validated per edit, never
+  per keystroke. A lineup id is checked against `LineupOriginSource`'s grouping of the map (`LineupLookup`, from
+  memory): "not checked" (an info) while the map groups, a warning on the lineup field once it is grouped and the id
+  does not resolve. The grouping landing invalidates the cached issues.
+- **Keys** (`StratBookTabView.axaml.cs`, a tunnel handler on `StepRows`, so a field does not see them first):
+
+  | Key | Where | Does |
+  |---|---|---|
+  | Enter | a single-line field, or the row | commits the field, adds a step after the row (a location field's list a user has typed in picks instead) |
+  | Ctrl+D | anywhere in the row but an open combo | commits the field, duplicates the row |
+  | Delete | the row itself, never inside a field | removes the row (and its branches); focus stays at that index |
+  | Escape | a field | leaves the field for its row, committing it (a location field's list a user has typed in closes first) |
+  | Alt+Up / Alt+Down | a field or the row, not a combo (Alt+Down opens one) | moves the row |
+  | Tab | | the visible fields left to right, then the next row's time |
+
+  The row is the item container: focusable, not a Tab stop, bordered `AccentInteractive` while it has focus. The row
+  buttons are not Tab stops either (the keys above do their jobs), so Tab never stops between two rows' fields.
+
+### Start row (the Strats editor)
+- **Files:** the `StartRow` border in `Views/StratBook/StratBookTabView.axaml`, `ViewModels/StratBook/StratStartRow.cs`,
+  `Services/Strats/StratStartBlock.cs` (reading, the first write and every later one), `StratStartPhrasing`.
+- **What:** where every token stands before step 1, and what starts the strat. Not a step: no number, time, who or
+  verb. It sits under the steps heading and above the step columns, so the column labels stay with the steps.
+- **Collapsed** (the default): one line, `Start` in the number's style, then the start and the trigger joined by `·`
+  (`spawn · on the call`, `as captured`, `A Long Doors, B (1234, -561)`), trimmed with the whole line in the tooltip,
+  and a `▸` button on the right that opens it. A strat with no start reads `no one placed: tokens appear at their first
+  step`.
+- **Open:** `what starts it`, the strat's `trigger.text` (it moved here from the metadata; the trigger stays where the
+  file always had it); `players · spawn|custom|captured|from step 1` with a `Spawns` button (shown once the map's spawns are read,
+  puts every token back, a `spawn` start, one entry); a `24,*` grid per token of A to E, then `opponents` and O1 to O5,
+  each a single location field (`spawn, a callout or (x, y)`) with its map pick. At 1280 with the rail and list open the
+  fields are about 250 px, so a coordinate reads whole. A field edit or pick writes that token's start, one entry, and
+  makes the start `custom`; clearing a field takes the token's start away. An edit the canvas would not show (a step on
+  the start's tick places the token, as a capture's freeze-end step does) or one that must wait for the map's spawns is
+  not written: a one-line `AccentCaution` note under the row's first line says why (`StartNote`), and the field shows
+  the stored value again. The `players ·` label says `from step 1` for an older file's start that is not the spawns.
+- **Selection:** a press or focus anywhere in the row selects the start (`StratStepSelection.SelectStart`,
+  `StratCanvasViewModel.SelectStart`): the transport pauses at tick 0, no step row is selected, and the row takes the
+  step row's selected look (`PanelHeaderHoverDeep` fill, the 3 px `AccentInteractive` bar, a bold number). A token
+  drag there writes the start (see "Map-first editing"). Leaving tick 0 or selecting a step ends it.
+- **Older files:** the row shows the start the file implies (docs/strat-format.md, "The start") and writes nothing
+  on open; the step entries it was read from leave their step's placed chips, since the row says the same. The first
+  edit writes the block in one entry, the history line `start read from the round-start step`.
+
+### Clock switch (the Strats editor's header)
+- **Files:** the `ClockSwitch` combo in the metadata `WrapPanel`, `StratEditorViewModel.ClockChoice`,
+  `StratClock.SwitchOps`.
+- **What:** a 132 px `clock` pair like the others: `Round` (1:55 counting down) or `From trigger` (+0:00 counting up
+  from what starts the strat). A choice rewrites every step time and lurk rotate time in one undo entry and moves no
+  tick; the step rows, the step track's tooltips, the transport's clock and an export's range labels and burnt-in
+  clock follow. After a switch a `TextMid` line under the metadata (`ClockNote`) says times written in notes, branch
+  conditions and the trigger were not converted; it goes when another strat opens. A combo, not a toggle pair: it reads as the fields beside it and fits their 132 px.
+
+### Lineup picker (the Strats editor)
+- **Files:** `ViewModels/StratBook/LineupPickerViewModel.cs`, `Views/StratBook/LineupPickerView.axaml`, the
+  `LineupPickerOverlay` in `Views/StratBook/StratBookTabView.axaml`, `OpenLineupPicker` in
+  `StratBookTabViewModel`, `ApplyLineupPick` in `StratEditorViewModel`.
+- **Purpose:** pick a throw step's lineup by where it lands and where it is thrown from, instead of by name.
+- **Reuse, not a copy:** the picker hosts a `UtilityBookTabViewModel` and the Utility Book's `UtilityMapHost`.
+  The VM takes two opt-in settings the tab never uses: `lockedMap` (the strat's map, never another, even with
+  no lineups) and `QueryKinds` (a strat utility kind can be two grenade kinds: molotov and incendiary). `Reveal`
+  focuses a stored lineup (alias ids answer) once the refresh lands, turning single throws on when the lineup
+  was thrown only once; an id that is one lineup's own and another's alias names the first (`ByAnyId`'s
+  precedence). The app builds it through the same DI helper as the tab (`UtilityBookFor`): same clip
+  directory, and its reads go through the processing queue as the "Lineup picker" section, at user priority.
+  It draws the strat canvas's already decoded bundle for the map (`ownsMapAsset: false`, never disposed by the
+  picker), so opening it decodes nothing.
+- **Layout:** a modal card over the whole Strats section on a `ModalScrim` border (no native window, so the
+  browser head has it): title, kind combo and "positions thrown once" on top; the map left; on the right the
+  focused group's positions (technique label, throws and demos) and the selected position's card (style,
+  use counts, technique split, the clip when rendered); the hint line, Cancel and "Use this lineup" at the bottom.
+- **Contract:** a step without a kind opens on smoke. Confirm writes kind, lineup and technique as one undo
+  entry, kind first; the landing is kept. Confirming the lineup and technique the step already has (an alias
+  id included, a null technique read as the most thrown) writes nothing and keeps the stored id; another
+  technique of the same lineup writes only the technique. Cancel and Escape write nothing. Either way the hosted
+  Utility Book VM is disposed (index subscription).
+- **Modal:** the picker takes the focus when it opens (Escape works at once) and the tab body behind it is
+  disabled (`TabBody`, `IsEnabled` bound to `!HasLineupPicker`). It cancels itself when the tab deactivates,
+  another strat opens or none is, or its step is deleted.
+- **Known:** the card's clip lookup (`LineupClipPlanner.FinishedGif`, two `File.Exists`) runs on the UI thread
+  when a position is selected, as it does on the Utility Book tab.
+
+### Location field (the Strats editor)
+- **Files:** `Controls/PlaceField.axaml` (+ `.cs`), `Controls/PlaceFieldModel.cs` (the logic, `PlaceFieldOptions`),
+  `Services/Strats/StratLocations.cs` (reading and printing a location).
+- **Purpose:** one control for every location a step holds (from, to, lands at, watching, and the lurk and rotate
+  fields), so each can be typed, picked from the map's callouts, or picked on the map.
+- **In the Start row:** one per token, aimed at `StratStartBlock.FieldFor(slot)` (`StratLocationKind.Start`, no step).
+- **In the step row:** `GroupPlaceField`, `GroupWatchField` and `GroupViaField` (the compact who's place, watching and
+  via; they write every line, `StratLocationField.AllLines`), `LinePlaceField`, `LineWatchField` and `LineViaField`
+  (one line's, by slot), `FromField`,
+  `LandingField`, `LurkAreasField` (multi) and `RotateToField`; `StrayToField` shows a step-level `to` beside lines,
+  disabled, beside its clear button. Each binds `Value` to the row's `*Value`, `PickCommandParameter` to its
+  `*Target` descriptor, `PickCommand` to the tab's `PickOnMapCommand`, and `ArmedTarget` to `Canvas.ArmedField`, so
+  the field that a map click will write shows it.
+- **Value:** `Value` is a list of `PlaceRef`, at most one unless `IsMulti` (watching, via, lurk areas; see "Multi
+  field" below). Places are stored canonical and shown by the owner's word; a place the map lacks shows as stored; a
+  point alone shows as `(1234, -561)`, and in a single field keeps its point for as long as its text is unchanged. Typed text resolves through the owner's callouts, else is stored as
+  typed, never numbers alone. A typed coordinate (`(1234, -560)`, `1234, -560` or `1234 -560`, negatives allowed) is a
+  point: its level is the stored point's, else the strat's default canvas level, else none. A commit (focus loss,
+  Enter or a click in the list) writes only when the value changed. A value pushed from outside (a map pick, an undo)
+  shows at once unless the field holds an edit not yet committed.
+- **List:** focus opens the map's callouts (`PlaceFieldOptions.For(resolver)`, built once per `CalloutResolver`
+  and shared by every field; typing filters that cached list, names starting with the text first, then names
+  containing it, matching display name, canonical name and every alias; an exact match comes first, so Enter and a
+  blur store the same place). The stored callout is highlighted. The list
+  opens below the field, or above when fewer than its rows (at most 200 px) fit below and more room is above
+  (`PlaceField.ChooseUp`), chosen again once layout settles, since a field reached by Tab is scrolled into view
+  after it opened. The list is drawn in the window's overlay layer. A multi field's list leaves out the callouts it
+  already holds.
+- **Multi field (chips):** watching, via and lurk areas show one chip per entry, in stored order, in a `WrapPanel`
+  above one add field (the field's own text box, with the list, typed coordinates and `⌖`). The order is what the
+  file holds: places first, then points, since each list is stored as two arrays (`places` and `points`, `areas`
+  and `areaPoints`, `via` and `viaPoints`). The watch cone faces the first entry and via routes in order.
+  - **Add:** a pick from the list, Enter on typed text (also with no list showing, so a typed coordinate never
+    reaches the row's Enter) or a blur appends one entry and clears the field. A typed name resolves through the
+    callouts; a coordinate takes the level of the list's first point, else the strat's default level. A duplicate
+    (same place, or same x, y and level) is refused quietly and the field cleared. Text that names a chosen callout
+    highlights nothing, so Enter cannot add a neighbour that merely starts the same. A map pick appends too.
+  - **Chips:** `Border.placeChip`, focusable but not a tab stop, so Tab goes from the field before straight into the
+    add field. The callout or short coordinate (`TextTrimming`, the full text in the tooltip) and a `✕` that removes
+    it. Backspace in the empty add field focuses the last chip; Backspace or Delete there removes it and returns to
+    the add field. Left and Right walk the chips (Right past the last returns to the add field). Alt+Left and
+    Alt+Right move the focused chip one place, and it keeps the focus; a move past either end or between the places
+    and the points is refused. The context menu has the same three actions for the mouse. No drag.
+  - **Writes:** every add, remove or move stores the whole list through `Value`, so it is one
+    `StratLocationPatches.Write` and one undo entry. Edits work on the `PlaceRef`s themselves, never on their text,
+    so a point keeps its exact x, y and level. A list pushed from outside (an undo, a pick) rebuilds the chips at
+    once and keeps any text typed in the add field.
+- **Keys:** the list a focus opens is only a view: Enter and Esc there close it and go on to the row (Enter adds a
+  step, Esc leaves the field), so the row's keys work as before. Once the user types, moves the highlight or opens the
+  list with Down, the list holds Up, Down, Enter (pick the highlighted callout, or commit the text) and Esc (close the
+  list), taking them at the window with a tunnel handler so the row's own tunnel handler never sees them. With no list
+  showing (closed, or no callout matches the text) the keys are the row's; Down opens the list, and Esc while the
+  field is armed on the map also cancels the pick (after the row's Esc, which it listens to handled). Picking the
+  stored callout writes nothing.
+- **Buttons:** inside the field's right edge, not tab stops: `⌖` pick on map (shown when `PickCommand` is set;
+  `AccentInteractive` and bold while `IsPicking`), and `✕` clear, shown only while a single field holds a point
+  without a place (a multi field removes per chip instead). The buttons are 16 px wide with 2 px padding: at 95 px with both showing, the text keeps at least 45 px
+  (pinned by `StratLocationFieldTests`).
+- **Tokens:** list `CardBg` with a `BorderSubtle` border, rows `TextValue`, buttons `TextMid` with
+  `PanelHeaderHoverDeep` on hover. Chips `PanelHeaderHover` with a `BorderSubtle` border and `TextValue` text at
+  11 px; a focused chip `PanelHeaderHoverDeep` with an `AccentInteractive` border.
+
+### Map-first editing (the Strats editor and canvas)
+- **Files:** `ViewModels/StratBook/StratStepSelection.cs`, `SelectStep`, `BeginSetPlace` and `TryTagPositionAt` in
+  `Modules/StratBook/Canvas/StratCanvasViewModel.cs`, `Services/Strats/StratLocationPatches.cs` (the field descriptor
+  and its writer), the row handlers in `Views/StratBook/StratBookTabView.axaml.cs`, the toolbar toggle in
+  `StratCanvasView.axaml`.
+- **One selected step:** the canvas's active step. A press or focus in a step row selects that step: the transport
+  pauses and moves to its time, and the step stays active there even when the next step shares its tick (the
+  schedule alone would give the later one). The transport, the step track, `[` `]`, a new step and playback move
+  the selection, and the rows follow. `[` `]` walk the steps by index, so both steps of a shared tick are visited;
+  a step-track marker click seeks by tick and lands on the later one. It holds through an edit of that step, its time included. The selected row
+  has a `PanelHeaderHoverDeep` fill, a 3 px `AccentInteractive` bar over the number column and a bold
+  `TextCardHeader` number; the bar overlays rather than takes width, because the row's fixed columns fill the
+  315 px editor. A selection that moves within the open strat (the canvas, the step keys, playback) scrolls its row
+  into view; opening or switching a strat, or deleting the selected step, does not scroll the editor.
+- **Selected start:** the Start row selects tick 0 and no step (`StratCanvasViewModel.IsStartSelected`). A token drag
+  there writes its start (`StratDragAction.Start`): a body drag its place and point as a single field stores them, a
+  cone drag its facing, opponents included. A start pick (a Start row field's pick button) selects the start and the
+  next click writes that token's start. With a step selected, a drag at tick 0 still writes the step, so a move at the
+  start time takes the drop as its `to`; and a token nothing has placed since its start, at a wait or between steps,
+  drags its start rather than refusing.
+- **Selected line:** `StratCanvasViewModel.SelectedLineSlot`, the chosen slot when the active step has a line for it,
+  else its first line; none on a step for everyone. The rows set it (`StratStepSelection.SelectLine`), and so does a
+  press on one of the strat's own tokens. It is kept across steps.
+- **Set on map:** a toggle in the canvas toolbar, shown only when the selected step takes a place from the map,
+  labelled with the row's word for the field (`Set “to” on map`, `“at”`, `“site”`, or `Set landing on map`). A
+  verb that uses `to` sets `to` (fake included); a verb that uses only utility sets the landing when it has a kind
+  and no lineup (a lineup says where it lands); wait, call, a lineup throw and a throw with no kind offer nothing.
+  One click, one write, one undo entry, then the mode ends. The click comes through `TryTagPositionAt`, ahead of
+  the pointer tools, and resolves with `IZonePlaceResolver.ResolveOnFloor` on the clicked pane's floor key.
+- **Any location field:** the mode aims at one `StratLocationField` (step, line slot, every line or none, and
+  `from`, `to`, landing, watching, via, lurk area or rotate to). A compact who's place and watching write every line; a
+  row shown apart writes the selected line; the toolbar's `to` follows the same rule, and a lurk's toolbar field is a
+  lurk area. The toolbar toggle derives it from the verb as above; a location control's pick button
+  aims at its own field through `StratStepSelection.PickOnMap`, which selects the step and line first and cancels
+  when pressed again. `StratCanvasViewModel.ArmedField` says which field is armed; the toolbar then names it
+  (`Set “from” on map`, `Set B's watching on map`).
+- **Hits and misses:** a click inside a place stores the place and the point; a click in no place stores the point
+  alone and drops the stored place, which named another spot. On watching, via and lurk areas, a click adds the place, or the point
+  when it is in no place, and a place already watched adds nothing. With no zones for the map (none baked, or the
+  read failed) a click sets the point and keeps the stored place. The status line says which.
+- **Cancel:** Esc (the mode counts as an active tool, so Esc resolves to cancel even under pan; in the armed field
+  itself, Esc with its list closed), the toggle or the field's pick button again, a change of selected step or
+  strat, or an edit after which the field no longer applies (a verb that drops it, a landing without utility). A
+  toolbar-armed pick also ends when the toolbar would pick another field. A click whose place lookup is still in
+  flight is dropped by any of them.
+- **Places off the UI thread:** the map's zones load through the processing queue (`SectionCompute`, user
+  priority) when the canvas first shows the map, one read in flight per map across canvases; a click before they
+  land waits for that item.
+- **Set on map on lines:** on a step with lines shown apart the toggle names the line (`Set C's “to” on map`) and the
+  click writes that line's place, one entry, adding nothing else. On lines the row shows as one it says `Set “to” on
+  map` and writes every line's place (`StratCanvasViewModel.LinesShownApart`, wired to the editor's
+  `ShowsLinesApart`). A step for everyone shown split counts as lines: the click writes the selected player's place
+  and keeps the other four. A lurk offers `Set “lurk area” on map`: the click adds the place to the lurk's areas.
+- **View cones:** every live token on the strat canvas and the Detected preview draws a wedge along its yaw
+  (`MarkerLayer.DrawViewCones`, from `ISceneFrameHost.ShowViewCones`): 30 degrees either side, 36 px past the disc,
+  the team colour at alpha 56, behind the heading stub. Replays and exports draw none. On the editing canvas a press
+  in the wedge is a turn (`TokenHitTest.Classify(..., cone: true)`); a press on a disc always wins over another
+  token's wedge. Only the pan and token tools offer it, as for a token drag. Turning one of A to E writes that slot's
+  line `watch.yawDegrees` on the selected step when its verb watches (push, hold, peek, fake, lurk and `other`) or the
+  line already does, adding the line (a step for everyone is read as a line per slot first, so the others stay in it).
+  On a verb without watching (move, rotate, throw, plant, defuse, wait, call), and paused mid-run, the turn is refused
+  with "a runner faces its run; turn it on the hold or push after". The drag shows the turned yaw, and one entry is
+  written on release. Turning an opponent token writes its position's yaw as before, which its `placed` chip shows.
+  The line's angle button clears it.
+- **Motion from destinations:** a step's `to` (the step's, a line's or the compact who's) and a lurk's areas, in
+  order, move the tokens it names. Move, push, rotate and other run there from the step's time at 215 u/s; hold, peek,
+  fake, plant and defuse are there at the step's time; throw, wait and call do not move. Tokens at one place at the
+  same time fan out inside it, each slot on its own spot, whichever steps sent them. A runner faces its run and
+  turns to what it watches on arrival. An authored position on that step (an Alt-drag pin, or an old drag) wins over
+  the destination and shows as a `placed` chip; setting a `to` drops the slot's carried entry in the same undo entry. docs/strat-format.md, "Motion on the canvas", has the rules.
+- **Token drag:** a left press on a token drags it under the pan tool as well as the token tool
+  (`InputToolRouter` offers the press to the token tool first and pans when it refuses; with no token editor, as
+  on the 2D tab, it always refuses). The pen, eraser and shape tools keep their own press. A drag is a Set on map pick
+  on the field the row shows, with the drop as the click (`StratDragTarget.Resolve`, `StratDragPatches.Ops`): move, push, rotate and `other` take the slot's `to`; hold,
+  peek, fake, plant and defuse their `at` or `site`, and the slot's own position entry on the step goes with it; a lurk
+  takes the drop as lurk area 1, or `rotate to` once its rotate has started at the playhead; throw, wait and call edit
+  the step that placed the player; a player the step does not name joins it as a line; a lineup thrower is refused.
+  Opponents still write their position entry. One undo entry, through the field writers; docs/strat-format.md, "What a
+  token drag writes", has the table.
+  - **No seek.** A press while playing pauses where it is. Paused on the selected step's tick, the drag aims at the
+    step that wins that tick for the slot (the later one naming it). Paused between steps, a token mid-run gets a via
+    on its run, inserted before the via it was heading for; a standing token edits the step that put it there. The
+    step written becomes the selection only when it owns the playhead's tick, since selecting another would move the
+    playhead; the label and the status line name it (`step 2 · A · to: Hut`).
+  - **Snaps and keys.** Within 12 screen pixels of a place's arrival the drop stores the place alone, so tokens sent
+    there fan out; elsewhere in a place the place and the point; outside every place the point. Shift stores the
+    point alone. Alt pins: `positions[slot]` on the selected step, shown as a `placed` chip. A `Pin` toggle in the
+    canvas toolbar does what Alt does for the next drag, for window managers that take Alt+drag (GNOME, KDE). Esc
+    cancels and writes nothing. Shift no longer snaps a facing: the cone drag on a watching verb is the one way to set
+    one.
+  - **While dragging** (`SceneGuides`, drawn by `GuideLayer`, which only a host with a token editor mounts): a hollow
+    dashed ring where the token stood; a dashed ghost route through what the release would store, from a projection
+    of the ops applied to a copy, so it bends through a place's arrival, not the pointer, and follows the routes when
+    routing is on; the place under the pointer outlined dashed; the token under the pointer. A label beside the
+    pointer (`StratCanvasView`'s `DragLabel`, a `CardBg` plate with a `Pb2dCanvasDropTarget` border, `TextValue`
+    over `TextMid`) reads `E · lurk area 1: Long Doors` with `Shift: point only   Alt: pin E here   Esc: cancel`
+    under it, and the row field the drop writes is lit through `ArmedField`, the highlight Set on map gives it: an
+    armed `PlaceField` outlines its box in `AccentInteractive` and bolds its pick glyph. A compact row's field stands
+    for every line, so the highlight names the field the row shows even when the write goes to one line.
+  - **A seen position** on a travel or lurk step goes with the drop, in the same undo entry; the status line ends
+    "replaced the seen position". Add step, Duplicate and Delete step cancel an open drag.
+  - **After the release** the token is drawn where it stands at the playhead, and the selected step's destination
+    pins show where it sends each token it moves: a hollow ring in the side colour at the arrival and a solid route
+    there in the ghost colour, with a small `Pb2dCanvasDropTarget` diamond at each via. Pins show while paused, until
+    the token arrives; dragging a pin is the same edit as dragging its token. The status line says what changed:
+    `E's lurk area 1 is now Long Doors (was Middle). Ctrl+Z undoes`. When the playhead is past the step's run for that
+    token (a lurker at its last area), a faint ring at the run's arrival (the pin colour at 40%, no route) marks where the
+    drop went, until the playhead moves.
+  - **Tokens:** `Pb2dCanvasRouteGhostT` (`#B3E0A030` dark, `#B3A66A15` light) and `Pb2dCanvasRouteGhostCt`
+    (`#B34A90D9`, `#B3285F9E`), the side colours at about 70%; `Pb2dCanvasDropTarget` (`#A99CF0` dark, `#5B4BC4`
+    light, `#00E5FF` high contrast; high contrast also sets the ghost routes to its team colours at 90%), a violet light enough to read over the radar, where `AccentInteractive` is too
+    dark. `ScenePalette.Dark` and `Light` carry the same values for headless renders.
+- **Utility in flight:** the strat canvas and the Detected preview turn trails on
+  (`StratCanvasViewModel.ShowTrails`), and an export names the trail layer (`StratExportJob.LayerIds`). A throw draws as a demo grenade does, through `TrailLayer` and
+  `AreaEffectLayer`: the flight line and head dot in the thrower's side colour (`TeamT` / `TeamCt`), fading 2 s
+  after it stops; then a smoke disc that blooms over 1 s, the fire cells, or a pop. A flash pops in `TrailFlash`,
+  an HE bursts in `TrailHe`, both growing and fading over about half a second; a decoy is a `TrailDecoy` ring of at
+  least 5 px. No new colour tokens. docs/strat-format.md, "Utility on the canvas", has the timings.
+
+### Placed chips (the Strats editor's step row)
+- **Files:** `ViewModels/StratBook/StratPlacedChips.cs` (`StratPlacedChip.For`, `StratPlacedEntry`), `StratStepRow.Placed`,
+  the `placed` strip in `StratBookTabView.axaml`, `StratDragPatches.Convert` and `Clear`, `StratDepartureCheck`.
+- **What:** a step's `positions[]` entries, which beat or stand in for its fields, so nothing moves a token unseen. A
+  `placed` label over a `WrapPanel` of chips (max 280 px, so it wraps inside the 315 px editor that
+  `StratEditorRoomTests` guards), above `note`, shown only when it has a chip.
+- **One chip per entry** that overrides a field the row shows: `E leaves from (1374, 412)` for an authored entry on a
+  travel step that names the slot (border `AccentCaution`: it re-times the leg before, and its tooltip carries the zip
+  warning when there is one); `A pinned at (50, 50)` beside a position verb's non-empty place; `E seen at (x, y)` for a
+  captured spot that disagrees with the step's place (a point elsewhere, or a place the map's zones say it is not in).
+- **Grouped**, one chip per kind: `spots (n)` (authored spots with no field beside them), `seen (n)` and `opponents (n)`
+  (an older file's round-start entries are its start and show in the Start row instead), whose flyout lists each entry with its own "make it …" and ✕ (`O2 at (2060, 0)
+  135°`, an opponent's angle on its entry). A group of one reads as its entry. Carried entries never show.
+- **Actions:** clicking a chip selects its step and player at the step's time; its ✕, or Delete or Backspace while it
+  has focus, clears it (a group's ✕ clears every entry it lists); the context menu has `Make it the to` (`the at`,
+  `the site`, `lurk area 1`) and `Clear`. Make it moves the point into the field the drag table names, with the place
+  under it when the map's zones are loaded, and removes the entry. Each is one undo entry. Old files are shown as they
+  are; nothing is rewritten on open.
+- **Look:** `Border.placedChip` (`PanelHeaderHover` fill, `BorderSubtle` border, 3 px corners, 11 px `TextValue` text,
+  a `TextMid` ✕), `.caution` swaps the border for `AccentCaution`. The zip warning also lands in the row's issue text.
+
+### Strat routes on the canvas (the Strats canvas, the Detected preview, a strat export)
+- **Files:** `AddRoutes` in `Playback2D.Pipeline/Frames/StratFrameSource.cs`, `DrawRoute` in
+  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Core/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
+- **What:** while a token moves, a line from where it is through each corner of the move to where it stops: its way
+  ahead, so a viewer reads which way round a wall it goes. Gone on arrival, at a hold, and before a run starts (a
+  step's hold). Only when the tracks are routed (`stratbook.routing` on and the map's nav in memory); off draws
+  nothing new, and a demo frame never carries routes.
+- **Look:** 3 px, round caps and joins, under the discs in the marker layer (no new layer id, so the scene stack, the
+  goldens and `SceneLayerListParityTests` are unchanged). Colour is the side's route token at about 35% alpha:
+  `Pb2dCanvasRouteT` (`#59E0A030` dark, `#66C9821C` light) and `Pb2dCanvasRouteCt` (`#594A90D9`, `#662F73BE`); a
+  palette built without them falls back to the team fill at 35%. A leg is drawn on the pane of either end, as a
+  grenade trail is, so a route down a ramp reads as one line across nuke's panes.
+- **Export:** drawn too. The export is a teaching clip of the same projection, and the line answers the question a
+  viewer has when a token disappears round a corner; it is faint, shows only while a token moves, and the last frames
+  (everyone arrived) are clean. The spec flag (`StratSceneSpec.Routes`) is the one switch: the canvas and the export
+  set it from the projection, so they cannot disagree.
+
+### Review mode (2D Playback)
+- **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the toolbar's mode toggles, the right column's rows
+  and the panel host), `Extensions/ModeToggle.cs` (a contributed mode: label, tooltip, keymap action, on/off),
+  `Modules/Playback2D/Timeline/ILaneBehaviour.cs` (a contributed lane's handlers and its handle),
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the mode, the lanes, the
+  session, the panels and their behaviour), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle,
+  editor, Labels list), `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
+  `Modules/RoundTagger/Review/TagEditorViewModel.cs`, `Views/Playback2D/TimelineControl.axaml` (the lane's edit band).
+- **Purpose:** labelling and suggestion review are a mode, off by default (the `Review` toolbar toggle, Shift+R,
+  persisted as `Playback2D.ReviewMode`). Off: full player cards, no palette, queue or tag lanes, and C, Y, N, Enter
+  and Ctrl+Y fall through. On: the cards collapse to a one-line strip (name, HP, money) and the contributed panels
+  take the rest of the column: palette, a Suggested / Labels toggle, one editor, the queue or the Labels list.
+- **Ownership:** the mode, the tag and suggestion lanes and the three panels are the Strat Book extension's, not the
+  tab's. The mode is a `ModeToggle` registered through `IPlaybackSurface.AddModeToggle`: the toolbar renders
+  `Surface.ModeToggles` as `ToggleButton`s (the same 11 px, `8,2` padding, 6 px left margin as the other toolbar
+  toggles) and the keymap action the toggle names flips it. The lanes are `IPlaybackSurface.AddLane` registrations
+  with their own `ILaneBehaviour`; the panels are `IPlaybackSurface.AddPanel` registrations bound to the mode. The
+  tab hosts `Surface.Panels` in its third row and knows no panel, lane or mode by name; the cards collapse while
+  any panel shows (`IsCardStrip`). The extension hides its toggle (`ModeToggle.IsAvailable`) while neither tagging
+  gate is on, so with the extension off or both gates off the toolbar has no Review toggle and the column is the
+  game info and the cards alone. Variants `playback2d-review-panels` and `playback2d-review-panels-pack-off`
+  render both.
+- **Contract:** one `TagEditorViewModel` edits both a suggestion (Save accepts it with the edit) and a written tag
+  (Save replaces it, Delete removes it through `TagDelta`, so both undo). Start and end are seconds from the round
+  start and clamp to the round like the palette does. With an editor open, a map click adds a position and the lane
+  draws the span with two handles; dragging a handle moves the draft and never seeks. Keys typed into the editor
+  stay in it; Enter saves, Esc cancels.
+- **Layout note:** the strip row is sized from the player count (22 px each plus 12, at most 10 rows) because a
+  virtualizing `ListBox` in an `Auto` row measures to 0.
+- **Do not:** show a tagging panel or lane outside the mode, or hide the lanes by writing the user's per-track toggle;
+  use the lane handle's `IsSuppressed` (the timeline's `SetTrackSuppressed` by id underneath).
+- **Generated content:** the Suggested tab lists new proposals only; accepted and dismissed ones come back under
+  "Show settled (n)", where a dismissed one has Restore. N is Dismiss. The Labels tab lists hand-made labels
+  under "Yours (n)" and machine-written ones (accepted suggestions, mined strat runs) under "From suggestions
+  (n)", each saying which.
+
+### Suggested section (the Strat Book rail)
+- **Files:** `ViewModels/SuggestedTags/SuggestedInboxViewModel.cs`, `Views/SuggestedTags/SuggestedInboxView.axaml`,
+  `Modules/SuggestedTags/SuggestedInboxService.cs` and `SuggestedInboxModule.cs` (tab `suggested.inbox`, feature
+  `tab.suggested`, Order 6).
+- **Purpose:** every demo's Suggested Tags proposals in one inbox, so they are not reachable only one open demo
+  at a time. Filters: map, side, detector, minimum confidence; "Show settled (n)".
+- **Contract:** a row reads code@site, confidence, detector (and state when settled), then map, demo, round and
+  side, then why it fired. Open (2D Playback at the proposal, `ISituationPlayback`), Accept and Dismiss on a new
+  row; Restore on a dismissed one. Accept goes through `SuggestedTagsService.Accept`, the Review-mode path. The
+  first look reads the library as one `SuggestionsInbox` queue item; the badge is the index's pending count.
+  The list is virtualized under its own ScrollViewer.
+- **Do not:** accept more than one suggestion per click here; a bulk accept waits for preview before commit.
+
+### Detected inbox (Strat Mining, the Strats section)
+- **Files:** `ViewModels/StratBook/DetectedStratsViewModel.cs`, the Book / Detected toggle, the `DetectedList` and
+  the `DetectedDetail` pane in `Views/StratBook/StratBookTabView.axaml`; the data is `Services/Strats/Mining/`.
+- **Purpose:** repeated setups and executes the miner found in the library, offered as strats the user adds by
+  hand. The toggle sits where the list's "Strats" label was and counts the patterns not yet in a book or
+  dismissed. The list takes the tab's map, side and book filters; utility-compared patterns sort first, and a
+  positions-only one says so in its summary line.
+- **Contract:** the detail pane takes the editor's column while the inbox is up and gives back the editor on
+  Add to book, which opens the new strat. Only new patterns show: dismissed and in-book ones come back under
+  "Show settled (n)", the one generated-content toggle. Dismiss is
+  permanent across re-mines until Restore. Deleting a mined strat makes its pattern new again. A refused
+  `strat-mining.json` is named above the list, and Add to book and Dismiss say why they did not save. A member round opens in 2D Playback through `ISituationPlayback`, the Utility map's seam.
+- **Preview:** "Preview" on a pattern not yet in a book swaps the detail pane for `DetectedPreview` and the right
+  column for `DetectedPreviewCanvas`: the strat Add to book would save (same `StratMiningService.Build`),
+  metadata, slots and steps as plain text, and the canvas playing it with the transport, path picker, Fit and
+  scrubber only (`StratCanvasViewModel` with `readOnly: true`; tools, Place tokens and the step buttons are
+  hidden). The playing step reads "now" and turns semibold. The build is a `StratPreview` queue item; the pane
+  says "Building…" meanwhile and says so in words when the medoid's cached files are gone. Add to book, Dismiss,
+  Back to detected and each round's Open sit on the preview. Add to book from a preview saves the previewed
+  document itself; if a re-mine changed the pattern's rounds or medoid since, it rebuilds the preview under
+  "This pattern changed; review again." instead of saving. Another pattern, Back, or leaving Detected discards
+  it.
+- **Do not:** save a pattern into a book without the user's click, or show a pattern's win rate as a strat's
+  record before it is added; until then the numbers are the rounds', not runs of a strat. Do not give the preview
+  a text box, combo box or edit tool: it must not read as editable, and it runs on a throwaway in-memory store.
+
 ### KeyValueTable
 - **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`
   (`IReadOnlyList<KvpRow>`), `ShowDeltaOnly` (filters to changed rows → `VisibleRows`).
@@ -488,6 +1048,14 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
      the pre-first-freeze-end warmup band). Won-by tint comes from `round_end`'s winner; a demo without
      `round_end` renders neutral. Clicking a band seeks to its FIRST frame, not to the pixel under the
      cursor.
+     - **A right press is the band's menu, and it never seeks.** The control builds a `ContextMenu` from
+       `Playback2DTimelineViewModel.MenuFor(band)`: the entries of the lane that made the band, from its
+       `ILaneBehaviour.MenuFor` (edit, delete, review on a tag or suggestion band, Review mode only), then
+       the `BandMenus` contributors in order, whatever the extension packs attached through
+       `IPlaybackSurface.AddBandMenu` (Create Strat From Round on a round band, while the Strat Book pack
+       is on). No entries, no menu. The control holds no entry text of its own; a new entry is a lane's or
+       a contributor's, never a `MenuItem` in the code-behind. A left press goes to the lane's
+       `OnBandPressed` first, then seeks.
   2. **Scrub bar (22 px).** A track rule, one glyph per `TimelineMarker` (`×` kill · `◆` plant ·
      `✂` defuse · `✸` explode), and the playhead. Press seeks; press-and-drag scrubs continuously.
      A **kill glyph is coloured by the side that got the kill**. See the marker-colour rule below.
@@ -590,7 +1158,27 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 | **Canvas top-right** | `HudStack`: live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the A4 kill feed | 1 | **no** (`IsHitTestVisible=False`) |
 | **Canvas bottom-left** | `TransportBar`: camera-mode `SplitButton`, mode label, kill nav | 1 | yes |
 | **Canvas right centre** | `LevelStrip` (B3), vertical margins clearing the kill feed and the transport bar | 1 | yes |
+| **Canvas right edge, full height** | The side panes: the export pane and the contributed side pane (`Surface.SidePane`), 360 px, `Pb2dPanelBg` over a `Pb2dGridSplitter` hairline, a `Close` button in their footer. One shows at a time: opening either closes the other. | 1 | yes |
 | **Bottom edge** | [`TimelineControl`](#timelinecontrol): its own `Auto` grid row | 2 | yes |
+
+- **The contributed side pane is one host, not one `Border` per feature.** `Playback2DView.axaml` binds a
+  single pane host to `Playback2DTabViewModel.Surface.SidePane` (the open pane's view model, or null) and
+  its `Close` to `Surface.CloseSidePaneCommand`. An extension pack adds a pane through
+  `IPlaybackSurface.AddPane(PanePlacement.Side, order, factory)` and opens it from its own entry point (a
+  band-menu entry, a toolbar item); the view comes from the `ViewLocator` convention, so the pane's view
+  model derives from `ViewModelBase` and has a `…View`. The Create Strat From Round review is the first
+  such pane; it used to be a second hardcoded `Border` bound to a pack-typed property on the tab. The tab
+  closes any open side pane on deactivation and on a demo reset, and the view model of a closed pane is
+  disposed. Variant `playback2d-create-strat-pane` (1280x800) renders the host with that review open.
+
+- **The right column's third row is one panel host, not one view per feature.** `Playback2DView.axaml` lists
+  `Playback2DTabViewModel.Surface.Panels` in an `ItemsControl` under the player cards, visible in Review mode;
+  each item is a contributed control (or the view model, for the `ViewLocator`) under a 6 px gutter, shown
+  while its own gate is on. An extension pack adds a panel through `IPlaybackSurface.AddPanel(order,
+  viewModel, view, featureId)`; several are open at once, in order, and a panel can hold the keyboard
+  (`IPanelHandle.HasKeyboard`), under which the pack's key handlers run before the tab's keymap. The Strat
+  Book's three (Tag Palette, review panel, Suggestion Queue) were three hardcoded views bound to pack-typed
+  properties on the tab; the cards' strip row and the game-info row keep their place around the host.
 
 - **Docking, not reflow, is the answer to "the toolbars are always displayed".** D35's responsive rule
   ([wrap or scroll](#responsive-strip)) is about a strip that is too WIDE; the reported defect was chrome
@@ -685,6 +1273,22 @@ resolutions below individually, so a later edit that re-introduces a collision f
 user's hands. It is also **the shipped default the user's overrides are composed over**. The table below
 is what an untouched install routes, not what every install routes.
 
+**Item 19 (command ids) moved every Strat Book extension row out of this file.** `Ctrl+F` and `J`/`K`
+below are two of them: their chord, scope and description now live in `StratBookCommands`
+(`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/StratBookCommands.cs`), read by `CommandRegistry` through `IFeaturePack.Commands`
+(DI-free, so a bare-constructed view model resolves them with no composition root), not
+in `Playback2DKeymap.BuildDefault()`. `IPackContributions.Commands(...)` is a separate, parallel
+declaration the composition root cross-checks against `IFeaturePack.Commands` so the two cannot drift;
+it is not what the keymap itself reads. `Playback2DAction` keeps every member (every existing switch over
+it is unchanged), and `CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
+over the core table with no DI, so `Playback2DKeymapProfile` resolves them exactly as before: a bare
+`new Playback2DTabViewModel()` with no container still opens on the full table. The Tag Palette,
+Suggested Tags, Review Mode and Step Authoring rows (`FocusTagPalette`/`TagNote`/`TagClearSticky`/
+`TagLabelMode`/`TagLabelGroupNext`, the six-key Suggested Tags queue, `ToggleReviewMode`, and
+`ToolToken`/`AddStep`/`DuplicateStep`/`DeleteStep`/`PrevStep`/`NextStep`) moved the same way; they were
+never listed in this table and still are not. The keybind settings list groups a pack's rows under its label and hides them while the
+Strat Book extension's master switch is off.
+
 <a id="playback2d-keybind-profile"></a>
 #### The gestures are configurable (D1): `Playback2DKeymapProfile`
 The table above stays static, stays conflict-checked, and **still throws**: it is a compile-time contract
@@ -727,7 +1331,10 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 - **Pinned by** `Playback2DKeymapProfileTests` (every refusal reason, the swap, scope-aware duplicates,
   the persisted-row round trip), `Playback2DKeybindSettingsTests` (persistence including the fileless WASM
   path, and the whole Settings rebind/reset/refuse flow) and `Playback2DKeybindRoutingTests` (real
-  headless key events through the real view, including the `OnKeyUp` hazard above).
+  headless key events through the real view, including the `OnKeyUp` hazard above). The core/pack split
+  itself is `CommandRegistryTests` (the registry in isolation: a fake pack's chord, a reported collision,
+  pack-off resolving to nothing) and `StratBookCommandsTests` (the real 22-row table pinned against its
+  pre-move gestures, and the keybind settings list's pack label and gate).
 
 | Gesture | Scope | Action | Notes |
 |---|---|---|---|
@@ -744,6 +1351,8 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 | `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
 | `Esc` | Always | Clear follow + re-fit the camera | |
 | `Esc` | WhenToolActive | Cancel the in-progress gesture | |
+| `Ctrl+F` | Always | Find rounds like this | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling (Strat Room plan D7). A pack-contributed toolbar item (item 20, `IPlaybackSurface.AddToolbarItem`): the button beside the kill nav, the mode menu's last entry and the key all run the one `ToolbarItem`, read from `Surface.ToolbarItems`. Present only with a demo's map open; unhandled (and the toolbar item gone) with nobody alive, no map, no seam (a host without the Situations module), or the pack off. |
+| `J` / `K` | Always | Next / previous situation result | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
 | `Home` | Always | Fit the camera (**reserved**, unbound) | Declared so the conflict checker guards the gesture before anything claims it. |
 
 **Text-input suppression is one global rule, not a per-binding flag.** The tunnelling handler bails
@@ -786,7 +1395,13 @@ spectating has no readback. Gated by `playback2d.follow`.
   `Views/Highlights/HighlightScanStatusView`: the home the retired card grid's `ScanQueueSummary` badge and
   its per-card scanning animation were re-assigned to. It **extended, did not fork**: zero changes to
   `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
-  other three. Four consumers now share the control.
+  other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
+  are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
+  for the 2D chip, a core, dedicated slot). The Strat Book chip goes through a generic pack `StatusChip`
+  contribution instead (item 14): `MainViewModel.AttachStatusChips(IReadOnlyList<StatusChipContribution>)`
+  watches each contribution's `IContributedStatusChip` (`StratBookExportChipSlot` for this one) via
+  `INotifyPropertyChanged`, keyed by the contribution's own id in a `_shownContributedChips` map. The Strat
+  Book tab's export job mounts into the slot lazily, on the first Export.
   - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
     `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
     `TextValue` values, never tinted, per the contrast rule above.
@@ -868,7 +1483,13 @@ hidden for consumers).
 - **Flyout:** header + live status line ("N running · M queued", + " · paused" / " · background disabled"), a
   transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then the item `ListBox`
   (`data-list`), one row per `DemoQueueItem`: **state dot + name (trim, path tooltip) + owner chip(s) +
-  priority chip (only when elevated) + per-item ✕** (`icon-btn` → `RemoveByUser(Id)`). Empty ⇒ "No demos queued."
+  priority chip (only when elevated) + per-item ✕** (`icon-btn` → `RemoveByUser(Id)`). Empty ⇒ "Nothing queued."
+- **Every kind of background job is a row** (header "BACKGROUND WORK", Pause/Resume queue): a job that is not a
+  demo parse (lineup clips, strat mining, pack export, sidecar migration, heap compaction) shows its title, a
+  `badge` kind chip in place of the owner chip, and while running a 3px determinate `ProgressBar`
+  (`AccentInteractive`) under the title plus its `mono` detail ("48 of 366 demos") after the state word. ✕ on a
+  running job cancels it at its next step. Render check: `ProcessingQueueViewTests` writes
+  `queue-flyout-mixed.png`.
 - **`DemoQueueRowViewModel`, the reuse win:** the six lifecycle states map onto the **existing five semantic
   `Ellipse.dot.*` states** (`Queued`/`Running`→`Working` [Running also `.pulsing`]; `Completed`→`Good`;
   `Failed`→`Error`; `Rejected`→`Degraded`; `Cancelled`→`Off`). **Zero new tokens, zero new styles.** The state
@@ -1006,6 +1627,36 @@ for every audience; first-run + skippable.
   tracks window height: keep the capture `--size` (1280x800) and `_transportRect` in sync. NOT wired into
   MainView/MainViewModel yet (engine phase owns integration).
 
+### FirstRunWizardView Extensions step: one card per FeatureScope.Pack row (feature/strat-book-ext-6-first-run, 2026-10-02)
+Asks whether to turn each installed extension on, generically over
+the catalog rather than a hardcoded Strat Book reference.
+- **Placement.** A new step inserted before Done (`FirstRunWizardViewModel.WizardStep`: Welcome, Category,
+  Folders, **Extensions**, Done), so every earlier index (`IsCategoryStep` = 1, `IsFoldersStep` = 2) stays
+  stable whether or not the Extensions step exists this run.
+- **Generic, not Strat Book specific.** The VM takes an optional `IEnumerable<FeatureDescriptor> packs`
+  ctor param (default: `FeatureCatalog.All.Where(d => d.Scope == FeatureScope.Pack)`) and builds one
+  `PackOptionViewModel` per row: `FeatureId`, `Title` (the descriptor's `Label`), `Copy`, `Enabled`
+  (seeded from any existing override, else the catalog default for the current category). A second pack
+  gets its own card from the same loop, with no new VM or view code.
+- **Copy.** A small `_packCopy` lookup in the VM keyed by pack id supplies a richer "what it adds, what it
+  costs" paragraph for a known pack (Strat Book's cites the M0 memory figure in round terms, "a few hundred
+  MB of memory on a large library"); an id with no
+  entry falls back to the descriptor's own one-line `Description`, which is what keeps a future pack's
+  question working before anyone writes bespoke copy for it.
+- **Visibility.** The step exists only when `SettingsService.NeedsFirstRun` is true at construction
+  (captured once, before `Finish`/`Skip` can flip it) and at least one pack row exists. An upgrade whose
+  settings.json predates a pack's key never sees the question: the gate's override-or-default resolution
+  already lands on for a missing key, so the step would be asking something already answered.
+- **Writes.** `Finish` writes every answer explicitly into `Features.Overrides[FeatureId]`, on or off, the
+  same unconditional pattern as `UserCategory` and `Library.Folders` above it; `Skip` never touches pack
+  overrides, so a skipped first run leaves every pack at its catalog default (on), matching `Skip`'s
+  basis-preserving contract for the rest of the wizard.
+- **Layout.** One `Border.card` per pack (title + wrapped copy left, a `CheckBox` right), inside an
+  `ItemsControl` bound to `PackOptions`. No new tokens: `TextValue`/`TextMid`/`TextDim`/`card` reused as is.
+- **Verified** in `UiCapture/Variants.cs` as `wizard-extensions` (`--size 1280x800`, a fresh temp-dir
+  `SettingsService` parked on `CurrentStep=3`) and in `FirstRunWizardTests` (headless window render plus
+  accept/decline/skip/upgrade coverage against a live `FeatureGate`).
+
 <a id="stats-components"></a>
 ### Stats component library (`Controls/Stats/`, v0.8.1)
 
@@ -1069,6 +1720,7 @@ Each class was rendered + read this pass (variant in the last column; see §7).
 | `.nav-btn` | Button | Fixed 28px centered ghost nav button (CLOCK/JUMP groups). | `TextMid`, `PanelHeaderHover` | `primitives`, `chrome`, `navstrip-real` |
 | `.bp-btn` | Button | Amber tint modifier for the dev-only TO-BREAKPOINT cluster (compose with `.nav-btn`). | `AccentAmber` | `primitives`, `chrome` |
 | `.icon-btn` | Button | Small square glyph button (toggle dot, ✕); deeper hover for dense rows. | `TextFrameInfo`, `PanelHeaderHoverDeep` | `primitives` |
+| `.pane-toggle` | Button | 24 px `«`/`»` that collapses and reopens a side pane (see Collapsible side pane). | `TextMid`, `PanelHeaderHoverDeep` | `strat-editor`, `strat-editor-collapsed` |
 | `.ctx-action` | Button | Left-aligned, stretched flyout/menu action row. | `TextDim`, `PanelHeaderHover` | `chrome` |
 | `.shell-tab` | TabItem | On-theme monospace tab header (mirrors MainView's local tab look, for module/sub-tab bars). | None (mono/size) | `primitives` |
 | `.mono` | TextBox, ComboBox, Button, TextBlock | The Consolas/Menlo monospace family: the single most-repeated inline attribute (~200 sites). | — | `primitives`, `tables` |
@@ -1658,9 +2310,112 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
   dot showing against an off toggle. This is *faithful* (the override is stored and takes effect once the
   parent is enabled), not thrash, toggle-disabling is scoped to `IsRequired` only, per the P2a-ii spec.
 
+### Settings Extensions section (strat-book-plugin.md item 5, 2026-10-02)
+
+New top-level group between FEATURES and LIVE CS2, `Expander IsVisible="{Binding ShowGroupExtensions}"`,
+starting **expanded** (unlike FEATURES, which starts collapsed): the section is one master switch plus
+today's two small relocated cards, not a wall of rows, so the switch is worth surfacing without a click.
+
+- **The row list is `ExtensionsFeatureRows`**, one `ObservableCollection<FeatureToggleRow>` built from
+  `FeatureCatalog.All` by scope and `OwnerPackId`, reusing the P2a-ii `FeatureRowTemplate` resource: every
+  `FeatureScope.Pack` descriptor's own row (indent 0), then the tabs it parents directly (indent 1, each
+  immediately followed by ITS `SubFeature` children at indent 2), then any sub-feature the pack docks in a
+  CORE tab instead of one of its own (2D Playback's tag palette and Suggested Tags), flat at indent 1. A
+  second pack's rows appear with no code change: nothing here names "Strat Book". These rows leave
+  `TabFeatureRows` and `ChromeFeatureRows` (`BuildFeatureRows` now skips any descriptor `OwnerPackId` tags,
+  at both the top-level Tab loop and the per-tab `Children` loop), so a pack is never listed twice.
+- **`ScopeLabel` reads "Extension"** for a `Pack`-scope row (falls through to the enum name otherwise).
+- **A pack child row locks while its pack is off**, not just cascades: `FeatureToggleRow.IsPackEnabled`
+  (default `true`; mirrored from `OwnerPackId is {} p && gate.IsEnabled(p)` on every `Refresh`) joins
+  `IsInteractive`/`HasLockHint`/`LockHint` (`NotifyPropertyChangedFor`, since unlike `IsRequired` this one
+  changes live). The lock hint reads "extension is off". A stray programmatic set while locked bounces back
+  without writing, the same treatment `IsRequired` and a group follower get: the row's own override (if
+  any) is untouched either way, so it is honoured again once the pack is back on. The master row's own
+  `IsPackEnabled` is never set (a pack does not own itself via `OwnerPackId`), so the switch that turns a
+  pack off is never itself locked by that state.
+- **`FeatureGate.HiddenCount` excludes a `Pack`-scope row.** It renders as its own live master switch, not
+  a hidden feature; counting it too would double against the switch itself. Everything the master cascades
+  off still counts (it is still rendered, under Extensions, disabled).
+- **The two pack-only settings blocks are contributed pages now** (`IPackContributions.SettingsPage`,
+  item 14), content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades
+  in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
+  construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
+  `FeatureId` resolves on: a page must never construct whatever its VM pulls in while its pack is off
+  (plan doc §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
+  gate change alike) before setting `IsVisible`, so a page builds at most once and stays built once its
+  pack has been on. `SettingsView.axaml` hosts the list through one
+  `ItemsControl ItemsSource="{Binding ContributedSettingsPages}"` beneath the row list, each item a header
+  `Border` plus a `ContentControl` over the page's (possibly still-null) `Content`.
+  `SuggestedTagsTuningViewModel` and the new `GrenadeIndexSettingsViewModel` live under
+  `DemoViewer.NET.Extensions.StratBook.ViewModels.Settings` (their Views under `...Views.Settings`), not
+  the core `ViewModels.Settings`/`Views.Settings` namespaces, so `PackBoundaryTests`' scan polices the
+  edge; both VMs derive from `ViewModelBase`, matching the contribution's `Func<ViewModelBase> ViewModelFactory`
+  typing. `GrenadeIndexSettingsViewModel` owns its own `Persist`/`Reflect` echo-guard pair over the shared
+  `SettingsService`; `GrenadesBackgroundIndex`/`GrenadesRenderLineupClips` left `SettingsViewModel`
+  entirely. `SettingsViewModel`'s public ctor dropped `SuggestedTagsTuningViewModel suggestedTagsTuning`
+  and gained `IReadOnlyList<SettingsPageContribution>? settingsPages` instead; `App.axaml.cs`'s
+  `Func<SettingsViewModel>` factory now passes `PackContributionSet.SettingsPages`.
+- **Search**: `ExtensionsSectionMatches` ORs the generic `_sectionKeywords` entry ("extension", "pack",
+  "plugin", …) with a scan of every BUILT row's own `Label` (fuzzy `PartialRatio >= 80`, same threshold the
+  rest of findability uses), so a pack's name and its tabs'/sub-features' names are searchable without
+  listing them by hand. A contributed page's own `Keywords` string feeds the same fuzzy match
+  (`RefreshContributedPageVisibility`), so the "Suggested Tags Tuning" and "Grenade Index" rows dropped
+  from `_sectionKeywords`: a pack's page carries its own now. A second pack costs nothing here either.
+- **The in-session toggle notice** (`StratBookToggleNotice`, architecture doc §8): null until a flip
+  happens in THIS vm's lifetime (seeded from the gate before the ctor's first refresh, so plain startup
+  shows nothing). On a transition detected in `RefreshFeatureRows` (so a self-write, Reset-to-defaults and
+  an external edit all catch it): off → `"{Label} stops its background work. Its data stays on disk."`
+  (`Label` read off the watched pack's own `FeatureCatalog` descriptor, "Strat Book extension" today, so
+  the string is never hand-typed); on → "Counting…" then `"{N} demos will be re-indexed in the
+  background."` once `IPackReindexEstimate.CountAsync()` lands. The notice is generic now (item 14):
+  `SettingsViewModel` watches `IReadOnlyList<IPackReindexEstimate>? reindexEstimates`'s first entry rather
+  than importing `Extensions.StratBook` for `StratBookPack.PackFeatureId` and a static
+  `StratBookPendingReindexCount.ComputeAsync()`. The pack's own `StratBookPendingReindexCount` class
+  implements `IPackReindexEstimate` and captures the real `IServiceProvider` (not `App.Services`) when
+  `StratBookPack.Contribute` builds it, over the same `RoundIndexEvaluator`/`GrenadeIndexEvaluator`/
+  `SuggestedTagsService` union as before. A generation counter still drops a result that lands after a
+  later flip rather than overwriting a more recent notice.
+- **Fits the real host width** (520-560px desktop/WASM, §settings-layout above) with no horizontal
+  overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
+  UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
+  decisions above).
+- **Delete extension data (strat-book-plugin.md item 24, 2026-10-03):** one row per `IPackDataRemoval`
+  below `ContributedSettingsPages`, `ItemsControl ItemsSource="{Binding ExtensionDataActions}"`. Unlike a
+  contributed page it is NOT gated by the pack's `FeatureId`: it shows whether the pack is on or off,
+  since deleting while off is the main use. No modal dialog exists anywhere in this app to reuse, so the
+  confirmation is an inline `Border` that Arm reveals in place of the Delete button: `ConfirmationText`
+  lists the user-work stores by label and size (`AccentError` on both the Delete and the confirm panel's
+  Delete, `PanelHeaderHoverDeep` for the panel so it reads as a step inside the card rather than a second
+  card), Cancel collapses it, Confirm runs the delete and leaves a status line. `StatusText` alone (no
+  panel) covers "Counting…", "Nothing to delete." and the final count. `ExtensionDataActionViewModel` is
+  its own small Arm/Confirm/Cancel state machine, one per row, built from the pack's `IPackDataRemoval`
+  and a label read off `FeatureCatalog` the same way `StratBookToggleNotice` reads one.
+
 ---
 
 ## 6. Decisions log + open questions
+
+### Decisions (Strat start and trigger clock, feature/strat-book-start-block, 2026-10-02)
+- **A Start row, not a step 0.** A step needs a time, a verb and a who that mean nothing for where tokens begin; the
+  row has none of them and collapses to one line, so it costs the 1280 editor one line until opened.
+- **The trigger text moved into the Start row** in the editor only; the file keeps `trigger` at the top level, so no
+  older file is rewritten for it.
+- **The clock switch is a combo in the metadata wrap.** A segmented toggle would have needed its own row at 315 px.
+- **Opened, the row lists all ten tokens** rather than our five with opponents behind another toggle: the opponents
+  are as often where a setup begins, and the list scrolls with the editor.
+
+### Decisions (Strat editor room and steps, feature/strat-book-editor-room, 2026-09-29)
+- **The step row was the overflow, not the panes.** Its fixed columns summed to about 1100 px, and the metadata
+  grid, slot rows and record rows also overflowed the 315 px editor at 1280 with both panes open. All of them
+  now wrap or use star columns; collapsing panes is extra room, not the fix.
+- **Kept the editor and canvas at `*,1.3*`.** The canvas needs the width for the map; the editor fits 315 px.
+- **Collapsed rail shows its sections rotated, not an icon strip.** There are no section icons, and two
+  sections start with S. Rotated labels keep one-click navigation and the badges.
+- **Rail badge text is `LibraryCardTextBright`.** The badge fill (`LibraryCardBadgeBg`) is dark in both bases;
+  the default foreground put dark text on it in Light.
+- **Layout persists in `SessionPayload`, not module-tab state** (see Collapsible side pane).
+- **Open:** UiCapture fails with a cross-thread error for any custom theme (`--theme high-contrast`,
+  `egirl`), including `primitives`, so the new chrome was captured in Light and Dark only.
 
 ### Decisions (Reels dashboard, plan step 7, feature/v0.5.3, 2026-07-28)
 - **D-RD1. The tray renders from the plan builder, not a parallel model.** `ReelConfig.ClipGroups` is both

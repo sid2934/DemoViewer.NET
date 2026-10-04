@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 ///         the same frame rather than one frame late.
 ///     </para>
 ///     <para>
-///         <b>Allocation-free per frame</b> (design §6): the follow rig is built once in the constructor
+///         <b>Allocation-free per frame</b>: the follow rig is built once in the constructor
 ///         and re-aimed, and every pass over panes and markers is an index loop.
 ///     </para>
 /// </summary>
@@ -77,7 +77,7 @@ public sealed class CameraScriptResolver : IPaneCameraPolicy
         }
     }
 
-    // Fixed and MirrorLiveView are the same behaviour once captured (plan D12): pin the stored transform,
+    // Fixed and MirrorLiveView are the same behaviour once captured: pin the stored transform,
     // re-fitted to THIS export's pane size so a 1080p export of a 700 px pane keeps the same world
     // framing rather than the same pixel scale.
     private void ApplyFixed(PaneSet panes, IReadOnlyDictionary<MapLevelId, ViewportTransform> transforms)

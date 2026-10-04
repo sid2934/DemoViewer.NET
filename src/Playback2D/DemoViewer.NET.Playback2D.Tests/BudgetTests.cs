@@ -17,13 +17,13 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The design §6 budget: a 64 fps floor at 1× means 15.6 ms per frame, split ≤2 ms of advance and
+///     The frame budget: a 64 fps floor at 1× means 15.6 ms per frame, split ≤2 ms of advance and
 ///     ≤8 ms of draw at 1080p, with <b>zero</b> steady-state allocation.
 ///     <para>
 ///         Both cases run the worst-case <c>full-scene-budget</c> fixture: every layer carrying real
 ///         work at once, over two levels, at 1080p. Timing gates on p99 against
 ///         <see cref="BudgetPolicy.Ci" /> (baseline × <c>DV2D_BUDGET_SCALE</c>, default 2.0) because a
-///         hosted runner is not the design's mid-tier laptop and a gate that fires on runner noise gets
+///         hosted runner is not a mid-tier laptop and a gate that fires on runner noise gets
 ///         muted within a week. The allocation gate is <b>not</b> scaled: zero is zero on every machine,
 ///         and it is the assertion that carries most of the regression-catching value.
 ///     </para>
@@ -35,10 +35,9 @@ public class BudgetTests
     private static readonly SKSizeI _size = new(1920, 1080);
 
     /// <summary>
-    ///     512 frames after a 64-frame warmup must allocate exactly nothing. Every item on the plan's
-    ///     T15 list is an allocation this would catch: a <c>FormattedText</c> per marker, a
-    ///     <c>Pen</c> per trail, a <c>StreamGeometry</c> per cone, a run list per pane, a closure per
-    ///     call, a LINQ chain per band.
+    ///     512 frames after a 64-frame warmup must allocate exactly nothing. Any of these would be
+    ///     caught: a <c>FormattedText</c> per marker, a <c>Pen</c> per trail, a <c>StreamGeometry</c>
+    ///     per cone, a run list per pane, a closure per call, a LINQ chain per band.
     /// </summary>
     [Test]
     public async Task FullScene_SteadyState_AllocatesNothing()
@@ -95,7 +94,7 @@ public class BudgetTests
     ///     <para>
     ///         <see cref="FullScene_SteadyState_AllocatesNothing" /> calls
     ///         <c>SetAuthoritativeFloors</c> first, which makes <c>FloorSplitter.Slices</c> hand back the
-    ///         bundle's own list and short-circuit the histogram entirely. Everything §6's zero was
+    ///         bundle's own list and short-circuit the histogram entirely. Everything the zero was
     ///         proving was therefore proved on the short-circuit: on the histogram path each observed
     ///         marker marked the split dirty and the next read rebuilt it in full, at a measured
     ///         552 B/frame, for the whole demo. A one-line difference from the case
@@ -178,13 +177,13 @@ public class BudgetTests
         BudgetPolicy policy = BudgetPolicy.Ci;
         IReadOnlyList<string> violations = policy.Violations(report);
 
-        // The strict design §6 numbers are reported alongside, never gated on here: this suite runs on
+        // The strict baseline numbers are reported alongside, never gated on here: this suite runs on
         // whatever machine happens to have it, and the CI scale exists precisely so the gate is not a
         // referendum on the runner. A local run that breaks BASELINE while staying inside CI is the
         // signal to go looking before it becomes a CI failure.
         foreach (string strict in BudgetPolicy.Baseline.Violations(report))
         {
-            Console.WriteLine($"[budget] over the design baseline (not gated): {strict}");
+            Console.WriteLine($"[budget] over the strict baseline (not gated): {strict}");
         }
 
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
@@ -265,7 +264,7 @@ public class BudgetTests
 
         foreach (string strict in BudgetPolicy.Baseline.Violations(with))
         {
-            Console.WriteLine($"[budget] over the design baseline (not gated): {strict}");
+            Console.WriteLine($"[budget] over the strict baseline (not gated): {strict}");
         }
 
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,

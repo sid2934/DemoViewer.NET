@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     The level model, and the one assertion that stops the port from silently re-assigning players to
 ///     other floors: <see cref="MapSpace.LevelIndexFor" /> must answer exactly what
-///     <see cref="FloorSplitter.SliceIndexFor" /> answers (plan decision D-15, test 3's parity oracle).
+///     <see cref="FloorSplitter.SliceIndexFor" /> answers.
 /// </summary>
 public class MapSpaceTests
 {
@@ -26,7 +26,7 @@ public class MapSpaceTests
     }
 
     /// <summary>
-    ///     Design risk 5, stated as a test: inserting a lower band shifts every index but no identity.
+    ///     A risk stated as a test: inserting a lower band shifts every index but no identity.
     ///     <c>PaneSetReconcileTests</c> then proves the cameras follow the identities, not the indices.
     /// </summary>
     [Test]
@@ -117,8 +117,8 @@ public class MapSpaceTests
     }
 
     /// <summary>
-    ///     B1 ships the stateless answer so level assignment cannot regress; B3 fills in the hysteresis
-    ///     band. Pinning it now means B3 changes a body and this test, not a hundred call sites.
+    ///     Pinned to the stateless answer so level assignment cannot regress; a band change then
+    ///     touches a body and this test, not a hundred call sites.
     /// </summary>
     [Test]
     public async Task StickyOverload_InB1_MatchesTheStatelessAnswer()

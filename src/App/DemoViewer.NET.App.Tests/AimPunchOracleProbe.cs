@@ -28,8 +28,7 @@ namespace DemoViewer.NET.AppTests;
 ///         Mostly diagnostic: the comparison itself is printed rather than asserted, because what it
 ///         measures is a property of the demo's schema vintage and not of our code. It exists because
 ///         the alternative was guessing a spring constant and shipping a smooth, believable, wrong
-///         number, and <c>docs/handoff/cs2demokit-aim-providers.md</c> §8 names this file as the way
-///         to reproduce the finding.
+///         number, and this file is the way to reproduce the finding.
 ///     </para>
 ///     <para>
 ///         <b>What it does assert</b> is that it measured anything at all. A full entity replay that

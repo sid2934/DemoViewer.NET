@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 
@@ -96,26 +95,15 @@ public sealed class AnnotationStore
         return new DemoIdentity(ComputeDemoKey(demoPath), Path.GetFileName(demoPath), size);
     }
 
-    /// <summary>Lowercase-hex SHA-256 of a file's bytes, streamed. The existing repo-wide demo key.</summary>
+    /// <summary>
+    ///     Lowercase-hex SHA-256 of a file's bytes, streamed: <see cref="DemoContentHash" /> with this
+    ///     store's "no key" spelling, an empty string, which its callers already treat as unknown.
+    /// </summary>
     /// <param name="path">The file to hash.</param>
     public static string ComputeDemoKey(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-
-        try
-        {
-            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                1 << 16, FileOptions.SequentialScan);
-            return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-        }
-        catch (IOException)
-        {
-            return "";
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return "";
-        }
+        return DemoContentHash.TryCompute(path) ?? "";
     }
 
     /// <summary>Where this demo's sidecar would be written.</summary>
@@ -558,16 +546,12 @@ public sealed class AnnotationStore
             return null;
         }
 
-        // A sidecar is a hand-editable file, and every OTHER AnnotationKind is reserved: nothing writes
-        // one, and AnnotationHitTester THROWS NotSupportedException for anything but Freehand: a throw
-        // EraseTool does not catch, so it escapes into Avalonia's pointer pipeline on the first erase
-        // drag. LevelLayouts.Parse fences its own reserved member with Enum.IsDefined plus an explicit
-        // check for exactly this reason; this is the same fence. The points are a polyline either way,
-        // so loading a reserved kind AS Freehand draws and erases it rather than losing it.
-        // Enum.TryParse also accepts any NUMBER in range, which is what makes IsDefined load-bearing.
-        if (!Enum.TryParse(dto.Kind, true, out AnnotationKind kind)
-            || !Enum.IsDefined(kind)
-            || kind != AnnotationKind.Freehand)
+        // A sidecar is a hand-editable file. Every declared kind is drawn and erased, so each loads as
+        // itself. The fence that remains is IsDefined:
+        // Enum.TryParse also accepts any NUMBER, and a kind this build does not declare would reach the
+        // layer and the eraser as a value neither has a branch for. The points are a polyline either
+        // way, so an unknown kind loads AS Freehand and is drawn and erased rather than lost.
+        if (!Enum.TryParse(dto.Kind, true, out AnnotationKind kind) || !Enum.IsDefined(kind))
         {
             kind = AnnotationKind.Freehand;
         }

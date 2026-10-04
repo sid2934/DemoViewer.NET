@@ -21,6 +21,12 @@ public static class SceneDefaults
     /// <summary>How far past the disc edge the yaw stub reaches, in screen pixels.</summary>
     public const float MarkerHeadingLength = 8f;
 
+    /// <summary>How far past the disc edge a strat token's view cone reaches, in screen pixels.</summary>
+    public const float MarkerConeLength = 36f;
+
+    /// <summary>Half the view cone's opening, in degrees.</summary>
+    public const float MarkerConeHalfAngle = 30f;
+
     /// <summary>Marker label em size.</summary>
     public const float MarkerLabelSize = 10f;
 

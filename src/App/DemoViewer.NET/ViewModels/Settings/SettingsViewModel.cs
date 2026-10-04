@@ -1,20 +1,27 @@
 #region
 
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Update;
 using FuzzySharp;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 // Aliased: the release-notes service namespace's short name collides with this VM's `Update`
 // property (the shared UpdateViewModel), which XAML binds by that exact name.
@@ -42,7 +49,7 @@ namespace DemoViewer.NET.ViewModels.Settings;
 /// </summary>
 public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 {
-    // ── Findability: filter + grouped sections (v0.6.x package, review R4+R5) ─────────────────
+    // ── Findability: filter + grouped sections (v0.6.x package) ──────────────────────────────
     // Each section's EFFECTIVE visibility = its platform gate AND the fuzzy filter; groups show
     // while any member does, and a non-empty filter auto-expands matching groups. Keywords are the
     // search surface: section title + the labels a user would hunt for.
@@ -62,17 +69,46 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                        + "bitrate resolution audio scan"),
         ("Diagnostics", "diagnostics logging log level rows file rolling caps size count"),
         ("Playback2DKeys", "keys keybinds keybindings keyboard shortcuts hotkeys gestures rebind "
-                           + "controls 2d playback radar draw erase undo pan follow round kill speed")
+                           + "controls 2d playback radar draw erase undo pan follow round kill speed"),
+        // The generic keyword surface for the section that lists every FeatureScope.Pack master switch.
+        // ExtensionsSectionMatches below ALSO scans each built row's own Label, so a pack's name (and its
+        // tabs' names) are findable without listing them here by hand. A pack's own contributed PAGES
+        // (Suggested Tags tuning, Grenade Index) carry their own Keywords on the contribution
+        // instead of a row here.
+        ("Extensions", "extension extensions pack packs plugin addon add-on master switch background "
+                       + "indexing reindex")
     ];
 
     // Every feature row, in one flat list, for the gate-driven refresh sweep (the bound collections below are
     // the same rows split by scope for grouped display).
     private readonly List<FeatureToggleRow> _featureRows = [];
 
+    // Every declared pack's verdict, read once at construction: the list is frozen for the process.
+    private readonly IReadOnlyList<PackStatus> _packStatuses;
+
+    // The extension updater, or null where updates do not apply. Its check runs through the queue;
+    // the token stops a check this VM started when the window closes first.
+    private readonly ExtensionUpdateService? _extensionUpdates;
+    private readonly CancellationTokenSource _extensionUpdatesCts = new();
+
     // The live show/hide authority. Its GET is the source of truth for every FeatureToggleRow.IsEnabled; its
     // Changed event is the cue to refresh the rows. A SINGLETON shared with the shell (composition root), so a
     // toggle here reconciles the app's tabs/chrome and this list from the one gate.
     private readonly IFeatureGate _gate;
+
+    // The Extensions "N demos will be re-indexed" notice: the first pack-contributed
+    // estimate. At most one pack exists today; a second pack's own toggle would need its own
+    // notice slot, which this does not attempt. Null contributes nothing (no pack, or a test that wires
+    // none), so the notice mechanism below simply never fires.
+    private readonly IPackReindexEstimate? _reindexEstimate;
+
+    // Bumped on every pack-toggle transition so a slow count that lands after a LATER flip is dropped
+    // rather than overwriting a more recent notice.
+    private int _toggleNoticeGeneration;
+
+    // The watched pack's last-observed resolved state, seeded at construction so the ctor's own first
+    // refresh never reads as a transition and shows a notice nobody asked for.
+    private bool _watchedPackWasEnabled;
 
     // Whether this is the WASM head. Injected, not read from OperatingSystem here. See the internal ctor.
     private readonly Func<bool> _isBrowser;
@@ -143,6 +179,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     private bool _disposed;
 
+    // Lazy: most sessions never hit the best-effort catch this backs.
+    private ILogger? _diagLog;
+
     /// <summary>Advanced (developer): force an incompatible plugin → <c>AppSettings.LiveSync.ForceIncompatiblePlugin</c>.</summary>
     [ObservableProperty]
     private bool _forceIncompatiblePlugin;
@@ -172,6 +211,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isGroupDiagnosticsExpanded = true;
+
+    // Extensions starts EXPANDED, unlike Features: it is one master switch card plus (today) two small
+    // relocated cards, not a wall of ~25 rows, and the switch is the kind of control worth surfacing
+    // without a click.
+    [ObservableProperty]
+    private bool _isGroupExtensionsExpanded = true;
 
     [ObservableProperty]
     private bool _isGroupFeaturesExpanded;
@@ -300,6 +345,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _showGroupDiagnostics = true;
 
     [ObservableProperty]
+    private bool _showGroupExtensions = true;
+
+    [ObservableProperty]
     private bool _showGroupFeatures = true;
 
     // Group visibility (any member visible) + expansion. Features starts COLLAPSED: its ~25
@@ -315,6 +363,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _showSectionDiagnostics = true;
+
+    [ObservableProperty]
+    private bool _showSectionExtensions = true;
 
     [ObservableProperty]
     private bool _showSectionFeatures = true;
@@ -351,6 +402,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // handoff). Null on WASM / headless, so the folder picker is then unavailable (see CanAddFolder).
     private IStorageProvider? _storageProvider;
 
+    /// <summary>
+    ///     Feedback for the last in-session flip of the Strat Book extension's master switch: null
+    ///     until a flip happens in this VM's lifetime (nothing to report at a plain startup). On: "Counting…"
+    ///     then a demo count once <see cref="RecomputeToggleNoticeAsync" /> lands. Off: a one-line
+    ///     note that its data stays on disk.
+    /// </summary>
+    [ObservableProperty]
+    private string? _stratBookToggleNotice;
+
     // true while THIS VM is persisting a change, so the synchronous OnChange echo of its own write is
     // skipped as redundant (the bound state already matches what was just written).
     private bool _writing;
@@ -363,8 +423,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Action? replayWalkthrough = null)
-        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough)
+        Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<PackStatus>? packStatuses = null, ExtensionUpdateService? extensionUpdates = null)
+        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
+            reindexEstimates, dataRemovals, packStatuses, extensionUpdates)
     {
     }
 
@@ -381,9 +444,36 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <param name="themes">The theme catalogue.</param>
     /// <param name="isBrowser">Whether the host is the WASM head.</param>
     /// <param name="replayWalkthrough">Re-runs the tutorial walkthrough, or null.</param>
+    /// <param name="settingsPages">
+    ///     The settings pages the packs contribute: rendered under Extensions, beneath each
+    ///     pack's master switch and feature rows. Null (most tests) renders none.
+    /// </param>
+    /// <param name="reindexEstimates">
+    ///     The packs' answers for the Extensions "N demos will be re-indexed" notice; the first one
+    ///     is used (today, at most one pack exists). Null (most tests) shows no notice.
+    /// </param>
+    /// <param name="dataRemovals">
+    ///     Each pack's "delete extension data" action, one <see cref="ExtensionDataActionViewModel" />
+    ///     row per entry under Extensions, available whether its pack is on or off. Null (most tests) shows no row.
+    /// </param>
+    /// <param name="packStatuses">
+    ///     Every declared pack's compatibility verdict: the version each master row shows, and a
+    ///     locked row with the reason for a pack that failed the check (such a pack has no catalog row).
+    ///     Null reads <see cref="FeaturePacks.Statuses" />.
+    /// </param>
+    /// <param name="extensionUpdates">
+    ///     The extension updater: the update line under each master row, checked on open at most
+    ///     once an hour. Null (the browser head, most tests) shows no line on the desktop and the "updates
+    ///     come with the app" line on the browser.
+    /// </param>
     internal SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
-        Func<bool> isBrowser, Action? replayWalkthrough = null)
+        Func<bool> isBrowser, Action? replayWalkthrough = null,
+        IReadOnlyList<SettingsPageContribution>? settingsPages = null,
+        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null,
+        IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<PackStatus>? packStatuses = null,
+        ExtensionUpdateService? extensionUpdates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -395,6 +485,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _isBrowser = isBrowser;
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
+        _packStatuses = packStatuses ?? FeaturePacks.Statuses;
+        _extensionUpdates = extensionUpdates;
+        _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
+        foreach (IPackDataRemoval removal in dataRemovals ?? [])
+        {
+            string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == removal.PackFeatureId)?.Label ?? removal.PackFeatureId;
+            ExtensionDataActions.Add(new ExtensionDataActionViewModel(removal, label));
+        }
 
         Categories = BuildCategoryOptions();
         // Populate the theme list from the registry. Held in an ObservableCollection so "Reload themes" can
@@ -450,12 +548,28 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             LibraryFolders.Add(folder);
         }
 
-        // Build the feature-toggle rows (grouped: Tabs each followed by their SubFeatures, then Chrome), seed
-        // their state from the gate, and subscribe for live re-resolution. The gate marshals Changed to the UI
-        // thread in the headed app, so the handler need not marshal again.
+        // Seeded BEFORE the first RefreshFeatureRows below, so that call sees no transition and shows no
+        // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip, not state.
+        _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.PackFeatureId);
+
+        // Registers every contributed page; none is built yet (BuildContributedSettingsPages).
+        BuildContributedSettingsPages(settingsPages);
+
+        // Build the feature-toggle rows (grouped: Tabs each followed by their SubFeatures, then Chrome),
+        // then the Extensions rows (every pack's master switch plus its own tabs/sub-features, which leave
+        // the two collections above), seed state from the gate, and subscribe for live re-resolution. The
+        // gate marshals Changed to the UI thread in the headed app, so the handler need not marshal again.
         BuildFeatureRows();
+        BuildExtensionsFeatureRows();
+        WireDataActionRowLocks();
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
+
+        // The feeds are asked on open, at most once an hour; the per-row button always asks.
+        if (ShouldAutoCheckExtensionUpdates(current.Extensions.LastUpdateCheckUtc, DateTimeOffset.UtcNow))
+        {
+            _ = CheckExtensionUpdatesAsync();
+        }
 
         // The 2D keybinding rows: the shipped table is the list, the resolved profile is the state.
         BuildKeybindRows();
@@ -550,6 +664,31 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<FeatureToggleRow> ChromeFeatureRows { get; } = [];
 
     /// <summary>
+    ///     The Extensions section's rows: every <see cref="FeatureScope.Pack" /> descriptor's master row,
+    ///     immediately followed by the tabs it parents (each in turn followed by ITS SubFeature children,
+    ///     indented one level deeper) and then any remaining sub-feature the pack docks in a core tab (2D
+    ///     Playback's tag palette and Suggested Tags), flat. Built from <see cref="FeatureCatalog.All" />, so
+    ///     a second pack's rows appear here with no code change. These rows leave <see cref="TabFeatureRows" />
+    ///     and <see cref="ChromeFeatureRows" /> so they are never listed twice.
+    /// </summary>
+    public ObservableCollection<FeatureToggleRow> ExtensionsFeatureRows { get; } = [];
+
+    /// <summary>
+    ///     Settings pages the packs contribute, rendered under Extensions beneath
+    ///     <see cref="ExtensionsFeatureRows" />, each hidden while its own <see cref="SettingsPageContribution.FeatureId" />
+    ///     resolves off or the search filter does not match. Every entry exists from construction, but
+    ///     <see cref="MountedSettingsPage.IsBuilt" /> stays false until its gate first resolves on.
+    /// </summary>
+    public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
+
+    /// <summary>
+    ///     One "delete extension data" row per pack that declared one, rendered under Extensions
+    ///     beneath <see cref="ContributedSettingsPages" />. Unlike a contributed page, available whether its
+    ///     pack is on or off: deleting while off is the main use.
+    /// </summary>
+    public ObservableCollection<ExtensionDataActionViewModel> ExtensionDataActions { get; } = [];
+
+    /// <summary>
     ///     How many non-Required features the current user has hidden versus the developer-full baseline (from
     ///     the gate). Drives the "N hidden for <c>Category</c>" section affordance; 0 for a developer.
     /// </summary>
@@ -642,6 +781,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _disposed = true;
         _gate.Changed -= OnGateChanged;
         _onChange?.Dispose();
+        _extensionUpdatesCts.Cancel();
+        _extensionUpdatesCts.Dispose();
+        foreach (ExtensionUpdateRow row in ExtensionUpdateRows)
+        {
+            row.Dispose();
+        }
+
+        foreach (MountedSettingsPage page in ContributedSettingsPages)
+        {
+            (page.ViewModel as IDisposable)?.Dispose();
+        }
     }
 
     /// <summary>
@@ -665,12 +815,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     private static bool SectionMatches(string section, string filter)
     {
+        string keywords = Array.Find(_sectionKeywords, k => k.Section == section).Keywords;
+        return KeywordsMatch(keywords, filter);
+    }
+
+    // The same fuzzy match SectionMatches runs over a named built-in section's keyword row, open to any
+    // keyword string: a pack's contributed page carries its own on the contribution instead of
+    // a row here.
+    private static bool KeywordsMatch(string keywords, string filter)
+    {
         if (filter.Length == 0)
         {
             return true;
         }
 
-        string keywords = Array.Find(_sectionKeywords, k => k.Section == section).Keywords;
         return keywords.Contains(filter, StringComparison.OrdinalIgnoreCase)
                || Fuzz.PartialRatio(filter.ToLowerInvariant(), keywords) >= 80;
     }
@@ -694,11 +852,16 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ShowSectionDiagnostics = CanManageDiagnosticsLogging && SectionMatches("Diagnostics", filter);
         // No platform gate: the 2D tab (and therefore its keymap) is WASM-reachable.
         ShowSectionPlayback2DKeys = SectionMatches("Playback2DKeys", filter);
+        // The Extensions master-switch card is always reachable (it is how a user turns a pack back on),
+        // so its own match ignores every pack's gate; a contributed PAGE beneath it does not.
+        ShowSectionExtensions = ExtensionsSectionMatches(filter);
+        bool anyPageVisible = RefreshContributedPageVisibility(filter);
 
         ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates
                            || ShowSectionPlayback2DKeys;
         ShowGroupLibrary = ShowSectionFolders || ShowSectionProcessing || ShowSectionIdle;
         ShowGroupFeatures = ShowSectionFeatures;
+        ShowGroupExtensions = ShowSectionExtensions || anyPageVisible;
         ShowGroupLiveCs2 = ShowSectionLiveSync || ShowSectionHighlights;
         ShowGroupDiagnostics = ShowSectionDiagnostics;
 
@@ -707,8 +870,73 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             IsGroupGeneralExpanded |= ShowGroupGeneral;
             IsGroupLibraryExpanded |= ShowGroupLibrary;
             IsGroupFeaturesExpanded |= ShowGroupFeatures;
+            IsGroupExtensionsExpanded |= ShowGroupExtensions;
             IsGroupLiveCs2Expanded |= ShowGroupLiveCs2;
             IsGroupDiagnosticsExpanded |= ShowGroupDiagnostics;
+        }
+    }
+
+    // "Extensions" generic keywords OR any built row's own Label (its pack's name, or one of its
+    // tabs/sub-features): a second pack's rows are searchable with no change here. ExtensionsFeatureRows
+    // is built before ApplySectionFilter ever runs (see the ctor), so this is safe at construction too.
+    private bool ExtensionsSectionMatches(string filter)
+    {
+        if (filter.Length == 0)
+        {
+            return true;
+        }
+
+        if (SectionMatches("Extensions", filter))
+        {
+            return true;
+        }
+
+        string needle = filter.ToLowerInvariant();
+        foreach (FeatureToggleRow row in ExtensionsFeatureRows)
+        {
+            string label = row.Label.ToLowerInvariant();
+            if (label.Contains(needle, StringComparison.OrdinalIgnoreCase) || Fuzz.PartialRatio(needle, label) >= 80)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Called from ApplySectionFilter (a filter keystroke) and from RefreshFeatureRows (a gate change).
+    // A page not yet built is built here, the first time its gate is seen on, never before: building it
+    // while off would construct whatever its VM pulls in regardless of the pack's gate.
+    private bool RefreshContributedPageVisibility(string filter)
+    {
+        bool anyVisible = false;
+        foreach (MountedSettingsPage page in ContributedSettingsPages)
+        {
+            bool gateOn = page.FeatureId is null || _gate.IsEnabled(page.FeatureId);
+            if (gateOn)
+            {
+                page.EnsureBuilt();
+            }
+
+            page.IsVisible = gateOn && KeywordsMatch(page.Keywords, filter);
+            anyVisible |= page.IsVisible;
+        }
+
+        return anyVisible;
+    }
+
+    // Registers every contributed page at construction, unbuilt: RefreshContributedPageVisibility (called
+    // from the ctor's own trailing ApplySectionFilter) builds only the ones whose gate is already on.
+    private void BuildContributedSettingsPages(IReadOnlyList<SettingsPageContribution>? pages)
+    {
+        if (pages is null)
+        {
+            return;
+        }
+
+        foreach (SettingsPageContribution contribution in pages.OrderBy(p => p.Order))
+        {
+            ContributedSettingsPages.Add(new MountedSettingsPage(contribution));
         }
     }
 
@@ -716,14 +944,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(HasKeybindRejections));
 
     // One row per SHIPPED binding, reserved rows included: a reserved gesture that is simply absent from
-    // the list reads as free, which is the opposite of what the reservation means.
+    // the list reads as free, which is the opposite of what the reservation means. A row whose action a
+    // pack owns carries that pack's label and gate id, so IsVisible and the label chip can read it.
     private void BuildKeybindRows()
     {
+        IReadOnlyDictionary<Playback2DAction, PackCommand> packOwners = CommandRegistry.Default.PackOwnerByAction;
         foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
         {
-            Playback2DKeybindRows.Add(new KeybindRow(this, binding));
+            PackCommand? owner = packOwners.TryGetValue(binding.Action, out PackCommand? found) ? found : null;
+            Playback2DKeybindRows.Add(new KeybindRow(this, binding, owner?.PackLabel, owner?.PackFeatureId));
         }
     }
+
+    /// <summary>Whether a pack's chords and keybind rows should be live right now. Read by <see cref="KeybindRow.IsVisible" />.</summary>
+    internal bool IsPackFeatureEnabled(string packFeatureId) => _gate.IsEnabled(packFeatureId);
 
     // Re-resolve every row from the persisted overrides. Called at construction, after each write, and
     // from Reflect (an external edit / another surface).
@@ -748,7 +982,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         CustomKeybindCount = custom;
         OnPropertyChanged(nameof(CustomKeybindCount));
         OnPropertyChanged(nameof(HasCustomKeybinds));
-        KeybindRejectionNote = rejected.Count == 0 ? "" : string.Join("\n", rejected);
+
+        // CommandRegistry.Default.Conflicts is a shipped-table defect (a pack's default chord colliding
+        // with core or another pack), not a user rebind problem, but it reuses this note rather than a
+        // second piece of UI: either way, a chord that silently lost is now something the user can see.
+        IReadOnlyList<string> conflicts = CommandRegistry.Default.Conflicts;
+        KeybindRejectionNote = rejected.Count == 0 && conflicts.Count == 0
+            ? ""
+            : string.Join("\n", rejected.Concat(conflicts));
     }
 
     /// <summary>
@@ -1478,7 +1719,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Re-scans the drop-in theme folder (T3) so a newly-added / edited / deleted <c>*.json</c> shows up
+    ///     Re-scans the drop-in theme folder so a newly-added / edited / deleted <c>*.json</c> shows up
     ///     without a restart. <see cref="ThemeRegistry.Reload" /> raises <c>Reloaded</c>, which
     ///     <c>App.WireTheme</c> handles by repainting the running app; here the picker list refreshes, keeping
     ///     the current selection (or falling back if its drop-in was removed). No settings are persisted (a reload
@@ -1548,12 +1789,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         Persist(s => s.Features.Overrides.Remove(featureId));
 
     // Build the grouped row list once: from FeatureCatalog.All, each Tab immediately followed by its
-    // SubFeature children (indented), then all Chrome rows. The flat _featureRows mirror is the refresh sweep.
+    // SubFeature children (indented), then all Chrome rows. The flat _featureRows mirror is the refresh
+    // sweep. A row owned by a pack (OwnerPackId set) is skipped here even when its ParentId is a core tab
+    // (2D Playback's tag palette, Suggested Tags): it renders under Extensions instead, never twice.
     private void BuildFeatureRows()
     {
         foreach (FeatureDescriptor descriptor in FeatureCatalog.All)
         {
-            if (descriptor.Scope != FeatureScope.Tab)
+            if (descriptor.Scope != FeatureScope.Tab || descriptor.OwnerPackId is not null)
             {
                 continue;
             }
@@ -1561,21 +1804,200 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             AddFeatureRow(TabFeatureRows, descriptor, 0);
             foreach (FeatureDescriptor child in FeatureCatalog.Children(descriptor.Id))
             {
+                if (child.OwnerPackId is not null)
+                {
+                    continue;
+                }
+
                 AddFeatureRow(TabFeatureRows, child, 1);
             }
         }
 
         foreach (FeatureDescriptor descriptor in FeatureCatalog.All)
         {
-            if (descriptor.Scope == FeatureScope.Chrome)
+            if (descriptor.Scope == FeatureScope.Chrome && descriptor.OwnerPackId is null)
             {
                 AddFeatureRow(ChromeFeatureRows, descriptor, 0);
             }
         }
     }
 
+    // The Extensions section's rows (ExtensionsFeatureRows doc comment has the shape): every pack's master
+    // row, its own tabs with their children nested beneath, then any sub-feature it docks in a CORE tab
+    // (no tab of its own under the pack), flat. Driven entirely from FeatureCatalog.All by Scope/OwnerPackId,
+    // so a second pack needs no change here. A pack that failed the compatibility check has no catalog row
+    // (it composed nothing), so its master row is synthesized from its status after the catalog ones:
+    // locked off, with the reason, so the user sees why the extension is missing rather than nothing.
+    private void BuildExtensionsFeatureRows()
+    {
+        foreach (FeatureDescriptor pack in FeatureCatalog.All)
+        {
+            if (pack.Scope != FeatureScope.Pack)
+            {
+                continue;
+            }
+
+            PackStatus? status = _packStatuses.FirstOrDefault(s => s.Pack.FeatureId == pack.Id);
+            AddFeatureRow(ExtensionsFeatureRows, pack, 0, status?.Manifest?.Version.ToString(),
+                source: status?.Source, loadNote: LoadNote(status), update: UpdateRow(status));
+
+            HashSet<string> ownTabIds = new(StringComparer.Ordinal);
+            foreach (FeatureDescriptor tab in FeatureCatalog.All)
+            {
+                if (tab.Scope != FeatureScope.Tab || tab.ParentId != pack.Id)
+                {
+                    continue;
+                }
+
+                ownTabIds.Add(tab.Id);
+                AddFeatureRow(ExtensionsFeatureRows, tab, 1);
+                foreach (FeatureDescriptor child in FeatureCatalog.Children(tab.Id))
+                {
+                    AddFeatureRow(ExtensionsFeatureRows, child, 2);
+                }
+            }
+
+            foreach (FeatureDescriptor sub in FeatureCatalog.All)
+            {
+                if (sub.Scope == FeatureScope.SubFeature && sub.OwnerPackId == pack.Id
+                    && !ownTabIds.Contains(sub.ParentId!))
+                {
+                    AddFeatureRow(ExtensionsFeatureRows, sub, 1);
+                }
+            }
+        }
+
+        foreach (PackStatus status in _packStatuses)
+        {
+            if (status.IsCompatible)
+            {
+                continue;
+            }
+
+            string label = status.Manifest?.Name ?? status.Pack.Id;
+            FeatureDescriptor placeholder = new(
+                status.Pack.FeatureId, FeatureScope.Pack, label,
+                "This extension cannot load on this version of the app.",
+                null, null, false, new Dictionary<UserCategory, bool>());
+            AddFeatureRow(ExtensionsFeatureRows, placeholder, 0, status.Manifest?.Version.ToString(), status.Problem,
+                status.Source, LoadNote(status), UpdateRow(status));
+        }
+    }
+
+    // The staged updates the loader looked at and did not load, one line each, newest first
+    // (PackStatus.Rejected is already in that order), or null when there were none.
+    private static string? LoadNote(PackStatus? status) =>
+        status is null || status.Rejected.Count == 0
+            ? null
+            : string.Join(Environment.NewLine, status.Rejected.Select(o => o.UserMessage));
+
+    // The update line for a pack master row. The browser head gets the line that says updates
+    // arrive with the app; a desktop head with no updater (tests) gets no line at all.
+    private ExtensionUpdateRow? UpdateRow(PackStatus? status)
+    {
+        if (status is null)
+        {
+            return null;
+        }
+
+        if (_isBrowser())
+        {
+            return new ExtensionUpdateRow(status.Pack.Id, null);
+        }
+
+        if (_extensionUpdates is null)
+        {
+            return null;
+        }
+
+        ExtensionUpdateRow row = new(status.Pack.Id, _extensionUpdates, RecordExtensionUpdateCheck);
+        ExtensionUpdateRows.Add(row);
+        return row;
+    }
+
+    /// <summary>The update line of every declared extension, in row order; empty where updates do not apply.</summary>
+    public List<ExtensionUpdateRow> ExtensionUpdateRows { get; } = [];
+
+    /// <summary>
+    ///     The open-time rule: check when nothing was ever recorded, or the last check is at least
+    ///     <see cref="ExtensionUpdateService.AutoCheckInterval" /> ago. A clock that moved backwards reads
+    ///     as due as well.
+    /// </summary>
+    internal static bool ShouldAutoCheckExtensionUpdates(DateTimeOffset? lastCheckUtc, DateTimeOffset now) =>
+        lastCheckUtc is not { } last || now - last >= ExtensionUpdateService.AutoCheckInterval || last > now;
+
+    /// <summary>
+    ///     Asks every extension's feed at once, as the open-time check does. The rows show "Checking" while
+    ///     it runs and each one's verdict after; the time is recorded so the next open within the hour
+    ///     seeds the rows from the service instead of asking again.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckExtensionUpdatesAsync()
+    {
+        if (_extensionUpdates is null || ExtensionUpdateRows.Count == 0 || _disposed || ExtensionUpdateRows.Any(r => r.IsChecking))
+        {
+            return;
+        }
+
+        foreach (ExtensionUpdateRow row in ExtensionUpdateRows)
+        {
+            row.IsChecking = true;
+        }
+
+        try
+        {
+            IReadOnlyList<ExtensionUpdateState> states = await _extensionUpdates.CheckAsync(_extensionUpdatesCts.Token);
+            foreach (ExtensionUpdateState state in states)
+            {
+                ExtensionUpdateRows.FirstOrDefault(r => r.PackId == state.PackId)?.Apply(state);
+            }
+
+            RecordExtensionUpdateCheck();
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed first; nothing to show.
+        }
+        finally
+        {
+            foreach (ExtensionUpdateRow row in ExtensionUpdateRows)
+            {
+                row.IsChecking = false;
+            }
+        }
+    }
+
+    private void RecordExtensionUpdateCheck() => Persist(s => s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
+
+    // Locks a pack's own master row (FeatureToggleRow.IsDeleteBusy) for exactly as long as its
+    // ExtensionDataActionViewModel.IsBusy is true, so the switch cannot start the re-enable race the
+    // delete's own gate re-checks guard against. Called once, after both row collections are built, since
+    // the row a data action names does not exist before BuildExtensionsFeatureRows runs.
+    private void WireDataActionRowLocks()
+    {
+        foreach (ExtensionDataActionViewModel action in ExtensionDataActions)
+        {
+            FeatureToggleRow? row = ExtensionsFeatureRows.FirstOrDefault(r => r.FeatureId == action.PackFeatureId);
+            if (row is null)
+            {
+                continue;
+            }
+
+            row.IsDeleteBusy = action.IsBusy;
+            action.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ExtensionDataActionViewModel.IsBusy))
+                {
+                    row.IsDeleteBusy = action.IsBusy;
+                }
+            };
+        }
+    }
+
     private void AddFeatureRow(
-        ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel)
+        ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel,
+        string? version = null, string? incompatibility = null, PackSource? source = null, string? loadNote = null,
+        ExtensionUpdateRow? update = null)
     {
         // The PLATFORM half of the answer, which the raw IFeatureGate does not know. See
         // FeatureToggleRow.IsPlatformUnavailable for why this matters on the browser head.
@@ -1587,7 +2009,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         bool platformUnavailable =
             _isBrowser() && ShellModuleFeatureGate.DesktopOnlyIds.Contains(descriptor.Id);
 
-        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable);
+        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable, version, incompatibility, source, loadNote, update);
         group.Add(row);
         _featureRows.Add(row);
     }
@@ -1620,15 +2042,79 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             _applyingExternal = false;
         }
 
+        // The in-session notice: fires only on a TRANSITION (not every refresh), so a plain category
+        // change or an unrelated override write never shows it. Catches a self-write, Reset-to-defaults,
+        // and an external edit alike, since all three land here through gate.Changed. No-ops when no pack
+        // contributed an estimate.
+        if (_reindexEstimate is { } watched)
+        {
+            bool watchedNowEnabled = _gate.IsEnabled(watched.PackFeatureId);
+            if (watchedNowEnabled != _watchedPackWasEnabled)
+            {
+                _watchedPackWasEnabled = watchedNowEnabled;
+                _toggleNoticeGeneration++;
+                if (watchedNowEnabled)
+                {
+                    StratBookToggleNotice = "Counting…";
+                    _ = RecomputeToggleNoticeAsync(watched, _toggleNoticeGeneration);
+                }
+                else
+                {
+                    string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == watched.PackFeatureId)?.Label
+                                   ?? "extension";
+                    StratBookToggleNotice = $"The {label} stops its background work. Its data stays on disk.";
+                }
+            }
+        }
+
+        // A contributed page's own gate id may have flipped; the filter half of its visibility
+        // is unchanged, so re-apply it with the CURRENT filter text rather than re-deriving it here.
+        bool anyPageVisible = RefreshContributedPageVisibility(SettingsFilterText.Trim());
+        ShowGroupExtensions = ShowSectionExtensions || anyPageVisible;
+
         OnPropertyChanged(nameof(HiddenCount));
         OnPropertyChanged(nameof(FeatureCategoryLabel));
         OnPropertyChanged(nameof(FeaturesHeaderText));
         OnPropertyChanged(nameof(ResetButtonText));
     }
 
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Settings");
+
+    // Resolves the re-index count off the UI thread (PendingPaths over a large library is not free) and
+    // writes the final notice, UNLESS a later toggle already changed the generation: dropping a stale
+    // result beats a "12 demos…" note that lands after the user flipped the extension back off.
+    private async Task RecomputeToggleNoticeAsync(IPackReindexEstimate estimate, int generation)
+    {
+        int count;
+        try
+        {
+            count = await estimate.CountAsync();
+        }
+        catch (Exception ex)
+        {
+            // Best-effort: a bad probe must not leave the toggle itself looking broken, but a silent
+            // zero would read as "nothing pending" when the count simply failed. Logged, not swallowed.
+            AppLog.OperationFailed(DiagLog, "count demos to re-index", ex);
+            count = 0;
+        }
+
+        if (_disposed || generation != _toggleNoticeGeneration)
+        {
+            return;
+        }
+
+        StratBookToggleNotice = $"{count} demos will be re-indexed in the background.";
+    }
+
     // IFeatureGate.Changed handler. The gate marshals Changed to the UI thread in the headed app (and raises
     // it inline in unit tests), so the refresh runs on the right thread without marshaling here.
-    private void OnGateChanged(object? sender, EventArgs e) => RefreshFeatureRows();
+    // RefreshKeybindRows() is included so a pack switch flip hides or shows its keybind rows live: their
+    // IsVisible is read-through on _gate, not cached, so nothing but the change notification is missing.
+    private void OnGateChanged(object? sender, EventArgs e)
+    {
+        RefreshFeatureRows();
+        RefreshKeybindRows();
+    }
 
     private static string LabelFor(UserCategory category) => category switch
     {

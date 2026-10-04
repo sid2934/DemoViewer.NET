@@ -35,6 +35,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private const int MaxFoldedTooltipLines = 5;
 
     private readonly List<TimelineBand> _builtBands = new();
+    private readonly List<TimelineBand> _builtLaneBands = new();
     private readonly List<TimelineMarker> _builtMarkers = new();
     private readonly List<TimelineTrackToggle> _toggles = new();
 
@@ -44,7 +45,12 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private readonly List<List<TimelineBand>> _trackBands = new();
     private readonly List<Action> _trackHandlers = new();
     private readonly List<List<TimelineMarker>> _trackMarkers = new();
+    private readonly List<TimelineBandRow> _trackRows = new();
     private readonly List<ITimelineTrack> _tracks = new();
+    private readonly List<TimelineLane> _lanes = new();
+
+    [ObservableProperty]
+    private bool _hasLaneBands;
 
     [ObservableProperty]
     private int _currentFrameIndex = -1;
@@ -99,8 +105,24 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>The registered tracks' toggles, in registration order (which is display order).</summary>
     public IReadOnlyList<TimelineTrackToggle> Tracks => _toggles;
 
+    /// <summary>The registered tracks themselves, in registration order, the tab's and the lanes'.</summary>
+    public IReadOnlyList<ITimelineTrack> RegisteredTracks => _tracks;
+
+    /// <summary>The lanes added through <see cref="RegisterLane" />, in registration order.</summary>
+    public IReadOnlyList<ILaneHandle> Lanes => _lanes;
+
+    /// <summary>The data the bands were last built from, or null before the first <see cref="Rebuild" />.</summary>
+    public ITimelineData? Data => _data;
+
     /// <summary>The laid-out round bands. Rebuilt on <see cref="Rebuild" /> and on a width change.</summary>
     public ObservableCollection<TimelineBandViewModel> Bands { get; } = new();
+
+    /// <summary>
+    ///     The laid-out bands of the tracks registered on <see cref="TimelineBandRow.Lane" />, drawn in a row
+    ///     of their own under the rounds. Kept apart from <see cref="Bands" /> because the rounds row's
+    ///     label search needs one ascending, non-overlapping list, and a tag span overlaps a round.
+    /// </summary>
+    public ObservableCollection<TimelineBandViewModel> LaneBands { get; } = new();
 
     /// <summary>The laid-out point markers, after same-track coalescing.</summary>
     public ObservableCollection<TimelineMarkerViewModel> Markers { get; } = new();
@@ -124,8 +146,6 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         {
             _tracks[i].MarkersChanged -= _trackHandlers[i];
         }
-
-        _trackHandlers.Clear();
     }
 
     /// <summary>
@@ -145,7 +165,8 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     ///     </para>
     /// </summary>
     /// <param name="track">The track.</param>
-    public void RegisterTrack(ITimelineTrack track)
+    /// <param name="row">Which band row the track's bands draw in. Markers always go on the scrub bar.</param>
+    public void RegisterTrack(ITimelineTrack track, TimelineBandRow row = TimelineBandRow.Rounds)
     {
         ArgumentNullException.ThrowIfNull(track);
 
@@ -163,12 +184,81 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         _toggles.Add(toggle);
         _trackBands.Add([]);
         _trackMarkers.Add([]);
+        _trackRows.Add(row);
 
         // Captured so Dispose can take it back off: an anonymous lambda cannot be unsubscribed, and the
         // track outlives this view-model in the tab that owns both.
         Action handler = () => OnTrackContentChanged(track);
         _trackHandlers.Add(handler);
         track.MarkersChanged += handler;
+
+        // A track registered after the build (a pack turned on in session) shows without waiting for a
+        // re-query, and the footer's toggle list learns of it.
+        if (_data is { } data && TotalFrames > 0)
+        {
+            BuildTrack(_tracks.Count - 1, data);
+            Recombine();
+            OnPropertyChanged(nameof(Tracks));
+        }
+    }
+
+    /// <summary>
+    ///     Registers a track as a lane with its own behaviour. The timeline dispatches the lane's presses, menus,
+    ///     label requests and handle drags to <paramref name="behaviour" />; the handle carries the lane's
+    ///     suppression, editability and edit span, and disposing it unregisters the track. Registering an id
+    ///     already registered returns a handle over the existing registration.
+    /// </summary>
+    /// <param name="track">The track.</param>
+    /// <param name="row">Which band row the track's bands draw in.</param>
+    /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
+    public ILaneHandle RegisterLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        foreach (TimelineLane existing in _lanes)
+        {
+            if (string.Equals(existing.Track.Id, track.Id, StringComparison.Ordinal))
+            {
+                return existing;
+            }
+        }
+
+        RegisterTrack(track, row);
+        TimelineLane lane = new(this, track, behaviour);
+        _lanes.Add(lane);
+        return lane;
+    }
+
+    /// <summary>
+    ///     Removes a registered track: its toggle, its bands and markers, and its lane if it was one. The
+    ///     user's persisted choice for the id is untouched. Unknown tracks are ignored.
+    /// </summary>
+    /// <param name="track">The track.</param>
+    public void UnregisterTrack(ITimelineTrack track)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        int index = _tracks.IndexOf(track);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (!_disposed)
+        {
+            track.MarkersChanged -= _trackHandlers[index];
+        }
+
+        _toggles[index].PropertyChanged -= OnToggleChanged;
+        _tracks.RemoveAt(index);
+        _toggles.RemoveAt(index);
+        _trackBands.RemoveAt(index);
+        _trackMarkers.RemoveAt(index);
+        _trackRows.RemoveAt(index);
+        _trackHandlers.RemoveAt(index);
+        _suppressed.Remove(track.Id);
+        _lanes.RemoveAll(l => ReferenceEquals(l.Track, track));
+        OnPropertyChanged(nameof(Tracks));
+        Recombine();
+        RaiseLaneEditing();
     }
 
     /// <summary>
@@ -211,7 +301,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
         bands.Clear();
         markers.Clear();
-        toggle.IsAvailable = track.IsAvailable(data);
+        toggle.IsAvailable = track.IsAvailable(data) && !_suppressed.Contains(track.Id);
 
         if (!toggle.IsAvailable || !toggle.IsEnabled)
         {
@@ -226,11 +316,12 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private void Recombine()
     {
         _builtBands.Clear();
+        _builtLaneBands.Clear();
         _builtMarkers.Clear();
 
         for (int i = 0; i < _tracks.Count; i++)
         {
-            _builtBands.AddRange(_trackBands[i]);
+            (_trackRows[i] == TimelineBandRow.Lane ? _builtLaneBands : _builtBands).AddRange(_trackBands[i]);
             _builtMarkers.AddRange(_trackMarkers[i]);
         }
 
@@ -258,6 +349,37 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         BuildTrack(index, data);
         Recombine();
     }
+
+    /// <summary>
+    ///     Hides or shows a track for a mode of the tab (Review mode's tag and suggestion lanes), without
+    ///     touching the user's own toggle for it: a suppressed track is unavailable, so its toggle hides too,
+    ///     and the persisted choice is whatever the user last set.
+    /// </summary>
+    /// <param name="trackId">The track. Unknown ids are ignored.</param>
+    /// <param name="suppressed">True to hide it.</param>
+    public void SetTrackSuppressed(string trackId, bool suppressed)
+    {
+        bool changed = suppressed ? _suppressed.Add(trackId) : _suppressed.Remove(trackId);
+        if (!changed)
+        {
+            return;
+        }
+
+        int index = _tracks.FindIndex(t => string.Equals(t.Id, trackId, StringComparison.Ordinal));
+        if (index < 0 || _data is not { } data || TotalFrames <= 0)
+        {
+            return;
+        }
+
+        BuildTrack(index, data);
+        Recombine();
+    }
+
+    /// <summary>True when a mode of the tab hides this track.</summary>
+    /// <param name="trackId">The track.</param>
+    public bool IsTrackSuppressed(string trackId) => _suppressed.Contains(trackId);
+
+    private readonly HashSet<string> _suppressed = new(StringComparer.Ordinal);
 
     /// <summary>Turns a track on/off and re-runs the build. Unknown ids are ignored.</summary>
     public void SetTrackEnabled(string trackId, bool enabled)
@@ -322,6 +444,202 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         }
 
         SeekRequested?.Invoke(Math.Clamp(frameIndex, 0, TotalFrames - 1));
+    }
+
+    /// <summary>
+    ///     A click on a band, either row: the band's lane acts on it first (a tag band picks its tag for Label
+    ///     Mode), then the timeline seeks to the band's first frame.
+    /// </summary>
+    /// <param name="band">The band clicked.</param>
+    public void PressBand(TimelineBandViewModel band)
+    {
+        ArgumentNullException.ThrowIfNull(band);
+        if (_data is { } data && LaneFor(band.TrackId)?.Behaviour is { } behaviour)
+        {
+            behaviour.OnBandPressed(band, data);
+        }
+
+        RequestSeekToFrame(band.StartFrameIndex);
+    }
+
+    private TimelineLane? LaneFor(string trackId)
+    {
+        foreach (TimelineLane lane in _lanes)
+        {
+            if (string.Equals(lane.Track.Id, trackId, StringComparison.Ordinal))
+            {
+                return lane;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>True for a band the rounds track made for a round, which excludes the warmup band.</summary>
+    /// <param name="band">A band from either row.</param>
+    public static bool IsRoundBand(TimelineBandViewModel band)
+    {
+        ArgumentNullException.ThrowIfNull(band);
+        return band.TrackId == "round" && int.TryParse(band.Label, NumberStyles.None, CultureInfo.InvariantCulture, out _);
+    }
+
+    /// <summary>
+    ///     The right-click menu's contributors, asked in order for every band pressed: the tab's own lane
+    ///     menu first, then what the packs attached through the surface. A contributor returns nothing for a
+    ///     band it has no entry for.
+    /// </summary>
+    public List<Func<TimelineBandViewModel, IEnumerable<MenuEntry>>> BandMenus { get; } = [];
+
+    /// <summary>The band's own lane's entries, then every contributor's, for <paramref name="band" />. Empty offers no menu.</summary>
+    /// <param name="band">The band right-clicked, from either row.</param>
+    public IReadOnlyList<MenuEntry> MenuFor(TimelineBandViewModel band)
+    {
+        ArgumentNullException.ThrowIfNull(band);
+        List<MenuEntry> entries = [];
+        if (_data is { } data && LaneFor(band.TrackId)?.Behaviour is { } behaviour)
+        {
+            entries.AddRange(behaviour.MenuFor(band, data));
+        }
+
+        foreach (Func<TimelineBandViewModel, IEnumerable<MenuEntry>> contributor in BandMenus)
+        {
+            entries.AddRange(contributor(band));
+        }
+
+        return entries;
+    }
+
+    // ── Lane editing ─────────────────────────────────────────────────────────────────────────────────────
+    // The lane row is one row shared by every lane; what it shows is folded from the lanes' handles.
+
+    /// <summary>A lane takes edits. The row then shows even with nothing on it, so a click there can start a label.</summary>
+    public bool IsLaneEditable => _lanes.Any(l => l.IsEditable);
+
+    /// <summary>The lane shows when it has bands or takes edits.</summary>
+    public bool ShowLane => HasLaneBands || IsLaneEditable;
+
+    // The lane whose span is drawn: the first with one. Two lanes never edit at once in practice.
+    private TimelineLane? EditingLane => _lanes.FirstOrDefault(l => l.EditSpan is not null);
+
+    /// <summary>True while a lane's edit span is drawn over the row with its two handles.</summary>
+    public bool HasEditSpan => EditingLane is not null;
+
+    /// <summary>The edit band's left edge, px.</summary>
+    public Thickness EditOffset => new(EditX, 0, 0, 0);
+
+    /// <summary>The edit band's left edge, px.</summary>
+    public double EditX => EditingLane?.EditSpan is { } span ? XForFrame(span.Start) : 0;
+
+    /// <summary>The edit band's width, px; never narrower than its two handles.</summary>
+    public double EditWidth => EditingLane?.EditSpan is { } span ? Math.Max(8, XForFrame(span.End) - XForFrame(span.Start)) : 0;
+
+    /// <summary>
+    ///     A handle dragged to a pixel: moves that end of the edit band and tells its lane, which moves the
+    ///     editor's start or end. Never a seek: the handles sit on the lane, not the scrub bar.
+    /// </summary>
+    /// <param name="startEdge">True for the start handle.</param>
+    /// <param name="x">The pointer's x on the lane, px.</param>
+    public void DragEditEdge(bool startEdge, double x)
+    {
+        if (EditingLane is not { EditSpan: { } span } lane)
+        {
+            return;
+        }
+
+        int frame = FrameIndexAt(x);
+        (int Start, int End) next = startEdge
+            ? (Math.Min(frame, span.End), span.End)
+            : (span.Start, Math.Max(frame, span.Start));
+        if (next == span)
+        {
+            return;
+        }
+
+        lane.EditSpan = next;
+        lane.Behaviour?.OnEditSpanDragged(next.Start, next.End);
+    }
+
+    /// <summary>A click on the lane where no band is: asks the editable lane for a new label starting there.</summary>
+    /// <param name="x">The click's x on the lane, px.</param>
+    public void RequestLaneLabel(double x)
+    {
+        if (TotalFrames <= 0)
+        {
+            return;
+        }
+
+        foreach (TimelineLane lane in _lanes)
+        {
+            if (lane is { IsEditable: true, Behaviour: { } behaviour })
+            {
+                behaviour.OnLabelRequested(FrameIndexAt(x));
+                return;
+            }
+        }
+    }
+
+    private void RaiseEditSpan()
+    {
+        OnPropertyChanged(nameof(HasEditSpan));
+        OnPropertyChanged(nameof(EditX));
+        OnPropertyChanged(nameof(EditWidth));
+        OnPropertyChanged(nameof(EditOffset));
+    }
+
+    private void RaiseLaneEditing()
+    {
+        OnPropertyChanged(nameof(IsLaneEditable));
+        OnPropertyChanged(nameof(ShowLane));
+        RaiseEditSpan();
+    }
+
+    /// <summary>A lane's registration: the handle a contribution holds, and the lane's state the row folds in.</summary>
+    private sealed class TimelineLane(Playback2DTimelineViewModel owner, ITimelineTrack track, ILaneBehaviour? behaviour) : ILaneHandle
+    {
+        private (int Start, int End)? _editSpan;
+        private bool _isEditable;
+
+        public ILaneBehaviour? Behaviour => behaviour;
+
+        public ITimelineTrack Track => track;
+
+        public bool IsSuppressed
+        {
+            get => owner.IsTrackSuppressed(track.Id);
+            set => owner.SetTrackSuppressed(track.Id, value);
+        }
+
+        public bool IsEditable
+        {
+            get => _isEditable;
+            set
+            {
+                if (_isEditable == value)
+                {
+                    return;
+                }
+
+                _isEditable = value;
+                owner.RaiseLaneEditing();
+            }
+        }
+
+        public (int Start, int End)? EditSpan
+        {
+            get => _editSpan;
+            set
+            {
+                if (_editSpan == value)
+                {
+                    return;
+                }
+
+                _editSpan = value;
+                owner.RaiseEditSpan();
+            }
+        }
+
+        public void Dispose() => owner.UnregisterTrack(track);
     }
 
     /// <summary>The x offset (px) of a frame index on the scrub bar. 0 for a single-frame or unsized demo.</summary>
@@ -410,13 +728,11 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     // re-runs a track: a width change must not re-decode the demo's events.
     private void Relayout()
     {
-        Bands.Clear();
-        foreach (TimelineBand band in _builtBands)
-        {
-            double x = XForFrame(band.StartFrameIndex);
-            double width = Math.Max(1.0, XForFrame(band.EndFrameIndex + 1) - x);
-            Bands.Add(new TimelineBandViewModel(band, x, width, BrushForBand(band)));
-        }
+        LayOutBands(_builtBands, Bands);
+        LayOutBands(_builtLaneBands, LaneBands);
+        HasLaneBands = LaneBands.Count > 0;
+        OnPropertyChanged(nameof(ShowLane));
+        RaiseEditSpan();
 
         Markers.Clear();
         int i = 0;
@@ -437,6 +753,17 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
             Markers.Add(new TimelineMarkerViewModel(first, x, BrushForMarker(first),
                 FoldTooltip(i, j, first)));
             i = j;
+        }
+    }
+
+    private void LayOutBands(List<TimelineBand> built, ObservableCollection<TimelineBandViewModel> into)
+    {
+        into.Clear();
+        foreach (TimelineBand band in built)
+        {
+            double x = XForFrame(band.StartFrameIndex);
+            double width = Math.Max(1.0, XForFrame(band.EndFrameIndex + 1) - x);
+            into.Add(new TimelineBandViewModel(band, x, width, BrushForBand(band)));
         }
     }
 
@@ -552,6 +879,19 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
         return new ImmutableSolidColorBrush(ThemeColors.Get(key, app.ActualThemeVariant, fallback));
     }
+}
+
+/// <summary>Which band row a track draws in. Registration order is still display order within a row.</summary>
+public enum TimelineBandRow
+{
+    /// <summary>The rounds row at the top; the footer's round label reads it.</summary>
+    Rounds,
+
+    /// <summary>
+    ///     The lane under the rounds, hidden while empty. The Tag Store's instances draw here, one lane for
+    ///     every code.
+    /// </summary>
+    Lane
 }
 
 /// <summary>One laid-out point marker on the scrub bar.</summary>

@@ -324,12 +324,12 @@ public class RealTimeInkTests
 
         await Assert.That(plainBytes).IsEqualTo(0);
         await Assert.That(liveBytes).IsEqualTo(0)
-            .Because("§4 measured 0 B/frame at k = 1, 8 and 64; a per-section list would land here");
+            .Because("measured 0 B/frame at k = 1, 8 and 64; a per-section list would land here");
     }
 
     // Median frame cost and steady-state allocation for one fixture at one tick. Median, not mean: a
     // single scheduler hiccup in 256 frames should not move the number a reader is asked to compare
-    // against a plan.
+    // against a baseline.
     private static (double Micros, long Bytes) Cost(Fixture fixture, int tick)
     {
         SceneRenderContext ctx = HdContext(tick);

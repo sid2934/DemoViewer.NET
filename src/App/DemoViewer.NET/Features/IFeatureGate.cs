@@ -28,8 +28,10 @@ public interface IFeatureGate
 
     /// <summary>
     ///     Whether <paramref name="featureId" /> is visible for the current user. Resolution order:
-    ///     Required → explicit override → category default → group-leader state → parent-tab cascade. An id
-    ///     not in the catalog is not gated and returns <c>true</c> (fail-open).
+    ///     Required → explicit override → category default → group-leader state → parent cascade (sub-feature
+    ///     to tab to pack) → owning-pack cascade (independent of the parent chain). An id not in the catalog
+    ///     is not gated and returns <c>true</c> (fail-open), except a <c>pack.*</c> id, which returns
+    ///     <c>false</c>: a pack id gates background work.
     /// </summary>
     bool IsEnabled(string featureId);
 

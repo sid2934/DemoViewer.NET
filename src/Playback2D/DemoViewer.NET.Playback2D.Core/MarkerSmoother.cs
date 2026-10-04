@@ -50,7 +50,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     ///     <b>snaps</b> instead of gliding: the same code path as the teleport rule below, deliberately
     ///     rather than a second snap mechanism, so there is one answer to "why did that dot jump".
     ///     <para>
-    ///         Null leaves the smoothing exactly as B1 shipped it, which is what every golden and the
+    ///         Null leaves the smoothing unchanged, which is what every golden and the
     ///         determinism gate were captured against.
     ///     </para>
     /// </summary>
@@ -125,7 +125,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
                 //
                 // A level crossing is the same shape of event on one slot: the player left this floor,
                 // and a dot that glides to its new position paints a streak across a map it never
-                // walked (design §5.3).
+                // walked.
                 _smoothed[m.Slot] = (tx, ty);
                 continue;
             }

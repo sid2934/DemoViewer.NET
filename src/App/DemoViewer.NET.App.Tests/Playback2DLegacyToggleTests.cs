@@ -21,10 +21,6 @@ namespace DemoViewer.NET.AppTests;
 ///         <c>Playback2DViewport</c> on the default path, so deleting it next release changes no default
 ///         behaviour. Both write a PNG to the artifact dir for eyeball review.
 ///     </para>
-///     <para>
-///         <b>Deleted wholesale by the removal commit</b>: see
-///         <c>docs/playback2d-v2/old-control-removal.md</c>.
-///     </para>
 /// </summary>
 [NotInParallel]
 [Category("Render")]

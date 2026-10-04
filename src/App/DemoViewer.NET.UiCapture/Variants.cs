@@ -18,16 +18,26 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
+using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
+using DemoViewer.NET.Extensions.StratBook.Views.Settings;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Commands;
@@ -69,7 +79,7 @@ namespace DemoViewer.NET.UiCapture;
 ///     (no ParsedDemo, no heavy VM) so captures are fast and deterministic. Add variants here as the
 ///     UI/UX work needs them (a panel, a proposed layout, a component in a given state).
 /// </summary>
-public static class Variants
+public static partial class Variants
 {
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     //  NavStrip visual redesign: dependency-free inline vector icons.
@@ -137,13 +147,32 @@ public static class Variants
             ["breakpoints-map"] = () => BreakpointsMap(),
             ["settings"] = () => Settings(),
             // Concurrency seeded to 2 so the BACKGROUND PROCESSING section shows the RAM-risk warning (the
-            // safety-critical element per demo-processing-queue.md). The default state (1, no warning) is
+            // safety-critical element). The default state (1, no warning) is
             // captured by "settings".
             ["settings-queue-warn"] = () => Settings(2),
+            // Extensions section: the filter text both selects the section (more reliable in a
+            // one-shot capture than the posted ScrollTargetSection scroll) AND auto-expands its group.
+            ["settings-extensions-on"] = () => Settings(packOff: false),
+            ["settings-extensions-off"] = () => Settings(packOff: true),
+            // Delete extension data: the pack off (the main use case) with its confirmation
+            // already armed, so the row, the user-work sizes and the two buttons are all in frame.
+            ["settings-extensions-delete-confirm"] = () => Settings(packOff: true, armDelete: true),
+            // A second, fake extension built against pack contract 2.x, so its master row renders
+            // locked with the reason beneath the real Strat Book row (which shows its version).
+            ["settings-extensions-incompatible"] = () => Settings(packOff: false, incompatible: true),
+            // The Strat Book row as an installed update (1.0.1 staged under the config root) with a
+            // higher staged candidate the loader refused, so the source label and the amber note render.
+            ["settings-extensions-staged"] = () => Settings(packOff: false, staged: true),
+            // The update line under the Strat Book row, over a fake feed: a newer version offered
+            // with its Update button, and a staged copy waiting for a restart.
+            ["settings-extensions-update-available"] = () => Settings(packOff: false, updates: "available"),
+            ["settings-extensions-update-installed"] = () => Settings(packOff: false, updates: "installed"),
             ["wizard"] = Wizard,
+            ["wizard-extensions"] = WizardExtensions,
             ["library-landing"] = () => Library(LibraryState.Landing),
             ["library-populated"] = () => Library(LibraryState.Populated),
             ["library-dropover"] = () => Library(LibraryState.DragOver),
+            ["library-populated-pack-on"] = () => Library(LibraryState.PopulatedPackOn),
             ["workbench"] = Workbench,
             ["framelist"] = FrameList,
             // v0.6.0 fit-and-finish surfaces: the code-color-promotion consumers (severity ramps,
@@ -158,7 +187,7 @@ public static class Variants
             ["pb2d-vision"] = Pb2DVision,
             ["playback2d-canvas"] = () => new Playback2DViewport(),
             ["pb2d-hud-accents"] = Pb2DHudAccents,
-            // v0.8.1 stats component library (docs/ui/stats-components.md). Render under BOTH built-in
+            // v0.8.1 stats component library. Render under BOTH built-in
             // themes AND a custom one: the five new Stat* tokens are retintable like any other, and
             // the ramp is the first thing a bad retint breaks.
             ["stats-components"] = StatsComponents,
@@ -169,6 +198,12 @@ public static class Variants
             ["livesync-chips"] = LiveSyncChips,
             ["livesync-flyouts"] = LiveSyncFlyouts,
             ["playback2d-livesync-hud"] = Playback2DLiveSyncHud,
+            // The 2D tab with the Create Strat review open in the contributed side pane; 1280x800.
+            ["playback2d-create-strat-pane"] = Playback2DCreateStratPane,
+            // The 2D tab in Review mode with the pack's right-column panels, and the same with the
+            // pack off so the column shows the core content alone; 1280x900.
+            ["playback2d-review-panels"] = Playback2DReviewPanels,
+            ["playback2d-review-panels-pack-off"] = Playback2DReviewPanelsPackOff,
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),
@@ -185,7 +220,7 @@ public static class Variants
             ["addclips-nothing-indexed"] = () => Highlights(false, false, libraryIndexed: false,
                 picker: PickerMock.Open),
             ["addclips-narrow"] = () => Highlights(false, true, picker: PickerMock.Open),
-            // The density case. Four mock rows prove nothing about the one claim the design entry makes:
+            // The density case. Four mock rows prove nothing about the one claim that matters:
             // that a flat row list virtualizes trivially. So this seeds ~240 rows over 8 demos: the
             // VirtualizingStackPanel, the scrollbar (which must not shift the columns) and the pinned footer.
             ["addclips-dense"] = () => Highlights(false, false, picker: PickerMock.Open, denseLibrary: true),
@@ -229,7 +264,40 @@ public static class Variants
             // than draw two empty teams.
             ["match-overview-cached-nosplit"] = () => MatchOverviewCached(DemoCacheTier.Parse, teamSplit: false),
             ["match-overview-cached-failed"] = () =>
-                MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed)
+                MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
+            ["strat-editor"] = () => StratEditor(false, false),
+            ["strat-editor-collapsed"] = () => StratEditor(true, true),
+            ["strat-editor-bare"] = () => StratEditor(false, false, true),
+            ["strat-editor-checks"] = StratEditorChecks,
+            ["strat-editor-set-place"] = StratEditorSetPlace,
+            ["strat-editor-lines"] = () => StratEditorLines(true),
+            ["strat-editor-lines-open"] = () => StratEditorLines(false),
+            ["strat-editor-who-lurk"] = StratEditorWhoLurk,
+            ["strat-editor-location-list"] = StratEditorLocationList,
+            ["strat-editor-chips"] = () => StratEditorChips(false),
+            ["strat-editor-chips-open"] = () => StratEditorChips(true),
+            ["strat-editor-execute-motion"] = () => StratEditorExecuteMotion(),
+            ["strat-editor-execute-arrived"] = () => StratEditorExecuteMotion(41),
+            ["strat-start-row"] = () => StratStartRow(true),
+            ["strat-start-row-panes-open"] = () => StratStartRow(false),
+            ["strat-trigger-clock"] = StratTriggerClock,
+            ["strat-editor-seed-move"] = () => StratEditorSeedMove(108),
+            ["strat-editor-seed-move-regroup"] = () => StratEditorSeedMove(68),
+            ["strat-editor-seed-move-rotate"] = () => StratEditorSeedMove(32),
+            ["strat-editor-execute-throws"] = StratEditorExecuteThrows,
+            ["strat-lurk-dragged-150"] = () => StratEditorOwnersLurk(110, true),
+            ["strat-lurk-dragged-120"] = () => StratEditorOwnersLurk(80, true),
+            ["strat-lurk-dragged-035"] = () => StratEditorOwnersLurk(35, true),
+            ["strat-lurk-spawn-150"] = () => StratEditorOwnersLurk(110, false),
+            ["strat-lurk-spawn-120"] = () => StratEditorOwnersLurk(80, false),
+            ["strat-lurk-spawn-035"] = () => StratEditorOwnersLurk(35, false),
+            ["strat-routing-execute-b"] = () => StratRoutingExecuteB(104),
+            ["strat-routing-execute-b-push"] = () => StratRoutingExecuteB(83),
+            ["strat-routing-via"] = StratRoutingVia,
+            ["strat-drag-ghost"] = () => StratDrag(false),
+            ["strat-drag-released"] = () => StratDrag(true),
+            ["strat-drag-placed"] = StratDragPlaced,
+            ["strat-lineup-picker"] = StratLineupPicker
         };
 
     private static readonly (string Event, string Tick, string Hits)[] _dataRows =
@@ -583,7 +651,11 @@ public static class Variants
     ///     path → dimmed grey-out), with back-dated open times so the relative-date labels ("2d ago" / "6d
     ///     ago") render. <see cref="LibraryState.Populated" /> also seeds folders + a few demo entries so the
     ///     browser + the persistent header actions render; <see cref="LibraryState.DragOver" /> forces the
-    ///     drop overlay visible (a real file drag can't be synthesized off-display).
+    ///     drop overlay visible (a real file drag can't be synthesized off-display);
+    ///     <see cref="LibraryState.PopulatedPackOn" /> additionally wires the pack's Team filter and
+    ///     provenance chip over a real <see cref="TeamIdentityService" />, so the toolbar and the
+    ///     card both render exactly as they do with the Strat Book extension on. <see cref="LibraryState.Populated" />
+    ///     stays unwired (no contributions): the pack-off render.
     /// </summary>
     private static LibraryTabView Library(LibraryState state)
     {
@@ -609,7 +681,8 @@ public static class Variants
         string libJson = Path.Combine(dir, "library.json");
         DemoLibraryService lib = new(a => a(), libJson);
 
-        if (state == LibraryState.Populated)
+        IReadOnlyList<ILibraryContribution>? contributions = null;
+        if (state is LibraryState.Populated or LibraryState.PopulatedPackOn)
         {
             lib.Folders.Add("/demos/pro-matches");
             lib.Entries.Add(SampleDemo("de_mirage", "ZywOo, apEX, flameZ, Spinx, mezii", "mirage_vs_faze.dem"));
@@ -617,12 +690,18 @@ public static class Variants
             lib.Entries.Add(SampleDemo("de_dust2", "s1mple, b1t, Aleksib, iM, jL", "dust2_navi.dem"));
         }
 
+        if (state == LibraryState.PopulatedPackOn)
+        {
+            contributions = LibraryPackContributions(lib);
+        }
+
         LibraryTabViewModel vm = new(
             lib,
             _ => Task.CompletedTask,
             () => Task.FromResult<IReadOnlyList<string>>([]),
             () => Task.CompletedTask,
-            recents)
+            recents,
+            contributions: contributions)
         {
             IsDragOver = state == LibraryState.DragOver
         };
@@ -633,11 +712,64 @@ public static class Variants
         };
     }
 
+    // A real TeamIdentityService + DemoProvenanceSource over cache rows mirroring the sample
+    // entries, so the Team filter and the provenance chip render as they do with the pack on. One demo
+    // carries clan tags (→ "official"); the others resolve "unlabeled". Unique synthetic SteamIDs per
+    // entry, so the three unrelated rosters never cluster into a team.
+    private static IReadOnlyList<ILibraryContribution> LibraryPackContributions(DemoLibraryService lib)
+    {
+        DemoCacheStore cache = new(null);
+        TeamIdentityService teams = new(null, cache, run: a =>
+        {
+            a();
+            return Task.CompletedTask;
+        });
+        teams.StartAsync().GetAwaiter().GetResult();
+
+        int steamId = 0;
+        using (cache.BeginBatch())
+        {
+            foreach (DemoEntry entry in lib.Entries)
+            {
+                bool isMirage = entry.FilePath.EndsWith("mirage_vs_faze.dem", StringComparison.Ordinal);
+                DemoCacheRecord record = new()
+                {
+                    Path = entry.FilePath,
+                    Size = entry.FileSizeBytes,
+                    ModifiedTicks = entry.Modified.Ticks,
+                    Map = entry.MapName,
+                    SourceKind = "HltvPro",
+                    TClan = isMirage ? "Vitality" : null,
+                    CtClan = isMirage ? "FaZe" : null
+                };
+                foreach (string name in entry.Players)
+                {
+                    record.Players.Add(new CachedPlayerInfo
+                    {
+                        Slot = record.Players.Count,
+                        Name = name,
+                        SteamId64 = $"76561198{++steamId:D9}",
+                        Team = 2
+                    });
+                }
+
+                DemoCacheStore.StampParse(record);
+                cache.Upsert(record);
+            }
+        }
+
+        return
+        [
+            new TeamLibraryContribution(() => teams),
+            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(cache, teams), () => teams)
+        ];
+    }
+
     /// <summary>
     ///     The real <see cref="RuleWorkbenchView" /> bound to a real <see cref="RuleWorkbenchTabViewModel" />
     ///     (no demo). Selects a shipped ruleset so the editor + the read-only "🔒 shipped" caution show, and
     ///     seeds a diagnostic so the Problems panel exercises the soft-error location colour. Renders the
-    ///     workbench's translucent pane borders (P3.3 de-inline target).
+    ///     workbench's translucent pane borders: a de-inline target.
     /// </summary>
     private static RuleWorkbenchView Workbench()
     {
@@ -667,7 +799,7 @@ public static class Variants
     ///     <see cref="HarvestFrameRowViewModel" /> rows over a <see cref="MainViewModel" /> DataContext
     ///     (for the breakpoint-toggle command binding). Varied frame types exercise the per-type accent
     ///     pills; one row has a breakpoint set (red-dim gutter dot) and one is selected (exercises the
-    ///     selected-row fill token). P3.4 de-inline target: a plain ListBox, headless-capturable.
+    ///     selected-row fill token): a de-inline target, a plain ListBox, headless-capturable.
     /// </summary>
     private static HarvestFrameListControl FrameList()
     {
@@ -1216,13 +1348,41 @@ public static class Variants
     }
 
     /// <summary>
+    ///     The wizard's Extensions step: one card per <see cref="FeatureScope.Pack" /> catalog
+    ///     row, here just <c>pack.stratbook</c>. A fresh temp-dir <see cref="SettingsService" /> (no
+    ///     settings.json) so <see cref="SettingsService.NeedsFirstRun" /> is true and the step exists at
+    ///     index 3; a re-run from Settings never reaches it.
+    /// </summary>
+    private static FirstRunWizardView WizardExtensions()
+    {
+        string dir = Path.Combine(
+            Path.GetTempPath(), "demoviewer-uicapture-wizard-extensions", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+
+        SettingsService svc = new(dir);
+        FirstRunWizardViewModel vm = new(svc)
+        {
+            CurrentStep = 3
+        };
+        return new FirstRunWizardView
+        {
+            DataContext = vm
+        };
+    }
+
+    /// <summary>
     ///     The real <see cref="SettingsView" /> bound to a real <see cref="SettingsViewModel" />, over a
     ///     throwaway temp-dir <see cref="SettingsService" /> and a real <see cref="FeatureGate" />, so the
-    ///     P2a-ii per-feature toggle list renders exactly as shipped. Two seeded overrides exercise both the
+    ///     per-feature toggle list renders exactly as shipped. Two seeded overrides exercise both the
     ///     "overridden" indicator and the clear affordance (one default-off dev sub-feature turned ON, one
-    ///     core tab turned OFF). Rendered inside the headless UI thread by <c>CaptureHost</c>.
+    ///     core tab turned OFF). <paramref name="packOff" /> overrides the Strat Book extension's
+    ///     master switch off and sets the SettingsFilterText to "extension", which both selects the
+    ///     Extensions section and auto-expands its group for the capture, the on variant the same way minus
+    ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
-    private static SettingsView Settings(int maxConcurrency = 1)
+    private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false, bool incompatible = false,
+        bool staged = false, string? updates = null)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1237,6 +1397,13 @@ public static class Variants
             s.Features.Overrides["parser.hex"] = true; // dev sub-feature forced ON  → overridden + enabled
             s.Features.Overrides["tab.stats"] = false; // core tab forced OFF        → overridden + disabled
             s.ProcessingQueue.MaxConcurrency = maxConcurrency; // > 1 reveals the RAM-risk warning
+            if (packOff == true)
+            {
+                s.Features.Overrides[StratBookPack.PackFeatureId] = false;
+            }
+
+            // The capture checks the fake feed itself below; Settings must not check again on open.
+            s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
         });
 
         ServiceCollection services = new();
@@ -1244,11 +1411,176 @@ public static class Variants
         ServiceProvider sp = services.BuildServiceProvider();
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         FeatureGate gate = new(monitor);
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry());
+
+        // The two contributed pages, built the same way StratBookSettingsPages.* would, over an
+        // empty library under the same redirected temp dir: real content (detector rows, the two toggles),
+        // just nothing indexed yet, so "settings-extensions-on" still shows both cards, not two blanks.
+        DemoCacheStore cache = new(null);
+        // Keywords deliberately just "extension": the capture's own filter below is the only thing that
+        // ever reads them, and these two cards must stay in frame alongside the master switch. FeatureId
+        // is the real pack's, so the OFF variant hides them exactly as the real app does.
+        SettingsPageContribution[] settingsPages =
+        [
+            new(
+                "stratbook.suggested-tags-tuning", "SUGGESTED TAGS TUNING", 0, "extension",
+                () => new SuggestedTagsTuningViewModel(
+                    new SuggestedTagsTuningService(
+                        cache,
+                        new SuggestedTagsService(cache, new ProposalStore(null, cache), null, new SiteRegionStore(null),
+                            () => new ProfileStore(null).Current, () => true, () => false),
+                        null,
+                        new SiteRegionStore(null)),
+                    new ProfileStore(null)),
+                () => new SuggestedTagsTuningView(),
+                StratBookPack.PackFeatureId),
+            new(
+                "stratbook.grenade-index", "GRENADE INDEX", 1, "extension",
+                () => new GrenadeIndexSettingsViewModel(svc, monitor),
+                () => new GrenadeIndexSettingsView(),
+                StratBookPack.PackFeatureId)
+        ];
+
+        // "Delete extension data": a canned inventory, no real PackDataRemover, so the capture
+        // is deterministic and needs no temp files. Sizes are plausible, not measured.
+        IPackDataRemoval[]? dataRemovals = armDelete
+            ?
+            [
+                new CapturePackDataRemoval(new PackDataInventory(
+                [
+                    new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 14, 182_000),
+                    new StoreInventoryItem(new StoreDescriptor("tags", "Tags", StoreRoot.Config, ["tags"], true), 9, 54_000),
+                    new StoreInventoryItem(new StoreDescriptor("teams", "Teams", StoreRoot.Config, ["teams.json"], true), 1, 3_100),
+                    new StoreInventoryItem(new StoreDescriptor("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false), 240, 9_800_000)
+                ]))
+            ]
+            : null;
+
+        // The real pack's status plus, on request, a fake extension whose manifest wants pack
+        // contract 2.x. Judged by the real check against the real host, so the message is the shipped one.
+        IReadOnlyList<PackStatus>? statuses = null;
+        if (incompatible)
+        {
+            CaptureIncompatiblePack future = new();
+            statuses = [.. FeaturePacks.Statuses, PackStatus.Evaluate(future, ExtensionHost.Current)];
+        }
+
+        // The real pack's status rewritten as a staged 1.0.1 that won, plus a 1.1.0 the loader
+        // refused (judged by the real check against the real host, so the detail is the shipped message).
+        if (staged)
+        {
+            PackStatus real = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId);
+            ExtensionManifest higher = real.Manifest! with { Version = new SemVersion(1, 1, 0), RequiresCs2DemoKit = VersionRange.Parse("0.14.0") };
+            string stagedRoot = Path.Combine(dir, "extensions", StratBookPack.PackId);
+            statuses =
+            [
+                real with
+                {
+                    Manifest = real.Manifest with { Version = new SemVersion(1, 0, 1) },
+                    Source = new PackSource.Staged(Path.Combine(stagedRoot, "1.0.1")),
+                    Rejected =
+                    [
+                        new LoadOutcome(Path.Combine(stagedRoot, "1.1.0"), higher, LoadFailure.Incompatible,
+                            PackCompatibility.Check(higher, ExtensionHost.Current).Describe(higher, StratBookPack.PackId)!)
+                    ]
+                }
+            ];
+        }
+
+        // The real pack's status over a fake feed that offers the next patch. "available" leaves it
+        // to download; "installed" has it staged already under the capture's config root, so the check reports
+        // a restart. The check runs here, before the VM exists, so the row seeds from the remembered verdict.
+        ExtensionUpdateService? updater = null;
+        if (updates is not null)
+        {
+            PackStatus real = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId);
+            ExtensionManifest running = real.Manifest!;
+            SemVersion next = new(running.Version.Major, running.Version.Minor, running.Version.Patch + 1);
+            string manifest = $$"""
+                {
+                  "id": "{{running.Id}}",
+                  "name": "{{running.Name}}",
+                  "version": "{{next}}",
+                  "assembly": "{{running.Assembly}}",
+                  "entryType": "{{running.EntryType}}",
+                  "requiresHost": "{{running.RequiresHost}}",
+                  "requiresCs2DemoKit": "{{running.RequiresCs2DemoKit}}"
+                }
+                """;
+            Uri feedUrl = new("https://example.invalid/extensions.json");
+            CaptureFeedClient client = new($$"""
+                { "id": "{{running.Id}}", "entries": [ {
+                  "version": "{{next}}", "manifest": {{manifest}},
+                  "url": "https://example.invalid/{{running.Id}}-{{next}}.zip",
+                  "sha256": "{{new string('0', 64)}}", "size": 4718592, "publishedAt": "2026-10-03T12:00:00Z" } ] }
+                """);
+            if (updates == "installed")
+            {
+                string stagedDir = Path.Combine(dir, "extensions", running.Id, next.ToString());
+                Directory.CreateDirectory(stagedDir);
+                File.WriteAllText(Path.Combine(stagedDir, ExtensionManifest.FileName), manifest);
+                File.WriteAllText(Path.Combine(stagedDir, running.Assembly), string.Empty);
+            }
+
+            updater = new ExtensionUpdateService(dir, [real], ExtensionHost.Current, TrustPolicy.Nothing, client, _ => feedUrl);
+            updater.CheckAsync().GetAwaiter().GetResult();
+        }
+
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals,
+            packStatuses: statuses, extensionUpdates: updater);
+        if (packOff is not null)
+        {
+            vm.SettingsFilterText = "extension";
+        }
+
+        if (armDelete)
+        {
+            vm.ExtensionDataActions.Single().ArmCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        }
+
         return new SettingsView
         {
             DataContext = vm
         };
+    }
+
+    // A capture-only feed: one canned extensions.json, no network, no download.
+    private sealed class CaptureFeedClient(string feed) : IExtensionFeedClient
+    {
+        public Task<string> GetFeedAsync(Uri url, CancellationToken ct) => Task.FromResult(feed);
+
+        public Task DownloadAsync(Uri url, Stream destination, long maxBytes, IProgress<long>? progress, CancellationToken ct) =>
+            throw new NotSupportedException("the capture never downloads");
+    }
+
+    // A capture-only second extension: never configured, never composed; only its status exists,
+    // and only for "settings-extensions-incompatible".
+    private sealed class CaptureIncompatiblePack : IFeaturePack
+    {
+        public string Id => "net.demoviewer.pack.future";
+        public string FeatureId => "pack.future";
+
+        public ExtensionManifest Manifest => new(
+            Id, "Future Book", new SemVersion(1, 2, 0), "DemoViewer.NET.Extensions.FutureBook.dll",
+            "DemoViewer.NET.Extensions.FutureBook.FutureBookPack", VersionRange.Parse("^2.0"), VersionRange.Any);
+
+        public IEnumerable<FeatureDescriptor> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        {
+        }
+    }
+
+    // A capture-only IPackDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
+    // unused by the "settings-extensions-delete-confirm" variant, which only arms the confirmation).
+    private sealed class CapturePackDataRemoval(PackDataInventory inventory) : IPackDataRemoval
+    {
+        public string PackFeatureId => StratBookPack.PackFeatureId;
+        public Task<PackDataInventory> InventoryAsync() => Task.FromResult(inventory);
+        public Task<PackDataRemovalResult> DeleteAsync() => Task.FromResult(new PackDataRemovalResult(true, inventory, 0));
     }
 
     // Renders the Playback2D HUD DOMAIN accents (health/armor/headshot/…) as text + glyphs on the real
@@ -1961,7 +2293,7 @@ public static class Variants
     }
 
     /// <summary>
-    ///     App-themed primitive controls under the P1.3 design-system style classes. Exercises every
+    ///     App-themed primitive controls under the design-system style classes. Exercises every
     ///     Primitives.axaml Button/ToggleButton/TabItem/TextBox/ComboBox class so the render verifies the
     ///     actual look (spacing, contrast, hover-neutral state) against the shell background.
     /// </summary>
@@ -3740,7 +4072,7 @@ public static class Variants
         };
     }
 
-    // ── Demo-processing queue (demo-processing-queue.md) ───────────────────────
+    // ── Demo-processing queue ──────────────────────────────────────────────────
 
     /// <summary>
     ///     The queue flyout body over a fake queue: the live queue-management surface (item list with
@@ -3791,7 +4123,7 @@ public static class Variants
         [
             ("Running (1) — pulsing", StatusChipDotState.Working, true, "Processing 1"),
             ("Queued (5), none running", StatusChipDotState.Working, false, "5 queued"),
-            ("Paused", StatusChipDotState.Off, false, "Queue paused")
+            ("Paused", StatusChipDotState.Off, false, "Background paused")
         ];
 
         StackPanel col = new()
@@ -4162,7 +4494,8 @@ public static class Variants
     {
         Landing, // no folders → the landing hero (Open Demo + recents + drop hint)
         Populated, // folders + demos → the folder browser + persistent Open Demo / Recent ▾ actions bar
-        DragOver // the landing with the drag-over overlay forced on (can't synthesize a real drag headlessly)
+        DragOver, // the landing with the drag-over overlay forced on (can't synthesize a real drag headlessly)
+        PopulatedPackOn // Populated, plus the pack's Team filter and provenance chip wired
     }
 
     /// <summary>The three semantic-JUMP treatments the redesign options differ by.</summary>
@@ -4224,9 +4557,17 @@ public static class Variants
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) =>
             throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
+
+        public int ActiveCount(QueueJobKind kind) => 0;
+
         public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
 
         public void CancelOwned(string ownerTag, string path)
+        {
+        }
+
+        public void CancelOwned(string ownerTag)
         {
         }
 

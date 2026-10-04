@@ -7,7 +7,10 @@ using Avalonia.Controls;
 
 namespace DemoViewer.NET.Modules.Abstractions;
 
-/// <summary>Where a tab sits in the shell.</summary>
+/// <summary>
+///     Where a strip tab sits in the shell. A descriptor with a <see cref="WorkspaceTabDescriptor.HostId" />
+///     is a section hosted INSIDE another tab and never appears on the strip, whatever its placement says.
+/// </summary>
 public enum TabPlacement
 {
     /// <summary>The main tab strip.</summary>
@@ -37,6 +40,7 @@ public enum TabPlacement
 public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
 {
     private Control? _activeContent;
+    private string? _badge;
 
     /// <summary>Unique id within the module (e.g. <c>"builtin.parser"</c>). Session-persistence key.</summary>
     public required string TabId { get; init; }
@@ -44,14 +48,50 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
     /// <summary>Tab header text.</summary>
     public required string Header { get; init; }
 
+    /// <summary>
+    ///     A short live annotation beside the header ("3 new"), or null for none. Settable after
+    ///     construction, unlike the header: a module moves it as its state moves, before and after the
+    ///     tab's VM exists. Display only; nothing keys on it.
+    /// </summary>
+    public string? Badge
+    {
+        get => _badge;
+        set
+        {
+            if (string.Equals(_badge, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _badge = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Badge)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasBadge)));
+        }
+    }
+
+    /// <summary>True while <see cref="Badge" /> has text.</summary>
+    public bool HasBadge => !string.IsNullOrEmpty(_badge);
+
     /// <summary>Optional header icon (Geometry / StreamGeometry / path key).</summary>
     public object? Icon { get; init; }
 
-    /// <summary>Sort key within (Placement) in the tab strip.</summary>
+    /// <summary>Sort key within (Placement): the strip position for a strip tab, the rail position for a section.</summary>
     public int Order { get; init; }
 
-    /// <summary>Where the tab sits.</summary>
+    /// <summary>Where the tab sits on the strip. Ignored when <see cref="HostId" /> is set.</summary>
     public TabPlacement Placement { get; init; } = TabPlacement.Main;
+
+    /// <summary>
+    ///     The id of the tab that hosts this descriptor as a section (the Strat Book rail, the Library's view
+    ///     toggle), or null for a strip tab. A section keeps its own <see cref="TabId" /> as the persisted key:
+    ///     the shell resolves it by selecting the host tab and then the section, so an id a tab had on the
+    ///     strip still navigates, gates and persists once it moves under a host. A host id nothing hosts
+    ///     drops the section with a module log line.
+    /// </summary>
+    public string? HostId { get; init; }
+
+    /// <summary>The feature id the host gates this tab on, or <c>null</c> to always show it.</summary>
+    public string? FeatureId { get; init; }
 
     /// <summary>
     ///     The DataContext assigned to the realized View. For shell-routed built-ins this is the shell

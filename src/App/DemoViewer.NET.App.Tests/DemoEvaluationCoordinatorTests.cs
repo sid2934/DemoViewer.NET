@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="DemoEvaluationCoordinator" /> parity battery (Phase 2): proves the "one parse, many
+///     <see cref="DemoEvaluationCoordinator" /> parity battery: proves the "one parse, many
 ///     evaluators" contract against the REAL <see cref="DemoProcessingQueue" /> with a fake parser:
 ///     interested evaluators all run on a single parse, uninterested ones don't submit, failures are
 ///     isolated, parse failures reach <c>OnFailed</c>, and re-considering a processed demo is a no-op.

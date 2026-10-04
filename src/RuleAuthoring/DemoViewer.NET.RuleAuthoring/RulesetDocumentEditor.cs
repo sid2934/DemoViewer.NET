@@ -10,8 +10,8 @@ namespace DemoViewer.NET.RuleAuthoring;
 ///     The editable model the node editor writes through: a ruleset held as its own text, with
 ///     ruleset-shaped operations on top of <see cref="YamlEdits" />.
 ///     <para>
-///         <b>It never regenerates the file.</b> §9 decision 4 chose to preserve comments and key
-///         order, and the only way to preserve them in full is not to rewrite what was not edited.
+///         <b>It never regenerates the file.</b> Comments and key order are preserved, and the
+///         only way to preserve them in full is not to rewrite what was not edited.
 ///         <c>rules/kast.rules.yaml</c> opens with sixteen lines explaining how each v1 chain maps
 ///         onto a v2 stat, and has a trailing comment on most values; a serializer round trip
 ///         through <c>RulesetDoc</c> would drop every one of them the first time the file was

@@ -8,7 +8,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The contract baseline (design §5.8): every golden is authored on this provider, so its surface
+///     The contract baseline: every golden is authored on this provider, so its surface
 ///     format is load-bearing: an RGBA8888 premultiplied surface of exactly the requested size.
 /// </summary>
 public class CpuSurfaceProviderTests

@@ -17,7 +17,11 @@ namespace DemoViewer.NET.Features;
 ///         <b>Resolution</b> (see <see cref="Resolve" />): (1) a Required descriptor is on; (2) an explicit
 ///         <c>Overrides[id]</c> wins; (3) otherwise the category default; (4) a grouped feature adopts the
 ///         group LEADER's own-state (the first catalog member of the group) so a group toggles atomically;
-///         (5) a sub-feature/chrome whose parent tab resolves disabled is implicitly off (cascade).
+///         (5) a feature whose parent resolves disabled is implicitly off (cascade: sub-feature to tab to pack);
+///         (6) a feature whose owning pack (<see cref="FeatureDescriptor.OwnerPackId" />) resolves disabled is
+///         implicitly off too, whatever its <see cref="FeatureDescriptor.ParentId" /> chain says: a sub-feature
+///         docked in a core tab still goes off with the pack that contributed it.
+///         An id not in the catalog fails open unless it is a <c>pack.*</c> id, which resolves off.
 ///         Group (horizontal, "toggle together") and cascade (vertical, "parent hides child") are
 ///         orthogonal: a chrome member follows its leader even while the leader is itself cascade-hidden.
 ///     </para>
@@ -78,11 +82,13 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         FeatureDescriptor? descriptor = FeatureCatalog.ById(featureId);
         if (descriptor is null)
         {
-            return true; // fail-open: an id not in the catalog is not gated (visible).
+            // Fail-open: an id not in the catalog is not gated (visible). A pack id is the exception: it
+            // gates background work, so a typo must not silently enable it.
+            return !FeatureCatalog.IsPackId(featureId);
         }
 
         Dictionary<string, bool> overrides = _monitor.CurrentValue.Features.Overrides ?? _emptyOverrides;
-        return Resolve(descriptor, Category, overrides, NewVisiting());
+        return Resolve(descriptor, Category, overrides, null);
     }
 
     /// <inheritdoc />
@@ -101,9 +107,14 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
                     continue; // Required features are never hidden: excluded from the count.
                 }
 
+                if (descriptor.Scope == FeatureScope.Pack)
+                {
+                    continue; // The pack's own row renders as its live master switch, not a hidden feature.
+                }
+
                 // The Developer-full baseline: what a developer with default settings sees (no overrides).
-                bool developerBaseline = Resolve(descriptor, UserCategory.Developer, _emptyOverrides, NewVisiting());
-                bool current = Resolve(descriptor, category, overrides, NewVisiting());
+                bool developerBaseline = Resolve(descriptor, UserCategory.Developer, _emptyOverrides, null);
+                bool current = Resolve(descriptor, category, overrides, null);
                 if (developerBaseline && !current)
                 {
                     hidden++;
@@ -114,16 +125,18 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         }
     }
 
-    // Full resolution of one descriptor: group-leader own-state, then parent-tab cascade. The visiting set
-    // guards against a malformed catalog cycle (never happens with the shipped catalog); a re-entry
-    // fail-opens rather than recursing forever.
+    // Full resolution of one descriptor: group-leader own-state, then parent-tab and owning-pack cascade.
+    // The visiting set guards against a malformed catalog cycle (never happens with the shipped catalog); a
+    // re-entry fail-opens rather than recursing forever. Lazily allocated: null on every top-level call, and
+    // most descriptors (chrome, the pack row itself, a leaf tab with neither ParentId nor OwnerPackId) never
+    // recurse, so the common case allocates nothing.
     private static bool Resolve(
         FeatureDescriptor descriptor,
         UserCategory category,
         IReadOnlyDictionary<string, bool> overrides,
-        HashSet<string> visiting)
+        HashSet<string>? visiting)
     {
-        if (!visiting.Add(descriptor.Id))
+        if (visiting is not null && !visiting.Add(descriptor.Id))
         {
             return true;
         }
@@ -135,12 +148,34 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             : descriptor;
         bool enabled = ResolveOwn(stateSource, category, overrides);
 
-        // (5) CASCADE: a feature under a tab that resolves disabled is implicitly off, regardless of its
-        // own/group state. Uses THIS feature's ParentId (chrome has none → no cascade).
-        if (enabled && descriptor.ParentId is { } parentId)
+        if (!enabled || (descriptor.ParentId is null && descriptor.OwnerPackId is null))
         {
+            return enabled;
+        }
+
+        // Only allocated once a cascade is actually possible; seeded with this id since visiting may still
+        // be null here (the top-level call never pre-adds it).
+        visiting ??= new HashSet<string>(StringComparer.Ordinal) { descriptor.Id };
+
+        // (5) CASCADE: a feature under a parent that resolves disabled is implicitly off, regardless of its
+        // own/group state. Uses THIS feature's ParentId (chrome and packs have none → no cascade). A tab's
+        // parent is its pack, so the walk runs sub-feature → tab → pack.
+        if (descriptor.ParentId is { } parentId)
+        {
+            // Composition rejects a parent the catalog lacks, so the null check is only a guard.
             FeatureDescriptor? parent = FeatureCatalog.ById(parentId);
             if (parent is not null && !Resolve(parent, category, overrides, visiting))
+            {
+                enabled = false;
+            }
+        }
+
+        // (6) OWNING PACK: independent of ParentId, so a sub-feature docked in a core tab (2D Playback's
+        // tagger and suggested-tags tracks) still goes off with the pack that contributed it.
+        if (enabled && descriptor.OwnerPackId is { } ownerPackId)
+        {
+            FeatureDescriptor? owner = FeatureCatalog.ById(ownerPackId);
+            if (owner is not null && !Resolve(owner, category, overrides, visiting))
             {
                 enabled = false;
             }
@@ -164,8 +199,6 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
 
         return descriptor.Defaults.TryGetValue(category, out bool byDefault) && byDefault;
     }
-
-    private static HashSet<string> NewVisiting() => new(StringComparer.Ordinal);
 
     private void RaiseChanged()
     {

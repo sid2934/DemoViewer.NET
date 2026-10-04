@@ -15,7 +15,17 @@ namespace DemoViewer.NET.TestSupport;
 ///     <para>
 ///         <b>Discovery order</b> (first match wins):
 ///         <list type="number">
-///             <item>The <c>DEMO_PATH</c> environment variable, if it points at an existing file.</item>
+///             <item>
+///                 The <c>DEMO_PATH</c> environment variable, if it points at an existing file or
+///                 folder. A folder (the Steam replays directory, read in place, is the usual one)
+///                 resolves to ONE demo inside it, by the rules under
+///                 <see cref="ResolveDemoPathOverride" />: <c>DEMO_PATH_PICK=&lt;filename&gt;</c> when
+///                 set, else <see cref="ReferenceDemoFileName" /> when the folder holds it, else the
+///                 <c>*.dem</c> whose file name sorts first by ordinal comparison. Top level only, no
+///                 recursion. A path that resolves to nothing falls through to the next step, and
+///                 <see cref="RequireDemo()" /> says why in its skip reason.
+///             </item>
+///             <item><see cref="ReferenceDemoFileName" />, via the pinned lookup below, when present.</item>
 ///             <item>The first <c>*.dem</c> under <c>TestData/</c> next to the test assembly.</item>
 ///             <item>
 ///                 The first <c>*.dem</c> under <c>&lt;repo-root&gt;/demos/benchmarks/</c> or
@@ -25,14 +35,26 @@ namespace DemoViewer.NET.TestSupport;
 ///         The repo root is located by walking up from <see cref="AppContext.BaseDirectory" /> until
 ///         a folder containing <c>DemoViewer.NET.slnx</c> is found. No hard-coded personal paths.
 ///     </para>
+///     <para>
+///         The pinned lookup, <see cref="FindDemoPath(string)" />, never looks inside a folder
+///         <c>DEMO_PATH</c>. The replays folder holds demos whose names match golden candidates
+///         captured against a different file (see <c>demos/CORPUS.md</c> on
+///         <c>match730_..._410.dem</c>), and pointing the pinned tests at it would silently re-point
+///         those captures.
+///     </para>
 /// </summary>
 public static class DemoTestHelper
 {
+    /// <summary>The developer override: a <c>.dem</c> file, or a folder of them.</summary>
+    public const string DemoPathEnvVar = "DEMO_PATH";
+
     /// <summary>
-    ///     Locates a demo file via the discovery order in the class summary. Returns <c>null</c>
-    ///     when nothing matches. Prefer <see cref="RequireDemo()" /> in tests so the missing-demo
-    ///     state surfaces as a skip rather than a misleading pass.
+    ///     The file name to take when <see cref="DemoPathEnvVar" /> is a folder. Ignored when it is a
+    ///     file. A pick that is not in the folder resolves to nothing rather than to the first file,
+    ///     because a run pinned to one demo must not quietly swap to another.
     /// </summary>
+    public const string DemoPathPickEnvVar = "DEMO_PATH_PICK";
+
     /// <summary>
     ///     Canonical "reference" demo for integration tests that need a
     ///     deterministic structural shape (5v5 MM, ~22 rounds, no OT). Pinned
@@ -129,12 +151,21 @@ public static class DemoTestHelper
         return parse.Value;
     }
 
-    /// <summary>Find demo path.</summary>
+    /// <summary>
+    ///     Locates a demo file via the discovery order in the class summary. Returns <c>null</c>
+    ///     when nothing matches. Prefer <see cref="RequireDemo()" /> in tests so the missing-demo
+    ///     state surfaces as a skip rather than a misleading pass.
+    /// </summary>
     public static string? FindDemoPath()
     {
-        // 1. Explicit env var (developer override, always wins).
-        string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
-        if (!string.IsNullOrWhiteSpace(env) && File.Exists(env))
+        // 1. Explicit env var (developer override, always wins). A folder was silently ignored
+        // here until the folder rules moved into ResolveDemoPathOverride; 119 RealDemo tests
+        // skipped under a folder DEMO_PATH while looking like a configured run.
+        string? env = ResolveDemoPathOverride(
+            Environment.GetEnvironmentVariable(DemoPathEnvVar),
+            Environment.GetEnvironmentVariable(DemoPathPickEnvVar),
+            out _);
+        if (env is not null)
         {
             return env;
         }
@@ -174,6 +205,67 @@ public static class DemoTestHelper
     }
 
     /// <summary>
+    ///     Resolves the <c>DEMO_PATH</c> override on its own, with the process environment passed in
+    ///     rather than read, so the rules can be tested against temp folders without touching the
+    ///     env var every other test in the process reads. A file is returned as given. A folder
+    ///     yields <paramref name="pick" /> when set, else <see cref="ReferenceDemoFileName" /> when
+    ///     present, else the <c>*.dem</c> whose name sorts first by ordinal comparison; the ordinal
+    ///     sort is what keeps the pick identical across machines and cultures. Returns <c>null</c>
+    ///     when <paramref name="demoPath" /> is unset or resolves to nothing, and then
+    ///     <paramref name="problem" /> says why for every case except unset.
+    /// </summary>
+    public static string? ResolveDemoPathOverride(string? demoPath, string? pick, out string? problem)
+    {
+        problem = null;
+        if (string.IsNullOrWhiteSpace(demoPath))
+        {
+            return null;
+        }
+
+        if (File.Exists(demoPath))
+        {
+            return demoPath;
+        }
+
+        if (!Directory.Exists(demoPath))
+        {
+            problem = $"{DemoPathEnvVar} does not exist: {demoPath}";
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(pick))
+        {
+            string picked = Path.Combine(demoPath, pick);
+            if (File.Exists(picked))
+            {
+                return picked;
+            }
+
+            problem = $"{DemoPathPickEnvVar} '{pick}' is not a file under the {DemoPathEnvVar} folder: {demoPath}";
+            return null;
+        }
+
+        string reference = Path.Combine(demoPath, ReferenceDemoFileName);
+        if (File.Exists(reference))
+        {
+            return reference;
+        }
+
+        // The extension check is belt and braces over the "*.dem" pattern: the replays folder
+        // keeps a ".dem.info" beside every demo, and a pick that landed on one would parse as garbage.
+        string? first = Directory.EnumerateFiles(demoPath, "*.dem")
+            .Where(f => Path.GetExtension(f).Equals(".dem", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(Path.GetFileName, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (first is null)
+        {
+            problem = $"{DemoPathEnvVar} folder holds no .dem: {demoPath}";
+        }
+
+        return first;
+    }
+
+    /// <summary>
     ///     Locates a specific demo by filename. Used by oracle tests that need a deterministic
     ///     known-good demo (e.g. <c>furia-vs-vitality-m1-mirage.dem</c>). Search is recursive
     ///     under <c>TestData/</c> and the repo-root demo directories.
@@ -205,11 +297,26 @@ public static class DemoTestHelper
     ///     as the first line: any test that reaches the assertion stage is guaranteed to have a
     ///     real demo. TUnit catches the exception and reports the test under <c>skipped:</c>.
     /// </summary>
-    public static string RequireDemo() =>
-        FindDemoPath() ?? throw new SkipTestException(
-            "No CS2 demo available. Set the DEMO_PATH env var to a .dem file, " +
-            "place one under TestData/ next to the test assembly, " +
+    public static string RequireDemo()
+    {
+        string? path = FindDemoPath();
+        if (path is not null)
+        {
+            return path;
+        }
+
+        // Re-run the override alone for its diagnosis: a folder DEMO_PATH that resolved to
+        // nothing is a configuration mistake, and the skip reason is the only place it shows.
+        ResolveDemoPathOverride(
+            Environment.GetEnvironmentVariable(DemoPathEnvVar),
+            Environment.GetEnvironmentVariable(DemoPathPickEnvVar),
+            out string? problem);
+        string why = problem is null ? "" : $" ({problem})";
+        throw new SkipTestException(
+            $"No CS2 demo available{why}. Set the {DemoPathEnvVar} env var to a .dem file or a folder of them " +
+            $"(optionally {DemoPathPickEnvVar}=<filename>), place one under TestData/ next to the test assembly, " +
             "or under <repo-root>/demos/benchmarks/ or <repo-root>/demos/.");
+    }
 
     /// <summary>
     ///     Returns the path to a specific demo by filename or throws <see cref="SkipTestException" />.

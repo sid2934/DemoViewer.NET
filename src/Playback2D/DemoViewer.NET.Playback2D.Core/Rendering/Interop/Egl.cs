@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
 
 /// <summary>
-///     A hand-bound EGL, ~15 entry points wide (plans/C2-gpu-provider.md §2.3, C2.2).
+///     A hand-bound EGL, ~15 entry points wide.
 ///     <para>
 ///         <b>Why by hand.</b> Core references SkiaSharp and nothing else: that constraint is what lets
 ///         export, the CLI and CI render without a window, and it is enforced by
@@ -179,7 +179,7 @@ internal static class Egl
 
             // A 1x1 pbuffer, never surfaceless, even where surfaceless contexts exist: Skia renders into
             // its own FBO-backed surfaces regardless, so this is a formality that costs one pixel and
-            // buys compatibility with drivers that refuse EGL_NO_SURFACE (plan §2.9).
+            // buys compatibility with drivers that refuse EGL_NO_SURFACE.
             int[] surfaceAttributes = [EglWidth, 1, EglHeight, 1, EglNone];
             surface = egl.CreatePbufferSurface(display, config, surfaceAttributes);
             if (surface == IntPtr.Zero)

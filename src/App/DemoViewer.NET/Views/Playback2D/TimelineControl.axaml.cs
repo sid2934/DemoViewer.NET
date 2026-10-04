@@ -91,15 +91,87 @@ public partial class TimelineControl : UserControl
 
     private void OnScrubExited(object? sender, PointerEventArgs e) => ViewModel?.ClearHover();
 
-    // A round band seeks to its FIRST frame, not to the pixel under the cursor.
+    /// <summary>The band menu opened by the last right press, or null. For tests; the control keeps no other hold on it.</summary>
+    internal ContextMenu? LastBandMenu { get; private set; }
+
+    // A round band seeks to its FIRST frame, not to the pixel under the cursor. The press goes through
+    // the view-model so a tag band can also pick its tag for Label Mode. A right press is the band's menu
+    // instead, whatever the contributors offer for it, and does not seek.
     private void OnBandPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (ViewModel is not { } vm || sender is not Control { DataContext: TimelineBandViewModel band })
+        if (ViewModel is not { } vm || sender is not Control { DataContext: TimelineBandViewModel band } control)
         {
             return;
         }
 
-        vm.RequestSeekToFrame(band.StartFrameIndex);
+        if (e.GetCurrentPoint(control).Properties.IsRightButtonPressed)
+        {
+            IReadOnlyList<MenuEntry> entries = vm.MenuFor(band);
+            if (entries.Count > 0)
+            {
+                List<MenuItem> items = new(entries.Count);
+                foreach (MenuEntry entry in entries)
+                {
+                    MenuItem item = new() { Header = entry.Header };
+                    item.Click += (_, _) => entry.Run();
+                    items.Add(item);
+                }
+
+                ContextMenu menu = new() { ItemsSource = items };
+                LastBandMenu = menu;
+                menu.Open(control);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        vm.PressBand(band);
+        e.Handled = true;
+    }
+
+    // Empty lane: bands mark their own presses handled, so what reaches here missed every band.
+    private void OnLanePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Handled || ViewModel is not { } vm || sender is not Control lane
+            || !e.GetCurrentPoint(lane).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        vm.RequestLaneLabel(e.GetPosition(lane).X);
+        e.Handled = true;
+    }
+
+    private bool _draggingStart;
+
+    private void OnHandlePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control handle)
+        {
+            return;
+        }
+
+        _draggingStart = handle.Name == "EditStartHandle";
+        e.Pointer.Capture(handle);
+        e.Handled = true;
+    }
+
+    private void OnHandleMoved(object? sender, PointerEventArgs e)
+    {
+        if (ViewModel is not { } vm || sender is not Control handle || !ReferenceEquals(e.Pointer.Captured, handle)
+            || this.FindControl<Panel>("LaneHost") is not { } lane)
+        {
+            return;
+        }
+
+        vm.DragEditEdge(_draggingStart, e.GetPosition(lane).X);
+        e.Handled = true;
+    }
+
+    private void OnHandleReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        e.Pointer.Capture(null);
         e.Handled = true;
     }
 }

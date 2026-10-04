@@ -36,7 +36,8 @@ internal static class SyntheticParsedDemo
         string addons = "",
         // DemoProfile.Unknown is a static property, not a constant, so it cannot be a default
         // parameter value; null means "unknown" and is resolved below.
-        DemoProfile? profile = null) =>
+        DemoProfile? profile = null,
+        DecodePlan? plan = null) =>
         new(
             frames ?? [],
             allGameEvents ?? [],
@@ -54,5 +55,6 @@ internal static class SyntheticParsedDemo
             demoVersionName,
             demoVersionGuid,
             addons,
-            profile ?? DemoProfile.Unknown);
+            profile ?? DemoProfile.Unknown,
+            plan);
 }

@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The pure tick ↔ pixel mapping envelope drag math converts through. It is <b>not</b> the
-///     timeline's layout: A1's control lays out on the frame-index axis (correction 6), and this exists
+///     timeline's layout: the control lays out on the frame-index axis, and this exists
 ///     so an edit authored in ticks can be converted at the seam rather than in three places.
 /// </summary>
 public class TickAxisTests

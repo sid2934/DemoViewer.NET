@@ -1,0 +1,57 @@
+#region
+
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.ViewModels.Teams;
+using DemoViewer.NET.Views.Teams;
+
+#endregion
+
+namespace DemoViewer.NET.Modules.Teams;
+
+/// <summary>
+///     The Teams module: Team Identity's one home. Contributes the Teams view the Library tab hosts behind
+///     its Demos / Teams toggle (<c>"teams.browser"</c>) whose VM lists the teams clustering found, the rosters
+///     and members behind each, the demos per team, and the actions that make team truth the user's:
+///     rename, set as us, merge, split, start roster, hide, not a team, recompute, and the me accounts.
+///     <para>
+///         <b>The ids are persisted keys.</b> <c>TabId "teams.browser"</c> and <see cref="TabFeatureId" />
+///         key the user's per-tab session state and feature overrides; the header "Teams" is display text.
+///     </para>
+///     <para>
+///         <b>Wiring contract.</b> <see cref="WorkspaceTabDescriptor.ViewModelFactory" /> (lazy and
+///         retained), never <c>DataContext</c>. The VM is delegate-injected (the Highlights precedent):
+///         the composition root supplies the service and the cache; the module references no shell.
+///     </para>
+/// </summary>
+public sealed class TeamsModule : IWorkspaceModule
+{
+    /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
+    public const string TabFeatureId = "tab.teams";
+
+    private readonly Func<TeamsTabViewModel> _viewModelFactory;
+
+    /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
+    public TeamsModule(Func<TeamsTabViewModel> viewModelFactory)
+    {
+        ArgumentNullException.ThrowIfNull(viewModelFactory);
+        _viewModelFactory = viewModelFactory;
+    }
+
+    public string Id => "net.demoviewer.teams";
+    public string DisplayName => "Teams";
+    public Version ContractVersion => new(1, 0, 0);
+
+    public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
+    {
+        yield return new WorkspaceTabDescriptor
+        {
+            TabId = "teams.browser",
+            Header = "Teams",
+            Order = 0,
+            HostId = DemoViewer.NET.ViewModels.Library.LibraryTabViewModel.HostId,
+            FeatureId = TabFeatureId,
+            ViewModelFactory = _viewModelFactory,
+            ViewFactory = () => new TeamsTabView()
+        };
+    }
+}

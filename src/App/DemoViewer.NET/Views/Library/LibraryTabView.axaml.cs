@@ -1,7 +1,9 @@
 #region
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.ViewModels.Library;
@@ -42,6 +44,29 @@ public partial class LibraryTabView : UserControl
         if (sender is Control { Tag: DemoEntry entry } && DataContext is LibraryTabViewModel vm)
         {
             vm.OpenEntryCommand.Execute(entry);
+        }
+    }
+
+    // The badge chip's menu: the item's Tag is its LibraryBadgeMenuEntry, and the card's entry
+    // is reached by walking up from the item through the flyout's popup to the chip that opened it, whose
+    // DataContext is the DemoEntry. A presenter in between inherits DataContext by default, but a click
+    // never lands on nothing if one does not. IsReset means "go back to automatic".
+    private void OnBadgeLabelPicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: LibraryBadgeMenuEntry picked } item || DataContext is not LibraryTabViewModel vm)
+        {
+            return;
+        }
+
+        StyledElement? node = item;
+        while (node is not null && node.DataContext is not DemoEntry)
+        {
+            node = node.Parent;
+        }
+
+        if (node?.DataContext is DemoEntry entry)
+        {
+            vm.SetBadgeLabel(entry, picked.IsReset ? null : picked.Label);
         }
     }
 

@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     The process exit codes (C1 decision 7). The split that matters is <see cref="GateFailure" />
+///     The process exit codes. The split that matters is <see cref="GateFailure" />
 ///     versus everything else: CI treats 4 as "the change is bad" and every other non-zero code as
 ///     "the run is broken", so a missing asset root can never be mistaken for a pixel regression.
 /// </summary>

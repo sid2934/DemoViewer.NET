@@ -11,9 +11,9 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     B5-2's audit, as a test. Guards the two failure modes a feature id has once it is in the catalog:
-///     <b>declared but never consumed</b> (the phase that owns it forgot to gate anything), and
-///     <b>consumed in the wrong assembly</b>: design §7.7 requires Core / Pipeline / <c>dv2d</c> to read
+///     A manual audit, encoded as a test. Guards the two failure modes a feature id has once it is in the catalog:
+///     <b>declared but never consumed</b> (nothing gates on it), and
+///     <b>consumed in the wrong assembly</b>: Core / Pipeline / <c>dv2d</c> must read
 ///     no gates at all, because a headless renderer takes explicit flags and must produce the same picture
 ///     whatever a user's Settings screen says.
 ///     <para>
@@ -28,9 +28,15 @@ public class Playback2DFeatureWiringTests
     {
         string appRoot = Path.Combine(RepoRoot(), "src", "App", "DemoViewer.NET");
         string catalogPath = Path.Combine(appRoot, "Features", "FeatureCatalog.cs");
+        // The compiled-in extensions' production sources: a pack reads the ids of the tabs and
+        // features it contributes. Their test and capture projects are not production and do not count.
+        string extensionsRoot = Path.Combine(RepoRoot(), "src", "Extensions");
 
         string[] sources = Directory
             .EnumerateFiles(appRoot, "*.*", SearchOption.AllDirectories)
+            .Concat(Directory.Exists(extensionsRoot)
+                ? Directory.EnumerateFiles(extensionsRoot, "*.*", SearchOption.AllDirectories).Where(IsExtensionProductionSource)
+                : [])
             .Where(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
                         || p.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase))
             .Where(p => !string.Equals(p, catalogPath, StringComparison.OrdinalIgnoreCase))
@@ -52,8 +58,16 @@ public class Playback2DFeatureWiringTests
                      + "the app does not change");
     }
 
+    // No build output, and no segment that names a test, test-support or capture project.
+    private static bool IsExtensionProductionSource(string path) =>
+        path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).All(segment =>
+            segment is not ("bin" or "obj")
+            && !segment.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
+            && !segment.EndsWith(".TestSupport", StringComparison.OrdinalIgnoreCase)
+            && !segment.EndsWith(".UiCapture", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
-    ///     The single <c>!OperatingSystem.IsBrowser()</c> site for module ids (B5 D4). Export is in it;
+    ///     The single <c>!OperatingSystem.IsBrowser()</c> site for module ids. Export is in it;
     ///     nothing else is, because nothing else needs a filesystem or a subprocess.
     /// </summary>
     [Test]
@@ -69,7 +83,7 @@ public class Playback2DFeatureWiringTests
     }
 
     /// <summary>
-    ///     Design §7.7: the render core, the pipeline and the CLI take explicit flags, never gates. A
+    ///     The render core, the pipeline and the CLI take explicit flags, never gates. A
     ///     <c>dv2d render</c> whose output depended on the invoking user's Settings would be unusable as a
     ///     golden source.
     /// </summary>
@@ -83,7 +97,7 @@ public class Playback2DFeatureWiringTests
             Path.Combine(RepoRoot(), "tools", "DemoViewer.NET.Playback2D.Cli")
         ];
 
-        // "playback2d.annotations" is deliberately absent: registry §3.3 gives the ink LAYER that exact
+        // "playback2d.annotations" is deliberately absent: the layer registry gives the ink LAYER that exact
         // id, so the literal legitimately appears in Core as SceneLayerIds.Annotations. The two registries
         // collide on one string by coincidence, which AnnotationTrack's own doc comment records: banning
         // the literal would flag the layer, not a gate. The GATING TYPES below are the real test: a
@@ -120,11 +134,11 @@ public class Playback2DFeatureWiringTests
         }
 
         await Assert.That(string.Join("; ", hits)).IsEqualTo("")
-            .Because("design §7.7: the CLI takes explicit flags instead of reading a user's feature gates");
+            .Because("the CLI takes explicit flags instead of reading a user's feature gates");
     }
 
     /// <summary>
-    ///     The one string that is BOTH a feature id (registry §3.10) and a layer id (§3.3). Pinned because
+    ///     The one string that is BOTH a feature id and a layer id. Pinned because
     ///     the collision is easy to read as a mistake and "fix", and because the previous test has to
     ///     exempt it, so the exemption needs a reason that is itself under test. The annotation TIMELINE
     ///     track deliberately does not join the collision: its id is the bare word <c>annotation</c>.
@@ -134,7 +148,7 @@ public class Playback2DFeatureWiringTests
     {
         await Assert.That(Playback2DFeatureCatalogTests.Ids.Contains(SceneLayerIds.Annotations,
                 StringComparer.Ordinal)).IsTrue()
-            .Because("§3.3's layer id and §3.10's feature id are deliberately the same string");
+            .Because("the layer id and the feature id are deliberately the same string");
 
         await Assert.That(Playback2DFeatureCatalogTests.Ids.Contains(AnnotationTrack.TrackId,
                 StringComparer.Ordinal)).IsFalse()

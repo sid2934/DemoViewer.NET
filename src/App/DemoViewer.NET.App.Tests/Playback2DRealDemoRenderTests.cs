@@ -117,7 +117,7 @@ public class Playback2DRealDemoRenderTests
         int nonBg = 0;
         await HeadlessSession.RunOnUi(async () =>
         {
-            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // Carried-forward suite: pin the LEGACY surface. The host mounts the surface in
             // code, so a view built without this would get the v2 host.
             Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "demo": {
+    "sha256": "",
+    "fileName": "strat-mirage-exec-mid.scene.json",
+    "sizeBytes": 0
+  },
+  "clock": {
+    "kind": "dv-strat-clock",
+    "tickRate": 64,
+    "frameCount": 3521,
+    "firstTick": 0,
+    "lastTick": 3520
+  },
+  "elements": [
+    {
+      "id": "9a0b0000-0000-4000-8000-0000005a0000",
+      "kind": "Arrow",
+      "colorArgb": 4294951175,
+      "widthWorld": 3,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -256,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fromTick": 1600,
+      "untilTick": 2495,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        420,
+        -1750,
+        0.5,
+        -900,
+        -1600,
+        0.5
+      ]
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-0000005a0003",
+      "kind": "Arrow",
+      "colorArgb": 4283417591,
+      "widthWorld": 3,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -256,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fromTick": 2496,
+      "untilTick": 3199,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        380,
+        -1700,
+        0.5,
+        180,
+        -1900,
+        0.5
+      ]
+    },
+    {
+      "id": "9a0b0000-0000-4000-8000-0000005a0002",
+      "kind": "Text",
+      "colorArgb": 4294951175,
+      "widthWorld": 6,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -256,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fromTick": 3200,
+      "untilTick": 3519,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        -600,
+        -1400,
+        0.5
+      ],
+      "text": "swing wide"
+    }
+  ]
+}

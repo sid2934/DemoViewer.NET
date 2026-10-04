@@ -1,0 +1,94 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
+             xmlns:ub="using:DemoViewer.NET.ViewModels.UtilityBook"
+             xmlns:utility="using:DemoViewer.NET.Modules.UtilityBook"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Views.StratBook.LineupPickerView"
+             x:DataType="vm:LineupPickerViewModel">
+
+    <!--
+      THE LINEUP PICKER: the Utility Book's map, locked to the strat's map and one utility kind. Click where
+      the grenade lands, then where it is thrown from (the map or the list); the card shows the position's
+      style, counts and clip. Use this lineup writes kind, lineup and technique as one undo entry; Cancel
+      and Escape write nothing.
+
+      Colour: every value is a {DynamicResource} token.
+    -->
+
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+    </UserControl.KeyBindings>
+
+    <Border Background="{DynamicResource CardBg}"
+            BorderBrush="{DynamicResource BorderSubtle}"
+            BorderThickness="1" CornerRadius="6" Padding="12 10">
+        <DockPanel>
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0 0 0 8">
+                <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                <ComboBox Grid.Column="1" x:Name="PickerKind" ItemsSource="{x:Static vm:LineupPickerViewModel.Kinds}"
+                          SelectedItem="{Binding Kind}" FontSize="12" MinWidth="110" ToolTip.Tip="What is thrown" />
+                <CheckBox Grid.Column="2" IsChecked="{Binding Map.ShowSingleThrows}" Content="positions thrown once"
+                          FontSize="12" VerticalAlignment="Center"
+                          ToolTip.Tip="A lineup is a position thrown from twice or more; single throws are hidden by default" />
+            </Grid>
+
+            <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 8 0 0">
+                <TextBlock Grid.Column="0" Text="{Binding HintLine}" FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Cancel" Classes="ghost" FontSize="12" Padding="12 5" Command="{Binding CancelCommand}"
+                            ToolTip.Tip="Close without changing the step (Escape)" />
+                    <Button x:Name="ConfirmPick" Content="Use this lineup" Classes="primary" Command="{Binding ConfirmCommand}"
+                            ToolTip.Tip="Write the kind, the lineup and how it is thrown to the step, as one undo" />
+                </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,300" ColumnSpacing="10">
+                <Border Grid.Column="0" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6"
+                        ClipToBounds="True">
+                    <Panel>
+                        <utility:UtilityMapHost x:Name="PickerMap" DataContext="{Binding Map}" />
+                        <TextBlock Text="no map art for this map on this host" FontSize="12" Foreground="{DynamicResource TextMid}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding Map.HasNoMapArt}" />
+                    </Panel>
+                </Border>
+
+                <DockPanel Grid.Column="1">
+                    <TextBlock DockPanel.Dock="Top" Text="Thrown from" Classes="col-label" FontSize="11"
+                               Foreground="{DynamicResource TextCardHeader}" Margin="0 0 0 4" />
+                    <TextBlock DockPanel.Dock="Top" Text="click a landing icon on the map" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasPositions}" />
+                    <ListBox x:Name="PickerPositions" DockPanel.Dock="Top" ItemsSource="{Binding Positions}"
+                             SelectedItem="{Binding SelectedPosition}" Background="Transparent" MaxHeight="220"
+                             IsVisible="{Binding HasPositions}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LineupPickerPosition">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                                    <TextBlock Text="{Binding CountText}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- The selected position's card, the Utility Book's own. -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0 8 0 0">
+                        <StackPanel Spacing="6" DataContext="{Binding Detail}" x:DataType="ub:LineupDetail"
+                                    IsVisible="{Binding $parent[UserControl].((vm:LineupPickerViewModel)DataContext).CanConfirm, FallbackValue=False}">
+                            <TextBlock Text="{Binding StyleLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <TextBlock Text="{Binding UsedLine}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding TechniquesLine}" IsVisible="{Binding HasTechniques}" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <controls:GifView Source="{Binding ClipPath}" IsVisible="{Binding HasClip}" MaxHeight="200"
+                                              HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding ClipLine}" IsVisible="{Binding HasClipLine}" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
+        </DockPanel>
+    </Border>
+</UserControl>

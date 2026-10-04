@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 ///     player-Z histogram from the floor work. Skips if the dust2 demo or baked collision is absent.
 ///     <para>
 ///         The ray-down caster here is a self-contained brute-force primitive (XY-bbox prune +
-///         Möller-Trumbore): intentionally throwaway for the gate; Phase 1 promotes a BVH-backed engine.
+///         Möller-Trumbore): intentionally throwaway for the gate; a BVH-backed engine replaces it later.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -192,7 +192,7 @@ public class VisibilityFrameGateProbe
 ///     Throwaway brute-force collision triangle soup for the Phase-G gate: loads a baker
 ///     <c>collision.tris</c> blob, gzipped or not, and answers "nearest triangle straight down from
 ///     here". XY-bbox prune keeps 435k triangles tractable for a few hundred sample points; a
-///     BVH-backed engine replaces this in Phase 1.
+///     BVH-backed engine replaces this later.
 /// </summary>
 internal sealed class TriMesh
 {

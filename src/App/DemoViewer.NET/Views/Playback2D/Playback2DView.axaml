@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
+             xmlns:ext="using:DemoViewer.NET.Extensions"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
@@ -39,7 +40,7 @@
         </Style>
 
         <!-- CS2 live-sync HUD indicator dot. The walled-off Pb2d sibling of the
-             app-chrome Ellipse.dot.* (design-system D21 — HUD palette, NOT the chrome ramp): the colour is
+             app-chrome Ellipse.dot.* (HUD palette, NOT the chrome ramp): the colour is
              a bound state→class selector resolving a Pb2d token (Good=Pb2dPositive, Working=Pb2dTextBright
              neutral, Degraded=Pb2dTeamT caution-equivalent, Error=Pb2dHeadshot), so it re-themes live. Solid
              states set Fill (:not(.hollow)); the inferred pause sets Stroke (.hollow, transparent Fill). -->
@@ -98,7 +99,7 @@
         <!-- Left: the docked viewport toolbar, the custom-drawn viewport, and the docked timeline. -->
         <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
 
-            <!-- ── The docked viewport toolbar (D4) ───────────────────────────────────────────────────
+            <!-- ── The docked viewport toolbar ────────────────────────────────────────────────────────
                  Its own Auto row at the TOP edge, structurally the mirror of TimelineControl's at the
                  bottom, and the answer to the reported "the toolbars are always displayed, taking up
                  screen area / having them floating feels strange". The tool row and the overlay toggles
@@ -123,7 +124,7 @@
                 <StackPanel Spacing="4">
 
                     <!-- The header. LastChildFill=False and the right-hand cluster declared FIRST, which
-                         is D5's timeline-footer reservation trick: a DockPanel measures each child against
+                         is the timeline-footer reservation trick: a DockPanel measures each child against
                          what is still unclaimed, so declaring first makes the reservation structural and
                          these three can never be arranged past the column's right edge (where the splitter
                          and the roster panel, later siblings, would take both the paint and the clicks).
@@ -149,10 +150,30 @@
 
                         <!-- Six check boxes that are READ rarely and CHANGED rarely were the widest thing
                              in the column (485 px of it) and were on screen permanently. One toggle is the
-                             overflow-▾ shape design-system D35 prescribes first; it is INLINE rather than a
+                             overflow-▾ shape prescribed elsewhere first; it is INLINE rather than a
                              flyout so the toggles stay inside the viewport column, where the layout suite
                              can still measure and hit-test them, and inside the keymap's tunnel, where
                              Space still means play. -->
+                        <!-- The contributions' mode toggles (Surface.ModeToggles): the Strat Book's Review mode, whose
+                             panels, lanes and tagging keys come and go with it. Each hides while its mode has
+                             nothing to show; none exist with the extension off. -->
+                        <ItemsControl x:Name="ModeToggles" DockPanel.Dock="Right" ItemsSource="{Binding Surface.ModeToggles}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="ext:ModeToggle">
+                                    <ToggleButton Focusable="False" Padding="8,2" FontSize="11" Margin="6,0,0,0"
+                                                  Content="{Binding Label}"
+                                                  IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                                  IsVisible="{Binding IsAvailable}"
+                                                  ToolTip.Tip="{Binding Tooltip}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
                         <ToggleButton x:Name="OverlaysToggle" DockPanel.Dock="Right" Focusable="False"
                                       Padding="8,2" FontSize="11" Content="Overlays ▾"
                                       IsChecked="{Binding IsOverlayBarOpen, Mode=TwoWay}"
@@ -166,7 +187,7 @@
                                 ToolTip.Tip="Collapse the viewport toolbar" />
                     </DockPanel>
 
-                    <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off
+                    <!-- Overlay-visibility toggles: each viewport sub-overlay can be turned off
                          independently. A WrapPanel, not a row: the six of them measure 424 px of the
                          480 px this toolbar has inside its padding at the 820 px floor. That fits — by
                          56 px, which is one longer label or one larger system font away from running
@@ -190,10 +211,15 @@
                                   ToolTip.Tip="Kill feed" />
                         <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
                                   ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
+                        <CheckBox Content="Zones" FontSize="11" IsChecked="{Binding ShowZones}"
+                                  ToolTip.Tip="Place outlines and callouts from the map's baked zones, plus your own zones from the config folder's zones/&lt;map&gt;.zones.json" />
+                        <Button Content="Reload zones" FontSize="11" Padding="6,1"
+                                Command="{Binding ReloadZonesCommand}"
+                                ToolTip.Tip="Re-read the zones file and your overlay without reloading the map" />
                     </WrapPanel>
 
-                    <!-- Annotation toolbar (B2), on its OWN line rather than sharing the header's fill
-                         slot. Its tool row measures ~970 px after D2 — one line at 1400, three at the
+                    <!-- Annotation toolbar, on its OWN line rather than sharing the header's fill
+                         slot. Its tool row measures ~970 px, one line at 1400, three at the
                          820 px floor's 480 px. Sharing the header's fill slot would leave it ~250 px and
                          roughly twice as many rows — so the separate header line costs one row at 1400
                          and saves more than one at 820, which is the width that has none to spare.
@@ -202,7 +228,7 @@
                          slot to the stack.
 
                          AnnotationsPanelViewModel.IsEnabled is now the FEATURE and the mounted SURFACE'S
-                         CAPABILITY, not the feature alone (D6 finding 12). Bound to the gate by itself,
+                         CAPABILITY, not the feature alone. Bound to the gate by itself,
                          this row rendered in full under DV_PLAYBACK2D_RENDERER=legacy over a viewport
                          with no router — every button inert, and picking one of them took Space and
                          Escape away from play/pause and clear-follow with no visible cause. -->
@@ -217,6 +243,17 @@
                  the pre-v2 Playback2DViewport behind the DV_PLAYBACK2D_RENDERER escape hatch. Both
                  satisfy IPlayback2DSurface, so everything below drives either one. -->
             <ContentControl Grid.Row="1" x:Name="ViewportHost" />
+
+            <!-- The text tool's editor. Hidden until the surface places a label,
+                 then put over the label's anchor in the surface's own coordinates. Enter commits, Esc
+                 cancels, and losing focus commits, so a click anywhere else keeps what was typed. The
+                 canvas has no background, so it takes no pointer input except on the box itself. -->
+            <Canvas Grid.Row="1" x:Name="TextEditorLayer">
+                <TextBox x:Name="AnnotationTextEditor" IsVisible="False" MinWidth="120"
+                         AcceptsReturn="False" Padding="4,1" MinHeight="0"
+                         Background="{DynamicResource Pb2dOverlayBg}"
+                         PlaceholderText="Label text, Enter to place" />
+            </Canvas>
 
             <!-- The collapsed toolbar's only trace: a 26x17 chevron in the canvas's top-left corner,
                  mounted BY the collapsed state rather than by the toolbar it restores — which is what
@@ -237,7 +274,7 @@
                     Margin="10" Padding="8,4"
                     Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                    <!-- Camera-mode selector (#2): left-click the main button = apply-once Fit; the dropdown
+                    <!-- Camera-mode selector: left-click the main button = apply-once Fit; the dropdown
                          caret (or a right-click on the button) opens the MODE menu. The active mode shows
                          next to it; Follow Player expands to a per-player submenu. -->
                     <SplitButton x:Name="ModeButton" Content="Fit" Padding="10,2" Click="OnFitClick">
@@ -256,6 +293,13 @@
                                 </MenuItem>
                                 <Separator />
                                 <MenuItem x:Name="FollowMenuItem" Header="Follow Player" />
+                                <!-- The contributions' toolbar items (Surface.ToolbarItems), e.g. "Rounds like
+                                     this": rebuilt in code-behind on every open (OnModeMenuOpened), after this
+                                     separator; none while the owning pack is off. IsVisible is set there too,
+                                     not bound here: this separator lives inside the flyout's own popup content,
+                                     which is not reliably in the visual tree for a data binding before the
+                                     flyout has opened once. -->
+                                <Separator x:Name="ToolbarItemsSeparator" />
                             </MenuFlyout>
                         </SplitButton.Flyout>
                     </SplitButton>
@@ -267,7 +311,7 @@
                                IsVisible="False" Foreground="{DynamicResource Pb2dMapApprox}"
                                FontFamily="Consolas,Menlo,monospace" FontSize="10"
                                ToolTip.Tip="Map mode fits the all-demo observed player positions — there is no real radar X/Y metadata yet." />
-                    <!-- Module forward-nav (Phase E): jump between kills on the shared clock. Shown only when
+                    <!-- Module forward-nav: jump between kills on the shared clock. Shown only when
                          the demo carries player_death events (HasKillEvents). -->
                     <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
                             IsVisible="{Binding HasKillEvents}" />
@@ -279,10 +323,35 @@
                             Command="{Binding NextKillCommand}"
                             IsVisible="{Binding HasKillEvents}"
                             ToolTip.Tip="Jump to the next kill (player_death)" />
+                    <!-- The contributions' toolbar items (Surface.ToolbarItems): "Find rounds like this" is the
+                         Strat Book's (Same funnel as Ctrl+F through Surface.TryExecute; the overflow menu above
+                         lists the same items). None while the owning pack is off, or the pack has nothing to show. -->
+                    <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
+                            IsVisible="{Binding Surface.HasToolbarItems}" />
+                    <ItemsControl x:Name="ToolbarItemsList" ItemsSource="{Binding Surface.ToolbarItems}"
+                                  IsVisible="{Binding Surface.HasToolbarItems}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="10" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="ext:ToolbarItem">
+                                <Button Padding="8,2" VerticalAlignment="Center"
+                                        Command="{Binding Command}"
+                                        ToolTip.Tip="{Binding Tooltip}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding Icon}" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <TextBlock Text="{Binding Label}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 
-            <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed (A4).
+            <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed.
                  The whole stack is display-only (IsHitTestVisible=False) so it never eats viewport
                  pan/zoom gestures — the shell status chip is the live-sync control centre. -->
             <StackPanel Grid.Row="1" x:Name="HudStack"
@@ -308,12 +377,12 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Kill feed (A4): recent kills. -->
+                <!-- Kill feed: recent kills. -->
                 <ItemsControl ItemsSource="{Binding KillFeed}"
                               HorizontalAlignment="Right"
                               IsVisible="{Binding ShowKillFeed}">
                     <ItemsControl.ItemTemplate>
-                        <!-- Bound straight to the Core row record (B4 D5): the App's parallel KillFeedEntry
+                        <!-- Bound straight to the Core row record: the App's parallel KillFeedEntry
                              is gone, so this feed and the exported hud.killfeed layer read the same rows
                              produced by the same KillFeedTimeline.Window call. -->
                         <DataTemplate x:DataType="scene:KillFeedRow">
@@ -388,7 +457,7 @@
                 </ItemsControl>
             </StackPanel>
 
-            <!-- Level strip (B3). Right-CENTRE gutter: the canvas's own corners are taken (the restore
+            <!-- Level strip. Right-CENTRE gutter: the canvas's own corners are taken (the restore
                  chevron top-left when the toolbar is folded, live-sync + kill feed top-right, transport
                  bottom-left, timeline the whole bottom edge), and the vertical margins clear the kill
                  feed's growth downward and the transport bar's growth upward without either needing to
@@ -460,7 +529,7 @@
 
             <!-- The export pane. Not a modal: an export runs for minutes, so it hands off and closes,
                  and progress lives on the status chip (the same shape the reel job uses). Its ENTRY
-                 point moved into the docked toolbar's header (D4); the button that used to float in this
+                 point moved into the docked toolbar's header; the button that used to float in this
                  corner is gone. Hidden — not disabled — when the feature is off, when no demo is loaded,
                  or on a build with no export host (browser, tests, designer). -->
             <Border Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Stretch"
@@ -477,6 +546,23 @@
                 </Grid>
             </Border>
 
+            <!-- The contributed side pane (IPlaybackSurface.AddPane at PanePlacement.Side): one open at a time, in
+                 the export pane's place and shape; opening either closes the other. The content is whatever
+                 view model the open pane built, so its view comes from the ViewLocator convention. -->
+            <Border Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                    Width="360" Margin="0" BorderThickness="1,0,0,0"
+                    Background="{DynamicResource Pb2dPanelBg}"
+                    BorderBrush="{DynamicResource Pb2dGridSplitter}"
+                    IsVisible="{Binding Surface.SidePane, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid RowDefinitions="*,Auto">
+                    <ScrollViewer Grid.Row="0">
+                        <ContentControl Content="{Binding Surface.SidePane}" />
+                    </ScrollViewer>
+                    <Button Grid.Row="1" Content="Close" Margin="12,0,12,12" HorizontalAlignment="Right"
+                            Command="{Binding Surface.CloseSidePaneCommand}" />
+                </Grid>
+            </Border>
+
             <!-- The playback timeline (feature-gated). The VM folds the gate AND has-demo into IsVisible;
                  the row is Auto-sized, so an off gate leaves no layout hole — the precedent the docked
                  toolbar's own Auto row above rests on. -->
@@ -486,8 +572,10 @@
 
         <GridSplitter Grid.Column="1" Background="{DynamicResource Pb2dGridSplitter}" Width="4" />
 
-        <!-- Right: game-info panel over the attributes panel. -->
-        <Grid Grid.Column="2" RowDefinitions="Auto,*" Background="{DynamicResource Pb2dPanelBg}">
+        <!-- Right: game info, the player cards, and in Review mode the review panels. Outside Review mode the
+             cards take the column; in it they collapse to a strip and the panels take the rest. The code-behind
+             swaps the row sizes on IsCardStrip. -->
+        <Grid Grid.Column="2" x:Name="RightColumn" RowDefinitions="Auto,*,Auto" Background="{DynamicResource Pb2dPanelBg}">
             <!-- Game-info: score / round / phase / bomb / time. -->
             <Border Grid.Row="0" Background="{DynamicResource Pb2dInfoBg}" Padding="10,8" Margin="0,0,0,2">
                 <StackPanel Spacing="6">
@@ -519,7 +607,7 @@
                         </TextBlock>
                         <TextBlock Text="{Binding GameInfo.BombState}" Foreground="{DynamicResource Pb2dBomb}"
                                    FontFamily="Consolas,Menlo,monospace" FontSize="11" />
-                        <!-- Second timer (#5): defuse-completion countdown during a defuse-in-progress,
+                        <!-- Second timer: defuse-completion countdown during a defuse-in-progress,
                              next to the main C4 detonation countdown (the defuse-vs-detonation race). -->
                         <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                    IsVisible="{Binding GameInfo.DefuseInProgress}"
@@ -531,13 +619,26 @@
                 </StackPanel>
             </Border>
 
-            <!-- Attributes panel. -->
+            <!-- The packs' right-column contributions (Surface.Panels), in order, each shown while its own gate
+                 and mode are on. The Strat Book's are the Tag Palette, the review panel and the Suggestion
+                 Queue under its Review mode; the tab knows none of them. -->
+            <ScrollViewer Grid.Row="2" IsVisible="{Binding IsCardStrip}" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="ReviewPanels" ItemsSource="{Binding Surface.Panels}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:Playback2DPanel">
+                            <ContentControl Margin="6,0,6,0" Content="{Binding View}" IsVisible="{Binding IsShown}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Attributes panel: the full player cards, or in Review mode a compact strip of the same list. -->
             <ScrollViewer Grid.Row="1" Padding="6">
                 <!-- Selection surface: picking a card follows that player in the 2D camera AND relays the
                      pick down the existing NotifySpectateTarget -> SyncStateObserver -> SetDesiredSpectator
                      chain. The container chrome is stripped to nothing so the card Border below renders
                      exactly as it did under the old ItemsControl. -->
-                <ListBox ItemsSource="{Binding Attributes}"
+                <ListBox x:Name="PlayerCards" ItemsSource="{Binding Attributes}"
                          SelectedItem="{Binding SelectedPlayer, Mode=TwoWay}"
                          SelectionMode="Single"
                          IsEnabled="{Binding IsFollowEnabled}"
@@ -563,10 +664,33 @@
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerAttributes">
+                            <Panel IsVisible="{Binding InMatch}">
+                            <!-- The strip: one line per player, the same selection surface as the card. -->
+                            <Border Margin="0,0,0,2" Padding="6,2" CornerRadius="3"
+                                    Background="{DynamicResource Pb2dCardBg}"
+                                    Classes="playerCard playerStrip" Classes.followed="{Binding IsFollowed}"
+                                    Opacity="{Binding RowOpacity}"
+                                    IsVisible="{Binding $parent[ListBox].((vm:Playback2DTabViewModel)DataContext).IsCardStrip}">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" CornerRadius="3" Padding="4,0" Margin="0,0,6,0"
+                                            Classes="teamChip" Classes.teamT="{Binding IsT}" Classes.teamCt="{Binding IsCt}">
+                                        <TextBlock Text="{Binding TeamLabel}" FontSize="9" FontWeight="Bold"
+                                                   Foreground="{DynamicResource Pb2dTextOnTeam}" />
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Right" FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                               VerticalAlignment="Center" Margin="6,0,0,0">
+                                        <Run Text="{Binding Health}" Foreground="{DynamicResource Pb2dHealth}" />
+                                        <Run Text=" $" Foreground="{DynamicResource Pb2dTextDim}" />
+                                        <Run Text="{Binding Cash}" Foreground="{DynamicResource Pb2dPositive}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Pb2dTextBrightest}" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </Border>
                             <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="4"
                                     Background="{DynamicResource Pb2dCardBg}"
                                     Classes="playerCard" Classes.followed="{Binding IsFollowed}"
-                                    IsVisible="{Binding InMatch}"
+                                    IsVisible="{Binding !$parent[ListBox].((vm:Playback2DTabViewModel)DataContext).IsCardStrip}"
                                     Opacity="{Binding RowOpacity}">
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
                                     <!-- Header: team chip + name. -->
@@ -662,6 +786,7 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
+                            </Panel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
@@ -19,8 +20,26 @@ public sealed class RoundTrack : ITimelineTrack
     /// <summary>The event that opens a round. The whole band layout keys off it.</summary>
     public const string FreezeEndEvent = "round_freeze_end";
 
-    /// <summary>The event carrying the winning team, used only for the band tint.</summary>
+    /// <summary>
+    ///     The event carrying the winning team, used only for the band tint when no round facts are
+    ///     loaded. A Valve matchmaking demo never carries it, which is why <see cref="Facts" /> exists.
+    /// </summary>
     public const string RoundEndEvent = "round_end";
+
+    private IReadOnlyList<RoundFacts>? _facts;
+
+    /// <summary>
+    ///     The open demo's cached round facts, or null. When rows are present the winner tint reads
+    ///     <see cref="RoundFacts.WinnerSide" /> per round number and the <c>round_end</c> read is skipped;
+    ///     without them the band layout and tint behave exactly as before. Set by the host on resync and
+    ///     when the evaluator rewrites the demo's rows; <see cref="RefreshTints" /> asks the timeline to
+    ///     re-query.
+    /// </summary>
+    public IReadOnlyList<RoundFacts>? Facts
+    {
+        get => _facts;
+        set => _facts = value is { Count: > 0 } ? value : null;
+    }
 
     // Low-alpha team washes for the won-by tint, mirroring the Pb2dTeamT / Pb2dTeamCt HUD tokens. A track
     // may not reach for a brush (this folder is renderer-independent), so it hands back ARGB and the host
@@ -90,16 +109,33 @@ public sealed class RoundTrack : ITimelineTrack
     public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => Array.Empty<TimelineMarker>();
 
     /// <inheritdoc />
-    // Never raised: round data is fixed after parse. The member exists so AnnotationTrack, whose content
-    // DOES change, can implement the same interface.
-#pragma warning disable CS0067
+    // Raised only by RefreshTints: the band LAYOUT is fixed after parse, but the tint can arrive later,
+    // when the round facts evaluator finishes on the open demo.
     public event Action? MarkersChanged;
-#pragma warning restore CS0067
 
-    // Matches each round_end to the band containing it and repaints that band with the winner's wash. A
-    // demo without round_end (truncated / warmup-only) simply keeps every band neutral.
-    private static void ApplyWinnerTints(ITimelineData data, List<TimelineBand> bands)
+    /// <summary>Asks the timeline to re-query this track after <see cref="Facts" /> changed.</summary>
+    public void RefreshTints() => MarkersChanged?.Invoke();
+
+    // Repaints each band with its winner's wash. Round facts first, by round number (the band label is
+    // the same 1-based ordinal); otherwise each round_end is matched to the band containing it. A demo
+    // with neither (truncated / warmup-only, or a Valve demo whose facts have not been written yet)
+    // simply keeps every band neutral.
+    private void ApplyWinnerTints(ITimelineData data, List<TimelineBand> bands)
     {
+        if (_facts is { } facts)
+        {
+            foreach (RoundFacts round in facts)
+            {
+                int index = IndexOfBandLabelled(bands, round.Number);
+                if (index >= 0)
+                {
+                    Tint(bands, index, round.WinnerSide);
+                }
+            }
+
+            return;
+        }
+
         foreach (TimelineEventRecord record in data.EventsOfType(RoundEndEvent))
         {
             int index = IndexOfBandContaining(bands, record.FrameIndex);
@@ -114,25 +150,44 @@ public sealed class RoundTrack : ITimelineTrack
                 continue;
             }
 
-            uint tint = team switch
-            {
-                TeamT => TintTeamT,
-                TeamCt => TintTeamCt,
-                _ => TintNeutral
-            };
-
-            if (tint == TintNeutral)
-            {
-                continue;
-            }
-
-            TimelineBand band = bands[index];
-            bands[index] = band with
-            {
-                Argb = tint,
-                Tooltip = $"{band.Tooltip} · won by {(team == TeamT ? "T" : "CT")}"
-            };
+            Tint(bands, index, team);
         }
+    }
+
+    private static void Tint(List<TimelineBand> bands, int index, int team)
+    {
+        uint tint = team switch
+        {
+            TeamT => TintTeamT,
+            TeamCt => TintTeamCt,
+            _ => TintNeutral
+        };
+
+        if (tint == TintNeutral)
+        {
+            return;
+        }
+
+        TimelineBand band = bands[index];
+        bands[index] = band with
+        {
+            Argb = tint,
+            Tooltip = $"{band.Tooltip} · won by {(team == TeamT ? "T" : "CT")}"
+        };
+    }
+
+    private static int IndexOfBandLabelled(List<TimelineBand> bands, int roundNumber)
+    {
+        string label = roundNumber.ToString(CultureInfo.InvariantCulture);
+        for (int i = 0; i < bands.Count; i++)
+        {
+            if (string.Equals(bands[i].Label, label, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static int IndexOfBandContaining(List<TimelineBand> bands, int frameIndex)

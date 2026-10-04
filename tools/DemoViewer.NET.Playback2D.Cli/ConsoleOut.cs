@@ -9,7 +9,7 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     The tool's output discipline (C1 decision 8). With <c>--json</c>,
+///     The tool's output discipline. With <c>--json</c>,
 ///     <b>
 ///         stdout carries exactly one
 ///         JSON object

@@ -8,10 +8,13 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.PlayerStats;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -23,6 +26,7 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
@@ -33,6 +37,8 @@ using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -50,7 +56,8 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     returns. The viewport redraw is coalesced to the render frame, driven by
 ///     <see cref="FrameUpdated" />.
 /// </summary>
-public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel, IDisposable
+public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel, ISceneFrameHost,
+    IDisposable
 {
     // The inventory array slots scanned per player: the dotted bracket-indexed paths are built ONCE
     // here, not per-frame, so the per-tick grenade loop allocates no path strings.
@@ -61,7 +68,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private const int KillFeedWindowSeconds = KillFeedTimeline.DefaultWindowSeconds;
     private const int MaxKillFeedRows = KillFeedTimeline.DefaultMaxRows;
 
-    // The module's own "events of interest" for forward-nav (Phase E): a 2D combat viewer scrubs between
+    // The module's own "events of interest" for forward-nav: a 2D combat viewer scrubs between
     // kills. The filter is matched against the host's demo-derived event set, so the buttons only show when
     // the demo actually carries player_death (asset/demo-independent, no hardcoded assumption it exists).
     private const string KillEventName = "player_death";
@@ -92,7 +99,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // The WHOLE demo's kills, pre-built ONCE at load from IModuleContext.GetEventTimeline("player_death")
     // (decoupling display from the push cadence, no kill lost to a render-skipped frame). Rebuilt if the
-    // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
+    // roster arrives after activation (names depend on it). _killWindow is reusable render scratch.
     private readonly List<KillFeedRow> _allKills = new();
 
     private readonly AnnotationSessionController _annotationController;
@@ -117,6 +124,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
     // through the same IsAvailable the timeline band asks: one answer, not two that can disagree.
     private readonly RoundTrack _roundTrack = new();
+
+    // Cached round facts, the winner tint's source on a Valve demo (which carries no round_end). Resolved
+    // ambiently like the settings: a headless test builds this with no container and gets null, and the
+    // track then behaves exactly as it did before the facts existed.
+    private IRoundFactsSource? _roundFacts;
     private readonly Dictionary<int, ulong> _steamIdBySlot = new();
 
     // What the profile was last composed from. SettingsViewModel spells this guard `_writing` around its
@@ -130,6 +142,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
     [ObservableProperty]
     private Playback2DExportDialogViewModel? _exportDialog;
+
+    // The packs' contributions, attached on the first activation (the context arrives there) and
+    // detached on dispose.
+    private IDisposable? _contributionBinding;
 
     // ── Video export ───────────────────────────────────────────────────────────
     // Everything reusable is in Pipeline/Core; what is here is the composition. The host arrives
@@ -156,7 +172,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private int _followedSlot = -1;
 
-    /// <summary>True when the demo carries kill events, gating the kill forward-nav buttons (Phase E).</summary>
+    /// <summary>True when the demo carries kill events, gating the kill forward-nav buttons.</summary>
     [ObservableProperty]
     private bool _hasKillEvents;
 
@@ -215,7 +231,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // A display-only chip on the HUD overlay band, driven by the shell-pushed ILiveSyncHudState projection
     // (engine-free; read via IModuleContext.LiveSyncHud). Captured at activation so deactivation unsubscribes
     // the SAME instance. Non-interactive (IsHitTestVisible=False in the view): the shell status chip is the
-    // control centre; see the design-system decision on the display-only call.
+    // control centre; this chip is deliberately display-only.
     private ILiveSyncHudState? _liveSyncHud;
 
     /// <summary>Hollow-ring flag: the inferred-pause treatment.</summary>
@@ -247,7 +263,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // entity: CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3). Lets Map mode frame
     // the ACTUAL playable-map extent instead of the observed-positions approximation. Null until read.
 
-    // Count of roster entries last seeded into the display state (#2). -1 = never seeded. BuildFrame re-seeds
+    // Count of roster entries last seeded into the display state. -1 = never seeded. BuildFrame re-seeds
     // when the live roster count differs (empty→populated), so a roster set after activation still shows.
     private int _seededRosterCount = -1;
 
@@ -269,9 +285,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private bool _showLiveSyncHud;
 
     [ObservableProperty]
-    private bool _showRadar = true; // baked radar background (A1); off → grid fallback
+    private bool _showRadar = true; // baked radar background; off → grid fallback
 
-    // Overlay visibility toggles (A4: "each sub-overlay toggleable"). Default ON. The three viewport-drawn
+    // Overlay visibility toggles: each sub-overlay is independently toggleable. Default ON. The three viewport-drawn
     // overlays (trails / area effects / bomb ring) are gated in the viewport's DrawSection and need a repaint
     // when toggled, hence the FrameUpdated nudge below (a toggle isn't a playback push). The kill feed is a
     // bound panel in the view, so its toggle drives IsVisible directly (the nudge is a harmless no-op for it).
@@ -282,6 +298,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // off-thread) the first time it's enabled on a map that has baked collision. Draws could-see sightlines.
     [ObservableProperty]
     private bool _showVision;
+
+    // Place outlines from the baked zones.json plus the user overlay. OFF by default like the ink: the
+    // zones file is parsed and its grid built the first time the layer is shown, not on every map load.
+    [ObservableProperty]
+    private bool _showZones;
+
+    // The zones load whose diagnostics were last published, so a lazy first read and a reload each
+    // publish exactly once and a steady-state frame publishes nothing.
+    private ZoneLoadResult? _publishedZoneLoad;
 
     /// <summary>One-shot footer hint set when a speed key is refused because Live Sync pins the speed.</summary>
     [ObservableProperty]
@@ -325,10 +350,21 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // outlives every demo the tab shows, so a re-assignment would only be a second chance to forget.
         _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
 
+        _roundFacts = TryResolveRoundFacts();
+
         Timeline.RegisterTrack(_roundTrack);
         Timeline.RegisterTrack(new KillTrack());
         Timeline.RegisterTrack(new BombTrack());
         Timeline.RegisterTrack(_annotationTrack);
+
+        // The packs' surface: their band menus and lanes join the timeline, their side panes take the
+        // export pane's place (opening one closes the export), their right-column panels show under the
+        // player cards while a mode of theirs is on, and their mode toggles and toolbar items sit on the
+        // toolbar. The surface reads the gate and the frame live from here.
+        Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke(),
+            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame);
+        Surface.SidePaneOpened += CloseExport;
+        Surface.PanelsChanged += RaisePanelState;
 
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
@@ -346,7 +382,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     The map's networked Z-floor section heights (#1 bonus), or null when absent. The 2D viewport reads
+    ///     The map's networked Z-floor section heights, or null when absent. The 2D viewport reads
     ///     this to split floors EXACTLY on maps that publish them (Nuke / Vertigo), falling back to a histogram
     ///     heuristic otherwise. Read once per demo; cleared on backward seek only if it had never resolved.
     /// </summary>
@@ -403,7 +439,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context is ModuleContext { ExportHost: not null } &&
+        _context?.GetService<Playback2DExportHost>() is not null &&
         _context.HasDemo;
 
     // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so the WASM branch of ExportUnavailableNote
@@ -456,17 +492,37 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     internal Func<CameraScript>? LiveCameraSource { get; set; }
 
+    /// <summary>
+    ///     The mounted surface's map levels, supplied by the View like <see cref="LiveCameraSource" />: a captured
+    ///     pawn's level key is its level's <c>ZMin</c> on these. Null under the legacy
+    ///     viewport, where the Z itself is quantized instead.
+    /// </summary>
+    internal Func<IReadOnlyList<MapLevel>>? CaptureLevelsSource { get; set; }
+
+    /// <summary>
+    ///     What the packs attach to: band-menu contributors, side panes, right-column panels, key and action
+    ///     handlers. The view binds the side-pane host to <see cref="Playback2DSurface.SidePane" /> and the
+    ///     right column's panel host to <see cref="Playback2DSurface.Panels" />.
+    /// </summary>
+    public Playback2DSurface Surface { get; }
+
+    /// <summary>
+    ///     The packs' playback contributions, handed in by the tab factory; null for a tab with none (tests,
+    ///     the designer). Attached on the first activation, detached on dispose.
+    /// </summary>
+    public PlaybackContributionHost? Contributions { get; init; }
+
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => CurrentFrame.Markers;
 
-    /// <summary>Active smoke clouds + burning inferno cells (A4), drawn under the markers by the viewport.</summary>
+    /// <summary>Active smoke clouds + burning inferno cells, drawn under the markers by the viewport.</summary>
     public IReadOnlyList<AreaEffect> AreaEffects => CurrentFrame.AreaEffects;
 
-    /// <summary>Grenade flight trails (A4), drawn as fading comet lines beneath the markers by the viewport.</summary>
+    /// <summary>Grenade flight trails, drawn as fading comet lines beneath the markers by the viewport.</summary>
     public IReadOnlyList<GrenadeTrail> GrenadeTrails => CurrentFrame.Trails;
 
     /// <summary>
-    ///     The planted-C4 timer-ring draw-state (A4), or null when no live ticking bomb. Read by the
+    ///     The planted-C4 timer-ring draw-state, or null when no live ticking bomb. Read by the
     ///     custom-drawn viewport.
     /// </summary>
     public BombMarker? Bomb => CurrentFrame.Bomb;
@@ -478,7 +534,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
 
     /// <summary>
-    ///     The in-match players the Follow-Player camera mode can track (#2), ordered by team then slot.
+    ///     The in-match players the Follow-Player camera mode can track, ordered by team then slot.
     ///     Built on demand (when the mode menu opens) from the current attribute rows so the picker reflects
     ///     the live roster. Spectators / coaches / GOTV (non-T/CT) are excluded.
     /// </summary>
@@ -561,17 +617,27 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _annotationTrack.Dispose();
         _annotationController.Dispose();
 
+        // Detaching removes every contributed pane, panel and lane, which closes and disposes the open ones.
+        _contributionBinding?.Dispose();
+        _contributionBinding = null;
+
         // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
         // a running export, which would otherwise raise a terminal status into a half-torn-down shell.
         ExportStatus?.Dispose();
         ExportDialog?.Dispose();
         _exportJob?.Dispose();
         _exportJob = null;
+
+        // The tab's own close covers a side pane left by a contribution that did not.
+        Surface.CloseSidePane();
+        Surface.SidePaneOpened -= CloseExport;
+        Surface.PanelsChanged -= RaisePanelState;
     }
 
     public void OnActivated(IModuleContext context)
     {
         _context = context;
+        _contributionBinding ??= Contributions?.Attach(Surface, context);
 
         _features = context.Features;
         if (_features is not null)
@@ -587,6 +653,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // an Advanced push, so without this an active tab would keep the PREVIOUS demo's map / markers /
         // trails after the user opens a new demo (via the Open-file button or the library browser).
         context.DemoReset += OnDemoReset;
+
+        // The evaluator finishes AFTER the open demo's parse has been handed around, so the first tint
+        // on a freshly indexed demo arrives through this rather than through the resync below.
+        if (_roundFacts is not null)
+        {
+            _roundFacts.Updated += OnRoundFactsUpdated;
+        }
 
         // Live Sync (CS2) in-context indicator: capture the shell's read-only projection (null on
         // Browser / no engine → the indicator stays absent) and track it while active. Captured so
@@ -604,6 +677,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // before the next push arrives.
         ResyncToCurrentDemo();
         AttachAnnotationsToCurrentDemo(false);
+        Surface.NotifyDemoChanged(); // a contribution attaches its per-demo state (the pack's tag session)
         Status = $"2D Playback — active · {context.CurrentPlayers.Count} players · 0 pushes";
     }
 
@@ -614,6 +688,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
         // fire-and-forget write races the process exit.
         _annotationController.Flush();
+        Surface.NotifyDeactivated(); // a panel holding the keyboard lets go, writes what it was making and flushes
+
+        // A contributed pane in progress (a Create Strat review mid-walk) is dropped: nothing was saved, and
+        // the tab may come back to another demo.
+        Surface.CloseSidePane();
 
         // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
         // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed
@@ -637,6 +716,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             _context.Advanced -= OnAdvanced;
             _context.DemoReset -= OnDemoReset;
             _context = null;
+        }
+
+        if (_roundFacts is not null)
+        {
+            _roundFacts.Updated -= OnRoundFactsUpdated;
         }
 
         // The adapter holds no subscriptions, but it holds the context; drop it so an inactive tab
@@ -783,10 +867,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [RelayCommand]
     private void OpenExport()
     {
-        if (!CanExport || _context is not ModuleContext { ExportHost: { } host })
+        if (!CanExport || _context?.GetService<Playback2DExportHost>() is not { } host)
         {
             return;
         }
+
+        // The export pane and a contributed side pane share one place.
+        Surface.CloseSidePane();
 
         if (_exportJob is null)
         {
@@ -845,7 +932,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             captureInk: SnapshotInkForExport,
             acquireFfmpeg: Playback2DExportDialogViewModel.ProductionAcquisition(
                 FfmpegDependency.ManagedDirectory),
-            capturePalette: CaptureExportPalette);
+            capturePalette: CaptureExportPalette,
+            scene: ExportDialogScene.Demo);
 
         ExportDialog.StartRequested += CloseExport;
     }
@@ -1010,7 +1098,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     private int OutputFrameCount(int startFrame, int endFrame, int fps, double speed) =>
-        _context is ModuleContext { ExportHost: { } host } && host.Frames() is { } frames
+        _context?.GetService<Playback2DExportHost>() is { } host && host.Frames() is { } frames
             ? TrackerFrameSource.OutputFrameCount(frames, startFrame, endFrame, fps, speed, _tickRate)
             : Math.Max(1, endFrame - startFrame + 1);
 
@@ -1109,6 +1197,60 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
+    private static IRoundFactsSource? TryResolveRoundFacts()
+    {
+        try
+        {
+            return App.Services?.GetService<IRoundFactsSource>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     The round facts the winner tint reads. Resolved from the container in the constructor; a test
+    ///     without one assigns a fake here before activation, or leaves it null for the pre-facts tint.
+    /// </summary>
+    internal IRoundFactsSource? RoundFactsSource
+    {
+        get => _roundFacts;
+        set => _roundFacts = value;
+    }
+
+    // One sidecar read, served by the store's capacity-1 record cache on the common path (Match Overview
+    // has usually just read the same record). Null without a source, without a path, or without rows.
+    private List<RoundFacts>? LoadRoundFacts(string? demoPath)
+    {
+        if (_roundFacts is null || string.IsNullOrEmpty(demoPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return _roundFacts.TryGet(demoPath)?.Rounds;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    // Posted on the UI thread by the evaluator. Only the open demo's rows matter to this tab.
+    private void OnRoundFactsUpdated(string demoPath)
+    {
+        if (_context is not { } ctx
+            || !string.Equals(ctx.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _roundTrack.Facts = LoadRoundFacts(demoPath);
+        _roundTrack.RefreshTints();
+    }
+
     /// <summary>
     ///     Rebases annotation world anchors after a level-set rebuild. The level hysteresis/rebuild path
     ///     calls this; it consumes no undo slot and covers the wet stroke too.
@@ -1130,12 +1272,33 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        ClockIdentity clock = new(ClockIdentity.DvFrameClock,
-            ctx.TickRate > 0 ? ctx.TickRate : 64, ctx.TotalFrames, 0, 0);
-
-        _ = _annotationController.AttachDemoAsync(ctx.DemoPath, clock, force)
+        _ = _annotationController.AttachDemoAsync(ctx.DemoPath, FrameClock.IdentityFor(ctx), force)
             .ContinueWith(static _ => { }, TaskScheduler.Default);
     }
+
+    /// <summary>
+    ///     A contributed panel whose gate is on exists: the column has something to show. The modes that show
+    ///     panels are the contributions' (<see cref="IPlaybackSurface.AddModeToggle" />), so a tab with no
+    ///     contributed panel offers no toggle and never collapses the cards.
+    /// </summary>
+    public bool IsReviewAvailable => Surface.HasPanels;
+
+    /// <summary>The player cards draw as a compact strip, leaving the column to the shown panels.</summary>
+    public bool IsCardStrip => Surface.HasShownPanels;
+
+    private void RaisePanelState()
+    {
+        OnPropertyChanged(nameof(IsReviewAvailable));
+        OnPropertyChanged(nameof(IsCardStrip));
+    }
+
+    /// <summary>
+    ///     A primary press, offered to the contributions before the pointer tools (Click To Tag Position
+    ///     lives in the pack): the pointer pre-handlers' turn. False when none takes it, and the press then
+    ///     goes to the pointer tools.
+    /// </summary>
+    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
+    public bool TryPointerPreHandler(ScenePointer pointer) => Surface.TryHandlePointerPress(pointer);
 
     private static string[] BuildMyWeaponsPaths()
     {
@@ -1156,6 +1319,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public event Action? FrameUpdated;
 
     partial void OnShowRadarChanged(bool value) => FrameUpdated?.Invoke();
+    partial void OnShowZonesChanged(bool value) => FrameUpdated?.Invoke();
     partial void OnShowTrailsChanged(bool value) => FrameUpdated?.Invoke();
     partial void OnShowAreaEffectsChanged(bool value) => FrameUpdated?.Invoke();
     partial void OnShowBombRingChanged(bool value) => FrameUpdated?.Invoke();
@@ -1190,6 +1354,62 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         IsLiveSyncHudError = hud.Dot == LiveSyncHudDot.Error;
     }
 
+    /// <summary>
+    ///     The current map's place resolver (baked <c>zones.json</c> plus the user overlay), or null when
+    ///     the map has none. Lazy through <see cref="LoadedMapAsset.Zones" />; the first read of each load
+    ///     publishes the overlay's diagnostics to the Rule Workbench.
+    /// </summary>
+    public PlaceResolver? Zones
+    {
+        get
+        {
+            if (MapAsset is not { } asset)
+            {
+                return null;
+            }
+
+            ZoneLoadResult load = asset.ZoneLoad;
+            PublishZoneDiagnostics(asset, load);
+            return load.Resolver;
+        }
+    }
+
+    /// <summary>
+    ///     Re-reads the map's zones file and the user overlay without a map reload: the author edits
+    ///     <c>&lt;config&gt;/zones/&lt;map&gt;.zones.json</c>, saves, and presses this to see the outline.
+    ///     The scene host picks up the new resolver on the next sync.
+    /// </summary>
+    [RelayCommand]
+    private void ReloadZones()
+    {
+        if (MapAsset is not { } asset)
+        {
+            return;
+        }
+
+        ZoneLoadResult load = asset.ReloadZones();
+        PublishZoneDiagnostics(asset, load);
+        Status = load.Resolver is null
+            ? "Zones: this map has no zones.json"
+            : load.Diagnostics.Count == 0
+                ? $"Zones reloaded ({load.Resolver.Zones.Places.Count} places" +
+                  (load.OverlayApplied ? ", overlay applied)" : ")")
+                : $"Zones reloaded with {load.Diagnostics.Count} skipped overlay entr" +
+                  (load.Diagnostics.Count == 1 ? "y" : "ies") + "; see the Rule Workbench";
+        FrameUpdated?.Invoke();
+    }
+
+    private void PublishZoneDiagnostics(LoadedMapAsset asset, ZoneLoadResult load)
+    {
+        if (ReferenceEquals(_publishedZoneLoad, load))
+        {
+            return;
+        }
+
+        _publishedZoneLoad = load;
+        ZoneOverlayDiagnostics.Publish(asset.Bundle.MapName, load.OverlayPath, load.Diagnostics);
+    }
+
     /// <summary>Seek the shared clock to the next kill (player_death). Module-local forward-nav.</summary>
     [RelayCommand]
     private void NextKill() => _context?.RequestNextEvent(_killEventFilter);
@@ -1199,7 +1419,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void PrevKill() => _context?.RequestPrevEvent(_killEventFilter);
 
     // Recompute whether the kill-nav buttons should show. Cheap (a membership test on the demo's event-name
-    // set); called on activation and whenever the roster (re-)seeds, i.e. the demo-loaded signal (#2).
+    // set); called on activation and whenever the roster (re-)seeds, i.e. the demo-loaded signal.
     private void RefreshEventNav() =>
         HasKillEvents = _context?.AvailableEventNames.Contains(KillEventName) ?? false;
 
@@ -1330,6 +1550,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return false;
         }
 
+        // A contributed panel holding the keyboard sees every action first (undo and redo are its
+        // document's); otherwise the contributions get what the tab leaves unhandled, in the default arm.
+        bool offered = Surface.HasKeyboard;
+        if (offered && Surface.TryExecute(action))
+        {
+            return true;
+        }
+
         switch (action)
         {
             case Playback2DAction.TogglePlay:
@@ -1427,6 +1655,32 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                     : ToolKind.Erase);
                 return true;
 
+            case Playback2DAction.ToolLine:
+            case Playback2DAction.ToolArrow:
+            case Playback2DAction.ToolRect:
+            case Playback2DAction.ToolEllipse:
+            case Playback2DAction.ToolText:
+            {
+                if (!IsAnnotationsEnabled)
+                {
+                    return false;
+                }
+
+                ToolKind shape = action switch
+                {
+                    Playback2DAction.ToolLine => ToolKind.Line,
+                    Playback2DAction.ToolArrow => ToolKind.Arrow,
+                    Playback2DAction.ToolRect => ToolKind.Rect,
+                    Playback2DAction.ToolEllipse => ToolKind.Ellipse,
+                    _ => ToolKind.Text
+                };
+
+                Annotations.SelectTool(Annotations.ActiveTool == shape ? ToolKind.PanZoom : shape);
+                return true;
+            }
+
+            // One history per document kind, resolved by focus: a focused panel took
+            // its undo and redo above; here they are the annotations'.
             case Playback2DAction.Undo:
                 if (!IsAnnotationsEnabled || !Annotations.CanUndo)
                 {
@@ -1454,8 +1708,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 Annotations.ClearAllCommand.Execute(null);
                 return true;
 
+            // The pack actions (FindRoundsLikeThis, NextSituationResult, PrevSituationResult, Tag*,
+            // Suggestion*, FocusTagPalette, ToggleReviewMode) and anything else the tab does not name: the
+            // contributions' turn, unless a focused panel already had it above.
             default:
-                return false;
+                return !offered && Surface.TryExecute(action);
         }
     }
 
@@ -1552,9 +1809,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(AnnotationSession));
         OnPropertyChanged(nameof(IsAutoLevelEnabled));
 
-        // Same three inputs as the line below it: the gate, the context, and whether that context has a
-        // demo. The export host is wired once at composition, before any tab is activated, so activation
-        // is the last moment it can change.
+        // The contributed panels re-read their gates; PanelsChanged then raises IsReviewAvailable here.
+        Surface.RefreshGates();
+
+        // Three inputs: the gate, the context, and whether that context has a demo. The export host is
+        // wired once at composition, before any tab is activated, so activation is the last moment it can
+        // change.
         OnPropertyChanged(nameof(CanExport));
 
         // The button's replacement text has the same three inputs, so it is recomputed in the same beat:
@@ -1658,11 +1918,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(Keymap));
         OnPropertyChanged(nameof(KeymapRejections));
 
-        // The toolbar's gesture hints read the RESOLVED profile, so a rebind reaches the tooltips at the
-        // same moment it reaches the router. Pushed rather than pulled through a $parent binding: the
-        // toolbar's DataContext is the panel, and a five-deep ancestor cast that silently yields "" on a
-        // standalone mount is a worse contract than one assignment.
+        // Pushed rather than pulled through a $parent binding: the annotation toolbar's DataContext is
+        // the panel, and a five-deep ancestor cast that silently yields "" on a standalone mount is a
+        // worse contract than one assignment.
         Annotations.ApplyKeymap(Keymap);
+
+        // Raises KeymapChanged, which is how a contribution's gesture-hinted label or tooltip
+        // (IPlaybackSurface.GestureHint) reaches the rebind at the same moment it reaches the router.
+        Surface.SetKeymap(Keymap);
     }
 
     private void LoadLevelSettings()
@@ -1846,11 +2109,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // is the state-restoration parity the Open-file button and the library browser must share.
     private void OnDemoReset()
     {
+        // A contributed pane works on the demo that was open; another one has replaced it.
+        Surface.CloseSidePane();
         ResyncToCurrentDemo(true);
 
         // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one
         // forces, unlike a tab re-activation, which must keep the in-memory document.
         AttachAnnotationsToCurrentDemo(true);
+        Surface.NotifyDemoChanged();
     }
 
     // Rebuilds ALL per-demo draw-state from the CURRENT context, shared by on-activation and by the
@@ -1904,7 +2170,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // Cache the stable identity roster (slot → name) for marker labels + seed one attributes row per
         // slot; also (re)loads the baked map asset for the demo's map. Re-runnable: if the roster is set
-        // AFTER activation (host order), BuildFrame re-seeds on the empty→populated transition too (#2).
+        // AFTER activation (host order), BuildFrame re-seeds on the empty→populated transition too.
         SeedRosterDisplay();
 
         // Drop every per-demo cache the builder holds (ring deltas, death-marker positions, trails, the
@@ -1917,8 +2183,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // Activation and DemoReset are exactly the two moments the demo's event set can change, so the
         // timeline is rebuilt here and nowhere else. The fresh adapter that drops the previous demo's
         // per-name cache is constructed at the top of this method; see why there.
+        _roundTrack.Facts = LoadRoundFacts(_context.DemoPath);
         Timeline.Rebuild(_timelineData);
         Timeline.UpdatePlayhead(_context.CurrentFrameIndex, _context.CurrentTick);
+        Surface.NotifyPlayheadChanged(_context.CurrentTick);
         RefreshGates();
 
         FrameUpdated?.Invoke();
@@ -1926,7 +2194,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Seeds the roster-DERIVED display state (slot→name labels + one attributes row per slot). Re-runnable:
     // if the roster arrives AFTER activation (host sets it post-load), BuildFrame re-invokes this on the
-    // empty→populated transition so cards/initials appear without a tab re-activation (#2). Touches ONLY
+    // empty→populated transition so cards/initials appear without a tab re-activation. Touches ONLY
     // display state, never the ring / last-known gameplay caches (slot-keyed; a display re-seed must not
     // wipe ring-flash / death-marker history).
     private void SeedRosterDisplay()
@@ -1959,7 +2227,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _seededRosterCount = _context.Players.Count;
 
         // The roster is populated only once the demo has loaded, so this is also the right moment to (re)check
-        // which semantic events the demo carries and show/hide the kill forward-nav accordingly (#2 / Phase E),
+        // which semantic events the demo carries and show/hide the kill forward-nav accordingly,
         // and to (re)build the kill timeline now that slot→name resolution is available.
         RefreshEventNav();
         BuildKillTimeline();
@@ -2002,7 +2270,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void ReplaceMapAsset(LoadedMapAsset? next)
     {
         LoadedMapAsset? previous = MapAsset;
+        if (next is not null)
+        {
+            // Before anything can read Zones: the overlay lives under the config root, which only the
+            // App knows, and the asset reads it lazily from here.
+            next.ZoneOverlayDirectory = AppPaths.ZonesDirectory;
+        }
+
         MapAsset = next;
+        _publishedZoneLoad = null;
 
         // Described ONCE per map, not per push: the frame publishes the same list instance every frame
         // so SceneFrameBuilder's "map facts unchanged" short-circuit holds and the steady state stays
@@ -2105,7 +2381,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         PushCount++;
 
         // The kill window is refreshed BEFORE the frame is built so the built frame carries this tick's
-        // rows (B4's HUD layer reads Scene2DFrame.KillFeed). It is a pure filter over the pre-built
+        // rows (the HUD layer reads Scene2DFrame.KillFeed). It is a pure filter over the pre-built
         // timeline, so the order is free of side effects.
         UpdateKillFeedWindow(snapshot.Tick);
 
@@ -2118,15 +2394,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The playhead follows the shared clock's push, never a private timer, so it tracks play, step,
         // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
         Timeline.UpdatePlayhead(snapshot.FrameIndex, snapshot.Tick);
+        Surface.NotifyPlayheadChanged(snapshot.Tick);
 
         // Mark the viewport dirty; the View coalesces this to one InvalidateVisual on the render frame.
         FrameUpdated?.Invoke();
     }
 
-    // Kill feed (A4): PRE-BUILD the whole demo's kills ONCE from the host's player_death timeline, resolving
+    // Kill feed: PRE-BUILD the whole demo's kills ONCE from the host's player_death timeline, resolving
     // slots → roster names and reading the typed modifiers the event factory enriched. Display is a tick
     // WINDOW filter over this (UpdateKillFeedWindow), so nothing is lost to a render-skipped frame and a
-    // seek shows the right kills. Rebuilt when the roster (re)seeds, since names depend on it (#2).
+    // seek shows the right kills. Rebuilt when the roster (re)seeds, since names depend on it.
     private void BuildKillTimeline()
     {
         _allKills.Clear();
@@ -2232,7 +2509,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void BuildFrame(IReadOnlyList<IPlayerState> players, IReadOnlyEntityView entities, int frameIndex,
         int tick)
     {
-        // #2: if the roster appeared after activation (host order), seed the display rows/labels now so the
+        // If the roster appeared after activation (host order), seed the display rows/labels now so the
         // cards + marker initials show without needing a tab re-activation. Count-change trigger → seed
         // once on the empty→populated transition, not every push (no per-frame ObservableCollection churn).
         if (_context is not null && _context.Players.Count != _seededRosterCount)
@@ -2502,7 +2779,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private static float ReadFloat(IReadOnlyEntity? entity, string path, float fallback) =>
         entity is not null && entity.TryGet(path, out float v) ? v : fallback;
 
-    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant.
+    // dead = m_lifeState != 0 OR m_iHealth <= 0. Reads are null/seen-tolerant. Mirrors
+    // CS2DemoKit.Parser.EntityTracking.PawnLookup.IsAlive(EntityState), which this view-model cannot
+    // call directly: the markers it reads are copied-out scalars, not EntityState.
     private static bool IsAlive(IReadOnlyEntity? pawn)
     {
         if (pawn is null)

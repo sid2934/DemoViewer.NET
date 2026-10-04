@@ -12,6 +12,9 @@ scenes/<name>.scene.json          the fixture
 goldens/cpu/<name>@<w>x<h>.png    the CPU-provider golden for it
 goldens/gpu/<name>@<w>x<h>.png    the GPU parity image (C2)
 annotations/<name>.dvann.json     the annotation sidecar (B2)
+zones/<name>.zones.json           the zones overlay, applied over the map's baked zones.json
+queries/<name>.dvquery.json       the Query Canvas tokens the entry draws (Strat Room, Query Canvas)
+overlays/<name>.dvoverlay.json    the Overlay View points the entry stacks (Strat Room, Overlay View)
 manifest.json                     the corpus index (C1 owns this file)
 ```
 
@@ -112,8 +115,10 @@ captures used to be named `duel-mirage-b` and `fitmap-mirage-eco` (the names of 
 `annotations/<name>.dvann.json` is picked up **by convention**, not by a manifest field: if a sidecar
 exists beside the corpus under that name, `golden` and `bench` load it through the production
 `AnnotationStore` and register `playback2d.annotations` (the entry must also name the id in its
-`layers` array). One entry uses it (`annotated-mirage-b`) and it is the only golden anywhere that
-covers burned-in ink. `dv2d render --ink <path>` is the same thing for a one-off.
+`layers` array). Two entries use it: `annotated-mirage-b`, freehand ink on both halves of the layer's
+cache split, and `annotated-shapes-mirage-b`, one element of every kind (Freehand, Line, Arrow, Rect,
+Ellipse, Text) from Shape Tools. They are the only goldens anywhere that cover burned-in ink.
+`dv2d render --ink <path>` is the same thing for a one-off.
 
 Note on tolerance. Entries default to `GoldenTolerance.DefaultPerceptual`: CPU rasterisation of
 anti-aliased edges can differ by a least-significant bit between SIMD paths, and headless Skia text

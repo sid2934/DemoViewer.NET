@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
@@ -78,6 +79,14 @@ public sealed class CachedPlayerInfo
     public int Team { get; set; }
 
     public bool IsBot { get; set; }
+
+    /// <summary>
+    ///     <c>CCSPlayerController.m_iCoachingTeam != 0</c> at the last frame: a registered coach, who sits on
+    ///     a side without being one of its five. Additive (no schema bump, per this cache's convention): a
+    ///     record written before the field reads false, which is what every matchmaking replay measures
+    ///     anyway. Team Identity keeps coaches out of side keys.
+    /// </summary>
+    public bool IsCoach { get; set; }
 }
 
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
@@ -197,7 +206,7 @@ public sealed class CachedHighlightEvent
 ///     loaded lazily, because the surfaces that want the fat payload (Match Overview, the reel tray) want it
 ///     for one demo at a time. The always-loaded projection is <see cref="DemoCacheIndexEntry" />.
 /// </summary>
-public sealed class DemoCacheRecord
+public sealed class DemoCacheRecord : IJsonOnDeserialized
 {
     /// <summary>Bump when a tier's payload shape changes. Each is independent: see <see cref="TierStamp" />.</summary>
     public const int HeaderSchema = 1;
@@ -221,6 +230,13 @@ public sealed class DemoCacheRecord
     public string? Map { get; set; }
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
+
+    /// <summary>
+    ///     The engine classifier's verdict on the file header (<c>DemoSourceKind</c> by name), written at
+    ///     tier 2 from the parse's profile. Additive: a record written before the field reads null, and
+    ///     Demo Provenance Labels then classifies from <see cref="Server" /> alone.
+    /// </summary>
+    public string? SourceKind { get; set; }
 
     // ── T2 parse ─────────────────────────────────────────────────────────────
     public TierStamp Parse { get; set; } = new();
@@ -270,6 +286,92 @@ public sealed class DemoCacheRecord
 
     /// <summary>Per-highlight-definition hashes, for finer-grained staleness than the combined fingerprint.</summary>
     public Dictionary<string, string> HighlightHashes { get; set; } = new();
+
+    // ── Packs ────────────────────────────────────────────────────────────────
+    // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
+    // the pack through IPackPayloads and never deserialised by core. What core needs for the backlog and
+    // the fill state (schema, fingerprint, outcome) is promoted to PackStamps and mirrored on the index
+    // row, so a staleness pass opens no sidecar and no payload. Payloads that are too large to ride a
+    // record Match Overview re-reads on every property touch (the round index, the grenade rows) stay in
+    // their own sidecars; only their stamps are here.
+
+    /// <summary>Per-pack payloads keyed by pack id. Opaque here; typed through <see cref="IPackPayloads" />.</summary>
+    public Dictionary<string, JsonElement> Packs { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>One stamp per pack facet written for this demo. See <see cref="PackStamp" />.</summary>
+    public List<PackStamp> PackStamps { get; set; } = [];
+
+    /// <summary>
+    ///     Members no property claims, held only between the read and <c>OnDeserialized</c>: a sidecar written
+    ///     before <see cref="Packs" /> existed carries the pack's fields flat, and the fold reads them from
+    ///     here. Always null afterwards, so unknown members are still dropped on the next write. Serializer
+    ///     plumbing, not an API: nothing should read or set it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
+
+    /// <summary>The stamp with <paramref name="id" />, or null when the facet was never written.</summary>
+    /// <param name="id">The facet id (<see cref="PackStamp.Id" />).</param>
+    public PackStamp? Stamp(string id) => PackStamps.Find(s => string.Equals(s.Id, id, StringComparison.Ordinal));
+
+    /// <summary>Replaces the stamp with <paramref name="stamp" />'s id, or adds it.</summary>
+    /// <param name="stamp">The new stamp.</param>
+    public void SetStamp(PackStamp stamp)
+    {
+        ArgumentNullException.ThrowIfNull(stamp);
+        int at = PackStamps.FindIndex(s => string.Equals(s.Id, stamp.Id, StringComparison.Ordinal));
+        if (at < 0)
+        {
+            PackStamps.Add(stamp);
+        }
+        else
+        {
+            PackStamps[at] = stamp;
+        }
+    }
+
+    /// <summary>Marks a facet's last write as failed, keeping whatever else its stamp carries.</summary>
+    /// <param name="id">The facet id.</param>
+    public void MarkFailed(string id) =>
+        SetStamp((Stamp(id) ?? new PackStamp(id, 0, null)) with { State = DemoAnalysisState.Failed });
+
+    /// <summary>Lifts a failed facet back to pending so the derived backlog takes it again. No-op otherwise.</summary>
+    /// <param name="id">The facet id.</param>
+    public void ClearFailed(string id)
+    {
+        if (Stamp(id) is { State: DemoAnalysisState.Failed } failed)
+        {
+            SetStamp(failed with { State = DemoAnalysisState.Pending });
+        }
+    }
+
+    /// <summary>Is the facet current at <paramref name="schema" /> under <paramref name="fingerprint" />? See <see cref="PackStamp.IsCurrent" />.</summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool IsPackCurrent(string id, int schema, string? fingerprint) =>
+        Stamp(id)?.IsCurrent(schema, fingerprint) ?? false;
+
+    /// <summary>
+    ///     Does the facet want its evaluator? Derived like <see cref="NeedsAnalysis" />, with
+    ///     <see cref="DemoAnalysisState.Failed" /> excluded for the same reason: retry is an explicit user
+    ///     action, never a heavy job on every pass.
+    /// </summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool NeedsPack(string id, int schema, string? fingerprint) =>
+        Stamp(id) is not { State: DemoAnalysisState.Failed } && !IsPackCurrent(id, schema, fingerprint);
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (UnknownMembers is { Count: > 0 } members)
+        {
+            LegacyPackFields.Fold(this, members);
+        }
+
+        UnknownMembers = null;
+    }
 
     /// <summary>The highest tier actually present.</summary>
     [JsonIgnore]
@@ -343,6 +445,7 @@ public sealed class DemoCacheRecord
         Map = Map,
         Server = Server,
         DemoVersion = DemoVersion,
+        SourceKind = SourceKind,
         DurationSeconds = DurationSeconds,
         // The Library card prints player NAMES, so the index has to carry them; the richer per-player record
         // (slot / steamId / team / bot) stays in the sidecar. This is why an index row is ~780 B rather than
@@ -366,7 +469,8 @@ public sealed class DemoCacheRecord
         AnalysisSchema = Analysis.Schema,
         AnalysisState = AnalysisState,
         ConfigFingerprint = ConfigFingerprint,
-        HighlightCount = Highlights.Count
+        HighlightCount = Highlights.Count,
+        PackStamps = [.. PackStamps]
     };
 }
 
@@ -375,7 +479,7 @@ public sealed class DemoCacheRecord
 ///     startup; the fat <see cref="DemoCacheRecord" /> behind it is read only when a surface asks for that
 ///     specific demo.
 /// </summary>
-public sealed class DemoCacheIndexEntry
+public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
 {
     public string Path { get; set; } = "";
     public long Size { get; set; }
@@ -385,6 +489,9 @@ public sealed class DemoCacheIndexEntry
     public string? Map { get; set; }
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
+
+    /// <summary>The classifier's <c>DemoSourceKind</c> by name; see <see cref="DemoCacheRecord.SourceKind" />. Mirrored so a label needs no sidecar.</summary>
+    public string? SourceKind { get; set; }
 
     public double DurationSeconds { get; set; }
 
@@ -418,6 +525,45 @@ public sealed class DemoCacheIndexEntry
     /// </summary>
     public int HighlightCount { get; set; }
 
+    /// <summary>
+    ///     The record's <see cref="DemoCacheRecord.PackStamps" />, mirrored for the same reason
+    ///     <see cref="ConfigFingerprint" /> is: a pack's backlog and the strip's counts derive from the
+    ///     index without opening a sidecar. A stamp with every optional member costs about 100 bytes.
+    /// </summary>
+    public List<PackStamp> PackStamps { get; set; } = [];
+
+    /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.Stamp" />.</summary>
+    /// <param name="id">The facet id.</param>
+    public PackStamp? Stamp(string id) => PackStamps.Find(s => string.Equals(s.Id, id, StringComparison.Ordinal));
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.IsPackCurrent" />: same rule, no sidecar read.</summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool IsPackCurrent(string id, int schema, string? fingerprint) =>
+        Stamp(id)?.IsCurrent(schema, fingerprint) ?? false;
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.NeedsPack" />: same rule, no sidecar read.</summary>
+    /// <param name="id">The facet id.</param>
+    /// <param name="schema">The schema in force.</param>
+    /// <param name="fingerprint">The fingerprint in force, or null when the facet has none.</param>
+    public bool NeedsPack(string id, int schema, string? fingerprint) =>
+        Stamp(id) is not { State: DemoAnalysisState.Failed } && !IsPackCurrent(id, schema, fingerprint);
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (UnknownMembers is { Count: > 0 } members)
+        {
+            LegacyPackFields.Fold(this, members);
+        }
+
+        UnknownMembers = null;
+    }
+
     [JsonIgnore]
     public DemoCacheTier Tier =>
         AnalysisSchema > 0 ? DemoCacheTier.Analysis
@@ -443,11 +589,32 @@ public sealed class DemoCacheIndexEntry
         Size == size && ModifiedTicks == modifiedTicks;
 }
 
+/// <summary>
+///     How one store hands a demo to another. Derived stores key by <see cref="StableKey" /> (the cache
+///     sidecar rule) and user-truth stores key by <see cref="Sha256" /> (a moved file keeps its tags), so a
+///     consumer crossing that line needs both in hand rather than converting keys on its own: the bridges
+///     are <see cref="DemoCacheStore.TryGetIndex" /> and <see cref="DemoCacheStore.TryGetIndexBySha256" />.
+///     Defined here, beside the index row it is projected from, so every store agrees on the shape.
+/// </summary>
+/// <param name="Path">The demo's path as the library knows it.</param>
+/// <param name="StableKey"><see cref="DemoCacheStore.StableKey" /> of <paramref name="Path" />.</param>
+/// <param name="Sha256">Lowercase-hex content hash, or null when the demo has not reached tier 2.</param>
+public sealed record DemoRef(string Path, string StableKey, string? Sha256)
+{
+    /// <summary>The reference for an index row.</summary>
+    /// <param name="entry">The row to reference.</param>
+    public static DemoRef From(DemoCacheIndexEntry entry) =>
+        new(entry.Path, DemoCacheStore.StableKey(entry.Path), entry.Sha256);
+}
+
 /// <summary>The on-disk shape of <c>index.json</c>: a versioned wrapper so migrations have a hook.</summary>
 public sealed class DemoCacheIndexFile
 {
-    /// <summary>Version of the INDEX container itself, independent of the per-tier record schemas.</summary>
-    public const int CurrentVersion = 1;
+    /// <summary>
+    ///     Version of the INDEX container itself, independent of the per-tier record schemas. 2: record
+    ///     sidecars are gzipped <c>&lt;key&gt;.json.gz</c>; a version-1 <c>&lt;key&gt;.json</c> is still read.
+    /// </summary>
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
 

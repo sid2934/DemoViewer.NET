@@ -132,7 +132,7 @@ public class KillFeedIconTests
 /// <summary>
 ///     The icon path's steady-state allocation budget.
 ///     <para>
-///         Design §6 requires 0 B/frame once a scene is warm, and the CI allocation bench cannot see
+///         The budget requires 0 B/frame once a scene is warm, and the CI allocation bench cannot see
 ///         this code: it renders <c>synthetic-tenplayers</c>, which mounts no HUD layer and supplies no
 ///         icon source. So the feed's icon path is measured here instead. The first version of it
 ///         allocated an <c>SKPaint</c> and a blend-mode colour filter per icon per frame, plus a fresh

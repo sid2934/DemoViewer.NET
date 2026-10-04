@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     A direct-execution stand-in for the host's tool services: real panes and real cameras, no
 ///     Avalonia. This is the whole point of the <see cref="IToolServices" /> seam: the draw and erase
-///     tools are exercised with no window, no dispatcher and no platform (design §11).
+///     tools are exercised with no window, no dispatcher and no platform.
 /// </summary>
 internal sealed class FakeToolServices : IToolServices
 {
@@ -158,6 +158,14 @@ internal sealed class FakeToolServices : IToolServices
                 return false;
         }
     }
+
+    /// <summary>Every element the text tool asked the host to open an editor over, oldest first.</summary>
+    public List<Guid> TextEditRequests { get; } = [];
+
+    public void RequestTextEdit(Guid elementId) => TextEditRequests.Add(elementId);
+
+    /// <summary>The token editor the token tool drives; null, as on the 2D Playback tab, until a test sets it.</summary>
+    public ITokenEditor? Tokens { get; set; }
 
     public void RequestRender() => RenderRequests++;
 

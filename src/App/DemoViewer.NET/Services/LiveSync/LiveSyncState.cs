@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Services.LiveSync;
 
 /// <summary>
 ///     The live-sync engine's lifecycle position.
-///     Kinds map 1:1 onto the status-chip rows in the design notes in git history. The UI
+///     Kinds map 1:1 onto the status-chip rows. The UI
 ///     derives dot colour/shape and label from this plus <see cref="LiveSyncState.IsInferred" />.
 /// </summary>
 public enum LiveSyncStateKind
@@ -72,7 +72,7 @@ public enum LiveSyncStateKind
 /// <param name="RemoteDemoPath">
 ///     Set (with <see cref="LiveSyncStateKind.Degraded" />) when CS2 reports it is now playing a
 ///     DIFFERENT demo than DV (v1.1 demo-identity): the path CS2 reported. The flyout
-///     offers "Open in DV" for it: never a silent auto-load (decision D7). Null otherwise.
+///     offers "Open in DV" for it: never a silent auto-load. Null otherwise.
 /// </param>
 public sealed record LiveSyncState(
     LiveSyncStateKind Kind,

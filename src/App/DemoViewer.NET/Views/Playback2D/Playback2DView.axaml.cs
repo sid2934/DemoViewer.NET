@@ -1,10 +1,14 @@
 #region
 
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
 
@@ -15,7 +19,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 /// <summary>
 ///     The 2D Playback tab's View. DataContext is the descriptor's
 ///     <see cref="Playback2DTabViewModel" />. Hosts the custom-drawn <see cref="Playback2DViewport" /> plus
-///     the camera-mode selector (#2): a <see cref="SplitButton" /> whose main action is apply-once Fit and
+///     the camera-mode selector: a <see cref="SplitButton" /> whose main action is apply-once Fit and
 ///     whose dropdown caret opens the MODE menu (Fit / Alive / Map / Follow Player). The Follow Player
 ///     submenu is populated on open from the VM's current players; Map surfaces its approximation caveat.
 /// </summary>
@@ -27,6 +31,13 @@ public partial class Playback2DView : UserControl
     private readonly TextBlock? _modeLabel;
     private readonly MenuFlyout? _modeMenuFlyout;
     private readonly IPlayback2DSurface? _surface;
+    private readonly Canvas? _textEditorLayer;
+    private readonly TextBox? _textEditor;
+    private readonly Separator? _toolbarItemsSeparator;
+
+    // True between the surface asking for a label's text and the editor handing it back. Cleared FIRST
+    // on the way out, because hiding the box moves focus, and losing focus is itself a commit.
+    private bool _editingText;
 
     // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
     // draw?" question below asks THIS rather than `_surface is Scene2DHost`, so the tool entry points and
@@ -40,6 +51,10 @@ public partial class Playback2DView : UserControl
     // pan flag, so anything that can make the release stop matching (a rebind, an external settings.json
     // edit, a profile swap) would strand the surface panning forever.
     private Key? _holdPanKey;
+
+    // The overflow menu's entries for Surface.ToolbarItems, rebuilt every open: tracked so the previous
+    // set can be removed before the fresh one goes in (a pack toggled live, or a rebind's label change).
+    private readonly List<MenuItem> _toolbarMenuItems = [];
 
     public Playback2DView()
     {
@@ -59,7 +74,17 @@ public partial class Playback2DView : UserControl
             slot.Content = surface;
         }
 
+        _textEditorLayer = this.FindControl<Canvas>("TextEditorLayer");
+        _textEditor = this.FindControl<TextBox>("AnnotationTextEditor");
+        if (_toolSurface is not null && _textEditor is not null)
+        {
+            _toolSurface.TextEditRequested += OnTextEditRequested;
+            _textEditor.KeyDown += OnTextEditorKeyDown;
+            _textEditor.LostFocus += OnTextEditorLostFocus;
+        }
+
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
+        _toolbarItemsSeparator = this.FindControl<Separator>("ToolbarItemsSeparator");
         _modeLabel = this.FindControl<TextBlock>("ModeLabel");
         _mapApproxNote = this.FindControl<TextBlock>("MapApproxNote");
 
@@ -86,7 +111,7 @@ public partial class Playback2DView : UserControl
         // Up/Down). Skipped while a text input has focus so a future in-tab field still types.
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
 
-        // Space is HELD to pan while a drawing tool is active (plan decision D3), so its release has to
+        // Space is HELD to pan while a drawing tool is active, so its release has to
         // be observed too. The keymap only ever resolves a press.
         AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
 
@@ -103,15 +128,65 @@ public partial class Playback2DView : UserControl
     // The VM is assigned after construction (and can be replaced), so the subscriptions are re-aimed
     // here rather than in the ctor. Unsubscribing the PREVIOUS instance is what keeps a rebuilt tab from
     // driving a stale view.
+    // Review mode gives the column to the panels: the cards' row stops filling and the panels' row fills.
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Playback2DTabViewModel.IsCardStrip))
+        {
+            ApplyCardRows();
+        }
+    }
+
+    private void OnAttributesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_boundViewModel?.IsCardStrip == true)
+        {
+            ApplyCardRows();
+        }
+    }
+
+    // One strip row is 22 px (18 of text and padding, 2 of margin), inside the scroller's 6 px padding.
+    private const double StripRowHeight = 22;
+    private const double StripMaxHeight = 12 + 10 * StripRowHeight;
+
+    // The card list virtualizes, so under an Auto row's unbounded height it measures to nothing; the strip
+    // row is sized from the players in the match instead, and scrolls past ten.
+    private void ApplyCardRows()
+    {
+        if (this.FindControl<Grid>("RightColumn") is not { } column)
+        {
+            return;
+        }
+
+        if (_boundViewModel?.IsCardStrip == true)
+        {
+            int players = _boundViewModel.Attributes.Count(a => a.InMatch);
+            double height = Math.Min(StripMaxHeight, 12 + Math.Max(1, players) * StripRowHeight);
+            column.RowDefinitions = new RowDefinitions
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(height, GridUnitType.Pixel),
+                new RowDefinition(1, GridUnitType.Star)
+            };
+        }
+        else
+        {
+            column.RowDefinitions = RowDefinitions.Parse("Auto,*,Auto");
+        }
+    }
+
     private void BindViewModel()
     {
         if (_boundViewModel is not null)
         {
             _boundViewModel.FollowSlotChanged -= OnFollowSlotChanged;
+            _boundViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _boundViewModel.Attributes.CollectionChanged -= OnAttributesChanged;
             _boundViewModel.FitRequested -= OnFitRequested;
             _boundViewModel.Annotations.ToolSelected -= OnToolSelected;
             _boundViewModel.LevelStrip.Bind(null);
             _boundViewModel.LiveCameraSource = null;
+            _boundViewModel.CaptureLevelsSource = null;
         }
 
         _boundViewModel = DataContext as Playback2DTabViewModel;
@@ -127,6 +202,9 @@ public partial class Playback2DView : UserControl
 
             _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
             _boundViewModel.FitRequested += OnFitRequested;
+            _boundViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _boundViewModel.Attributes.CollectionChanged += OnAttributesChanged;
+            ApplyCardRows();
 
             // The toolbar picks a tool; the ROUTER owns which tool a press goes to. This is the one
             // wire between them, and it exists here because the router is the surface's, not the VM's.
@@ -143,6 +221,11 @@ public partial class Playback2DView : UserControl
             // dialog falls back to the per-level fit.
             _boundViewModel.LiveCameraSource =
                 _surface is Scene2DHost cameraHost ? cameraHost.CaptureCameraScript : null;
+
+            // Create Strat From Round keys a pawn's level on the panes this surface draws, for the same
+            // reason: only the View knows which surface is mounted.
+            _boundViewModel.CaptureLevelsSource =
+                _surface is Scene2DHost levelHost ? () => levelHost.Levels.Levels : null;
 
             // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
             // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The
@@ -197,10 +280,92 @@ public partial class Playback2DView : UserControl
 
     private void OnSurfacePointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // A press anywhere but the editor places what was typed BEFORE the surface sees the press, so a
+        // second label or a stroke never has to share the text tool's open undo mark.
+        if (_editingText && !IsInsideTextEditor(e.Source))
+        {
+            CommitTextEdit(_textEditor?.Text);
+        }
+
+        if (_editingText)
+        {
+            return;
+        }
+
         if (!IsFocused)
         {
             Focus();
         }
+    }
+
+    private bool IsInsideTextEditor(object? source) =>
+        _textEditor is not null && source is Visual visual
+                                && (ReferenceEquals(visual, _textEditor) || _textEditor.IsVisualAncestorOf(visual));
+
+    // The surface placed a label: open the editor over it, sized to the label's em at this zoom so what is
+    // typed reads roughly the size it will draw. Focus is POSTED: the press that placed the label is still
+    // being routed, and focus handed over inside it can be taken straight back by the click itself.
+    private void OnTextEditRequested(Point hostPoint, double emPixels)
+    {
+        if (_textEditor is null || _textEditorLayer is null || _toolSurface is not Visual surface)
+        {
+            _toolSurface?.CompleteTextEdit(null);
+            return;
+        }
+
+        Point at = surface.TranslatePoint(hostPoint, _textEditorLayer) ?? hostPoint;
+        Canvas.SetLeft(_textEditor, at.X);
+        Canvas.SetTop(_textEditor, at.Y);
+        _textEditor.FontSize = Math.Clamp(emPixels, 10, 48);
+        _textEditor.Text = "";
+        _textEditor.IsVisible = true;
+        _editingText = true;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_editingText)
+            {
+                _textEditor.Focus();
+            }
+        }, DispatcherPriority.Input);
+    }
+
+    private void OnTextEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Enter:
+                CommitTextEdit(_textEditor?.Text);
+                e.Handled = true;
+                break;
+
+            case Key.Escape:
+                CommitTextEdit(null);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnTextEditorLostFocus(object? sender, RoutedEventArgs e) => CommitTextEdit(_textEditor?.Text);
+
+    private void CommitTextEdit(string? text)
+    {
+        if (!_editingText)
+        {
+            return;
+        }
+
+        _editingText = false;
+        if (_textEditor is not null)
+        {
+            _textEditor.IsVisible = false;
+            _textEditor.Text = "";
+        }
+
+        _toolSurface?.CompleteTextEdit(text);
+
+        // Back to the surface, so the keymap works again without a click.
+        Focus();
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -214,6 +379,15 @@ public partial class Playback2DView : UserControl
         // in-tab field is exactly the kind of bug a tunneling handler introduces silently.
         if (IsTextInputFocused())
         {
+            return;
+        }
+
+        // The contributions first: a focused panel's scope shadows the tool and always scopes,
+        // so Esc steps out of a panel and a palette's "A" is a site, not a tool, and a
+        // selected suggestion's scope is what makes J and K walk the queue instead of the result set.
+        if (vm.Surface.TryHandleKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -352,10 +526,18 @@ public partial class Playback2DView : UserControl
         _ => mode.ToString()
     };
 
-    // Populate the Follow-Player submenu from the VM's current players each time the menu opens.
+    // Populate the Follow-Player submenu and the toolbar items' entries from the VM's live state each
+    // time the menu opens.
     private void OnModeMenuOpened(object? sender, EventArgs e)
     {
-        if (_followMenuItem is null || DataContext is not Playback2DTabViewModel vm)
+        if (DataContext is not Playback2DTabViewModel vm)
+        {
+            return;
+        }
+
+        RebuildToolbarMenuItems(vm);
+
+        if (_followMenuItem is null)
         {
             return;
         }
@@ -382,6 +564,39 @@ public partial class Playback2DView : UserControl
         }
 
         _followMenuItem.ItemsSource = items;
+    }
+
+    // Surface.ToolbarItems as overflow entries: a pack toggled live or a rebound gesture changes the set
+    // or the label between opens, so this rebuilds rather than binds (MenuFlyout.Items takes no source
+    // alongside the flyout's own static entries). Each entry's Command is the item's own, the same one
+    // the toolbar button runs.
+    private void RebuildToolbarMenuItems(Playback2DTabViewModel vm)
+    {
+        if (_modeMenuFlyout is null)
+        {
+            return;
+        }
+
+        foreach (MenuItem old in _toolbarMenuItems)
+        {
+            _modeMenuFlyout.Items.Remove(old);
+        }
+
+        _toolbarMenuItems.Clear();
+
+        // Set directly rather than bound: this separator is the flyout popup's own content, not reliably
+        // in the visual tree for a data binding before the flyout has opened once.
+        if (_toolbarItemsSeparator is not null)
+        {
+            _toolbarItemsSeparator.IsVisible = vm.Surface.HasToolbarItems;
+        }
+
+        foreach (ToolbarItem item in vm.Surface.ToolbarItems)
+        {
+            MenuItem menuItem = new() { Header = item.MenuHeader ?? item.Label, Command = item.Command };
+            _modeMenuFlyout.Items.Add(menuItem);
+            _toolbarMenuItems.Add(menuItem);
+        }
     }
 
     // The SplitButton submenu pick goes through the VM's follow funnel like every other path; the viewport

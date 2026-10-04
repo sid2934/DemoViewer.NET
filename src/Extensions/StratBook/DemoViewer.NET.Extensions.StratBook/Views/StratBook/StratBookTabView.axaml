@@ -1,0 +1,1523 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
+             xmlns:sb="using:DemoViewer.NET.Views.StratBook"
+             xmlns:canvas="using:DemoViewer.NET.Modules.StratBook.Canvas"
+             xmlns:c="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Views.StratBook.StratBookTabView"
+             x:DataType="vm:StratBookTabViewModel">
+
+    <!--
+      THE STRAT BOOK TAB: the book selector (me plus every Team Identity team, us first), the map and side
+      filters and the strat list on the left; the open strat's editor on the right: metadata, the five slots,
+      the step table on the round clock and the branches, with the session's status line, save, undo and redo.
+
+      Text fields write on focus loss, so one field edit is one undo entry. Ctrl+Z and Ctrl+Shift+Z undo and
+      redo the strat while the tab has focus.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
+    </UserControl.KeyBindings>
+
+    <UserControl.Styles>
+        <!-- Role View's context lines: another slot's step kept for context,
+             greyed the way the printed page's ".context" class is. -->
+        <Style Selector="TextBlock.roleLine">
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <!-- The Detected preview's step list: the step the canvas is playing reads heavier, beside its "now". -->
+        <Style Selector="TextBlock.previewStep">
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="TextBlock.previewStep.previewStepActive">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.roleLine.roleLineContext">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontStyle" Value="Italic" />
+        </Style>
+        <!-- A label over its field: the step row's and the metadata's wrapping fields. -->
+        <Style Selector="StackPanel.stratField">
+            <Setter Property="Spacing" Value="2" />
+        </Style>
+        <Style Selector="StackPanel.stratField ComboBox">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="StackPanel.stratField TextBox">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <!-- The selected step (StratStepSelection): the one the canvas shows, drags and sets places on. -->
+        <Style Selector="Border.stratStep.selected">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+        </Style>
+        <Style Selector="TextBlock.stratStepNumber">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="Border.stratStep.selected TextBlock.stratStepNumber">
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <!-- The selected line (StratStepSelection): the one Set On Map writes. The base style comes first: the
+             later of two matching styles wins. -->
+        <Style Selector="Border.stratLine">
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2 0 0 0" />
+        </Style>
+        <Style Selector="Border.stratLine.lineSelected">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="Border.stratLine ComboBox">
+            <Setter Property="Padding" Value="6 0 0 0" />
+        </Style>
+        <!-- The Who button reads as the combo boxes beside it: it opens a picker too. -->
+        <Style Selector="Button.stratWho">
+            <Setter Property="Background" Value="{DynamicResource ComboBoxBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ComboBoxBorderBrush}" />
+            <Setter Property="BorderThickness" Value="{DynamicResource ComboBoxBorderThemeThickness}" />
+        </Style>
+        <Style Selector="TextBlock.stratFieldLabel">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <!-- A placed chip: a position entry on a step. A departure, which re-times the leg before, has the caution border. -->
+        <Style Selector="Border.placedChip">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style Selector="Border.placedChip.caution">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentCaution}" />
+        </Style>
+        <Style Selector="Button.placedChipText, Button.placedChipClear">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Button.placedChipText">
+            <Setter Property="Padding" Value="5 1 2 1" />
+            <Setter Property="MaxWidth" Value="250" />
+        </Style>
+        <Style Selector="Button.placedChipClear">
+            <Setter Property="Padding" Value="3 1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <!-- A validator issue beside the field it names: the glyph says warning or refusal, the tooltip what. -->
+        <Style Selector="TextBlock.stratIssue">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentCaution}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- A refusal is a filled badge, a warning an outline triangle: shape as well as colour. -->
+        <Style Selector="TextBlock.stratIssue.refusal">
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccent}" />
+            <Setter Property="Background" Value="{DynamicResource AccentError}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Padding" Value="4 0" />
+        </Style>
+        <!-- Step rows (StratBookTabView.axaml.cs): a row takes focus for Delete, Enter and Ctrl+D, but Tab
+             walks its fields; the row buttons are on keys instead. -->
+        <Style Selector="ContentPresenter.stepRow">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ContentPresenter.stepRow:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="ItemsControl#StepRows Button.icon-btn">
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
+        <Style Selector="Button.icon-btn.stepMove">
+            <Setter Property="Padding" Value="4 0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Height" Value="15" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <!-- One row of the Strat Record Panel: a scope's run/won/lost/aborted/unknown
+             counts, each a button when its clips are nonempty, and the win rate. Shared by the total row
+             and the provenance rows so both read the same. -->
+        <DataTemplate x:Key="RecordSplitRowTemplate" x:DataType="vm:StratRecordSplitRow">
+            <Grid ColumnDefinitions="*,32,32,32,32,32,64" ColumnSpacing="4" Margin="0 0 0 3">
+                <TextBlock Grid.Column="0" Text="{Binding Display}" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+                <Panel Grid.Column="1">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Run.CountText}"
+                            Command="{Binding Run.OpenCommand}" IsVisible="{Binding !Run.IsEmpty}" ToolTip.Tip="{Binding Run.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Run.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="2">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Won.CountText}"
+                            Command="{Binding Won.OpenCommand}" IsVisible="{Binding !Won.IsEmpty}" ToolTip.Tip="{Binding Won.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Won.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="3">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Lost.CountText}"
+                            Command="{Binding Lost.OpenCommand}" IsVisible="{Binding !Lost.IsEmpty}" ToolTip.Tip="{Binding Lost.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Lost.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="4">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Aborted.CountText}"
+                            Command="{Binding Aborted.OpenCommand}" IsVisible="{Binding !Aborted.IsEmpty}" ToolTip.Tip="{Binding Aborted.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Aborted.IsEmpty}" />
+                </Panel>
+                <Panel Grid.Column="5">
+                    <Button Classes="ghost" FontSize="11" Padding="6 2" Content="{Binding Unknown.CountText}"
+                            Command="{Binding Unknown.OpenCommand}" IsVisible="{Binding !Unknown.IsEmpty}" ToolTip.Tip="{Binding Unknown.Tip}" />
+                    <TextBlock Text="0" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding Unknown.IsEmpty}" />
+                </Panel>
+                <TextBlock Grid.Column="6" Text="{Binding WinRateText}" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextMid}" />
+            </Grid>
+        </DataTemplate>
+        <!-- The callout alias editor: under the strat list, and in the header flyout while the list is collapsed. -->
+        <DataTemplate x:Key="CalloutsEditorTemplate" x:DataType="vm:CalloutsEditorViewModel">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Callouts" Classes="col-label"
+                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                <TextBlock Text="pick one map (not all maps) to edit its aliases" FontSize="11"
+                           TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasMap}" />
+                <StackPanel Spacing="6" IsVisible="{Binding HasMap}">
+                    <TextBlock Text="{Binding MapLine}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                    <ItemsControl ItemsSource="{Binding Aliases}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CalloutAliasRow">
+                                <Grid ColumnDefinitions="80,*,Auto,Auto" ColumnSpacing="4" Margin="0 0 0 3">
+                                    <TextBox Grid.Column="0" FontSize="11" Watermark="alias"
+                                             Text="{Binding Alias, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout"
+                                             Text="{Binding Place, UpdateSourceTrigger=LostFocus}" />
+                                    <CheckBox Grid.Column="2" Content="primary" FontSize="10"
+                                              IsChecked="{Binding Primary}"
+                                              ToolTip.Tip="The word the UI shows for this place" />
+                                    <Button Grid.Column="3" Content="✕" Classes="ghost" FontSize="10" Padding="6 2"
+                                            Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this alias" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid ColumnDefinitions="80,*,Auto" ColumnSpacing="4">
+                        <TextBox Grid.Column="0" FontSize="11" Watermark="new alias" Text="{Binding NewAliasText}" />
+                        <TextBox Grid.Column="1" FontSize="11" Watermark="place or callout" Text="{Binding NewPlaceText}" />
+                        <Button Grid.Column="2" Content="Add" Classes="ghost" FontSize="11" Padding="8 3"
+                                Command="{Binding AddAliasCommand}" />
+                    </Grid>
+                    <WrapPanel Orientation="Horizontal">
+                        <TextBlock Text="copy from" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                        <ComboBox ItemsSource="{Binding CopySources}" SelectedItem="{Binding CopyFrom}"
+                                  FontSize="11" MinWidth="120" Margin="0 0 6 4">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StratOwnerOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Content="Copy aliases" Classes="ghost" FontSize="11" Padding="8 3" Margin="0 0 0 4"
+                                Command="{Binding CopyAliasesCommand}"
+                                ToolTip.Tip="Replaces this book's aliases on this map with theirs" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding IssueLine}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasIssue}" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Panel>
+    <!-- Disabled while the lineup picker is open, so Tab and Enter cannot reach the editor behind it. -->
+    <DockPanel x:Name="TabBody" Margin="16" IsEnabled="{Binding !HasLineupPicker}">
+
+        <!-- The book, the filters, and the browser note. -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10" Margin="0 0 0 12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{x:Static vm:StratBookTabViewModel.BrowserNote}" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+                <WrapPanel Orientation="Horizontal">
+                    <TextBlock Text="Book" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                    <ComboBox ItemsSource="{Binding Owners}" SelectedItem="{Binding SelectedOwner}"
+                              FontSize="12" MinWidth="180" Margin="0 0 16 4">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StratOwnerOption">
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="Map" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                    <ComboBox x:Name="MapFilter" ItemsSource="{Binding MapOptions}" SelectedItem="{Binding SelectedMap}"
+                              FontSize="12" MinWidth="130" Margin="0 0 16 4" />
+                    <TextBlock Text="Side" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4" />
+                    <ComboBox ItemsSource="{x:Static vm:StratBookTabViewModel.SideOptions}" SelectedItem="{Binding SelectedSide}"
+                              FontSize="12" MinWidth="100" Margin="0 0 16 4" />
+                    <!-- The button makes a blank strat. The menu (Blank, then the templates) is built in code
+                         from StratTemplates. -->
+                    <SplitButton x:Name="NewStratButton" Content="New strat" Classes="ghost" FontSize="11" Padding="10 5" Margin="0 0 8 4"
+                                 Command="{Binding NewStratCommand}"
+                                 ToolTip.Tip="A new strat in this book on the chosen map and side; the arrow starts it from a template">
+                        <SplitButton.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedLeft" />
+                        </SplitButton.Flyout>
+                    </SplitButton>
+                    <TextBlock x:Name="NewStratHintText" Text="{Binding NewStratHint}" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" Margin="0 0 8 4"
+                               IsVisible="{Binding NewStratHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="Auto,12,*,6,1.3*">
+
+            <!-- The strat list, and below it the book's callout aliases for the selected map. « collapses
+                 both to the strip below; the choice is kept in the session file. -->
+            <Grid Grid.Column="0" Width="280" RowDefinitions="*,12,Auto" IsVisible="{Binding !Layout.IsListCollapsed}">
+                <Border Grid.Row="0"
+                        Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="1" CornerRadius="6" Padding="12 10">
+                    <DockPanel>
+                        <!-- Book or Detected (Strat Mining): the book's strats, or the repeated setups and
+                             executes found in the library that are not in a book yet. -->
+                        <DockPanel DockPanel.Dock="Top" Margin="0 0 0 8">
+                        <Button x:Name="CollapseList" DockPanel.Dock="Right" Classes="pane-toggle" Content="«"
+                                Command="{Binding Layout.ToggleListCommand}"
+                                ToolTip.Tip="Collapse the strat list; a header keeps the picker and the callouts" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <ToggleButton x:Name="BookToggle" Content="Book" FontSize="11" Padding="10 4"
+                                          IsChecked="{Binding !IsDetectedView, Mode=OneWay}" Command="{Binding ShowBookCommand}" />
+                            <ToggleButton x:Name="DetectedToggle" Content="{Binding DetectedHeader}" FontSize="11" Padding="10 4"
+                                          IsChecked="{Binding IsDetectedView, Mode=OneWay}" Command="{Binding ShowDetectedCommand}"
+                                          ToolTip.Tip="Setups and executes seen at least twice in the library" />
+                        </StackPanel>
+                        </DockPanel>
+                        <Panel DockPanel.Dock="Bottom" IsVisible="{Binding IsDetectedView}">
+                            <StackPanel Spacing="6" Margin="0 8 0 0"
+                                        DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
+                                <TextBlock Text="{Binding StateProblem}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasStateProblem}" />
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Find strats" Classes="ghost" FontSize="11" Padding="10 5"
+                                            Command="{Binding FindCommand}" IsEnabled="{Binding !IsMining}"
+                                            ToolTip.Tip="Search every indexed demo for repeated setups and executes" />
+                                    <CheckBox Content="{Binding SettledLabel}" FontSize="11" IsChecked="{Binding ShowSettled}"
+                                              ToolTip.Tip="Also list the patterns you dismissed or added to a book" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Panel>
+                        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0 8 0 0" IsVisible="{Binding !IsDetectedView}">
+                            <TextBlock Text="{Binding ListLine}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMid}" />
+                            <Button Content="Delete" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding DeleteStratCommand}"
+                                    ToolTip.Tip="Moves the strat and its history to the book's .trash folder" />
+                        </StackPanel>
+                        <Panel>
+                            <ListBox ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
+                                     IsVisible="{Binding ShowBookList}" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratListRow">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMid}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Panel IsVisible="{Binding IsDetectedView}">
+                                <ListBox x:Name="DetectedList" Background="Transparent"
+                                         DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel"
+                                         ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:DetectedRowViewModel">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{Binding Title}" FontSize="12" Foreground="{DynamicResource TextValue}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextMid}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Panel>
+                        </Panel>
+                    </DockPanel>
+                </Border>
+
+                <!-- Callout Aliases: the book's words over this map's places. -->
+                <Border Grid.Row="2"
+                        Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="1" CornerRadius="6" Padding="12 10">
+                    <ContentControl Content="{Binding Callouts}" ContentTemplate="{StaticResource CalloutsEditorTemplate}" />
+                </Border>
+            </Grid>
+
+            <!-- The collapsed list: » brings it back. The header over column 2 carries the picker meanwhile. -->
+            <Border Grid.Column="0" Width="32" IsVisible="{Binding Layout.IsListCollapsed}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="0 6">
+                <DockPanel>
+                    <Button x:Name="ExpandList" DockPanel.Dock="Top" Classes="pane-toggle" Content="»"
+                            HorizontalAlignment="Center" Margin="0 0 0 8"
+                            Command="{Binding Layout.ToggleListCommand}"
+                            ToolTip.Tip="Show the strat list" />
+                    <LayoutTransformControl VerticalAlignment="Top" HorizontalAlignment="Center">
+                        <LayoutTransformControl.LayoutTransform>
+                            <RotateTransform Angle="90" />
+                        </LayoutTransformControl.LayoutTransform>
+                        <TextBlock Text="{Binding CollapsedListLabel}" Classes="col-label" FontSize="11"
+                                   Foreground="{DynamicResource TextCardHeader}" />
+                    </LayoutTransformControl>
+                </DockPanel>
+            </Border>
+
+            <!-- A detected pattern (Strat Mining): what it is, where it was seen, and Add to book. -->
+            <!-- Column 2: while the list is collapsed, a header with what the list was the way to reach (Book or
+                 Detected, the strat or pattern, the callouts); then the detected pattern or the editor. -->
+            <DockPanel Grid.Column="2">
+            <Border x:Name="StratPicker" DockPanel.Dock="Top" IsVisible="{Binding Layout.IsListCollapsed}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 8" Margin="0 0 0 8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                        <ToggleButton Content="Book" FontSize="11" Padding="10 4"
+                                      IsChecked="{Binding !IsDetectedView, Mode=OneWay}" Command="{Binding ShowBookCommand}" />
+                        <ToggleButton Content="{Binding DetectedHeader}" FontSize="11" Padding="10 4"
+                                      IsChecked="{Binding IsDetectedView, Mode=OneWay}" Command="{Binding ShowDetectedCommand}"
+                                      ToolTip.Tip="Setups and executes seen at least twice in the library" />
+                    </StackPanel>
+                    <Panel Grid.Column="1">
+                        <ComboBox x:Name="StratPickerCombo" FontSize="12" HorizontalAlignment="Stretch" MinWidth="0"
+                                  IsVisible="{Binding !IsDetectedView}"
+                                  ItemsSource="{Binding Strats}" SelectedItem="{Binding SelectedStrat}"
+                                  PlaceholderText="pick a strat"
+                                  ToolTip.Tip="The strats in this book on the chosen map and side">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StratListRow">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Panel IsVisible="{Binding IsDetectedView}">
+                        <ComboBox x:Name="DetectedPickerCombo" FontSize="12" HorizontalAlignment="Stretch" MinWidth="0"
+                                  DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel"
+                                  ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                                  PlaceholderText="pick a detected pattern">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DetectedRowViewModel">
+                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        </Panel>
+                    </Panel>
+                    <Button x:Name="CalloutsButton" Grid.Column="2" Content="Callouts" Classes="ghost" FontSize="11" Padding="10 5"
+                            ToolTip.Tip="The book's callout aliases for this map">
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <ContentControl Width="340" Content="{Binding Callouts}"
+                                                ContentTemplate="{StaticResource CalloutsEditorTemplate}" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
+            </Border>
+            <Panel>
+            <Border x:Name="DetectedDetail" IsVisible="{Binding IsDetectedView}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <Panel DataContext="{Binding Detected}" x:DataType="vm:DetectedStratsViewModel">
+                    <TextBlock Text="select a detected pattern" FontSize="11" Foreground="{DynamicResource TextMid}"
+                               IsVisible="{Binding !HasSelection}" />
+                    <ScrollViewer IsVisible="{Binding ShowPatternDetail}">
+                        <StackPanel Spacing="10" DataContext="{Binding SelectedRow}" x:DataType="vm:DetectedRowViewModel">
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding Summary}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="DetectedPreviewButton" Content="Preview" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding CanAdd}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.PreviewStratCommand}"
+                                        ToolTip.Tip="See the strat this pattern would become, playing, before adding it. Nothing is saved." />
+                                <Button Content="Add to book" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding CanAdd}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.AddToBookCommand}"
+                                        ToolTip.Tip="Build a strat from the most typical round into the book selected above, with every round as a run" />
+                                <Button Content="Open strat" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding IsInBook}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.OpenStratCommand}" />
+                                <Button Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding !IsDismissed}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.DismissCommand}"
+                                        ToolTip.Tip="Hide this pattern; it stays hidden when strats are found again" />
+                                <Button Content="Restore" Classes="ghost" FontSize="11" Padding="10 5" IsVisible="{Binding IsDismissed}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.RestoreCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding TeamsLine}" FontSize="12" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding TimingLine}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding UtilityLine}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                            <TextBlock Text="Utility most rounds share" Classes="col-label" FontSize="11"
+                                       Foreground="{DynamicResource TextCardHeader}" IsVisible="{Binding HasCommonThrows}" />
+                            <ItemsControl ItemsSource="{Binding CommonThrows}" IsVisible="{Binding HasCommonThrows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0 0 0 2"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Rounds" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                            <ItemsControl ItemsSource="{Binding Members}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DetectedMemberRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 3">
+                                            <TextBlock Grid.Column="0" Text="{Binding Line}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                            <Button Grid.Column="1" Content="Open" Classes="ghost" FontSize="10" Padding="8 2"
+                                                    Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.OpenRoundCommand}"
+                                                    CommandParameter="{Binding}" ToolTip.Tip="Open this round in 2D Playback" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- The preview: the strat Add to book would save, as text, never as fields. The canvas on
+                         the right plays it. -->
+                    <ScrollViewer x:Name="DetectedPreview" IsVisible="{Binding IsPreviewing}">
+                        <StackPanel Spacing="10" DataContext="{Binding Preview}" x:DataType="vm:StratPreviewViewModel">
+                            <TextBlock Text="Preview · not in the book" Classes="col-label" FontSize="11"
+                                       Foreground="{DynamicResource TextCardHeader}" />
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Add to book" Classes="ghost" FontSize="11" Padding="10 5" IsEnabled="{Binding IsReady}"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.AddToBookCommand}"
+                                        ToolTip.Tip="Save this strat into the book selected above, with every round as a run" />
+                                <Button Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.DismissCommand}"
+                                        ToolTip.Tip="Hide this pattern; it stays hidden when strats are found again" />
+                                <Button Content="Back to detected" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.BackToDetectedCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Notice}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" IsVisible="{Binding HasNotice}" />
+                            <TextBlock Text="Building the strat from the most typical round's cached files…" FontSize="11"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsLoading}" />
+                            <TextBlock Text="{x:Static vm:StratPreviewViewModel.MissingLine}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextValue}" IsVisible="{Binding IsMissing}" />
+                            <StackPanel Spacing="10" IsVisible="{Binding IsReady}">
+                                <ItemsControl ItemsSource="{Binding Fields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratPreviewField">
+                                            <Grid ColumnDefinitions="80,*" ColumnSpacing="8" Margin="0 0 0 2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding Notes}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding HasNotes}" />
+                                <TextBlock Text="Slots" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                                <ItemsControl ItemsSource="{Binding Slots}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratPreviewField">
+                                            <Grid ColumnDefinitions="80,*" ColumnSpacing="8" Margin="0 0 0 2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="Steps (round clock remaining)" Classes="col-label" FontSize="11"
+                                           Foreground="{DynamicResource TextCardHeader}" />
+                                <ItemsControl x:Name="DetectedPreviewSteps" ItemsSource="{Binding Steps}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratPreviewStepRow">
+                                            <Grid ColumnDefinitions="32,22,48,*" ColumnSpacing="6" Margin="0 0 0 3">
+                                                <TextBlock Grid.Column="0" Text="{Binding Marker}" FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding NumberText}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding AtText}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                                <StackPanel Grid.Column="3" Spacing="1">
+                                                    <TextBlock Classes="previewStep" Classes.previewStepActive="{Binding IsActive}"
+                                                               Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Note}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasNote}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <TextBlock Text="Rounds" Classes="col-label" FontSize="11" Foreground="{DynamicResource TextCardHeader}" />
+                            <ItemsControl ItemsSource="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.SelectedRow.Members}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DetectedMemberRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 3">
+                                            <TextBlock Grid.Column="0" Text="{Binding Line}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                            <Button Grid.Column="1" Content="Open" Classes="ghost" FontSize="10" Padding="8 2"
+                                                    Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Detected.OpenRoundCommand}"
+                                                    CommandParameter="{Binding}" ToolTip.Tip="Open this round in 2D Playback" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Panel>
+            </Border>
+
+            <!-- The editor. -->
+            <Border IsVisible="{Binding !IsDetectedView}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0 0 0 8">
+                        <TextBlock Grid.Column="0" Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasOpenStrat}">
+                            <Button Content="Undo" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Ctrl+Z" />
+                            <Button Content="Redo" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip.Tip="Ctrl+Shift+Z" />
+                            <Button Content="Save" Classes="ghost" FontSize="11" Padding="10 5"
+                                    Command="{Binding SaveCommand}" IsEnabled="{Binding HasPending}"
+                                    ToolTip.Tip="Commit the edits as one history entry" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Its own row: in the header it squeezed the status line to a letter per line at 1280. -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0 0 0 8"
+                                IsVisible="{Binding CanApplyTemplate}">
+                        <TextBlock Text="no steps yet" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextMid}" />
+                        <DropDownButton x:Name="ApplyTemplateButton" Content="Apply template" Classes="ghost" FontSize="11" Padding="10 5"
+                                        ToolTip.Tip="Fill this strat from a template; only while it has no steps">
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnApplyTemplateMenuOpening" />
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </StackPanel>
+
+                    <TextBlock DockPanel.Dock="Top" Text="select or create a strat" FontSize="11"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
+
+                    <ScrollViewer x:Name="EditorScroll" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasDocument}"
+                                  DataContext="{Binding Editor}" x:DataType="vm:StratEditorViewModel">
+                        <!-- The right margin keeps fields clear of the overlay scrollbar. -->
+                        <StackPanel Spacing="10" Margin="0 0 12 0">
+
+                            <!-- Metadata: name, the map and clock as one line, then the vocabulary fields as
+                                 label-over-field pairs that wrap to the editor's width. -->
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Name" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBox Grid.Column="1" FontSize="12" Text="{Binding Name, UpdateSourceTrigger=LostFocus}" />
+                            </Grid>
+                            <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}">
+                                <Run Text="{Binding Map}" /><Run Text=" · " /><Run Text="{Binding ClockLine}" />
+                            </TextBlock>
+                            <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="side" Classes="stratFieldLabel" />
+                                    <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.Sides}" SelectedItem="{Binding Side}" />
+                                </StackPanel>
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="type" Classes="stratFieldLabel" />
+                                    <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.Types}" SelectedItem="{Binding Type}" />
+                                </StackPanel>
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="target site" Classes="stratFieldLabel" />
+                                    <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.TargetSites}" SelectedItem="{Binding TargetSite}" />
+                                </StackPanel>
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="status" Classes="stratFieldLabel" />
+                                    <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.Statuses}" SelectedItem="{Binding Status}" />
+                                </StackPanel>
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="economy" Classes="stratFieldLabel" />
+                                    <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.Economies}" SelectedItem="{Binding Economy}" />
+                                </StackPanel>
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="tempo" Classes="stratFieldLabel" />
+                                    <ComboBox ItemsSource="{x:Static vm:StratEditorViewModel.Tempos}" SelectedItem="{Binding Tempo}" />
+                                </StackPanel>
+                                <!-- The clock: a switch rewrites every step time in one undo entry and keeps every tick. -->
+                                <StackPanel Classes="stratField" Width="132">
+                                    <TextBlock Text="clock" Classes="stratFieldLabel" />
+                                    <ComboBox x:Name="ClockSwitch" ItemsSource="{x:Static vm:StratEditorViewModel.ClockChoices}" SelectedItem="{Binding ClockChoice}"
+                                              ToolTip.Tip="Round: times count down the round clock, 1:55. From trigger: times count up from what starts the strat, +0:08" />
+                                </StackPanel>
+                            </WrapPanel>
+                            <TextBlock x:Name="ClockNote" Text="{Binding ClockNote}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding ClockNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Tags" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                                <TextBox Grid.Column="1" FontSize="12" Watermark="comma separated"
+                                         Text="{Binding TagsText, UpdateSourceTrigger=LostFocus}" />
+                            </Grid>
+                            <TextBox Text="{Binding Notes, UpdateSourceTrigger=LostFocus}" FontSize="12" Watermark="notes"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48" />
+
+                            <!-- Slots. -->
+                            <TextBlock Text="Slots" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                            <ItemsControl ItemsSource="{Binding Slots}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratSlotRow">
+                                        <Grid ColumnDefinitions="44,*,Auto,*" ColumnSpacing="6" Margin="0 0 0 4">
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextValue}" />
+                                            <TextBox Grid.Column="1" FontSize="12" Watermark="role" MinWidth="0"
+                                                     Text="{Binding Role, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Grid.Column="2" Text="pin" FontSize="11" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextMid}" />
+                                            <ComboBox Grid.Column="3" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
+                                                      ToolTip.Tip="Who plays this slot; the book default when unpinned"
+                                                      ItemsSource="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).PinOptions}"
+                                                      SelectedItem="{Binding Pin}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratPinOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Steps. -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="{Binding StepsHeader}" Classes="col-label" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" x:Name="AddStepButton" Content="Add step" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Click="OnAddStepClick"
+                                        ToolTip.Tip="After the row last focused, or at the end; Enter in a row's field does the same" />
+                            </Grid>
+                            <!-- The start: where every token stands before step 1, and what starts the strat. Not a step:
+                                 one line, opened to a location field per token. -->
+                            <Border x:Name="StartRow" DataContext="{Binding Start}" x:DataType="vm:StratStartRow"
+                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="0 0 0 6">
+                                <Border Classes="stratStep" Classes.selected="{Binding IsSelected}" Padding="0 2">
+                                    <Panel>
+                                        <Border Width="3" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}"
+                                                Background="{DynamicResource AccentInteractive}" />
+                                        <StackPanel Spacing="4">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                                <TextBlock Grid.Column="0" Classes="stratStepNumber" Text="Start" FontSize="12"
+                                                           VerticalAlignment="Center" Margin="6 0 0 0" />
+                                                <TextBlock Grid.Column="1" x:Name="StartSummary" FontSize="12" VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextValue}"
+                                                           Text="{Binding Line}" ToolTip.Tip="{Binding Line}" />
+                                                <Button Grid.Column="2" x:Name="StartExpand" Content="{Binding ExpandGlyph}" Classes="ghost" FontSize="12" Padding="8 2"
+                                                        Command="{Binding ToggleExpandedCommand}"
+                                                        ToolTip.Tip="Each player's start, and what starts the strat" />
+                                            </Grid>
+                                            <TextBlock x:Name="StartNote" Text="{Binding Note}" FontSize="11" TextWrapping="Wrap" Margin="24 0 0 0"
+                                                       Foreground="{DynamicResource AccentCaution}"
+                                                       IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            <StackPanel Margin="24 0 0 0" Spacing="4" IsVisible="{Binding IsExpanded}">
+                                                <StackPanel Classes="stratField">
+                                                    <TextBlock Text="what starts it" Classes="stratFieldLabel" />
+                                                    <TextBox x:Name="StartTrigger" FontSize="12" PlaceholderText="on call at 1:15, or contact at B apps"
+                                                             Text="{Binding $parent[ScrollViewer].((vm:StratEditorViewModel)DataContext).TriggerText, UpdateSourceTrigger=LostFocus}" />
+                                                </StackPanel>
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                    <TextBlock Grid.Column="0" Classes="stratFieldLabel" VerticalAlignment="Center">
+                                                        <Run Text="players · " /><Run Text="{Binding KindText}" />
+                                                    </TextBlock>
+                                                    <Button Grid.Column="1" Content="Spawns" Classes="ghost" FontSize="11" Padding="8 2"
+                                                            Command="{Binding UseSpawnsCommand}" IsVisible="{Binding CanUseSpawns}"
+                                                            ToolTip.Tip="Put every token back at the spawns" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Own}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:StratStartSlotRow">
+                                                            <Grid ColumnDefinitions="24,*" ColumnSpacing="4" Margin="0 0 0 3">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Slot}" FontSize="12" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextValue}" />
+                                                                <c:PlaceField Grid.Column="1" PlaceholderText="spawn, a callout or (x, y)"
+                                                                              Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding Value}"
+                                                                              PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding Target}"
+                                                                              ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                              ToolTip.Tip="Where this player stands before step 1" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="opponents" Classes="stratFieldLabel" />
+                                                <ItemsControl ItemsSource="{Binding Opponents}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:StratStartSlotRow">
+                                                            <Grid ColumnDefinitions="24,*" ColumnSpacing="4" Margin="0 0 0 3">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Slot}" FontSize="12" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextMid}" />
+                                                                <c:PlaceField Grid.Column="1" PlaceholderText="a callout or (x, y)"
+                                                                              Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding Value}"
+                                                                              PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding Target}"
+                                                                              ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                              ToolTip.Tip="Where this opponent stands before step 1" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Panel>
+                                </Border>
+                            </Border>
+                            <!-- One step: number, time, actor and verb on the first line with the row's
+                                 buttons, then only the fields the verb uses (StratStepFields; a field holding a
+                                 value shows whatever the verb), wrapping to the editor's width. -->
+                            <Grid ColumnDefinitions="20,56,64,84,*" ColumnSpacing="4">
+                                <TextBlock Grid.Column="0" Text="#" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="1" Text="at" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="2" Text="who" Classes="stratFieldLabel" />
+                                <TextBlock Grid.Column="3" Text="verb" Classes="stratFieldLabel" />
+                            </Grid>
+                            <ItemsControl x:Name="StepRows" ItemsSource="{Binding Steps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratStepRow">
+                                        <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1"
+                                                Padding="0 0 0 6" Margin="0 0 0 6">
+                                        <Border Classes="stratStep" Classes.selected="{Binding IsSelected}" Padding="0 2">
+                                            <Panel>
+                                            <!-- The bar overlays the number column rather than taking width: the row's
+                                                 fixed columns fill the 315 px editor. -->
+                                            <Border Width="3" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}"
+                                                    Background="{DynamicResource AccentInteractive}" />
+                                            <StackPanel Spacing="4">
+                                                <Grid ColumnDefinitions="20,56,64,84,*,Auto" ColumnSpacing="4">
+                                                    <TextBlock Grid.Column="0" Classes="stratStepNumber" Text="{Binding Number}" FontSize="12"
+                                                               VerticalAlignment="Center" Margin="6 0 0 0" />
+                                                    <TextBox Grid.Column="1" FontSize="12" MinWidth="0"
+                                                             Text="{Binding TimeText, UpdateSourceTrigger=LostFocus}" />
+                                                    <!-- Who: slot toggles in a flyout, written as one entry when it closes. -->
+                                                    <Button Grid.Column="2" Name="WhoButton" Classes="stratWho" FontSize="12" MinWidth="0"
+                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="6 4"
+                                                            ToolTip.Tip="Who takes the step: pick one or several players, or all">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="2">
+                                                            <TextBlock Text="{Binding WhoText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="▾" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                        <Button.Flyout>
+                                                            <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnWhoFlyoutOpened" Closed="OnWhoFlyoutClosed">
+                                                                <StackPanel Spacing="6">
+                                                                    <ItemsControl ItemsSource="{Binding WhoOptions}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <StackPanel Orientation="Horizontal" Spacing="3" />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:StratWhoOption">
+                                                                                <ToggleButton Content="{Binding Slot}" IsChecked="{Binding IsChecked}"
+                                                                                              Width="30" Padding="0 4" HorizontalContentAlignment="Center"
+                                                                                              ToolTip.Tip="{Binding Slot, StringFormat='Slot {0} takes part'}" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <Button Content="all" Classes="ghost" FontSize="11" Padding="8 2"
+                                                                                Command="{Binding WhoAllCommand}" ToolTip.Tip="Every player" />
+                                                                        <TextBlock Text="applied when this closes" Classes="stratFieldLabel" VerticalAlignment="Center" />
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Flyout>
+                                                        </Button.Flyout>
+                                                    </Button>
+                                                    <ComboBox Grid.Column="3" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
+                                                              ItemsSource="{x:Static vm:StratEditorViewModel.Verbs}" SelectedItem="{Binding Verb}"
+                                                              ToolTip.Tip="Changing the verb clears the fields the new verb does not use" />
+                                                    <!-- Issue markers for line one, on the top right corner of the number (the
+                                                         row's own) and of each field. -->
+                                                    <TextBlock Grid.Column="0" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -4 -4 0"
+                                                               Classes.refusal="{Binding RowIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding RowIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding RowIssue.Glyph}" ToolTip.Tip="{Binding RowIssue.Message}" />
+                                                    <TextBlock Grid.Column="1" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding TimeIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding TimeIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding TimeIssue.Glyph}" ToolTip.Tip="{Binding TimeIssue.Message}" />
+                                                    <TextBlock Grid.Column="2" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding WhoIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding WhoIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding WhoIssue.Glyph}" ToolTip.Tip="{Binding WhoIssue.Message}" />
+                                                    <TextBlock Grid.Column="3" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               Margin="0 -9 -5 0" Classes.refusal="{Binding VerbIssue.IsRefusal, FallbackValue=False}"
+                                                               IsVisible="{Binding VerbIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                               Text="{Binding VerbIssue.Glyph}" ToolTip.Tip="{Binding VerbIssue.Message}" />
+                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2">
+                                                        <!-- Move up and down stacked: the 1280 layout has no room for a fourth button in a line. -->
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <Button Content="↑" Classes="icon-btn stepMove" ToolTip.Tip="Move up (Alt+Up)"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepUpCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                            <Button Content="↓" Classes="icon-btn stepMove" ToolTip.Tip="Move down (Alt+Down)"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).MoveStepDownCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                        <Button Content="⧉" Classes="icon-btn" ToolTip.Tip="Duplicate the step after itself (Ctrl+D)"
+                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).DuplicateStepCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Content="✕" Classes="icon-btn"
+                                                                ToolTip.Tip="Remove the step and every branch that names it"
+                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).RemoveStepCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                                <!-- Who goes where. Compact: the players share one place and one watching, and an
+                                                     edit writes every line. Apart: one line per player. -->
+                                                <StackPanel Margin="24 0 0 0" Spacing="3">
+                                                    <Grid ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="3"
+                                                          IsVisible="{Binding ShowCompact}">
+                                                        <StackPanel Grid.Column="0" Grid.ColumnSpan="{Binding GroupPlaceSpan}"
+                                                                    IsVisible="{Binding ShowGroupPlace}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="{Binding ToLabel}" Classes="stratFieldLabel" />
+                                                                <TextBlock Classes="stratIssue" Classes.refusal="{Binding GroupPlaceIssue.IsRefusal, FallbackValue=False}"
+                                                                           IsVisible="{Binding GroupPlaceIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                           Text="{Binding GroupPlaceIssue.Glyph}" ToolTip.Tip="{Binding GroupPlaceIssue.Message}" />
+                                                            </StackPanel>
+                                                            <c:PlaceField Name="GroupPlaceField" PlaceholderText="place or callout"
+                                                                          Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding GroupPlaceValue}"
+                                                                          PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding GroupPlaceTarget}"
+                                                                          ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                          ToolTip.Tip="Where they go; every player in the step" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="{Binding GroupWatchColumn}" Grid.ColumnSpan="{Binding GroupWatchSpan}"
+                                                                    IsVisible="{Binding ShowGroupWatch}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="watching" Classes="stratFieldLabel" />
+                                                                <TextBlock Classes="stratIssue" Classes.refusal="{Binding GroupWatchIssue.IsRefusal, FallbackValue=False}"
+                                                                           IsVisible="{Binding GroupWatchIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                           Text="{Binding GroupWatchIssue.Glyph}" ToolTip.Tip="{Binding GroupWatchIssue.Message}" />
+                                                            </StackPanel>
+                                                            <c:PlaceField Name="GroupWatchField" IsMulti="True" PlaceholderText="add callout"
+                                                                          Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding GroupWatchValue}"
+                                                                          PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding GroupWatchTarget}"
+                                                                          ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                          ToolTip.Tip="Callouts watched, in order; each cone faces the first unless an angle is set" />
+                                                        </StackPanel>
+                                                        <!-- Via: where a travel goes on its way, in order; the route goes through each. -->
+                                                        <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" IsVisible="{Binding ShowGroupVia}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="via" Classes="stratFieldLabel" />
+                                                                <TextBlock Classes="stratIssue" Classes.refusal="{Binding GroupViaIssue.IsRefusal, FallbackValue=False}"
+                                                                           IsVisible="{Binding GroupViaIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                           Text="{Binding GroupViaIssue.Glyph}" ToolTip.Tip="{Binding GroupViaIssue.Message}" />
+                                                            </StackPanel>
+                                                            <c:PlaceField Name="GroupViaField" IsMulti="True" PlaceholderText="add callout on the way"
+                                                                          Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding GroupViaValue}"
+                                                                          PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding GroupViaTarget}"
+                                                                          ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                          ToolTip.Tip="Callouts to go through on the way, in order; empty takes the shortest route" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Bottom">
+                                                            <Button Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding HasGroupAngle}" IsTabStop="False"
+                                                                    Content="{Binding GroupAngleText}" Command="{Binding ClearGroupAngleCommand}"
+                                                                    ToolTip.Tip="Clear the view angle: face the first watched callout again" />
+                                                            <Button Content="split" Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding CanSplit}"
+                                                                    IsTabStop="False" Command="{Binding SplitCommand}"
+                                                                    ToolTip.Tip="One line per player, to give each their own place and watching" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Spacing="3" IsVisible="{Binding ShowApart}">
+                                                    <Grid ColumnDefinitions="48,*,*,Auto" ColumnSpacing="4" IsVisible="{Binding HasLines}">
+                                                        <TextBlock Grid.Column="0" Text="who" Classes="stratFieldLabel" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding ToLabel}" Classes="stratFieldLabel" />
+                                                        <TextBlock Grid.Column="2" Text="watching" Classes="stratFieldLabel"
+                                                                   ToolTip.Tip="Callouts the player watches; the view cone points at the first" />
+                                                    </Grid>
+                                                    <ItemsControl ItemsSource="{Binding Lines}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:StratLineRow">
+                                                                <Border Classes="stratLine" Classes.lineSelected="{Binding IsSelected}" Padding="0 1">
+                                                                    <Grid ColumnDefinitions="48,*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="2">
+                                                                        <ComboBox Grid.Column="0" FontSize="12" MinWidth="0" HorizontalAlignment="Stretch"
+                                                                                  IsVisible="{Binding IsExplicit}"
+                                                                                  ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding Slot}"
+                                                                                  ToolTip.Tip="The player this line is for; picking a player who has a line swaps the two" />
+                                                                        <TextBlock Grid.Column="0" Text="{Binding Slot}" FontSize="12" FontWeight="SemiBold"
+                                                                                   VerticalAlignment="Center" Margin="6 0 0 0" IsVisible="{Binding IsImplicit}"
+                                                                                   Foreground="{DynamicResource TextValue}" />
+                                                                        <c:PlaceField Name="LinePlaceField" Grid.Column="1" IsVisible="{Binding ShowPlace}" PlaceholderText="{Binding PlaceLabel}"
+                                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding PlaceValue}"
+                                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding PlaceTarget}"
+                                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                                      ToolTip.Tip="This player's place" />
+                                                                        <c:PlaceField Name="LineWatchField" IsMulti="True" Grid.Column="2" IsVisible="{Binding ShowWatch}" PlaceholderText="add callout"
+                                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding WatchValue}"
+                                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding WatchTarget}"
+                                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                                      ToolTip.Tip="Callouts watched, in order; the cone faces the first unless an angle is set" />
+                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="via" Classes="stratFieldLabel" IsVisible="{Binding ShowVia}"
+                                                                                   VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                                                        <c:PlaceField Name="LineViaField" IsMulti="True" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                                                                      IsVisible="{Binding ShowVia}" PlaceholderText="add callout on the way"
+                                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding ViaValue}"
+                                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding ViaTarget}"
+                                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                                      ToolTip.Tip="Callouts this player goes through on the way, in order" />
+                                                                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                                   Margin="0 -6 -5 0" Classes.refusal="{Binding ViaIssue.IsRefusal, FallbackValue=False}"
+                                                                                   IsVisible="{Binding ViaIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                                   Text="{Binding ViaIssue.Glyph}" ToolTip.Tip="{Binding ViaIssue.Message}" />
+                                                                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+                                                                            <Button Classes="ghost" FontSize="10" Padding="4 2" IsVisible="{Binding HasAngle}" IsTabStop="False"
+                                                                                    Content="{Binding AngleText}" Command="{Binding ClearAngleCommand}"
+                                                                                    ToolTip.Tip="Clear the view angle: face the first watched callout again" />
+                                                                            <Button Content="✕" Classes="icon-btn" IsVisible="{Binding IsExplicit}"
+                                                                                    Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this player from the step" />
+                                                                        </StackPanel>
+                                                                        <TextBlock Grid.Column="0" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                                   Margin="0 -6 -5 0" Classes.refusal="{Binding SlotIssue.IsRefusal, FallbackValue=False}"
+                                                                                   IsVisible="{Binding SlotIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                                   Text="{Binding SlotIssue.Glyph}" ToolTip.Tip="{Binding SlotIssue.Message}" />
+                                                                        <TextBlock Grid.Column="1" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                                   Margin="0 -6 -5 0" Classes.refusal="{Binding PlaceIssue.IsRefusal, FallbackValue=False}"
+                                                                                   IsVisible="{Binding PlaceIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                                   Text="{Binding PlaceIssue.Glyph}" ToolTip.Tip="{Binding PlaceIssue.Message}" />
+                                                                        <TextBlock Grid.Column="2" Classes="stratIssue" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                                   Margin="0 -6 -5 0" Classes.refusal="{Binding WatchIssue.IsRefusal, FallbackValue=False}"
+                                                                                   IsVisible="{Binding WatchIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                                   Text="{Binding WatchIssue.Glyph}" ToolTip.Tip="{Binding WatchIssue.Message}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <Button Content="+ player" Classes="ghost" FontSize="11" Padding="8 2" IsTabStop="False"
+                                                                IsVisible="{Binding CanAddLine}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).AddLineCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="Send another player somewhere in this step" />
+                                                        <Button Content="join" Classes="ghost" FontSize="11" Padding="8 2" IsTabStop="False"
+                                                                IsVisible="{Binding CanJoin}" Command="{Binding JoinCommand}"
+                                                                ToolTip.Tip="The lines agree: show them as one who, one place and one watching" />
+                                                    </StackPanel>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="24 0 0 0">
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowFrom}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="from" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding FromIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding FromIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding FromIssue.Glyph}" ToolTip.Tip="{Binding FromIssue.Message}" />
+                                                        </StackPanel>
+                                                        <c:PlaceField Name="FromField" Width="150" PlaceholderText="place or callout"
+                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding FromValue}"
+                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding FromTarget}"
+                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                      ToolTip.Tip="Where they come from" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding IsStrayTo}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="{Binding ToLabel}" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding ToIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding ToIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding ToIssue.Glyph}" ToolTip.Tip="{Binding ToIssue.Message}" />
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                                            <!-- Beside lines the step's own to is unused: read-only, cleared with the button. -->
+                                                            <c:PlaceField Name="StrayToField" Width="150" IsEnabled="False"
+                                                                          Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding ToValue}" />
+                                                            <Button Content="✕" Classes="icon-btn" IsVisible="{Binding IsStrayTo}"
+                                                                    Command="{Binding ClearStrayToCommand}"
+                                                                    ToolTip.Tip="Clear it: each line has its own place" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowUtility}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="utility" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding UtilityIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding UtilityIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding UtilityIssue.Glyph}" ToolTip.Tip="{Binding UtilityIssue.Message}" />
+                                                        </StackPanel>
+                                                        <ComboBox Width="96" ItemsSource="{x:Static vm:StratEditorViewModel.UtilityKinds}"
+                                                                  SelectedItem="{Binding UtilityKind}" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLineup}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="lineup" Classes="stratFieldLabel"
+                                                                       ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding LineupIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding LineupIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding LineupIssue.Glyph}" ToolTip.Tip="{Binding LineupIssue.Message}" />
+                                                        </StackPanel>
+                                                        <ComboBox Width="160" ItemsSource="{Binding LineupOptions}" SelectedItem="{Binding Lineup}"
+                                                                  ToolTip.Tip="A Utility Book lineup this throw is (Lineup On A Strat Step)" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowTechnique}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="thrown" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding TechniqueIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding TechniqueIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding TechniqueIssue.Glyph}" ToolTip.Tip="{Binding TechniqueIssue.Message}" />
+                                                        </StackPanel>
+                                                        <ComboBox Width="160" ItemsSource="{Binding Techniques}" SelectedItem="{Binding Technique}"
+                                                                  ToolTip.Tip="How the lineup is thrown; the count is how often it was" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowUtility}">
+                                                        <TextBlock Text=" " Classes="stratFieldLabel" />
+                                                        <Button Content="Pick on map" Classes="ghost" FontSize="11" Padding="8 5"
+                                                                IsVisible="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).CanPickLineups, FallbackValue=False}"
+                                                                Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).OpenLineupPickerCommand, FallbackValue={x:Null}}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="Pick where it lands and where it is thrown from on the Utility Book map" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLanding}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="lands at" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding LandingIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding LandingIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding LandingIssue.Glyph}" ToolTip.Tip="{Binding LandingIssue.Message}" />
+                                                        </StackPanel>
+                                                        <c:PlaceField Name="LandingField" Width="150" PlaceholderText="landing place"
+                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding LandingValue}"
+                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding LandingTarget}"
+                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                      ToolTip.Tip="Where the grenade lands" />
+                                                    </StackPanel>
+                                                    <!-- A lurk: its areas, then when it rotates (a time, a condition, or both) and where to. -->
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="lurk areas" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding LurkAreasIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding LurkAreasIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding LurkAreasIssue.Glyph}" ToolTip.Tip="{Binding LurkAreasIssue.Message}" />
+                                                        </StackPanel>
+                                                        <c:PlaceField Name="LurkAreasField" IsMulti="True" Width="200" PlaceholderText="add area"
+                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding LurkAreasValue}"
+                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding LurkAreasTarget}"
+                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                      ToolTip.Tip="Places the lurk takes or works towards, in order" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="rotate at" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding RotateAtIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding RotateAtIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding RotateAtIssue.Glyph}" ToolTip.Tip="{Binding RotateAtIssue.Message}" />
+                                                        </StackPanel>
+                                                        <TextBox Name="RotateAtField" Width="56" Watermark="0:40"
+                                                                 Text="{Binding RotateAtText, UpdateSourceTrigger=LostFocus}"
+                                                                 ToolTip.Tip="The round clock time the lurk rotates at; later than the step" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <TextBlock Text="or when" Classes="stratFieldLabel" />
+                                                        <AutoCompleteBox Name="RotateWhenField" Width="128" Watermark="on the call"
+                                                                         MinimumPrefixLength="0" FilterMode="StartsWith"
+                                                                         ItemsSource="{x:Static vm:StratStepRow.RotateConditions}"
+                                                                         Text="{Binding RotateWhenText, UpdateSourceTrigger=LostFocus}"
+                                                                         ToolTip.Tip="What makes the lurk rotate, in words; with a time, whichever comes first" />
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding ShowLurk}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="3">
+                                                            <TextBlock Text="rotate to" Classes="stratFieldLabel" />
+                                                            <TextBlock Classes="stratIssue" Classes.refusal="{Binding RotateToIssue.IsRefusal, FallbackValue=False}"
+                                                                       IsVisible="{Binding RotateToIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                       Text="{Binding RotateToIssue.Glyph}" ToolTip.Tip="{Binding RotateToIssue.Message}" />
+                                                        </StackPanel>
+                                                        <c:PlaceField Name="RotateToField" Width="150" PlaceholderText="place or callout"
+                                                                      Callouts="{Binding Callouts}" CurrentLevelMinZ="{Binding CurrentLevelMinZ}" Value="{Binding RotateToValue}"
+                                                                      PickCommand="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).PickOnMapCommand, FallbackValue={x:Null}}" PickCommandParameter="{Binding RotateToTarget}"
+                                                                      ArmedTarget="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).Canvas.ArmedField, FallbackValue={x:Null}}"
+                                                                      ToolTip.Tip="Where the lurk goes when it rotates" />
+                                                    </StackPanel>
+                                                    <!-- Position entries, which beat or stand in for a field: one chip each when they
+                                                         override what the row shows, the rest grouped. Above the note, wrapping in the row. -->
+                                                    <StackPanel Classes="stratField" IsVisible="{Binding HasPlaced}" MaxWidth="280">
+                                                        <TextBlock Text="placed" Classes="stratFieldLabel" />
+                                                        <ItemsControl Name="PlacedChips" ItemsSource="{Binding Placed}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel ItemSpacing="3" LineSpacing="2" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:StratPlacedChip">
+                                                                    <Border Classes="placedChip" Classes.caution="{Binding IsCaution}" ToolTip.Tip="{Binding ToolTip}">
+                                                                        <Border.ContextMenu>
+                                                                            <ContextMenu>
+                                                                                <MenuItem Header="{Binding ConvertLabel}" IsVisible="{Binding CanConvert}" Command="{Binding ConvertCommand}" />
+                                                                                <MenuItem Header="Clear" Command="{Binding ClearCommand}" />
+                                                                            </ContextMenu>
+                                                                        </Border.ContextMenu>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Button Classes="placedChipText" Content="{Binding Text}" IsVisible="{Binding IsSingle}"
+                                                                                    Command="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).SelectPlacedCommand, FallbackValue={x:Null}}"
+                                                                                    CommandParameter="{Binding}">
+                                                                                <Button.KeyBindings>
+                                                                                    <KeyBinding Gesture="Delete" Command="{Binding ClearCommand}" />
+                                                                                    <KeyBinding Gesture="Back" Command="{Binding ClearCommand}" />
+                                                                                </Button.KeyBindings>
+                                                                            </Button>
+                                                                            <Button Classes="placedChipText" Content="{Binding Text}" IsVisible="{Binding IsGroup}">
+                                                                                <Button.KeyBindings>
+                                                                                    <KeyBinding Gesture="Delete" Command="{Binding ClearCommand}" />
+                                                                                    <KeyBinding Gesture="Back" Command="{Binding ClearCommand}" />
+                                                                                </Button.KeyBindings>
+                                                                                <Button.Flyout>
+                                                                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                                                                        <ItemsControl ItemsSource="{Binding Entries}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate x:DataType="vm:StratPlacedEntry">
+                                                                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                                                        <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center"
+                                                                                                                   Foreground="{DynamicResource TextValue}" MinWidth="140" />
+                                                                                                        <Button Classes="ghost" FontSize="10" Padding="4 1" Content="{Binding ConvertLabel}"
+                                                                                                                IsVisible="{Binding CanConvert}" Command="{Binding ConvertCommand}" />
+                                                                                                        <Button Classes="ghost" FontSize="10" Padding="4 1" Content="✕"
+                                                                                                                Command="{Binding ClearCommand}" ToolTip.Tip="Clear this entry" />
+                                                                                                    </StackPanel>
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </Flyout>
+                                                                                </Button.Flyout>
+                                                                            </Button>
+                                                                            <Button Classes="placedChipClear" Content="✕" Command="{Binding ClearCommand}" IsTabStop="False"
+                                                                                    ToolTip.Tip="Clear: the token goes where the step's fields send it" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                    <StackPanel Classes="stratField">
+                                                        <TextBlock Text="note" Classes="stratFieldLabel" />
+                                                        <TextBox Width="200" Watermark="note"
+                                                                 Text="{Binding Note, UpdateSourceTrigger=LostFocus}" />
+                                                    </StackPanel>
+                                                </WrapPanel>
+                                                <!-- The markers' messages as text, for keyboard and screen-reader users. -->
+                                                <TextBlock Text="{Binding IssueText}" IsVisible="{Binding HasIssues}" Margin="24 0 0 0"
+                                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                                            </StackPanel>
+                                            </Panel>
+                                        </Border>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Branches. -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Text="Branches" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Add branch" Classes="ghost" FontSize="11" Padding="10 5"
+                                        Command="{Binding AddBranchCommand}"
+                                        ToolTip.Tip="After a step, if a condition holds, continue in this strat or another" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Branches}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StratBranchRow">
+                                        <WrapPanel Orientation="Horizontal" Margin="0 0 0 6">
+                                            <TextBlock Text="after" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <ComboBox FontSize="12" MinWidth="150" Margin="0 0 8 4"
+                                                      ItemsSource="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).StepOptions}"
+                                                      SelectedItem="{Binding AfterStep}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratStepOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="if" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <TextBox FontSize="12" MinWidth="200" Margin="0 0 8 4" Watermark="contact at Connector before 1:05"
+                                                     Text="{Binding ConditionText, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Text="continue in" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <ComboBox FontSize="12" MinWidth="150" Margin="0 0 8 4"
+                                                      ItemsSource="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).TargetStrats}"
+                                                      SelectedItem="{Binding TargetStrat}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratTargetOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="at" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextMid}" Margin="0 0 6 4" />
+                                            <ComboBox FontSize="12" MinWidth="150" Margin="0 0 8 4"
+                                                      ItemsSource="{Binding TargetStepOptions}" SelectedItem="{Binding TargetStep}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StratStepOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBox FontSize="12" MinWidth="140" Margin="0 0 8 4" Watermark="note"
+                                                     Text="{Binding Note, UpdateSourceTrigger=LostFocus}" />
+                                            <Button Content="Remove" Classes="ghost" FontSize="11" Padding="8 3" Margin="0 0 0 4"
+                                                    Command="{Binding $parent[ItemsControl].((vm:StratEditorViewModel)DataContext).RemoveBranchCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </WrapPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- What the validator says. -->
+                            <StackPanel Spacing="2" IsVisible="{Binding HasIssues}">
+                                <TextBlock Text="Checks" Classes="col-label" Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                                <ItemsControl ItemsSource="{Binding Issues}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <!-- The Strat Record Panel: run/won/lost/aborted, split by Demo
+                                 Provenance Labels, the small-sample caution, the failure breakdown; every number
+                                 sends its runs to the Review Queue. Reads the tab's RecordPanel, not the editor. -->
+                            <StackPanel Spacing="6"
+                                        DataContext="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).RecordPanel}"
+                                        x:DataType="vm:StratRecordPanelViewModel">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="Record" Classes="col-label"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="computing…" FontSize="11"
+                                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsComputing}" />
+                                </Grid>
+                                <TextBlock Text="{Binding Caution}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasCaution}" />
+                                <TextBlock Text="{Binding UnknownNote}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasUnknownNote}" />
+                                <ContentControl Content="{Binding Total}" ContentTemplate="{StaticResource RecordSplitRowTemplate}" />
+                                <TextBlock Text="by provenance" FontSize="10" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding HasProvenanceRows}" />
+                                <ItemsControl ItemsSource="{Binding ByProvenance}" ItemTemplate="{StaticResource RecordSplitRowTemplate}" />
+                                <TextBlock Text="Failures (lost or aborted runs only)" Classes="col-label"
+                                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" IsVisible="{Binding HasFailures}" />
+                                <ItemsControl ItemsSource="{Binding Failures}" IsVisible="{Binding HasFailures}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratRecordFailureRow">
+                                            <Grid ColumnDefinitions="140,56" ColumnSpacing="4" Margin="0 0 0 3">
+                                                <TextBlock Grid.Column="0" Text="{Binding Failure}" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                                <Button Grid.Column="1" Classes="ghost" FontSize="11" Padding="6 2"
+                                                        Content="{Binding Clips.CountText}" Command="{Binding Clips.OpenCommand}"
+                                                        ToolTip.Tip="{Binding Clips.Tip}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
+                            <!-- Role View And LAN Print: one slot's parts on
+                                 screen, picked here, and a button that prints all five as one HTML page
+                                 opened in the system browser. Reads the tab's RoleView, not the editor. -->
+                            <StackPanel Spacing="6"
+                                        DataContext="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).RoleView}"
+                                        x:DataType="vm:StratRoleViewPanelViewModel">
+                                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="Role View" Classes="col-label"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:StratRoleViewPanelViewModel.Slots}"
+                                              SelectedItem="{Binding SelectedSlot}" FontSize="11" IsVisible="{Binding HasStrat}" />
+                                    <Button Grid.Column="3" Content="Print role sheets" Classes="ghost" FontSize="11" Padding="8 3"
+                                            Command="{Binding PrintCommand}" IsVisible="{Binding !IsBrowser}"
+                                            ToolTip.Tip="Writes one HTML page per slot and opens it in the system browser" />
+                                </Grid>
+                                <TextBlock Text="open a strat to see its role sheets" FontSize="11"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasStrat}" />
+                                <StackPanel Spacing="4" IsVisible="{Binding HasStrat}">
+                                    <TextBlock Text="{Binding SlotLine}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextValue}" />
+                                    <TextBlock Text="{Binding MetaLine}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                                    <TextBlock Text="{Binding TriggerLine}" FontSize="11" Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasTriggerLine}" />
+                                    <ItemsControl ItemsSource="{Binding Lines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RoleViewLineRow">
+                                                <TextBlock Classes="roleLine" Classes.roleLineContext="{Binding IsContext}"
+                                                           FontSize="11" TextWrapping="Wrap" Margin="0 2 0 0">
+                                                    <Run Text="{Binding AtText}" /><Run Text=" · " /><Run Text="{Binding Text}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding Branches}" IsVisible="{Binding HasBranches}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextMid}" Margin="8 2 0 0" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding StatusFooter}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding PrintUnavailableNote}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasPrintUnavailableNote}" />
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
+                            <!-- Strat Version History: the append-only diff log,
+                                 newest entry first, each phrased against the document as it stood just
+                                 before it, with the record split either side of the entry's revision.
+                                 Reads the tab's HistoryPanel, not the editor. -->
+                            <StackPanel Spacing="6"
+                                        DataContext="{Binding $parent[UserControl].((vm:StratBookTabViewModel)DataContext).HistoryPanel}"
+                                        x:DataType="vm:StratHistoryPanelViewModel">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="History" Classes="col-label"
+                                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="computing…" FontSize="11"
+                                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsComputing}" />
+                                </Grid>
+                                <TextBlock Text="no history yet" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding !HasEntries}" />
+                                <ItemsControl ItemsSource="{Binding Entries}" IsVisible="{Binding HasEntries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StratHistoryEntryRow">
+                                            <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1"
+                                                    Padding="0 0 0 6" Margin="0 0 0 6">
+                                                <StackPanel Spacing="2">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <TextBlock Grid.Column="0" Text="{Binding RevisionText}" FontSize="11"
+                                                                   FontWeight="SemiBold" Foreground="{DynamicResource TextValue}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding WhenText}" FontSize="10"
+                                                                   HorizontalAlignment="Right" Foreground="{DynamicResource TextMid}" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Summary}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextValue}" />
+                                                    <ItemsControl ItemsSource="{Binding Changes}" IsVisible="{Binding ShowChangeList}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="x:String">
+                                                                <TextBlock Text="{Binding}" FontSize="10" TextWrapping="Wrap"
+                                                                           Foreground="{DynamicResource TextMid}" Margin="8 0 0 0" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <Grid ColumnDefinitions="44,*" ColumnSpacing="6" IsVisible="{Binding HasSplit}">
+                                                        <TextBlock Grid.Column="0" Text="before" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding BeforeText}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                    </Grid>
+                                                    <Grid ColumnDefinitions="44,*" ColumnSpacing="6" IsVisible="{Binding HasSplit}">
+                                                        <TextBlock Grid.Column="0" Text="after" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding AfterText}" FontSize="10" Foreground="{DynamicResource TextMid}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextMid}"
+                                           IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            </Panel>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="3" Background="Transparent" Width="6" />
+
+            <!-- The Step Authoring canvas, beside the step table it plays. -->
+            <Border Grid.Column="4"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="1" CornerRadius="6" Padding="12 10">
+                <Panel>
+                    <!-- The Detected preview's canvas: plays the unsaved strat, no tools. -->
+                    <DockPanel x:Name="DetectedPreviewCanvas" IsVisible="{Binding Detected.IsPreviewing}">
+                        <TextBlock DockPanel.Dock="Top" Text="Preview: plays the strat as it would be saved. Nothing here is in the book yet."
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" Margin="0 0 0 6" />
+                        <Panel>
+                            <TextBlock Text="building…" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding Detected.Preview.IsLoading, FallbackValue=False}" />
+                            <TextBlock Text="nothing to play" FontSize="11" Foreground="{DynamicResource TextMid}"
+                                       IsVisible="{Binding Detected.Preview.IsMissing, FallbackValue=False}" />
+                            <sb:StratCanvasView DataContext="{Binding Detected.Preview.Canvas}" x:DataType="canvas:StratCanvasViewModel"
+                                                IsVisible="{Binding HasDocument, FallbackValue=False}" />
+                        </Panel>
+                    </DockPanel>
+                    <DockPanel IsVisible="{Binding !Detected.IsPreviewing}">
+                        <!-- Strat Export. The button when this build can export; on the
+                             browser the same slot says why it cannot, the 2D tab's wording. -->
+                        <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0 0 0 6">
+                            <Button x:Name="StratExportButton" DockPanel.Dock="Right" Content="Export strat…"
+                                    Classes="ghost" FontSize="11" Padding="8 3"
+                                    Command="{Binding OpenExportCommand}" IsVisible="{Binding CanExport}"
+                                    ToolTip.Tip="Render the strat to a GIF or video, first step to last plus 2 s by default. Runs in the background." />
+                            <TextBlock DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMid}"
+                                       Text="{Binding ExportUnavailableNote}"
+                                       IsVisible="{Binding HasExportUnavailableNote}"
+                                       ToolTip.Tip="An export writes a file and may drive ffmpeg; the browser head has neither." />
+                        </DockPanel>
+                        <Panel>
+                            <TextBlock Text="the canvas plays the open strat" FontSize="11"
+                                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding !HasOpenStrat}" />
+                            <sb:StratCanvasView DataContext="{Binding Canvas}" x:DataType="canvas:StratCanvasViewModel"
+                                                IsVisible="{Binding HasDocument}" />
+                        </Panel>
+                    </DockPanel>
+
+                    <!-- The export pane, as on the 2D tab: not a modal; Start hands off and closes, and progress
+                         lives on the status chip. -->
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="360"
+                            BorderThickness="1,0,0,0"
+                            Background="{DynamicResource Pb2dPanelBg}"
+                            BorderBrush="{DynamicResource Pb2dGridSplitter}"
+                            IsVisible="{Binding ExportDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Grid RowDefinitions="*,Auto">
+                            <ScrollViewer Grid.Row="0">
+                                <ContentControl Content="{Binding ExportDialog}" />
+                            </ScrollViewer>
+                            <Button Grid.Row="1" Content="Close" Margin="12,0,12,12" HorizontalAlignment="Right"
+                                    Command="{Binding CloseExportCommand}" />
+                        </Grid>
+                    </Border>
+                </Panel>
+            </Border>
+        </Grid>
+    </DockPanel>
+
+    <!-- The lineup picker, over the whole tab (no native window, so the browser head has it too). -->
+    <Border x:Name="LineupPickerOverlay" Background="{DynamicResource ModalScrim}" IsVisible="{Binding HasLineupPicker}"
+            Padding="40 32">
+        <sb:LineupPickerView DataContext="{Binding LineupPicker}" />
+    </Border>
+    </Panel>
+
+</UserControl>

@@ -8,9 +8,9 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d</c>: headless Playback2D render / export / bench (docs/playback2d-v2/design.md §4, §5.8,
-///     §6, §11). No window is ever created, no Avalonia assembly is ever loaded, and no feature gate or
-///     <c>AppSettings</c> value is ever read: a headless tool takes explicit flags (§7.7).
+///     <c>dv2d</c>: headless Playback2D render / export / bench. No window is ever created, no
+///     Avalonia assembly is ever loaded, and no feature gate or
+///     <c>AppSettings</c> value is ever read: a headless tool takes explicit flags.
 /// </summary>
 internal static class Program
 {
@@ -22,7 +22,8 @@ internal static class Program
                                            [--out <png>]            default ./dv2d-render.png
                                            [--size WxH]             default 1920x1080
                                            [--layers a,b] [--exclude-layers a,b]
-                                           [--ink <file.dvann.json>]
+                                           [--ink <file.dvann.json>] [--zones-overlay <file.zones.json>]
+                                           [--query <file.dvquery.json>] [--overlay <file.dvoverlay.json>]
                                            [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
                                            [--layout stacked|single] [--level <levelId>]
                                            [--assets <dir>] [--no-radar]
@@ -55,6 +56,14 @@ internal static class Program
                                            [--cpu | --gpu | --backend <name>] [--strict-backend]
                                            [--tolerance byte-exact|perceptual] [--diff-dir <dir>] [--json]
 
+                                  pack     --queue <review-queue.json>
+                                           [--out <file>] [--format webm|mp4|gif]   default mp4
+                                           [--fps N] [--size WxW]                   default 1080x1080/30
+                                           [--title-seconds N]                      default 2.5
+                                           [--encoder auto|software|<name>] [--quality draft|standard|best]
+                                           [--assets <dir>] [--no-radar]
+                                           [--ffmpeg-log] [--json] [--quiet]
+
                                   fixture  capture --demo <path> (--tick N | --frame N) --name <id>
                                                    [--corpus <dir>] [--size WxH] [--camera ...]
                                                    [--annotations <path>] [--layers ...] [--json]
@@ -66,20 +75,39 @@ internal static class Program
                                            A CPU answer is not an error (exit 0); --require-gpu makes it exit 6,
                                            and --require-hardware additionally rejects WARP / llvmpipe.
 
-                                --layers    the eleven ids SceneLayerCatalog registers, bare or prefixed:
+                                --layers    the fourteen ids SceneLayerCatalog registers, bare or prefixed:
                                             radar, trails, areaeffects, vision, markers, bomb, floorlabel
-                                            (the scene, drawn by default) and annotations, hud.roster,
-                                            hud.clock, hud.killfeed (opt-in, named or absent). render,
-                                            golden and bench draw the SAME stack export does — up to D6
-                                            they drew a debug grid instead, and every committed golden
-                                            was a picture of it. The four opt-in ids need a source: --ink
-                                            feeds the annotation layer, and the three HUD ids need a
-                                            demo's clock and kill timeline, so only `export --hud` can.
+                                            (the scene, drawn by default) and zones, annotations,
+                                            hud.roster, hud.clock, hud.killfeed, query, overlay (opt-in,
+                                            named or absent). render, golden and bench draw the SAME stack
+                                            export does; earlier builds drew a debug grid instead, and every
+                                            committed golden was a picture of it. The seven opt-in ids need
+                                            a source: --ink feeds the annotation layer, zones needs a map
+                                            bundle with a zones.json under --assets, --query feeds the
+                                            query tokens, --overlay feeds the heatmap, and the three HUD
+                                            ids need a demo's clock and kill timeline, so only
+                                            `export --hud` can.
+
+                                --zones-overlay <file>
+                                            applies a user zones overlay (<map>.zones.json, the file the app
+                                            reads from <config>/zones/) over the baked set for a render.
+                                            `golden` and `bench` take it by convention instead:
+                                            zones/<name>.zones.json beside the corpus entry's scene.
 
                                 --ink       burns a .dvann.json sidecar into a single-frame render. `golden`
                                             and `bench` take it by convention instead — annotations/<name>.dvann.json
                                             beside the corpus entry's scene — so a golden's ink is a
                                             committed artefact rather than a flag someone has to remember.
+
+                                --query     draws a .dvquery.json query fixture (the Situations tab's placed
+                                            place tokens) into a single-frame render. `golden` and `bench`
+                                            take it by the same convention: queries/<name>.dvquery.json
+                                            beside the corpus entry's scene.
+
+                                --overlay   draws a .dvoverlay.json overlay fixture (the Overlay View's stacked
+                                            positions, as a heatmap) into a single-frame render. `golden` and
+                                            `bench` take it by the same convention: overlays/<name>.dvoverlay.json
+                                            beside the corpus entry's scene.
 
                                 --perf (alias --profile, env CS2DEMOKIT_PROFILE / DEMOVIEWER_PROFILE) adds a
                                             per-layer and per-stage breakdown to bench and export: p50/p99/total/share
@@ -102,10 +130,20 @@ internal static class Program
                                             verify the export is refused (exit 6) rather than substituted.
                                             The chosen rung, why, and every rejected one are in --json.
 
-                                backend selection (design §5.8): --cpu | --gpu | --backend <name>, then
+                                backend selection: --cpu | --gpu | --backend <name>, then
                                             DV2D_RENDER_BACKEND, then an auto-probe. --strict-backend turns a
                                             GPU request into force-gpu, so a lane fails rather than silently
-                                            measuring software rendering. dv2d reads no AppSettings (§7.7).
+                                            measuring software rendering. dv2d reads no AppSettings.
+
+                                pack        Headless Packs: the Review Queue's plan-then-stitch
+                                            policy run over a review-queue.json file instead of the app's
+                                            Export pack row, so "every scrim from last night, tagged rounds
+                                            only, rendered by morning" is a scheduled command. The queue
+                                            decides which rounds are in it; dv2d filters nothing of its own.
+                                            A clip whose demo is missing or whose range is empty is left out
+                                            before anything renders; a clip that fails to render on its own
+                                            is left out and the rest of the pack continues. Full reference:
+                                            dv2d.md.
 
                                 exit codes: 0 ok · 1 usage · 2 missing input · 3 runtime failure
                                             4 GATE FAILURE (golden mismatch / budget exceeded) · 5 cancelled
@@ -114,7 +152,7 @@ internal static class Program
 
     /// <summary>The verbs the usage text lists, and the only ones <see cref="Main" /> dispatches.</summary>
     public static readonly IReadOnlyList<string> Verbs =
-        ["render", "export", "bench", "golden", "fixture", "probe"];
+        ["render", "export", "bench", "golden", "fixture", "probe", "pack"];
 
     /// <summary>The process entry point.</summary>
     /// <param name="args">The raw arguments.</param>
@@ -210,6 +248,7 @@ internal static class Program
         "fixture" => FixtureCommand.Run(args),
         "probe" => ProbeCommand.Run(args),
         "export" => ExportCommand.RunAsync(args, ct).GetAwaiter().GetResult(),
+        "pack" => PackCommand.RunAsync(args, ct).GetAwaiter().GetResult(),
         _ => throw new CliUsageException($"unknown command '{args.Verb}'.")
     };
 }

@@ -35,7 +35,7 @@
            0 — Seek controls (frame navigation)
            1 — Analysis content (DataContext switched to AnalysisViewModel)
          ══════════════════════════════════════════════════════════════ -->
-    <!-- Seek controls moved to the shell NavStrip (navigation-review Phase C).
+    <!-- Seek controls moved to the shell NavStrip.
          AnalysisRoot is the shell-DataContext anchor: the breakpoint chrome below lives under AnalysisContent
          (DataContext=Analysis), so it reaches the gate shim via ElementName=AnalysisRoot + a cast. -->
     <Grid x:Name="AnalysisRoot" Background="{DynamicResource PanelBg}">
@@ -434,7 +434,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <!-- Fire-count badges (work item 0.2): one row per trigger-backed authored
+                        <!-- Fire-count badges: one row per trigger-backed authored
                              rule with its total edge applies from the last run. Never-fired rows
                              render amber — the paired lint row above names them too. -->
                         <TextBlock Text="RULE FIRES"

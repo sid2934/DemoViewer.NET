@@ -1,6 +1,8 @@
 #region
 
+using System.Text.RegularExpressions;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -28,6 +30,7 @@ public sealed class Playback2DKeymapProfile
     // authored order the Settings list and the docs table both read top-to-bottom. An action bound twice
     // by a future table edit lands in _multiBound instead: "which row did you mean" has no answer a
     // settings file can express, so those rows stay un-rebindable rather than silently picking one.
+    private static readonly Playback2DBinding[] _shipped;
     private static readonly Dictionary<Playback2DAction, int> _indexByAction;
     private static readonly HashSet<Playback2DAction> _multiBound;
     private static readonly (Key Key, KeyModifiers Modifiers)[] _shell;
@@ -37,13 +40,16 @@ public sealed class Playback2DKeymapProfile
     private readonly HashSet<Playback2DAction> _overridden;
 
     // Ordered, not field initializers: BuildIndex hands _multiBound back through an out parameter, and
-    // Default is built from the same shipped table both of them read.
+    // Default is built from the same shipped table both of them read. _shipped is core (Playback2DKeymap)
+    // union every pack's commands (CommandRegistry.Default.EffectiveBindings), unconditionally: no live
+    // gate reaches this static table, so a pack-off chord has no view surface to act on instead.
     static Playback2DKeymapProfile()
     {
+        _shipped = [.. CommandRegistry.Default.EffectiveBindings];
         _indexByAction = BuildIndex(out _multiBound);
         _shell = [.. Playback2DKeymap.ReservedGestures(false)];
         _shellAndBrowser = [.. Playback2DKeymap.ReservedGestures(true)];
-        Default = new Playback2DKeymapProfile([.. Playback2DKeymap.Default], [], []);
+        Default = new Playback2DKeymapProfile([.. _shipped], [], []);
     }
 
     private Playback2DKeymapProfile(Playback2DBinding[] bindings, HashSet<Playback2DAction> overridden,
@@ -133,7 +139,7 @@ public sealed class Playback2DKeymapProfile
         // Apply the whole accepted set FIRST. A swap (PrevRound=E together with NextRound=Q) is clean
         // only as a batch: checked row by row, its first half collides with the second half's not-yet-
         // replaced default. This pass is what lets a user exchange two keys at all.
-        Playback2DBinding[] table = [.. Playback2DKeymap.Default];
+        Playback2DBinding[] table = [.. _shipped];
         foreach ((string _, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
         {
             table[_indexByAction[action]] = Rebind(table[_indexByAction[action]], key, modifiers);
@@ -145,7 +151,7 @@ public sealed class Playback2DKeymapProfile
         {
             // The batch does not stand up. Re-apply row by row and drop only the rows that actually
             // collide, so the report names the offending row instead of condemning the whole file.
-            table = [.. Playback2DKeymap.Default];
+            table = [.. _shipped];
             overridden = [];
             foreach ((string row, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
             {
@@ -155,7 +161,7 @@ public sealed class Playback2DKeymapProfile
                 IReadOnlyList<string> conflicts = Playback2DKeymap.FindConflicts(candidate, reserved);
                 if (conflicts.Count > 0)
                 {
-                    problems.Add($"{row}: {conflicts[0]}");
+                    problems.Add($"{row}: {AnnotatePackOwners(conflicts[0])}");
                     continue;
                 }
 
@@ -246,6 +252,29 @@ public sealed class Playback2DKeymapProfile
         return false;
     }
 
+    /// <summary>
+    ///     Resolves a keypress against ONE scope's rows of this profile. The Tag Palette asks it for
+    ///     <see cref="Playback2DBindingScope.WhenPaletteFocused" /> before its button hotkeys and before
+    ///     <see cref="TryResolve(Key, KeyModifiers, bool, out Playback2DAction)" />, which is what puts the
+    ///     palette scope above the tool and always scopes. A reserved row resolves to nothing.
+    /// </summary>
+    /// <param name="scope">The scope to look in.</param>
+    /// <param name="key">The pressed key.</param>
+    /// <param name="modifiers">The active modifiers.</param>
+    /// <param name="action">The resolved action.</param>
+    public bool TryResolveInScope(Playback2DBindingScope scope, Key key, KeyModifiers modifiers,
+        out Playback2DAction action)
+    {
+        if (TryFind(scope, key, modifiers, out Playback2DBinding found) && !found.IsReserved)
+        {
+            action = found.Action;
+            return true;
+        }
+
+        action = Playback2DAction.None;
+        return false;
+    }
+
     /// <summary>Convenience overload for the view's KeyDown handler.</summary>
     /// <param name="e">The key event.</param>
     /// <param name="toolActive">Whether a pointer tool is selected.</param>
@@ -312,6 +341,21 @@ public sealed class Playback2DKeymapProfile
             Modifiers = modifiers
         };
 
+    // A conflict naming a pack-owned action (TagNote, AddStep, …) is otherwise opaque the moment that
+    // pack is off: the Settings list hides its row, so the user reads an action name that appears
+    // nowhere they can see. Named here regardless of the pack's current on/off state, since this is
+    // about which pack a chord belongs to, not whether it is live right now.
+    private static string AnnotatePackOwners(string conflict)
+    {
+        foreach (KeyValuePair<Playback2DAction, PackCommand> entry in CommandRegistry.Default.PackOwnerByAction)
+        {
+            conflict = Regex.Replace(conflict, $@"\b{Regex.Escape(entry.Key.ToString())}\b",
+                $"{entry.Key} ({entry.Value.PackLabel})");
+        }
+
+        return conflict;
+    }
+
     // "Action=Gesture" → the two halves, with every reason a row can be refused. Split at the FIRST '='
     // because no gesture Avalonia parses contains one.
     private static bool TryParseRow(string row, bool isBrowser, out Playback2DAction action, out Key key,
@@ -348,7 +392,7 @@ public sealed class Playback2DKeymapProfile
             return false;
         }
 
-        Playback2DBinding shipped = Playback2DKeymap.Default[at];
+        Playback2DBinding shipped = _shipped[at];
         if (shipped.IsReserved)
         {
             error = $"{action} is reserved and not bindable";
@@ -412,8 +456,8 @@ public sealed class Playback2DKeymapProfile
         Dictionary<Playback2DAction, int> index = new();
         multiBound = [];
 
-        IReadOnlyList<Playback2DBinding> shipped = Playback2DKeymap.Default;
-        for (int i = 0; i < shipped.Count; i++)
+        Playback2DBinding[] shipped = _shipped;
+        for (int i = 0; i < shipped.Length; i++)
         {
             if (!index.TryAdd(shipped[i].Action, i))
             {

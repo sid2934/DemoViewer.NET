@@ -52,7 +52,7 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
 
     /// <summary>
     ///     Module feature ids that additionally require a desktop head: the ONE
-    ///     <c>!OperatingSystem.IsBrowser()</c> AND site for module-facing ids (B5 D4). A phase that needs a
+    ///     <c>!OperatingSystem.IsBrowser()</c> AND site for module-facing ids. A phase that needs a
     ///     desktop-only gate adds its id here and nowhere else; a second shim would be a second answer to
     ///     the same question.
     /// </summary>
@@ -60,8 +60,11 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
     {
         // Video export writes a file and drives an ffmpeg subprocess. The WASM head has no filesystem and
         // no System.Diagnostics.Process, so the feature cannot exist there whatever the user's override
-        // says (B4.13).
-        "playback2d.export"
+        // says.
+        "playback2d.export",
+
+        // Strat Export: the same job and the same file, so the same reason.
+        "stratbook.export"
     };
 
     /// <inheritdoc />

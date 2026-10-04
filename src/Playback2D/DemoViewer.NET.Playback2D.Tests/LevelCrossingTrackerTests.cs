@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The crossing detector and the marker snap it drives: design §5.3's "trail and smoothing buffers
+///     The crossing detector and the marker snap it drives: "trail and smoothing buffers
 ///     reset when an entity crosses levels", i.e. the streak-across-the-map artefact.
 /// </summary>
 public class LevelCrossingTrackerTests

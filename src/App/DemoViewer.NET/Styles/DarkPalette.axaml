@@ -279,6 +279,8 @@
             <SolidColorBrush x:Key="Pb2dGridSplitter" Color="#22272E" />
             <SolidColorBrush x:Key="Pb2dHudDivider" Color="#33404A" />
             <SolidColorBrush x:Key="Pb2dOverlayBg" Color="#CC15181C" />
+            <!-- Dims the tab behind a modal panel (the Strat Book lineup picker). -->
+            <SolidColorBrush x:Key="ModalScrim" Color="#B3000008" />
             <SolidColorBrush x:Key="Pb2dKillFeedBg" Color="#E6090B0E" />
             <SolidColorBrush x:Key="Pb2dKillFeedBorder" Color="#33FFFFFF" />
 
@@ -390,6 +392,11 @@
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingT" Color="#C8881F" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingCt" Color="#357ABD" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingNeutral" Color="#666666" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteT" Color="#59E0A030" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteCt" Color="#594A90D9" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteGhostT" Color="#B3E0A030" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteGhostCt" Color="#B34A90D9" />
+            <SolidColorBrush x:Key="Pb2dCanvasDropTarget" Color="#A99CF0" />
 
             <!-- Analysis rule-graph (MSAGL) colours (T1c — GraphView resolves these from the token namespace so
                  any theme colours the graph with no code change). Dark = the former GraphStyle defaults EXACTLY. -->
@@ -626,6 +633,8 @@
             <SolidColorBrush x:Key="Pb2dGridSplitter" Color="#D2D7DE" />
             <SolidColorBrush x:Key="Pb2dHudDivider" Color="#C6CCD4" />
             <SolidColorBrush x:Key="Pb2dOverlayBg" Color="#E6EDEFF3" />
+            <!-- Dims the tab behind a modal panel (the Strat Book lineup picker). -->
+            <SolidColorBrush x:Key="ModalScrim" Color="#80101020" />
             <SolidColorBrush x:Key="Pb2dKillFeedBg" Color="#F0EDEFF3" />
             <SolidColorBrush x:Key="Pb2dKillFeedBorder" Color="#22202020" />
             <SolidColorBrush x:Key="Pb2dTextDim" Color="#6A727C" />
@@ -724,6 +733,11 @@
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingT" Color="#A66A15" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingCt" Color="#285F9E" />
             <SolidColorBrush x:Key="Pb2dCanvasMarkerRingNeutral" Color="#8A8F96" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteT" Color="#66C9821C" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteCt" Color="#662F73BE" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteGhostT" Color="#B3A66A15" />
+            <SolidColorBrush x:Key="Pb2dCanvasRouteGhostCt" Color="#B3285F9E" />
+            <SolidColorBrush x:Key="Pb2dCanvasDropTarget" Color="#5B4BC4" />
 
             <!-- Analysis rule-graph — LIGHT: the former GraphStyle.Light values (light surfaces, dark text,
                  deepened semantic edge colours; layout/sizing inherited). -->

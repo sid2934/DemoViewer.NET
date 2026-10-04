@@ -2,8 +2,8 @@ namespace DemoViewer.NET.ViewModels;
 
 /// <summary>
 ///     One fire-count badge row in the rule-diagnostics panel: how many times a trigger-backed
-///     rule's edges applied during the last evaluation (work item 0.2, fed by the always-on
-///     counters from 0.1). Per-player rules aggregate across all materialized players.
+///     rule's edges applied during the last evaluation, fed by the always-on
+///     counters. Per-player rules aggregate across all materialized players.
 /// </summary>
 /// <param name="ChainId">The declaring chain's config id.</param>
 /// <param name="RuleId">The rule's config id (ids, not display names: names may collide).</param>

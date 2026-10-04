@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_nuke",
+  "basedOn": "29eb299a",
+  "defaults": { "floorQuantum": 64 },
+  "zones": [
+    {
+      "name": "Sandwich",
+      "floor": -512,
+      "polygon": [ -1600, -1900, -1200, -1900, -1200, -1500, -1600, -1500 ],
+      "replaces": false
+    }
+  ],
+  "merges": [
+    { "into": "Site A", "from": [ "BombsiteA", "Hut" ] }
+  ],
+  "hidden": [ "HutRoof" ]
+}

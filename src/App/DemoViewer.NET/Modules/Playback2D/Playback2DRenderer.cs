@@ -1,5 +1,6 @@
 #region
 
+using Avalonia;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -17,7 +18,7 @@ public enum Playback2DRendererKind
 
     /// <summary>
     ///     The pre-v2 <see cref="Playback2DViewport" />. A parity escape hatch, deleted the release AFTER
-    ///     v2 ships; <c>docs/playback2d-v2/old-control-removal.md</c> carries the trigger conditions.
+    ///     v2 ships.
     /// </summary>
     Legacy
 }
@@ -99,6 +100,20 @@ internal interface IAnnotationSurface
 
     /// <summary>Abandons whatever gesture is in flight.</summary>
     void CancelActiveGesture();
+
+    /// <summary>
+    ///     Raised when the text tool placed a label and wants its string typed: the host-space point the
+    ///     label's top-left sits at, and the em size in screen pixels at the current zoom. The view owns
+    ///     the editor; the surface only says where.
+    /// </summary>
+    event Action<Point, double>? TextEditRequested;
+
+    /// <summary>
+    ///     Hands the editor's result back: the typed string, or null when the edit was cancelled. A blank
+    ///     result removes the label without an undo entry.
+    /// </summary>
+    /// <param name="text">The typed string, or null.</param>
+    void CompleteTextEdit(string? text);
 }
 
 /// <summary>

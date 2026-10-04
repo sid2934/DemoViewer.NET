@@ -1,0 +1,69 @@
+<Project>
+    <!-- Stamps an extension's manifest with the version Nerdbank.GitVersioning computed for the project.
+         The committed extension.json beside the csproj directory is
+         a template whose "version" is the literal "{nbgv}"; the stamped copy is embedded under the logical name
+         extension.json and copied beside the DLL, so neither the pack nor the loader ever sees the placeholder.
+         The placeholder is not a semantic version on purpose: an unstamped copy fails to parse rather than load. -->
+
+    <PropertyGroup>
+        <ExtensionManifestTemplate Condition="'$(ExtensionManifestTemplate)' == ''">$(MSBuildProjectDirectory)/../extension.json</ExtensionManifestTemplate>
+        <ExtensionManifestPlaceholder>{nbgv}</ExtensionManifestPlaceholder>
+    </PropertyGroup>
+
+    <UsingTask TaskName="StampExtensionManifest" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+        <ParameterGroup>
+            <Template ParameterType="System.String" Required="true"/>
+            <Placeholder ParameterType="System.String" Required="true"/>
+            <Version ParameterType="System.String" Required="true"/>
+            <OutputPath ParameterType="System.String" Required="true"/>
+        </ParameterGroup>
+        <Task>
+            <Code Type="Fragment" Language="cs"><![CDATA[
+if (!File.Exists(Template))
+{
+    Log.LogError("Extension manifest template not found: {0}", Template);
+    return false;
+}
+
+string quoted = "\"" + Placeholder + "\"";
+string text = File.ReadAllText(Template);
+int first = text.IndexOf(quoted, StringComparison.Ordinal);
+if (first < 0 || text.IndexOf(quoted, first + quoted.Length, StringComparison.Ordinal) >= 0)
+{
+    Log.LogError("{0} must contain the version placeholder {1} exactly once.", Template, quoted);
+    return false;
+}
+
+string stamped = text.Replace(quoted, "\"" + Version + "\"");
+Directory.CreateDirectory(Path.GetDirectoryName(OutputPath));
+if (!File.Exists(OutputPath) || File.ReadAllText(OutputPath) != stamped)
+{
+    File.WriteAllText(OutputPath, stamped, new UTF8Encoding(false));
+}
+]]></Code>
+        </Task>
+    </UsingTask>
+
+    <!-- Before AssignTargetPaths so the items it adds reach both the resource and the copy-to-output lists,
+         including a referencing project's GetCopyToOutputDirectoryItems walk. -->
+    <Target Name="StampExtensionManifest" DependsOnTargets="GetBuildVersion" BeforeTargets="AssignTargetPaths">
+        <PropertyGroup>
+            <StampedExtensionManifest>$(IntermediateOutputPath)extension.json</StampedExtensionManifest>
+        </PropertyGroup>
+
+        <Error Condition="'$(NuGetPackageVersion)' == '' and '$(DesignTimeBuild)' != 'true'"
+               Text="Nerdbank.GitVersioning produced no NuGetPackageVersion; the extension manifest cannot be stamped."/>
+
+        <StampExtensionManifest Condition="'$(NuGetPackageVersion)' != ''"
+                                Template="$(ExtensionManifestTemplate)"
+                                Placeholder="$(ExtensionManifestPlaceholder)"
+                                Version="$(NuGetPackageVersion)"
+                                OutputPath="$(StampedExtensionManifest)"/>
+
+        <ItemGroup Condition="'$(NuGetPackageVersion)' != ''">
+            <EmbeddedResource Include="$(StampedExtensionManifest)" LogicalName="extension.json" Link="extension.json"/>
+            <None Include="$(StampedExtensionManifest)" CopyToOutputDirectory="PreserveNewest" Link="extension.json"/>
+            <FileWrites Include="$(StampedExtensionManifest)"/>
+        </ItemGroup>
+    </Target>
+</Project>

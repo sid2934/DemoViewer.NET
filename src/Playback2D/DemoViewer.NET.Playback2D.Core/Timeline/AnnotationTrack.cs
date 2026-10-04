@@ -11,20 +11,16 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 ///     Puts one timeline marker on the scrub bar per time-anchored annotation, so a telestration made at
 ///     a moment is findable from the timeline rather than only by scrubbing until it appears.
 ///     <para>
-///         <b>Markers live on the FRAME-INDEX axis</b> (A1 decision D5, design §5.6: "frame index is the
-///         movement contract"). An element's <c>FromTick</c> is converted exactly once through
+///         <b>Markers live on the FRAME-INDEX axis</b> ("frame index is the movement contract"). An
+///         element's <c>FromTick</c> is converted exactly once through
 ///         <see cref="ITimelineData.FrameIndexAtTick" />, and an element whose tick resolves to -1, a
 ///         stroke anchored past the end of this parse, is DROPPED rather than silently drawn at frame 0.
-///     </para>
-///     <para>
-///         B2 ships the markers; B3 adds drag-to-edit on top of them using the
-///         <see cref="DocDelta.Replace" /> API this phase exports (design open question 3, resolved).
 ///     </para>
 /// </summary>
 public sealed class AnnotationTrack : ITimelineTrack, IDisposable
 {
     /// <summary>
-    ///     The track's stable id. A bare word like A1's <c>round</c>/<c>kill</c>/<c>bomb</c>: the string
+    ///     The track's stable id. A bare word like <c>round</c>/<c>kill</c>/<c>bomb</c>: the string
     ///     <c>playback2d.annotations</c> is the LAYER id and the FEATURE id, and reusing it here would
     ///     make three different registries share one key.
     /// </summary>

@@ -16,10 +16,10 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///         band boundary yanks two floors at once.
 ///     </para>
 ///     <para>
-///         It lives in <c>…Core.Input</c> rather than the App because B2's <c>PanZoomTool</c> wraps it
+///         It lives in <c>…Core.Input</c> rather than the App because <c>PanZoomTool</c> wraps it
 ///         and that tool is Core's; putting the gesture App-side would invert the dependency.
-///         <c>IPointerTool</c> and the router are B2's: B1 deliberately ships no competing tool
-///         abstraction (plan decision D-10).
+///         <c>IPointerTool</c> and the router are Core's too, and there is deliberately no competing
+///         tool abstraction.
 ///     </para>
 /// </summary>
 public sealed class PanZoomGesture
@@ -106,7 +106,7 @@ public sealed class PanZoomGesture
 
     /// <summary>
     ///     Zooms a pane the caller has already hit-tested, about the host-space cursor position. The
-    ///     overload B2's router calls (wheel is router-level, never a tool member, plan decision D2).
+    ///     overload the router calls (wheel is router-level, never a tool member).
     /// </summary>
     /// <param name="pane">The pane under the cursor, or null.</param>
     /// <param name="x">Host X.</param>

@@ -1,15 +1,18 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
 namespace DemoViewer.NET.Features;
 
 /// <summary>
-///     The single, code-defined source of truth for the set of gatable features and their per-category
-///     default visibility. <see cref="IFeatureGate" /> resolves a live on/off decision from these
-///     descriptors plus the user's category and explicit overrides; nothing else defines a feature.
+///     The single source of truth for the set of gatable features and their per-category default
+///     visibility: the core descriptors below plus every <see cref="IFeaturePack.Features" />, composed once
+///     by <see cref="Compose" /> (or from <see cref="FeaturePacks.Compatible" /> on first use) and immutable
+///     after. <see cref="IFeatureGate" /> resolves a live on/off decision from these descriptors plus the
+///     user's category and explicit overrides; nothing else defines a feature.
 ///     <para>
 ///         The default matrix below encodes the category-visibility matrix from
 ///         docs/ui/design-system.md: the consumer surface is the viewing tabs (Library + Stats +
@@ -28,11 +31,18 @@ public static class FeatureCatalog
     /// <summary>Group whose members toggle atomically: rule-graph / debugger developer chrome.</summary>
     public const string GroupGraphDebug = "graphDebug";
 
+    /// <summary>Strat tokens follow the map's nav round walls; off moves them in straight lines.</summary>
+    public const string StratRoutingFeatureId = "stratbook.routing";
+
+    /// <summary>The prefix every pack umbrella id carries. The gate never fails open on it.</summary>
+    public const string PackIdPrefix = "pack.";
+
     // The catalog order is load-bearing: a group's LEADER is its FIRST member in All (see GroupLeader).
     // parser.hex precedes parser.parseChain + chrome.parseChain → parserDeepDive leader = parser.hex.
     // analysis.breakpoints precedes chrome.debugger + chrome.breakpointNav → graphDebug leader =
-    // analysis.breakpoints. Do not reorder without re-checking the leader-lock test.
-    private static readonly FeatureDescriptor[] _catalog =
+    // analysis.breakpoints. Do not reorder without re-checking the leader-lock test. Pack descriptors are
+    // appended after this array, so a pack row can never become a leader of a core group.
+    private static readonly FeatureDescriptor[] _core =
     [
         // ---------------- TABS ----------------
         new(
@@ -141,7 +151,8 @@ public static class FeatureCatalog
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
         // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
-        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export): the ids
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export; the Strat Book pack
+        // appends tagger · suggestedtags): the ids
         // are persisted override keys and must never be renamed.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
@@ -210,37 +221,186 @@ public static class FeatureCatalog
             null, null, false, Defaults(true, true, true))
     ];
 
-    private static readonly Dictionary<string, FeatureDescriptor> _byId =
-        _catalog.ToDictionary(d => d.Id, StringComparer.Ordinal);
+    private static readonly Lock _composeLock = new();
+    private static volatile FeatureDescriptor[]? _all;
+    private static volatile Dictionary<string, FeatureDescriptor>? _byId;
+
+    /// <summary>
+    ///     Composes the catalog from the core descriptors plus <paramref name="packs" />' descriptors, in
+    ///     that order. The first call fixes the catalog; a later call with the same ids is a no-op and one
+    ///     with a different set throws, so the catalog never changes under a live gate.
+    /// </summary>
+    public static void Compose(IEnumerable<IFeaturePack> packs)
+    {
+        ArgumentNullException.ThrowIfNull(packs);
+        lock (_composeLock)
+        {
+            FeatureDescriptor[] composed = Build(packs);
+            if (_all is null)
+            {
+                _byId = composed.ToDictionary(d => d.Id, StringComparer.Ordinal);
+                _all = composed;
+                return;
+            }
+
+            if (!_all.Select(d => d.Id).SequenceEqual(composed.Select(d => d.Id), StringComparer.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "FeatureCatalog is already composed with a different set of feature ids; it is composed once per process.");
+            }
+        }
+    }
+
+    // Validates the composed set: unique ids, a parent that exists, the parent rule per scope (a pack may
+    // parent a tab; a tab parents a sub-feature; chrome and packs have none), nothing under a pack is
+    // Required (Required would defeat the pack switch), no pack row in a core group (it could become the
+    // leader), and each pack's FeatureId names exactly one Pack-scope row of its own.
+    internal static FeatureDescriptor[] Build(IEnumerable<IFeaturePack> packs)
+    {
+        List<FeatureDescriptor> fromPacks = [];
+        foreach (IFeaturePack pack in packs)
+        {
+            FeatureDescriptor[] features = [.. pack.Features];
+            int umbrellas = features.Count(f => f.Id == pack.FeatureId && f.Scope == FeatureScope.Pack);
+            if (umbrellas != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Pack '{pack.Id}' must declare exactly one Pack-scope descriptor with id '{pack.FeatureId}'; found {umbrellas}.");
+            }
+
+            foreach (FeatureDescriptor f in features)
+            {
+                if (f.GroupId is { } groupId && GroupIds.Contains(groupId, StringComparer.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"Pack feature '{f.Id}' may not join core group '{groupId}'.");
+                }
+
+                // Every contribution carries its pack's id implicitly (7.2), independent of ParentId: the
+                // gate cascades it off with the pack even when it is parented to a core tab. The pack's own
+                // Pack-scope row is not owned by itself.
+                fromPacks.Add(f.Scope == FeatureScope.Pack ? f : f with { OwnerPackId = pack.FeatureId });
+            }
+        }
+
+        FeatureDescriptor[] all = [.. _core, .. fromPacks];
+        Dictionary<string, FeatureDescriptor> byId = new(StringComparer.Ordinal);
+        foreach (FeatureDescriptor d in all)
+        {
+            if (!byId.TryAdd(d.Id, d))
+            {
+                throw new InvalidOperationException($"Duplicate feature id '{d.Id}' in the composed catalog.");
+            }
+        }
+
+        foreach (FeatureDescriptor d in all)
+        {
+            if (d.Scope == FeatureScope.Pack)
+            {
+                if (!IsPackId(d.Id))
+                {
+                    throw new InvalidOperationException($"Pack feature '{d.Id}' must start with '{PackIdPrefix}'.");
+                }
+
+                if (d.Required)
+                {
+                    throw new InvalidOperationException($"Pack feature '{d.Id}' may not be Required.");
+                }
+            }
+
+            if (d.ParentId is null)
+            {
+                continue;
+            }
+
+            if (!byId.TryGetValue(d.ParentId, out FeatureDescriptor? parent))
+            {
+                throw new InvalidOperationException($"Feature '{d.Id}' names an unknown parent '{d.ParentId}'.");
+            }
+
+            bool allowed = d.Scope switch
+            {
+                FeatureScope.SubFeature => parent.Scope == FeatureScope.Tab,
+                FeatureScope.Tab => parent.Scope == FeatureScope.Pack,
+                _ => false
+            };
+            if (!allowed)
+            {
+                throw new InvalidOperationException(
+                    $"Feature '{d.Id}' ({d.Scope}) may not have '{d.ParentId}' ({parent.Scope}) as its parent.");
+            }
+        }
+
+        // Nothing a pack owns may be Required, not just a tab parented to it directly: a sub-feature
+        // docked in a core tab (playback2d.tagger) is just as pack-owned via OwnerPackId, and Required
+        // would defeat that pack's switch the same way.
+        foreach (FeatureDescriptor d in all)
+        {
+            if (d.OwnerPackId is not null && d.Required)
+            {
+                throw new InvalidOperationException($"Feature '{d.Id}' owned by pack '{d.OwnerPackId}' may not be Required.");
+            }
+        }
+
+        return all;
+    }
+
+    // The composed catalog, composing from the compatible pack list when nothing composed it first.
+    private static FeatureDescriptor[] Composed
+    {
+        get
+        {
+            if (_all is { } all)
+            {
+                return all;
+            }
+
+            Compose(FeaturePacks.Compatible);
+            return _all!;
+        }
+    }
+
+    private static Dictionary<string, FeatureDescriptor> Index
+    {
+        get
+        {
+            _ = Composed;
+            return _byId!;
+        }
+    }
 
     /// <summary>Every gate descriptor, in a stable order (which also fixes each group's leader).</summary>
-    public static IReadOnlyList<FeatureDescriptor> All => _catalog;
+    public static IReadOnlyList<FeatureDescriptor> All => Composed;
 
     /// <summary>The group ids this catalog defines.</summary>
     public static IReadOnlyList<string> GroupIds { get; } = [GroupParserDeepDive, GroupGraphDebug];
 
     /// <summary>Looks up a descriptor by its stable id, or <c>null</c> if the id is not in the catalog.</summary>
     public static FeatureDescriptor? ById(string id) =>
-        id is not null && _byId.TryGetValue(id, out FeatureDescriptor? d) ? d : null;
+        id is not null && Index.TryGetValue(id, out FeatureDescriptor? d) ? d : null;
 
-    /// <summary>The sub-features owned by <paramref name="tabId" /> (its cascade children), in catalog order.</summary>
-    public static IEnumerable<FeatureDescriptor> Children(string tabId) =>
-        _catalog.Where(d => d.ParentId == tabId);
+    /// <summary>True for an id that names a pack, known or not: such an id never fails open.</summary>
+    public static bool IsPackId(string? id) =>
+        id is not null && id.StartsWith(PackIdPrefix, StringComparison.Ordinal);
+
+    /// <summary>The features whose parent is <paramref name="parentId" /> (its cascade children), in catalog order.</summary>
+    public static IEnumerable<FeatureDescriptor> Children(string parentId) =>
+        Composed.Where(d => d.ParentId == parentId);
 
     /// <summary>The members of <paramref name="groupId" />, in catalog order (first = the leader).</summary>
     public static IEnumerable<FeatureDescriptor> GroupMembers(string groupId) =>
-        _catalog.Where(d => d.GroupId == groupId);
+        Composed.Where(d => d.GroupId == groupId);
 
     /// <summary>
     ///     The deterministic leader of <paramref name="groupId" />, its FIRST member in <see cref="All" />
     ///     order, whose resolved own-state every member of the group adopts. <c>null</c> for an unknown group.
     /// </summary>
     public static FeatureDescriptor? GroupLeader(string groupId) =>
-        _catalog.FirstOrDefault(d => d.GroupId == groupId);
+        Composed.FirstOrDefault(d => d.GroupId == groupId);
 
     // Builds a category→default map without a constant-array argument (CA1861-clean) and reads left-to-right.
     // Concrete return type per CA1859; the descriptor's IReadOnlyDictionary param accepts it directly.
-    private static Dictionary<UserCategory, bool> Defaults(bool consumer, bool power, bool dev) =>
+    internal static Dictionary<UserCategory, bool> Defaults(bool consumer, bool power, bool dev) =>
         new()
         {
             [UserCategory.Consumer] = consumer,

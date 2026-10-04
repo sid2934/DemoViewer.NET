@@ -5,6 +5,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.TestSupport;
@@ -68,18 +69,21 @@ internal readonly record struct IlSite(
 /// </summary>
 internal static class Playback2DWholeGraph
 {
-    // The App head, the render Core and the Pipeline. Everything a Playback2D consumer could live in:
-    // Desktop/Browser only set AppHostHooks, and LiveSync cannot see this module at all.
+    // The App head, the render Core, the Pipeline, and every compiled-in pack's assembly: the
+    // contributions that read the module's settings and subscribe its events live there; found the way
+    // the ViewLocator finds pack views). Everything a Playback2D consumer could live in: Desktop/Browser
+    // only set AppHostHooks, and LiveSync cannot see this module at all.
     private static readonly Lazy<SysAssembly[]> _production = new(() =>
     [
         typeof(AppSettings).Assembly,
         typeof(Scene2DFrame).Assembly,
-        typeof(SceneFrameBuilder).Assembly
+        typeof(SceneFrameBuilder).Assembly,
+        .. FeaturePacks.Default.Select(pack => pack.GetType().Assembly).Distinct()
     ]);
 
     private static readonly Lazy<List<SourceFile>> _sources = new(LoadProductionSources);
 
-    /// <summary>The three assemblies a production consumer of this module can be in.</summary>
+    /// <summary>The assemblies a production consumer of this module can be in: the app's three and the packs'.</summary>
     public static IReadOnlyList<SysAssembly> ProductionAssemblies => _production.Value;
 
     /// <summary>
@@ -88,7 +92,7 @@ internal static class Playback2DWholeGraph
     public static IReadOnlyList<SourceFile> ProductionSources => _sources.Value;
 
     /// <summary>
-    ///     Every type of the module, across the three assemblies. Namespace-based rather than
+    ///     Every type of the module, across the production assemblies. Namespace-based rather than
     ///     directory-based so a type that moves file keeps its membership.
     ///     <para>
     ///         <c>DemoViewer.NET.Services.Export</c> is in it explicitly: <c>ExportJobService</c> and
@@ -98,6 +102,15 @@ internal static class Playback2DWholeGraph
     /// </summary>
     public static IEnumerable<Type> ModuleTypes =>
         ProductionAssemblies.SelectMany(SafeTypes).Where(t => IsModuleNamespace(t.Namespace));
+
+    /// <summary>
+    ///     The types whose event contracts the wiring guard asks about: the module's, plus the generic
+    ///     extension contracts in <c>DemoViewer.NET.Extensions</c> (the playback surface's handles and the
+    ///     mode toggle), whose events the module raises and subscribes.
+    /// </summary>
+    public static IEnumerable<Type> EventContractTypes =>
+        ProductionAssemblies.SelectMany(SafeTypes)
+            .Where(t => IsModuleNamespace(t.Namespace) || string.Equals(t.Namespace, "DemoViewer.NET.Extensions", StringComparison.Ordinal));
 
     /// <summary>Whether a namespace belongs to the Playback2D module. See <see cref="ModuleTypes" />.</summary>
     public static bool IsModuleNamespace(string? ns) =>

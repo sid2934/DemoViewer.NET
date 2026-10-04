@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     The seam that makes Core a runtime rather than a library (design §5.8). Every offscreen
+///     The seam that makes Core a runtime rather than a library. Every offscreen
 ///     consumer (export, the CLI, tests, thumbnails) obtains its surfaces here, so swapping CPU
 ///     for GPU changes one construction site and no layer code.
 ///     <para>

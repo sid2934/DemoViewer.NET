@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
-///     The probe's behavioural contract (plans/C2-gpu-provider.md §7.1): once per process, thread-safe,
+///     The probe's behavioural contract: once per process, thread-safe,
 ///     one log line, and <b>never an exception</b>: "no GPU here" is an answer, not a failure.
 ///     <para>
 ///         Shares the <see cref="ProbeSerialization.Key" /> constraint with every other suite that
@@ -110,7 +110,7 @@ public class RenderSurfaceProbeTests
     }
 
     /// <summary>
-    ///     An explicit argument outranks the environment (§2.5). Asserted through the failure message,
+    ///     An explicit argument outranks the environment. Asserted through the failure message,
     ///     because on a machine that <i>does</i> have a GPU the successful path proves nothing about
     ///     precedence: the throw does.
     /// </summary>
@@ -126,12 +126,12 @@ public class RenderSurfaceProbeTests
     }
 
     /// <summary>
-    ///     §2.5's precedence, at the place it is actually load-bearing: an explicit API argument outranks
+    ///     The precedence rule, at the place it is actually load-bearing: an explicit API argument outranks
     ///     <c>DV2D_RENDER_BACKEND</c>. The cached probe short-circuits to <c>forced-cpu</c> when the
     ///     ambient variable says <c>cpu</c>, and that is a <i>policy</i> answer, not a capability one.
     ///     Letting it veto a caller that outranks the environment would make
     ///     <c>Create(ForceGpu)</c> throw on a machine whose GPU is working perfectly, in direct
-    ///     contradiction of §6.2 ("throws only ... when no GPU backend is available").
+    ///     contradiction of the rule that it throws only when no GPU backend is available.
     ///     <para>
     ///         Asserted on the failure <i>reason</i> so it runs on every machine: with EGL also made
     ///         unavailable the throw is inevitable either way, but a message naming <c>forced-cpu</c>
@@ -155,7 +155,7 @@ public class RenderSurfaceProbeTests
     ///     The other half of the same rule, on hardware: <c>PreferGpu</c> passed explicitly must reach the
     ///     GPU even while <c>DV2D_RENDER_BACKEND=cpu</c> is set. Otherwise a stale shell variable
     ///     silently overrides the CLI flag or the export dialog's advanced option, which is precisely the
-    ///     inversion §2.5 exists to prevent.
+    ///     inversion this precedence rule exists to prevent.
     /// </summary>
     [Test]
     [Category("Gpu")]
@@ -221,7 +221,7 @@ public class RenderSurfaceProbeTests
     }
 
     /// <summary>
-    ///     Plan §10 R2: ANGLE loading over WARP on a machine that has a real GPU looks like a win in the
+    ///     ANGLE loading over WARP on a machine that has a real GPU looks like a win in the
     ///     log and is a 20× loss in the numbers. Throughput assertions skip on these; correctness ones
     ///     do not.
     /// </summary>

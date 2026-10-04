@@ -52,9 +52,9 @@ public class FfmpegArgumentTests
         await Assert.That(arguments).Contains("-pix_fmt yuv420p");
         await Assert.That(arguments).Contains("-row-mt 1");
 
-        // P2: the pair that was MISSING before, which is why this rung ran at libvpx's slowest setting.
+        // The pair that was MISSING before, which is why this rung ran at libvpx's slowest setting.
         // -row-mt alone only tells libvpx it may thread within a tile; -deadline/-cpu-used is the actual
-        // speed control, and unset means "spend everything". 97 fps → 526 fps on the plan's D3 bench, for
+        // speed control, and unset means "spend everything". 97 fps → 526 fps, for
         // 15 % more bits and an SSIM still above 0.999.
         await Assert.That(arguments).Contains("-deadline realtime");
         await Assert.That(arguments).Contains("-cpu-used 5");
@@ -67,14 +67,14 @@ public class FfmpegArgumentTests
 
         await Assert.That(arguments).Contains("-c:v libx264");
 
-        // P2: `-preset medium -crf 30` was beaten on BOTH axes by this: faster and a higher SSIM. CRF 30
+        // `-preset medium -crf 30` was beaten on BOTH axes by this: faster and a higher SSIM. CRF 30
         // on x264 throws the quality away before the preset can spend any effort on it.
         await Assert.That(arguments).Contains("-preset veryfast");
         await Assert.That(arguments).Contains("-crf 21");
 
         // FFMpegCore spells it without the leading '+'. Same flag, same effect (the '+' only matters when
         // several movflags are being combined), and asserting on what is actually emitted beats asserting
-        // on the spelling the plan happened to use.
+        // on a particular spelling that could change.
         await Assert.That(arguments).Contains("-movflags faststart");
     }
 
@@ -87,7 +87,7 @@ public class FfmpegArgumentTests
         await Assert.That(arguments).Contains("paletteuse");
         await Assert.That(arguments).Contains("-loop 0");
 
-        // Plan D6: a literal two-pass needs the input twice, and over a pipe that means spilling a
+        // A literal two-pass needs the input twice, and over a pipe that means spilling a
         // multi-gigabyte rawvideo temp file. The split/palettegen/paletteuse chain is the single-input
         // equivalent, so exactly ONE -i may appear.
         await Assert.That(CountInputs(arguments)).IsEqualTo(1);
@@ -253,7 +253,7 @@ public class ManagedGifSinkTests
     ///         </c>
     ///         and ImageSharp throws
     ///         <see cref="DirectoryNotFoundException" />, and both refusals land only after the whole
-    ///         range has been replayed and drawn. Found at the B4 merge, by running the CI step.
+    ///         range has been replayed and drawn.
     ///     </para>
     /// </summary>
     [Test]
@@ -303,7 +303,7 @@ public class ManagedGifSinkTests
             await Assert.That(image.Width).IsEqualTo(8);
 
             // 20 fps is 5 centiseconds. A GIF delay is an integer number of them, which is exactly why
-            // the fps list is the divisors of 100 (plan D7).
+            // the fps list is the divisors of 100.
             await Assert.That(image.Frames.RootFrame.Metadata.GetGifMetadata().FrameDelay).IsEqualTo(5);
         }
         finally

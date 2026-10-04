@@ -63,7 +63,14 @@ public static class ScenePaletteFactory
             C("Pb2dCanvasMarkerRingT", "#C8881F"),
             C("Pb2dCanvasMarkerRingCt", "#357ABD"),
             C("Pb2dCanvasMarkerRingNeutral", "#666666"),
-            SceneStrokeWidths.Default);
+            SceneStrokeWidths.Default)
+        {
+            RouteT = C("Pb2dCanvasRouteT", "#59E0A030"),
+            RouteCt = C("Pb2dCanvasRouteCt", "#594A90D9"),
+            RouteGhostT = C("Pb2dCanvasRouteGhostT", "#B3E0A030"),
+            RouteGhostCt = C("Pb2dCanvasRouteGhostCt", "#B34A90D9"),
+            DropTarget = C("Pb2dCanvasDropTarget", "#A99CF0")
+        };
 
         SKColor C(string key, string fallbackHex)
         {

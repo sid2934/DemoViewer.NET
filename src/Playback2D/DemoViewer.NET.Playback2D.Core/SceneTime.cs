@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
-///     The injected clock for one rendered scene (design §5.1). Every motion in the pipeline,
+///     The injected clock for one rendered scene. Every motion in the pipeline,
 ///     marker smoothing, camera lerps, ink fades, trail decay, consumes <see cref="DeltaSeconds" /> or
 ///     <see cref="Tick" />, never a wall clock, so an interactive RAF loop and a fixed-timestep export
 ///     produce identical motion.

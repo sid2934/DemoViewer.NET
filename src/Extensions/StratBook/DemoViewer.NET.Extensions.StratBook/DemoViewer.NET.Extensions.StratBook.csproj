@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <!-- The pack keeps the app's namespaces (DemoViewer.NET.Services.*, .ViewModels.*, .Views.*), so the
+             root namespace is the app's. The assembly name is what the heads reference and the ViewLocator
+             searches. -->
+        <RootNamespace>DemoViewer.NET</RootNamespace>
+        <AssemblyName>DemoViewer.NET.Extensions.StratBook</AssemblyName>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    </PropertyGroup>
+
+    <!-- The built-in tag palette, embedded so TagPaletteStore reads it through the same
+         parser and validator user drop-ins go through. The LogicalName is the manifest name readers and
+         TagPaletteStoreTests have always seen; it does not follow the directory. -->
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\Palettes\*.tagpalette.json"
+                          LogicalName="DemoViewer.NET.Services.Tags.Palettes.%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <!-- The canonical place names per shipped map; CanonicalPlaces reads them by manifest
+         name suffix. Same LogicalName rule as the palette. -->
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\Callouts\*.places.json"
+                          LogicalName="DemoViewer.NET.Services.Strats.Callouts.%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <!-- The manifest: ..\extension.json is a template whose version is stamped from
+         ..\version.json at build. The stamped copy is embedded (StratBookPack.Manifest) and copied beside the
+         DLL for the loader. -->
+    <Import Project="..\..\ExtensionManifest.targets"/>
+
+    <ItemGroup>
+        <!-- Direct, not transitive: the Avalonia build tasks (XAML compilation) and the MVVM source generators
+             only run in a project that references the package itself. -->
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="CommunityToolkit.Mvvm"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Logging"/>
+        <PackageReference Include="Microsoft.Extensions.Options"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The extension references the app; the app never references the extension.
+             The heads reference both and hand the pack list to FeaturePacks. -->
+        <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
+    </ItemGroup>
+
+    <!-- Same rule as the app csproj: the Avalonia XAML rewrite re-embeds the .pdb path after Roslyn, which
+         undoes ContinuousIntegrationBuild. No debug directory in Release leaves nothing to re-embed. -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+</Project>

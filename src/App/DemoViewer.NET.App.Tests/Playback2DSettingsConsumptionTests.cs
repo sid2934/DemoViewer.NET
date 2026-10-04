@@ -1,7 +1,6 @@
 #region
 
 using System.Reflection;
-using System.Text.RegularExpressions;
 using DemoViewer.NET.Configuration;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -29,7 +28,7 @@ internal sealed record SettingConsumption(
 
 /// <summary>
 ///     <b>
-///         D6 §4 guard 3: every <see cref="Playback2DSettings" /> key has a production reader AND a
+///         Every <see cref="Playback2DSettings" /> key has a production reader AND a
 ///         production writer.
 ///     </b>
 ///     <para>
@@ -68,7 +67,7 @@ public class Playback2DSettingsConsumptionTests
     };
 
     /// <summary>
-    ///     Registry §3.10 keys that the class does not carry. The reason is the entry.
+    ///     Registry keys that the class does not carry. The reason is the entry.
     /// </summary>
     private static readonly Dictionary<string, string> _registryKeysNotYetBuilt = new(StringComparer.Ordinal)
     {
@@ -78,7 +77,7 @@ public class Playback2DSettingsConsumptionTests
             + "is reachable only from `dv2d --backend`. Deliberately not added — see the "
             + "Playback2DSettings class doc for why nothing in the app can consume it yet. The landing "
             + "site is Playback2DTabViewModel.OpenExport's `surfaces:` argument. Delete this entry in the "
-            + "commit that pins the export loop to one thread and gives the key a reader; §3.10 of the "
+            + "commit that pins the export loop to one thread and gives the key a reader; the registry entry of the "
             + "overview wants the same amendment."
     };
 
@@ -94,7 +93,7 @@ public class Playback2DSettingsConsumptionTests
         }
 
         await Assert.That(keys.Count).IsGreaterThan(30)
-            .Because("the section carries the registry §3.10 key set, not a stub");
+            .Because("the section carries the registry's full key set, not a stub");
 
         List<string> unconsumed = keys
             .Where(k => !k.IsConsumed && !_unconsumedByDesign.ContainsKey(k.Name))
@@ -109,8 +108,8 @@ public class Playback2DSettingsConsumptionTests
     }
 
     /// <summary>
-    ///     The registry is the design authority for which keys EXIST (§3.10, "one section, one class").
-    ///     A key named there and absent from the class is a feature the plan believes shipped.
+    ///     The registry is the authority for which keys EXIST ("one section, one class").
+    ///     A key named there and absent from the class is a feature that should have shipped.
     /// </summary>
     [Test]
     public async Task EveryRegistryKey_ExistsOnTheSettingsClass()
@@ -121,7 +120,7 @@ public class Playback2DSettingsConsumptionTests
             .Select(p => p.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        Console.WriteLine($"[settings-registry] §3.10 names {registry.Count} keys; the class declares "
+        Console.WriteLine($"[settings-registry] the registry names {registry.Count} keys; the class declares "
                           + $"{declared.Count}");
 
         await Assert.That(registry.Count).IsGreaterThan(20)
@@ -133,8 +132,8 @@ public class Playback2DSettingsConsumptionTests
             .ToList();
 
         await Assert.That(string.Join(", ", missing)).IsEqualTo("")
-            .Because("§3.10 is the persisted-key contract; a key it pins and the class lacks is a "
-                     + "setting the plan, the docs and the reader all believe exists");
+            .Because("the registry is the persisted-key contract; a key it pins and the class lacks is a "
+                     + "setting the docs and the reader believe exists");
     }
 
     /// <summary>The allow-lists must be load-bearing, and each entry must say why.</summary>
@@ -164,7 +163,7 @@ public class Playback2DSettingsConsumptionTests
 
         await Assert.That(_unconsumedByDesign.Values.Concat(_registryKeysNotYetBuilt.Values)
                 .All(r => r.Length > 40)).IsTrue()
-            .Because("§4: an allow-list entry must carry WHY, not just a name");
+            .Because("an allow-list entry must carry WHY, not just a name");
     }
 
     /// <summary>
@@ -257,37 +256,40 @@ public class Playback2DSettingsConsumptionTests
     private static bool IsPlumbing(string callerType) =>
         callerType.StartsWith("DemoViewer.NET.Configuration.", StringComparison.Ordinal);
 
-    // The backticked identifiers in §3.10's AppSettings.Playback2D paragraph. Type names, enum spellings
-    // and qualified references are filtered out by shape: a key is a bare PascalCase identifier.
-    private static List<string> RegistryKeys()
-    {
-        string path = Path.Combine(Playback2DWholeGraph.RepoRoot(),
-            "docs", "playback2d-v2", "plans", "00-overview.md");
-        string text = File.ReadAllText(path);
+    // The persisted Playback2D settings registry: every key the settings class must declare. A key added
+    // to the class and not here fails the guard, as does a key listed here that the class lacks.
+    private static readonly string[] _registry =
+    [
+        "LastTool",
+        "AnnotationColorArgb",
+        "AnnotationWidth",
+        "AnnotationOpacity",
+        "AnnotationDefaultVisibility",
+        "AnnotationFadeInTicks",
+        "AnnotationFadeOutTicks",
+        "AnnotationHoldTicks",
+        "AnnotationAnchorToEntities",
+        "AnnotationAutoSave",
+        "AnnotationRecentColors",
+        "LevelDisplayMode",
+        "AutoLevelFollow",
+        "TimelineShowKills",
+        "TimelineShowBomb",
+        "TimelineShowAnnotations",
+        "ExportFormatId",
+        "ExportFps",
+        "ExportWidth",
+        "ExportHeight",
+        "ExportOutputDirectory",
+        "ExportIncludeHud",
+        "ExportIncludeAnnotations",
+        "ExportEncoder",
+        "ExportQuality",
+        "RenderBackend",
+        "LegacyViewport",
+    ];
 
-        int start = text.IndexOf("**`AppSettings.Playback2D`", StringComparison.Ordinal);
-        if (start < 0)
-        {
-            throw new InvalidOperationException(
-                $"§3.10's AppSettings.Playback2D paragraph was not found in {path} — the registry moved, "
-                + "and this guard is reading nothing.");
-        }
-
-        int end = text.IndexOf("\n---", start, StringComparison.Ordinal);
-        string block = end < 0 ? text[start..] : text[start..end];
-
-        // BLOCKQUOTE lines are commentary, not registry lines, and are dropped BEFORE the shape filter.
-        // §3.10 carries `>` callouts whose prose names types in backticks: every one a bare PascalCase
-        // identifier, and so a "key" this guard would otherwise demand the settings class declare.
-        block = string.Join('\n', block.Split('\n')
-            .Where(l => !l.TrimStart().StartsWith('>')));
-
-        return Regex.Matches(block, "`([^`]+)`")
-            .Select(m => m.Groups[1].Value)
-            .Where(k => Regex.IsMatch(k, "^[A-Z][A-Za-z0-9]*$"))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-    }
+    private static List<string> RegistryKeys() => [.. _registry];
 
     private static string Short(string fullName) => fullName[(fullName.LastIndexOf('.') + 1)..];
 }

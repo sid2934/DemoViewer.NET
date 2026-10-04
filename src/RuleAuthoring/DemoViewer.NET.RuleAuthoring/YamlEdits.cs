@@ -12,7 +12,7 @@ namespace DemoViewer.NET.RuleAuthoring;
 ///     Turns "change this value", "add this key", "delete this entry" into the smallest
 ///     <see cref="TextEdit" /> that does it. Every operation is expressed against a
 ///     <see cref="YamlDocumentText" /> and touches only the span it names, which is what keeps
-///     comments, key order, indentation and quoting intact (design.md §9 decision 4).
+///     comments, key order, indentation and quoting intact.
 /// </summary>
 public static class YamlEdits
 {
@@ -127,7 +127,7 @@ public static class YamlEdits
     ///         <c>rules/kast.rules.yaml</c> has
     ///         <c># ── Per-round counters ──</c> directly above <c>kills:</c>, and that line
     ///         describes the whole section. Absorbing it would delete an author's writing to tidy
-    ///         up after a deletion, which is the loss §9 decision 2 reversed itself over. An
+    ///         up after a deletion, which is the loss this behaviour exists to prevent. An
     ///         orphaned comment is visible and one keystroke to remove; a deleted one is gone.
     ///     </para>
     /// </summary>
