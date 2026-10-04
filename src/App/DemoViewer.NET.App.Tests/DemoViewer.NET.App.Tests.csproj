@@ -36,12 +36,14 @@
         <ProjectReference Include="..\..\Testing\DemoViewer.NET.TestSupport\DemoViewer.NET.TestSupport.csproj"/>
     </ItemGroup>
 
-    <!-- Item 28 moved these two pack-test fixtures to the extension test project along with the rest of
-         Extensions/StratBook; linked back here because four core-mechanism tests that stayed
-         (DemoCachePackPayloadTests, DemoCacheRoundIndexStampTests, PackDataRemoverTests, ReviewQueueTests,
-         SidecarFormatTests, BackgroundPlanRealDemoTests, ForwardPassRealDemoTests, ForwardQueueTests) use
-         them as fixtures. Each compiles into both assemblies. -->
+    <!-- Item 28 moved these four files to the extension test project along with the rest of
+         Extensions/StratBook; linked back here, each into its own listed core-mechanism tests, because
+         those tests stayed in this project and still need them as fixtures. Each file compiles into
+         both assemblies (strat-book-plugin.md §13). -->
     <ItemGroup>
+        <!-- DemoCachePackPayloadTests, DemoCacheRoundIndexStampTests, PackDataRemoverTests,
+             ReviewQueueTests, SidecarFormatTests, BackgroundPlanRealDemoTests, ForwardPassRealDemoTests,
+             ForwardQueueTests. -->
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\RoundIndexTestData.cs" Link="RoundIndexTestData.cs"/>
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\CacheRecordTestExtensions.cs" Link="CacheRecordTestExtensions.cs"/>
         <!-- UiThreadAuditTests walks the StratBook hub like every other section's. -->

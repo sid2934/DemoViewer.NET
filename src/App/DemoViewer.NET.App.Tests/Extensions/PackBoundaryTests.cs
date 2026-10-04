@@ -7,7 +7,7 @@ using TUnit.Core.Exceptions;
 
 #endregion
 
-namespace DemoViewer.NET.AppTests.Extensions.StratBook;
+namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     The pack has boundaries. Since item 25 the compiler enforces the hard one: the app project does not
