@@ -43,6 +43,8 @@ public class StratBookPackTests
         "Microsoft.Extensions.Options.IOptionsMonitorCache`1[TOptions]",
         "Microsoft.Extensions.Options.IOptionsChangeTokenSource`1[DemoViewer.NET.Configuration.AppSettings]",
         "Microsoft.Extensions.Options.IConfigureOptions`1[DemoViewer.NET.Configuration.AppSettings]",
+        // Added by item 36: the extension updater, registered when a config root exists to stage into.
+        "DemoViewer.NET.Extensions.Updates.ExtensionUpdateService",
         "DemoViewer.NET.Features.IFeatureGate",
         "DemoViewer.NET.Extensions.IPackLifecycle",
         // Added by item 2: every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
