@@ -30,6 +30,7 @@ namespace DemoViewer.NET.AppTests;
 ///     reason.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class TokenToolHostTests
 {
     private static readonly WorldBounds Mirage = new(-3230, -3410, 1860, 1680);
