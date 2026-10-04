@@ -9,8 +9,8 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The history log's pure half (strat-model.md §3.8): the op applier over RFC 6901 pointers, the inverse,
-///     and the commit rule (decision 2): same-path merging inside one commit and the 30 s idle rule.
+///     The history log's pure half: the op applier over RFC 6901 pointers, the inverse,
+///     and the commit rule: same-path merging inside one commit and the 30 s idle rule.
 /// </summary>
 public class StratHistoryTests
 {

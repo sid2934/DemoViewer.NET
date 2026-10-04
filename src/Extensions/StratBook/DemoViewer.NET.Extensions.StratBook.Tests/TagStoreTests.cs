@@ -9,7 +9,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The tag store (tag-store.md §3.5): the index and sidecar split under the config root, lazy reads,
+///     The tag store: the index and sidecar split under the config root, lazy reads,
 ///     corruption that reads as absent and is never overwritten, the index rebuilt and reconciled from
 ///     <c>demos/</c>, atomic writes, a failed write reported rather than thrown, the in-memory browser mode,
 ///     and <c>Update</c> routed to a checked-out session.

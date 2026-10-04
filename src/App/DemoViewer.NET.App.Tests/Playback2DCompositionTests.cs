@@ -103,7 +103,7 @@ public class Playback2DCompositionTests
             .IsEqualTo("")
             .Because("an entry for a seam that IS passed now is dead weight");
         await Assert.That(_omittedByDesign.Values.All(r => r.Length > 40)).IsTrue()
-            .Because("§4: an allow-list entry must carry WHY, not just a name");
+            .Because("an allow-list entry must carry WHY, not just a name");
     }
 
     /// <summary>

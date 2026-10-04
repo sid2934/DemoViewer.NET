@@ -11,8 +11,8 @@ using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Settings tuning section's VM (suggested-tags.md §3.7, step 6): hides itself with no harness
-///     (the browser host, per §3.8), otherwise builds one parameter row per detector parameter and the
+///     The Settings tuning section's VM: hides itself with no harness
+///     (the browser host), otherwise builds one parameter row per detector parameter and the
 ///     preview/save round trip.
 /// </summary>
 public class SuggestedTagsTuningViewModelTests

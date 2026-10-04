@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     Feed JSON for the update tests: one <c>extensions.json</c> built from entry descriptions, each entry's
-///     manifest in the shape item 37 publishes, with the sha and size of whatever bytes the test serves.
+///     manifest in the shape the release workflow publishes, with the sha and size of whatever bytes the test serves.
 /// </summary>
 internal static class FakeFeeds
 {

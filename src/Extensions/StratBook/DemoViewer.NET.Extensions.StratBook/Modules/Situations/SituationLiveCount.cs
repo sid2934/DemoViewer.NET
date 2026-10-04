@@ -7,7 +7,7 @@ using DemoViewer.NET.Services.RoundIndex;
 namespace DemoViewer.NET.Modules.Situations;
 
 /// <summary>
-///     The live-count contract (round-index.md §3.11) as one object: <see cref="ISituationIndex.Count" />
+///     The live-count contract as one object: <see cref="ISituationIndex.Count" />
 ///     off the UI thread, the caller's requests debounced, the newest request cancelling the pending
 ///     one, and a stale answer discarded by sequence number rather than shown. The count itself is
 ///     microseconds; the debounce exists because a token drag raises a document change per pointer

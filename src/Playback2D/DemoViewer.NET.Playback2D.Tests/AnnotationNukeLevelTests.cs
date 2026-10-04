@@ -91,7 +91,7 @@ public class AnnotationNukeLevelTests
 
     /// <summary>
     ///     A rebuild that moves a band: the stroke follows its floor through <c>RemapWorldLevels</c>, the
-    ///     layer's per-level pictures are re-keyed with it, and no undo slot is consumed (decision D6).
+    ///     layer's per-level pictures are re-keyed with it, and no undo slot is consumed.
     /// </summary>
     [Test]
     public async Task NukeTwoFloors_RemapMovesTheStrokeToTheRebuiltLevel()

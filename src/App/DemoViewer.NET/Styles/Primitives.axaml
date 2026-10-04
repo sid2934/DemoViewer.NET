@@ -20,8 +20,8 @@
     -->
 
     <!-- ── Button.primary — the filled interactive CTA (Add / Continue / Apply / Clear all) ─────────
-         Binds the PrimaryButton* token family. Closes the design-system open question ("no shared
-         interactive-primary button"): the tokens existed, only the class was re-declared per view. -->
+         Binds the PrimaryButton* token family, closing the gap where there was no shared
+         interactive-primary button: the tokens existed, only the class was re-declared per view. -->
     <Style Selector="Button.primary">
         <Setter Property="Background" Value="{DynamicResource PrimaryButtonBg}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBorder}" />
@@ -189,7 +189,7 @@
          MainView's shell TabControl (#ShellTabs) is DATA-GENERATED (ItemsSource="{Binding Tabs}"), so it keeps
          its `TabControl#ShellTabs > TabItem` container selector — the idiomatic way to style generated
          containers. Attaching this class to generated containers would require a template-replacing
-         ItemContainerTheme (against the additive-only rule, D6) or duplicating the setters, for ZERO visual
+         ItemContainerTheme (against the additive-only rule) or duplicating the setters, for ZERO visual
          change — so that migration is deliberately NOT done. The four setters below are
          kept value-identical to that selector. -->
     <Style Selector="TabItem.shell-tab">

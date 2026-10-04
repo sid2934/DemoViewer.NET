@@ -10,7 +10,7 @@ using DemoViewer.NET.Models;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="SessionPayload.Packs" /> through the real <see cref="SettingsService" /> (item 23): a
+///     <see cref="SessionPayload.Packs" /> through the real <see cref="SettingsService" />: a
 ///     pre-<c>Packs</c> file's top-level <c>StratBook</c> member folds once, a new file's <c>Packs</c>
 ///     dictionary round-trips byte for byte including ids this build does not own, and a per-pack blob
 ///     this build cannot make sense of never throws. The pack-off carry-through and the hub's own

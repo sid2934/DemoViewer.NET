@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Hud;
 
 /// <summary>
-///     Round-level HUD state as a <b>pure function of tick</b> (design §5.1). No wall clock, no playback
+///     Round-level HUD state as a <b>pure function of tick</b>. No wall clock, no playback
 ///     position, no side effects: the same tick answers the same snapshot forever, so an exported HUD is
 ///     deterministic and a headless render is possible.
 ///     <para>

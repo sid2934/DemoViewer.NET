@@ -5,8 +5,8 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     extents, the networked floor boundaries, and the decoded radar layers.
 ///     <para>
 ///         Floor <b>inputs</b> only: <see cref="SectionHeights" /> plus the marker Zs on the frame.
-///         Resolved levels are derived by B1's <c>MapSpaceFactory</c> and are deliberately absent from
-///         the frame (decision D3).
+///         Resolved levels are derived by <c>MapSpaceFactory</c> and are deliberately absent from
+///         the frame.
 ///     </para>
 /// </summary>
 public sealed class SceneMapInfo

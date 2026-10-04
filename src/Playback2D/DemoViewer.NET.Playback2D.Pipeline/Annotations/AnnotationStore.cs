@@ -546,8 +546,8 @@ public sealed class AnnotationStore
             return null;
         }
 
-        // A sidecar is a hand-editable file. Every declared kind is drawn and erased since Shape Tools
-        // (step-authoring.md §3.2), so each loads as itself. The fence that remains is IsDefined:
+        // A sidecar is a hand-editable file. Every declared kind is drawn and erased, so each loads as
+        // itself. The fence that remains is IsDefined:
         // Enum.TryParse also accepts any NUMBER, and a kind this build does not declare would reach the
         // layer and the eraser as a value neither has a branch for. The points are a polyline either
         // way, so an unknown kind loads AS Freehand and is drawn and erased rather than lost.

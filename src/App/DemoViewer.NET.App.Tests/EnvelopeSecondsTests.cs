@@ -41,7 +41,7 @@ public class EnvelopeSecondsTests
             using AnnotationsPanelViewModel panel = new(controller, () => 0);
 
             // Through the real seam, not by assigning the session: the rate reaches the session off the
-            // ClockIdentity the tab hands to an attach, which is the path §1 built.
+            // ClockIdentity the tab hands to an attach, which is the production attach path.
             await controller.AttachDemoAsync(null, new ClockIdentity(ClockIdentity.DvFrameClock, rate,
                 1000, 0, 0));
             panel.Resync();

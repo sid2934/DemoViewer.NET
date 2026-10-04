@@ -16,7 +16,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     <see cref="ExtensionLoader" /> (strat-book-plugin.md §7.8): discovery ranks versions and refuses a
+///     <see cref="ExtensionLoader" />: discovery ranks versions and refuses a
 ///     folder that disagrees with its manifest or escapes the tree; selection takes the highest staged
 ///     version that is newer, compatible and trusted and falls back otherwise; loading a real staged copy
 ///     of the Strat Book puts it in its own context, and every way a staged copy can be wrong is a reason,
@@ -80,7 +80,7 @@ public class ExtensionLoaderTests
         }
     }
 
-    // Item 36 stages through ExtensionUpdateService; what it leaves under <id>/<version>/ is a candidate
+    // The updater stages through ExtensionUpdateService; what it leaves under <id>/<version>/ is a candidate
     // here, and whatever it has in flight under .staging/ is not an extension and is not reported.
     [Test]
     public async Task Discover_FindsWhatTheUpdaterStaged_AndIgnoresItsStagingFolder()
@@ -446,7 +446,7 @@ public class ExtensionLoaderTests
         }
     }
 
-    // ── Resolve with a signed staged copy (item 35, strat-book-plugin.md §7.9) ──────────────────
+    // ── Resolve with a signed staged copy ──────────────────
 
     [Test]
     public async Task Resolve_LoadsASignedStagedCopy_WithoutTheEnvVar()
@@ -536,7 +536,7 @@ public class ExtensionLoaderTests
         }
     }
 
-    // ── The constraint the child context imposes (§7.8) ──────────────────────────────────────────
+    // ── The constraint the child context imposes ──────────────────────────────────────────
 
     // Two assemblies named DemoViewer.NET.Extensions.StratBook can be in the process once a staged copy
     // loads. Anything that resolves a type or a resource by assembly NAME lands on the shipped copy in the

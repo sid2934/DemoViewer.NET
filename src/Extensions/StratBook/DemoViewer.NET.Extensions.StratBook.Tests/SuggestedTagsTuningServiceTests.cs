@@ -10,13 +10,13 @@ using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The tuning harness end to end (suggested-tags.md §3.7, step 6): the stored table over a demo the
+///     The tuning harness end to end: the stored table over a demo the
 ///     evaluator already built and verdicted, and an in-memory preview that redoes only recall and
 ///     precision. Built on <see cref="SuggestedTagsReviewHarness" />'s synthetic walk, never a demo file.
 /// </summary>
 public class SuggestedTagsTuningServiceTests
 {
-    // A tagger following §7.3 item 1 puts the site label on a site-bearing code, so the fixture does too.
+    // A tagger puts the site label on a site-bearing code, so the fixture does too.
     private static TagInstance HumanTagFor(TagProposal proposal, string? site = null)
     {
         TagInstance instance = new()
@@ -191,7 +191,7 @@ public class SuggestedTagsTuningServiceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(row.Recall).IsEqualTo(0.0).Because("§7.3 item 3: code and site must both agree");
+            await Assert.That(row.Recall).IsEqualTo(0.0).Because("code and site must both agree");
             await Assert.That(row.Precision).IsEqualTo(0.0);
         }
     }

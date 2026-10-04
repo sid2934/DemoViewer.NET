@@ -8,7 +8,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     One slot's sheet (strat-model.md §3.14, §9 step 6): lines for <c>actor == slot</c> and <c>all</c>,
+///     One slot's sheet: lines for <c>actor == slot</c> and <c>all</c>,
 ///     context lines by the dependency rule, branches attached to the right lines, the mini-map polyline,
 ///     and an unassigned slot printing its letter.
 /// </summary>

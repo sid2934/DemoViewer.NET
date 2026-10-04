@@ -65,8 +65,8 @@ public static class Zones
         ["env_cs_place", "func_bomb_target", "func_buyzone", "func_hostage_rescue"];
 
     /// <summary>
-    ///     The coverage table of the design's section 2.5, measured on the CS2 build the design was
-    ///     written against. <c>--zones --diag</c> compares each bake with its row: a drift of a few areas
+    ///     The known-good coverage table, measured on the CS2 build it was written against.
+    ///     <c>--zones --diag</c> compares each bake with its row: a drift of a few areas
     ///     is a map update, a large one is a baker bug and never a new baseline.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, Coverage> ExpectedCoverage =
@@ -244,7 +244,7 @@ public static class Zones
         return failures;
     }
 
-    /// <summary>The section 2.5 coverage table, one row per bake, in the design's column order.</summary>
+    /// <summary>The coverage table, one row per bake.</summary>
     public static string FormatCoverageTable(IEnumerable<Coverage> rows)
     {
         StringBuilder sb = new();
@@ -275,7 +275,7 @@ public static class Zones
         }
 
         string prefix = $"maps/{mapName}/entities/";
-        // Path order, so "first in entity-lump order" (decision D4) is the same rule on every run.
+        // Path order, so "first in entity-lump order" is the same rule on every run.
         foreach (PackageEntry lumpEntry in lumps
                      .Where(e => e.GetFullPath().StartsWith(prefix, StringComparison.Ordinal))
                      .OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
@@ -513,7 +513,7 @@ public static class Zones
     // ── 2. areas ──────────────────────────────────────────────────────────────────────────────────
 
     // Seeds every area whose centroid (or centroid lifted 8 or 32 units) is in a place volume, the first
-    // volume in lump order winning an overlap (decision D4), then floods over the nav connections so
+    // volume in lump order winning an overlap, then floods over the nav connections so
     // every reachable area takes the place of its nearest seeded neighbour by hop count. Areas the
     // flood never reaches are isolated islands and get no place.
     private static Assignment AssignAreas(NavMeshFile nav, List<Volume> volumes, Dictionary<string, int> placeIds)

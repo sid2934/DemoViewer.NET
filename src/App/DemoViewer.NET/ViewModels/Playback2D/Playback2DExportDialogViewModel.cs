@@ -222,7 +222,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <param name="defaults">Saved defaults to seed the fields with, or null for the built-ins.</param>
     /// <param name="job">The service Start hands off to. Null makes the dialog inert (design preview).</param>
     /// <param name="captureLiveCamera">
-    ///     Snapshots the live host's panes. Called <b>on Start</b>, never on selection, plan D12: mirroring
+    ///     Snapshots the live host's panes. Called <b>on Start</b>, never on selection: mirroring
     ///     the live view is a capture, so panning after pressing Start must change nothing.
     /// </param>
     /// <param name="outputFrameCount">
@@ -329,7 +329,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     public static IReadOnlyList<string> Formats => ExportFormats.All;
 
     /// <summary>
-    ///     The quality rungs, fastest first, plan P2 D3. They are an intent, not a codec setting: every
+    ///     The quality rungs, fastest first. They are an intent, not a codec setting: every
     ///     encoder maps the three onto its own rate and speed controls, so "standard" means the same thing
     ///     whether the file is coming off NVENC or off libvpx.
     /// </summary>
@@ -394,7 +394,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             }
 
             // Snap DOWN to even rather than refusing: a user typing 1921 meant 1920, and yuv420p's chroma
-            // subsampling is not something they should have to know about (plan D8).
+            // subsampling is not something they should have to know about.
             int width = SnapEven(CustomWidthText, 1920);
             int height = SnapEven(CustomHeightText, 1080);
             return new SKSizeI(width, height);
@@ -611,8 +611,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <param name="range">The range to export.</param>
     /// <param name="camera">
     ///     The camera, or null to capture the live one now. Validation passes a placeholder: the camera
-    ///     cannot make a request invalid, and capturing on every keystroke would defeat D12's "captured
-    ///     once, at Start".
+    ///     cannot make a request invalid, and capturing on every keystroke would break the rule that the
+    ///     camera is captured once, at Start.
     /// </param>
     public ExportRequest BuildRequest(ExportRangeOption range, CameraScript? camera = null)
     {
@@ -627,7 +627,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             1.0,
             SelectedFormat,
             BuildLayerIds(),
-            // D12: the capture happens HERE, at Start, not when the user picked the camera option.
+            // The capture happens HERE, at Start, not when the user picked the camera option.
             camera ?? _captureLiveCamera());
     }
 
@@ -650,7 +650,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
         if (IncludeVision)
         {
-            // Off by default: the vision solve is §6's biggest per-frame consumer and R3's first lever
+            // Off by default: the vision solve is the biggest per-frame consumer and the first lever
             // for holding the ≥ realtime budget at 1080p.
             ids.Add(SceneLayerIds.Vision);
         }
@@ -878,8 +878,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         return null;
     }
 
-    // A strat's whole round at 20 fps runs past the GIF cap, and the lower rate that fits is one pick away
-    // (step-authoring.md §3.6), so the refusal names it with its frame count rather than leaving the user to
+    // A strat's whole round at 20 fps runs past the GIF cap, and the lower rate that fits is one pick away,
+    // so the refusal names it with its frame count rather than leaving the user to
     // try each rate. Only for a strat: the demo dialog's copy is the validator's own.
     private string GifCapHint(ExportRangeOption range, bool gif)
     {

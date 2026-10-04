@@ -1,8 +1,7 @@
 namespace DemoViewer.NET.Services.Generated;
 
 /// <summary>
-///     What the user has done with one machine-generated item: a proposal, a detected pattern, a suggestion. The
-///     shared rule is in <c>docs/strat-book/generated-content.md</c>. There is no reviewed state: that belongs to
+///     What the user has done with one machine-generated item: a proposal, a detected pattern, a suggestion. There is no reviewed state: that belongs to
 ///     Review clips, which the user sends.
 /// </summary>
 public enum GeneratedState

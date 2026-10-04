@@ -21,9 +21,9 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Click To Tag Position (plan §3, tag-store.md §3.6): a click resolves through the map's zones when it has
+///     Click To Tag Position: a click resolves through the map's zones when it has
 ///     them and through the nearest pawn on that floor when it does not; the first click on a tag is a
-///     position and the second makes a movement; and the Done criterion, the coordinates are queryable
+///     position and the second makes a movement; and, end to end, the coordinates are queryable
 ///     through <see cref="TagQuery" />'s position predicate, the clause Search Filters reads tags with.
 /// </summary>
 [NotInParallel]

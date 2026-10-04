@@ -7,10 +7,9 @@ using DemoViewer.NET.Extensions;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     Every store and cache path the pack owns (item 24), read by both <see cref="StratBookPack.Contribute" />
+///     Every store and cache path the pack owns, read by both <see cref="StratBookPack.Contribute" />
 ///     (the loop that reports them) and the pack test's writer-coverage check. Verified against the writer,
-///     not the architecture doc's §3.6 inventory, which predates two corrections kept here as the record
-///     of what changed and why:
+///     kept here as the record of what changed and why:
 ///     <list type="bullet">
 ///         <item>
 ///             <c>grenade-lineups.json.gz</c> and <c>grenades-v3.attempts.json</c> are under the CACHE root:
@@ -18,8 +17,8 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///             <c>DemoCacheStore.CacheRoot</c>, never <c>AppPaths.ConfigRoot</c>.
 ///         </item>
 ///         <item>
-///             <c>review-queue.json</c> is dropped. <c>Services/Review/ReviewQueue.cs</c> is core (decision
-///             10.1: "the Review Queue stays core, since Reels uses it"), registered by the composition
+///             <c>review-queue.json</c> is dropped. <c>Services/Review/ReviewQueue.cs</c> is core
+///             ("the Review Queue stays core, since Reels uses it"), registered by the composition
 ///             root and live with the pack off; deleting it would take Reels' own queue with it, and its
 ///             next save would write it back anyway.
 ///         </item>

@@ -13,7 +13,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The design's exit criterion for this phase: any fixture renders to a correct, non-blank PNG in
+///     The exit criterion: any fixture renders to a correct, non-blank PNG in
 ///     well under a second, with no app and no window.
 /// </summary>
 [NotInParallel]
@@ -81,7 +81,7 @@ public class RenderFixtureTests
         using TempDirectory temp = new();
         string outPath = Path.Combine(temp.Path, "warm.png");
 
-        // First run pays the JIT and the Skia native load; the design's claim is about the loop a
+        // First run pays the JIT and the Skia native load; the claim is about the loop a
         // designer actually sits in, which is the second run onward.
         Dv2d.InProcess("render", "--fixture", fixturePath, "--out", outPath, "--quiet");
 
@@ -177,7 +177,7 @@ public class RenderFixtureTests
     /// <summary>
     ///     <c>--ink</c> feeds the annotation layer for a render with no demo. Without it the
     ///     <c>annotated-mirage-b</c> corpus entry could not exist, nor <c>annotated-shapes-mirage-b</c>,
-    ///     which burns in one element of every kind (step-authoring.md §3.2). The sidecar is read through
+    ///     which burns in one element of every kind. The sidecar is read through
     ///     the production <c>AnnotationStore</c>, so a document the app wrote and one the corpus ships
     ///     take one code path.
     /// </summary>

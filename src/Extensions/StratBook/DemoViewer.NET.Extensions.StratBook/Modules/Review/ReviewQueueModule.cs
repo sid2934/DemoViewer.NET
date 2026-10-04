@@ -32,7 +32,7 @@ namespace DemoViewer.NET.Modules.Review;
 ///         the VM, so clips sent from another surface show on the rail item before the Review section is ever
 ///         opened. <see cref="StratBookPack.Contribute" /> resolves the queue only while <see cref="TabFeatureId" />
 ///         is on; a live toggle (the gate's own <c>Changed</c>) clears a stale count going off and recomputes
-///         going on, the same shape item 1 gave <c>SuggestedInboxModule</c>.
+///         going on, the same shape <c>SuggestedInboxModule</c> uses.
 ///     </para>
 /// </summary>
 public sealed class ReviewQueueModule : IWorkspaceModule

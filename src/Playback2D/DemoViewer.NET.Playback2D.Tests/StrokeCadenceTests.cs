@@ -12,8 +12,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     A <see cref="EnvelopeMode.RealTime" /> stroke records WHEN each sample was drawn as a sparse run
-///     table, and commits it on release. The encoding is specced in
-///     <c>docs/playback2d-v2/plans/D7-realtime-ink.md</c>.
+///     table, and commits it on release.
 ///     <para>
 ///         Every case here drives <see cref="FakeToolServices.NowMilliseconds" /> by hand while
 ///         <see cref="FakeToolServices.CurrentTick" /> stays wherever it was put. That separation is the
@@ -146,7 +145,7 @@ public class StrokeCadenceTests
                           + $"{timing.DurationTicks} ticks, runs={Describe(timing)}");
 
         await Assert.That(k).IsGreaterThanOrEqualTo(6)
-            .Because("three pauses is §2's own worked example: two entries plus a pair each, so eight");
+            .Because("three pauses matches the worked example: two entries plus a pair each, so eight");
         await Assert.That(k).IsLessThanOrEqualTo(16)
             .Because("smooth speed variation inside one continuous motion must NOT split a run");
         await Assert.That(k * 10).IsLessThan(element.Points.Count)
@@ -182,7 +181,7 @@ public class StrokeCadenceTests
         await Assert.That(h.Services.CurrentTick).IsEqualTo(4096)
             .Because("the demo was paused for the whole gesture — that is the premise");
         await Assert.That(element.Time.FromTick).IsEqualTo(4096)
-            .Because("RealTime pins to the playhead exactly as Fade does; §3 shifts each section from it");
+            .Because("RealTime pins to the playhead exactly as Fade does; each section shifts from it");
         await Assert.That(timing.DurationTicks).IsEqualTo(67)
             .Because("26 samples 40 ms apart is 1040 ms of authoring, or 66.6 ticks — every one of "
                      + "which came from the authoring clock, because the playhead supplied none");

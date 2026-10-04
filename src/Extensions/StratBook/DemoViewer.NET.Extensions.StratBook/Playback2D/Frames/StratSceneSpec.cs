@@ -9,8 +9,8 @@ using DemoViewer.NET.Playback2D.Core.Keyframes;
 namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 
 /// <summary>
-///     Everything <see cref="StratFrameSource" /> needs to play a strat, on the strat frame clock
-///     (step-authoring.md §3.6). Built by the App from a checked-out strat and the chosen branch path; the
+///     Everything <see cref="StratFrameSource" /> needs to play a strat, on the strat frame clock.
+///     Built by the App from a checked-out strat and the chosen branch path; the
 ///     strat JSON reader stays in the App, so nothing here knows the <c>.dvstrat.json</c> shape.
 /// </summary>
 /// <param name="Tracks">The path's token tracks. The source samples them and never edits them.</param>

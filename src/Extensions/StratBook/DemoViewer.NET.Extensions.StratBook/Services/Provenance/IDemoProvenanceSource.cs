@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Services.Provenance;
 
 /// <summary>
-///     The read API over demo provenance labels (strat-model.md §5): the one lookup the Strat Record Panel
+///     The read API over demo provenance labels: the one lookup the Strat Record Panel
 ///     and Search Filters call, keyed by content hash like every user-truth join, plus the path-keyed
 ///     resolution the Library card renders. Nothing here parses or writes; the override write is
 ///     <see cref="Teams.TeamIdentityService.SetProvenanceOverride" />.

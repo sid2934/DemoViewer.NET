@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     <see cref="Scene2DHost" /> bound to an <see cref="ISceneFrameHost" /> that is not the 2D Playback
-///     tab: the seam the strat canvas mounts through (step-authoring.md §3.10). Every test here runs with
+///     tab: the seam the strat canvas mounts through. Every test here runs with
 ///     no <see cref="Playback2DTabViewModel" />, no <c>IModuleContext</c> and no window-level
 ///     DataContext, so a host that quietly still needed the tab would render
 ///     <see cref="Scene2DFrame.Empty" /> and fail here rather than on the Strat Book tab.
@@ -35,7 +35,7 @@ namespace DemoViewer.NET.AppTests;
 ///         keybind suites); they are the regression gate for the rebind and are not duplicated here.
 ///     </para>
 ///     <para>
-///         Carries no extension import (item 26): the two cases that construct the extension's
+///         Carries no extension import: the two cases that construct the extension's
 ///         <c>TokenTool</c> directly are <c>TokenToolHostTests</c>, in the extension's own test project.
 ///     </para>
 /// </summary>
@@ -143,7 +143,7 @@ public class Scene2DHostFrameHostTests
 
     /// <summary>
     ///     The 2D Playback tab is a frame host with no tokens: nobody calls <c>Scene2DHost.AddTool</c> for
-    ///     it (item 26), so <c>ToolKind.Token</c> is not registered on its host at all, and selecting it
+    ///     it, so <c>ToolKind.Token</c> is not registered on its host at all, and selecting it
     ///     falls back to pan, as any unregistered kind does.
     /// </summary>
     [Test]
@@ -171,7 +171,7 @@ public class Scene2DHostFrameHostTests
     }
 
     /// <summary>
-    ///     A primary press offers itself to the host's pointer pre-handler before the router (item 20): one
+    ///     A primary press offers itself to the host's pointer pre-handler before the router: one
     ///     that consumes it stops there, so the pan tool never opens a gesture; one that does not falls
     ///     through, and the press is the pan tool's as if there were no pre-handler at all.
     /// </summary>

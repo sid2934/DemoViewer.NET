@@ -11,7 +11,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The validator (strat-model.md §3.10 plus overview correction 17): one case per refuse row and per warn
+///     The validator: one case per refuse row and per warn
 ///     row, the info rows, and a clean strat that raises nothing.
 /// </summary>
 public class StratValidatorTests
@@ -199,7 +199,7 @@ public class StratValidatorTests
     {
         StratDocument semi = Minimal();
         semi.Economy = "semi";
-        await Assert.That(StratValidator.Validate(semi).Count).IsEqualTo(0).Because("overview correction 10 adopts Round Facts' five plus any");
+        await Assert.That(StratValidator.Validate(semi).Count).IsEqualTo(0).Because("the vocabulary adopts Round Facts' five plus any");
 
         StratDocument bad = Minimal();
         bad.Economy = "half";

@@ -7,7 +7,7 @@ using System.Globalization;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The default (suggested-tags.md §3.3): no execute by <c>defaultSecond</c>, and at
+///     The default: no execute by <c>defaultSecond</c>, and at
 ///     <c>spreadSecond</c> the T side stands in at least <c>spreadPlaces</c> distinct places that are not
 ///     spawn-adjacent. A weaker claim than an execute, so its confidence never passes 0.9. A round gets
 ///     an execute by <c>defaultSecond</c> or a default or neither, never both; an execute after it is

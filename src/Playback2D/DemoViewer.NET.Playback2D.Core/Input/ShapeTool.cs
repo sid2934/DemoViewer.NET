@@ -7,8 +7,8 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 namespace DemoViewer.NET.Playback2D.Core.Input;
 
 /// <summary>
-///     The two-point shape tools: Line, Arrow, Rect and Ellipse, one class constructed per kind
-///     (step-authoring.md §3.2). Press anchors the first point, moves rubber-band the second through the
+///     The two-point shape tools: Line, Arrow, Rect and Ellipse, one class constructed per kind.
+///     Press anchors the first point, moves rubber-band the second through the
 ///     session's wet stroke, and release commits ONE element whose <c>Points</c> is exactly
 ///     <c>[first, last]</c>, so a shape costs one Ctrl+Z like a stroke does.
 ///     <para>

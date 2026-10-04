@@ -9,8 +9,8 @@ namespace DemoViewer.NET.Extensions.Updates;
 /// <summary>
 ///     Where an extension's feed lives. The default is a release asset in this repository, the repository
 ///     the app updater and the release notes already read from: one rolling release per extension, tagged
-///     <c>extensions-&lt;id&gt;</c>, whose <c>extensions.json</c> item 37's workflow replaces on every
-///     extension release (strat-book-plugin.md §7.10). A setting may point at another https URL; the signed
+///     <c>extensions-&lt;id&gt;</c>, whose <c>extensions.json</c> the release workflow replaces on every
+///     extension release. A setting may point at another https URL; the signed
 ///     zip is what the trust policy judges, so the feed's origin is not the gate.
 /// </summary>
 public static class ExtensionFeedSource

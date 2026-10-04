@@ -238,7 +238,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isComputingEntityCache;
 
-    // ── Rule diagnostics (P1-2.2) ─────────────────────────────────────────────
+    // ── Rule diagnostics ───────────────────────────────────────────────────────
 
     /// <summary>Whether the rule-diagnostics overlay is open.</summary>
     [ObservableProperty]
@@ -330,7 +330,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     private IReadOnlyList<RuleFireStat> _ruleFireStats = [];
 
-    // Owns the in-flight evaluation's lifetime; a new RunAsync cancels and replaces it (P1-5.2).
+    // Owns the in-flight evaluation's lifetime; a new RunAsync cancels and replaces it.
     private CancellationTokenSource? _runCts;
 
     // Suppresses re-compose/validate while BeginEdit is seeding the editor from a saved condition (the
@@ -416,14 +416,14 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Toolbar toggle label: the diagnostic count when there are issues, otherwise the
     ///     fire-badge entry point (the toggle stays reachable on lint-free runs, since authoring
-    ///     visibility is work item 0.2's whole point).
+    ///     visibility is the whole point).
     /// </summary>
     public string RuleDiagnosticsLabel => _ruleDiagnostics.Count > 0
         ? $"⚠ {_ruleDiagnostics.Count} rule issue(s)"
         : "✓ rule fires";
 
     /// <summary>
-    ///     Per-rule fire-count badges for the last run (work item 0.2): every trigger-backed
+    ///     Per-rule fire-count badges for the last run: every trigger-backed
     ///     authored rule with its total edge applies, per-player rules aggregated across
     ///     materialized players. Rebuilt by <see cref="PopulateRuleDiagnostics" /> on every run.
     /// </summary>
@@ -644,7 +644,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>Reset.</summary>
     public void Reset()
     {
-        // The demo is going away, so abort any in-flight evaluation with it (P1-5.2).
+        // The demo is going away, so abort any in-flight evaluation with it.
         _runCts?.Cancel();
 
         RuleDiagnostics = [];
@@ -1118,8 +1118,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Pure computation behind the rule-diagnostics panel: the loader's attributed errors,
-    ///     plus the per-stat fire-count badge rows and never-fired lints (work item 0.2, fed by
-    ///     0.1's always-on counters). Internal + static so tests can pin the contract from the
+    ///     plus the per-stat fire-count badge rows and never-fired lints, fed by the always-on
+    ///     counters. Internal + static so tests can pin the contract from the
     ///     engine thread without booting the UI.
     /// </summary>
     internal static (List<RuleDiagnostic> Diagnostics, List<RuleFireStat> FireStats)
@@ -1942,7 +1942,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Reloads the rule config from disk and re-evaluates the already-loaded demo (P1-1.3):
+    ///     Reloads the rule config from disk and re-evaluates the already-loaded demo:
     ///     the edit-a-rule → see-the-stat loop, without re-parsing the demo. Rules are read fresh
     ///     inside <see cref="RunAsync" /> on every run; the entity-value cache survives (same demo,
     ///     same frames), so breakpoint recompute usually re-filters without a second ~14 s replay.
@@ -2668,7 +2668,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // build, supersedes any in-flight entity build. Without this, a recompute that resolves synchronously
         // (the pending==0 or cache-reuse path below) would leave a prior build's token valid; its later
         // hand-back would then clobber the hits we just set. Capture it locally for the build we may kick.
-        // The CTS additionally ABORTS the superseded build mid-replay (P1-5.2): the token alone only
+        // The CTS additionally ABORTS the superseded build mid-replay: the token alone only
         // discarded its result, leaving the ~14 s replay burning CPU to completion.
         int token = ++_entityRecomputeToken;
         _entityBuildCts?.Cancel();

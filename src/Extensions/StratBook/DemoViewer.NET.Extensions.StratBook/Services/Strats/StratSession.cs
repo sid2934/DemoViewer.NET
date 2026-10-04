@@ -9,10 +9,10 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
-///     The live strat in the Strat Book tab (strat-model.md §3.12): the one undo stack over <see cref="PatchOp" />,
+///     The live strat in the Strat Book tab: the one undo stack over <see cref="PatchOp" />,
 ///     the commit rule, and the autosaved working copy.
 ///     <para>
-///         <b>One history, and it is this one</b> (overview correction 18). Every edit reaches the document through
+///         <b>One history, and it is this one</b>. Every edit reaches the document through
 ///         <see cref="Apply(IReadOnlyList{PatchOp})" />, whether the metadata editor made it or the Step Authoring
 ///         canvas did, and every applied op, undo and redo included, is announced on <see cref="OpsApplied" /> so a
 ///         projection can follow without keeping a stack of its own. The session fills each op's <c>from</c> from
@@ -140,7 +140,7 @@ public sealed class StratSession : IDisposable
     /// <summary>How long edits coalesce before the working copy is written. Shortened by tests.</summary>
     public TimeSpan AutoSaveDelay { get; set; } = TimeSpan.FromMilliseconds(500);
 
-    /// <summary>Idle time after the last edit at which the pending ops are committed (decision 2).</summary>
+    /// <summary>Idle time after the last edit at which the pending ops are committed.</summary>
     public TimeSpan IdleCommitDelay { get; set; } = TimeSpan.FromSeconds(StratCommitBuffer.IdleCommitSeconds);
 
     public bool CanUndo => _undo.Count > 0;

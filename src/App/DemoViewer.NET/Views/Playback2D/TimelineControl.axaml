@@ -13,7 +13,7 @@
          intra-round scrub bar carrying event markers and the playhead, and a footer holding the status
          readout that used to float over the viewport.
 
-         Colours come exclusively from the walled-off Pb2d* HUD tokens (design-system D21) — this is HUD
+         Colours come exclusively from the walled-off Pb2d* HUD tokens, this is HUD
          furniture over the 2D canvas, NOT app chrome, so the app-chrome ramp must not leak in.
 
          Item layers are plain Panels, not Canvases: each band/marker positions itself with a left Margin
@@ -30,8 +30,8 @@
         <Grid RowDefinitions="Auto,22,26" RowSpacing="2">
 
             <!-- ── Rounds band ─────────────────────────────────────────────────────────── -->
-            <!-- The rounds, and under them the lane: tag instances today, one row for every code (tag-store.md
-                 §4.6). The lane is collapsed while empty, and in a StackPanel rather than a grid row so that
+            <!-- The rounds, and under them the lane: tag instances today, one row for every code.
+                 The lane is collapsed while empty, and in a StackPanel rather than a grid row so that
                  collapsed it costs no row spacing either: a demo without tags lays out exactly as before. -->
             <StackPanel Grid.Row="0">
                 <ItemsControl x:Name="RoundsBand" Height="18" ItemsSource="{Binding Bands}" ClipToBounds="True">
@@ -164,11 +164,11 @@
                  a width that has to be guessed. Every readout then docks LEFT in priority order, and the
                  same remaining-space measure becomes their drop order — each takes its natural width if
                  there is room and ellipsizes into what is left if there is not. Same shape as the NavStrip's
-                 P3.1 fix under design-system D35 ("responsive horizontal strips MUST wrap or scroll"). -->
+                 fix ("responsive horizontal strips MUST wrap or scroll"). -->
             <DockPanel Grid.Row="2">
 
                 <!-- Per-track toggles. A track the demo cannot feed shows no checkbox at all, rather than a
-                     dead one (design §7.6: markers only for events the demo has).
+                     dead one (markers only for events the demo has).
 
                      DECLARED FIRST so it is the child that measures against the full footer width. Moving it
                      below the readouts in document order silently restores the bug this DockPanel fixes. -->

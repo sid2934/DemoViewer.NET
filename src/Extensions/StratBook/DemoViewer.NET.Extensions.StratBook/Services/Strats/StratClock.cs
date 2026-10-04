@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
-///     The mapping between a strat's round clock and a demo's frame clock (strat-model.md §3.4). Pure, both
+///     The mapping between a strat's round clock and a demo's frame clock. Pure, both
 ///     directions, on the frame clock only: a round starts at its freeze-end <c>GameTick</c>, which is
 ///     <c>CachedRound.StartTickFrameClock</c> (measured equal on 43 of 43 rounds), and a step's
 ///     <c>atSeconds</c> counts DOWN from the round length. Also the strat clock's own rules: a strat timed from its
@@ -20,7 +20,7 @@ public static class StratClock
     /// <summary>The v1 strat clock: seconds remaining in the round.</summary>
     public const string RoundKind = "round";
 
-    /// <summary>Reserved for post-plant strats counted from <c>bomb_planted</c>; not defined in v1 (decision 9).</summary>
+    /// <summary>Reserved for post-plant strats counted from <c>bomb_planted</c>; not defined in v1.</summary>
     public const string PlantKind = "plant";
 
     /// <summary>A strat timed from its trigger: <c>atSeconds</c> counts UP from 0.</summary>

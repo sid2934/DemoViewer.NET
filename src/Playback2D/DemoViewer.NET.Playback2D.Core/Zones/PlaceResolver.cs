@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Core.Zones;
 ///     <para>
 ///         Cascade order is the volume order of the set: user volumes first, then baked volumes in
 ///         entity-lump order, so a custom zone always wins inside its own polygon and never affects
-///         anything outside it, and two overlapping baked volumes resolve to the first (decision D4).
+///         anything outside it, and two overlapping baked volumes resolve to the first.
 ///     </para>
 /// </summary>
 public sealed class PlaceResolver
@@ -34,7 +34,7 @@ public sealed class PlaceResolver
     /// <summary>The second volume probe: a pawn stands on the floor, and some volumes start above it.</summary>
     public const double LiftZ = 32.0;
 
-    // The per-map override table (D4). Empty rows mean the default.
+    // The per-map override table. Empty rows mean the default.
     private static readonly Dictionary<string, VolumeTieRule> _tieRules = new(StringComparer.OrdinalIgnoreCase)
     {
         ["de_mirage"] = VolumeTieRule.SmallestVolume
@@ -118,7 +118,7 @@ public sealed class PlaceResolver
     public ZoneSet Zones { get; }
 
     /// <summary>
-    ///     How two overlapping baked place volumes are broken for a map: decision D4's default is the
+    ///     How two overlapping baked place volumes are broken for a map: the default is the
     ///     first in entity-lump order, with a per-map override where the validation run showed another
     ///     rule winning. Custom volumes always come first regardless.
     /// </summary>
@@ -441,7 +441,7 @@ public sealed class PlaceResolver
     }
 }
 
-/// <summary>Decision D4: which of two overlapping baked place volumes claims a point.</summary>
+/// <summary>Which of two overlapping baked place volumes claims a point.</summary>
 public enum VolumeTieRule
 {
     /// <summary>The first volume in entity-lump order. The default.</summary>

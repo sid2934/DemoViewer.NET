@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The pack's two settings-page contributions (item 14): the Suggested Tags tuning card and the
+///     The pack's two settings-page contributions: the Suggested Tags tuning card and the
 ///     Grenade Index card, both moved under Extensions. Each VM is built fresh per Settings open (the
 ///     tuning VM reads its stored report at construction), so the factories below must never be cached on
 ///     the contribution itself.
@@ -21,8 +21,8 @@ namespace DemoViewer.NET.Extensions.StratBook;
 internal static class StratBookSettingsPages
 {
     /// <summary>
-    ///     Suggested Tags tuning (suggested-tags.md §3.7, step 6): hidden on the browser, where
-    ///     <see cref="SuggestedTagsTuningViewModel.CanManageTuning" /> would be false anyway, per §3.8.
+    ///     Suggested Tags tuning: hidden on the browser, where
+    ///     <see cref="SuggestedTagsTuningViewModel.CanManageTuning" /> would be false anyway.
     /// </summary>
     public static SettingsPageContribution SuggestedTagsTuning(IServiceProvider sp) => new(
         "stratbook.suggested-tags-tuning",

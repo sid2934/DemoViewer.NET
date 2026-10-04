@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///         shareable file, and the dialog can say so honestly instead of greying everything out.
 ///     </para>
 ///     <para>
-///         <b>It buffers every frame in memory</b>, which is why the caps exist (plan D7): a GIF is a
+///         <b>It buffers every frame in memory</b>, which is why the caps exist: a GIF is a
 ///         palette-per-frame format and a global palette needs the whole animation before it can be
 ///         chosen. <see cref="SceneExportSession.Validate" /> enforces the same ceilings on the request,
 ///         so a user is refused before rendering rather than after.
@@ -67,7 +67,7 @@ public sealed class ManagedGifSink : IFrameSink
     /// <summary>Frames accumulated so far.</summary>
     public int FramesWritten { get; private set; }
 
-    /// <summary>The centisecond delay stamped on every frame. Test hook for the D7 arithmetic.</summary>
+    /// <summary>The centisecond delay stamped on every frame. Test hook for the delay arithmetic.</summary>
     public int FrameDelayCentiseconds { get; }
 
     /// <inheritdoc />

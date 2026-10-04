@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 /// <summary>
 ///     The 2D Playback tab's View. DataContext is the descriptor's
 ///     <see cref="Playback2DTabViewModel" />. Hosts the custom-drawn <see cref="Playback2DViewport" /> plus
-///     the camera-mode selector (#2): a <see cref="SplitButton" /> whose main action is apply-once Fit and
+///     the camera-mode selector: a <see cref="SplitButton" /> whose main action is apply-once Fit and
 ///     whose dropdown caret opens the MODE menu (Fit / Alive / Map / Follow Player). The Follow Player
 ///     submenu is populated on open from the VM's current players; Map surfaces its approximation caveat.
 /// </summary>
@@ -111,7 +111,7 @@ public partial class Playback2DView : UserControl
         // Up/Down). Skipped while a text input has focus so a future in-tab field still types.
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
 
-        // Space is HELD to pan while a drawing tool is active (plan decision D3), so its release has to
+        // Space is HELD to pan while a drawing tool is active, so its release has to
         // be observed too. The keymap only ever resolves a press.
         AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
 
@@ -382,8 +382,8 @@ public partial class Playback2DView : UserControl
             return;
         }
 
-        // The contributions first: a focused panel's scope shadows the tool and always scopes (overview
-        // correction 21), so Esc steps out of a panel and a palette's "A" is a site, not a tool, and a
+        // The contributions first: a focused panel's scope shadows the tool and always scopes,
+        // so Esc steps out of a panel and a palette's "A" is a site, not a tool, and a
         // selected suggestion's scope is what makes J and K walk the queue instead of the result set.
         if (vm.Surface.TryHandleKey(e.Key, e.KeyModifiers))
         {

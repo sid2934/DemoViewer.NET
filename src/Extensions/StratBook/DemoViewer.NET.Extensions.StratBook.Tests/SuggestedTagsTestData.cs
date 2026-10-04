@@ -8,7 +8,7 @@ using DemoViewer.NET.Modules.SuggestedTags;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Hand-written occupancy for the detector tests (suggested-tags.md §7.1): five CT slots and five
+///     Hand-written occupancy for the detector tests: five CT slots and five
 ///     T slots on a made-up map whose A region is <c>BombsiteA+ALong+ASmall</c> and B region is
 ///     <c>BombsiteB+BTunnel</c>, a place per second per slot, and detonations placed by hand. A slot
 ///     not given a place stands in its spawn; a null second is a dead player.

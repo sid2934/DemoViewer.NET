@@ -25,7 +25,7 @@ public sealed record GrenadeRelease(int Slot, int FrameIndex, int Tick, string P
 public sealed record GrenadeDetonation(string Name, int Tick, int EntityIndex, Vector3 Position);
 
 /// <summary>
-///     The events a walk joins, indexed once per demo (grenade-walk.md §3.3): grenade releases per slot,
+///     The events a walk joins, indexed once per demo: grenade releases per slot,
 ///     <c>grenade_thrown</c> where the source has it (HLTV only), and the five detonation events. The joins
 ///     are pure over this index so they are tested without a demo.
 /// </summary>

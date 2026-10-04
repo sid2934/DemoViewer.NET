@@ -27,8 +27,8 @@ namespace AnalysisBench;
 /// </summary>
 internal static class RulesCheckCommand
 {
-    // Demo-less v2 resolution (compiler-plan §4 load-vs-build): the parser's 64/s default and a
-    // default source profile. The §8 resolution diagnostics (bad refs, type errors, cycles) are
+    // Demo-less v2 resolution: the parser's 64/s default and a
+    // default source profile. The resolution diagnostics (bad refs, type errors, cycles) are
     // rate- and profile-independent; folding + param binding (which the hash depends on) only
     // matter at the per-demo build, so a demo-less check surfaces every reference/type error.
     private const double DemoLessTickRate = 64.0;
@@ -56,7 +56,7 @@ internal static class RulesCheckCommand
             errors++;
         }
 
-        // ── Tier 2: v2 ruleset resolve/check (demo-less, compiler-plan §8) ───────────
+        // ── Tier 2: v2 ruleset resolve/check (demo-less) ───────────
         // The loader already folded v2 mapping/structural diagnostics into tier 1; this runs the
         // resolve → canonicalize → check pipeline the loader does NOT (that is per-demo), surfacing
         // reference/type/cross-read errors with file(line,col).
@@ -81,12 +81,12 @@ internal static class RulesCheckCommand
 
     /// <summary>
     ///     Runs the loaded v2 <c>ruleset:</c> documents through the demo-less whole-set validation
-    ///     (compiler-plan §8) and prints the resulting diagnostics as errors (
+    ///     and prints the resulting diagnostics as errors (
     ///     <c>
     ///         file(line,col):
     ///         message [code]
     ///     </c>
-    ///     — the §8 contract). Returns the error count.
+    ///     ). Returns the error count.
     ///     <para>
     ///         The recipe itself is <see cref="DemoAnalysis.ValidateRulesets(IReadOnlyList{RulesetDoc})" />
     ///         — the public library entry point — rather than a private copy, so the CLI and a
@@ -154,7 +154,7 @@ internal static class RulesCheckCommand
     }
 
     /// <summary>
-    ///     The v2 half of the <c>--demo</c> coverage lints (compiler-plan §6 obligation 7): every
+    ///     The v2 half of the <c>--demo</c> coverage lints: every
     ///     <see cref="RulesetCoverageDiagnostic" /> view-binding skip on the demo's profile, plus a
     ///     never-fired warning for each compiled stat / highlight (a coverage-skipped node resolves
     ///     to no graph node and is silently skipped here — its skip diagnostic already reported it).
@@ -188,8 +188,8 @@ internal static class RulesCheckCommand
 
             foreach (CheckedHighlight highlight in rs.Highlights)
             {
-                // The highlight's timeline chain is named _chain_<highlightId> (compiler-plan §6
-                // obligation 2), so its rising-edge count is the timeline count for that name.
+                // The highlight's timeline chain is named _chain_<highlightId>, so its rising-edge
+                // count is the timeline count for that name.
                 if (run.Timeline.CountFor($"_chain_{highlight.HighlightId}") == 0)
                 {
                     Console.WriteLine(
@@ -205,8 +205,8 @@ internal static class RulesCheckCommand
 
     /// <summary>
     ///     Resolves a v2 stat's summed fire count across every materialized player (all v2 rulesets
-    ///     are per-player) via its qualified <c>{ruleset}.{stat}</c> node-map key
-    ///     (compiler-plan §6 obligation 8). Null when the node never materialized (e.g. a coverage
+    ///     are per-player) via its qualified <c>{ruleset}.{stat}</c> node-map key.
+    ///     Null when the node never materialized (e.g. a coverage
     ///     skip), so the caller can distinguish "never fired" from "not built".
     /// </summary>
     private static int? ResolveV2NodeFireCount(

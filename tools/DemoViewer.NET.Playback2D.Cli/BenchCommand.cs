@@ -14,9 +14,9 @@ using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d bench</c>: frame-time and allocation numbers CI can gate on (design §6).
+///     <c>dv2d bench</c>: frame-time and allocation numbers CI can gate on.
 ///     <para>
-///         <b>The clock lives in Pipeline, not Core.</b> Core is banned from wall-clock APIs (§5.1) so
+///         <b>The clock lives in Pipeline, not Core.</b> Core is banned from wall-clock APIs so
 ///         that motion is a function of the injected <c>SceneTime</c>; the harness measures from
 ///         outside.
 ///     </para>
@@ -44,7 +44,7 @@ internal static class BenchCommand
             : SceneProvider.Build(args);
 
         // Same corpus-sidecar convention as `golden`: a bench must time the stack the golden pins,
-        // ink included, or the §6 numbers describe a scene the real stack never draws.
+        // ink included, or the numbers describe a scene the real stack never draws.
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry?.Size ?? source.DefaultSize,
             source.MapName, entry?.Layers,
             annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name),
@@ -89,7 +89,7 @@ internal static class BenchCommand
             Camera = camera,
 
             // Sized to the measured window so the rings hold the whole run rather than its tail. The
-            // harness attaches it before the warmup, so the rings are allocated outside the §6
+            // harness attaches it before the warmup, so the rings are allocated outside the
             // bytes/frame window.
             Perf = perf ? new ScenePerfRecorder(Math.Max(1, frames)) : null
         };
@@ -398,7 +398,7 @@ internal static class BenchCommand
 ///     benchmark harness consumes, re-attaching the plan's decoded radar art on the way through.
 ///     <para>
 ///         The enrichment is memoised by <c>SceneRenderPlan.WithRadarArt</c>, so replaying one fixture
-///         a few thousand times allocates nothing here. This adapter sits inside the window the §6
+///         a few thousand times allocates nothing here. This adapter sits inside the window the
 ///         bytes/frame gate reads.
 ///     </para>
 /// </summary>

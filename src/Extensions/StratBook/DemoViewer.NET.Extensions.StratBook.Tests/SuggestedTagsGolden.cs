@@ -21,7 +21,7 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The §7.2 golden fixture (suggested-tags.md): one real round's occupancy fold, its placed
+///     The golden fixture: one real round's occupancy fold, its placed
 ///     detonations and the map's learned region table, with the proposals the shipped profile makes
 ///     from them. No demo bytes. The snapshot test replays the proposals from the committed fold on
 ///     every run; the real-demo test recaptures the fold from the replay and holds it to the file.
@@ -41,7 +41,7 @@ internal sealed class SuggestedTagsGolden
     public int Schema { get; set; } = SchemaVersion;
 
     public string Note { get; set; } =
-        "suggested-tags.md §7.2: one real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, " +
+        "One real round's occupancy (runs of 'from-to:place' seconds per slot, '?' alive and unplaced, " +
         "gaps dead), its detonations placed by the walk's cloud, and the map's region table learned from the same demo. " +
         "Rows are synthesised from the demo's own events on purpose, so the fixture is pinned to them; the engine's own " +
         "Round Facts rows close a round earlier and keep every round, so their fold is pinned apart under engine-rows/. " +
@@ -49,7 +49,7 @@ internal sealed class SuggestedTagsGolden
 
     /// <summary>The note a fixture under <see cref="EngineRowsFixtureDirectory" /> carries.</summary>
     internal const string EngineRowsNote =
-        "suggested-tags.md §7.2: the same round as ../<map>.json, folded over the engine's own Round Facts rows (the shipped " +
+        "The same round as ../<map>.json, folded over the engine's own Round Facts rows (the shipped " +
         "round_facts ruleset), which end the round at round_decided rather than round_officially_ended. Recapture with ST_GOLDEN_UPDATE=1.";
 
     public string Demo { get; set; } = "";
@@ -228,7 +228,7 @@ internal sealed class SuggestedTagsGolden
 ///     than a replacement of this one. Windows are the clip rounds ended at
 ///     <c>round_officially_ended</c>; sides follow <c>player_team</c> with the <c>OldTeam</c> rule for
 ///     the first half GOTV never announces; kills are <c>player_death</c>; the plant site is the planter's
-///     place at the plant, which matched the site on 58 of 58 plants in the design's measurement.
+///     place at the plant, which matched the site on 58 of 58 plants measured.
 ///     Test code only: the app never derives rows itself.
 /// </summary>
 internal static class SuggestedTagsRealDemoRows

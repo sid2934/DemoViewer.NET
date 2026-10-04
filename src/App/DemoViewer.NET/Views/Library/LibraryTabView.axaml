@@ -39,7 +39,7 @@
             <Setter Property="Padding" Value="8 2" />
             <Setter Property="Margin" Value="0 0 6 0" />
         </Style>
-        <!-- The card badge chip (item 22: a pack's badge contribution, e.g. the provenance chip): a text
+        <!-- The card badge chip (a pack's badge contribution, e.g. the provenance chip): a text
              button on the card's bottom row that opens the label menu. The pinned state is text-carried
              (the tooltip says "set by you") and brightened; the automatic state stays dim like the row. -->
         <Style Selector="Button.badgeChip">
@@ -61,7 +61,7 @@
             <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
             <Setter Property="BorderBrush" Value="{DynamicResource LibraryCardTextMid}" />
         </Style>
-        <!-- The badge menu's reset row (item 22 review): a divider above it, since MenuFlyout's ItemsSource
+        <!-- The badge menu's reset row: a divider above it, since MenuFlyout's ItemsSource
              renders one MenuItem per LibraryBadgeMenuEntry and can't mix in a literal Separator. -->
         <Style Selector="MenuItem.reset">
             <Setter Property="BorderThickness" Value="0 1 0 0" />
@@ -117,7 +117,7 @@
         <DockPanel Background="{DynamicResource ShellBg}">
 
             <!-- ── Toolbar ─────────────────────────────────────────────────────────────
-             RESPONSIVE (R2): the LIBRARY identity label is pinned Dock="Left"; every interactive control
+             RESPONSIVE: the LIBRARY identity label is pinned Dock="Left"; every interactive control
              lives in a fill WrapPanel so the filter/view groups REFLOW to a second row instead of clipping
              at narrow widths (~700px), rather than crowding a fixed-column Grid. sectionHeader has no fixed
              height, so the band grows to fit the wrapped row. See docs/ui/design-system.md (responsive-strip). The
@@ -193,7 +193,7 @@
                                       IsVisible="{Binding ShowDemoChrome}"
                                       VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by player" />
 
-                            <!-- Contributed filters (item 22): one ComboBox per currently-on filter contribution (e.g. Team). -->
+                            <!-- Contributed filters: one ComboBox per currently-on filter contribution (e.g. Team). -->
                             <ItemsControl ItemsSource="{Binding Filters}" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -266,7 +266,7 @@
             <!-- ── Folder chips + count + persistent library actions ───────────────────
              Only shown once the browser is populated (folders configured); the empty state's hero owns the
              open surface instead. A persistent compact "Open Demo…" (single-file open) + a "Recent ▾" flyout
-             dock RIGHT so the single-file open + recents stay reachable while browsing folders (R1). -->
+             dock RIGHT so the single-file open + recents stay reachable while browsing folders. -->
             <Border DockPanel.Dock="Top" IsVisible="{Binding ShowDemoChrome}"
                     Background="{DynamicResource FrameHeaderStripBg}"
                     BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="12 5">
@@ -439,7 +439,7 @@
                                                                        FontSize="10"
                                                                        IsVisible="{Binding HasDuplicates}"
                                                                        ToolTip.Tip="{Binding DuplicateTooltip}" />
-                                                            <!-- Card badge chip (item 22): the active badge contribution's label, editable
+                                                            <!-- Card badge chip: the active badge contribution's label, editable
                                                      in place through a menu built from BadgeMenuEntries. The pick routes
                                                      through the code-behind because a MenuItem cannot carry both the card
                                                      and the picked label as one command parameter. -->
@@ -634,7 +634,7 @@
                 </Border>
 
                 <!-- ── Landing hero (no-demos state) — declared LAST so it's topmost (see note above) ──────
-                 The primary open surface (R1): app title + tagline, a big primary "Open Demo…", a recent-files
+                 The primary open surface: app title + tagline, a big primary "Open Demo…", a recent-files
                  list (when any), a secondary "+ Add a folder", and the drag-drop hint. Scrolls if short. -->
                 <ScrollViewer IsVisible="{Binding HasNoFolders}"
                               VerticalScrollBarVisibility="Auto"

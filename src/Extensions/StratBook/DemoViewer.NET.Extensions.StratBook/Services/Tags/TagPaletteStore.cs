@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.Tags;
 
 /// <summary>
-///     The tag palettes on offer (tag-store.md §3.4), loaded the way themes are
+///     The tag palettes on offer, loaded the way themes are
 ///     (<c>ThemeRegistry</c>): the built-in default from an embedded resource at construction, so a first
 ///     run can tag and a test is hermetic, and user drop-ins from <c>&lt;config&gt;/palettes/</c> on
 ///     <see cref="Reload" />, scanned in filename order. A file that fails validation is skipped with a
@@ -223,7 +223,7 @@ public sealed record TagPaletteValidation(IReadOnlyList<string> Errors, IReadOnl
 }
 
 /// <summary>
-///     The palette rules of tag-store.md §3.4 with overview corrections 21 and 23.
+///     The palette validation rules.
 ///     <para>
 ///         <b>Refused:</b> a hotkey the shell or the browser takes before the tab sees it, a hotkey on a
 ///         palette-scoped keymap row (Esc must always step back out), a duplicate hotkey within one panel,
@@ -238,11 +238,11 @@ public sealed record TagPaletteValidation(IReadOnlyList<string> Errors, IReadOnl
 /// </summary>
 public static class TagPaletteValidator
 {
-    /// <summary>The human label groups the Strat Model reserves (overview correction 23).</summary>
+    /// <summary>The human label groups the Strat Model reserves.</summary>
     public static readonly IReadOnlyList<string> StratGroups =
         [TagStore.StratGroup, "strat.rev", "strat.result", "strat.failure"];
 
-    // Claimed by suggested-tags.md §3.6 for the proposal queue and not in the shipped table yet, so the
+    // Claimed by Suggested Tags for the proposal queue and not in the shipped table yet, so the
     // table cannot name them; listed here so a palette that shadows them is told now, not when they land.
     private static readonly (Key Key, KeyModifiers Modifiers, string What)[] _claimed =
     [
@@ -253,7 +253,7 @@ public static class TagPaletteValidator
     ];
 
     /// <summary>
-    ///     Round Facts' fact names (overview correction 10) plus <see cref="StratGroups" />. The fact names
+    ///     Round Facts' fact names plus <see cref="StratGroups" />. The fact names
     ///     are read from <see cref="RoundFactsSource.Labels" /> over a round with every optional fact
     ///     present, so a fact Round Facts adds is refused here without a second list to keep in step.
     /// </summary>

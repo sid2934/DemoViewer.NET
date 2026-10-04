@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 /// <summary>
 ///     The one place a headless consumer builds a layer stack. <c>dv2d</c> never reads a feature gate
-///     or an <c>AppSettings</c> value (design §7.7); it takes explicit ids, so the set of layers a
+///     or an <c>AppSettings</c> value; it takes explicit ids, so the set of layers a
 ///     render can contain has to be enumerable from Pipeline alone.
 ///     <para>
 ///         <b>One table, one entry point.</b> <see cref="SceneStackIds" /> is the only table of layer
@@ -25,7 +25,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///         asking for that. <c>playback2d.debuggrid</c> is not one of the registered ids: it stays a
 ///         smoke layer that Core's own test suites construct directly.
 ///     </para>
-///     <para>The registered ids are the persisted keys from the design doc and are never renamed.</para>
+///     <para>The registered ids are persisted keys and are never renamed.</para>
 /// </summary>
 public static class SceneLayerCatalog
 {
@@ -95,7 +95,7 @@ public static class SceneLayerCatalog
 
     /// <summary>
     ///     Canonicalises a command-line id: a bare word gets the <see cref="IdPrefix" />. Both spellings
-    ///     are accepted because the design's JSON samples show bare names while the persisted keys are
+    ///     are accepted because JSON samples show bare names while the persisted keys are
     ///     prefixed; only the prefixed form is ever written back out.
     /// </summary>
     /// <param name="id">A bare or prefixed layer id.</param>

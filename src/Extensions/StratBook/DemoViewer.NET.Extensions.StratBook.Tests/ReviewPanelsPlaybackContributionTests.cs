@@ -18,7 +18,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     Review mode as the pack's playback contribution (items 17 and 18): with the pack off nothing is built
+///     Review mode as the pack's playback contribution: with the pack off nothing is built
 ///     or registered, no session, no lane, no toggle; on, the session is built from the context's services,
 ///     the tag and suggestion lanes register in order, the Review toggle is listed and the palette, the
 ///     review panel and the queue are the column's three panels in that order, shown in Review mode only;

@@ -98,8 +98,8 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
             ViewFactory = () => new EntityTrackingTabView()
         };
 
-        // Stats: the user-facing scoreboard (release plan P1-3.1). Sits before the developer-
-        // oriented Analysis Engine tab: the dual-audience split (D4) keeps the graph debugger
+        // Stats: the user-facing scoreboard. Sits before the developer-
+        // oriented Analysis Engine tab: the dual-audience split keeps the graph debugger
         // untouched and gives the player/analyst persona a surface of their own.
         if (_statsViewModel is not null)
         {

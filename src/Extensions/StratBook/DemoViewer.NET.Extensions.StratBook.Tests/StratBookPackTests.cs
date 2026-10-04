@@ -43,11 +43,11 @@ public class StratBookPackTests
         "Microsoft.Extensions.Options.IOptionsMonitorCache`1[TOptions]",
         "Microsoft.Extensions.Options.IOptionsChangeTokenSource`1[DemoViewer.NET.Configuration.AppSettings]",
         "Microsoft.Extensions.Options.IConfigureOptions`1[DemoViewer.NET.Configuration.AppSettings]",
-        // Added by item 36: the extension updater, registered when a config root exists to stage into.
+        // The extension updater, registered when a config root exists to stage into.
         "DemoViewer.NET.Extensions.Updates.ExtensionUpdateService",
         "DemoViewer.NET.Features.IFeatureGate",
         "DemoViewer.NET.Extensions.IPackLifecycle",
-        // Added by item 2: every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
+        // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
         "DemoViewer.NET.Theming.ThemeRegistry",
@@ -113,7 +113,7 @@ public class StratBookPackTests
         "DemoViewer.NET.ViewModels.Dossier.DossierTabViewModel",
         "DemoViewer.NET.Modules.UtilityBook.LineupClipService",
         "DemoViewer.NET.Services.DemoProcessing.DemoEvaluationCoordinator",
-        // Added by item 14: the Strat Book export chip's mount point, shared by the StatusChip
+        // The Strat Book export chip's mount point, shared by the StatusChip
         // contribution and the IStratExport factory's mount callback.
         "DemoViewer.NET.Extensions.StratBook.StratBookExportChipSlot",
         "DemoViewer.NET.Extensions.PackSwitch",
@@ -174,7 +174,7 @@ public class StratBookPackTests
         });
     }
 
-    // Item 14: the two desktop-only settings pages, the one status-chip slot and the one re-index estimate,
+    // The two desktop-only settings pages, the one status-chip slot and the one re-index estimate,
     // every one stamped with the pack's own feature id by the collector.
     [Test]
     public async Task ThePack_ContributesTheSettingsPagesTheStatusChipAndTheReindexEstimate()
@@ -201,7 +201,7 @@ public class StratBookPackTests
         });
     }
 
-    // End to end through the real container (item 15): GetService<IStratCapture> resolves with the pack
+    // End to end through the real container: GetService<IStratCapture> resolves with the pack
     // on, and a live toggle (no provider rebuild) is enough to make it resolve null again, because the
     // pack's registration reads the gate fresh on every call rather than caching the first answer.
     [Test]
@@ -220,7 +220,7 @@ public class StratBookPackTests
         });
     }
 
-    // Item 2: the round_facts ruleset is the pack's. With the pack on the merged set is the whole read
+    // The round_facts ruleset is the pack's. With the pack on the merged set is the whole read
     // (the forward pass is byte-identical to before the pack); off, the ruleset alone leaves it.
     [Test]
     public async Task ThePack_ClaimsTheRoundFactsRuleset_WhichLeavesTheMergedSetOnlyWhenOff()
@@ -320,7 +320,7 @@ public class StratBookPackTests
         });
     }
 
-    // Item 13: the pack contributes its job kinds through Contribute(...), and BuildRegistry checks that
+    // The pack contributes its job kinds through Contribute(...), and BuildRegistry checks that
     // list against the DI-free JobKinds property (the one JobKindRegistry.Build(packs) reads). If either
     // channel drifted, composing the provider here would throw before this test's own assertions run.
     [Test]
@@ -351,7 +351,7 @@ public class StratBookPackTests
             {
                 await Assert.That(kind.Owner).IsNotNull().Because($"{kind.Kind} must carry an owner tag");
                 await Assert.That(StratBookLifecycle.OwnerTags).Contains(kind.Owner!)
-                    .Because($"{kind.Kind}'s owner '{kind.Owner}' must be one of item 8's CancelOwned tags");
+                    .Because($"{kind.Kind}'s owner '{kind.Owner}' must be one of the CancelOwned tags");
             }
         }
     }
@@ -491,7 +491,7 @@ public class StratBookPackTests
 
     private static readonly string[] _railHeaders = ["Strats", "Situations", "Tags", "Utility", "Review", "Dossier", "Suggested"];
 
-    // Item 12: the hub is a contribution now, and the rail must read exactly as it did when the shell built it.
+    // The hub is a contribution now, and the rail must read exactly as it did when the shell built it.
     // The rail's entries are the modules' own descriptors, so the badge a module moves is the badge the rail shows.
     [Test]
     public async Task TheHub_IsThePacksHostTab_AndTheRailKeepsItsSevenSectionsInOrder()
@@ -535,7 +535,7 @@ public class StratBookPackTests
         });
     }
 
-    // Item 33: the embedded manifest names this pack, and the shipped build passes its own check.
+    // The embedded manifest names this pack, and the shipped build passes its own check.
     [Test]
     public async Task ThePack_Manifest_NamesItself_AndIsCompatibleWithThisBuild()
     {

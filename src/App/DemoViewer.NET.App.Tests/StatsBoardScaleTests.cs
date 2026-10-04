@@ -26,7 +26,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The scoreboard's per-column scales (docs/ui/stats-components.md §9). A ten-player fixture with a
+///     The scoreboard's per-column scales. A ten-player fixture with a
 ///     realistic spread, because the questions these scales exist to answer are about how a COLUMN reads,
 ///     and the two-player fixture in <see cref="StatsTabTests" /> cannot show that.
 ///     <para>

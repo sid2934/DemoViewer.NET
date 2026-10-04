@@ -30,7 +30,7 @@ internal sealed class ExportEncoding(
     /// <summary>
     ///     Finds ffmpeg and picks the encoder, refusing a video format with no ffmpeg. Runs BEFORE any frame is
     ///     built: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal has to arrive before
-    ///     the export spends a minute rendering rather than after (plan P2 D1).
+    ///     the export spends a minute rendering rather than after.
     /// </summary>
     /// <exception cref="ExportRefusedException">A video format was asked for and no ffmpeg exists.</exception>
     public (FfmpegLocation Ffmpeg, EncoderSelection? Encoder) Resolve(Scene2DExportRequest request,

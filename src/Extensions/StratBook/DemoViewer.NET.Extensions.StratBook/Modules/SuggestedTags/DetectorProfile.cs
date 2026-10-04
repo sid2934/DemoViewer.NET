@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 public sealed record SiteRegionOverride(IReadOnlyList<string> Add, IReadOnlyList<string> Remove);
 
 /// <summary>
-///     The parameter profile (suggested-tags.md §3.7): every detector's numbers, the order they run
+///     The parameter profile: every detector's numbers, the order they run
 ///     in, and the team's site region overrides, as one JSON document a team owns. Immutable; a
 ///     change is a new profile, which is what the detector-set fingerprint will hash.
 ///     <para>
@@ -50,7 +50,7 @@ public sealed class DetectorProfile
 
     /// <summary>
     ///     The shipped profile: every detector's defaults, the fixed order, and the one override the
-    ///     measurements asked for (<c>Middle</c> out of de_inferno's A region, §3.2).
+    ///     measurements asked for (<c>Middle</c> out of de_inferno's A region).
     /// </summary>
     public static DetectorProfile Default { get; } = CreateDefault();
 
@@ -208,7 +208,7 @@ public sealed class DetectorProfile
         return new DetectorProfile(id, order, values, overrides);
     }
 
-    /// <summary>The profile as §3.7 writes it: every detector in order with every value, then the overrides.</summary>
+    /// <summary>The profile as written: every detector in order with every value, then the overrides.</summary>
     public string ToJson()
     {
         using MemoryStream stream = new();
@@ -274,7 +274,7 @@ public sealed class DetectorProfile
     }
 
     // A detector's values: the declared parameters in declaration order, then anything else the
-    // profile named, so the file reads like the table in the design.
+    // profile named, so the file reads like the parameter table.
     private IEnumerable<(string Name, double Value)> Section(string detector)
     {
         _values.TryGetValue(detector, out Dictionary<string, double>? given);
@@ -338,10 +338,10 @@ public sealed class DetectorProfile
 
 /// <summary>
 ///     The profile on disk: <c>&lt;config&gt;/suggested-tags/profile.json</c>, beside the learned site
-///     region tables (suggested-tags.md §3.7). "The shipped default is embedded and written out on
+///     region tables. "The shipped default is embedded and written out on
 ///     first run, the way themes are": <see cref="Current" /> is that first read, and it writes the
 ///     shipped profile back out the first time there is nothing to read. A null directory (the
-///     browser, tests) keeps the profile in memory only, per §3.8: no tuning view there, and the
+///     browser, tests) keeps the profile in memory only: no tuning view there, and the
 ///     embedded default is what every build runs with.
 /// </summary>
 public sealed class ProfileStore
@@ -382,8 +382,8 @@ public sealed class ProfileStore
     public event Action? Changed;
 
     /// <summary>
-    ///     Persists <paramref name="profile" /> as the current one: the tuning view's "Save" (suggested-tags.md
-    ///     §3.7), after a candidate has been previewed. Changing a value changes the detector-set
+    ///     Persists <paramref name="profile" /> as the current one: the tuning view's "Save", after a
+    ///     candidate has been previewed. Changing a value changes the detector-set
     ///     fingerprint, which is what marks every demo's proposals stale for the evaluator to rebuild.
     /// </summary>
     /// <param name="profile">The profile to keep.</param>

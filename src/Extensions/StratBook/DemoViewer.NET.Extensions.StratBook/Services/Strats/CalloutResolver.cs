@@ -11,7 +11,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
-///     A team's words over a map's canonical places (strat-model.md §3.7). Pure over the canonical list and one
+///     A team's words over a map's canonical places. Pure over the canonical list and one
 ///     owner's <see cref="CalloutTable" />: steps store canonical names, the UI shows the owner's words, and this
 ///     is the one place either direction is decided.
 /// </summary>
@@ -83,7 +83,7 @@ public sealed class CalloutResolver
 
     /// <summary>
     ///     The resolver for one owner on one map. The canonical list is the map's baked zones when they loaded
-    ///     (overview correction 15: <c>ZoneSet.Places</c>, custom zones included), else the embedded list.
+    ///     (<c>ZoneSet.Places</c>, custom zones included), else the embedded list.
     /// </summary>
     /// <param name="map">The map, in the parser's spelling.</param>
     /// <param name="zones">The map's zones from <c>ZoneAssetPipeline</c>, or null.</param>

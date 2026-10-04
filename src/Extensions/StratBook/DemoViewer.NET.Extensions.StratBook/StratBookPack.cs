@@ -54,7 +54,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 /// <summary>
 ///     The Strat Book extension as a feature pack. Round Index, Teams, Provenance, the Tag Store and the
 ///     Review Queue are registered by the composition root, not here: core surfaces read them. Round Facts
-///     is registered here (decision 1): its ruleset rides the merged build only while the pack is on.
+///     is registered here: its ruleset rides the merged build only while the pack is on.
 /// </summary>
 public sealed class StratBookPack : IFeaturePack
 {
@@ -176,25 +176,25 @@ public sealed class StratBookPack : IFeaturePack
             PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
 
         // ---------------- SUB-FEATURES (ParentId = owning tab) ----------------
-        // The Round Tagger's palette docked in the 2D tab (tag-store.md §3.11). Works on both hosts: the
+        // The Round Tagger's palette docked in the 2D tab. Works on both hosts: the
         // browser keeps tags for the session and the palette says so.
         new(
             RoundTaggerModule.PaletteFeatureId, FeatureScope.SubFeature, "Tag palette",
             "Tag the round you are watching with a hotkey palette; tags are saved per demo.",
             "tab.playback2d", null, false, FeatureCatalog.Defaults(true, true, true)),
-        // Suggested Tags (suggested-tags.md §3.6): the Suggested track, the proposal queue and the
+        // Suggested Tags: the Suggested track, the proposal queue and the
         // evaluator. On for both hosts; the browser keeps proposals and verdicts for the session.
         new(
             SuggestedTagsService.FeatureId, FeatureScope.SubFeature, "Suggested tags",
             "Offer tags found by detectors (execute, default, fake, opener, retake) to accept, edit or reject.",
             "tab.playback2d", null, false, FeatureCatalog.Defaults(true, true, true)),
-        // Strat Export (step-authoring.md §3.6): the open strat to GIF or video with no demo behind it. Desktop
+        // Strat Export: the open strat to GIF or video with no demo behind it. Desktop
         // only for playback2d.export's reason, through the same ShellModuleFeatureGate.DesktopOnlyIds.
         new(
             StratBookTabViewModel.ExportFeatureId, FeatureScope.SubFeature, "Strat export",
             "Render a strat to gif/webm/mp4 from the Strat Book canvas. Desktop only.",
             StratBookModule.TabFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
-        // Token routing (docs/strat-book/token-pathing.md): strat tokens walk the map's nav round walls instead of in
+        // Token routing: strat tokens walk the map's nav round walls instead of in
         // straight lines, on the canvas, the Detected preview and an export. On by default; off is the straight lines
         // and timing strats had before. Both hosts: the graph is built from the map's zones.json.
         new(
@@ -208,7 +208,7 @@ public sealed class StratBookPack : IFeaturePack
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // The was-built tracker (item 3): one instance, read by StratBookLifecycle.OnShutdown and by the
+        // The was-built tracker: one instance, read by StratBookLifecycle.OnShutdown and by the
         // pack-off composition-root test. Set only by the factories below, never by a caller asking for it.
         services.AddSingleton<StratBookPackInstances>();
 
@@ -365,14 +365,14 @@ public sealed class StratBookPack : IFeaturePack
                 serial: TeamIdentityService.QueueSerial),
             post: action => Dispatcher.UIThread.Post(action)));
 
-        // SituationIndex, TeamIdentityService and TagFactsRefresher were registered by the composition root
-        // until item 25, so their factories are wrapped rather than rewritten. The wrap changes nothing
+        // SituationIndex, TeamIdentityService and TagFactsRefresher were registered by the composition root,
+        // so their factories are wrapped rather than rewritten. The wrap changes nothing
         // about what is registered (same type, same Singleton lifetime), only which object is told it was
         // built.
         TrackBuilt<SituationIndex>(services);
         TrackBuilt<TeamIdentityService>(services);
         TrackBuilt<TagFactsRefresher>(services);
-        // Round Index the same way, through the non-resident tracker (item 11): it has no Attach/Release,
+        // Round Index the same way, through the non-resident tracker: it has no Attach/Release,
         // just a was-it-constructed field for a test. The other three evaluators below record themselves
         // inline instead.
         TrackBuiltEvaluator<RoundIndexEvaluator>(services, (instances, built) => instances.RoundIndex = built);
@@ -427,7 +427,7 @@ public sealed class StratBookPack : IFeaturePack
                 provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
                 watched: sp.GetRequiredService<WatchedSituationsService>(),
                 review: sp.GetRequiredService<ReviewQueue>(),
-                // The canvas shows the "us" team's callouts (Callout Aliases, strat-model.md §3.7) over
+                // The canvas shows the "us" team's callouts (Callout Aliases) over
                 // the stored canonical place names; no team marked falls back to the me book, same as the
                 // Strat Book's own default.
                 callouts: sp.GetRequiredService<CalloutResolverSource>(),
@@ -524,15 +524,15 @@ public sealed class StratBookPack : IFeaturePack
         });
 
         // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
-        // it wrote in the same pass (overview correction 19). Proposals go to cache/suggestions/ beside
-        // demos/, verdicts to the Tag Store under the tags root (correction 2); the learned site regions
-        // come from <config>/suggested-tags/. The library sweep is its own opt-in, off by default
-        // (correction 20); the open demo, resolved at call time, is always built. Null roots (the
+        // it wrote in the same pass. Proposals go to cache/suggestions/ beside
+        // demos/, verdicts to the Tag Store under the tags root; the learned site regions
+        // come from <config>/suggested-tags/. The library sweep is its own opt-in, off by default;
+        // the open demo, resolved at call time, is always built. Null roots (the
         // browser) keep all of it for the session.
         services.AddSingleton(sp => new ProposalStore(AppPaths.DemoCacheDir, sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(_ => new SiteRegionStore(AppPaths.SuggestedTagsDirectory));
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
-        // on first read the way a theme drop-in folder is (§3.7). A singleton so the evaluator's Func
+        // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
         // and the tuning view's save reach the same in-memory Current.
         services.AddSingleton(_ => new ProfileStore(AppPaths.SuggestedTagsDirectory));
         services.AddSingleton(sp =>
@@ -560,7 +560,7 @@ public sealed class StratBookPack : IFeaturePack
             return built;
         });
         // The tuning view's harness: stored counts for free, an in-memory re-run over a candidate
-        // profile for recall/precision (§3.7). Shares the evaluator's store and region table so a
+        // profile for recall/precision. Shares the evaluator's store and region table so a
         // preview scores exactly what the queue already built.
         services.AddSingleton(sp => new SuggestedTagsTuningService(
             sp.GetRequiredService<DemoCacheStore>(),
@@ -573,11 +573,11 @@ public sealed class StratBookPack : IFeaturePack
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
         services.AddSingleton(_ => new StratStore(AppPaths.StratsDir, action => Dispatcher.UIThread.Post(action)));
-        // Callout Aliases (strat-model.md §3.7): one resolver builder over the store's tables and the map's
+        // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
         services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
-        // Strat Record Panel (strat-model.md §3.6): the evidence rule over the Tag Store and Demo
+        // Strat Record Panel: the evidence rule over the Tag Store and Demo
         // Provenance Labels, one instance so the panel's live rebuild and any other future reader of a
         // strat's record agree on what "run / won / aborted" means.
         services.AddSingleton(sp => new StratEvidenceService(
@@ -631,7 +631,7 @@ public sealed class StratBookPack : IFeaturePack
                 canvasServices: canvasServices);
         });
 
-        // Create Strat From Round (step-authoring.md §3.9). Transient: the gate is read fresh on every
+        // Create Strat From Round. Transient: the gate is read fresh on every
         // resolve. A Singleton would cache a null from a startup-time off state forever.
         services.AddTransient<IStratCapture>(sp =>
         {
@@ -653,7 +653,7 @@ public sealed class StratBookPack : IFeaturePack
                 });
         });
 
-        // Strat Export (step-authoring.md §3.6). No export on the browser: no ffmpeg, no files.
+        // Strat Export. No export on the browser: no ffmpeg, no files.
         services.AddTransient<IStratExport>(sp =>
         {
             IFeatureGate? gate = sp.GetService<IFeatureGate>();
@@ -687,9 +687,9 @@ public sealed class StratBookPack : IFeaturePack
             sp.GetRequiredService<RoundIndexPlaceSources>(),
             tabId => App.Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
 
-        // The Grenade Walk (grenade-walk.md §3.8): every throw in a demo as one row, written as two siblings of
+        // The Grenade Walk: every throw in a demo as one row, written as two siblings of
         // the demo's cache record. An evaluator on the same fan-out, last because it reads nothing the others
-        // write. The library sweep is its own opt-in, off by default (D4); the open demo, resolved at call
+        // write. The library sweep is its own opt-in, off by default; the open demo, resolved at call
         // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
         // rows in memory for the session.
         services.AddSingleton(sp =>
@@ -727,7 +727,7 @@ public sealed class StratBookPack : IFeaturePack
         });
         services.AddSingleton(sp => UtilityBookFor(sp, null, null));
 
-        // The Opponent Dossier's veto history (F12, D5): manual entry only, beside teams.json. Null
+        // The Opponent Dossier's veto history: manual entry only, beside teams.json. Null
         // config root (the browser) keeps entries in memory for the session.
         services.AddSingleton(_ => new VetoHistoryStore(AppPaths.ConfigRoot));
         // Dossier Editing And Export: the user's stars, rewritten lines, notes and summary per team, beside
@@ -796,11 +796,11 @@ public sealed class StratBookPack : IFeaturePack
             return clips;
         });
 
-        // The pack's lifecycle (item 3): resolved by the app only while pack.stratbook resolves on,
+        // The pack's lifecycle: resolved by the app only while pack.stratbook resolves on,
         // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
         services.AddKeyedSingleton<IPackLifecycle, StratBookLifecycle>(Id);
 
-        // The Strat Book export chip's mount point (item 14): shared by the StatusChip contribution below
+        // The Strat Book export chip's mount point: shared by the StatusChip contribution below
         // and the IStratExport factory's mount callback, so both sides of the hand-off agree on one slot.
         services.AddSingleton<StratBookExportChipSlot>();
     }
@@ -826,7 +826,7 @@ public sealed class StratBookPack : IFeaturePack
         }));
     }
 
-    // Like TrackBuilt, for a core-registered evaluator that is not an IPackResident (item 11): no
+    // Like TrackBuilt, for a core-registered evaluator that is not an IPackResident: no
     // Attach/Release, just a was-it-constructed field a test reads.
     private static void TrackBuiltEvaluator<T>(IServiceCollection services, Action<StratBookPackInstances, T> record)
         where T : class
@@ -854,7 +854,7 @@ public sealed class StratBookPack : IFeaturePack
         // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
         contributions.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
 
-        // Settings pages (item 14): the Suggested Tags tuning card and the Grenade Index card, both
+        // Settings pages: the Suggested Tags tuning card and the Grenade Index card, both
         // desktop-only (no filesystem on the browser, same gate they had before the move).
         if (!OperatingSystem.IsBrowser())
         {
@@ -862,12 +862,12 @@ public sealed class StratBookPack : IFeaturePack
             contributions.SettingsPage(StratBookSettingsPages.GrenadeIndex(sp));
         }
 
-        // The Strat Book export chip (item 14): the shell shows it only while the pack is on, through the
+        // The Strat Book export chip: the shell shows it only while the pack is on, through the
         // same slot the IStratExport factory mounts into on the first Export.
         contributions.StatusChip(new StatusChipContribution(
             "stratbook.export", 0, sp.GetRequiredService<StratBookExportChipSlot>()));
 
-        // The Settings "N demos will be re-indexed" notice's count (item 14), over the same evaluators the
+        // The Settings "N demos will be re-indexed" notice's count, over the same evaluators the
         // re-enable backfill polls.
         contributions.ReindexEstimate(new StratBookPendingReindexCount(sp));
 
@@ -885,7 +885,7 @@ public sealed class StratBookPack : IFeaturePack
             });
         }
 
-        // The Library's Team filter and provenance chip (item 22), each resolving its service lazily on first use.
+        // The Library's Team filter and provenance chip, each resolving its service lazily on first use.
         contributions.Library(new TeamLibraryContribution(sp.GetRequiredService<TeamIdentityService>));
         contributions.Library(new ProvenanceLibraryContribution(sp.GetRequiredService<IDemoProvenanceSource>, sp.GetRequiredService<TeamIdentityService>));
 
@@ -898,7 +898,7 @@ public sealed class StratBookPack : IFeaturePack
         // the user overlay and the Workbench keep working on it.
         contributions.Ruleset(RoundFactsFingerprint.RulesetId);
 
-        // The four pack evaluators on the demo fan-out (item 11), ordered to match the dependency chain
+        // The four pack evaluators on the demo fan-out, ordered to match the dependency chain
         // each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
         // the others write). The registry resolves this only while the pack is on, so these factories are
@@ -913,13 +913,13 @@ public sealed class StratBookPack : IFeaturePack
         contributions.Evaluator(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             libraryId);
 
-        // The pack's five job kinds (item 13), from the same array JobKinds below exposes DI-free.
+        // The pack's five job kinds, from the same array JobKinds below exposes DI-free.
         foreach (JobKindDescriptor kind in StratBookJobKinds.All)
         {
             contributions.JobKind(kind);
         }
 
-        // Every store and cache path the pack owns (item 24), and the "delete extension data" action over
+        // Every store and cache path the pack owns, and the "delete extension data" action over
         // them: no filesystem on the browser, the same gate the two settings pages above take.
         if (!OperatingSystem.IsBrowser())
         {
@@ -931,7 +931,7 @@ public sealed class StratBookPack : IFeaturePack
             contributions.DataRemoval(new StratBookDataRemoval(sp));
         }
 
-        // Create Strat From Round in 2D Playback (item 16): the round band's entry and the review pane, one
+        // Create Strat From Round in 2D Playback: the round band's entry and the review pane, one
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
         contributions.Playback(new CreateStratPlaybackContribution(action => Dispatcher.UIThread.Post(action)));

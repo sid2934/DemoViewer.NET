@@ -61,7 +61,7 @@ public class ZoneSetReaderTests
         await Assert.That(ZoneAssetPipeline.TryLoad(null, null)).IsNull();
         await Assert.That(ZoneAssetPipeline.TryLoad(Path.Combine(dir.Path, "nope"), null)).IsNull();
 
-        // The gzipped spelling alone: read through the same reader (decision D3).
+        // The gzipped spelling alone: read through the same reader.
         string gz = Path.Combine(dir.Path, ZoneAssetPipeline.GzipFileName);
         await using (FileStream file = File.Create(gz))
         await using (GZipStream deflate = new(file, CompressionLevel.Fastest))

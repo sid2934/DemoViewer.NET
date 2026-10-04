@@ -15,11 +15,11 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The design's baseline measurement, re-run through the real reader and resolver: for every
+///     The baseline measurement, re-run through the real reader and resolver: for every
 ///     placed sample on every 32nd frame of every demo under <c>DEMO_PATH</c> whose map has a
 ///     <c>zones.json</c>, the cascade's answer is compared with the pawn's own
 ///     <c>m_szLastPlaceName</c>. The samples of every demo of a map are POOLED and the pooled
-///     agreement must clear that map's floor (decision D7, taken 2026-09-24: pooled, not per demo).
+///     agreement must clear that map's floor (pooled, not per demo).
 ///     The per-demo and per-place tables still go to the test output so a map that slips can be read
 ///     off, demo by demo and place by place.
 ///     <para>
@@ -44,7 +44,7 @@ public class ZoneResolverAgreementTests
 
     // Each floor is the pooled agreement measured over the smallest ten demos of the map in the Steam
     // replays folder (DEMO_ZONES_PER_MAP=10, 83 demos, 2026-09-24), less one point, rounded down to
-    // the whole number. A map with only one demo would keep the design's floor (section 7.2); every
+    // the whole number. A map with only one demo would keep that floor; every
     // map with a zones.json had at least two. The pooled values, with the per-demo spread they hide:
     //   de_ancient   96.95 % over ten demos  (96.22 to 98.44)   floor 95
     //   de_anubis    97.99 % over ten demos  (97.64 to 98.36)   floor 96
@@ -52,7 +52,7 @@ public class ZoneResolverAgreementTests
     //   de_dust2     99.43 % over ten demos  (99.22 to 99.56)   floor 98
     //   de_inferno   97.28 % over ten demos  (94.59 to 98.40)   floor 96
     //   de_mirage    92.91 % over ten demos  (90.35 to 94.42)   floor 91
-    //                (92.83 in the Phase 0 fix pass; the low demo is the abandoned 9.4-minute replay,
+    //                (92.83 after the fix; the low demo is the abandoned 9.4-minute replay,
     //                and with DEMO_ZONES_PER_MAP=2 it is half the pool: 91.67 over the smallest two,
     //                which is why the floor is measured minus one and not the 92 first proposed)
     //   de_nuke      96.79 % over ten demos  (96.02 to 97.77)   floor 95

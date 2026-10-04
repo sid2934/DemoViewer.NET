@@ -40,7 +40,7 @@
         </Style>
 
         <!-- CS2 live-sync HUD indicator dot. The walled-off Pb2d sibling of the
-             app-chrome Ellipse.dot.* (design-system D21 — HUD palette, NOT the chrome ramp): the colour is
+             app-chrome Ellipse.dot.* (HUD palette, NOT the chrome ramp): the colour is
              a bound state→class selector resolving a Pb2d token (Good=Pb2dPositive, Working=Pb2dTextBright
              neutral, Degraded=Pb2dTeamT caution-equivalent, Error=Pb2dHeadshot), so it re-themes live. Solid
              states set Fill (:not(.hollow)); the inferred pause sets Stroke (.hollow, transparent Fill). -->
@@ -99,7 +99,7 @@
         <!-- Left: the docked viewport toolbar, the custom-drawn viewport, and the docked timeline. -->
         <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
 
-            <!-- ── The docked viewport toolbar (D4) ───────────────────────────────────────────────────
+            <!-- ── The docked viewport toolbar ────────────────────────────────────────────────────────
                  Its own Auto row at the TOP edge, structurally the mirror of TimelineControl's at the
                  bottom, and the answer to the reported "the toolbars are always displayed, taking up
                  screen area / having them floating feels strange". The tool row and the overlay toggles
@@ -124,7 +124,7 @@
                 <StackPanel Spacing="4">
 
                     <!-- The header. LastChildFill=False and the right-hand cluster declared FIRST, which
-                         is D5's timeline-footer reservation trick: a DockPanel measures each child against
+                         is the timeline-footer reservation trick: a DockPanel measures each child against
                          what is still unclaimed, so declaring first makes the reservation structural and
                          these three can never be arranged past the column's right edge (where the splitter
                          and the roster panel, later siblings, would take both the paint and the clicks).
@@ -150,7 +150,7 @@
 
                         <!-- Six check boxes that are READ rarely and CHANGED rarely were the widest thing
                              in the column (485 px of it) and were on screen permanently. One toggle is the
-                             overflow-▾ shape design-system D35 prescribes first; it is INLINE rather than a
+                             overflow-▾ shape prescribed elsewhere first; it is INLINE rather than a
                              flyout so the toggles stay inside the viewport column, where the layout suite
                              can still measure and hit-test them, and inside the keymap's tunnel, where
                              Space still means play. -->
@@ -187,7 +187,7 @@
                                 ToolTip.Tip="Collapse the viewport toolbar" />
                     </DockPanel>
 
-                    <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off
+                    <!-- Overlay-visibility toggles: each viewport sub-overlay can be turned off
                          independently. A WrapPanel, not a row: the six of them measure 424 px of the
                          480 px this toolbar has inside its padding at the 820 px floor. That fits — by
                          56 px, which is one longer label or one larger system font away from running
@@ -218,8 +218,8 @@
                                 ToolTip.Tip="Re-read the zones file and your overlay without reloading the map" />
                     </WrapPanel>
 
-                    <!-- Annotation toolbar (B2), on its OWN line rather than sharing the header's fill
-                         slot. Its tool row measures ~970 px after D2 — one line at 1400, three at the
+                    <!-- Annotation toolbar, on its OWN line rather than sharing the header's fill
+                         slot. Its tool row measures ~970 px, one line at 1400, three at the
                          820 px floor's 480 px. Sharing the header's fill slot would leave it ~250 px and
                          roughly twice as many rows — so the separate header line costs one row at 1400
                          and saves more than one at 820, which is the width that has none to spare.
@@ -228,7 +228,7 @@
                          slot to the stack.
 
                          AnnotationsPanelViewModel.IsEnabled is now the FEATURE and the mounted SURFACE'S
-                         CAPABILITY, not the feature alone (D6 finding 12). Bound to the gate by itself,
+                         CAPABILITY, not the feature alone. Bound to the gate by itself,
                          this row rendered in full under DV_PLAYBACK2D_RENDERER=legacy over a viewport
                          with no router — every button inert, and picking one of them took Space and
                          Escape away from play/pause and clear-follow with no visible cause. -->
@@ -244,7 +244,7 @@
                  satisfy IPlayback2DSurface, so everything below drives either one. -->
             <ContentControl Grid.Row="1" x:Name="ViewportHost" />
 
-            <!-- The text tool's editor (step-authoring.md §3.2). Hidden until the surface places a label,
+            <!-- The text tool's editor. Hidden until the surface places a label,
                  then put over the label's anchor in the surface's own coordinates. Enter commits, Esc
                  cancels, and losing focus commits, so a click anywhere else keeps what was typed. The
                  canvas has no background, so it takes no pointer input except on the box itself. -->
@@ -274,7 +274,7 @@
                     Margin="10" Padding="8,4"
                     Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                    <!-- Camera-mode selector (#2): left-click the main button = apply-once Fit; the dropdown
+                    <!-- Camera-mode selector: left-click the main button = apply-once Fit; the dropdown
                          caret (or a right-click on the button) opens the MODE menu. The active mode shows
                          next to it; Follow Player expands to a per-player submenu. -->
                     <SplitButton x:Name="ModeButton" Content="Fit" Padding="10,2" Click="OnFitClick">
@@ -311,7 +311,7 @@
                                IsVisible="False" Foreground="{DynamicResource Pb2dMapApprox}"
                                FontFamily="Consolas,Menlo,monospace" FontSize="10"
                                ToolTip.Tip="Map mode fits the all-demo observed player positions — there is no real radar X/Y metadata yet." />
-                    <!-- Module forward-nav (Phase E): jump between kills on the shared clock. Shown only when
+                    <!-- Module forward-nav: jump between kills on the shared clock. Shown only when
                          the demo carries player_death events (HasKillEvents). -->
                     <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
                             IsVisible="{Binding HasKillEvents}" />
@@ -351,7 +351,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed (A4).
+            <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed.
                  The whole stack is display-only (IsHitTestVisible=False) so it never eats viewport
                  pan/zoom gestures — the shell status chip is the live-sync control centre. -->
             <StackPanel Grid.Row="1" x:Name="HudStack"
@@ -377,12 +377,12 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Kill feed (A4): recent kills. -->
+                <!-- Kill feed: recent kills. -->
                 <ItemsControl ItemsSource="{Binding KillFeed}"
                               HorizontalAlignment="Right"
                               IsVisible="{Binding ShowKillFeed}">
                     <ItemsControl.ItemTemplate>
-                        <!-- Bound straight to the Core row record (B4 D5): the App's parallel KillFeedEntry
+                        <!-- Bound straight to the Core row record: the App's parallel KillFeedEntry
                              is gone, so this feed and the exported hud.killfeed layer read the same rows
                              produced by the same KillFeedTimeline.Window call. -->
                         <DataTemplate x:DataType="scene:KillFeedRow">
@@ -457,7 +457,7 @@
                 </ItemsControl>
             </StackPanel>
 
-            <!-- Level strip (B3). Right-CENTRE gutter: the canvas's own corners are taken (the restore
+            <!-- Level strip. Right-CENTRE gutter: the canvas's own corners are taken (the restore
                  chevron top-left when the toolbar is folded, live-sync + kill feed top-right, transport
                  bottom-left, timeline the whole bottom edge), and the vertical margins clear the kill
                  feed's growth downward and the transport bar's growth upward without either needing to
@@ -529,7 +529,7 @@
 
             <!-- The export pane. Not a modal: an export runs for minutes, so it hands off and closes,
                  and progress lives on the status chip (the same shape the reel job uses). Its ENTRY
-                 point moved into the docked toolbar's header (D4); the button that used to float in this
+                 point moved into the docked toolbar's header; the button that used to float in this
                  corner is gone. Hidden — not disabled — when the feature is off, when no demo is loaded,
                  or on a build with no export host (browser, tests, designer). -->
             <Border Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Stretch"
@@ -607,7 +607,7 @@
                         </TextBlock>
                         <TextBlock Text="{Binding GameInfo.BombState}" Foreground="{DynamicResource Pb2dBomb}"
                                    FontFamily="Consolas,Menlo,monospace" FontSize="11" />
-                        <!-- Second timer (#5): defuse-completion countdown during a defuse-in-progress,
+                        <!-- Second timer: defuse-completion countdown during a defuse-in-progress,
                              next to the main C4 detonation countdown (the defuse-vs-detonation race). -->
                         <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                    IsVisible="{Binding GameInfo.DefuseInProgress}"

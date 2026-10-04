@@ -63,7 +63,7 @@ public class SettingsViewModelTests
     // IOptionsMonitor<AppSettings> and an IFeatureGate bound to that same service's live config (mirrors
     // SettingsServiceTests + FeatureGateTests). The gate uses UI-thread marshaling DISABLED so its Changed
     // event, the cue that refreshes the feature rows, is observable inline in these non-UI cases; it is
-    // registered in the container so the provider disposes it. reindexEstimate is the item 14 test seam
+    // registered in the container so the provider disposes it. reindexEstimate is the test seam
     // for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
         string dir, IPackReindexEstimate? reindexEstimate = null, IPackDataRemoval? dataRemoval = null,
@@ -89,7 +89,7 @@ public class SettingsViewModelTests
         return (vm, svc, gate, sp);
     }
 
-    // Item 36: the real pack's status over a fake feed client rooted at dir. The feed offers whatever the
+    // The real pack's status over a fake feed client rooted at dir. The feed offers whatever the
     // caller serves; the zip carries a manifest for the real pack id so the staged copy is discoverable.
     private static ExtensionUpdateService NewUpdater(string dir, UpdateFixtures.FakeFeedClient client, ITrustPolicy? trust = null) =>
         new(dir, [FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId)], ExtensionHost.Current,
@@ -105,7 +105,7 @@ public class SettingsViewModelTests
         public Task<int> CountAsync() => count();
     }
 
-    // The "delete extension data" test seam (item 24): canned inventory/delete results and a call count
+    // The "delete extension data" test seam: canned inventory/delete results and a call count
     // for each, so a test can assert Confirm reached the remover without a real PackDataRemover, queue or
     // filesystem. No gate/PackSwitch coupling: a real IPackDataRemoval owns that, this fake does not.
     private sealed class FakePackDataRemoval(PackDataInventory inventory, PackDataRemovalResult result,
@@ -417,8 +417,8 @@ public class SettingsViewModelTests
         }
     }
 
-    // Render: the Extensions section (item 5), master switch and every nested row, fits the real settings
-    // host width (520-560px, design-system.md) with no horizontal overflow. SectionsScroll disables its
+    // Render: the Extensions section, master switch and every nested row, fits the real settings
+    // host width (520-560px) with no horizontal overflow. SectionsScroll disables its
     // horizontal scrollbar, so wider content would silently clip rather than error. Extent > Viewport is
     // the actual overflow signal, not a visual guess.
     [Test]
@@ -466,7 +466,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // Item 14: the real pack's two settings pages (Suggested Tags tuning, Grenade Index) now arrive as
+    // The real pack's two settings pages (Suggested Tags tuning, Grenade Index) arrive as
     // contributions, not constructor parameters, so this goes through the REAL composition root rather
     // than NewVm's minimal container: their own VMs need SuggestedTagsTuningService/ProfileStore, which
     // only a real container wires, and AppPaths.ConfigDirEnvVar is sandboxed to a temp dir here exactly as
@@ -548,7 +548,7 @@ public class SettingsViewModelTests
     // so the mechanism itself (gate × keyword match) is pinned without any Strat Book machinery.
     private sealed class FakePageViewModel : ViewModelBase;
 
-    // Item 14, the generic mechanism: a fake page contribution (gated on the real pack.stratbook id, so
+    // The generic mechanism: a fake page contribution (gated on the real pack.stratbook id, so
     // the override write below is enough to flip it) renders under Extensions only while its gate
     // resolves on, and the search filter hides/shows it by its own Keywords, independent of any built-in
     // section's keyword row.
@@ -606,7 +606,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // Item 14 blocker fix: a page whose gate is off at construction must not run its factories at all, and
+    // A page whose gate is off at construction must not run its factories at all, and
     // must run them exactly once, the first time the gate turns on, never again on a later toggle.
     [Test]
     public async Task ContributedPage_BuildsItsFactoriesOnlyOnce_TheFirstTimeItsGateTurnsOn()
@@ -929,7 +929,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // ── Extensions (item 5): the pack master switch + its rows ───────────────────────────────────
+    // ── Extensions: the pack master switch + its rows ─────────────────────────────────────────────
 
     // (a) The master row is present (Pack scope, indent 0), the pack's own tabs sit beneath it at
     // indent 1 with their sub-feature children one level deeper, and the sub-feature it docks in a CORE
@@ -1019,7 +1019,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // Item 34: the master row says where the running copy came from ("(bundled)" for the compile-linked
+    // The master row says where the running copy came from ("(bundled)" for the compile-linked
     // pack this assembly configures), its children nothing; with no staged candidate there is no note.
     [Test]
     public async Task ExtensionMasterRow_ShowsTheSource()
@@ -1051,7 +1051,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // Item 34: a staged copy that won shows "(installed update)"; the staged candidates the loader refused
+    // A staged copy that won shows "(installed update)"; the staged candidates the loader refused
     // show one line each under the row, and lock nothing, since the copy that is running works.
     [Test]
     public async Task ExtensionMasterRow_ShowsAnInstalledUpdate_AndWhyAHigherOneWasRefused()
@@ -1101,7 +1101,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // Item 33: the master row carries the manifest version (from FeaturePacks.Statuses by default), its
+    // The master row carries the manifest version (from FeaturePacks.Statuses by default), its
     // children none.
     [Test]
     public async Task ExtensionMasterRow_ShowsTheManifestVersion()
@@ -1132,7 +1132,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // Item 33: a pack that failed the compatibility check has no catalog row, so Settings synthesizes a
+    // A pack that failed the compatibility check has no catalog row, so Settings synthesizes a
     // locked master row from its status: off, not interactive, the "incompatible" lock hint, the reason in
     // user terms, searchable by name, and a stray set writes no override.
     [Test]
@@ -1256,7 +1256,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // ── Extensions: the in-session re-index notice (architecture doc §8) ─────────────────────────
+    // ── Extensions: the in-session re-index notice ────────────────────────────────────────────────
 
     // (e) No notice at a plain startup: it is feedback for an IN-SESSION flip, not persisted state.
     [Test]
@@ -1381,7 +1381,7 @@ public class SettingsViewModelTests
     }
 
     /// <summary>
-    ///     The "delete extension data" row (item 24): available with the pack off (the master switch
+    ///     The "delete extension data" row: available with the pack off (the master switch
     ///     override sits off throughout; the row names nothing about the gate), Arm's confirmation names
     ///     the user-work stores by label and size and leaves out the regenerable one, Cancel calls the
     ///     remover for neither InventoryAsync's result nor a delete, and Confirm calls DeleteAsync exactly
@@ -1472,7 +1472,7 @@ public class SettingsViewModelTests
     }
 
     /// <summary>
-    ///     While a delete is in flight the pack's own master switch locks (item 24 review): flipping it
+    ///     While a delete is in flight the pack's own master switch locks: flipping it
     ///     mid-delete is exactly the race <c>StratBookDataRemoval</c>'s own gate re-checks guard against,
     ///     so the row must not even offer the toggle meanwhile.
     /// </summary>
@@ -1522,7 +1522,7 @@ public class SettingsViewModelTests
     /// <summary>
     ///     Two ConfirmCommand executions landing before the UI has a chance to disable the button must
     ///     delete exactly once: the command's own IsBusy guard, not the XAML binding, is what makes this
-    ///     safe (item 24 review).
+    ///     safe.
     /// </summary>
     [Test]
     public async Task DeleteExtensionData_TwoConcurrentConfirms_DeleteExactlyOnce()
@@ -1556,7 +1556,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // ── Item 36: the update line ────────────────────────────────────────────────────────────────
+    // ── The update line ─────────────────────────────────────────────────────────────────────────
 
     [Test]
     public async Task ExtensionUpdateLine_ChecksOnDemand_OffersTheVersion_AndTheUpdateButtonStagesIt()

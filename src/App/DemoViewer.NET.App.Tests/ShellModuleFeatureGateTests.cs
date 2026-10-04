@@ -9,7 +9,7 @@ using DemoViewer.NET.Modules.Abstractions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The module-facing gate projection (registry §3.10). Four properties: it delegates, it folds the
+///     The module-facing gate projection. Four properties: it delegates, it folds the
 ///     desktop-only AND in exactly one place, it re-raises <c>Changed</c>, and a module with no gate at all
 ///     sees everything.
 /// </summary>

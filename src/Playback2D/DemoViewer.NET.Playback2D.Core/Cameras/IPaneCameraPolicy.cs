@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Playback2D.Core.Cameras;
 ///     </para>
 ///     <para>
 ///         A policy is called on the frame-producing thread and mutates <c>LevelPane.Camera</c> in place.
-///         It must not allocate per frame (design §6).
+///         It must not allocate per frame.
 ///     </para>
 /// </summary>
 public interface IPaneCameraPolicy

@@ -7,7 +7,7 @@ using DemoViewer.NET.Services.RoundIndex;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The bomb in one round, from the Round Facts row (integrator correction 11): the site is the
+///     The bomb in one round, from the Round Facts row: the site is the
 ///     fact's letter as the place name the detectors compare against, never re-derived from the
 ///     planter's place. Ticks are frame clock.
 /// </summary>
@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 public sealed record RoundBomb(int PlantTick, string? Site, int? DefuseTick, int? ExplodeTick);
 
 /// <summary>
-///     The detectors' input for one round (suggested-tags.md §3.1, §3.5): per second since freeze end
+///     The detectors' input for one round: per second since freeze end
 ///     and per side, how many alive players stood in each place, and when the per-slot form exists,
 ///     the place each alive player was in. Built from the Round Index token or from a walk by
 ///     <see cref="RoundOccupancyBuilder" />; a detector never knows which.
@@ -67,7 +67,7 @@ public sealed class RoundOccupancy
         Bomb = bomb;
     }
 
-    /// <summary>The Round Facts round number (<c>ClipRound.Number</c>, correction 12).</summary>
+    /// <summary>The Round Facts round number (<c>ClipRound.Number</c>).</summary>
     public int Round { get; }
 
     /// <summary>Frame clock: the freeze end, second 0.</summary>

@@ -14,10 +14,10 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Strat Record Panel (strat-model.md §3.6): run / won / lost / aborted, split by Demo
+///     The Strat Record Panel: run / won / lost / aborted, split by Demo
 ///     Provenance Labels, the small-sample caution, the failure breakdown, and a click on every number that
-///     sends its runs to the Review Queue and shows the Review tab. The one behaviour the plan names as
-///     "done" for this item: tagging a round updates the panel without a restart.
+///     sends its runs to the Review Queue and shows the Review tab. Tagging a round updates the panel
+///     without a restart.
 /// </summary>
 public class StratRecordPanelTests
 {

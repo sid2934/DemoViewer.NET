@@ -9,7 +9,7 @@ using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The tuning view's pure half (suggested-tags.md §3.7, step 6): verdict aggregation and the
+///     The tuning view's pure half: verdict aggregation and the
 ///     overlap-rule score, both exercised with hand-built fixtures: no demo, no parse, no store.
 /// </summary>
 public class SuggestedTagsTuningTests
@@ -92,7 +92,7 @@ public class SuggestedTagsTuningTests
     public async Task Score_OverlapExactlyHalfTheShorterWindow_Matches()
     {
         // Fired window is 100 ticks wide (100..200); a hand tag overlapping exactly 50 of it is the
-        // §7.3 item 3 boundary ("at least half of the shorter one") and must still match.
+        // boundary ("at least half of the shorter one") and must still match.
         TagProposal fired = Proposal("exec|r1|T|BombsiteA|s=10", "execute", 1, 100, 200, 150, 0.8);
         HandTagWindow hand = Hand(1, 150, 250);
 
@@ -170,7 +170,7 @@ public class SuggestedTagsTuningTests
     public async Task Score_TwoDemos_EachProposalMatchesOnlyItsOwnDemosHandTag()
     {
         // A's proposal sits exactly on B's hand tag and B's proposal exactly on A's; within each demo the
-        // overlap is 50 of 100, the §7.3 boundary. Pairing by the larger overlap across demos would
+        // overlap is 50 of 100, the match boundary. Pairing by the larger overlap across demos would
         // cross them; matching within one demo keeps both, and both still count.
         TagProposal inA = Proposal("exec|r1|T|BombsiteA|s=10", "execute", 1, 100, 200, 150, 0.8);
         TagProposal inB = Proposal("exec|r1|T|BombsiteA|s=11", "execute", 1, 150, 250, 200, 0.8);
@@ -187,7 +187,7 @@ public class SuggestedTagsTuningTests
     {
         // Two executes in round 1, one at each site. The hand tag windows are swapped against the sites
         // (the A-labelled hand tag lies on the B execute's window and vice versa), so pairing on window
-        // alone scores two perfect matches where §7.3 item 3 says there are none.
+        // alone scores two perfect matches where there are none.
         TagProposal atA = Proposal("exec|r1|T|BombsiteA|s=10", "execute", 1, 100, 200, 150, 0.8, "BombsiteA");
         TagProposal atB = Proposal("exec|r1|T|BombsiteB|s=40", "execute", 1, 300, 400, 350, 0.7, "BombsiteB");
 

@@ -170,10 +170,10 @@ if (args.Contains("--collision"))
 // per-map vpks in the CS2 install, so a map baked years ago by baker 0.1 gets zones without a
 // re-stage. Maps are discovered by the presence of bundle.json, the floors and mapVersion are read
 // back out of that bundle so the floor keys in zones.json are the ones the app already shows, and
-// bundle.json itself is never written (decision D1 of the zone-baking design): the app locates
+// bundle.json itself is never written: the app locates
 // zones.json by path, and bundleMapVersion inside it is what detects drift between the two files.
 //
-// With --diag, prints the per-map coverage table beside the design's baseline and the place
+// With --diag, prints the per-map coverage table beside the known baseline and the place
 // adjacency list, and exits non-zero when a self-check fails: a hull whose planes satisfy neither
 // sign convention, a place or bombsite volume with no hull, a de_ map without exactly two bombsites
 // designated 0 and 1, or a coverage column outside tolerance. Those are the checks a test project
@@ -258,7 +258,7 @@ if (args.Contains("--zones"))
     {
         Console.WriteLine("\ncoverage (this bake):");
         Console.Write(Zones.FormatCoverageTable(coverage));
-        Console.WriteLine("\ncoverage (design baseline):");
+        Console.WriteLine("\ncoverage (baseline):");
         Console.Write(Zones.FormatCoverageTable(
             coverage.Select(c => Zones.ExpectedCoverage.GetValueOrDefault(c.Map)).OfType<Zones.Coverage>()));
     }
@@ -384,7 +384,7 @@ void BakeMap(string map)
     List<RadarLayer> layers = BuildRadarLayers(map, ov, radarImages);
 
     // 5b. world collision → triangle soup (collision.tris) for 3D line-of-sight. Optional: a map without
-    //     extractable physics still bakes its 2D assets. See the design notes in git history.
+    //     extractable physics still bakes its 2D assets.
     CollisionMeshRef? collision = null;
     const string TrisName = "collision.tris";
     try

@@ -16,7 +16,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The round index against a real Valve matchmaking demo, as the design's §7 lists it. The index
+///     The round index against a real Valve matchmaking demo. The index
 ///     joins alive and side against Round Facts rows, which the shipped ruleset writes through the
 ///     production evaluator. One test builds without them: the builder over the real position walk with
 ///     rounds synthesised from <see cref="ClipRounds" /> and sides from the tier-2 roster, which checks
@@ -146,7 +146,7 @@ public class RoundIndexRealDemoTests
     }
 
     /// <summary>
-    ///     The plan's done bar: "a corpus indexes at a stated rate, and a token lookup over it returns in
+    ///     The bar: "a corpus indexes at a stated rate, and a token lookup over it returns in
     ///     under a second". Written against the real replays folder (every .dem beside the reference
     ///     demo, evaluated through the production evaluator), quoting the per-demo rate; the lookup bar
     ///     is asserted on the loaded index.

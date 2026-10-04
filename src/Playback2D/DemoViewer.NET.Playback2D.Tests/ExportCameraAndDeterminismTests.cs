@@ -131,7 +131,7 @@ public class CameraScriptResolverTests
         live.Reconcile(space, LevelDisplayMode.Stacked, new SKSize(700, 350),
             new WorldBounds(-2000, -1200, 2000, 1200));
 
-        // The capture, taken once at Start (plan D12).
+        // The capture, taken once at Start.
         ImmutableArray<PaneCameraSnapshot> captured =
         [
             .. live.Panes.Select(p => new PaneCameraSnapshot(p.LevelId, p.Camera.Current, p.Camera.ManualOverride))
@@ -168,7 +168,7 @@ public class CameraScriptResolverTests
 }
 
 /// <summary>
-///     Determinism, asserted on <b>pre-encode RGBA frame hashes</b> (plan D13). <c>libvpx-vp9</c> and
+///     Determinism, asserted on <b>pre-encode RGBA frame hashes</b>. <c>libvpx-vp9</c> and
 ///     <c>libx264</c> are not bit-reproducible across thread counts and versions, so comparing encoded
 ///     files would test ffmpeg rather than the renderer. The contract is that two runs of the same
 ///     request produce the same pixels.
@@ -272,7 +272,7 @@ public class ExportDeterminismTests
 }
 
 /// <summary>
-///     Design §6's allocation contract, applied to the export loop: after warm-up, a rendered and
+///     The allocation contract, applied to the export loop: after warm-up, a rendered and
 ///     written frame allocates nothing on the export thread.
 /// </summary>
 public class ExportAllocationTests
@@ -288,7 +288,7 @@ public class ExportAllocationTests
             // What the production export always sets when a map bundle exists, which is every export of
             // a real demo with assets on disk. Without it the level set is re-derived from the Z
             // histogram on every push, and FloorSplitter.Slices allocates a fresh List each time
-            // (measured below, and reported as a carry-forward rather than swallowed).
+            // (measured below, and reported rather than swallowed).
             AuthoritativeFloors = SyntheticScenes.BudgetFloors
         };
 
@@ -306,7 +306,7 @@ public class ExportAllocationTests
 
         // TWO runs of different lengths, differenced. A single run cannot separate the loop's per-frame
         // cost from a run's own fixed setup, one compositor scope, one camera resolver, one renderer,
-        // one async state machine, and §6's budget is about the former.
+        // one async state machine, and the budget is about the former.
         long shortRun = await Measure(session, source, request with
         {
             EndFrame = 511
@@ -321,9 +321,9 @@ public class ExportAllocationTests
         Console.WriteLine($"[alloc] export {perFrame:F2} bytes/frame " +
                           $"(512 frames: {shortRun} B, 1024 frames: {longRun} B, delta {extra} B)");
 
-        // The ceiling is 64 BYTES for the extra 512 frames, not 64 per frame. B1 characterised this
-        // exactly (its deviation 14): a single 48-byte allocation appears once, at a varying iteration
-        // past ~150, with no gen-0 collection in the window and never a second time: the runtime tiering
+        // The ceiling is 64 BYTES for the extra 512 frames, not 64 per frame: a single 48-byte
+        // allocation appears once, at a varying iteration past ~150, with no gen-0 collection in the
+        // window and never a second time: the runtime tiering
         // the loop body, not the scene allocating. Charging it to the budget would either make the gate
         // flaky or force the budget above zero, and zero-per-frame is the assertion worth having.
         await Assert.That(extra).IsLessThanOrEqualTo(64L);
@@ -342,9 +342,9 @@ public class ExportAllocationTests
     ///     <para>
     ///         Without authoritative floors the level set is re-derived from the Z histogram on every
     ///         push, and <c>FloorSplitter.Slices</c> hands back a freshly computed <c>List&lt;FloorSlice&gt;</c>
-    ///         each time. Measured at ~656 bytes/frame, independent of resolution and of everything B4
-    ///         added. It is B1's to close (the same cost lands on every interactive push of a map with no
-    ///         baked bundle); the export path avoids it because it always supplies the bundle's floors
+    ///         each time. Measured at ~656 bytes/frame, independent of resolution. The same cost lands
+    ///         on every interactive push of a map with no baked bundle; the export path avoids it
+    ///         because it always supplies the bundle's floors
     ///         when one exists. Printed, not gated, so it cannot flap a required check.
     ///     </para>
     /// </summary>
@@ -371,7 +371,7 @@ public class ExportAllocationTests
         long after = GC.GetAllocatedBytesForCurrentThread();
 
         double perFrame = (after - before) / (double)frames;
-        Console.WriteLine($"[alloc] export without a bundle: {perFrame:F1} bytes/frame (B1 carry-forward)");
+        Console.WriteLine($"[alloc] export without a bundle: {perFrame:F1} bytes/frame");
         await Assert.That(perFrame).IsGreaterThanOrEqualTo(0.0);
     }
 

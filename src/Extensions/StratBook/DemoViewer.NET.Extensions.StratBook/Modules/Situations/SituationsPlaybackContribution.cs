@@ -10,8 +10,8 @@ using DemoViewer.NET.Playback2D.Core;
 namespace DemoViewer.NET.Modules.Situations;
 
 /// <summary>
-///     Find Rounds Like This and the Situations result walk in 2D Playback, as one playback contribution
-///     (item 20): the toolbar item (also the overflow menu's entry and Ctrl+F, one funnel through the
+///     Find Rounds Like This and the Situations result walk in 2D Playback, as one playback contribution:
+///     the toolbar item (also the overflow menu's entry and Ctrl+F, one funnel through the
 ///     surface's action dispatch) and the J/K result-walk keys. The toolbar item is present only while the
 ///     open demo has a map name, as the key always required;
 ///     checked at attach (a live pack toggle with a demo already open) and on every demo change. Nothing

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The CS2 map-asset BAKER (docs/asset-pipeline/design.md §0.5).
+      The CS2 map-asset BAKER.
       A SEPARATE, independently-versioned tool: it owns VRF + ValvePak + SkiaSharp 3.x. The app NEVER
       references this project (no ProjectReference), so the app stays on Avalonia's SkiaSharp 2.88.x and
       the whole-app SkiaSharp-3 gate never applies. Interop is over a FILE boundary (baked PNG + JSON).

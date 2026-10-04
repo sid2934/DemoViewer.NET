@@ -13,7 +13,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The token tool over a fake <see cref="ITokenEditor" /> (step-authoring.md §3.7, §7): a miss or a
+///     The token tool over a fake <see cref="ITokenEditor" />: a miss or a
 ///     missing editor is not a gesture, a drag writes the pointer's pane level, release and Esc close it
 ///     one way or the other, the heading grip turns, and the router's pan diversions still win.
 /// </summary>

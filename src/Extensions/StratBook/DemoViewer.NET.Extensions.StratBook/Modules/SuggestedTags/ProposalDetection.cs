@@ -7,7 +7,7 @@ using System.Globalization;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     Runs the detectors over a demo's rounds in the profile's order (suggested-tags.md §3.3, §3.5).
+///     Runs the detectors over a demo's rounds in the profile's order.
 ///     Pure: occupancy, events, regions and a profile in, proposals out.
 /// </summary>
 public static class ProposalDetection

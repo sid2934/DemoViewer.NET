@@ -14,7 +14,7 @@ using DemoViewer.NET.Modules.UtilityBook;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The grenade walk's pure steps on synthetic samples and events (grenade-walk.md §7, unit): the
+///     The grenade walk's pure steps on synthetic samples and events: the
 ///     named thresholds, jump-throw for every (coverage, press, ground flag) case, the console line, the
 ///     polyline thinning, the track fold, the thrower and release plan, the detonation per kind, and a
 ///     whole row assembled from hand-made pawn reads. No demo is parsed.
@@ -240,7 +240,7 @@ public class GrenadeWalkerTests
         }
     }
 
-    // ── the plan: thrower and release ────────────────────────────────────────────────────────────────
+    // ── Thrower and release ──────────────────────────────────────────────────────────────────────────
 
     [Test]
     public async Task Plan_AResolvedThrowerTakesItsLatestFireInTheLookback()

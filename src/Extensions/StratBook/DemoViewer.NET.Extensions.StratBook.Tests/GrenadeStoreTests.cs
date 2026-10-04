@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The throw log, the lineup store's flights and the one-off migration (grenades-v2.md §3) on temp caches:
+///     The throw log, the lineup store's flights and the one-off migration on temp caches:
 ///     every field survives the log, the JSON and paths files go only after what replaces them reads back,
 ///     the names come from the record, and a demo walked this session gives its lineup a flight.
 /// </summary>

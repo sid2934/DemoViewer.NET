@@ -46,12 +46,12 @@ public enum PerfStage
 }
 
 /// <summary>
-///     Per-layer and per-stage capture for one run (plan <c>P1-perf-instrumentation</c> §3.2–§3.3).
-///     Implements Core's clock-free <see cref="ISceneProfiler" /> and adds the stage API the export and
+///     Per-layer and per-stage capture for one run. Implements Core's clock-free
+///     <see cref="ISceneProfiler" /> and adds the stage API the export and
 ///     bench harnesses drive.
 ///     <para>
 ///         <b>It lives in Pipeline.Benchmarking because it owns a stopwatch.</b> Core is banned from
-///         <see cref="Stopwatch" /> outright (design §5.1, enforced by <c>BannedApiTests</c> against
+///         <see cref="Stopwatch" /> outright (enforced by <c>BannedApiTests</c> against
 ///         compiled IL); this namespace is already exempt, for the harness next door, and for the same
 ///         reason. Measuring from outside is the contract, not a workaround.
 ///     </para>
@@ -263,7 +263,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
     ///     Zeroes every sample, counter and frame count, keeping the rings and the layer labels.
     ///     <para>
     ///         The benchmark calls this <b>after</b> its warmup, so the rings are allocated by warmup
-    ///         frames and the measured window (the one the §6 bytes/frame gate reads) only ever writes
+    ///         frames and the measured window (the one the bytes/frame gate reads) only ever writes
     ///         into arrays that already exist.
     ///     </para>
     ///     <para>

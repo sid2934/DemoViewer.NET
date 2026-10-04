@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Library;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Library's generic hosting of pack contributions (item 22), over a fake <see cref="ILibraryContribution" />
+///     The Library's generic hosting of pack contributions, over a fake <see cref="ILibraryContribution" />
 ///     so the mechanism is tested apart from the Strat Book's own Team/Provenance contributions (covered by
 ///     <c>LibraryContributionsTests</c> in the pack's own test folder): filters apply, a badge renders per
 ///     entry through the batch hook, the gate follows live, a contribution's own <c>Changed</c> re-applies

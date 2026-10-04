@@ -12,8 +12,8 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
 /// <summary>
-///     Turns a closed canvas gesture into <see cref="PatchOp" />s against the strat (step-authoring.md §3.8,
-///     overview correction 18): the canvas's one history is <see cref="StratSession" />'s, so a stroke, an
+///     Turns a closed canvas gesture into <see cref="PatchOp" />s against the strat: the canvas's one
+///     history is <see cref="StratSession" />'s, so a stroke, an
 ///     erase, a token drag or a step edit reaches it as ops and nothing else. The session fills every
 ///     <c>from</c> itself; the ops here name only paths and values.
 ///     <para>
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 /// </summary>
 public static class StepAuthoringPatches
 {
-    /// <summary>How far after the active step <see cref="DuplicateStep" /> puts the copy (§3.7).</summary>
+    /// <summary>How far after the active step <see cref="DuplicateStep" /> puts the copy.</summary>
     public const double DuplicateOffsetSeconds = 5;
 
     /// <summary>
@@ -142,7 +142,7 @@ public static class StepAuthoringPatches
         ];
     }
 
-    /// <summary>Every stroke of one step removed: Ctrl+X on the canvas clears the active step, not the strat (§3.7).</summary>
+    /// <summary>Every stroke of one step removed: Ctrl+X on the canvas clears the active step, not the strat.</summary>
     /// <param name="document">The strat.</param>
     /// <param name="stepIndex">The step.</param>
     public static IReadOnlyList<PatchOp> ClearStrokes(StratDocument document, int stepIndex)

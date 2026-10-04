@@ -15,7 +15,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     The Strat Record Panel (strat-model.md §3.6): run / won / lost / aborted, split by Demo
+///     The Strat Record Panel: run / won / lost / aborted, split by Demo
 ///     Provenance Labels, a small-sample caution under eight, the failure breakdown, and a click on every
 ///     number that sends the runs behind it to the Review Queue and shows the Review tab. The data comes
 ///     from <see cref="StratEvidenceService" />; this view model orders it, words it and wires the clicks,
@@ -25,8 +25,8 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///         <b>Live from the Tag Store.</b> A tagged round is evidence the moment its document is saved, so
 ///         the panel rebuilds on every <see cref="TagStore.Changed" />, debounced like the Matrix, and never
 ///         needs a restart to reflect a tag just written. Without the strat's own <c>stratIds</c> index
-///         column (strat-model.md §3.6, not yet built) every change rescans every tagged document, which is
-///         the design's own stated cost until that column exists.
+///         column (not yet built) every change rescans every tagged document, which is
+///         the known cost until that column exists.
 ///     </para>
 ///     <para>
 ///         <b>Rebuild triggers.</b> <see cref="Configure" /> is called by the tab on every session change; it
@@ -160,7 +160,7 @@ public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposab
         _cts?.Dispose();
     }
 
-    // Any document in the store may carry this strat's evidence (strat-model.md §3.6's stated cost until
+    // Any document in the store may carry this strat's evidence (the known cost until
     // the stratIds index column exists), so every change rebuilds, debounced, for whichever strat is open.
     private void OnTagsChanged(string? sha256)
     {

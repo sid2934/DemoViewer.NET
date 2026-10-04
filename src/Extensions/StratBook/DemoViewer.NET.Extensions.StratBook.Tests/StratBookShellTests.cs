@@ -53,7 +53,7 @@ public class StratBookShellTests
         return vm;
     }
 
-    // Item 4/22: the Library's team filter and provenance chip, which NewShell above never wires.
+    // The Library's team filter and provenance chip, which NewShell above never wires.
     private static MainViewModel NewShellWithTeams(
         IFeatureGate? gate, TeamIdentityService teams, IDemoProvenanceSource provenance,
         params IWorkspaceModule[] modules)
@@ -133,7 +133,7 @@ public class StratBookShellTests
             }
         });
 
-    // Item 5's window test: a LIVE FeatureGate over a real SettingsService (not FakeGate, which has no
+    // A LIVE FeatureGate over a real SettingsService (not FakeGate, which has no
     // cascade), the same harness TabFeatureGatingTests.WithGatedShell uses. Flipping the master switch
     // override cascades off every section's tab id (they are all in MainViewModel._tabFeatureIds,
     // parented to the pack in the catalog), so the hub tab, synthesized only while some section passes
@@ -907,7 +907,7 @@ public class StratBookShellTests
         }
     }
 
-    // Item 4: a persisted active-tab id naming the host itself (not one of its sections) must also land
+    // A persisted active-tab id naming the host itself (not one of its sections) must also land
     // on Library while the pack is off. TrySelectTab/RestoreActiveTab already handle this; the carry-
     // through test above covers a section id ("stratbook.browser"), this covers the host's own id.
     [Test]

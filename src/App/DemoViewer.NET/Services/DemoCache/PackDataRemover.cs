@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
-///     Deletes a pack's declared stores (architecture doc §7.4, §8, item 24): resolves every
+///     Deletes a pack's declared stores: resolves every
 ///     <see cref="StoreDescriptor" />'s paths against <see cref="StoreRoot.Config" /> or
 ///     <see cref="StoreRoot.Cache" />, counts what is there, deletes on request, and strips the pack's
 ///     payload and stamps from every demo cache record and index row. One instance serves every pack; a

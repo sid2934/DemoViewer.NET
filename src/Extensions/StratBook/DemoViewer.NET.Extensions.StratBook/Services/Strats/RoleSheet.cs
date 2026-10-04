@@ -9,18 +9,18 @@ namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
 ///     One step or branch phrased into words, shared by <see cref="RoleSheet" /> and
-///     <see cref="StratTextExporter" /> so the two surfaces read the same strat the same way
-///     (strat-model.md §3.13, §3.14). Pure over the model; a resolver supplies place names.
+///     <see cref="StratTextExporter" /> so the two surfaces read the same strat the same way.
+///     Pure over the model; a resolver supplies place names.
 /// </summary>
 public static class StratStepPhrasing
 {
     /// <summary>
-    ///     A step as one sentence fragment: <c>B throws smoke A ramp → A site (Stairs)</c> (§3.13's own
-    ///     example). <c>all</c> reads as <c>All</c>; the utility kind sits between the verb and the places;
+    ///     A step as one sentence fragment: <c>B throws smoke A ramp → A site (Stairs)</c>.
+    ///     <c>all</c> reads as <c>All</c>; the utility kind sits between the verb and the places;
     ///     a landing place prints in parens only when it differs from <c>to</c>; a lineup reference (Lineup
     ///     On A Strat Step) prints last, as <c>[lineup: &lt;title&gt;]</c>. The step's note is not included
     ///     here: the call sheet leaves prose out of its one-liner the way a history summary does, and the
-    ///     role sheet appends it itself because §3.14 asks for it there.
+    ///     role sheet appends it itself separately.
     /// </summary>
     /// <param name="step">The step.</param>
     /// <param name="callouts">The owner's callouts for the map; null prints canonical names split into words.</param>
@@ -242,7 +242,7 @@ public static class StratBranchPhrasing
     }
 }
 
-/// <summary>The sheet's masthead: the strat's identity plus the one slot this sheet is for (§3.14).</summary>
+/// <summary>The sheet's masthead: the strat's identity plus the one slot this sheet is for.</summary>
 /// <param name="StratName">The strat's name.</param>
 /// <param name="Map">The parser's map spelling.</param>
 /// <param name="Side"><c>T</c> or <c>CT</c>.</param>
@@ -254,7 +254,7 @@ public static class StratBranchPhrasing
 /// <param name="Status">The lifecycle status.</param>
 /// <param name="Revision">The strat's revision.</param>
 /// <param name="Slot">The slot letter this sheet is for.</param>
-/// <param name="SlotName">The resolved player name; null prints a blank line to write on (§3.14).</param>
+/// <param name="SlotName">The resolved player name; null prints a blank line to write on.</param>
 /// <param name="Role">The slot's role, or null.</param>
 /// <param name="StartText">Where the slot starts (<c>spawn</c>, or its place), or null when the strat gives it no start.</param>
 /// <param name="Clock">The strat's clock, so a line's time prints as the strat counts it; null is the round clock.</param>
@@ -276,7 +276,7 @@ public sealed record RoleSheetHeader(
     StratClockInfo? Clock = null);
 
 /// <summary>
-///     One printed line: this slot's own step, or another slot's step kept as context (§3.14's dependency
+///     One printed line: this slot's own step, or another slot's step kept as context (the dependency
 ///     rule). <see cref="IsContext" /> is what the sheet greys out.
 /// </summary>
 /// <param name="StepId">The step.</param>
@@ -295,7 +295,7 @@ public sealed record RoleSheetLine(Guid StepId, double AtSeconds, string Actor, 
 /// <param name="Text"><c>if &lt;condition&gt; → &lt;target&gt;[, step &lt;n&gt;]</c>.</param>
 public sealed record RoleSheetBranchLine(Guid BranchId, Guid AfterStepId, string Text);
 
-/// <summary>One point of the slot's mini-map polyline (§3.14), from a step's <see cref="StepPosition" />.</summary>
+/// <summary>One point of the slot's mini-map polyline, from a step's <see cref="StepPosition" />.</summary>
 /// <param name="AtSeconds">The step's round-clock time.</param>
 /// <param name="X">World X.</param>
 /// <param name="Y">World Y.</param>
@@ -315,8 +315,8 @@ public sealed record RoleSheet(
     IReadOnlyList<RoleSheetPoint> Positions)
 {
     /// <summary>
-    ///     One slot's sheet over a strat (strat-model.md §3.14). Pure: player names, when wanted, are
-    ///     resolved by the caller (Team Identity plus the book default, §3.5's three-level rule) and handed
+    ///     One slot's sheet over a strat. Pure: player names, when wanted, are
+    ///     resolved by the caller (Team Identity plus the book default, the three-level rule) and handed
     ///     in as <paramref name="roster" /> rather than looked up here.
     /// </summary>
     /// <param name="doc">The strat.</param>
@@ -324,7 +324,7 @@ public sealed record RoleSheet(
     /// <param name="callouts">The owner's callouts for the map; null prints canonical names split into words.</param>
     /// <param name="roster">Slot letter to resolved player name, already picked by strat pin, book default or neither.</param>
     /// <param name="lookup">Resolves another strat referenced by a branch target; null leaves it as a raw id.</param>
-    /// <param name="lineupTitle">Resolves a step's lineup reference to its card title; null leaves it as a raw id (§3.13's phrasing).</param>
+    /// <param name="lineupTitle">Resolves a step's lineup reference to its card title; null leaves it as a raw id.</param>
     public static RoleSheet Derive(StratDocument doc, string slot, CalloutResolver? callouts = null,
         IReadOnlyDictionary<string, string?>? roster = null, Func<Guid, StratDocument?>? lookup = null,
         Func<Guid, string?>? lineupTitle = null)

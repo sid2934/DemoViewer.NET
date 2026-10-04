@@ -38,7 +38,7 @@ internal sealed class StratBookPackInstances
     public WatchedSituationsService? Watched { get; set; }
     public StratMiningService? Mining { get; set; }
 
-    // The four evaluator-registry contributions (item 11), set inline by their own factories, not
+    // The four evaluator-registry contributions, set inline by their own factories, not
     // through Record: they are plain fan-out evaluators, not IPackResident, so Clear/Restore leave
     // them alone. Once set they stay set for the session: "was ever constructed", not "is live now".
     public RoundFactsEvaluator? RoundFacts { get; set; }

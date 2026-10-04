@@ -69,7 +69,7 @@ internal readonly record struct IlSite(
 /// </summary>
 internal static class Playback2DWholeGraph
 {
-    // The App head, the render Core, the Pipeline, and every compiled-in pack's assembly (item 25: the
+    // The App head, the render Core, the Pipeline, and every compiled-in pack's assembly: the
     // contributions that read the module's settings and subscribe its events live there; found the way
     // the ViewLocator finds pack views). Everything a Playback2D consumer could live in: Desktop/Browser
     // only set AppHostHooks, and LiveSync cannot see this module at all.

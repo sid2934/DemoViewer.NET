@@ -10,7 +10,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The corpus budget: a synthetic library in the design's §2.6 shape (24 rounds of 70 rows per
+///     The corpus budget: a synthetic library (24 rounds of 70 rows per
 ///     demo, tokens from a 28-place vocabulary with a 35 percent per-second change rate) written to a
 ///     temp cache root, loaded in under five seconds and queried in under fifty milliseconds, both with
 ///     headroom on the CI runner. The measured figures were 204 ms for a hundred real demos and 1.5 s

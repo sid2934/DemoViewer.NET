@@ -14,7 +14,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Shape Tools through the real surface (step-authoring.md §3.2): the host registers the shape and
+///     Shape Tools through the real surface: the host registers the shape and
 ///     text tools on its router, a drag commits one shape, Esc still cancels under a shape tool, and the
 ///     text tool's inline editor places a label on Enter and drops it on Esc. What needs no window is
 ///     proved in the Playback2D suite's <c>ShapeToolTests</c> and <c>TextToolTests</c>.

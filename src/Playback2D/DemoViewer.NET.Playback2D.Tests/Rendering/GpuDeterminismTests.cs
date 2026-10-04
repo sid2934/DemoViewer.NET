@@ -10,7 +10,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
-///     Design §11's determinism requirement, per backend: two runs of the same request must produce
+///     The determinism requirement, per backend: two runs of the same request must produce
 ///     byte-identical frames. Without it a golden is a coin flip and an export cannot be reproduced from
 ///     its request.
 ///     <para>

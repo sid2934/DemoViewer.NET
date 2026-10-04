@@ -66,7 +66,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
 
     // True only for a genuine first run (SettingsService.NeedsFirstRun at construction, before Finish/Skip
     // can flip it) with at least one pack row to ask about. Captured once: a re-run from Settings must
-    // never show the step again (decision 2), whatever Finish/Skip does afterwards in THIS session.
+    // never show the step again, whatever Finish/Skip does afterwards in THIS session.
     private readonly bool _includeExtensionsStep;
 
     private readonly WizardStep[] _steps;
@@ -129,7 +129,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         // Category (step 1) is always reached before Extensions (step 3), so a later category change
         // reseeds an un-answered option too (OnSelectedCategoryOptionChanged below); an existing override
         // never does, since that question is already answered.
-        // Catalog rows only: a pack that failed the compatibility check (item 33) composed none, so the
+        // Catalog rows only: a pack that failed the compatibility check composed none, so the
         // wizard never asks about an extension that cannot load; Settings shows that one with its reason.
         FeatureDescriptor[] packRows = [.. packs ?? FeatureCatalog.All.Where(d => d.Scope == FeatureScope.Pack)];
         Dictionary<string, bool> overrides = current.Features.Overrides;

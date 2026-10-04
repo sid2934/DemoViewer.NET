@@ -52,7 +52,7 @@ public sealed class SceneCompositor : IDisposable
 
         // Owned and mutated in place rather than constructed per frame. An SKPaint is a managed
         // wrapper over native state, so one per frame is both a heap allocation and a native
-        // allocation, and the §6 budget is zero bytes.
+        // allocation, and the per-frame allocation budget is zero bytes.
         _background = new SKPaint
         {
             Style = SKPaintStyle.Fill

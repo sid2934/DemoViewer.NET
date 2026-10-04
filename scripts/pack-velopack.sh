@@ -1,6 +1,5 @@
 #!/bin/bash
-# Wraps a self-contained publish into a Velopack install/auto-update package
-# (docs/distribution/build-and-packaging-plan.md §5):
+# Wraps a self-contained publish into a Velopack install/auto-update package:
 #   Windows → Setup.exe · macOS → .app/.dmg · Linux → AppImage, each with delta updates.
 #
 #   ./scripts/pack-velopack.sh [RID]
@@ -11,7 +10,7 @@
 # macOS. So run this on each platform (that's why CI is a tri-OS matrix). The RID
 # must match the host OS family; a mismatch is rejected up front.
 #
-# Signing/notarization is DEFERRED (§6): unset identities = unsigned. Flip it on later via
+# Signing/notarization is DEFERRED: unset identities = unsigned. Flip it on later via
 # these env vars (empty = unsigned, no re-architecture):
 #   DV_SIGN_APP_IDENTITY      subject name of the app-signing cert     (--signAppIdentity)
 #   DV_SIGN_INSTALL_IDENTITY  subject name of the installer cert       (--signInstallIdentity)

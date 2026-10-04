@@ -12,15 +12,14 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Extensions.Updates;
 
 /// <summary>
-///     Checks each extension's feed, downloads a newer version and stages it where the loader reads
-///     (strat-book-plugin.md §7.10). It loads nothing: a staged copy is picked up by
+///     Checks each extension's feed, downloads a newer version and stages it where the loader reads.
+///     It loads nothing: a staged copy is picked up by
 ///     <see cref="ExtensionLoader.Resolve" /> at the next start. Every network and disk step runs as a
 ///     queue item at user priority, since a click asked for it, and every failure is a state or a result,
 ///     never an exception.
 ///     <para>
-///         Decision 6 (§10) is pending. The one predicate that decides whether a published version is offered
-///         is <see cref="IsOffered" />; option (A) replaces it with a check against a CI-written
-///         <c>builtAgainst</c> block, option (B) keeps <see cref="DefaultIsOffered" />.
+///         <see cref="IsOffered" /> is the one predicate that decides whether a published version is
+///         offered; <see cref="DefaultIsOffered" /> unless the constructor is given another.
 ///     </para>
 /// </summary>
 public sealed class ExtensionUpdateService
@@ -47,7 +46,7 @@ public sealed class ExtensionUpdateService
     /// <param name="client">The network.</param>
     /// <param name="feedUrl">Each pack id's feed URL (<see cref="ExtensionFeedSource.Resolve" />).</param>
     /// <param name="queue">The processing queue, or null to run on the pool.</param>
-    /// <param name="isOffered">The decision-6 predicate; null is <see cref="DefaultIsOffered" />.</param>
+    /// <param name="isOffered">The offer predicate; null is <see cref="DefaultIsOffered" />.</param>
     public ExtensionUpdateService(
         string configRoot, IReadOnlyList<PackStatus> statuses, ExtensionHostInfo host, ITrustPolicy trust,
         IExtensionFeedClient client, Func<string, Uri> feedUrl, IDemoProcessingQueue? queue = null,
@@ -79,8 +78,8 @@ public sealed class ExtensionUpdateService
     public static TimeSpan AutoCheckInterval => _autoCheckInterval;
 
     /// <summary>
-    ///     Whether a published version may be offered to this app. Decision 6's seam: option (B), as built,
-    ///     is <see cref="DefaultIsOffered" />; option (A) swaps in a predicate over a <c>builtAgainst</c> block.
+    ///     Whether a published version may be offered to this app. This is
+    ///     <see cref="DefaultIsOffered" /> unless the constructor is given another.
     /// </summary>
     public Func<ExtensionFeedEntry, ExtensionHostInfo, bool> IsOffered { get; }
 
@@ -121,7 +120,7 @@ public sealed class ExtensionUpdateService
         }
     }
 
-    /// <summary>Option (B): <see cref="PackCompatibility.Check" /> accepts the entry's manifest.</summary>
+    /// <summary><see cref="PackCompatibility.Check" /> accepts the entry's manifest.</summary>
     public static bool DefaultIsOffered(ExtensionFeedEntry entry, ExtensionHostInfo host)
     {
         ArgumentNullException.ThrowIfNull(entry);

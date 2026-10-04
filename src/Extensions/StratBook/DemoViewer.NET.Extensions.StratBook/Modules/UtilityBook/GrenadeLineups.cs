@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 /// <summary>How the index groups grenades into landing groups and lineups.</summary>
 public enum GrenadeGrouping
 {
-    /// <summary>Stored lineup anchors: one lineup per spot and landing, its techniques as positions (grenades-v2.md §2).</summary>
+    /// <summary>Stored lineup anchors: one lineup per spot and landing, its techniques as positions.</summary>
     Lineups,
 
     /// <summary>The v1 grid: landing cell plus rounded origin. Kept to resolve the ids it minted.</summary>
@@ -31,7 +31,7 @@ public sealed record LineupTechnique(string Key, string Label, WorldPoint Origin
 }
 
 /// <summary>
-///     Lineup assignment and grouping (grenades-v2.md §2). A lineup is one spot and one landing: throws of a
+///     Lineup assignment and grouping. A lineup is one spot and one landing: throws of a
 ///     kind whose release points sit within <see cref="SpotRadius" /> (<see cref="RunningSpotRadius" /> for a
 ///     running throw) and whose landings sit within <see cref="LineupLandingRadius" /> of a stored anchor
 ///     join it. Leftovers cluster by leader clustering in density order (the most crowded throw seeds, the

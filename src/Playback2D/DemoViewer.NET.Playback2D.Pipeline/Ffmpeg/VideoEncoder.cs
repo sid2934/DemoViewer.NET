@@ -6,7 +6,7 @@ using System.Globalization;
 
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
-/// <summary>What does the encoding: plan <c>P2-export-throughput</c> D2.</summary>
+/// <summary>What does the encoding.</summary>
 public enum EncoderAcceleration
 {
     /// <summary>A CPU codec library: <c>libvpx-vp9</c>, <c>libx264</c>, or the GIF palette chain.</summary>
@@ -26,8 +26,8 @@ public enum EncoderAcceleration
 ///     One rung of an <see cref="EncoderLadder" />: an ffmpeg encoder plus the arguments each
 ///     <see cref="ExportQuality" /> maps to on it.
 ///     <para>
-///         <b>Data, not behaviour.</b> The three argument strings were measured (plan D3's table:
-///         throughput, output bitrate and SSIM for every cell) rather than copied from a tutorial, and
+///         <b>Data, not behaviour.</b> The three argument strings were measured (throughput, output
+///         bitrate and SSIM for every cell) rather than copied from a tutorial, and
 ///         keeping them as plain strings on a record is what lets a test assert the exact line an export
 ///         would run without starting anything.
 ///     </para>
@@ -60,9 +60,9 @@ public sealed record VideoEncoder(
     /// <summary>
     ///     True when the encode runs on dedicated silicon rather than on the cores the renderer is using.
     ///     <para>
-    ///         That distinction, not the speed, is the reason the ladder exists: P1 §7 measured the same
-    ///         frames rastering 49 % slower with libvpx running beside them. It is also the quantity a
-    ///         future export node has to ration: see the plan's §7, NVENC session limits.
+    ///         That distinction, not the speed, is the reason the ladder exists: the same
+    ///         frames raster 49 % slower with libvpx running beside them. It is also the quantity a
+    ///         future export node has to ration: NVENC session limits.
     ///     </para>
     /// </summary>
     public bool IsHardware => Acceleration != EncoderAcceleration.Software;

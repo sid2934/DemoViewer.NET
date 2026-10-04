@@ -8,7 +8,7 @@ using CS2DemoKit.Parser.EntityTracking;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     Thins a projectile's flight to a polyline (grenade-walk.md §3.3 step 3, D1): the first point is
+///     Thins a projectile's flight to a polyline: the first point is
 ///     where the grenade left the hand, a moved sample is kept when the stride divides the moved-sample
 ///     count or the bounce count rose since the last kept point, and the last moved sample is always kept
 ///     so the line ends where the projectile came to rest or went off.

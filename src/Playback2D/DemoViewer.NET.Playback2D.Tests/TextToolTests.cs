@@ -10,7 +10,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The text tool (step-authoring.md §3.2): press places a one-point Text element with an empty
+///     The text tool: press places a one-point Text element with an empty
 ///     string and asks the host for an editor; the typed string lands in the same gesture, and an empty
 ///     one leaves neither the element nor an undo entry behind.
 /// </summary>

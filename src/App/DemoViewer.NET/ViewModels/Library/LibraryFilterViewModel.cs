@@ -10,7 +10,7 @@ using DemoViewer.NET.Modules.Library;
 namespace DemoViewer.NET.ViewModels.Library;
 
 /// <summary>
-///     One contributed <see cref="LibraryFilter" /> hosted by the Library (item 22): a ComboBox's items and
+///     One contributed <see cref="LibraryFilter" /> hosted by the Library: a ComboBox's items and
 ///     selection. Kept as one stable instance across a data refresh (<see cref="Rebuild" />) so the bound
 ///     ComboBox is never recreated; only a gate transition adds or removes the instance itself.
 /// </summary>

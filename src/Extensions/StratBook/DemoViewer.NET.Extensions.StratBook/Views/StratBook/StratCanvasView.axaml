@@ -8,7 +8,7 @@
              Focusable="True">
 
     <!--
-      THE STEP AUTHORING CANVAS (step-authoring.md §3.10): the open strat on the 2D scene with no demo behind
+      THE STEP AUTHORING CANVAS: the open strat on the 2D scene with no demo behind
       it. The tool row, the step transport and the path picker on top; the scene host in the middle, bound to
       the canvas view-model as its frame host and token editor; the scrubber at the bottom, one marker per
       step and one per stroke.

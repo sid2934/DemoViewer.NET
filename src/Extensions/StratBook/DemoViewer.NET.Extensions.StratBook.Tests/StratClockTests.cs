@@ -8,8 +8,8 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The round-clock mapping (strat-model.md §3.4), both directions, frame clock only. Fixture values are the
-///     design's: a round starting at tick 1761, 64 ticks per second, and the 115 s round length measured at every
+///     The round-clock mapping, both directions, frame clock only. Fixture values: a round starting at
+///     tick 1761, 64 ticks per second, and the 115 s round length measured at every
 ///     freeze-end of the two Steam matchmaking replays.
 /// </summary>
 public class StratClockTests

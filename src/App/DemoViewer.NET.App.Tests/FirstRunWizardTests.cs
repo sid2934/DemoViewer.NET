@@ -472,7 +472,7 @@ public class FirstRunWizardTests
         }
     }
 
-    // ── Item 6: the Extensions step (one card per FeatureScope.Pack catalog row) ───────────────────
+    // ── The Extensions step (one card per FeatureScope.Pack catalog row) ───────────────────
 
     // Builds a live FeatureGate over svc's configuration (the FeatureGateTests wiring) so a test can
     // check what the gate resolves after the wizard writes, not just what landed in the override dict.
@@ -486,7 +486,7 @@ public class FirstRunWizardTests
         await body(gate);
     }
 
-    // Item 33: the step asks only about packs in the catalog, and the catalog is composed from the
+    // The step asks only about packs in the catalog, and the catalog is composed from the
     // compatible packs, so an extension that failed the compatibility check is absent here (Settings is
     // where its reason shows). Proven on the live catalog against FeaturePacks.Compatible, and on a fake
     // pair where one pack fails: the catalog built from the compatible subset drives a wizard with one card.
@@ -580,7 +580,7 @@ public class FirstRunWizardTests
             SettingsService svc = new(dir);
             FirstRunWizardViewModel vm = new(svc);
             PackOptionViewModel stratbook = vm.PackOptions.Single(p => p.FeatureId == "pack.stratbook");
-            await Assert.That(stratbook.Enabled).IsTrue().Because("decision 2: default selection is on");
+            await Assert.That(stratbook.Enabled).IsTrue().Because("default selection is on");
 
             stratbook.Enabled = false;
             vm.FinishCommand.Execute(null);
@@ -666,7 +666,7 @@ public class FirstRunWizardTests
         }
     }
 
-    // The upgrade case (decision 2): a settings.json that predates pack.stratbook (FirstRunCompleted
+    // The upgrade case: a settings.json that predates pack.stratbook (FirstRunCompleted
     // true, no override for the key at all) never shows the Extensions step, and the gate still
     // resolves the pack on purely from the catalog default.
     [Test]

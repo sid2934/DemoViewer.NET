@@ -1,8 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>
-///     Serializes the UI thread's advance-and-submit against the render thread's draw op (plan §5.8,
-///     design risk 2).
+///     Serializes the UI thread's advance-and-submit against the render thread's draw op.
 ///     <para>
 ///         The compositor's picture caches and every layer's <c>Advance</c>-built buffers are shared
 ///         mutable state; the draw op runs on Avalonia's render thread. One plain monitor, taken by the

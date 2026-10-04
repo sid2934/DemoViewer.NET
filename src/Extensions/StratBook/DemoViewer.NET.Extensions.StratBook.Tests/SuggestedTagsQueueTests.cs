@@ -14,7 +14,7 @@ using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Suggested Tags step 5 (suggested-tags.md §3.6, §7.5): the Proposal Track's bands, the queue's
+///     The Suggested Tags review queue: the Proposal Track's bands, the queue's
 ///     keyboard flow over hand-written proposals, the six keymap rows and their scope, and the 2D tab
 ///     leaving the keys unhandled when nothing is selected.
 /// </summary>

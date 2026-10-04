@@ -22,7 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     Host tabs as contributions (item 12), apart from the Strat Book: a fake pack declares one host tab and
+///     Host tabs as contributions, apart from the Strat Book: a fake pack declares one host tab and
 ///     two sections that name it, and the shell builds the strip from <see cref="PackContributionSet" />
 ///     alone. Nothing here knows the pack beyond its id.
 /// </summary>

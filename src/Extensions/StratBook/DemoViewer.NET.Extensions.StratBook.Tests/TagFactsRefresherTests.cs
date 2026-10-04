@@ -12,7 +12,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Free Labels From Round Facts (tag-store.md §3.3, §9 step 6) on synthetic rows: the facts namespace
+///     Free Labels From Round Facts on synthetic rows: the facts namespace
 ///     rewritten wholesale from the round holding <c>fromTick</c> with the human labels untouched byte for
 ///     byte, a start in no round kept and marked stale, the refresh reaching a sidecar on disk and an open
 ///     session alike without an undo entry, and a fresh instance carrying its facts from the moment it is
@@ -91,7 +91,7 @@ public class TagFactsRefresherTests
             await Assert.That(Value(execute, "manCount.ct")).IsEqualTo("5");
             await Assert.That(Value(execute, "manCount.t")).IsEqualTo("5");
             await Assert.That(execute.Facts.Any(f => f.Group is "side" or "buy.us" or "buy.them")).IsFalse()
-                .Because("relative facts are Team Identity's to derive at query time (overview correction 10)");
+                .Because("relative facts are Team Identity's to derive at query time");
             await Assert.That(execute.Facts.Any(f => f.Group.StartsWith("parser.", StringComparison.Ordinal))).IsFalse();
             await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
             await Assert.That(execute.FactsStamp.ComputedUtc).IsEqualTo(Refreshed);

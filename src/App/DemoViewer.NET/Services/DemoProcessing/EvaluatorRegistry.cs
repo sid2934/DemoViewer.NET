@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
 ///     Resolves the demo-evaluation fan-out order from declared ids and <c>After</c> constraints instead
-///     of a hand-written array (strat-book-plugin.md §6 item 11). Core evaluators register unconditionally;
+///     of a hand-written array. Core evaluators register unconditionally;
 ///     a pack's evaluators are added through a deferred callback so the pack contribution set is never read
 ///     until something actually resolves the fan-out, and a pack's factory is never invoked while its gate
 ///     is off.

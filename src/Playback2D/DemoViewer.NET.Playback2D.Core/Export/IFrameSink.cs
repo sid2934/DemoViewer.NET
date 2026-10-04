@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     Where rendered frames go: design §5.7, verbatim.
+///     Where rendered frames go.
 ///     <para>
 ///         One implementation pipes raw RGBA to an ffmpeg subprocess (<c>FfmpegFrameSink</c>), one
 ///         accumulates an animated GIF with no ffmpeg at all (<c>ManagedGifSink</c>), and one hashes and

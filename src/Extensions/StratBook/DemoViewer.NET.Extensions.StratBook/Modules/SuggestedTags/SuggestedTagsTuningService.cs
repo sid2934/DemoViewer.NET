@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The tuning view's harness (suggested-tags.md §3.7): builds the stored table for free (file reads
+///     The tuning view's harness: builds the stored table for free (file reads
 ///     only, the counts a team's verdicts have already recorded), and re-runs the detectors in memory
 ///     against a candidate profile to preview recall and precision before the profile is saved.
 ///     <para>
@@ -18,14 +18,14 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 ///         the profile (only its site-region overrides and its detector thresholds do), so the first
 ///         preview of a session parses each scored demo once
 ///         (<see cref="SuggestedTagsService.BuildDetectionInputs" />) and every later parameter tweak
-///         only re-runs <see cref="ProposalDetection.Detect" /> over what is already held: the "in
-///         memory" the design asks for. The made/accepted/edited/rejected counts are history and are
+///         only re-runs <see cref="ProposalDetection.Detect" /> over what is already held in memory,
+///         rather than reparsed. The made/accepted/edited/rejected counts are history and are
 ///         never recomputed by a preview; only recall and precision move.
 ///     </para>
 ///     <para>
 ///         Recall and precision score fired proposals against <b>human</b> tags only
 ///         (<see cref="TagSources.Human" />): an accepted suggestion would otherwise match itself and
-///         say nothing. §7.3's formal validation (two independent taggers, agreement, targets) is a
+///         say nothing. Formal validation (two independent taggers, agreement, targets) is a
 ///         separate, one-time study; this harness is the general tool a team runs against whatever hand
 ///         tags already exist, which may be none.
 ///     </para>
@@ -113,7 +113,7 @@ public sealed class SuggestedTagsTuningService
     /// <summary>
     ///     Re-runs detection under <paramref name="candidate" /> over <paramref name="demoPaths" /> and
     ///     returns <paramref name="baseline" /> with only <see cref="DetectorTuningRow.Recall" /> and
-    ///     <see cref="DetectorTuningRow.Precision" /> replaced: the two numbers the design says a
+    ///     <see cref="DetectorTuningRow.Precision" /> replaced: the two numbers a
     ///     parameter change updates before it is saved. Runs off the calling thread; a demo that fails to
     ///     parse or has no Round Facts rows is skipped, the way the evaluator skips it.
     /// </summary>

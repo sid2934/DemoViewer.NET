@@ -16,7 +16,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.UiCapture;
 
 /// <summary>
-///     The 2D Playback tab with the Create Strat review open in the contributed side pane (item 16): the
+///     The 2D Playback tab with the Create Strat review open in the contributed side pane: the
 ///     pack's contribution attached through the tab's surface, the pane opened on a synthetic round 7
 ///     capture, and the walk already back so the side, the slots and the step list show.
 /// </summary>

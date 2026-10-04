@@ -11,15 +11,14 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     Role View And LAN Print (strat-model.md §3.14, decision 8): one slot's parts on screen,
+///     Role View And LAN Print: one slot's parts on screen,
 ///     and a button that writes every slot's sheet as one self-contained HTML page and opens it in the
-///     system browser. The derivation and the writer are Strat Model's own (§9 step 6,
-///     <see cref="RoleSheet.Derive" /> and <see cref="RoleSheetHtmlWriter.Html" />); this view model only
-///     picks a slot to show and wires the button, so "a strat prints to one sheet per slot" (the item's own
-///     done line) needs no new model.
+///     system browser. The derivation and the writer are Strat Model's own
+///     (<see cref="RoleSheet.Derive" /> and <see cref="RoleSheetHtmlWriter.Html" />); this view model only
+///     picks a slot to show and wires the button, so "a strat prints to one sheet per slot" needs no new model.
 ///     <para>
 ///         <b>The picker is not the print scope.</b> <see cref="Print" /> always writes all five slots'
-///         sheets, whichever one <see cref="SelectedSlot" /> is showing on screen; §3.14 says "one page per
+///         sheets, whichever one <see cref="SelectedSlot" /> is showing on screen: "one page per
 ///         slot", not "the page for the slot in view".
 ///     </para>
 ///     <para>
@@ -105,7 +104,7 @@ public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
     /// </summary>
     /// <param name="document">The open strat, or null.</param>
     /// <param name="callouts">The owner's callouts for the strat's map; null prints canonical names.</param>
-    /// <param name="roster">Slot letter to resolved player name, strat-pin level only (§3.5); null for none.</param>
+    /// <param name="roster">Slot letter to resolved player name, strat-pin level only; null for none.</param>
     /// <param name="lookup">Resolves a branch's target strat when it is not this one.</param>
     /// <param name="lineupTitle">Resolves a step's lineup reference to its card title (Lineup On A Strat Step); null leaves it as a raw id.</param>
     public void Configure(StratDocument? document, CalloutResolver? callouts,

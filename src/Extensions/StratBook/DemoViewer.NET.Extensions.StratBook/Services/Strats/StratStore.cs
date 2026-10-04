@@ -9,7 +9,7 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
-///     The Strat Book's persisted store (strat-model.md §3.2, §3.8, §3.11): <c>&lt;config&gt;/strats/index.json</c>
+///     The Strat Book's persisted store: <c>&lt;config&gt;/strats/index.json</c>
 ///     plus one folder per owner (<c>team-&lt;guid&gt;</c> or <c>me</c>) holding <c>book.json</c> and one folder per
 ///     map with <c>callouts.json</c>, each strat's <c>&lt;id&gt;.dvstrat.json</c> and its
 ///     <c>&lt;id&gt;.history.jsonl</c>.
@@ -41,11 +41,11 @@ public sealed class StratStore
     public const string BookFileName = "book.json";
     public const string CalloutsFileName = "callouts.json";
 
-    /// <summary>Where <see cref="Delete" /> moves a strat's files, inside its map folder (decision 10).</summary>
+    /// <summary>Where <see cref="Delete" /> moves a strat's files, inside its map folder.</summary>
     public const string TrashFolderName = ".trash";
 
     /// <summary>
-    ///     The extension-bag field an autosaved working copy carries (§3.12): the file holds edits not yet
+    ///     The extension-bag field an autosaved working copy carries: the file holds edits not yet
     ///     committed, at the previous revision, and the next session re-opens them uncommitted.
     /// </summary>
     public const string PendingField = "pending";
@@ -371,7 +371,7 @@ public sealed class StratStore
 
     /// <summary>
     ///     Moves a strat's file and log to <c>&lt;owner&gt;/&lt;map&gt;/.trash/</c> and drops its index row. Never a
-    ///     hard delete on disk (decision 10); in memory the strat is simply forgotten.
+    ///     hard delete on disk; in memory the strat is simply forgotten.
     /// </summary>
     /// <param name="id">The strat's id.</param>
     public bool Delete(Guid id)
@@ -435,7 +435,7 @@ public sealed class StratStore
     }
 
     /// <summary>
-    ///     Writes a session's working copy over a committed strat without committing it (§3.12): no history line,
+    ///     Writes a session's working copy over a committed strat without committing it: no history line,
     ///     no revision bump, no validation refusal, because a strat mid-edit may be briefly invalid and a crash
     ///     must still find the edits. <paramref name="pending" /> stamps <see cref="PendingField" />; false writes
     ///     the committed state back without it. False when the strat was never committed or the write failed.
@@ -594,7 +594,7 @@ public sealed class StratStore
     }
 
     /// <summary>
-    ///     Makes a session the single writer for a strat until the returned handle is disposed (§3.11). Exclusive
+    ///     Makes a session the single writer for a strat until the returned handle is disposed. Exclusive
     ///     per process: a second session on the same strat is a programming error.
     /// </summary>
     /// <param name="id">The strat's id.</param>
@@ -1293,7 +1293,7 @@ public sealed class StratStore
         {
             Directory.CreateDirectory(Path.GetDirectoryName(historyPath)!);
 
-            // Opened for append and never rewritten (§3.8). A log whose last line was torn by a crash gets a
+            // Opened for append and never rewritten. A log whose last line was torn by a crash gets a
             // newline first, so the torn line stays alone and is skipped rather than swallowing this one.
             using FileStream stream = new(historyPath, FileMode.Append, FileAccess.Write, FileShare.Read);
             byte[] bytes = Encoding.UTF8.GetBytes((EndsTorn(historyPath, stream.Position) ? "\n" : "") + line + "\n");

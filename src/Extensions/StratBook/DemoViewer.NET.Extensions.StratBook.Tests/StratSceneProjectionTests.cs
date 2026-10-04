@@ -14,7 +14,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A strat projected for the canvas (step-authoring.md §3.3, §3.5, §3.11): steps onto the strat frame clock,
+///     A strat projected for the canvas: steps onto the strat frame clock,
 ///     positions into token tracks, strokes into one annotation document windowed by step with the canvas fades,
 ///     and back: an unchanged projection writes nothing, and an edited stroke keeps the fields this build does
 ///     not know.
@@ -49,7 +49,7 @@ public class StratSceneProjectionTests
             await Assert.That(label.Text).IsEqualTo("swing wide");
             await Assert.That(label.Time).IsEqualTo(new TimeEnvelope(Peek, All - 1, 8, 16));
             await Assert.That(AnnotationText.WorldSize(label.Style.WidthWorld)).IsEqualTo(6 * label.Style.WidthWorld)
-                .Because("text is 6 × WidthWorld world units, following the pen (decision 9)");
+                .Because("text is 6 × WidthWorld world units, following the pen");
         }
 
         // A stroke stored without an id is drawn under the same one every time it is projected.

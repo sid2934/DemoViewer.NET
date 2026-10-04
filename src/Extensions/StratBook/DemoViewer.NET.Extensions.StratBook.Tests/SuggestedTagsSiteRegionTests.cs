@@ -8,7 +8,7 @@ using static DemoViewer.NET.AppTests.SuggestedTagsTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Site regions (suggested-tags.md §9 step 2): the learned table with its spawn filter and its
+///     Site regions: the learned table with its spawn filter and its
 ///     thresholds, the site alone under four plants, composition in precedence order with the profile's
 ///     edits last, the per-map file and its store, and the profile's own round trip.
 /// </summary>
@@ -217,7 +217,7 @@ public class SuggestedTagsSiteRegionTests
         using (Assert.Multiple())
         {
             await Assert.That(parsed.ToJson()).IsEqualTo(DetectorProfile.Default.ToJson())
-                .Because("the §3.7 example is the shipped profile, window mode off by default");
+                .Because("the worked example is the shipped profile, window mode off by default");
             await Assert.That(back.ToJson()).IsEqualTo(DetectorProfile.Default.ToJson());
             await Assert.That(parsed.Order).IsEquivalentTo(["execute", "default", "fake", "opener", "retake"]);
             await Assert.That(parsed.Get("execute", "window")).IsEqualTo(0);

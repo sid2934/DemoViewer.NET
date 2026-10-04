@@ -13,8 +13,8 @@ using DemoViewer.NET.TestSupport;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Round facts against a real Valve matchmaking demo, as the design's §7 lists them, through the
-///     production wiring: the shipped <c>rules/round_facts.rules.yaml</c> evaluated by the engine row
+///     Round facts against a real Valve matchmaking demo, through the production wiring: the shipped
+///     <c>rules/round_facts.rules.yaml</c> evaluated by the engine row
 ///     source and projected by the evaluator.
 /// </summary>
 [NotInParallel]
@@ -177,8 +177,8 @@ public class RoundFactsRealDemoTests
     [Test]
     public async Task TheWorkedChecks_HoldAtTheDefaults()
     {
-        // Dust2 build 10896: round 2 CT eco / T semi, round 3 CT force / T full, round 5 T eco. The design's
-        // worked check had round 3 CT as semi from equipment alone; the money read makes it force: the CT
+        // Dust2 build 10896: round 2 CT eco / T semi, round 3 CT force / T full, round 5 T eco. Equipment
+        // alone reads round 3 CT as semi; the money read makes it force: the CT
         // side lost round 2 and holds $600 across five players at freeze end, under the $2,000 line.
         string path = DemoTestHelper.RequireDemo("match730_003844252717140672725_0377894676_389.dem");
         ParsedDemo parsed = DemoParser.Parse(File.ReadAllBytes(path).AsMemory());

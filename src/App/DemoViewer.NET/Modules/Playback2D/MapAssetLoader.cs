@@ -8,16 +8,16 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 namespace DemoViewer.NET.Modules.Playback2D;
 
-// What is left of map-asset loading in the App after B1's T5. Locating the bundle directory and
+// What is left of map-asset loading in the App. Locating the bundle directory and
 // parsing bundle.json live in CS2DemoKit.Analysis.Visibility (MapAssetBundleReader); decoding the
 // radar layers into SKImages moved to DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline,
 // which is what makes the scene loadable without a windowing system.
 //
-// Two Avalonia-shaped jobs remain, both deliberate (plan decision D-16):
+// Two Avalonia-shaped jobs remain, both deliberate:
 //   * the library card thumbnail, which needs Bitmap.DecodeToWidth's downscale-on-decode and has no
 //     SKImage analogue;
 //   * radar bitmaps for the LEGACY Playback2DViewport, which draws through a DrawingContext and
-//     cannot consume an SKImage. That cache is deleted with the legacy control in B5.
+//     cannot consume an SKImage. That cache is deleted with the legacy control.
 
 /// <summary>
 ///     Loads the lightweight radar thumbnail the library card uses as a background.
@@ -73,7 +73,7 @@ public static class MapAssetLoader
 ///         <c>SKImage</c>s; a <c>DrawingContext</c> cannot draw one. Rather than have every map load pay
 ///         for two full-resolution decodes (~4 MB each) so that a temporary escape hatch can render, the
 ///         legacy control decodes its own copy on first use and only if the toggle is actually set.
-///         Deleted with the legacy control in B5.
+///         Deleted with the legacy control.
 ///     </para>
 /// </summary>
 internal sealed class LegacyRadarBitmapCache

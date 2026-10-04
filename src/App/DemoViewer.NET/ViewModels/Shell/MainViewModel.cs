@@ -190,8 +190,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Null on the WASM head. System.Diagnostics.Process does not exist in a browser and
     // Process.GetCurrentProcess() throws PlatformNotSupportedException, from a FIELD INITIALIZER, so
     // constructing MainViewModel threw before its constructor body ran and the whole app came up black
-    // with one line in the console (`Process_PlatformNotSupported`). Found by B5's WASM verification
-    // pass, which is the first thing to actually boot the published head. There is nothing to degrade
+    // with one line in the console (`Process_PlatformNotSupported`). There is nothing to degrade
     // to: a browser tab has no OS process to report, and the readout it feeds is a desktop diagnostics
     // affordance (a PID to hand to dotnet-dump), so the title simply stays the product name there.
     private readonly Process? _process =
@@ -351,7 +350,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance")]
     private IReadOnlyDictionary<int, string> _nameByUserId = new Dictionary<int, string>();
 
-    // ── Nav-strip frame readout (navigation-review Phase C) ───────────────────
+    // ── Nav-strip frame readout ────────────────────────────────────────────────
     // The shell nav strip's editable "frame N / MAX" box. Movement is frame-index based (the user's
     // locked decision); the tick is shown as a read-only label via Playback.CurrentTick. NavFrameText
     // mirrors Playback.CurrentFrameIndex (kept in sync via the controller's PropertyChanged) and commits
@@ -525,7 +524,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     the preview is simply inert.
     /// </param>
     /// <param name="libraryContributions">
-    ///     The packs' Library filter/badge contributions (item 22: the Team filter, the provenance chip).
+    ///     The packs' Library filter/badge contributions (the Team filter, the provenance chip).
     ///     Null (designer, most tests) hosts none, so the Library offers neither.
     /// </param>
     /// <param name="hostTabs">
@@ -588,7 +587,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // and the frame list. Refreshes lazily on tab activation and after each evaluation.
         Diagnostics = new DiagnosticsTabViewModel(AnalysisTab, () => _loadedDemoPath, () => _allFrames, Telemetry);
 
-        // Stats tab (release plan P1-3.1): the user-facing scoreboard. Subscribes to the engine's
+        // Stats tab: the user-facing scoreboard. Subscribes to the engine's
         // EvaluationCompleted and projects the MetricTables itself; reads (never owns) analysis state.
         StatsTab = new StatsTabViewModel(Analysis, () => _loadedDemoPath);
 
@@ -726,7 +725,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             () => _protoIndex,
             () => Frames.Count);
 
-        // navigation-review Phase D: the per-tab SeekControls (control + VM) is fully retired: Phase C
+        // The per-tab SeekControls (control + VM) is fully retired: the nav strip
         // removed its last view mount, so the shell NavStrip is the single nav surface. The six legacy
         // *Frame* wrapper methods remain (they delegate to the SemanticNavigator and are still the
         // implementation the NavStrip's Nav*Command targets route through indirectly).
@@ -848,7 +847,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReplayTab.ParserCardFactory = (msg, msgBytes, normOffset) =>
             ParserTab.BuildHarvestCardExternal(msg, msgBytes, normOffset);
         ReplayTab.SlotNameResolver = SlotToName;
-        // navigation-review Phase D: ReplayTab.GameEventFilterProvider removed with the orphaned
+        // ReplayTab.GameEventFilterProvider removed with the orphaned
         // NextGameEventTick; the single demo-derived filter (GameEventFilters) now drives the NavStrip.
         ReplayTab.OnTickGroupSelected = group => _ = EntityTab.SeekEntitiesWithDeltaAsync(group);
         ReplayTab.OnTickFrameSelected = frame =>
@@ -889,7 +888,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             OpenFileAsync, // the Library's "Open Demo…" CTA shares the one picker → LoadDemoFromBytesAsync funnel
             _recentFiles,
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
-            libraryContributions, // the Team filter and the provenance chip, item 22
+            libraryContributions, // the Team filter and the provenance chip
             isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
@@ -1025,7 +1024,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     The shared semantic navigator. Read-only access for the nav strip
-    ///     (Phase C) and tests; movement happens through its <c>Next*</c>/<c>Prev*</c> methods, which
+    ///     and tests; movement happens through its <c>Next*</c>/<c>Prev*</c> methods, which
     ///     binary-search the precomputed boundaries and drive <see cref="Playback" />.
     /// </summary>
     public SemanticNavigator Navigator { get; }
@@ -1033,7 +1032,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     The strip-ready event-filter flyout VM. Wraps the
     ///     demo-derived <see cref="GameEventFilters" /> with Select-all / Deselect-all + a live tooltip;
-    ///     the Phase C nav strip's event-jump flyout binds to this. One filter, one source.
+    ///     the nav strip's event-jump flyout binds to this. One filter, one source.
     /// </summary>
     public EventFilterFlyoutViewModel EventFilterFlyout { get; }
 
@@ -1056,7 +1055,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<StatusChipViewModel> Chips { get; } = [];
 
-    // The pack-contributed chip slots (item 14), set once by AttachStatusChips. Each contribution's own
+    // The pack-contributed chip slots, set once by AttachStatusChips. Each contribution's own
     // Source.PropertyChanged subscription is kept so Dispose can detach it; _shownContributedChips tracks
     // which Chip instance this slot last added to Chips, keyed by the contribution's own id.
     private IReadOnlyList<StatusChipContribution> _statusChipContributions = [];
@@ -1191,7 +1190,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public DiagnosticsTelemetryHub Telemetry { get; }
 
-    /// <summary>Stats tab (release plan P1-3.1): the user-facing scoreboard + per-round browser.</summary>
+    /// <summary>Stats tab: the user-facing scoreboard + per-round browser.</summary>
     public StatsTabViewModel StatsTab { get; }
 
     /// <summary>Match Overview tab: the demo landing page (identity + load progress + summary).</summary>
@@ -2037,7 +2036,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetSummary(path, parsed);
-        MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
+        MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // damaged-demo banner
         TryPushTeamNames(path);
 
         if (StatsTab.GameTable is not null)
@@ -2345,7 +2344,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Mounts the chip slots the packs contributed (item 14): a generic replacement for what used to be
+    ///     Mounts the chip slots the packs contributed: a generic replacement for what used to be
     ///     a dedicated Strat-export slot. Each slot's own <see cref="IContributedStatusChip.IsShown" />
     ///     decides presence once its owning pack's gate allows it; a slot may mount its chip long after this
     ///     runs (the Strat Book builds its export job lazily, on the first Export), so this subscribes to
@@ -2420,7 +2419,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _moduleContext = new ModuleContext(
             Playback,
             () => _loadedDemoPath,
-            Navigator); // Phase E: modules drive "jump to next event of its own type" through the shared navigator
+            Navigator); // modules drive "jump to next event of its own type" through the shared navigator
 
         // The 2D tab's ↑/↓ speed keys must honour the same Live Sync speed lock the NavStrip speed
         // ComboBox binds its IsEnabled to (IsPlaybackSpeedLocked): a parallel path would let a keypress
@@ -2840,7 +2839,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             open.CancellationToken.ThrowIfCancellationRequested();
             open.Report(0.5, "Building the views");
             MatchOverviewTab.SetSummary(path, parsed);
-            MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
+            MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // damaged-demo banner
             FrameRows.Clear();
             int frameNum = 0;
             foreach (DemoFrame frame in parsed.Frames)
@@ -2872,13 +2871,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetGameEvents(parsed.AllGameEvents); // pre-decoded timeline for event-driven modules
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
-            _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
+            _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
-            // navigation-review Phase A: precompute round / event / tick boundary indices once,
-            // drained alongside the unknown-message census. The six *Frame* nav methods + the Phase C
+            // Precompute round / event / tick boundary indices once,
+            // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // #4/#5: calibrate the shared game-clock once (first round_freeze_end) for the 2D round
+            // Calibrate the shared game-clock once (first round_freeze_end) for the 2D round
             // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
             ApplyGameClock(_allFrames, parsed.TickRate);
             // Mirror the production load path: signal active modules to resync to the new demo (see the
@@ -3171,7 +3170,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return null;
     }
 
-    // FrameContainsGameEvent / FrameContainsRoundEvent retired in navigation-review Phase A: the
+    // FrameContainsGameEvent / FrameContainsRoundEvent are retired: the
     // per-frame scans they backed are now precomputed once in SemanticNavigator.Build (the *Frame*
     // methods delegate to the navigator). FrameHasRoundTransition stays: it serves StepRoundToBreakpoint.
 
@@ -3287,11 +3286,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // ── Semantic-nav delegating wrappers (navigation-review Phase A) ──────────
+    // ── Semantic-nav delegating wrappers ───────────────────────────────────────
     // The six *Frame* methods below delegate to the shell-owned SemanticNavigator, which
     // binary-searches the precomputed boundary indices from PlaybackController.CurrentFrameIndex and
     // drives PlaybackController.SeekToFrame. SeekControls still calls these wrappers (behavior-identical
-    // to the legacy per-press scans); the strip (Phase C) calls the navigator directly.
+    // to the legacy per-press scans); the strip calls the navigator directly.
 
     private void NextFrameByRound() => Navigator.NextRound();
 
@@ -4018,7 +4017,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             open.CancellationToken.ThrowIfCancellationRequested();
             open.Report(0.5, "Building the views");
             MatchOverviewTab.SetSummary(subjectKey, parsed);
-            MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
+            MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // damaged-demo banner
 
             FrameRows.Clear();
             int frameNum = 0;
@@ -4062,13 +4061,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetGameEvents(parsed.AllGameEvents); // pre-decoded timeline for event-driven modules
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
-            _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
+            _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
-            // navigation-review Phase A: precompute round / event / tick boundary indices once,
-            // drained alongside the unknown-message census. The six *Frame* nav methods + the Phase C
+            // Precompute round / event / tick boundary indices once,
+            // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // #4/#5: calibrate the shared game-clock once (first round_freeze_end) for the 2D round
+            // Calibrate the shared game-clock once (first round_freeze_end) for the 2D round
             // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
             ApplyGameClock(_allFrames, parsed.TickRate);
             // The context now holds the NEW demo's roster / events / map / clock. Signal any ACTIVE module to
@@ -4384,7 +4383,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void PreviousSpecialFrame() => Navigator.PrevEvent(SelectedSpecialFilter());
 
     /// <summary>
-    ///     The currently-selected special-seek event names. navigation-review Phase B: the single
+    ///     The currently-selected special-seek event names. The single
     ///     filter is now the demo-derived <c>GameEventFilters</c> (the hardcoded 7-event
     ///     <c>EventTypeFilters</c> list is retired as the source). Returns null when nothing is enabled
     ///     so the navigator falls back to "match any" (preserving the legacy convenience so the
@@ -4397,7 +4396,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return enabled.Count > 0 ? enabled : null;
     }
 
-    // ── Nav-strip semantic commands (navigation-review Phase C) ───────────────
+    // ── Nav-strip semantic commands ────────────────────────────────────────────
     // The shell nav strip binds these. They delegate to the SemanticNavigator (the same service the
     // legacy *Frame* wrappers route through), so the strip and the per-tab SeekControls drive one
     // implementation. Gated on a loaded demo; the navigator no-ops when no boundary exists.
@@ -4467,7 +4466,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Computes the shared game-clock calibration once per demo load and hands it to the module context
     // (mirrors SetRoster). Both demo-load paths call this AFTER _navigator.Build, so the precomputed
     // round_freeze_end frames are available: the first one calibrates the curtime offset that the 2D
-    // round timer (#4) and bomb/defuse timers (#5) consume via IModuleContext.CurtimeSeconds. Reads
+    // round timer and bomb/defuse timers consume via IModuleContext.CurtimeSeconds. Reads
     // game-rules entity state by advancing a fresh tracker to that early frame (cheap, run-once).
     private void ApplyGameClock(IReadOnlyList<DemoFrame> frames, int tickRate)
     {

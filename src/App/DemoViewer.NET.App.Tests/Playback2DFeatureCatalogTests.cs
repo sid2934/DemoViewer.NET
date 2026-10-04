@@ -10,9 +10,9 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     B5-1's audit, as a test: the Playback2D v2 sub-feature rows are present, shaped as registry
-///     §3.10 pins them, ordered as one contiguous block, and cascade correctly with their parent tab.
-///     The Round Tagger's palette (tag-store.md §3.11) is the sixth, appended to the block.
+///     A manual audit, encoded as a test: the Playback2D v2 sub-feature rows are present, shaped and
+///     ordered as one contiguous block, and cascade correctly with their parent tab.
+///     The Round Tagger's palette is the sixth, appended to the block.
 ///     <para>
 ///         The ids are <b>persisted override keys</b> (settings write <c>Features:Overrides:{id}</c>), so a
 ///         rename is a silent reset of every user's choice. This class is what makes that rename fail.
@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class Playback2DFeatureCatalogTests
 {
-    /// <summary>The ids, in the order registry §3.10 fixes for the contiguous catalog block, then the tagging rows.</summary>
+    /// <summary>The ids, in the pinned order for the contiguous catalog block, then the tagging rows.</summary>
     internal static readonly string[] Ids =
     [
         "playback2d.annotations",
@@ -43,7 +43,7 @@ public class Playback2DFeatureCatalogTests
         FeatureDescriptor[] children = FeatureCatalog.Children("tab.playback2d").ToArray();
 
         await Assert.That(children.Select(c => c.Id).ToArray()).IsEquivalentTo(Ids)
-            .Because("registry §3.10 fixes both the set and its order");
+            .Because("both the set and its order are pinned");
 
         foreach (FeatureDescriptor child in children)
         {
@@ -83,7 +83,7 @@ public class Playback2DFeatureCatalogTests
     }
 
     /// <summary>
-    ///     B5 D6: these are the release's headline consumer features, so every category gets them on by
+    ///     These are the release's headline consumer features, so every category gets them on by
     ///     default, the same call the design-system matrix records for <c>tab.highlights</c>.
     /// </summary>
     [Test]

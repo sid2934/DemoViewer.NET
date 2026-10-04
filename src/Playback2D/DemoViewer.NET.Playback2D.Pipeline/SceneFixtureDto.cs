@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 // System.Text.Json pick a constructor for those is exactly the kind of implicit contract a persisted
 // format should not have. Every level that can carry forward-compatible data has [JsonExtensionData],
 // so a fixture written by a NEWER build survives a read/write round trip through this one intact
-// (design §5.4's tolerant-reader rule, enforced by SceneFixtureTests).
+// (the tolerant-reader rule, enforced by SceneFixtureTests).
 
 internal sealed class SceneFixtureDto
 {
@@ -187,7 +187,7 @@ internal sealed class SceneMapInfoDto
 }
 
 // The SKImage itself is never serialized: a fixture describes a scene, not a decoded bitmap.
-// MapAssetPipeline re-attaches the image by Name at load (B1); until then it stays null.
+// MapAssetPipeline re-attaches the image by Name at load; until then it stays null.
 internal sealed class MapRadarImageDto
 {
     public string? Name { get; set; }

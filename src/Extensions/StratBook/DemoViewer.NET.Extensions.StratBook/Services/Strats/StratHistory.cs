@@ -10,7 +10,7 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
-///     The history log's pure half (strat-model.md §3.8): applying ops, materializing a revision from the log,
+///     The history log's pure half: applying ops, materializing a revision from the log,
 ///     and inverting an entry. The store reads and appends the lines; everything here is over values.
 ///     <para>
 ///         <b>Revision and modifiedUtc are the entry's, not the ops'.</b> An op never touches either field;
@@ -284,7 +284,7 @@ public static class StratHistory
 }
 
 /// <summary>
-///     The ops of one pending commit (§3.8 granularity, decision 2): consecutive ops on the same path merge, so
+///     The ops of one pending commit: consecutive ops on the same path merge, so
 ///     a drag that fired forty replaces is one op, and a commit falls due after
 ///     <see cref="IdleCommitSeconds" /> without an edit. The other commit triggers (an explicit Save, a tab
 ///     deactivate, a demo swap, shutdown) are the session's and simply call <see cref="Drain" />.
@@ -369,7 +369,7 @@ public sealed class StratCommitBuffer
 }
 
 /// <summary>
-///     A history entry's words (strat-model.md §3.8): "molotov moved from 1:22 to 1:16", "step added: A peeks
+///     A history entry's words: "molotov moved from 1:22 to 1:16", "step added: A peeks
 ///     Connector at 1:05", "branch removed", "status Active → Archived". Free text for a person; the ops stay the
 ///     truth. Each op is read against the document as it stood just before it, so a step is named by what it
 ///     was then, and places print through the owner's callouts when a resolver is given.
@@ -878,8 +878,8 @@ public static class StratDiffPhrasing
     private static string[]? LineSlots(JsonObject step) =>
         step["assignments"] is JsonArray { Count: > 0 } lines ? [.. lines.Select(l => Text(l?["slot"]) ?? "?")] : null;
 
-    // Internal rather than private: RoleSheet and StratTextExporter phrase steps the same way (§3.13,
-    // §3.14) and share these two rather than growing their own copies.
+    // Internal rather than private: RoleSheet and StratTextExporter phrase steps the same way
+    // and share these two rather than growing their own copies.
     internal static string ThirdPerson(string verb) => verb switch
     {
         "other" => "acts",
@@ -921,7 +921,7 @@ public static class StratDiffPhrasing
 
 /// <summary>
 ///     One line of the history pane (Strat Version History): an entry's revision, time, summary and per-op
-///     words, and the record either side of it when a record is at hand (§3.8: runs tagged below this revision
+///     words, and the record either side of it when a record is at hand (runs tagged below this revision
 ///     against runs tagged at it or later).
 /// </summary>
 /// <param name="Revision">The entry's revision.</param>

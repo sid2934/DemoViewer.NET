@@ -1,5 +1,5 @@
-# One extension's release (docs/architecture/strat-book-plugin.md §7.11): the signed zip, its sha256,
-# and an update to the rolling extensions.json feed item 36's updater reads.
+# One extension's release: the signed zip, its sha256,
+# and an update to the rolling extensions.json feed the updater reads.
 #
 # Publishes only on a tag push matching extensions/<id>/v<version>, or a workflow_dispatch run against
 # that same tag with dry_run=false. Every other trigger, including any dispatch from a branch, is a
@@ -105,7 +105,7 @@ jobs:
       - name: Build App.Tests
         run: dotnet build src/App/DemoViewer.NET.App.Tests -c Release
 
-      # The release gate (strat-book-plugin.md §7.7): the shipped manifest against this host on every
+      # The release gate: the shipped manifest against this host on every
       # axis, and the extension's compiled references against what this build actually loads.
       - name: CompatibilityMatrixTests
         run: >
@@ -237,7 +237,7 @@ jobs:
             gh release create "$TAG" \
               --repo "$REPO" \
               --title "$EXT_ID $VERSION" \
-              --notes "Extension release. See docs/architecture/strat-book-plugin.md §7.11." \
+              --notes "Extension release. See docs/architecture/strat-book-plugin.md." \
               --latest=false \
               --target "${{ github.sha }}" \
               "$OUT/$ZIP" "$OUT/$ZIP.sha256"
@@ -264,7 +264,7 @@ jobs:
             gh release create "$ROLLING" \
               --repo "$REPO" \
               --title "$EXT_ID updates" \
-              --notes "Rolling update feed for $EXT_ID. See docs/architecture/strat-book-plugin.md §7.10." \
+              --notes "Rolling update feed for $EXT_ID. See docs/architecture/strat-book-plugin.md." \
               --latest=false \
               --target "${{ github.sha }}"
           fi

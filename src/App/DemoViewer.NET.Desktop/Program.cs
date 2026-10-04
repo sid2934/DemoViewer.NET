@@ -25,7 +25,7 @@ internal sealed class Program
     {
         // The XAML previewer calls this without Main, so it declares the same packs; a no-op after Main.
         // Behind a factory: after Main a staged copy may be the configured one, and the shipped type must
-        // then stay untouched (strat-book-plugin.md §7.8).
+        // then stay untouched.
         FeaturePacks.ConfigureIfUnset(static () => [new StratBookPack()]);
         return AppBuilder.Configure<App>()
             .UsePlatformDetect()
@@ -61,8 +61,8 @@ internal sealed class Program
 
         builder.Run();
 
-        // The extensions this build ships (strat-book-plugin.md §13), each replaced by a newer copy staged
-        // under <config root>/extensions/ when one is compatible and trusted (§7.8). The app assembly
+        // The extensions this build ships, each replaced by a newer copy staged
+        // under <config root>/extensions/ when one is compatible and trusted. The app assembly
         // references none of them; the composition root and the static registries read this list, so it is
         // declared before anything Avalonia-side runs. The shipped pack sits behind a factory: a method that
         // mentions StratBookPack loads the shipped assembly when it is compiled, and the loader must decide
@@ -84,7 +84,7 @@ internal sealed class Program
         AppHostHooks.LiveSyncFactory = static shell => new LiveSyncService(shell);
 
         // Reel generation: same seam. The concrete LiveSyncService
-        // is handed through so the F1↔F3b single-CS2 interlock can suspend an active sync session;
+        // is handed through so the single-CS2 interlock can suspend an active sync session;
         // job log lines surface in the Output panel's "Live Sync" channel.
         AppHostHooks.ReelJobFactory = static (shell, liveSync) => new ReelJobService(
             liveSync as LiveSyncService,
@@ -107,8 +107,7 @@ internal sealed class Program
         // spans) for the whole app session and dumps a combined (session-aggregate) report on exit.
         // Default (env unset): a null session, no listeners, no cost. The report goes to Console.Out, so
         // on Windows (this is a WinExe) it only appears when launched from a terminal or via `dotnet run`.
-        // Live / per-moment capture without any of this is available via dotnet-counters / dotnet-trace
-        // (see docs/profiling.md).
+        // Live / per-moment capture without any of this is available via dotnet-counters / dotnet-trace.
         using ProfilingSession? session = ProfilingSession.StartFromEnvironment();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

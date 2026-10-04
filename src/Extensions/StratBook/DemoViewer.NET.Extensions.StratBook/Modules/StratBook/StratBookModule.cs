@@ -9,7 +9,7 @@ using DemoViewer.NET.Views.StratBook;
 namespace DemoViewer.NET.Modules.StratBook;
 
 /// <summary>
-///     The Strat Book module (strat-model.md §3.11): the Strats section of the Strat Book tab's rail, first on
+///     The Strat Book module: the Strats section of the Strat Book tab's rail, first on
 ///     it, holding the book selector, the map and side filters, the strat list and the strat editor with the
 ///     Step Authoring canvas, the record, history and callouts panes. A strat has no demo, so none of it lives
 ///     in 2D Playback.
@@ -62,7 +62,7 @@ public sealed class StratBookModule : IWorkspaceModule
     }
 
     /// <summary>
-    ///     Commits the open strat and writes the strat index: shutdown is one of the commit triggers (§3.8). A no-op
+    ///     Commits the open strat and writes the strat index: shutdown is one of the commit triggers. A no-op
     ///     when the tab was never built.
     /// </summary>
     public void Shutdown() => _viewModel?.Shutdown();

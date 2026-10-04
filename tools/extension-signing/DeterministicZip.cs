@@ -3,7 +3,7 @@ using System.IO.Compression;
 namespace DemoViewer.NET.Extensions.Loading;
 
 /// <summary>
-///     Zips a staged extension directory (strat-book-plugin.md §7.10, §7.11) the same way on every
+///     Zips a staged extension directory the same way on every
 ///     machine: entries sorted ordinal by '/'-separated path, a fixed timestamp and Unix mode on every
 ///     entry, no directory entries. Two zips of the same tree must hash the same; a creation-time
 ///     timestamp or a umask-dependent permission bit would make that machine-dependent instead.

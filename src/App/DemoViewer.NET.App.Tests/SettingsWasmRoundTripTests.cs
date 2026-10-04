@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The mechanical guarantee that no <c>Playback2DSettings</c> property can be added without a matching
-///     <c>SettingsService.WriteInMemory</c> row (B5-3 / B5-6).
+///     <c>SettingsService.WriteInMemory</c> row.
 ///     <para>
 ///         On the WASM head there is no settings file, only the in-memory configuration provider that
 ///         <c>WriteInMemory</c> populates by hand, key by key. A property modelled on
@@ -41,7 +41,7 @@ public class SettingsWasmRoundTripTests
             .ToArray();
 
         await Assert.That(properties.Length).IsGreaterThan(15)
-            .Because("the section should carry the registry §3.10 property set, not a stub");
+            .Because("the section should carry the registry's full property set, not a stub");
 
         List<string> unpersisted = new();
 
@@ -91,7 +91,7 @@ public class SettingsWasmRoundTripTests
 
     /// <summary>
     ///     An EMPTY string round-trips as empty, not as a missing key that re-binds to the type default.
-    ///     <c>ExportOutputDirectory</c> uses <c>""</c> for "no folder chosen" (B4 shipped it non-nullable),
+    ///     <c>ExportOutputDirectory</c> uses <c>""</c> for "no folder chosen" (it shipped non-nullable),
     ///     so "" is a real value the flattening has to carry, not an omission.
     /// </summary>
     [Test]

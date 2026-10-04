@@ -29,7 +29,7 @@ internal static partial class AppLog
     /// <summary>Category for demo-processing-queue faults.</summary>
     public const string QueueCategory = "App.Queue";
 
-    /// <summary>Category for the extension loader's one-time startup report (strat-book-plugin.md §7.8).</summary>
+    /// <summary>Category for the extension loader's one-time startup report.</summary>
     public const string ExtensionsCategory = "App.Extensions";
 
     [LoggerMessage(EventId = 15, Level = LogLevel.Information,

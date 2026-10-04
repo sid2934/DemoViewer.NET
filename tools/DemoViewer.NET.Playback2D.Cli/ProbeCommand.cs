@@ -8,13 +8,12 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d probe</c>: which render-surface backend this machine can actually provide, and why
-///     (plans/C2-gpu-provider.md §6.4).
+///     <c>dv2d probe</c>: which render-surface backend this machine can actually provide, and why.
 ///     <para>
 ///         It exists because "the GPU lane went green" and "the GPU lane ran on a GPU" are different
 ///         claims. The probe prints <c>GL_RENDERER</c>, so a lane that quietly fell through to WARP or
 ///         llvmpipe is visible in the log rather than hidden inside a plausible frame time. A CPU answer
-///         is <b>not</b> an error (design §10 risk 7 makes CPU the contract baseline), so the command
+///         is <b>not</b> an error (CPU is the contract baseline), so the command
 ///         exits 0 either way unless <c>--require-gpu</c> says otherwise.
 ///     </para>
 /// </summary>

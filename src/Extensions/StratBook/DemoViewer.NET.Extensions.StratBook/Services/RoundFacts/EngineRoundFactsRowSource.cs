@@ -113,7 +113,7 @@ public sealed class EngineRoundFactsRowSource : IRoundFactsRowSource
     ///         </item>
     ///         <item>
     ///             Rounds are renumbered onto <paramref name="rounds" /> by freeze-end tick, because round
-    ///             numbering is <c>ClipRound.Number</c> everywhere (overview correction 12). The engine opens a
+    ///             numbering is <c>ClipRound.Number</c> everywhere. The engine opens a
     ///             round the server decided inside freeze time (a surrender vote) with a synthesized freeze end
     ///             the wire never carried; the clip authority has no such round, so its rows are dropped with a
     ///             diagnostic rather than shifting every later round by one.

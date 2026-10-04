@@ -51,14 +51,14 @@ public sealed class TagPaletteButtonViewModel
 }
 
 /// <summary>
-///     The Tag Palette (plan §3, tag-store.md §3.4 and §3.11): the dockable panel in the 2D Playback tab that
+///     The Tag Palette: the dockable panel in the 2D Playback tab that
 ///     tags the demo being watched, every edit written through the tab's <see cref="TagSession" />.
 ///     <para>
 ///         <b>The panel flow.</b> Tagging starts on the palette's codes. A code press opens an instance at the
 ///         playhead, <c>leadSeconds</c> before it to <c>lagSeconds</c> after, clamped to the round when the
 ///         palette says so, and reveals only the panel its <c>then</c> names; a label press adds one label and
 ///         reveals that panel's <c>then</c>. When the flow runs out the instance is written as ONE batch, so a
-///         single undo removes the code and its labels together (tag-store.md §3.9). Until then it is
+///         single undo removes the code and its labels together. Until then it is
 ///         pending: shown here, not yet on the timeline.
 ///     </para>
 ///     <para>
@@ -70,18 +70,18 @@ public sealed class TagPaletteButtonViewModel
 ///     <para>
 ///         <b>Keys.</b> While <see cref="IsFocused" />, <see cref="TryHandleKey" /> takes the keymap's
 ///         palette-scoped rows first and then the open panel's hotkeys, ahead of the tab's tool and always
-///         scopes (overview correction 21). Every key the palette owns is data (the palette file) or a
+///         scopes. Every key the palette owns is data (the palette file) or a
 ///         <see cref="Playback2DKeymap" /> row, so a user rebinds them in Settings like any other 2D key.
 ///     </para>
 ///     <para>
-///         <b>Clicks on the map</b> (Click To Tag Position, tag-store.md §3.6). While the palette has focus a
+///         <b>Clicks on the map</b> (Click To Tag Position). While the palette has focus a
 ///         left click on the map is a point for the tag being made, else for the last one written; the
 ///         tab resolves it (<see cref="TagPositionResolver" />) and hands it to <see cref="AttachPosition" />.
 ///         The second click on the same tag turns that point into a movement from it to the new one, and
 ///         the click after that starts a new point, so a tag can carry several of either.
 ///     </para>
 ///     <para>
-///         <b>Label Mode</b> (plan §3). The second pass: the palette shows its labels panels instead of its
+///         <b>Label Mode.</b> The second pass: the palette shows its labels panels instead of its
 ///         codes, and a label press adds to a tag that already exists, never making one. The target is the
 ///         tag picked on the Tag Track (<see cref="SelectForLabels" />) while it exists, else the tag under
 ///         the playhead that started last, so with overlapping tags the most recent one is labelled.

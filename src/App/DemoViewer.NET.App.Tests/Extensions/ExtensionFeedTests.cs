@@ -8,7 +8,7 @@ using DemoViewer.NET.Extensions.Updates;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     <see cref="ExtensionFeed" /> parsing (strat-book-plugin.md §7.10): every member read, entries ranked
+///     <see cref="ExtensionFeed" /> parsing: every member read, entries ranked
 ///     highest first, unknown members ignored, and every way an entry can disagree with itself refused.
 /// </summary>
 public class ExtensionFeedTests

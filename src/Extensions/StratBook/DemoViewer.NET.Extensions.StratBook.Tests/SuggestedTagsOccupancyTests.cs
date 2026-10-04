@@ -15,7 +15,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The input layer (suggested-tags.md §9 step 1) over synthetic samples and synthetic Round Facts
+///     The input layer over synthetic samples and synthetic Round Facts
 ///     rows: windows from the rows, alive and side from the sample's own fields (CS2DemoKit #58, the
 ///     row kept only as a cross-check), the first sample per (slot, second), the empty place the sample
 ///     carries for unplaced, the bomb site from the fact, the index source agreeing with the walk, the

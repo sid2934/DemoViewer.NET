@@ -10,7 +10,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.LiveSync.Tests;
 
 /// <summary>
-///     Live-host verification of the telemetry-P1 log gate against the bundled mock_server: the
+///     Live-host verification of the log gate against the bundled mock_server: the
 ///     <see cref="OutputLogBridge" /> is the sole provider, and its framework-capture flag must
 ///     actually suppress / surface the Microsoft(.AspNetCore) + Grpc categories on a RUNNING Kestrel
 ///     host — proving no residual framework filter survives <c>WebApplication.CreateSlimBuilder</c>

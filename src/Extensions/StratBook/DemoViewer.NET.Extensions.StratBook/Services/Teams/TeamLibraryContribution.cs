@@ -8,7 +8,7 @@ using DemoViewer.NET.Modules.Library;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     The Library's Team filter (item 22): "All teams", "Us", then every visible team. Offers no badge.
+///     The Library's Team filter: "All teams", "Us", then every visible team. Offers no badge.
 ///     <see cref="Resolve" /> is the lazy point: the Library only reaches <see cref="Filter" /> while this
 ///     contribution's gate resolves on, so <see cref="TeamIdentityService" /> is never touched while off.
 /// </summary>

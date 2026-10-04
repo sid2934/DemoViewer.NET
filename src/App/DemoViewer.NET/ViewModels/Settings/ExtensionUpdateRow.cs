@@ -11,7 +11,7 @@ using DemoViewer.NET.Extensions.Updates;
 namespace DemoViewer.NET.ViewModels.Settings;
 
 /// <summary>
-///     The update line under an extension's master row in Settings (strat-book-plugin.md §7.10): the last
+///     The update line under an extension's master row in Settings: the last
 ///     check's verdict in user terms, a Check button, an Update button while a version is offered, and the
 ///     download's progress while it runs. One per declared pack. A row with no service (the browser head)
 ///     says updates come with the app and offers nothing.

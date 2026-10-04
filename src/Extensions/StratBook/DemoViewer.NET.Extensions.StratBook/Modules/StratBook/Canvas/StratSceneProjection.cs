@@ -28,7 +28,7 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 public sealed record StratPathStep(StratStep Step, Guid StratId, int StepIndex, bool Editable);
 
 /// <summary>
-///     Which steps the canvas plays (step-authoring.md §3.4). A branch adds no second step list: a path is
+///     Which steps the canvas plays. A branch adds no second step list: a path is
 ///     the steps up to the branch point, then the target's. Choosing one is view state, not an edit, so it
 ///     takes no undo slot.
 /// </summary>
@@ -131,7 +131,7 @@ public delegate bool PlaceContainsResolver(string place, double x, double y, dou
 public readonly record struct StrokeRef(int PathIndex, int StrokeIndex);
 
 /// <summary>
-///     A strat as the canvas and an export see it (step-authoring.md §3.3, §3.5, §3.6): the path's step
+///     A strat as the canvas and an export see it: the path's step
 ///     schedule on the strat frame clock, one token track per placed slot, every step's strokes as one
 ///     <see cref="AnnotationElement" /> list whose envelopes are the step windows, the marker labels and the
 ///     utility landings. Pure: built from a document and a path, never edited; an edit goes to the strat
@@ -139,7 +139,7 @@ public readonly record struct StrokeRef(int PathIndex, int StrokeIndex);
 /// </summary>
 public sealed class StratSceneProjection
 {
-    /// <summary>The strat clock's header for anything that serializes the projected document (§3.5).</summary>
+    /// <summary>The strat clock's header for anything that serializes the projected document.</summary>
     public const string ClockKind = "dv-strat-clock";
 
     /// <summary>
@@ -281,7 +281,7 @@ public sealed class StratSceneProjection
 
     /// <summary>
     ///     The projected document's clock header: <c>ClockIdentity("dv-strat-clock", 64, lastTick + 1, 0,
-    ///     lastTick)</c> (§3.5, correction 7).
+    ///     lastTick)</c>.
     /// </summary>
     public ClockIdentity Clock => new(ClockKind, StepSchedule.TicksPerSecond, LastTick + 1, 0, LastTick);
 
@@ -1833,7 +1833,7 @@ public sealed class StratSceneProjection
 
     /// <summary>
     ///     The ten markers' text and side: the strat's own slots by letter in its side's colour, the opponent
-    ///     tokens as <c>1</c> to <c>5</c> in the other side's (§3.3).
+    ///     tokens as <c>1</c> to <c>5</c> in the other side's.
     /// </summary>
     /// <param name="document">The strat.</param>
     public static IReadOnlyList<TokenLabel> LabelsFor(StratDocument document)
@@ -1855,7 +1855,7 @@ public sealed class StratSceneProjection
             ? (int)Math.Min(int.MaxValue, Math.Round(seconds * StepSchedule.TicksPerSecond, MidpointRounding.AwayFromZero))
             : 0;
 
-    /// <summary><c>hold</c> holds; everything else, reserved <c>path</c> included, is linear (correction 17).</summary>
+    /// <summary><c>hold</c> holds; everything else, reserved <c>path</c> included, is linear.</summary>
     /// <param name="interpolation">The step's <c>interpolation</c>.</param>
     public static TokenInterpolation InterpolationOf(string? interpolation) =>
         string.Equals(interpolation, "hold", StringComparison.Ordinal) ? TokenInterpolation.Hold : TokenInterpolation.Linear;
@@ -1920,8 +1920,8 @@ public sealed class StratSceneProjection
 }
 
 /// <summary>
-///     A step's stroke between its stored JSON and an <see cref="AnnotationElement" /> (step-authoring.md
-///     §3.11): the <c>.dvann.json</c> element shape with the time fields and <c>timing</c> left off, and
+///     A step's stroke between its stored JSON and an <see cref="AnnotationElement" />: the
+///     <c>.dvann.json</c> element shape with the time fields and <c>timing</c> left off, and
 ///     <c>space</c> always <c>world</c>.
 ///     <para>
 ///         <b>Read leniently, write canonically.</b> The reader also takes the shorthand the schema sample

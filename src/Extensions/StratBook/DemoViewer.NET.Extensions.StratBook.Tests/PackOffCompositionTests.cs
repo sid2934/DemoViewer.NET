@@ -18,7 +18,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 /// <summary>
 ///     Boots the real composition root with the pack disabled (pack.stratbook = false) and asserts
 ///     that nothing pack-owned initializes, no pack jobs queue, and the pending-path union excludes
-///     pack evaluators. Design §8 defines "off" semantics: background work stops, resident indexes
+///     pack evaluators. "Off" means: background work stops, resident indexes
 ///     are never loaded, and startup queues are never enqueued.
 ///     <see cref="NotInParallelAttribute" /> because the container cases pin the process-global config dir.
 /// </summary>
@@ -88,7 +88,7 @@ public class PackOffCompositionTests
         });
     }
 
-    // Item 14: opening Settings must not build a pack-off page's VM. SuggestedTagsTuningViewModel pulls
+    // Opening Settings must not build a pack-off page's VM. SuggestedTagsTuningViewModel pulls
     // SuggestedTagsService (which the pack's factory records onto StratBookPackInstances.SuggestedTags),
     // so that field staying null here is the proof the page's factory never ran.
     [Test]
@@ -112,8 +112,8 @@ public class PackOffCompositionTests
         });
     }
 
-    // The evaluator registry is what is actually responsible for the four fields above staying null
-    // (item 11): it reads PackContributionSet lazily and never invokes a disabled pack's evaluator
+    // The evaluator registry is what is actually responsible for the four fields above staying null:
+    // it reads PackContributionSet lazily and never invokes a disabled pack's evaluator
     // factory. Forcing a poll here (EvaluatorIds), something the test above never does, proves the
     // gate itself rather than merely "nothing happened to construct them yet".
     [Test]

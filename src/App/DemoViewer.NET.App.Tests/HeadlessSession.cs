@@ -243,7 +243,7 @@ public static class HeadlessSession
     ///         <c>Func&lt;Task&gt;</c> binds to the generic <c>Func&lt;TResult&gt;</c> overload
     ///         with <c>TResult = Task</c>, which awaits only the dispatch. The body's task was
     ///         never observed, so an async body's failure (or hang) after its first yield
-    ///         silently PASSED the test (found by work item 0.2's canary; the "headless
+    ///         silently PASSED the test (found by a canary test; the "headless
     ///         swallows async-load exceptions" lore was this bug).
     ///     </para>
     ///     <para>

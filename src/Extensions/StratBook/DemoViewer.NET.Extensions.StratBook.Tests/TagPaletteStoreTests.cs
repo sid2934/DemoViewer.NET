@@ -8,7 +8,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Palettes as data (tag-store.md §3.4): the built-in palette from the resource, drop-ins in filename
+///     Palettes as data: the built-in palette from the resource, drop-ins in filename
 ///     order after it, an invalid file skipped with a diagnostics line while the rest load, and the
 ///     validator's refusals (reserved gestures, fact and strat groups, broken flows) and warnings (a
 ///     shadowed tab key, named).
@@ -50,9 +50,9 @@ public class TagPaletteStoreTests
         {
             await Assert.That(palette.Id).IsEqualTo(TagPaletteStore.DefaultId);
             await Assert.That(palette.Root!.Buttons.Select(b => b.Code)).IsEquivalentTo(DefaultCodes);
-            await Assert.That(palette.ClampToRound).IsTrue().Because("decision D3: the shipped palette clamps");
+            await Assert.That(palette.ClampToRound).IsTrue().Because("the shipped palette clamps");
             await Assert.That(palette.StickyGroups).Contains("opponent");
-            // Refused for nothing, and shadowing exactly what overview correction 21 says it does: the
+            // Refused for nothing, and shadowing exactly what it should: the
             // site "A" and outcome "L" labels are the Arrow and Line tool keys since Shape Tools, and the
             // palette's scope wins while it has focus, so the load warns and names the tool each one hides.
             await Assert.That(store.Diagnostics.Count).IsEqualTo(2)

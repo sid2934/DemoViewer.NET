@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     already orders them. The roster-boundary test is the item's own "done" bar: a
 ///     <see cref="TeamIdentityService.StartRoster" /> call between the two windows, with the same five
 ///     players on both sides of it, still shows up as <see cref="PeriodDiffSet.RosterChanged" />, the
-///     mechanic team-identity.md's design names for exactly this ("Period Diff then reads the boundary").
+///     boundary marker Period Diff reads.
 /// </summary>
 [NotInParallel]
 public class PeriodDiffTests

@@ -16,7 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The 2D tab's right-column hosting (items 17 and 18) over fake contributions: panels show in order while
+///     The 2D tab's right-column hosting over fake contributions: panels show in order while
 ///     open, several at once, each behind its own gate and, when bound to one, behind a contributed mode; a
 ///     closed panel's view model is disposed; the host follows the pack gate live and detaching removes every
 ///     panel; a panel's focus scope routes keys and actions; the cards collapse while a panel shows.

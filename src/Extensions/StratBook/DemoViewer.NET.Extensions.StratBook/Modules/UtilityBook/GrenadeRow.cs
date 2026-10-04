@@ -139,7 +139,7 @@ public readonly record struct TrajectoryPoint(int Tick, float X, float Y, float 
 }
 
 /// <summary>
-///     One grenade, from the hand to where it went off (grenade-walk.md §3.4). Every tick is the frame
+///     One grenade, from the hand to where it went off. Every tick is the frame
 ///     clock and every position is in world units. A field the demo did not carry is null rather than zero:
 ///     the card prints "release state unavailable", never a confident wrong number.
 /// </summary>
@@ -231,7 +231,7 @@ public sealed class GrenadeRow
 
     public WorldPoint? ThrowerPositionAtSpawn { get; set; }
 
-    /// <summary>The ground-flag fallback's input: the flag on the spawn frame, not the release one (§2.4).</summary>
+    /// <summary>The ground-flag fallback's input: the flag on the spawn frame, not the release one.</summary>
     public bool? ThrowerOnGroundAtSpawn { get; set; }
 
     public bool JumpThrow { get; set; }

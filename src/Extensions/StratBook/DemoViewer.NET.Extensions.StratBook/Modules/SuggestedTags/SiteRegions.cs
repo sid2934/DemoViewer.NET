@@ -11,7 +11,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The site regions the detectors read for one map (suggested-tags.md §3.1, §3.2): per bombsite,
+///     The site regions the detectors read for one map: per bombsite,
 ///     the site place plus its approach places, and the places a side stands in at spawn. Composed
 ///     from three sources in precedence order: a shipped table, the table learned from the library,
 ///     and the team's edits in the profile, which apply last.
@@ -128,8 +128,8 @@ public sealed class SiteRegions
 }
 
 /// <summary>
-///     One per-map region table as it is stored: <c>site-regions.&lt;map&gt;.json</c> beside the profile
-///     (suggested-tags.md §3.2), with the demo count and the plants per site it was learned from, so a
+///     One per-map region table as it is stored: <c>site-regions.&lt;map&gt;.json</c> beside the profile,
+///     with the demo count and the plants per site it was learned from, so a
 ///     reader can tell a table from four demos from one from forty.
 /// </summary>
 public sealed class SiteRegionTable
@@ -252,7 +252,7 @@ public sealed class SiteRegionTable
 }
 
 /// <summary>
-///     Learns a map's site regions from the library (suggested-tags.md §3.2, item 2). For each site, the
+///     Learns a map's site regions from the library. For each site, the
 ///     places T players stood in during the 12 seconds before a plant there are kept when they appear
 ///     before at least 40 percent of that site's plants and are not spawn-adjacent. The spawn filter is
 ///     what makes this work: without it the learned set pulled in <c>Outside</c>, <c>Mini</c> and

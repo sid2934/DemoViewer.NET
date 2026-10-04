@@ -17,7 +17,7 @@ public interface IStratTicker
 }
 
 /// <summary>
-///     The strat canvas's private clock (step-authoring.md §3.10): play, pause, step, speed and seek over the
+///     The strat canvas's private clock: play, pause, step, speed and seek over the
 ///     strat frame clock at <see cref="StepSchedule.TicksPerSecond" />. It is deliberately not
 ///     <c>IModuleContext.RequestSeekToFrame</c>: a strat has no demo, and a seek here must never move the
 ///     shared playback clock or LiveSync.

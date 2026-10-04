@@ -7,7 +7,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The pack's five processing-queue job kinds (item 13): label, rank, light and owner. One array read
+///     The pack's five processing-queue job kinds: label, rank, light and owner. One array read
 ///     by both <see cref="StratBookPack.JobKinds" /> (the DI-free source <c>JobKindRegistry</c> builds
 ///     from) and <see cref="StratBookPack.Contribute" />, so the two channels cannot drift apart. Owner
 ///     strings match <see cref="StratBookLifecycle.OwnerTags" /> exactly, so <c>CancelOwned(owner)</c> and

@@ -7,7 +7,7 @@ using System.Globalization;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     The clustering core (design §3.3): side keys assigned to rosters in <c>orderTicks</c> order against
+///     The clustering core: side keys assigned to rosters in <c>orderTicks</c> order against
 ///     a two-tier anchor, the fixed five where one is established and the rolling extended core of up to
 ///     seven otherwise, at Valve's continuity of three of five.
 ///     <para>

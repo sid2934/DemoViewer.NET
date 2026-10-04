@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The renderer-agnostic scene core (docs/playback2d-v2/design.md §4). References SkiaSharp and
+      The renderer-agnostic scene core. References SkiaSharp and
       NOTHING else: no Avalonia, no parser, no Modules.Abstractions. That constraint is the whole
       value of this assembly (it is what lets export, the CLI and CI render without a window) and it
       is enforced by ArchitectureTests, not by convention.
@@ -19,7 +19,7 @@
 
     <ItemGroup>
         <!--
-          The scene's typeface, embedded rather than resolved from the host (integrator correction 6).
+          The scene's typeface, embedded rather than resolved from the host.
           SKTypeface.Default is "Segoe UI" on Windows and something else entirely on the ubuntu golden
           lane, so a system face makes every text-bearing golden machine-specific. Licence notice:
           THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
@@ -31,7 +31,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
-        <!-- The strat canvas's frame source (item 26) writes Scene2DFrame's internal fields directly,
+        <!-- The strat canvas's frame source writes Scene2DFrame's internal fields directly,
              the same pooled-refill pattern SceneFrameBuilder uses. -->
         <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook"/>
     </ItemGroup>

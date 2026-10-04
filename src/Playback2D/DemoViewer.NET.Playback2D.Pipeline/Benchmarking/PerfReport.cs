@@ -60,7 +60,7 @@ public sealed record PerfRow(
 }
 
 /// <summary>
-///     One run's per-stage and per-layer breakdown (plan <c>P1-perf-instrumentation</c> §4). Built by
+///     One run's per-stage and per-layer breakdown. Built by
 ///     <see cref="ScenePerfRecorder.Snapshot" /> after the measured window; pure data from there on.
 /// </summary>
 /// <param name="Frames">Frames closed during the capture.</param>

@@ -16,8 +16,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         The value travels <c>SceneSubmission.Purpose</c> → <c>SceneCompositor</c> →
 ///         <c>SceneRenderContext.Purpose</c>, which every <c>ISceneLayer.Draw</c> receives, and the
 ///         compositor's copy is the only production read of it anywhere. <c>Export</c> and
-///         <c>Interactive</c> render identically, and <c>Thumbnail</c> is never submitted at all. Design
-///         §5.1's "layers may trade quality for latency on it" describes an intention, not the shipped
+///         <c>Interactive</c> render identically, and <c>Thumbnail</c> is never submitted at all. The claim
+///         that layers "may trade quality for latency on it" describes an intention, not the shipped
 ///         contract the enum's own doc claims.
 ///     </para>
 ///     <para>

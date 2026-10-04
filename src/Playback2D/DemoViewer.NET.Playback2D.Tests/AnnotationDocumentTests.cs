@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The document, its delta stack and the gesture-squashing rule that makes one user action cost one
-///     Ctrl+Z. Also the structural half of design risk 13: the history holds annotations and nothing else.
+///     Ctrl+Z. Also asserts structurally that the history holds annotations and nothing else.
 /// </summary>
 public class AnnotationDocumentTests
 {
@@ -253,7 +253,7 @@ public class AnnotationDocumentTests
     }
 
     /// <summary>
-    ///     Plan decision D6. A level rebuild is a SYSTEM event: it rewrites live anchors and every anchor
+    ///     A level rebuild is a SYSTEM event: it rewrites live anchors and every anchor
     ///     captured in the history, without consuming an undo slot. Otherwise a later Ctrl+Z would
     ///     restore an anchor pointing at a level that no longer exists.
     /// </summary>
@@ -286,7 +286,7 @@ public class AnnotationDocumentTests
         await Assert.That(((SpaceRef.World)restored.Space).LevelMinZ).IsEqualTo(-64);
     }
 
-    /// <summary>Plan correction 9: B3's non-undoable mutation entry point.</summary>
+    /// <summary>The non-undoable mutation entry point.</summary>
     [Test]
     public async Task ApplyMigration_MutatesWithoutTouchingEitherStack()
     {
@@ -347,7 +347,7 @@ public class AnnotationDocumentTests
     }
 
     /// <summary>
-    ///     Design risk 13 ("history lives only in <c>AnnotationDocument</c>"), asserted structurally: no
+    ///     Asserted structurally that history lives only in <c>AnnotationDocument</c>: no
     ///     member of the document's public surface names a camera, a playhead or a selection type, so
     ///     undo after a seek can only ever undo the stroke.
     /// </summary>
@@ -366,7 +366,7 @@ public class AnnotationDocumentTests
             {
                 await Assert.That(member.Name.Contains(word, StringComparison.Ordinal)).IsFalse()
                     .Because($"AnnotationDocument.{member.Name} names '{word}'; the undo history must " +
-                             "hold annotations and nothing else (design risk 13)");
+                             "hold annotations and nothing else");
             }
         }
     }

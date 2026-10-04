@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 
 /// <summary>
-///     The Grenade Index settings card (grenade-walk.md §3.8): the library's background walk opt-in and the
+///     The Grenade Index settings card: the library's background walk opt-in and the
 ///     Lineup Clip Render opt-in. Its own small VM, not a settings-page contribution, because a contributed
 ///     page cannot reach <c>SettingsViewModel</c>'s private <c>Persist</c>/<c>Reflect</c> echo-guard pair;
 ///     this one owns an identical pair over the same <see cref="SettingsService" /> singleton.

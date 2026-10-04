@@ -5,11 +5,11 @@
              x:DataType="vm:CreateStratDialogViewModel">
 
     <!--
-        CREATE STRAT FROM ROUND (step-authoring.md §3.9): the review before anything is saved. The walk runs off
+        CREATE STRAT FROM ROUND: the review before anything is saved. The walk runs off
         the UI thread and reports on the status line; then the side, the five slots and the step list show, and
         every change rebuilds the step list from the same capture.
 
-        Hosted in the 2D tab's side pane where the export pane sits, so the Pb2d* palette (design-system D21).
+        Hosted in the 2D tab's side pane where the export pane sits, so the Pb2d* palette.
         State is carried by words, never by tint.
     -->
     <StackPanel Spacing="10" Margin="12">

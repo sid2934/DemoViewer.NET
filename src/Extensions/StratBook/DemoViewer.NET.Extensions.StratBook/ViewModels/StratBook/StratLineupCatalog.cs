@@ -39,7 +39,7 @@ public sealed record StratTechniqueOption(string Key, string Label)
 public sealed class StratLineupCatalog(LineupOriginSource source) : IStratLineupCatalog
 {
     // "Molotov" in the strat vocabulary covers both the Grenade Index's Molotov and Incendiary kinds
-    // (grenade-walk.md §3.4 tells them apart; the Strat Model's closed utility kind list, §3.3.3, does not).
+    // (the Grenade Index tells them apart; the Strat Model's closed utility kind list does not).
     private static readonly Dictionary<string, IReadOnlySet<GrenadeKind>> KindsByUtility = new(StringComparer.Ordinal)
     {
         ["smoke"] = new HashSet<GrenadeKind> { GrenadeKind.Smoke },

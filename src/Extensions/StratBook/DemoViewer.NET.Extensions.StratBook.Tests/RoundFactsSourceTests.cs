@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The read API over cached rows: one sidecar read per demo, the round a tick falls in by its
-///     window, the cross-demo query, the label list in the vocabulary overview correction 10 pins, and
+///     window, the cross-demo query, the fixed label list in the vocabulary, and
 ///     the evaluator's <c>Updated</c> forwarded to consumers.
 /// </summary>
 public class RoundFactsSourceTests
@@ -260,7 +260,7 @@ public class RoundFactsSourceTests
             await Assert.That(byKey["plantSite"]).IsEqualTo("b");
             await Assert.That(byKey["plantTick"]).IsEqualTo("6000");
             await Assert.That(byKey["roundTime"]).IsEqualTo("115");
-            // The design's per-side facts, in the same shape.
+            // Per-side facts, in the same shape.
             await Assert.That(byKey["slots.ct"]).IsEqualTo("1,2,3,4,5");
             await Assert.That(byKey["slots.t"]).IsEqualTo("6,7,8,9,10");
             await Assert.That(byKey["equipment.ct"]).IsEqualTo("21000");

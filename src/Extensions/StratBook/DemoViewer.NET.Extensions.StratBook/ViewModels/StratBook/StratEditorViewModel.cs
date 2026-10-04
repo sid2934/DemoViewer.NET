@@ -16,7 +16,7 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     The strat editor in the Strat Book tab (strat-model.md §3.11): metadata, the five slots, the step table on
+///     The strat editor in the Strat Book tab: metadata, the five slots, the step table on
 ///     the round clock and the branches, all projected from the open <see cref="StratSession" /> and all edited
 ///     through it, one <see cref="PatchOp" /> per field change, so every edit is one undo entry and one line of the
 ///     next commit.
@@ -1316,7 +1316,7 @@ public sealed record StratTargetOption(Guid Id, string Label)
 }
 
 /// <summary>
-///     A Utility Book lineup a step's grenade can reference (Lineup On A Strat Step, strat-model.md §3.3.3):
+///     A Utility Book lineup a step's grenade can reference (Lineup On A Strat Step):
 ///     <see cref="Id" /> is <c>GrenadeLineup.Id</c>, written to <c>utility.lineupId</c>; <see cref="None" />
 ///     clears the reference.
 /// </summary>
@@ -1351,7 +1351,7 @@ public sealed record StratFieldIssue(bool IsRefusal, string Message)
             : null;
 }
 
-/// <summary>One of the five slots: its role and the optional pin (§3.5).</summary>
+/// <summary>One of the five slots: its role and the optional pin.</summary>
 public sealed partial class StratSlotRow : ObservableObject
 {
     private readonly int _index;
@@ -1912,7 +1912,7 @@ public sealed partial class StratStepRow : ObservableObject
 
     /// <summary>
     ///     The step's position entries as chips: what a drag used to write and a capture still does, shown so nothing
-    ///     moves a token unseen (drag-semantics.md §6).
+    ///     moves a token unseen.
     /// </summary>
     public ObservableCollection<StratPlacedChip> Placed { get; } = [];
 
@@ -2555,7 +2555,7 @@ public sealed partial class StratWhoOption(string slot) : ObservableObject
     public string Slot { get; } = slot;
 }
 
-/// <summary>One branch: after which step, on what condition, continuing where (§3.3.4).</summary>
+/// <summary>One branch: after which step, on what condition, continuing where.</summary>
 public sealed partial class StratBranchRow : ObservableObject
 {
     private readonly StratEditorViewModel _owner;

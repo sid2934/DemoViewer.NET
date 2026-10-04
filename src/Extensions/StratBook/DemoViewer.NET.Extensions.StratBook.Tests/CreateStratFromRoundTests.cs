@@ -23,8 +23,8 @@ using DemoViewer.NET.ViewModels.StratBook;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Create Strat From Round (step-authoring.md §3.9) over synthetic captures: the cadence of O-25 (freeze-end,
-///     our utility, the plant, the 10 s sweep at 200 units), the demo-to-slot precedence of strat-model.md §3.5, the
+///     Create Strat From Round over synthetic captures: the cadence (freeze-end,
+///     our utility, the plant, the 10 s sweep at 200 units), the demo-to-slot precedence, the
 ///     throw arrows, what a Round Facts row adds when the demo has one, and the review that saves the strat. The
 ///     tracker walk itself runs on real demos in <see cref="CreateStratFromRoundRealDemoTests" />.
 /// </summary>

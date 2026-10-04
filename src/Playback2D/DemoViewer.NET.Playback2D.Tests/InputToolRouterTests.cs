@@ -29,7 +29,7 @@ public class InputToolRouterTests
 
     /// <summary>
     ///     The keymap's tool scope keys off this flag, so Space holds to pan and Esc cancels under every
-    ///     authoring tool (step-authoring.md §3.7): the pen, the shapes, text, the token tool, anything but
+    ///     authoring tool: the pen, the shapes, text, the token tool, anything but
     ///     pan/zoom. <see cref="ToolKinds.IsAnnotationTool" /> stays the narrower "does it write ink".
     /// </summary>
     [Test]

@@ -146,6 +146,6 @@
     },
     "followSlot": -1
   },
-  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended (step-authoring.md \u00A77)",
+  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended",
   "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, \u0027Current limitations\u0027), so only StratGoldenCaptureTests can verify it. The branch\u0027s target step (the sample\u0027s branch skips the peek step straight to \u0027all\u0027): every token holds the position it inherited from the smoke step, since none of A, B, C or O1 has a second keyframe on this path. hud.clock at 1:00."
 }

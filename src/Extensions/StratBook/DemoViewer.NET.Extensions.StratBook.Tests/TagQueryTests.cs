@@ -8,7 +8,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The tag query layer (tag-store.md §3.7) over a fixture of three documents: pivot cell counts, a
+///     The tag query layer over a fixture of three documents: pivot cell counts, a
 ///     multi-valued group counted once per value, the <c>Any</c> namespace merging human and fact labels,
 ///     the default source rule, the <c>CreatedAfterUtc</c> cursor and <c>At</c>'s inclusive bounds.
 /// </summary>

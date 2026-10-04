@@ -15,7 +15,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The 2D tab's lane hosting (item 18) over fake tracks and behaviours: a lane registers its track in the
+///     The 2D tab's lane hosting over fake tracks and behaviours: a lane registers its track in the
 ///     lane row and disposing unregisters it; the timeline dispatches a band's press and menu to the lane that
 ///     made it, a label request to the editable lane and a handle drag to the lane with the span; a lane
 ///     hides for a mode without touching the user's toggle; a contributed mode toggle is listed, its keymap

@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Views.StratBook;
 
 /// <summary>
 ///     The Step Authoring canvas view. The four wirings the 2D Playback view makes around its host, made here
-///     for the strat (the scene frame host note, §1): the tool row to the host's router, the keymap through
+///     for the strat: the tool row to the host's router, the keymap through
 ///     the canvas's resolved profile with hold-pan and cancel kept for the surface, the text tool's editor,
 ///     and focus on a click so keys work without a Tab. The host itself binds the canvas as its frame host
 ///     through this view's DataContext.
@@ -57,7 +57,7 @@ public partial class StratCanvasView : UserControl
         }
 
         // The strat canvas's own tool and layer, on this host only: the 2D Playback tab never calls
-        // AddTool or AddLayer, so it gets neither (step-authoring.md §3.10).
+        // AddTool or AddLayer, so it gets neither.
         if (_host is not null)
         {
             Scene2DHost host = _host;

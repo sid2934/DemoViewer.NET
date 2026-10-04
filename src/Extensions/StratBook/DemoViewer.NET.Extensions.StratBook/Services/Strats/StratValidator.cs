@@ -21,7 +21,7 @@ public enum StratIssueSeverity
 public sealed record StratIssue(StratIssueSeverity Severity, string Field, string Message);
 
 /// <summary>
-///     The rules of strat-model.md §3.10, run on load (the strat opens whatever they say) and on save (a refusal
+///     The validation rules, run on load (the strat opens whatever they say) and on save (a refusal
 ///     blocks it). Refusals are the structural rules other code relies on: five slots in order, a closed verb
 ///     list, a non-increasing clock, branches that point somewhere. Everything a team may reasonably bend (a CT
 ///     "execute", a place a map update renamed) only warns.
@@ -31,7 +31,7 @@ public static class StratValidator
     /// <summary>The earliest step time the round clock allows: a minute after the timer stopped for a plant.</summary>
     public const double EarliestAfterTimerSeconds = -60;
 
-    // §3.3.1: the usual side (null for either) and what targetSite should hold.
+    // The usual side (null for either) and what targetSite should hold.
     private static readonly Dictionary<string, (string? Side, SiteRule Site)> Applicability = new(StringComparer.Ordinal)
     {
         ["execute"] = (StratVocabulary.SideT, SiteRule.Required),
@@ -54,7 +54,7 @@ public static class StratValidator
         None
     }
 
-    /// <summary>Every rule of §3.10 that reads the strat file.</summary>
+    /// <summary>Every validation rule that reads the strat file.</summary>
     /// <param name="document">The strat.</param>
     /// <param name="places">The map's canonical places and the owner's aliases; null skips the place rules.</param>
     /// <param name="index">The store's index, for the branch-target rule; null skips it.</param>
@@ -364,7 +364,7 @@ public static class StratValidator
 
             if (step.Interpolation is { } interpolation && !StratVocabulary.Interpolations.Contains(interpolation))
             {
-                // Overview correction 17: path is reserved, and a later build's value still opens.
+                // path is reserved, and a later build's value still opens.
                 issues.Add(Warn(pointer + "/interpolation", $"interpolation '{interpolation}' is not defined in this version; read as linear"));
             }
 

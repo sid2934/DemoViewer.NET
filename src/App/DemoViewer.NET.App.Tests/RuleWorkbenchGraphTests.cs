@@ -116,7 +116,7 @@ public class RuleWorkbenchGraphTests
 
     /// <summary>
     ///     The graph builds structurally from the OPEN ruleset with NO demo and NO evaluation
-    ///     (a review fix): toggling it on publishes the node count, and a simple 1-stat ruleset is far smaller than
+    ///     and toggling it on publishes the node count, and a simple 1-stat ruleset is far smaller than
     ///     the whole shipped corpus. It reflects the open selection, not "all rulesets".
     /// </summary>
     [Test]

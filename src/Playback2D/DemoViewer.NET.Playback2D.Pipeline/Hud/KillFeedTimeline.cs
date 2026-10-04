@@ -9,16 +9,16 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
 /// <summary>
 ///     The kill-feed <b>window</b> function: which of a demo's kills are on screen at a tick.
 ///     <para>
-///         <b>One implementation, two consumers</b> (plan D5). The XAML feed in
-///         <c>Playback2DTabViewModel</c> and the exported <c>KillFeedLayer</c> both call this, so design
-///         risk 8, the two feeds drifting apart, is not a thing that can happen to the row set. Only
+///         <b>One implementation, two consumers.</b> The XAML feed in
+///         <c>Playback2DTabViewModel</c> and the exported <c>KillFeedLayer</c> both call this, so
+///         the two feeds drifting apart is not a thing that can happen to the row set. Only
 ///         the row <i>builder</i> stayed at the event source, because it reads
 ///         <c>IModuleContext.GetEventTimeline</c>, an Avalonia-referencing abstraction Pipeline cannot
 ///         consume.
 ///     </para>
 ///     <para>
-///         Deliberately not a <c>KillFeedRow</c> declaration: that record is Core's (integrator
-///         correction 3), already carried on <c>Scene2DFrame.KillFeed</c>.
+///         Deliberately not a <c>KillFeedRow</c> declaration: that record is Core's, already
+///         carried on <c>Scene2DFrame.KillFeed</c>.
 ///     </para>
 /// </summary>
 public static class KillFeedTimeline

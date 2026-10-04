@@ -55,7 +55,7 @@ public sealed class GrenadeSourceHeader
 /// <summary>
 ///     <c>demos/&lt;key&gt;.grenades.json.gz</c>: the header and one row per grenade without its trajectory,
 ///     about 120 KB at 300 grenades. Read across the library by the Grenade Index and per demo by the
-///     Lineup Cards (grenade-walk.md §3.9).
+///     Lineup Cards.
 /// </summary>
 public sealed class GrenadeDocument
 {

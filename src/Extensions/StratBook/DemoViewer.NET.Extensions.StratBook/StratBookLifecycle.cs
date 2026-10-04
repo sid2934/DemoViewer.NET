@@ -232,7 +232,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
             AppLog.OperationFailed(log, "grenade lineup flush on shutdown", ex);
         }
 
-        // The Tag Store defers its index to shutdown (tag-store.md); idempotent, so a re-fired request
+        // The Tag Store defers its index to shutdown; idempotent, so a re-fired request
         // writes nothing new.
         try
         {

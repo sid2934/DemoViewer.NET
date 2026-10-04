@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     Which Skia backend an <see cref="IRenderSurfaceProvider" /> hands out surfaces from (design §5.8).
+///     Which Skia backend an <see cref="IRenderSurfaceProvider" /> hands out surfaces from.
 ///     <see cref="Vulkan" /> is declared so the enum does not churn later; nothing reaches it in v1.
 /// </summary>
 public enum RenderBackend

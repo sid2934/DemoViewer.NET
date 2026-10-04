@@ -73,7 +73,7 @@ public sealed class TagMatrixTable
 }
 
 /// <summary>
-///     The Matrix's helpers around <see cref="TagQuery" /> (tag-store.md §3.7): which axes a set of
+///     The Matrix's helpers around <see cref="TagQuery" />: which axes a set of
 ///     documents offers, which values a label group takes, and the narrowing a caller does before the
 ///     query when its filter is not a label (the opponent's side in a round, which needs Team Identity and
 ///     so cannot live in <see cref="TagSlice" />). Pure, like the query layer.

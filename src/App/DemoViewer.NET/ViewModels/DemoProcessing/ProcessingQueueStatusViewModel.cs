@@ -72,7 +72,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     ///     Opens the Settings screen (to the Background-processing section); null hides
     ///     the flyout's settings link (e.g. the designer / capture path).
     /// </param>
-    /// <param name="jobKinds">Resolves each row's kind chip (item 13). Defaults to <see cref="JobKindRegistry.Default" />.</param>
+    /// <param name="jobKinds">Resolves each row's kind chip. Defaults to <see cref="JobKindRegistry.Default" />.</param>
     public ProcessingQueueStatusViewModel(IDemoProcessingQueue queue, Action? openSettings = null,
         JobKindRegistry? jobKinds = null)
     {

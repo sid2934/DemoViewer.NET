@@ -7,12 +7,12 @@ using System.Globalization;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The execute, with the fast-or-rush label on it (suggested-tags.md §3.3). At some second
+///     The execute, with the fast-or-rush label on it. At some second
 ///     <c>s</c> no earlier than <c>minSecond</c>, at least <c>N</c> alive T players are inside a site's
 ///     region, and within <c>T + touch</c> seconds a T player is inside the site itself. The earliest
 ///     such second in the round, over both sites with A first on a tie, is the round's one execute.
 ///     <para>
-///         Shipped strict (<c>N = 4</c>, <c>T = 4 s</c>, owner decision 2): a proposal the tagger rejects
+///         Shipped strict (<c>N = 4</c>, <c>T = 4 s</c>): a proposal the tagger rejects
 ///         costs a keypress, but a queue that is mostly noise gets ignored. The touch is read from the
 ///         per-side count, so the index and the walk agree on it; with per-slot data a profile can switch
 ///         to the window mode (<c>window = 1</c>), which counts distinct players with any second in the

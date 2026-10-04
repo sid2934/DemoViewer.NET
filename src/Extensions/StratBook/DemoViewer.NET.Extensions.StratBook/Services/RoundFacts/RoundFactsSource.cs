@@ -116,7 +116,7 @@ public sealed class RoundFactsSource : IRoundFactsSource
         return hit;
     }
 
-    /// <summary>The label list for one round: the vocabulary of overview correction 10 plus the design's per-side facts.</summary>
+    /// <summary>The label list for one round: the shared label vocabulary plus the round's per-side facts.</summary>
     /// <param name="round">The round.</param>
     /// <param name="atTick">The tick the <c>phase</c> group is asked at, or null to leave that group out.</param>
     public static IReadOnlyList<FactLabel> Labels(RoundFacts round, int? atTick = null)

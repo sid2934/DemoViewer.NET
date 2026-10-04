@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Playback2D;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The Strat Book export chip's mount point (step-authoring.md §3.6): the Strat Book tab builds its
+///     The Strat Book export chip's mount point: the Strat Book tab builds its
 ///     export job lazily, on the first Export, long after the shell exists, so the shell cannot hold the
 ///     chip directly the way it holds the 2D export one. <see cref="Mount" /> is the pack's side of that
 ///     hand-off; <see cref="IContributedStatusChip" /> is the shell's.

@@ -99,7 +99,7 @@ public class Playback2DKeymapTests
     }
 
     /// <summary>
-    ///     Shape Tools' rows (step-authoring.md §3.7): bare A, T, L, R and O in the Always scope, next to
+    ///     Shape Tools' rows: bare A, T, L, R and O in the Always scope, next to
     ///     D and X. With a tool active they still resolve, so switching from one tool to another is one
     ///     key; the tool scope shadows only Space and Esc.
     /// </summary>

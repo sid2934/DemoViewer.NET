@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2D.Core.Keyframes;
 
 /// <summary>
-///     One token's position at one tick of the strat frame clock (step-authoring.md §3.3).
+///     One token's position at one tick of the strat frame clock.
 ///     <para>
 ///         <b>The floor is keyed the way ink is.</b> <see cref="LevelMinZ" /> is
 ///         <c>MapSpace.QuantizeZ(level.ZMin)</c>, the same level key <c>SpaceRef.World</c> and a strat's
@@ -49,7 +49,7 @@ public readonly record struct TokenSample(string Slot, TokenKeyframe Position)
 
 /// <summary>
 ///     The ten token slots: the strat's own <c>A..E</c> and the opponent tokens <c>O1..O5</c>, an
-///     additive extension of the <c>positions[].slot</c> vocabulary (step-authoring.md §3.3, decision 2).
+///     additive extension of the <c>positions[].slot</c> vocabulary.
 ///     Opponents carry no identity and no role; they exist because a setup means nothing without where
 ///     the other side is expected.
 /// </summary>

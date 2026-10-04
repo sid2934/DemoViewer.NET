@@ -15,7 +15,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Shared scaffolding for the A1 headless tests: one activated tab, one shown window, and the two
+///     Shared scaffolding for the Playback2D headless tests: one activated tab, one shown window, and the two
 ///     control lookups (viewport, scrub bar) every one of them needs.
 /// </summary>
 internal static class Playback2DTimelineHarness
@@ -54,7 +54,7 @@ internal static class Playback2DTimelineHarness
     ///     <para>
     ///         The surface kind is pinned rather than left to <c>Playback2DRenderer.Selected</c>: these
     ///         are the CARRIED-FORWARD suites, whose job is to prove the pre-v2 control still works
-    ///         behind B1's toggle (plan §6.3). Tests that want the v2 host pass
+    ///         behind the renderer-kind toggle. Tests that want the v2 host pass
     ///         <see cref="Playback2DRendererKind.Scene" /> explicitly.
     ///     </para>
     /// </summary>

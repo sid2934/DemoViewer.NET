@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.Strats;
 
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
-/// <summary>What a token drag writes (docs/strat-book/drag-semantics.md, option A).</summary>
+/// <summary>What a token drag writes.</summary>
 public enum StratDragAction
 {
     /// <summary>A location field of the step: its <c>to</c>, <c>at</c>, <c>site</c>, a lurk area or <c>rotate to</c>.</summary>

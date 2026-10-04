@@ -8,7 +8,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The backend flags and <c>dv2d probe</c> (plans/C2-gpu-provider.md §6.4).
+///     The backend flags and <c>dv2d probe</c>.
 ///     <para>
 ///         Everything that depends on the environment runs as a <b>subprocess</b>. It has to:
 ///         <c>RenderSurfaceProviderFactory</c> caches its probe for the life of a process and its
@@ -41,7 +41,7 @@ public class BackendFlagTests
     [Test]
     public async Task Probe_ExitsZero_AndNamesTheBackend()
     {
-        // A CPU answer is not an error (design §10 risk 7): the command reports, it does not gate.
+        // A CPU answer is not an error: the command reports, it does not gate.
         CliRun run = Dv2d.Subprocess("probe");
 
         await Assert.That(run.ExitCode).IsEqualTo(0);
@@ -53,7 +53,7 @@ public class BackendFlagTests
     public async Task Probe_Json_CarriesTheRendererString()
     {
         // GL_RENDERER is the field that catches the nastiest failure: ANGLE loading fine but running
-        // on WARP, which looks like a win in the log and is a 20x loss in the numbers (plan §10 R2).
+        // on WARP, which looks like a win in the log and is a 20x loss in the numbers.
         CliRun run = Dv2d.Subprocess("probe", "--json");
         JsonObject payload = run.Json();
 
@@ -164,7 +164,7 @@ public class BackendFlagTests
     [Test]
     public async Task ExplicitBackend_OutranksAnEnvironmentThatSaysCpu()
     {
-        // The precedence the review fix (C2 deviation 19) exists for, asserted at the CLI seam: a
+        // The precedence rule, asserted at the CLI seam: a
         // stale shell variable must not override the flag the operator just typed. On a machine with
         // no GPU the correct answer is exit 6, never "0, quietly on the CPU".
         bool gpu = GpuAvailableHere();
@@ -202,7 +202,7 @@ public class BackendFlagTests
     [Test]
     public async Task GoldenLane_DefaultsToCpu_EvenOnAGpuMachine()
     {
-        // The committed corpus is goldens/cpu/ and CPU is authoritative (00-overview.md §3.9). If
+        // The committed corpus is goldens/cpu/ and CPU is authoritative. If
         // `golden verify` auto-probed, every developer with a GPU would see a rasterizer difference
         // reported as a pixel regression, on exit 4, which reads as "the change is bad".
         CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
@@ -223,7 +223,7 @@ public class BackendFlagTests
     ///         whatever pool thread the continuation lands on, while <c>GpuSurfaceProvider</c> is bound
     ///         to the thread that created its EGL context. An auto-probe that finds ANGLE therefore
     ///         hands the session a provider it refuses, so auto-probing here is auto-probing into a
-    ///         guaranteed refusal. C2 Stage 1 owns making it work.
+    ///         guaranteed refusal.
     ///     </para>
     /// </summary>
     [Test]
@@ -276,7 +276,7 @@ public class BackendFlagTests
             "--out", Path.Combine(Path.GetTempPath(), $"dv2d-export-gpu-{Guid.NewGuid():N}.gif"));
 
         await Assert.That(run.ExitCode).IsEqualTo(6);
-        await Assert.That(run.StdErr).Contains("C2 Stage 1");
+        await Assert.That(run.StdErr).Contains("Drop --gpu, or pass --cpu");
     }
 
     [Test]

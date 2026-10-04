@@ -8,7 +8,7 @@ using DemoViewer.NET.Extensions.Loading;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     <see cref="ExtensionSignature" /> (strat-book-plugin.md §7.9): the canonical digest is deterministic
+///     <see cref="ExtensionSignature" />: the canonical digest is deterministic
 ///     and reacts to any change in the tree; signing and verifying round-trip with a key generated in
 ///     process (never a committed one); every way a signature can be wrong is a reason, never an exception.
 /// </summary>

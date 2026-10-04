@@ -12,9 +12,9 @@ namespace DemoViewer.NET.Services.Teams;
 /// <param name="Side">2 = T, 3 = CT: the team's end-of-demo side.</param>
 /// <param name="RosterId">The roster Team Identity matched this side to, or null when the side never joined one.</param>
 /// <param name="RosterLabel">The roster's own label when the user set one, else <see cref="RosterId" />; "" without a roster.</param>
-/// <param name="StandIn">Overlap 3 or 4 with a member outside the roster's anchor (design §3.3), surfaced at tier 1 only.</param>
+/// <param name="StandIn">Overlap 3 or 4 with a member outside the roster's anchor, surfaced at tier 1 only.</param>
 /// <param name="Won">True/false when the final score resolves a winner; null on an equal or missing score.</param>
-/// <param name="CtRounds">Rounds won on the CT side, match-wide (F12: the grain <c>CtSideWins</c> is cached at).</param>
+/// <param name="CtRounds">Rounds won on the CT side, match-wide (the grain <c>CtSideWins</c> is cached at).</param>
 /// <param name="TRounds">Rounds won on the T side, match-wide.</param>
 public sealed record PeriodDiffDemoRow(
     string DemoPath, string? Sha256, string Map, long OrderTicks, int Side,
@@ -66,7 +66,7 @@ public sealed class PeriodDiffPeriod
     /// <summary>The roster that played most of the period, or null when no side in it ever joined one.</summary>
     public PeriodDiffRosterRow? DominantRoster => Rosters.Count > 0 ? Rosters[0] : null;
 
-    /// <summary>Demos of the period played with a stand-in (design §3.3, tier-1 only).</summary>
+    /// <summary>Demos of the period played with a stand-in (tier-1 only).</summary>
     public int StandInCount => Demos.Count(d => d.StandIn);
 
     /// <summary>An empty period: no demo reaches this far back yet.</summary>
@@ -76,7 +76,7 @@ public sealed class PeriodDiffPeriod
 
 /// <summary>
 ///     A team's Period Diff: its last <see cref="WindowSize" /> demos against the
-///     <see cref="WindowSize" /> before those, "roster to roster" (team-identity.md §3, Period Diff).
+///     <see cref="WindowSize" /> before those, "roster to roster".
 ///     Built by <see cref="PeriodDiffService.Build" />, synchronously like the Map Pool Record: both
 ///     periods come from <see cref="TeamIdentityService.SidesOf" />, already held in memory, so nothing
 ///     here reads a demo the cache has not already loaded for another section.

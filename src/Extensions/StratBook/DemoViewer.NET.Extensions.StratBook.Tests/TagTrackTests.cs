@@ -20,7 +20,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Tag Track (tag-store.md §3.11) over a <see cref="TagSession" /> fixture and a stub
+///     The Tag Track over a <see cref="TagSession" /> fixture and a stub
 ///     <see cref="ITimelineData" />: merged non-overlapping bands in one lane, one marker per instance,
 ///     starts past the parse dropped, a re-query on every version bump, and in the tab a lane band that
 ///     seeks to its first frame.

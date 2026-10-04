@@ -49,7 +49,7 @@ namespace DemoViewer.NET.ViewModels.Settings;
 /// </summary>
 public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 {
-    // ── Findability: filter + grouped sections (v0.6.x package, review R4+R5) ─────────────────
+    // ── Findability: filter + grouped sections (v0.6.x package) ──────────────────────────────
     // Each section's EFFECTIVE visibility = its platform gate AND the fuzzy filter; groups show
     // while any member does, and a non-empty filter auto-expands matching groups. Keywords are the
     // search surface: section title + the labels a user would hunt for.
@@ -73,7 +73,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // The generic keyword surface for the section that lists every FeatureScope.Pack master switch.
         // ExtensionsSectionMatches below ALSO scans each built row's own Label, so a pack's name (and its
         // tabs' names) are findable without listing them here by hand. A pack's own contributed PAGES
-        // (item 14: Suggested Tags tuning, Grenade Index) carry their own Keywords on the contribution
+        // (Suggested Tags tuning, Grenade Index) carry their own Keywords on the contribution
         // instead of a row here.
         ("Extensions", "extension extensions pack packs plugin addon add-on master switch background "
                        + "indexing reindex")
@@ -83,10 +83,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // the same rows split by scope for grouped display).
     private readonly List<FeatureToggleRow> _featureRows = [];
 
-    // Every declared pack's verdict (item 33), read once at construction: the list is frozen for the process.
+    // Every declared pack's verdict, read once at construction: the list is frozen for the process.
     private readonly IReadOnlyList<PackStatus> _packStatuses;
 
-    // The extension updater (item 36), or null where updates do not apply. Its check runs through the queue;
+    // The extension updater, or null where updates do not apply. Its check runs through the queue;
     // the token stops a check this VM started when the window closes first.
     private readonly ExtensionUpdateService? _extensionUpdates;
     private readonly CancellationTokenSource _extensionUpdatesCts = new();
@@ -96,8 +96,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // toggle here reconciles the app's tabs/chrome and this list from the one gate.
     private readonly IFeatureGate _gate;
 
-    // The Extensions "N demos will be re-indexed" notice (architecture doc §8): the first pack-contributed
-    // estimate (item 14). At most one pack exists today; a second pack's own toggle would need its own
+    // The Extensions "N demos will be re-indexed" notice: the first pack-contributed
+    // estimate. At most one pack exists today; a second pack's own toggle would need its own
     // notice slot, which this does not attempt. Null contributes nothing (no pack, or a test that wires
     // none), so the notice mechanism below simply never fires.
     private readonly IPackReindexEstimate? _reindexEstimate;
@@ -403,7 +403,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private IStorageProvider? _storageProvider;
 
     /// <summary>
-    ///     Feedback for the last in-session flip of the Strat Book extension's master switch (§8): null
+    ///     Feedback for the last in-session flip of the Strat Book extension's master switch: null
     ///     until a flip happens in this VM's lifetime (nothing to report at a plain startup). On: "Counting…"
     ///     then a demo count once <see cref="RecomputeToggleNoticeAsync" /> lands. Off: a one-line
     ///     note that its data stays on disk.
@@ -445,24 +445,24 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <param name="isBrowser">Whether the host is the WASM head.</param>
     /// <param name="replayWalkthrough">Re-runs the tutorial walkthrough, or null.</param>
     /// <param name="settingsPages">
-    ///     The settings pages the packs contribute (item 14): rendered under Extensions, beneath each
+    ///     The settings pages the packs contribute: rendered under Extensions, beneath each
     ///     pack's master switch and feature rows. Null (most tests) renders none.
     /// </param>
     /// <param name="reindexEstimates">
-    ///     The packs' answers for the Extensions "N demos will be re-indexed" notice (§8); the first one
+    ///     The packs' answers for the Extensions "N demos will be re-indexed" notice; the first one
     ///     is used (today, at most one pack exists). Null (most tests) shows no notice.
     /// </param>
     /// <param name="dataRemovals">
-    ///     Each pack's "delete extension data" action (item 24), one <see cref="ExtensionDataActionViewModel" />
+    ///     Each pack's "delete extension data" action, one <see cref="ExtensionDataActionViewModel" />
     ///     row per entry under Extensions, available whether its pack is on or off. Null (most tests) shows no row.
     /// </param>
     /// <param name="packStatuses">
-    ///     Every declared pack's compatibility verdict (item 33): the version each master row shows, and a
+    ///     Every declared pack's compatibility verdict: the version each master row shows, and a
     ///     locked row with the reason for a pack that failed the check (such a pack has no catalog row).
     ///     Null reads <see cref="FeaturePacks.Statuses" />.
     /// </param>
     /// <param name="extensionUpdates">
-    ///     The extension updater (item 36): the update line under each master row, checked on open at most
+    ///     The extension updater: the update line under each master row, checked on open at most
     ///     once an hour. Null (the browser head, most tests) shows no line on the desktop and the "updates
     ///     come with the app" line on the browser.
     /// </param>
@@ -549,7 +549,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         // Seeded BEFORE the first RefreshFeatureRows below, so that call sees no transition and shows no
-        // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip (§8), not state.
+        // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip, not state.
         _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.PackFeatureId);
 
         // Registers every contributed page; none is built yet (BuildContributedSettingsPages).
@@ -565,7 +565,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
 
-        // Item 36: the feeds are asked on open, at most once an hour; the per-row button always asks.
+        // The feeds are asked on open, at most once an hour; the per-row button always asks.
         if (ShouldAutoCheckExtensionUpdates(current.Extensions.LastUpdateCheckUtc, DateTimeOffset.UtcNow))
         {
             _ = CheckExtensionUpdatesAsync();
@@ -674,7 +674,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<FeatureToggleRow> ExtensionsFeatureRows { get; } = [];
 
     /// <summary>
-    ///     Settings pages the packs contribute (item 14), rendered under Extensions beneath
+    ///     Settings pages the packs contribute, rendered under Extensions beneath
     ///     <see cref="ExtensionsFeatureRows" />, each hidden while its own <see cref="SettingsPageContribution.FeatureId" />
     ///     resolves off or the search filter does not match. Every entry exists from construction, but
     ///     <see cref="MountedSettingsPage.IsBuilt" /> stays false until its gate first resolves on.
@@ -682,7 +682,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
 
     /// <summary>
-    ///     One "delete extension data" row per pack that declared one (item 24), rendered under Extensions
+    ///     One "delete extension data" row per pack that declared one, rendered under Extensions
     ///     beneath <see cref="ContributedSettingsPages" />. Unlike a contributed page, available whether its
     ///     pack is on or off: deleting while off is the main use.
     /// </summary>
@@ -820,7 +820,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     // The same fuzzy match SectionMatches runs over a named built-in section's keyword row, open to any
-    // keyword string: a pack's contributed page carries its own on the contribution (item 14) instead of
+    // keyword string: a pack's contributed page carries its own on the contribution instead of
     // a row here.
     private static bool KeywordsMatch(string keywords, string filter)
     {
@@ -853,7 +853,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // No platform gate: the 2D tab (and therefore its keymap) is WASM-reachable.
         ShowSectionPlayback2DKeys = SectionMatches("Playback2DKeys", filter);
         // The Extensions master-switch card is always reachable (it is how a user turns a pack back on),
-        // so its own match ignores every pack's gate; a contributed PAGE beneath it does not (item 14).
+        // so its own match ignores every pack's gate; a contributed PAGE beneath it does not.
         ShowSectionExtensions = ExtensionsSectionMatches(filter);
         bool anyPageVisible = RefreshContributedPageVisibility(filter);
 
@@ -906,7 +906,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // Called from ApplySectionFilter (a filter keystroke) and from RefreshFeatureRows (a gate change).
     // A page not yet built is built here, the first time its gate is seen on, never before: building it
-    // while off would construct whatever its VM pulls in regardless of the pack's gate (plan doc §8).
+    // while off would construct whatever its VM pulls in regardless of the pack's gate.
     private bool RefreshContributedPageVisibility(string filter)
     {
         bool anyVisible = false;
@@ -1719,7 +1719,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Re-scans the drop-in theme folder (T3) so a newly-added / edited / deleted <c>*.json</c> shows up
+    ///     Re-scans the drop-in theme folder so a newly-added / edited / deleted <c>*.json</c> shows up
     ///     without a restart. <see cref="ThemeRegistry.Reload" /> raises <c>Reloaded</c>, which
     ///     <c>App.WireTheme</c> handles by repainting the running app; here the picker list refreshes, keeping
     ///     the current selection (or falling back if its drop-in was removed). No settings are persisted (a reload
@@ -1884,14 +1884,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Item 34: the staged updates the loader looked at and did not load, one line each, newest first
+    // The staged updates the loader looked at and did not load, one line each, newest first
     // (PackStatus.Rejected is already in that order), or null when there were none.
     private static string? LoadNote(PackStatus? status) =>
         status is null || status.Rejected.Count == 0
             ? null
             : string.Join(Environment.NewLine, status.Rejected.Select(o => o.UserMessage));
 
-    // Item 36: the update line for a pack master row. The browser head gets the line that says updates
+    // The update line for a pack master row. The browser head gets the line that says updates
     // arrive with the app; a desktop head with no updater (tests) gets no line at all.
     private ExtensionUpdateRow? UpdateRow(PackStatus? status)
     {
@@ -2042,7 +2042,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             _applyingExternal = false;
         }
 
-        // §8's in-session notice: fires only on a TRANSITION (not every refresh), so a plain category
+        // The in-session notice: fires only on a TRANSITION (not every refresh), so a plain category
         // change or an unrelated override write never shows it. Catches a self-write, Reset-to-defaults,
         // and an external edit alike, since all three land here through gate.Changed. No-ops when no pack
         // contributed an estimate.
@@ -2067,7 +2067,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             }
         }
 
-        // A contributed page's own gate id (item 14) may have flipped; the filter half of its visibility
+        // A contributed page's own gate id may have flipped; the filter half of its visibility
         // is unchanged, so re-apply it with the CURRENT filter text rather than re-deriving it here.
         bool anyPageVisible = RefreshContributedPageVisibility(SettingsFilterText.Trim());
         ShowGroupExtensions = ShowSectionExtensions || anyPageVisible;

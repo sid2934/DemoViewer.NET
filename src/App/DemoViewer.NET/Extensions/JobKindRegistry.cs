@@ -20,7 +20,7 @@ public sealed class JobKindRegistry
     /// <summary>
     ///     The kinds core owns outright: each one is submitted by more than one module, or by none of the
     ///     compiled-in packs, so no single pack's owner tag would describe it. Values pin the switches
-    ///     item 13 replaced (<c>DemoProcessingQueue</c>'s old <c>KindRank</c>/<c>IsLight</c>,
+    ///     this replaced (<c>DemoProcessingQueue</c>'s old <c>KindRank</c>/<c>IsLight</c>,
     ///     <c>DemoQueueRowViewModel</c>'s old <c>KindLabel</c>); a change here is a deliberate change to
     ///     queue scheduling or the flyout's chip text.
     /// </summary>

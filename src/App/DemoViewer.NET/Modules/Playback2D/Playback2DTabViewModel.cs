@@ -68,7 +68,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private const int KillFeedWindowSeconds = KillFeedTimeline.DefaultWindowSeconds;
     private const int MaxKillFeedRows = KillFeedTimeline.DefaultMaxRows;
 
-    // The module's own "events of interest" for forward-nav (Phase E): a 2D combat viewer scrubs between
+    // The module's own "events of interest" for forward-nav: a 2D combat viewer scrubs between
     // kills. The filter is matched against the host's demo-derived event set, so the buttons only show when
     // the demo actually carries player_death (asset/demo-independent, no hardcoded assumption it exists).
     private const string KillEventName = "player_death";
@@ -99,7 +99,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // The WHOLE demo's kills, pre-built ONCE at load from IModuleContext.GetEventTimeline("player_death")
     // (decoupling display from the push cadence, no kill lost to a render-skipped frame). Rebuilt if the
-    // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
+    // roster arrives after activation (names depend on it). _killWindow is reusable render scratch.
     private readonly List<KillFeedRow> _allKills = new();
 
     private readonly AnnotationSessionController _annotationController;
@@ -172,7 +172,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private int _followedSlot = -1;
 
-    /// <summary>True when the demo carries kill events, gating the kill forward-nav buttons (Phase E).</summary>
+    /// <summary>True when the demo carries kill events, gating the kill forward-nav buttons.</summary>
     [ObservableProperty]
     private bool _hasKillEvents;
 
@@ -231,7 +231,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // A display-only chip on the HUD overlay band, driven by the shell-pushed ILiveSyncHudState projection
     // (engine-free; read via IModuleContext.LiveSyncHud). Captured at activation so deactivation unsubscribes
     // the SAME instance. Non-interactive (IsHitTestVisible=False in the view): the shell status chip is the
-    // control centre; see the design-system decision on the display-only call.
+    // control centre; this chip is deliberately display-only.
     private ILiveSyncHudState? _liveSyncHud;
 
     /// <summary>Hollow-ring flag: the inferred-pause treatment.</summary>
@@ -263,7 +263,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // entity: CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3). Lets Map mode frame
     // the ACTUAL playable-map extent instead of the observed-positions approximation. Null until read.
 
-    // Count of roster entries last seeded into the display state (#2). -1 = never seeded. BuildFrame re-seeds
+    // Count of roster entries last seeded into the display state. -1 = never seeded. BuildFrame re-seeds
     // when the live roster count differs (empty→populated), so a roster set after activation still shows.
     private int _seededRosterCount = -1;
 
@@ -285,9 +285,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private bool _showLiveSyncHud;
 
     [ObservableProperty]
-    private bool _showRadar = true; // baked radar background (A1); off → grid fallback
+    private bool _showRadar = true; // baked radar background; off → grid fallback
 
-    // Overlay visibility toggles (A4: "each sub-overlay toggleable"). Default ON. The three viewport-drawn
+    // Overlay visibility toggles: each sub-overlay is independently toggleable. Default ON. The three viewport-drawn
     // overlays (trails / area effects / bomb ring) are gated in the viewport's DrawSection and need a repaint
     // when toggled, hence the FrameUpdated nudge below (a toggle isn't a playback push). The kill feed is a
     // bound panel in the view, so its toggle drives IsVisible directly (the nudge is a harmless no-op for it).
@@ -382,7 +382,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     The map's networked Z-floor section heights (#1 bonus), or null when absent. The 2D viewport reads
+    ///     The map's networked Z-floor section heights, or null when absent. The 2D viewport reads
     ///     this to split floors EXACTLY on maps that publish them (Nuke / Vertigo), falling back to a histogram
     ///     heuristic otherwise. Read once per demo; cleared on backward seek only if it had never resolved.
     /// </summary>
@@ -494,7 +494,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     The mounted surface's map levels, supplied by the View like <see cref="LiveCameraSource" />: a captured
-    ///     pawn's level key is its level's <c>ZMin</c> on these (step-authoring.md §3.9). Null under the legacy
+    ///     pawn's level key is its level's <c>ZMin</c> on these. Null under the legacy
     ///     viewport, where the Z itself is quantized instead.
     /// </summary>
     internal Func<IReadOnlyList<MapLevel>>? CaptureLevelsSource { get; set; }
@@ -515,14 +515,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => CurrentFrame.Markers;
 
-    /// <summary>Active smoke clouds + burning inferno cells (A4), drawn under the markers by the viewport.</summary>
+    /// <summary>Active smoke clouds + burning inferno cells, drawn under the markers by the viewport.</summary>
     public IReadOnlyList<AreaEffect> AreaEffects => CurrentFrame.AreaEffects;
 
-    /// <summary>Grenade flight trails (A4), drawn as fading comet lines beneath the markers by the viewport.</summary>
+    /// <summary>Grenade flight trails, drawn as fading comet lines beneath the markers by the viewport.</summary>
     public IReadOnlyList<GrenadeTrail> GrenadeTrails => CurrentFrame.Trails;
 
     /// <summary>
-    ///     The planted-C4 timer-ring draw-state (A4), or null when no live ticking bomb. Read by the
+    ///     The planted-C4 timer-ring draw-state, or null when no live ticking bomb. Read by the
     ///     custom-drawn viewport.
     /// </summary>
     public BombMarker? Bomb => CurrentFrame.Bomb;
@@ -534,7 +534,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
 
     /// <summary>
-    ///     The in-match players the Follow-Player camera mode can track (#2), ordered by team then slot.
+    ///     The in-match players the Follow-Player camera mode can track, ordered by team then slot.
     ///     Built on demand (when the mode menu opens) from the current attribute rows so the picker reflects
     ///     the live roster. Spectators / coaches / GOTV (non-T/CT) are excluded.
     /// </summary>
@@ -1419,7 +1419,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void PrevKill() => _context?.RequestPrevEvent(_killEventFilter);
 
     // Recompute whether the kill-nav buttons should show. Cheap (a membership test on the demo's event-name
-    // set); called on activation and whenever the roster (re-)seeds, i.e. the demo-loaded signal (#2).
+    // set); called on activation and whenever the roster (re-)seeds, i.e. the demo-loaded signal.
     private void RefreshEventNav() =>
         HasKillEvents = _context?.AvailableEventNames.Contains(KillEventName) ?? false;
 
@@ -1679,7 +1679,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 return true;
             }
 
-            // One history per document kind, resolved by focus (tag-store.md §3.9): a focused panel took
+            // One history per document kind, resolved by focus: a focused panel took
             // its undo and redo above; here they are the annotations'.
             case Playback2DAction.Undo:
                 if (!IsAnnotationsEnabled || !Annotations.CanUndo)
@@ -2170,7 +2170,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // Cache the stable identity roster (slot → name) for marker labels + seed one attributes row per
         // slot; also (re)loads the baked map asset for the demo's map. Re-runnable: if the roster is set
-        // AFTER activation (host order), BuildFrame re-seeds on the empty→populated transition too (#2).
+        // AFTER activation (host order), BuildFrame re-seeds on the empty→populated transition too.
         SeedRosterDisplay();
 
         // Drop every per-demo cache the builder holds (ring deltas, death-marker positions, trails, the
@@ -2194,7 +2194,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Seeds the roster-DERIVED display state (slot→name labels + one attributes row per slot). Re-runnable:
     // if the roster arrives AFTER activation (host sets it post-load), BuildFrame re-invokes this on the
-    // empty→populated transition so cards/initials appear without a tab re-activation (#2). Touches ONLY
+    // empty→populated transition so cards/initials appear without a tab re-activation. Touches ONLY
     // display state, never the ring / last-known gameplay caches (slot-keyed; a display re-seed must not
     // wipe ring-flash / death-marker history).
     private void SeedRosterDisplay()
@@ -2227,7 +2227,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _seededRosterCount = _context.Players.Count;
 
         // The roster is populated only once the demo has loaded, so this is also the right moment to (re)check
-        // which semantic events the demo carries and show/hide the kill forward-nav accordingly (#2 / Phase E),
+        // which semantic events the demo carries and show/hide the kill forward-nav accordingly,
         // and to (re)build the kill timeline now that slot→name resolution is available.
         RefreshEventNav();
         BuildKillTimeline();
@@ -2381,7 +2381,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         PushCount++;
 
         // The kill window is refreshed BEFORE the frame is built so the built frame carries this tick's
-        // rows (B4's HUD layer reads Scene2DFrame.KillFeed). It is a pure filter over the pre-built
+        // rows (the HUD layer reads Scene2DFrame.KillFeed). It is a pure filter over the pre-built
         // timeline, so the order is free of side effects.
         UpdateKillFeedWindow(snapshot.Tick);
 
@@ -2400,10 +2400,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         FrameUpdated?.Invoke();
     }
 
-    // Kill feed (A4): PRE-BUILD the whole demo's kills ONCE from the host's player_death timeline, resolving
+    // Kill feed: PRE-BUILD the whole demo's kills ONCE from the host's player_death timeline, resolving
     // slots → roster names and reading the typed modifiers the event factory enriched. Display is a tick
     // WINDOW filter over this (UpdateKillFeedWindow), so nothing is lost to a render-skipped frame and a
-    // seek shows the right kills. Rebuilt when the roster (re)seeds, since names depend on it (#2).
+    // seek shows the right kills. Rebuilt when the roster (re)seeds, since names depend on it.
     private void BuildKillTimeline()
     {
         _allKills.Clear();
@@ -2509,7 +2509,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void BuildFrame(IReadOnlyList<IPlayerState> players, IReadOnlyEntityView entities, int frameIndex,
         int tick)
     {
-        // #2: if the roster appeared after activation (host order), seed the display rows/labels now so the
+        // If the roster appeared after activation (host order), seed the display rows/labels now so the
         // cards + marker initials show without needing a tab re-activation. Count-change trigger → seed
         // once on the empty→populated transition, not every push (no per-frame ObservableCollection churn).
         if (_context is not null && _context.Players.Count != _seededRosterCount)

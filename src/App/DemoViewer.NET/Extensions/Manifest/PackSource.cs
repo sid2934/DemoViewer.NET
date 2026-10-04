@@ -3,7 +3,7 @@ namespace DemoViewer.NET.Extensions.Manifest;
 /// <summary>
 ///     Where a configured pack's assembly came from: the copy the installer shipped beside the app, or a
 ///     copy staged under <c>&lt;config root&gt;/extensions/&lt;id&gt;/&lt;version&gt;/</c> that the loader
-///     chose over it (strat-book-plugin.md §7.8). Settings shows it beside the version.
+///     chose over it. Settings shows it beside the version.
 /// </summary>
 public abstract record PackSource
 {

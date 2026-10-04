@@ -10,8 +10,8 @@ using CS2DemoKit.Parser.EntityTracking;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The named thresholds and the pure classification steps of the grenade walk (grenade-walk.md §3.5,
-///     D5). Every number here was measured on Valve matchmaking demos (§2.4) and sits beside its reason, so
+///     The named thresholds and the pure classification steps of the grenade walk.
+///     Every number here was measured on Valve matchmaking demos and sits beside its reason, so
 ///     moving one is an edit to a constant rather than a re-walk: the rows keep the raw speed and strength.
 /// </summary>
 public static class GrenadeRules
@@ -174,7 +174,7 @@ public static class GrenadeRules
     }
 
     /// <summary>
-    ///     Jump-throw per §3.5: the inputs decide when they cover the window; else the ground flag on the
+    ///     Jump-throw: the inputs decide when they cover the window; else the ground flag on the
     ///     spawn frame (not the release one: 6 of 20 measured binds press jump after the attack release);
     ///     else nothing says it is one.
     /// </summary>
@@ -233,7 +233,7 @@ public static class GrenadeRules
     }
 }
 
-/// <summary>The practice-server console line for a throw (grenade-walk.md §3.6), built on demand so the format can change without a schema bump.</summary>
+/// <summary>The practice-server console line for a throw, built on demand so the format can change without a schema bump.</summary>
 public static class GrenadeConsole
 {
     /// <summary>

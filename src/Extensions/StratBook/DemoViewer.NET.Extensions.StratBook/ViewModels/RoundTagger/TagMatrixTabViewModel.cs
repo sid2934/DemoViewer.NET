@@ -20,7 +20,7 @@ using DemoViewer.NET.ViewModels.Situations;
 namespace DemoViewer.NET.ViewModels.RoundTagger;
 
 /// <summary>
-///     The Matrix (plan §3, tag-store.md §3.7): a pivot over every tag instance in scope, codes down the
+///     The Matrix: a pivot over every tag instance in scope, codes down the
 ///     side and a label group across the top by default, either axis any code, round, demo, human label
 ///     group or fact group, and every cell a count whose click sends exactly those clips to the Review
 ///     Queue and shows the Review tab.
@@ -59,7 +59,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     // records by value and would otherwise hold an equal option the list no longer contains.
     private static readonly SearchFilterOption<Guid?> _allDemos = new("All tagged demos", null);
 
-    // The "last N demos" choices; six is the design's mock.
+    // The "last N demos" choices; six matches the mockup example.
     private static readonly int[] _lastCounts = [3, 6, 10, 20];
 
     private readonly TimeSpan _debounce;
@@ -223,7 +223,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>The table has at least one cell.</summary>
     public bool HasCells => Rows.Count > 0;
 
-    /// <summary>"Falcons, last 6 demos, de_nuke, T side": the scope in the words of the design's mock.</summary>
+    /// <summary>"Falcons, last 6 demos, de_nuke, T side": the scope in the mockup's own words.</summary>
     public string Title { get; private set; } = "All tagged demos";
 
     /// <summary>"37 instances in 6 demos", plus how many had no value on an axis when any did not.</summary>
@@ -741,7 +741,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     private static string Shown(string value) => value.Length == 0 ? "(empty)" : DisplayText.Sanitize(value);
 
     /// <summary>
-    ///     The scope as the design's mock names it: "Falcons, last 6 demos, de_nuke, T side". The count
+    ///     The scope as the mockup names it: "Falcons, last 6 demos, de_nuke, T side". The count
     ///     is the demos actually read, so "last 6" over a team with four tagged demos says four.
     /// </summary>
     /// <param name="inputs">The fields the build read.</param>

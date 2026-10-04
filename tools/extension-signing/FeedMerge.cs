@@ -9,9 +9,9 @@ using DemoViewer.NET.Extensions.Manifest;
 namespace DemoViewer.NET.Extensions.Updates;
 
 /// <summary>
-///     Merges one new <see cref="ExtensionFeedEntry" /> fragment into an existing <c>extensions.json</c>
-///     (strat-book-plugin.md §7.10, §7.11): item 37's release workflow runs this once per extension
-///     release, never two at once (the workflow's concurrency group is per extension id). Works on
+///     Merges one new <see cref="ExtensionFeedEntry" /> fragment into an existing <c>extensions.json</c>:
+///     the release workflow runs this once per extension release, never two at once (the workflow's
+///     concurrency group is per extension id). Works on
 ///     <see cref="JsonNode" /> rather than the <see cref="ExtensionFeed" /> records so an entry nobody
 ///     here understands yet (a future member) survives the round trip verbatim; the result is validated
 ///     with <see cref="ExtensionFeed.Parse" /> before it is returned, so a merge that produced a bad feed

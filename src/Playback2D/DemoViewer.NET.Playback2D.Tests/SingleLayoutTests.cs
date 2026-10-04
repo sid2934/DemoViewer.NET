@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     <c>SingleLayout</c>, and the pane-state retention that makes flicking between floors free
-///     (correction 4: this is behaviour on <c>PaneSet</c>, not a second pane store).
+///     (this is behaviour on <c>PaneSet</c>, not a second pane store).
 /// </summary>
 public class PaneSetLevelRetentionTests
 {

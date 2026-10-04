@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
-/// <summary>How sure a proposal is, in the three steps the track tints by (suggested-tags.md §3.6).</summary>
+/// <summary>How sure a proposal is, in the three steps the track tints by.</summary>
 public enum ConfidenceStep
 {
     /// <summary>Below 0.5.</summary>
@@ -22,7 +22,7 @@ public enum ConfidenceStep
 }
 
 /// <summary>
-///     The Proposal Track (suggested-tags.md §3.6): the open demo's pending proposals as bands on the tag
+///     The Proposal Track: the open demo's pending proposals as bands on the tag
 ///     lane, labelled <c>code@site</c> and tinted by confidence. Accepted proposals leave it and show on the
 ///     Tag Track as instances; rejected ones disappear. The queue hands it the pending set with
 ///     <see cref="SetProposals" />, which raises <see cref="MarkersChanged" />.

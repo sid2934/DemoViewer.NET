@@ -16,9 +16,9 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Label Mode (plan §3): the palette's second pass adds labels to tags that already exist, the one under
-///     the playhead or the one picked on the Tag Track, and never makes one. The Done criterion is pinned
-///     directly: a first-pass tag set is enriched with the instance count unchanged, the labels added, and
+///     Label Mode: the palette's second pass adds labels to tags that already exist, the one under
+///     the playhead or the one picked on the Tag Track, and never makes one. Pinned directly: a
+///     first-pass tag set is enriched with the instance count unchanged, the labels added, and
 ///     every label taken back by undo.
 /// </summary>
 [NotInParallel]
@@ -66,7 +66,7 @@ public class TagLabelModeTests
         [.. instance.Labels.Select(l => $"{l.Group}={l.Value}")];
 
     /// <summary>
-    ///     The Done criterion: a first pass of bare codes, then a second pass in Label Mode over the same
+    ///     End to end: a first pass of bare codes, then a second pass in Label Mode over the same
     ///     tags. Nothing is duplicated, each tag gains exactly what was pressed, and undo takes it back one
     ///     label at a time.
     /// </summary>

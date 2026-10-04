@@ -2,14 +2,14 @@ namespace DemoViewer.NET.Playback2D.Core.Keyframes;
 
 /// <summary>
 ///     The ten tokens' tracks, at most one per slot, kept in <see cref="TokenSlots.All" /> order so a
-///     sample always lists <c>A..E</c> before <c>O1..O5</c> (step-authoring.md §3.3).
+///     sample always lists <c>A..E</c> before <c>O1..O5</c>.
 ///     <para>
 ///         <b>Not thread-safe.</b> The canvas edits and samples it on the UI thread; an export takes its
 ///         own set built from the document, never this one.
 ///     </para>
 ///     <para>
 ///         <see cref="Replace" /> is how both an edit and an undo reach the canvas: the strat session owns
-///         the one undo stack, and the set only ever hears the resulting track (correction 18).
+///         the one undo stack, and the set only ever hears the resulting track.
 ///     </para>
 /// </summary>
 public sealed class TokenTrackSet

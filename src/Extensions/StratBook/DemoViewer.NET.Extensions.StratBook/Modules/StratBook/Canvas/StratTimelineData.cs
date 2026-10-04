@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
 /// <summary>
-///     The strat canvas's timeline axis (step-authoring.md §3.10): the strat frame clock is the frame index,
+///     The strat canvas's timeline axis: the strat frame clock is the frame index,
 ///     one frame per tick from the round start to the last step, and there are no demo events. The tracks
 ///     draw from the projection, not from here.
 /// </summary>

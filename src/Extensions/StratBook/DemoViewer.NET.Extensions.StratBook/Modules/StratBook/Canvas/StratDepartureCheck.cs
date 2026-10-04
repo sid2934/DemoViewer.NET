@@ -11,7 +11,7 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
 /// <summary>
-///     The zip check (drag-semantics.md §6): an authored departure on a travel or lurk step that the token cannot reach
+///     The zip check: an authored departure on a travel or lurk step that the token cannot reach
 ///     at a run. The leg is read from the projection with that entry taken out: from where the token last stood or
 ///     arrived before the step's tick (a run's arrival, a run's start when it is still running, or a placed entry) to
 ///     the departure, along the route when the projection routes, else straight. Faster than

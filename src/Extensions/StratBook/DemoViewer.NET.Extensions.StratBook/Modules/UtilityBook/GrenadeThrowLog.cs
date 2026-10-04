@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The per-demo throw log (grenades-v2.md §3): every field of every <see cref="GrenadeRow" /> except the
+///     The per-demo throw log: every field of every <see cref="GrenadeRow" /> except the
 ///     trajectory, binary and gzipped. A JSON header carries the document's walker, demo, clock and source;
 ///     strings (ids, SteamIDs, names, places) go through one table. Positions are hundredths of a unit, the
 ///     precision the JSON rows kept; angles, speed and strength are full floats.

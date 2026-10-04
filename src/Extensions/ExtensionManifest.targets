@@ -1,6 +1,6 @@
 <Project>
-    <!-- Stamps an extension's manifest with the version Nerdbank.GitVersioning computed for the project
-         (strat-book-plugin.md §7.11, versioning). The committed extension.json beside the csproj directory is
+    <!-- Stamps an extension's manifest with the version Nerdbank.GitVersioning computed for the project.
+         The committed extension.json beside the csproj directory is
          a template whose "version" is the literal "{nbgv}"; the stamped copy is embedded under the logical name
          extension.json and copied beside the DLL, so neither the pack nor the loader ever sees the placeholder.
          The placeholder is not a semantic version on purpose: an unstamped copy fails to parse rather than load. -->

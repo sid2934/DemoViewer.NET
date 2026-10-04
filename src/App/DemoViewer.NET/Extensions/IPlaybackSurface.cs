@@ -65,7 +65,7 @@ public interface IPanelHandle : IPaneHandle
 }
 
 /// <summary>
-///     The 2D Playback tab as a contribution sees it (design §7.3). Each tab view-model owns one; a
+///     The 2D Playback tab as a contribution sees it. Each tab view-model owns one; a
 ///     pack's <see cref="IPlaybackContribution" /> adds to it on attach and removes on detach. Registrations
 ///     are disposable, so a contribution undoes exactly what it added.
 /// </summary>

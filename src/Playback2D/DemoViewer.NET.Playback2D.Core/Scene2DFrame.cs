@@ -3,10 +3,10 @@ namespace DemoViewer.NET.Playback2D.Core;
 /// <summary>
 ///     One frame's complete world state, published by reference to the compositor and every layer.
 ///     <para>
-///         <b>Lifetime contract (decision D6).</b> A frame is valid only until the next
+///         <b>Lifetime contract.</b> A frame is valid only until the next
 ///         <c>SceneFrameBuilder.Build</c> call on the <b>same builder</b>. The builder double-buffers
 ///         two instances with pooled backing lists and refills the off-screen one in place, which is
-///         what makes the §6 zero-steady-state-allocation budget reachable. Consumers must not retain a
+///         what makes the zero-steady-state-allocation budget reachable. Consumers must not retain a
 ///         frame across pushes; a consumer that needs one (export) drives its own builder.
 ///     </para>
 ///     <para>
@@ -16,9 +16,9 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///         than allocating a frame per push.
 ///     </para>
 ///     <para>
-///         Deliberately absent: overlay visibility toggles (they are <c>ISceneLayer.IsEnabled</c>,
-///         decision D5) and resolved floor levels (derived from <see cref="Map" />'s section heights by
-///         B1's <c>MapSpaceFactory</c>, decision D3).
+///         Deliberately absent: overlay visibility toggles (they are <c>ISceneLayer.IsEnabled</c>)
+///         and resolved floor levels (derived from <see cref="Map" />'s section heights by
+///         <c>MapSpaceFactory</c>).
 ///     </para>
 /// </summary>
 public sealed class Scene2DFrame

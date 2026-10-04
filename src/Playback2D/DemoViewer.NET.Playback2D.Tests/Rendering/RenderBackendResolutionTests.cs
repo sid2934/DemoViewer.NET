@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
-///     The override grammar and its precedence chain (plans/C2-gpu-provider.md §2.5, §7.1). Pure
+///     The override grammar and its precedence chain. Pure
 ///     string-to-enum work, so these run everywhere and in parallel: no probe, no environment, no
 ///     graphics.
 ///     <para>

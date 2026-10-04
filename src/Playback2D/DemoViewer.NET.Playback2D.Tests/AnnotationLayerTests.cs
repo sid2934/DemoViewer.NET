@@ -142,7 +142,7 @@ public class AnnotationLayerTests
         await Assert.That(Ink(layer, AnnotationFakes.Frame(
                 AnnotationFakes.Marker(76561198000000042, 0, 0, 0, false))))
             .IsEqualTo(0)
-            .Because("§5.4: hide while the anchor is dead, never guess a last-known position");
+            .Because("hide while the anchor is dead, never guess a last-known position");
 
         await Assert.That(Ink(layer, AnnotationFakes.Frame(
                 AnnotationFakes.Marker(76561198000000042, 0, 0))))
@@ -221,7 +221,7 @@ public class AnnotationLayerTests
     }
 
     /// <summary>
-    ///     Step-authoring.md §3.2: every kind goes through one geometry path, so a Static shape is cached
+    ///     Every kind goes through one geometry path, so a Static shape is cached
     ///     in the dry picture and a time-anchored one is prepared per frame, and both draw ink.
     /// </summary>
     [Test]
@@ -392,7 +392,7 @@ public class AnnotationLayerTests
     }
 
     /// <summary>
-    ///     §6's budget. 512 Advance+Render frames with no active stroke must allocate nothing, measured
+    ///     The budget. 512 Advance+Render frames with no active stroke must allocate nothing, measured
     ///     on the SECOND of two identical windows, so JIT warmup on the first cannot register as a leak.
     ///     <para>
     ///         The mix carries a mid-replay real-time stroke as well as the cached, entity-anchored and

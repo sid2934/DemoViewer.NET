@@ -82,7 +82,7 @@ public sealed class InputToolRouter
     /// <summary>
     ///     True while any tool but pan/zoom is selected: what the app's keymap passes as its
     ///     <c>toolActive</c> flag, so the tool-scoped Space / Esc bindings shadow the transport ones under
-    ///     every authoring tool (step-authoring.md §3.7). The token tool drags as much as the pen does, and
+    ///     every authoring tool. The token tool drags as much as the pen does, and
     ///     Esc has to cancel that drag rather than stop playback. Wider than
     ///     <see cref="ToolKinds.IsAnnotationTool" />, which still answers "does this tool write ink".
     /// </summary>
@@ -179,7 +179,7 @@ public sealed class InputToolRouter
     ///     Routes a release. Returns true when it actually closed the gesture: the host drops pointer
     ///     capture on that answer and on nothing else.
     ///     <para>
-    ///         <b>The mirror of <see cref="OnPressed" />'s chord refusal</b>, and the half D2 forgot.
+    ///         <b>The mirror of <see cref="OnPressed" />'s chord refusal</b>, the half that was missing before.
     ///         Brushing the middle button halfway through a stroke and letting go is a release for a
     ///         button that owns nothing: closing here committed the stroke at the chord point and dropped
     ///         capture, so the rest of the drag drew nothing and the real left release was a no-op.

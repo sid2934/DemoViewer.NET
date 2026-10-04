@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
 ///     A lineup's fixed identity: where it is thrown from and where it lands, as first seen. Never moves, so
-///     a throw added later joins the same id (grenades-v2.md §2).
+///     a throw added later joins the same id.
 /// </summary>
 /// <param name="Id">The lineup id strat steps, mined patterns and clip files store.</param>
 /// <param name="Kind">What is thrown.</param>

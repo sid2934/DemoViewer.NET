@@ -144,7 +144,7 @@ public static class InboundLogic
     ///     <paramref name="DemoChangedPath" /> / the position-play pair is set: a demo change
     ///     preempts everything else (the tick/pause refer to the demo CS2 switched TO).
     /// </summary>
-    /// <param name="DemoChangedPath">CS2 now plays a different demo: offer it (never auto-load, D7).</param>
+    /// <param name="DemoChangedPath">CS2 now plays a different demo: offer it, never auto-load.</param>
     /// <param name="SeekToTick">Remote-apply DV's playhead to this CS2 demo tick.</param>
     /// <param name="SetPlaying">Remote-apply DV's play state (null = leave as is).</param>
     public sealed record Decision(string? DemoChangedPath, long? SeekToTick, bool? SetPlaying)

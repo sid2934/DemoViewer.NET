@@ -109,7 +109,7 @@ public class FeaturePacksTests
         }
     }
 
-    // ── Item 33: the compatibility check runs at configuration ─────────────────────────────────────
+    // ── The compatibility check runs at configuration ─────────────────────────────────────
 
     [Test]
     public async Task TheShippedPack_IsCompatibleWithThisBuild_SoCompatibleEqualsDefault()
@@ -190,7 +190,7 @@ public class FeaturePacksTests
         }
     }
 
-    // ── Item 34: where each pack came from ──────────────────────────────────────────────────────────
+    // ── Where each pack came from ──────────────────────────────────────────────────────────
 
     [Test]
     public async Task AStatus_IsBundled_UnlessTheLoaderSaysOtherwise()

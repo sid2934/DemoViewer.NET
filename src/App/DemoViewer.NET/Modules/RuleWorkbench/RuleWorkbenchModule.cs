@@ -15,11 +15,6 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 ///     tab: an in-app editor + live diagnostics + trace for v2 rulesets, sitting on the app's v2
 ///     checker/evaluator seam.
 ///     <para>
-///         Milestones: M0 the empty tab scaffold (this) → M1 in-process v2 checker diagnostics →
-///         M2 the AvaloniaEdit editor + FileSystemWatcher → M3 catalog-driven completion → M4 the
-///         data browser → M5 evaluate + <c>2MUCH</c> results → M6 the clause-level trace panel.
-///     </para>
-///     <para>
 ///         Uses <see cref="WorkspaceTabDescriptor.ViewModelFactory" /> (lazy + retained) so
 ///         <c>Activate()</c> drives the VM's <c>OnActivated</c>/<c>OnDeactivated</c> lifecycle:
 ///         the same wiring contract as the 2D Playback pilot.

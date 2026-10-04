@@ -112,7 +112,7 @@ public sealed class SearchFilterField<T> : ViewModelBase
 }
 
 /// <summary>
-///     The filter rail of the Situations tab (plan §3 Search Filters And Live Count): our side, each
+///     The filter rail of the Situations tab: our side, each
 ///     side's buy type on its own, the phase, the clock band, the man-count state and the score before
 ///     the round from Round Facts; the opponent from Team Identity; the date range from the cache
 ///     row; the source from Demo Provenance Labels. The map is the canvas's own picker, since the query

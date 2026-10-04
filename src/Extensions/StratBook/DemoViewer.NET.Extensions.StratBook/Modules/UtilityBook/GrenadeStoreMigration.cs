@@ -24,7 +24,7 @@ public sealed record GrenadeStoreMigrationResult(int Demos, int Converted, int F
     bool Completed, int PathFilesKept = 0, int PathFilesGivenUp = 0);
 
 /// <summary>
-///     The one-off move to the throw log and the lineup store (grenades-v2.md §3). No parse. Per demo, the
+///     The one-off move to the throw log and the lineup store. No parse. Per demo, the
 ///     JSON rows become a throw log with the thrower names from the record, and the JSON goes only once the
 ///     log decodes to the same rows. Then the lineup store takes one flight per lineup technique from the old
 ///     paths siblings, and those are deleted only after the store reads back with them. Marker-gated once a

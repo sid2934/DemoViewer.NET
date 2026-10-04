@@ -135,8 +135,8 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     The user theme drop-in directory: <c>&lt;config&gt;/themes/</c> (central theme system,
-    ///     the design notes in git history, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
+    ///     The user theme drop-in directory: <c>&lt;config&gt;/themes/</c> (central theme system).
+    ///     Each <c>*.json</c> here is loaded as a custom theme. A PURE path
     ///     (no directory creation, a side-effect-free getter keeps VM construction hermetic in tests);
     ///     <see cref="EnsureThemesDirectory" /> creates it once at app startup. <c>null</c> on WASM (no filesystem).
     /// </summary>
@@ -165,8 +165,8 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     The Strat Book's root: <c>&lt;config&gt;/strats/</c>, holding <c>index.json</c> and one folder per book
-    ///     (strat-model.md §3.2). User truth under the config root, never under <c>cache/</c>. A PURE path; the
+    ///     The Strat Book's root: <c>&lt;config&gt;/strats/</c>, holding <c>index.json</c> and one folder per book.
+    ///     User truth under the config root, never under <c>cache/</c>. A PURE path; the
     ///     store creates folders on its first write. Null on the browser host, where the store is in-memory.
     /// </summary>
     public static string? StratsDir
@@ -180,7 +180,7 @@ public static class AppPaths
 
     /// <summary>
     ///     The Round Tagger's store: <c>&lt;config&gt;/tags/</c>, holding <c>index.json</c> and one
-    ///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per tagged demo (tag-store.md §3.1). User truth, so under
+    ///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per tagged demo. User truth, so under
     ///     the config root beside the cache rather than in it. A PURE path: the store creates directories
     ///     on its first write. <c>null</c> on WASM, where the store keeps tags in memory.
     /// </summary>
@@ -195,7 +195,7 @@ public static class AppPaths
 
     /// <summary>
     ///     The tag palette drop-in directory: <c>&lt;config&gt;/palettes/</c>, one
-    ///     <c>&lt;name&gt;.tagpalette.json</c> per palette (tag-store.md §3.4), read by <c>TagPaletteStore</c>
+    ///     <c>&lt;name&gt;.tagpalette.json</c> per palette, read by <c>TagPaletteStore</c>
     ///     over the built-in palette the way <see cref="ThemesDirectory" /> drop-ins are read over the
     ///     built-in themes. A PURE path; <see cref="EnsurePalettesDirectory" /> creates it once at app startup.
     ///     <c>null</c> on WASM, where only the built-in palette is offered.
@@ -211,8 +211,8 @@ public static class AppPaths
 
     /// <summary>
     ///     Suggested Tags' user directory: <c>&lt;config&gt;/suggested-tags/</c>, holding the parameter
-    ///     profile and one learned <c>site-regions.&lt;map&gt;.json</c> per map (suggested-tags.md §3.2,
-    ///     §3.7). A team shares the folder the way it shares a palette. A PURE path: the store creates it
+    ///     profile and one learned <c>site-regions.&lt;map&gt;.json</c> per map.
+    ///     A team shares the folder the way it shares a palette. A PURE path: the store creates it
     ///     on its first write. <c>null</c> on WASM, where the tables live for the session only.
     /// </summary>
     public static string? SuggestedTagsDirectory

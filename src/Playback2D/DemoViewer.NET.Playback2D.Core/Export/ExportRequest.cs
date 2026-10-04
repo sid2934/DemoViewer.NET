@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     Everything an export renders: design §5.7, verbatim.
+///     Everything an export renders.
 ///     <para>
 ///         Frame indices are <b>source-relative</b>: they index the <see cref="ISceneFrameSource" />, not
 ///         the demo. <c>TrackerFrameSource.DemoFrameIndexOf</c> maps one back when a caller needs the

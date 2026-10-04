@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Services.Export;
 ///         free, so an interlock reading this status during wind-down cannot see it as available early.
 ///     </para>
 ///     <para>
-///         <b>Refusal is start-time only</b> (plan D11, matching design §5.7's wording). A LiveSync
+///         <b>Refusal is start-time only</b>. A LiveSync
 ///         session that starts <i>mid</i>-export does not abort it: the export never touches the shared
 ///         clock, so it cannot corrupt sync, and killing several minutes of finished render to enforce a
 ///         rule that was about starting would be worse than the overlap.

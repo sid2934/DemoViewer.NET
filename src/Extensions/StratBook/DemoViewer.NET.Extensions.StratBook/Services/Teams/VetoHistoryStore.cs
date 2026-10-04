@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for (decision D5):
+///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for:
 ///     manual entry only, no scraping, filed per opponent team.
 ///     <para>
 ///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through
@@ -55,7 +55,7 @@ public sealed class VetoHistoryStore
 
     /// <summary>
     ///     Drops every step and re-reads the file: the recovery after it is deleted out from under the
-    ///     store (item 24's "delete extension data"), so a later mutation does not resave what the delete
+    ///     store by the "delete extension data" action, so a later mutation does not resave what the delete
     ///     just removed.
     /// </summary>
     public void Reload()

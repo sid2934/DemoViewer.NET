@@ -30,7 +30,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <c>DispatcherTimer</c>) at build time. <see cref="NotInParallelAttribute" /> because it mutates the
 ///     process-global <c>DEMOVIEWER_CONFIG_DIR</c>.
 ///     <para>
-///         Split from the pack-reaching cases (item 28 review): the hub layout, the evaluator fan-out order
+///         Split from the pack-reaching cases: the hub layout, the evaluator fan-out order
 ///         (on and off), the Situation/Grenade index coordinator wiring, and the pack-off evaluator/badge
 ///         case are <c>StratBookCompositionRootTests</c> in the extension test project. This file is the
 ///         composition-root smoke test core keeps regardless of the pack.

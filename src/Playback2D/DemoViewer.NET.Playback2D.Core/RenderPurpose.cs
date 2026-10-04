@@ -1,12 +1,12 @@
 namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
-///     Why a scene is being rendered (design §5.1).
+///     Why a scene is being rendered.
 ///     <para>
 ///         <b>RESERVED: no layer reads this, and the three values render identically.</b> The value is
 ///         threaded end to end (<c>SceneSubmission.Purpose</c> → <c>SceneCompositor</c> →
 ///         <c>SceneRenderContext.Purpose</c>, which every <c>ISceneLayer.Draw</c> receives), but nothing
-///         branches on it yet: design §5.1's "layers may trade quality for latency on it" is an intent,
+///         branches on it yet: "layers may trade quality for latency on it" is an intent,
 ///         not an implemented contract.
 ///     </para>
 ///     <para>

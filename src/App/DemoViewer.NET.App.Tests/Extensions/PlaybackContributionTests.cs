@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The 2D tab's contribution surface (item 16) over a fake contribution: a band-menu entry and a pane
+///     The 2D tab's contribution surface over a fake contribution: a band-menu entry and a pane
 ///     arrive together on attach and leave together on detach, the entry's action opens the pane, one side
 ///     pane shows at a time and a closed pane's view model is disposed, and the host follows the gate live.
 /// </summary>

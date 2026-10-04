@@ -29,7 +29,7 @@ internal sealed record SettingConsumption(
 
 /// <summary>
 ///     <b>
-///         D6 §4 guard 3: every <see cref="Playback2DSettings" /> key has a production reader AND a
+///         Every <see cref="Playback2DSettings" /> key has a production reader AND a
 ///         production writer.
 ///     </b>
 ///     <para>
@@ -68,7 +68,7 @@ public class Playback2DSettingsConsumptionTests
     };
 
     /// <summary>
-    ///     Registry §3.10 keys that the class does not carry. The reason is the entry.
+    ///     Registry keys that the class does not carry. The reason is the entry.
     /// </summary>
     private static readonly Dictionary<string, string> _registryKeysNotYetBuilt = new(StringComparer.Ordinal)
     {
@@ -94,7 +94,7 @@ public class Playback2DSettingsConsumptionTests
         }
 
         await Assert.That(keys.Count).IsGreaterThan(30)
-            .Because("the section carries the registry §3.10 key set, not a stub");
+            .Because("the section carries the registry's full key set, not a stub");
 
         List<string> unconsumed = keys
             .Where(k => !k.IsConsumed && !_unconsumedByDesign.ContainsKey(k.Name))
@@ -109,8 +109,8 @@ public class Playback2DSettingsConsumptionTests
     }
 
     /// <summary>
-    ///     The registry is the design authority for which keys EXIST (§3.10, "one section, one class").
-    ///     A key named there and absent from the class is a feature the plan believes shipped.
+    ///     The registry is the authority for which keys EXIST ("one section, one class").
+    ///     A key named there and absent from the class is a feature that should have shipped.
     /// </summary>
     [Test]
     public async Task EveryRegistryKey_ExistsOnTheSettingsClass()
@@ -133,8 +133,8 @@ public class Playback2DSettingsConsumptionTests
             .ToList();
 
         await Assert.That(string.Join(", ", missing)).IsEqualTo("")
-            .Because("§3.10 is the persisted-key contract; a key it pins and the class lacks is a "
-                     + "setting the plan, the docs and the reader all believe exists");
+            .Because("the registry is the persisted-key contract; a key it pins and the class lacks is a "
+                     + "setting the docs and the reader believe exists");
     }
 
     /// <summary>The allow-lists must be load-bearing, and each entry must say why.</summary>
@@ -164,7 +164,7 @@ public class Playback2DSettingsConsumptionTests
 
         await Assert.That(_unconsumedByDesign.Values.Concat(_registryKeysNotYetBuilt.Values)
                 .All(r => r.Length > 40)).IsTrue()
-            .Because("§4: an allow-list entry must carry WHY, not just a name");
+            .Because("an allow-list entry must carry WHY, not just a name");
     }
 
     /// <summary>
@@ -257,7 +257,7 @@ public class Playback2DSettingsConsumptionTests
     private static bool IsPlumbing(string callerType) =>
         callerType.StartsWith("DemoViewer.NET.Configuration.", StringComparison.Ordinal);
 
-    // The backticked identifiers in §3.10's AppSettings.Playback2D paragraph. Type names, enum spellings
+    // The backticked identifiers in the registry's AppSettings.Playback2D paragraph. Type names, enum spellings
     // and qualified references are filtered out by shape: a key is a bare PascalCase identifier.
     private static List<string> RegistryKeys()
     {
@@ -277,7 +277,7 @@ public class Playback2DSettingsConsumptionTests
         string block = end < 0 ? text[start..] : text[start..end];
 
         // BLOCKQUOTE lines are commentary, not registry lines, and are dropped BEFORE the shape filter.
-        // §3.10 carries `>` callouts whose prose names types in backticks: every one a bare PascalCase
+        // The registry carries `>` callouts whose prose names types in backticks: every one a bare PascalCase
         // identifier, and so a "key" this guard would otherwise demand the settings class declare.
         block = string.Join('\n', block.Split('\n')
             .Where(l => !l.TrimStart().StartsWith('>')));

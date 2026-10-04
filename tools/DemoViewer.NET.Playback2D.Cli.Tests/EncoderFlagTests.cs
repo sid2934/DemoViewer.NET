@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     <c>dv2d export --encoder / --quality</c> (plan <c>P2-export-throughput</c> D4).
+///     <c>dv2d export --encoder / --quality</c>.
 ///     <para>
 ///         Every case runs a real subprocess against a real demo and a real ffmpeg, and
 ///         <b>
@@ -62,7 +62,7 @@ public class EncoderFlagTests
             await Assert.That(payload["encoder_arguments"]!.GetValue<string>()).IsNotEmpty();
             await Assert.That(payload["encoder_attempts"]).IsNotNull();
 
-            // A hardware encoder is not bit-reproducible (plan D6), so the file's bytes are a function of
+            // A hardware encoder is not bit-reproducible, so the file's bytes are a function of
             // this machine. Record the machine's answer or two files cannot be compared later.
             JsonArray attempts = payload["encoder_attempts"]!.AsArray();
             await Assert.That(attempts.Count).IsGreaterThanOrEqualTo(1);

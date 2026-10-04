@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     The callouts editor (strat-model.md §3.7): one owner's words over one map's canonical places, edited as
+///     The callouts editor: one owner's words over one map's canonical places, edited as
 ///     a table of alias, place and primary, plus "copy aliases from another owner". A team ships with no
 ///     aliases and the Valve names; typing "popdog" for "TRamp" here is what makes it resolve everywhere else
 ///     (the Strat Book's own step table, and any place-typed query built over <see cref="CalloutResolver" />).

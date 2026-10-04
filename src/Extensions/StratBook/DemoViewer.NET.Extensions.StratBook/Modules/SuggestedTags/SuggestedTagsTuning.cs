@@ -24,7 +24,7 @@ public readonly record struct HandTagWindow(string Demo, int Round, int FromTick
 public readonly record struct FiredProposal(string Demo, TagProposal Proposal);
 
 /// <summary>
-///     One detector's line in the tuning view (suggested-tags.md §3.7): what the verdicts over demos
+///     One detector's line in the tuning view: what the verdicts over demos
 ///     that have any say, and what recall and precision say over demos that also carry hand tags of the
 ///     same code. <see cref="Recall" /> and <see cref="Precision" /> are null rather than zero when
 ///     there is nothing to score against: a team that has not hand-tagged this code yet sees "no
@@ -50,7 +50,7 @@ public sealed record TuningReport(IReadOnlyList<DetectorTuningRow> Rows, int Dem
 
 /// <summary>
 ///     The pure half of the tuning view: aggregating verdicts, and scoring fired proposals against hand
-///     tags by the overlap rule (suggested-tags.md §7.3 item 3). Neither function touches a file, a Tag
+///     tags by the overlap rule. Neither function touches a file, a Tag
 ///     Store or a parse, so a parameter sweep is exercised without a demo. The re-run that feeds them
 ///     with a candidate profile's proposals is <see cref="SuggestedTagsTuningService" />.
 /// </summary>
@@ -58,7 +58,7 @@ public static class SuggestedTagsTuning
 {
     /// <summary>
     ///     A proposal counts as a match for a hand tag when their windows overlap by at least half the
-    ///     shorter one (§7.3 item 3). One hand tag matches at most one proposal and vice versa: the
+    ///     shorter one. One hand tag matches at most one proposal and vice versa: the
     ///     greedy pairing takes the largest overlaps first, so two close instances do not both claim the
     ///     same tag.
     /// </summary>
@@ -195,7 +195,7 @@ public static class SuggestedTagsTuning
     }
 
     /// <summary>
-    ///     The site a proposal claims, for the §7.3 item 3 "code and site agree" check: the <c>site</c>
+    ///     The site a proposal claims, for the "code and site agree" check: the <c>site</c>
     ///     label (execute, retake), or for a fake the site being faked (<c>fake</c>; <c>real</c> is the
     ///     execute's, which carries its own proposal). Null for the codes that name no site.
     /// </summary>

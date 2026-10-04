@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The round band's winner tint reads Round Facts when rows exist (owner decision 6): a Valve
+///     The round band's winner tint reads Round Facts when rows exist: a Valve
 ///     matchmaking demo carries no <c>round_end</c>, so the tint had never appeared on one. Without rows
 ///     the track behaves exactly as it did, which <see cref="TimelineTrackTests" /> pins.
 /// </summary>

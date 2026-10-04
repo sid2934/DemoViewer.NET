@@ -114,7 +114,7 @@ public enum ToolModifiers
 ///     One pointer sample, already resolved to a pane and to world coordinates by the host. A
 ///     <c>ref struct</c> so the coalesced sample span never has to be copied onto the heap: a fast drag
 ///     delivers dozens of intermediate points per event, and allocating an array for each would blow the
-///     §6 budget on the exact frames where it matters most.
+///     per-frame allocation budget on the exact frames where it matters most.
 /// </summary>
 public readonly ref struct ToolPointerEvent
 {
@@ -161,7 +161,7 @@ public readonly record struct ToolWheelEvent(
     ToolModifiers Modifiers);
 
 /// <summary>
-///     A pointer tool, design §5.5 verbatim: four methods and <b>no wheel member</b>. Wheel is
+///     A pointer tool: four methods and <b>no wheel member</b>. Wheel is
 ///     router-level because zoom-to-cursor is universal drawing-app behaviour that no tool should be able
 ///     to take away.
 /// </summary>
@@ -193,7 +193,7 @@ public interface IPointerTool
 /// <summary>
 ///     Everything a tool needs from the host, and nothing that would tie it to Avalonia. This is the seam
 ///     that lets <c>DrawTool</c> and <c>EraseTool</c> be exercised in a direct-execution test with no
-///     window, no dispatcher and no platform (design §11).
+///     window, no dispatcher and no platform.
 /// </summary>
 public interface IToolServices
 {

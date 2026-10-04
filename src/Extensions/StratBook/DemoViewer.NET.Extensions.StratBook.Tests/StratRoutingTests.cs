@@ -357,7 +357,7 @@ public class StratRoutingTests
         }
     }
 
-    // Item 15: with no explicit routing func, the canvas falls back to an injected gate (constructor
+    // With no explicit routing func, the canvas falls back to an injected gate (constructor
     // lookup, not App.Services) and reprojects when it fires Changed, the same way the old
     // App.Services-backed fallback did.
     [Test]

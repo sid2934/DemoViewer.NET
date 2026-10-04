@@ -20,7 +20,7 @@ public sealed class MapPoolMapRow
 
     /// <summary>
     ///     Rounds won on the CT side, summed across every demo counted in this row. Match-wide, not
-    ///     scoped to the team the record is for (F12: <c>CtSideWins</c>/<c>TSideWins</c> are already
+    ///     scoped to the team the record is for (<c>CtSideWins</c>/<c>TSideWins</c> are already
     ///     cached at that grain, and a team-scoped split would need per-round side tracking this tier
     ///     does not carry).
     /// </summary>
@@ -38,7 +38,7 @@ public sealed class MapPoolMapRow
 }
 
 /// <summary>
-///     The decider record across every recognizable best-of series (decision D5): a same-day,
+///     The decider record across every recognizable best-of series: a same-day,
 ///     same-opponent group of three or five demos, ordered by file time, whose last demo is the decider.
 ///     Anything else (a single map, an uneven group, an unaffiliated opponent) is not inferable and is
 ///     left out, so <see cref="Played" /> is the record's own sample size.
@@ -56,7 +56,7 @@ public sealed class DeciderRecord
 
 /// <summary>
 ///     The Map Pool Record for one team: the demo-derivable substitute for the
-///     veto model (F12). Everything here comes from demos the team is known to have played in; the veto
+///     veto model. Everything here comes from demos the team is known to have played in; the veto
 ///     history a user enters by hand lives beside it in <see cref="VetoHistoryStore" /> and is not folded
 ///     into these numbers.
 /// </summary>

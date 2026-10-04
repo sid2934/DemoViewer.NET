@@ -8,8 +8,7 @@ namespace DemoViewer.NET.Extensions.Loading;
 
 /// <summary>
 ///     Trusts a staged directory only when its <see cref="ExtensionSignature.FileName" /> verifies
-///     against one of <see cref="PublisherKeys.Current" /> (strat-book-plugin.md §7.9; the seam
-///     <see cref="ITrustPolicy" /> left for item 35). The key list is injectable so a test can sign with
+///     against one of <see cref="PublisherKeys.Current" />. The key list is injectable so a test can sign with
 ///     a key it generates at run time rather than one committed to this repo.
 /// </summary>
 public sealed class SignedTrustPolicy(IReadOnlyList<string>? publicKeysBase64Spki = null) : ITrustPolicy

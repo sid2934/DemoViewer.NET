@@ -1,8 +1,8 @@
-# Tri-OS Velopack packaging matrix (docs/distribution/build-and-packaging-plan.md §8 step 5).
+# Tri-OS Velopack packaging matrix.
 # Each OS builds its own self-contained bundle + installer (vpk cannot cross-build):
 #   windows-latest → win-x64 Setup.exe · macos-14 (arm64) → osx-arm64 .app/.pkg · ubuntu → linux-x64 AppImage
 #
-# Triggered by a v* tag (a real release) or manually. Signing/notarization is DEFERRED (§6):
+# Triggered by a v* tag (a real release) or manually. Signing/notarization is DEFERRED:
 # the DV_SIGN_* / DV_NOTARY_PROFILE secrets are unset today → unsigned. Wire them as repo
 # secrets to flip signing on with no workflow change (empty = unsigned).
 name: release
@@ -81,7 +81,7 @@ jobs:
             rid: linux-x64
     runs-on: ${{ matrix.os }}
     env:
-      # Signing secrets (unset = unsigned, §6). Set these in repo secrets to enable.
+      # Signing secrets (unset = unsigned). Set these in repo secrets to enable.
       DV_SIGN_APP_IDENTITY: ${{ secrets.DV_SIGN_APP_IDENTITY }}
       DV_SIGN_INSTALL_IDENTITY: ${{ secrets.DV_SIGN_INSTALL_IDENTITY }}
       DV_NOTARY_PROFILE: ${{ secrets.DV_NOTARY_PROFILE }}

@@ -14,7 +14,7 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     One utility detonation the detectors read (suggested-tags.md §3.2). Ticks are frame clock
+///     One utility detonation the detectors read. Ticks are frame clock
 ///     (<c>GameEvent.GameTick</c>).
 /// </summary>
 /// <param name="Tick">The detonation.</param>
@@ -94,10 +94,10 @@ public static class DetonationEvents
 }
 
 /// <summary>
-///     The private sparse sample cloud (suggested-tags.md §3.2): every 25th alive placed sample of the
+///     The private sparse sample cloud: every 25th alive placed sample of the
 ///     fallback walk, 5,000 to 8,000 points per demo. A detonation takes the place of its nearest
 ///     point within the resolver's distance. It exists only when the walk runs; with the index or
-///     with zones the resolver never reaches it (integrator correction 16).
+///     with zones the resolver never reaches it.
 /// </summary>
 public sealed class DetonationCloud
 {
@@ -148,8 +148,8 @@ public sealed class DetonationCloud
 }
 
 /// <summary>
-///     The one resolver call behind which a detonation gets its place, in the precedence integrator
-///     correction 16 fixes: the map's zones, else the nearest index place centroid on the detonation's
+///     The one resolver call behind which a detonation gets its place, in precedence order: the map's
+///     zones, else the nearest index place centroid on the detonation's
 ///     Z band, else the walk's private cloud. The 400-unit distance Suggested Tags measured (2.6 to 8.5
 ///     percent unresolved with the cloud) is the limit for both fallbacks.
 /// </summary>

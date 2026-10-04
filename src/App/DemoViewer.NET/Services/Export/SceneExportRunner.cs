@@ -61,7 +61,7 @@ public sealed class SceneExportRunner : IExportRunner
     /// </param>
     /// <param name="log">Optional line sink; the chosen encoder and ffmpeg's stderr flow through it.</param>
     /// <param name="encoderProbe">
-    ///     How <c>EncoderLadder</c> rungs are verified (plan P2 D1). Defaults to
+    ///     How <c>EncoderLadder</c> rungs are verified. Defaults to
     ///     <c>EncoderProbeCache.Shared</c>, so an app session pays for one two-frame test encode per
     ///     encoder rather than one per export. The seam is here so a test can drive the fallback path
     ///     without a GPU, a driver or a subprocess.
@@ -92,7 +92,7 @@ public sealed class SceneExportRunner : IExportRunner
 
         // BEFORE the replay: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal
         // ("you asked for h264_nvenc and this driver cannot run it") has to arrive before the export
-        // spends a minute seeking rather than after it spends ten encoding into a pipe (plan P2 D1).
+        // spends a minute seeking rather than after it spends ten encoding into a pipe.
         (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
         IFrameSink sink = _encoding.BuildSink(request, request.Core, ffmpeg, encoder);

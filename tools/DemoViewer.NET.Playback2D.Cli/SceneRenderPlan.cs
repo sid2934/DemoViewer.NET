@@ -233,7 +233,7 @@ internal sealed class SceneRenderPlan : IDisposable
         }
 
         // One-entry memo. A bench run re-renders the same fixture frame thousands of times, and an
-        // allocation here would land straight in the bytes/frame figure the §6 gate reads.
+        // allocation here would land straight in the bytes/frame figure the gate reads.
         if (ReferenceEquals(frame, _enrichedFrom))
         {
             return _enriched!;
@@ -388,14 +388,14 @@ internal sealed class SceneRenderPlan : IDisposable
         if (!string.Equals(layout, "stacked", StringComparison.OrdinalIgnoreCase))
         {
             throw new BackendUnavailableException(
-                $"--layout {layout} needs the level model's single-level half (B3 SingleLayout), which " +
+                $"--layout {layout} needs the level model's single-level half (SingleLayout), which " +
                 "is not in this build. Only --layout stacked renders today.");
         }
 
         if (level is not null)
         {
             throw new BackendUnavailableException(
-                "--level needs the level model's single-level half (B3 SingleLayout), which is not in " +
+                "--level needs the level model's single-level half (SingleLayout), which is not in " +
                 "this build.");
         }
     }

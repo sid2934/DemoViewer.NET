@@ -225,7 +225,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     private string _highlightsMessage = string.Empty;
 
     /// <summary>
-    ///     True when the parse reported structured warnings (the S11 diagnostics channel, v0.6.0):
+    ///     True when the parse reported structured warnings (the diagnostics channel, v0.6.0):
     ///     rejected string tables, dropped player blobs. Drives the "THIS DEMO MAY BE DAMAGED"
     ///     banner, additive like the sample-clip banner: the partial parse still renders, but a
     ///     placeholder-riddled page now explains itself. Set by the shell alongside
@@ -490,8 +490,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     // ── Grenade walk ──────────────────────────────────────────────────────────
 
     /// <summary>
-    ///     Walks a demo's grenades at user priority, by path: the chip row's "Index grenades"
-    ///     (grenade-walk.md §3.11). Set by the composition root on the desktop host; null (the browser, tests)
+    ///     Walks a demo's grenades at user priority, by path: the chip row's "Index grenades".
+    ///     Set by the composition root on the desktop host; null (the browser, tests)
     ///     leaves the action absent rather than inert.
     /// </summary>
     public Action<string>? IndexGrenades { get; set; }

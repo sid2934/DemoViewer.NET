@@ -7,7 +7,7 @@ using DemoViewer.NET.Modules.SuggestedTags;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The profile file (suggested-tags.md §3.7, step 6): <c>&lt;config&gt;/suggested-tags/profile.json</c>,
+///     The profile file: <c>&lt;config&gt;/suggested-tags/profile.json</c>,
 ///     seeded with the shipped default on first read, session-only with a null directory (the browser).
 /// </summary>
 public class SuggestedTagsProfileStoreTests

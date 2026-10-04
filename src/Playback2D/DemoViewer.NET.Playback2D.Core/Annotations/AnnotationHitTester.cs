@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Playback2D.Core.Annotations;
 ///         the derived outline polygon.
 ///     </para>
 ///     <para>
-///         Every other kind is a branch of its own (step-authoring.md §3.2), because the eraser has to
+///         Every other kind is a branch of its own, because the eraser has to
 ///         hit what the layer DRAWS: a rectangle's two stored corners are its diagonal, which is exactly
 ///         where a rectangle has no ink. Line and Arrow test the segment, Rect its four edges, Ellipse its
 ///         outline, and Text the line box <see cref="AnnotationText" /> measures, inflated by the radius.

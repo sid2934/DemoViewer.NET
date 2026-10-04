@@ -10,8 +10,8 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The call sheet and the LAN Print HTML (strat-model.md §3.13, §3.14, §9 step 6): the Markdown shape
-///     §3.13 gives verbatim, pinned against a committed golden, and the self-contained HTML page a Role
+///     The call sheet and the LAN Print HTML: the Markdown shape, pinned verbatim
+///     against a committed golden, and the self-contained HTML page a Role
 ///     View export would hand to <see cref="LanPrint" />.
 /// </summary>
 public class StratTextExporterTests
@@ -33,7 +33,7 @@ public class StratTextExporterTests
     [Test]
     public async Task ACallSheetLine_MatchesSection313sOwnExampleVerbatim()
     {
-        // "**1:30** B throws smoke A ramp → A site (Stairs)" is strat-model.md §3.13's own worked example.
+        // "**1:30** B throws smoke A ramp → A site (Stairs)" is the worked example this pins.
         string sheet = StratTextExporter.CallSheet(SchemaSample(), Callouts());
 
         await Assert.That(sheet).Contains("**1:30** B throws smoke A ramp → A site (Stairs)");

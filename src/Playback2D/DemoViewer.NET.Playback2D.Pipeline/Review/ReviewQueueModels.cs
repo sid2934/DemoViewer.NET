@@ -167,7 +167,7 @@ public sealed record ReviewEntry
 ///     watched-situations rule).
 ///     <para>
 ///         <b>The clock block.</b> Every tick here is on the frame clock, the one the timeline, the
-///         annotation sidecar and the tag store use (F15). The queue spans demos, so the header names
+///         annotation sidecar and the tag store use. The queue spans demos, so the header names
 ///         the clock and each clip carries its own demo's tick rate; there is no single frame count to
 ///         record.
 ///     </para>

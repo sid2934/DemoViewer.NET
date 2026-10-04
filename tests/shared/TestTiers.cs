@@ -21,9 +21,8 @@ namespace DemoViewer.NET.Testing.Tiers;
 ///         <c>TestTierContractTests</c> asserts rather than assumes.
 ///     </para>
 ///     <para>
-///         See <c>docs/playback2d-v2/plans/P3-test-tiers.md</c> for the working agreement and the
-///         Microsoft.Testing.Platform filter-grammar findings <see cref="TreeNodeFilterFor" /> is
-///         written against. In particular: every operand inside <c>[…]</c> must be a parenthesised
+///         <see cref="TreeNodeFilterFor" /> is written against the Microsoft.Testing.Platform filter
+///         grammar. In particular: every operand inside <c>[…]</c> must be a parenthesised
 ///         <c>Key=Value</c> / <c>Key!=Value</c> comparison, because the unparenthesised form crashes
 ///         the filter parser outright.
 ///     </para>
@@ -60,7 +59,7 @@ public static class TestTiers
     /// <summary>
     ///     A deterministic failure every tier drops, including <see cref="Full" />: not a cost tag, and
     ///     excluded everywhere rather than tracked by eye, so CI and a local run agree on what is known
-    ///     broken (strat-book-plugin.md §11.1, "Done means").
+    ///     broken.
     /// </summary>
     public const string KnownFailure = "KnownFailure";
 

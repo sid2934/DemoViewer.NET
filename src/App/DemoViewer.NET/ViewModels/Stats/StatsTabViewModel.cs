@@ -21,7 +21,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.ViewModels.Stats;
 
 /// <summary>
-///     ViewModel for the Stats tab: the user-facing scoreboard surface (release plan P1-3.1).
+///     ViewModel for the Stats tab: the user-facing scoreboard surface.
 ///     Projects each completed evaluation through the built-in <see cref="IOutputProjector" />s into
 ///     two tables: the end-of-match scoreboard (<see cref="PlayerGameStatsProjector" />) and the
 ///     per-round browser (<see cref="PlayerRoundStatsProjector" />). Columns follow whatever rules
@@ -51,7 +51,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     // exception). Lazy: the ambient factory is wired after construction.
     private ILogger? _diagLog;
 
-    // ── Extra tables: configured outputs (F2) + keyed breakdowns (F3) ─────────
+    // ── Extra tables: configured outputs + keyed breakdowns ───────────────────
 
     // Engine keys in catalogue display order, one list per table (their column sets differ:
     // the match table excludes round-scoped columns). The *visible* lists are the category-filtered
@@ -466,8 +466,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
     /// <summary>
     ///     Event-path update: the built-in tables plus every additional table the run carries,
-    ///     configured <c>outputs:</c> declarations (F2) and keyed-counter breakdowns like
-    ///     per-weapon stats (F3). Tests without a full <see cref="AnalysisRun" /> call
+    ///     configured <c>outputs:</c> declarations and keyed-counter breakdowns like
+    ///     per-weapon stats. Tests without a full <see cref="AnalysisRun" /> call
     ///     <see cref="Update(EvaluationResult, ParsedDemo, IReadOnlyList{MetricTable}?)" /> directly.
     /// </summary>
     public void UpdateFromRun(AnalysisRun run, ParsedDemo demo)
@@ -1150,7 +1150,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         };
     }
 
-    // ── Export (P1-4.1) ───────────────────────────────────────────────────────
+    // ── Export ─────────────────────────────────────────────────────────────────
 
     /// <summary>
     ///     Writes every backing table to <paramref name="directoryPath" /> in the given format
@@ -1826,8 +1826,8 @@ public sealed record CategoryChip(StatGroup Group, string Label, bool IsSelected
 public sealed record StatsRow(string PlayerName, int Team, IReadOnlyList<StatCell> Cells)
 {
     /// <summary>
-    ///     The player's <c>player_slot</c>: the join key into every other stats table (player-details
-    ///     design P0-1, the linchpin). <c>-1</c> sentinel on totals rows (guarded from opening details).
+    ///     The player's <c>player_slot</c>: the join key into every other stats table, the linchpin of
+    ///     player-details. <c>-1</c> sentinel on totals rows (guarded from opening details).
     /// </summary>
     public int PlayerSlot { get; init; } = -1;
 

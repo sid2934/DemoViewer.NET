@@ -10,7 +10,7 @@ using DemoViewer.NET.Modules.RoundTagger;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Round Tagger module (tag-store.md §3.11): its persisted ids, the two feature rows with the right
+///     The Round Tagger module: its persisted ids, the two feature rows with the right
 ///     scope and parent, and The Matrix's one Main-strip tab.
 /// </summary>
 public class RoundTaggerModuleTests

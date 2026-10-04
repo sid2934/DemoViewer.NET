@@ -23,7 +23,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///     rail and the canvas both edit, the filter rail (<see cref="Filters" />), and the one Search
 ///     button, which reads "Search, N rounds" from the live count.
 ///     <para>
-///         <b>The live count</b> (round-index.md §3.11) is <see cref="ISituationIndex.Count" /> over the
+///         <b>The live count</b> is <see cref="ISituationIndex.Count" /> over the
 ///         draft as it stands, run through <see cref="SituationLiveCount" /> off the UI thread on every
 ///         token, map, filter or index change, debounced, the newest request cancelling the pending one.
 ///         It is the same code path as the search with the materialisation skipped, so the number on
@@ -44,9 +44,9 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         directory, so the picker is empty and the canvas says why.
 ///     </para>
 ///     <para>
-///         <b>The tolerance slider</b> (round-index.md §3.7, §3.8) runs from exact to any place. With an
+///         <b>The tolerance slider</b> runs from exact to any place. With an
 ///         adjacency graph for the map it has four stops; without one the middle two would only repeat
-///         Exact (the index collapses them), so it shows the two that differ, the plan's degraded form.
+///         Exact (the index collapses them), so it shows the two that differ.
 ///         Every move re-asks the live count, and the count never falls as the slider loosens because
 ///         each stop's match implies the next one's. The graph's source is named beside the slider, so
 ///         a user can tell the zone graph from the one the index folded from its own transitions.
@@ -119,7 +119,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     /// <param name="post">Marshals the live count's answer onto the UI thread; a dispatcher post in the app, inline in a test.</param>
     /// <param name="countDelay">The live count's debounce; <see cref="SituationLiveCount.DefaultDelay" /> when null, zero in a test.</param>
     /// <param name="calloutResolverFor">
-    ///     Builds the map's <see cref="CalloutResolver" /> (Callout Aliases, strat-model.md §3.7) for the place
+    ///     Builds the map's <see cref="CalloutResolver" /> (Callout Aliases) for the place
     ///     names this canvas shows; null shows the stored canonical spelling, as if no aliases existed.
     /// </param>
     public QueryCanvasViewModel(
@@ -496,7 +496,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     private static string Rounds(int count) => count == 1 ? "1 round" : $"{count} rounds";
 
-    // The seam's source string is "zones:<version>" or "index:<demoCount>" (round-index.md §3.8); the
+    // The seam's source string is "zones:<version>" or "index:<demoCount>"; the
     // slider names the kind, and the tooltip carries the rest.
     private static string SourceKind(string source) =>
         source.StartsWith("zones:", StringComparison.Ordinal) ? "zones" : "empirical";

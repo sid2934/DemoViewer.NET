@@ -54,7 +54,7 @@ public sealed record ProposalSet(
 }
 
 /// <summary>
-///     Joins proposals to verdicts (suggested-tags.md §3.4). The identity key is stable across a
+///     Joins proposals to verdicts. The identity key is stable across a
 ///     re-detection with changed parameters, so an exact key match is the rule. It is not stable across a
 ///     re-parse that renumbers rounds, which is why each verdict records the frame count of the parse it
 ///     was given on: a verdict from another parse is matched by the nearest trigger tick instead, same

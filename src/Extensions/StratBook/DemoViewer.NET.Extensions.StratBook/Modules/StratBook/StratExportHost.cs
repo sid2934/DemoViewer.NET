@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Modules.StratBook;
 /// <summary>
 ///     What the Strat Book tab needs for a strat export and cannot see through <c>IModuleContext</c>: the
 ///     machine-wide heavy-job gate, whether something else already owns the machine, the settings the dialog
-///     seeds its folder from, and the shell's status-strip mount (step-authoring.md §3.6).
+///     seeds its folder from, and the shell's status-strip mount.
 ///     <para>
 ///         <c>Playback2DExportHost</c> minus <c>Frames</c>: a strat has no demo, its frames are
 ///         <c>StratFrameSource</c>'s. Everything else is the same shape because it is the same job, the same

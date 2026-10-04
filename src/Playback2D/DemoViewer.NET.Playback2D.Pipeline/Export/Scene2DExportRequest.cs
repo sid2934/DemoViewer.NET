@@ -30,9 +30,9 @@ namespace DemoViewer.NET.Services.Export;
 /// </param>
 /// <param name="DemoEndFrame">Last demo frame index, inclusive.</param>
 /// <param name="EncoderOverride">
-///     <c>auto</c> (the default), <c>software</c>, or an <c>EncoderLadder</c> rung's ffmpeg name, plan
-///     P2 D4. It rides the request rather than the runner so two exports in one process can disagree,
-///     which is the per-session shape the plan's §7 export node needs.
+///     <c>auto</c> (the default), <c>software</c>, or an <c>EncoderLadder</c> rung's ffmpeg name.
+///     It rides the request rather than the runner so two exports in one process can disagree,
+///     which is the per-session shape a future multi-export node needs.
 /// </param>
 /// <param name="Quality">
 ///     <c>draft</c>, <c>standard</c> (the default) or <c>best</c>. A string for the same reason the

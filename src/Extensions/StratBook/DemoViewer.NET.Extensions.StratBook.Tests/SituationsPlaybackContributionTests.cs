@@ -17,7 +17,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     Find Rounds Like This and the Situations result walk as a playback contribution (item 20): the
+///     Find Rounds Like This and the Situations result walk as a playback contribution: the
 ///     toolbar item exists only with the pack on and a demo's map name open, and follows a demo change
 ///     live; its Run hands the current frame to <see cref="IFindRoundsLikeThis" />, the same funnel the
 ///     toolbar button, the overflow menu entry and Ctrl+F all share through <c>Surface.TryExecute</c>; its

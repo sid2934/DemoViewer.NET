@@ -18,7 +18,7 @@ using static DemoViewer.NET.AppTests.StratCanvasTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Step Authoring canvas (step-authoring.md §3.8, §3.10, §9 step 5), driven through its view-model with a
+///     The Step Authoring canvas, driven through its view-model with a
 ///     hand-cranked clock and no window: a five-step strat plays back and scrubs; a token drag, a stroke, an erase
 ///     and each step key are one entry on the strat session's one undo stack, and undo reaches the ink as a
 ///     migration; a branch path plays the target's steps with positions inherited across the join; and the keys
@@ -35,7 +35,7 @@ public class StratCanvasTests
     private static PlayerMarker Marker(StratCanvasViewModel canvas, string slot) =>
         canvas.CurrentFrame.Markers.Single(m => m.Label == slot);
 
-    /// <summary>The plan's "done" for Step Authoring: a five-step strat plays back and scrubs.</summary>
+    /// <summary>Step Authoring, end to end: a five-step strat plays back and scrubs.</summary>
     [Test]
     public async Task AFiveStepStrat_PlaysBack_AndScrubs()
     {
@@ -466,7 +466,7 @@ public class StratCanvasTests
         await Assert.That(keymap.GestureText(Playback2DAction.AddStep)).IsEqualTo("Shift+N");
     }
 
-    /// <summary>The same rows on the 2D Playback tab have nothing to act on and stay unhandled (§3.7's table).</summary>
+    /// <summary>The same rows on the 2D Playback tab have nothing to act on and stay unhandled.</summary>
     [Test]
     [Arguments(Playback2DAction.ToolToken)]
     [Arguments(Playback2DAction.AddStep)]

@@ -16,7 +16,7 @@ public enum TeamNameSource
     Auto
 }
 
-/// <summary>Which rule resolved "our side" on a demo (design §3.5): the first that fires wins.</summary>
+/// <summary>Which rule resolved "our side" on a demo: the first that fires wins.</summary>
 public enum OurSideSource
 {
     None,
@@ -141,7 +141,7 @@ public sealed class TeamOverride : IDemoKeyedOverride
 }
 
 /// <summary>
-///     A user's provenance label on one demo (overview correction 24): user truth keyed like
+///     A user's provenance label on one demo: user truth keyed like
 ///     <see cref="TeamOverride" />. The label is one of <see cref="Provenance.DemoProvenanceLabel.All" />;
 ///     removing the entry hands the demo back to the heuristic default.
 /// </summary>
@@ -156,7 +156,7 @@ public sealed class ProvenanceOverride : IDemoKeyedOverride
 
 /// <summary>
 ///     The <c>provenance</c> section of <c>teams.json</c>: the smallest home for the override store, since
-///     Team Identity already owns the default and both files are read at startup (overview correction 24).
+///     Team Identity already owns the default and both files are read at startup.
 /// </summary>
 public sealed class ProvenanceSection
 {
@@ -285,7 +285,7 @@ public sealed class TeamIndexUnaffiliated
 /// <summary>
 ///     <c>&lt;config&gt;/cache/team-index.json</c>: the derived assignment, rebuildable from the sidecars
 ///     and from <c>teams.json</c>. Carries no <c>clock</c> block: nothing here is a tick, so there is no
-///     tick anchor to declare (F15); a consumer that joins a team to ticks carries its own.
+///     tick anchor to declare; a consumer that joins a team to ticks carries its own.
 /// </summary>
 public sealed class TeamIndexFile
 {
@@ -345,7 +345,7 @@ public sealed record TeamAssignment(
 /// <param name="Side">2 = T, 3 = CT, the end-of-demo side.</param>
 public sealed record DemoSideRef(string DemoPath, int Side);
 
-/// <summary>The account the share heuristic proposes as "me" (design §3.5), never written without confirmation.</summary>
+/// <summary>The account the share heuristic proposes as "me", never written without confirmation.</summary>
 /// <param name="SteamId64">The account.</param>
 /// <param name="LastName">Its raw last-seen name.</param>
 /// <param name="DemoCount">Clusterable demos it appears in.</param>

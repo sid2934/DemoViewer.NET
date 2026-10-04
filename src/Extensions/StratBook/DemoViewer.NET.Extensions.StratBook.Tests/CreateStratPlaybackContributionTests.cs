@@ -19,7 +19,7 @@ using DemoViewer.NET.ViewModels.StratBook;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     Create Strat From Round as the pack's playback contribution (item 16): with the pack on, a round band
+///     Create Strat From Round as the pack's playback contribution: with the pack on, a round band
 ///     offers the entry and only a round band, the entry opens the review pane on that round's request, and
 ///     Create writes the strat and hands the id to the pack's navigation; with the pack off, the band offers
 ///     nothing and no pane exists. The capture itself is covered by <see cref="CreateStratFromRoundTests" />.

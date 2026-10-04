@@ -36,7 +36,7 @@ public sealed record LabelPredicate(LabelNamespace Namespace, string Group, IRea
 
 /// <summary>
 ///     Matches an instance that has at least one clicked point (a position, or either end of a movement)
-///     satisfying every non-null clause at once (tag-store.md §3.6, §3.7): the one position clause Search
+///     satisfying every non-null clause at once: the one position clause Search
 ///     Filters asks of a slice. Places are the stored names, ordinal, so an unresolved point matches no
 ///     place set; the polygon reads the coordinates themselves, which is what lets a query ask about an area
 ///     no place name covers without re-tagging anything.
@@ -86,7 +86,7 @@ public sealed record PositionPredicate(
 }
 
 /// <summary>
-///     Which instances a query reads (tag-store.md §3.7). Every clause is an AND; a null clause does not
+///     Which instances a query reads. Every clause is an AND; a null clause does not
 ///     filter. The Matrix, Watched Situations and Search Filters all describe their question as one of these.
 /// </summary>
 /// <param name="Demos">Content hashes; null is every document the caller passed.</param>
@@ -94,13 +94,13 @@ public sealed record PositionPredicate(
 /// <param name="Where">Label predicates, all of which must hold.</param>
 /// <param name="Rounds">Rounds; null is every round. An instance with no round matches no set.</param>
 /// <param name="Source">
-///     One source only; null is every source but <see cref="TagSource.Import" /> (overview correction 2), so a
+///     One source only; null is every source but <see cref="TagSource.Import" />, so a
 ///     human tag and an accepted proposal both count and an imported timeline does not unless asked for.
 /// </param>
 /// <param name="CreatedAfterUtc">Only instances created strictly after this: Watched Situations' "N new" cursor.</param>
 /// <param name="Positions">
 ///     Position predicates, all of which must hold (each may be met by a different point); null or empty does
-///     not filter. The planned addition of tag-store.md §3.7, trailing so every earlier slice reads the same.
+///     not filter. Trailing, so every earlier slice reads the same.
 /// </param>
 public sealed record TagSlice(
     IReadOnlySet<string>? Demos,
@@ -158,7 +158,7 @@ public sealed record TagPivot(
     IReadOnlyDictionary<(string Row, string Column), IReadOnlyList<TagInstanceRef>> Cells);
 
 /// <summary>
-///     The read side of the tag store (tag-store.md §3.7): pure functions over documents the caller loaded,
+///     The read side of the tag store: pure functions over documents the caller loaded,
 ///     normally through <see cref="TagStore.LoadDocuments" /> off the UI thread. Knows nothing of teams,
 ///     palettes or the UI; an opponent's demos arrive as a <see cref="TagSlice.Demos" /> set built elsewhere.
 ///     Results come in document order, then instance order, so a caller that renders them needs no sort to be

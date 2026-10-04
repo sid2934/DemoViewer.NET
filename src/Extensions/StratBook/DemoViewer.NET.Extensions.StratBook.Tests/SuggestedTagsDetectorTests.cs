@@ -8,7 +8,7 @@ using static DemoViewer.NET.AppTests.SuggestedTagsTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The five detectors on hand-written occupancy (suggested-tags.md §7.1): the four-at-once execute,
+///     The five detectors on hand-written occupancy: the four-at-once execute,
 ///     staggered arrivals in both counting modes, the tempo label, a default that becomes an execute,
 ///     a fake at B before an A execute, openers inside and outside the window, retakes with one alive CT
 ///     and with three, the per-side fallback, the round-size skip, and a table that moves every

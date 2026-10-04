@@ -13,8 +13,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Search Filters And Live Count against a real Valve matchmaking demo: a fact filter narrows the
-///     index's hits, and the count equals the result set and the live counter's answer, the way
-///     round-index.md §3.11 asks for it "on a fixture and on a real demo". The filter reads Round Facts
+///     index's hits, and the count equals the result set and the live counter's answer, checked
+///     on a fixture and on a real demo. The filter reads Round Facts
 ///     rows through the production evaluators, joined against the shipped engine ruleset.
 /// </summary>
 [NotInParallel]

@@ -15,7 +15,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Strat Book module (strat-model.md §3.11): its persisted ids and feature row, and the tab VM over an
+///     The Strat Book module: its persisted ids and feature row, and the tab VM over an
 ///     in-memory store: the book selector over Team Identity's teams plus me, a new strat opened in the editor,
 ///     field edits as one op each, a step removed with the branches that named it, the step clock parsed from what
 ///     is typed, and the commit on tab deactivate and at shutdown.

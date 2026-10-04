@@ -8,7 +8,7 @@ using DemoViewer.NET.Extensions.Updates;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     <see cref="ExtensionFeedMerge" /> (strat-book-plugin.md §7.11): the rules item 37's release
+///     <see cref="ExtensionFeedMerge" />: the rules the release
 ///     workflow leans on to update the rolling feed without a hand-rolled script knowing semver. Every
 ///     fragment here is the shape <c>pack-extension.sh</c> actually emits (one bare entry object, not a
 ///     whole feed), produced the same way the script's own reference fixture is: through

@@ -96,7 +96,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly RecentFilesStore? _recentFiles; // recent-files store (null on designer / older tests)
     private readonly string? _sampleDemoPath; // bundled tour sample (null = none ships / designer / tests)
 
-    // Item 22: the Library hosts a pack's filter/badge contributions generically. _contributionOn and
+    // The Library hosts a pack's filter/badge contributions generically. _contributionOn and
     // _filterVms are parallel to _contributions; _changedHandlers are the bound Action instances a
     // contribution's Changed is (un)subscribed with, so subscribe/unsubscribe target the same delegate.
     private readonly IReadOnlyList<ILibraryContribution> _contributions;
@@ -223,7 +223,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public ObservableCollection<MapFilterItem> MapFilters { get; } = [];
 
     /// <summary>
-    ///     Every contributed filter whose gate currently resolves on (item 22), in contribution order. One
+    ///     Every contributed filter whose gate currently resolves on, in contribution order. One
     ///     stable <see cref="LibraryFilterViewModel" /> instance per on contribution; the Team filter is the
     ///     only one today, but a second pack's filter would simply appear alongside it.
     /// </summary>
@@ -946,7 +946,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             q = q.Where(e => e.Players.Any(p => string.Equals(p, SelectedPlayer, StringComparison.OrdinalIgnoreCase)));
         }
 
-        // Every contributed filter (item 22), e.g. the Team filter: "" (All) applies no predicate.
+        // Every contributed filter, e.g. the Team filter: "" (All) applies no predicate.
         foreach (LibraryFilterViewModel filter in Filters)
         {
             q = q.Where(filter.Matches);

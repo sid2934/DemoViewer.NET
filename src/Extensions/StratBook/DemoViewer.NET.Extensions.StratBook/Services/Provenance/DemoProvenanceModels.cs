@@ -8,7 +8,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.Services.Provenance;
 
 /// <summary>
-///     The label vocabulary (plan §3 Demo Provenance Labels, overview correction 24): four values and
+///     The label vocabulary: four values and
 ///     "unlabeled", which is the absence of one. Strings, not an enum, because the Strat Record Panel keys
 ///     <c>ByProvenance</c> on the value and a tag document may carry it verbatim.
 /// </summary>
@@ -68,7 +68,7 @@ public sealed record ProvenanceInputs(bool BothClanTags, DemoSourceKind SourceKi
 }
 
 /// <summary>
-///     The heuristic default (team-identity.md §3.10 with correction 24), one pure function so every
+///     The heuristic default, one pure function so every
 ///     branch is a fixture. In order:
 ///     <list type="number">
 ///         <item>clan tags on both sides: <c>official</c>, whoever we are;</item>
@@ -80,7 +80,7 @@ public sealed record ProvenanceInputs(bool BothClanTags, DemoSourceKind SourceKi
 ///     </list>
 ///     Steps 3 and 4 do not require our side to come from the me accounts: the user's own roster is a
 ///     team once it recurs (so its demos resolve through <c>Team</c>, not <c>Me</c>) and in matchmaking
-///     its opponents never recur (§3.3), so reading "me-resolved" literally would leave every demo of
+///     its opponents never recur, so reading "me-resolved" literally would leave every demo of
 ///     that roster unlabeled while the solo queues beside them read <c>matchmaking</c>.
 /// </summary>
 public static class DemoProvenanceHeuristic

@@ -9,7 +9,7 @@ using System.Text;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The detector-set fingerprint (suggested-tags.md §3.4): SHA-256 of the profile's JSON, the site
+///     The detector-set fingerprint: SHA-256 of the profile's JSON, the site
 ///     region table in force for the map, and the detector code version. Any of the three moving marks
 ///     every proposals file on the map stale, so <see cref="SuggestedTagsService.Wants" /> asks for a
 ///     rebuild; verdicts are keyed by proposal identity and are untouched.

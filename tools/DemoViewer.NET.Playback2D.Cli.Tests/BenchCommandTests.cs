@@ -113,7 +113,7 @@ public class BenchCommandTests
 }
 
 /// <summary>
-///     The §6 zero-allocation contract, over the layer stack <c>dv2d</c> actually builds.
+///     The zero-allocation contract, over the layer stack <c>dv2d</c> actually builds.
 ///     <para>
 ///         <b>This is a live gate.</b> While the catalog registered only a placeholder debug-grid layer,
 ///         which built three <c>SKPaint</c>s inside <c>Render</c>, it measured 3336 B/frame and stayed
@@ -147,7 +147,7 @@ public class BenchAllocationTests
     }
 
     /// <summary>
-    ///     The worst case design §6's numbers are actually stated against: 1080p, two derived floors,
+    ///     The worst case the budget's numbers are actually stated against: 1080p, two derived floors,
     ///     ten markers, four sixty-four-point trails, twelve area effects, a defusing bomb and both
     ///     floor captions. It was a <c>pending</c> manifest entry (skipped, never run) for a long
     ///     stretch, so the one fixture the budget is written for was the one fixture nothing benched.
@@ -160,7 +160,7 @@ public class BenchAllocationTests
     public async Task WorstCase1080pScene_MeetsItsDeclaredBudget()
     {
         // DV2D_BUDGET_SCALE is what CI relaxes the TIME halves by on a shared runner; it is not set here,
-        // so this asserts the unscaled §6 numbers on a developer machine. The allocation half is never
+        // so this asserts the unscaled numbers on a developer machine. The allocation half is never
         // scaled anywhere: 0 bytes is 0 bytes.
         CliRun run = Dv2d.InProcess("bench", "--name", "full-scene-budget", "--corpus",
             Dv2d.CorpusDirectory, "--frames", "256", "--warmup", "64", "--cpu", "--gate", "--json");

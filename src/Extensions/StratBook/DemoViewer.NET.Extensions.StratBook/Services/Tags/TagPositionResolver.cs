@@ -9,12 +9,12 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 namespace DemoViewer.NET.Services.Tags;
 
 /// <summary>
-///     Turns a click on a 2D pane into a <see cref="TagPosition" /> (tag-store.md §3.6): the world point, the
+///     Turns a click on a 2D pane into a <see cref="TagPosition" />: the world point, the
 ///     pane's floor key, the tick, and the place with the <c>placeSource</c> that says how it was found.
 ///     <para>
 ///         <b>Zones first.</b> A map with zones answers through <see cref="PlaceResolver.ResolveOnFloor" />,
-///         the call overview correction 14 gives a consumer that has a floor key and no world Z, stamped
-///         <c>zones:&lt;EffectiveVersion&gt;</c> (correction 13) so a user's overlay edit re-labels it later.
+///         the call that gives a consumer that has a floor key and no world Z, stamped
+///         <c>zones:&lt;EffectiveVersion&gt;</c> so a user's overlay edit re-labels it later.
 ///         A miss there is left unresolved rather than guessed from a pawn: the zones are the authority on
 ///         that map, and the refresh pass retries an unresolved point.
 ///     </para>

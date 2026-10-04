@@ -26,20 +26,20 @@ public sealed record StratCaptureOptions(
     Func<double, double> LevelMinZFor);
 
 /// <summary>
-///     Create Strat From Round's pre-population (step-authoring.md §3.9): a captured round turned into steps on the
+///     Create Strat From Round's pre-population: a captured round turned into steps on the
 ///     strat clock. Pure: the walk is <see cref="RoundCaptureWalker" />'s and the review is the dialog's, so the same
 ///     capture rebuilds instantly when the side or the slot map changes.
 ///     <para>
-///         <b>Cadence (O-25).</b> The freeze-end holds every live pawn on both sides. Each of our side's utility
+///         <b>Cadence.</b> The freeze-end holds every live pawn on both sides. Each of our side's utility
 ///         events is a <c>throw</c> step carrying the thrower and every token that moved more than
 ///         <see cref="MoveThreshold" /> units since its last keyframe; <c>bomb_planted</c> is a <c>plant</c> step for
 ///         the planter; the 10 s sweep is a <c>move</c> step for the tokens that moved that far. A token that did not
-///         move gets no entry, which is the stationary rule (§3.3).
+///         move gets no entry, which is the stationary rule.
 ///     </para>
 /// </summary>
 public static class StratFromRound
 {
-    /// <summary>World units a token has to move since its last keyframe to get a new one (O-25).</summary>
+    /// <summary>World units a token has to move since its last keyframe to get a new one.</summary>
     public const double MoveThreshold = 200;
 
     /// <summary>The generated arrows' width: the ink default, so they read like hand-drawn ones.</summary>
@@ -132,7 +132,7 @@ public static class StratFromRound
     }
 
     /// <summary>
-    ///     The demo-to-slot map (strat-model.md §3.5): our side's pawns at the freeze-end matched to <c>A..E</c> by
+    ///     The demo-to-slot map: our side's pawns at the freeze-end matched to <c>A..E</c> by
     ///     strat pin first, then the book default for the demo's epoch, then the remaining pawns to the remaining
     ///     slots in controller-slot order. Returned as the model names it, slot letter to SteamID64.
     /// </summary>

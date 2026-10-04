@@ -15,7 +15,7 @@ public readonly record struct TokenPlacement(float X, float Y, double LevelMinZ,
 
 /// <summary>
 ///     Turns one slot's entries across a strat's steps into a <see cref="TokenTrack" />, applying the
-///     <b>stationary rule</b> (step-authoring.md §3.3, decision 1).
+///     <b>stationary rule</b>.
 ///     <para>
 ///         A step with no entry for the slot leaves the token where it is. It moves only in the segment
 ///         that ends at its next explicit entry: the window of the last step before that entry. Adding an
@@ -25,12 +25,11 @@ public readonly record struct TokenPlacement(float X, float Y, double LevelMinZ,
 ///     </para>
 ///     <para>
 ///         <b>Why the builder inserts a keyframe the author did not write.</b> Appending one keyframe per
-///         explicit entry and lerping between them would interpolate across the gap, the alternative §4
-///         rejects. So when steps without an entry sit between two entries, the builder pins the token
+///         explicit entry and lerping between them would interpolate across the gap. So when steps
+///         without an entry sit between two entries, the builder pins the token
 ///         at the tick of the last of them with a copy of the previous keyframe, and that step's hold and
 ///         interpolation shape the move, as they would had the author placed it there unchanged. With no
-///         gap, the step that owns the previous keyframe shapes the move, which is the §3.3 rule as
-///         written.
+///         gap, the step that owns the previous keyframe shapes the move.
 ///     </para>
 ///     <para>
 ///         Steps sharing a tick: an entry at a tick that already has a keyframe replaces it, so the later

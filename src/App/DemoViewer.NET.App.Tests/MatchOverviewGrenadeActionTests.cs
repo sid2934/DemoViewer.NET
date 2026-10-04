@@ -8,7 +8,7 @@ using DemoViewer.NET.ViewModels.MatchOverview;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Match Overview's "Index grenades" (grenade-walk.md §3.11): offered on a cached page whose demo has no
+///     Match Overview's "Index grenades": offered on a cached page whose demo has no
 ///     current walk, handing the page's own demo to the evaluator, stepping aside once pressed, and absent
 ///     where the host wired no evaluator (the browser).
 /// </summary>
@@ -102,7 +102,7 @@ public class MatchOverviewGrenadeActionTests
     }
 
     // The mid-session residual: the chip rendered while the pack was on (nothing pushes a refresh on the
-    // gate flip, that is item 8), then the pack goes off before the stale chip is pressed. The command's
+    // gate flip), then the pack goes off before the stale chip is pressed. The command's
     // own guard must still refuse it, and must not mark the demo requested, or the chip would stay hidden
     // once the pack returns.
     [Test]

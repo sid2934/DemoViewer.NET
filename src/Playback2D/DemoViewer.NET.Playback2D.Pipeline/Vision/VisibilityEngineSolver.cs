@@ -11,12 +11,12 @@ using DemoViewer.NET.Playback2D.Core.Vision;
 namespace DemoViewer.NET.Playback2D.Pipeline.Vision;
 
 /// <summary>
-///     The one <see cref="IVisionSolver" /> B1 ships. Port of <c>RebuildSightlines</c> (viewport lines
+///     The only <see cref="IVisionSolver" /> implementation. Port of <c>RebuildSightlines</c> (viewport lines
 ///     933-984) and the 26 raycasts inside <c>DrawOneCone</c> (1037-1046), both verbatim.
 ///     <para>
 ///         It lives in Pipeline because <see cref="VisibilityEngine" /> and
 ///         <see cref="VisibilityAnalyzer" /> are CS2DemoKit types and Core references SkiaSharp only
-///         (plan decision D-2). Core owns the seam and draws the answer.
+///         Core owns the seam and draws the answer.
 ///     </para>
 ///     <para>
 ///         <b>Could-see uses the same <c>VisibilityAnalyzer.EvaluatePair</c> the statistic uses</b>, so

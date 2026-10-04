@@ -14,7 +14,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A token drag edits the step's own fields (docs/strat-book/drag-semantics.md, option A): per verb the field the row
+///     A token drag edits the step's own fields: per verb the field the row
 ///     shows, as one undo entry; Alt pins, Shift stores a point, Esc writes nothing; paused between steps a run gets a via
 ///     and a standing token edits the step that placed it; and the ghost and label say what the release stores.
 /// </summary>

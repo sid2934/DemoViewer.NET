@@ -7,7 +7,7 @@ using System.Globalization;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     The coordinated opener (suggested-tags.md §3.3): <c>K</c> detonations by one side inside
+///     The coordinated opener: <c>K</c> detonations by one side inside
 ///     <c>W</c> seconds, the first such run per side per round. Smokes, flashes, HEs and inferno starts
 ///     count; an inferno start carries no thrower on the wire, so it has no side and counts only where
 ///     an attribution filled one in. The one-region factor is what separates a set execute from three

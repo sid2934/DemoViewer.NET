@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
 ///     Drives one offscreen render: obtain a surface, advance the compositor, draw it, flush, snapshot.
-///     C1's <c>HeadlessSceneRenderer</c> is a Pipeline facade over this, never a second render path.
+///     <c>HeadlessSceneRenderer</c> is a Pipeline facade over this, never a second render path.
 /// </summary>
 public sealed class SceneRenderer
 {
@@ -27,8 +27,7 @@ public sealed class SceneRenderer
     public RenderBackend Backend => _surfaces.Backend;
 
     /// <summary>
-    ///     Renders one pane and returns the snapshot. The caller owns the returned image. B1 adds a
-    ///     pane-list overload rather than changing this signature (decision D9).
+    ///     Renders one pane and returns the snapshot. The caller owns the returned image.
     /// </summary>
     /// <param name="compositor">The layer stack to advance and draw.</param>
     /// <param name="frame">The frame to render.</param>

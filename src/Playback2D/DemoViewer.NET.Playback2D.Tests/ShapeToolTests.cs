@@ -10,7 +10,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The two-point shape tools (step-authoring.md §3.2): press anchors, moves rubber-band the second
+///     The two-point shape tools: press anchors, moves rubber-band the second
 ///     point through the wet stroke, release commits exactly <c>[first, last]</c> as one undo entry, Shift
 ///     constrains, a tap commits nothing, and space and envelope resolve as the pen's do.
 /// </summary>

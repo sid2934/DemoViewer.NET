@@ -32,7 +32,7 @@ public sealed record ZoneLoadResult(
 ///     <see cref="MapAssetPipeline" /> for the zone file.
 ///     <para>
 ///         <b>Never throws, reads nothing from <c>bundle.json</c>.</b> The file is located by path
-///         (decision D1: a <c>--zones</c> top-up cannot write a bundle reference, so nothing reads one),
+///         (a <c>--zones</c> top-up cannot write a bundle reference, so nothing reads one),
 ///         and a missing, unreadable or malformed file is null. The overlay is the other way round:
 ///         it can never shadow the bundle when it fails, so a malformed overlay yields the baked set plus
 ///         a diagnostic, and a malformed entry inside it yields the rest of the overlay plus a diagnostic.
@@ -43,7 +43,7 @@ public static class ZoneAssetPipeline
     /// <summary>The plain file the baker writes beside <c>bundle.json</c>.</summary>
     public const string FileName = "zones.json";
 
-    /// <summary>The gzipped spelling; the reader accepts both (decision D3).</summary>
+    /// <summary>The gzipped spelling; the reader accepts both.</summary>
     public const string GzipFileName = "zones.json.gz";
 
     /// <summary>The overlay's name is <c>&lt;map&gt;</c> plus this.</summary>

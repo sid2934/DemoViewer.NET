@@ -8,7 +8,7 @@ using CS2OpenSchema.Protos;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The thrower's inputs around a throw (grenade-walk.md §3.7): the seam the jump-throw flag reads, so
+///     The thrower's inputs around a throw: the seam the jump-throw flag reads, so
 ///     a source with better commands replaces the default without touching the walk.
 /// </summary>
 public interface IThrowerInputSource

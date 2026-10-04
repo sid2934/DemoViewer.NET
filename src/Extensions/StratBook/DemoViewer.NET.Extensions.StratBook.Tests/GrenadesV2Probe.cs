@@ -18,7 +18,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Grenades v2 probe (docs/utility-book/grenades-v2.md): the Utility Book over a copy of a real cache,
+///     Grenades v2 probe: the Utility Book over a copy of a real cache,
 ///     rendered with today's grid grouping and with the density grouping. Skips unless <c>GV2_CACHE</c>
 ///     names a cache root copy; never point it at the live cache, the store writes its index.
 /// </summary>

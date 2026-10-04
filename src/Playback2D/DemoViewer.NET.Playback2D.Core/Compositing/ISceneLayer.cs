@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>
-///     One drawable band of the scene (design §5.2, verbatim plus <see cref="ContentVersion" />).
+///     One drawable band of the scene (plus <see cref="ContentVersion" />).
 ///     <para>
 ///         <b>The Advance/Render purity split is the point.</b> The pre-v2 control mutated camera and
 ///         marker state <i>inside</i> <c>Control.Render</c>. Here <see cref="Advance" /> runs on the UI

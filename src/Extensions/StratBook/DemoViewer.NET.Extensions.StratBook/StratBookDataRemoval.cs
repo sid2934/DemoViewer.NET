@@ -21,7 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The pack's "delete extension data" action (item 24), built with the real <see cref="IServiceProvider" />
+///     The pack's "delete extension data" action, built with the real <see cref="IServiceProvider" />
 ///     <see cref="StratBookPack.Contribute" /> receives so it can turn the pack off and resolve its own
 ///     stores directly, never through the <c>App.Services</c> locator.
 /// </summary>
@@ -111,7 +111,7 @@ internal sealed class StratBookDataRemoval : IPackDataRemoval
     private PackDataRemover Remover() =>
         new(_sp.GetRequiredService<DemoCacheStore>(), AppPaths.ConfigRoot, AppPaths.DemoCacheDir, _sp.GetService<IDemoProcessingQueue>());
 
-    // None of these are released on disable (architecture doc §8: the pack's small user-truth stores are
+    // None of these are released on disable (the pack's small user-truth stores are
     // "not released" because they are cheap and the user's own). Without this, re-enabling in the same
     // session would show what the delete just removed, and the next edit would save it back.
     private void ReloadLiveStores()

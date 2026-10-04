@@ -12,7 +12,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Team Identity over synthetic rosters (design §7, items 1 to 13): the matching rule and its ties,
+///     Team Identity over synthetic rosters: the matching rule and its ties,
 ///     the two tiers, names, us and me, merge, split, the id-preserving rebuild, overrides, the two
 ///     stores and the coach exclusion. No demo files.
 /// </summary>
@@ -719,7 +719,7 @@ public class TeamIdentityTests
         }
     }
 
-    // ── SideAtRound (overview correction 9) ──────────────────────────────────────────────────────
+    // ── SideAtRound ──────────────────────────────────────────────────────────────────────────────
 
     private sealed class FakeFacts(RoundFactsRows rows) : IRoundFactsSource
     {

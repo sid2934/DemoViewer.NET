@@ -16,7 +16,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     <see cref="StratBookStores.All" /> against the real writers (item 24): every descriptor's path is
+///     <see cref="StratBookStores.All" /> against the real writers: every descriptor's path is
 ///     exercised by constructing the real store over a temp root and writing one real item, so a renamed
 ///     root folder (the thing a "delete extension data" action actually keys on) fails this test rather
 ///     than being caught only by a user's missing file. Stores whose write needs a deep dependency graph

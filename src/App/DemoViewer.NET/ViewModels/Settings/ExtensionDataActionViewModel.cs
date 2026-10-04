@@ -9,7 +9,7 @@ using DemoViewer.NET.Extensions;
 namespace DemoViewer.NET.ViewModels.Settings;
 
 /// <summary>
-///     One pack's "delete extension data" row (item 24): available whether the pack is on or off, since
+///     One pack's "delete extension data" row: available whether the pack is on or off, since
 ///     deleting while off is the main use. Arm counts what is there and shows the confirmation; Confirm
 ///     runs the delete; Cancel drops back to idle without touching anything.
 /// </summary>

@@ -1,4 +1,4 @@
-# Grenades v2 analysis (docs/utility-book/grenades-v2.md). Copy the cache first, never read the live one:
+# Grenades v2 analysis. Copy the cache first, never read the live one:
 #   rsync -a --include='*/' --include='*.grenades*' --exclude='*' <cache>/demos/ /tmp/gv2/cache/demos/
 #   cp <cache>/index.json /tmp/gv2/cache/
 # then: python3 load.py; python3 collide.py; python3 compare.py; python3 known.py; python3 storage.py

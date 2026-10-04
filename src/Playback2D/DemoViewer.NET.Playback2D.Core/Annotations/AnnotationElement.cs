@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2D.Core.Annotations;
 
 /// <summary>
 ///     What an <see cref="AnnotationElement" /> draws. Every member has a tool, a geometry and a hit test
-///     since Shape Tools (step-authoring.md §3.2). They were declared from day one, so the shapes arrived
+///     since Shape Tools. They were declared from day one, so the shapes arrived
 ///     as additive branches rather than a schema migration: a shape is its first and last point, and text
 ///     is one point and a string.
 /// </summary>
@@ -226,7 +226,7 @@ public abstract record SpaceRef
     /// </summary>
     /// <param name="LevelMinZ">The quantized lower world Z of the level this element belongs to.</param>
     [SuppressMessage("Design", "CA1034:Nested types should not be visible",
-        Justification = "Closed discriminated union; the nesting is the contract (design §5.4).")]
+        Justification = "Closed discriminated union; the nesting is the contract.")]
     public sealed record World(double LevelMinZ) : SpaceRef;
 
     /// <summary>
@@ -243,7 +243,7 @@ public abstract record SpaceRef
     /// <param name="Dx">World X offset from the player to the stroke's first point, at authoring time.</param>
     /// <param name="Dy">World Y offset from the player to the stroke's first point, at authoring time.</param>
     [SuppressMessage("Design", "CA1034:Nested types should not be visible",
-        Justification = "Closed discriminated union; the nesting is the contract (design §5.4).")]
+        Justification = "Closed discriminated union; the nesting is the contract.")]
     public sealed record Entity(ulong SteamId, float Dx, float Dy) : SpaceRef;
 }
 
@@ -325,7 +325,7 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
     /// <param name="fadeIn">Lead-in length in ticks.</param>
     /// <param name="fadeOut">Lead-out length in ticks.</param>
     [SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Instance by contract (design §5.4): the UI calls it on the element's existing " +
+        Justification = "Instance by contract the UI calls it on the element's existing " +
                         "envelope, and it becomes stateful the day 'pin' starts preserving custom fades.")]
     public TimeEnvelope PinnedTo(int tick, int holdTicks, int fadeIn, int fadeOut) =>
         new(tick, tick + Math.Max(0, holdTicks), Math.Max(0, fadeIn), Math.Max(0, fadeOut));

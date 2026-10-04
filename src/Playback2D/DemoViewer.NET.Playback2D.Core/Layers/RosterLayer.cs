@@ -370,7 +370,7 @@ public sealed class RosterLayer : ISceneLayer
     }
 
     // 0..100 as strings, filled on demand. Health is the one card figure that changes on every damage
-    // event, and formatting it per player per frame is precisely the allocation §6 forbids.
+    // event, and formatting it per player per frame is precisely the allocation the budget forbids.
     private string Small(int value) => _small[value] ??= value.ToString(CultureInfo.InvariantCulture);
 
     private string Money(int money)

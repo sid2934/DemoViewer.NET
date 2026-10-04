@@ -186,7 +186,7 @@ public sealed class DossierNotesStore
 
     /// <summary>
     ///     Drops every team's notes and re-reads the file: the recovery after it is deleted out from under
-    ///     the store (item 24's "delete extension data"), so a later mutation does not resave what the
+    ///     the store by the "delete extension data" action, so a later mutation does not resave what the
     ///     delete just removed.
     /// </summary>
     public void Reload()

@@ -21,7 +21,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Find Rounds Like This: the key (plan D7), the snapshot's round-trip with the index builder (one
+///     Find Rounds Like This: the key, the snapshot's round-trip with the index builder (one
 ///     function applied twice, in both token modes), the canvas load, and the shipped seam's tab switch.
 ///     The view's route onto the seam through a real <c>SituationsPlaybackContribution</c> is
 ///     <c>CtrlF_RoutesThroughTheView_ToTheSeam</c>; the contribution's own wiring is

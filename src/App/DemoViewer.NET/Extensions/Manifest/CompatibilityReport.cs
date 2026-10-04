@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Extensions.Manifest;
 
 /// <summary>
 ///     One line, no newline: every value <see cref="PackCompatibility.Check" /> judges, plus its verdict.
-///     Item 37 prints it; item 36 logs it.
+///     The extension-signing tool prints it.
 /// </summary>
 public static class CompatibilityReport
 {

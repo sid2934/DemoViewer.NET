@@ -34,7 +34,7 @@ public interface IRoundFactsSource
     IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter);
 
     /// <summary>
-    ///     The parser-namespace facts of one round (overview correction 10), one list, absolute per side.
+    ///     The parser-namespace facts of one round, one list, absolute per side.
     ///     The tick-anchored group (<c>phase</c>, <c>manCount.*</c>) is present only when
     ///     <paramref name="atTick" /> is given. Empty when the demo has no rows or no such round.
     /// </summary>

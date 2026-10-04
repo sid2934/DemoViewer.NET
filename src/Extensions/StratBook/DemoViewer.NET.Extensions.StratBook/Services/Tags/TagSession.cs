@@ -33,7 +33,7 @@ public abstract record TagDelta
 }
 
 /// <summary>
-///     The live tag document for the open demo (tag-store.md §3.9): undo and redo, the non-undoable
+///     The live tag document for the open demo: undo and redo, the non-undoable
 ///     external path the refresh pass uses, debounced autosave and the one-line status.
 ///     <para>
 ///         <b>History holds copies.</b> Every instance entering the document or the history is cloned, so a
@@ -192,7 +192,7 @@ public sealed class TagSession : IDisposable
     /// <summary>
     ///     The demo's identity for <see cref="AttachAsync" />: the hash the caller already has
     ///     (<c>IModuleContext.DemoSha256</c>), else the shared helper off the UI thread, the fallback
-    ///     tag-store.md §3.5 keeps for a demo Content Identity has not reached. Null when the file cannot
+    ///     kept for a demo Content Identity has not reached. Null when the file cannot
     ///     be read.
     /// </summary>
     /// <param name="demoPath">Path to the <c>.dem</c>.</param>

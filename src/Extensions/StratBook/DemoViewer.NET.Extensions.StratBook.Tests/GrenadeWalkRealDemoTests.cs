@@ -14,8 +14,8 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The grenade walk against a real demo, as grenade-walk.md §7 lists it: the invariants the §2.4
-///     measurements make checkable (a projectile per grenade <c>weapon_fire</c>, a thrower on every row,
+///     The grenade walk against a real demo: the invariants it makes checkable
+///     (a projectile per grenade <c>weapon_fire</c>, a thrower on every row,
 ///     the release from the event, the detonations joined, no garbage cell in a path, the inputs agreeing
 ///     with the ground flag), the filtered walk pinned equal to the unfiltered one before the evaluator may
 ///     use it, and a golden of the reference demo's first rows. Skips without a demo, and never reads the

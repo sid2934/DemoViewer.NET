@@ -8,7 +8,7 @@ using Avalonia.Input;
 
 namespace DemoViewer.NET.Services.Tags;
 
-// The on-disk shape of a tag palette (<config>/palettes/<name>.tagpalette.json, tag-store.md §3.4): the
+// The on-disk shape of a tag palette (<config>/palettes/<name>.tagpalette.json): the
 // tagging vocabulary as data, so a team authors its own codes and panels without a build. Palettes are
 // never written by the app, but every object still carries a [JsonExtensionData] bag so a field a newer
 // build understands is at least not an error to this one.
@@ -42,7 +42,7 @@ public sealed class TagPaletteDefinition
 
     /// <summary>
     ///     Whether a code's span is clamped to the round the playhead is in. On unless a palette says
-    ///     otherwise: an instance that crosses a round boundary is almost always a mis-press (decision D3).
+    ///     otherwise: an instance that crosses a round boundary is almost always a mis-press.
     /// </summary>
     public bool ClampToRound { get; set; } = true;
 
@@ -144,7 +144,7 @@ public sealed class TagPaletteButton
 }
 
 /// <summary>
-///     Palette hotkeys: one key, optionally with <c>Ctrl</c>, <c>Shift</c> or both (tag-store.md §3.4). Alt
+///     Palette hotkeys: one key, optionally with <c>Ctrl</c>, <c>Shift</c> or both. Alt
 ///     and Meta are refused: Alt opens the menu bar on Windows and Meta is the macOS command key, so a
 ///     palette that used them would behave differently per head.
 /// </summary>

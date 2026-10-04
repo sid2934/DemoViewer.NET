@@ -219,7 +219,7 @@ public class TagSchemaSnapshotTests
 
         using (Assert.Multiple())
         {
-            // Overview correction 2 withdrew the per-instance suggestion block; provenance replaces it.
+            // The per-instance suggestion block is gone; provenance replaces it.
             await Assert.That(json).DoesNotContain("\"suggestion\"");
             await Assert.That(json).DoesNotContain("\"provenance\"");
             await Assert.That(json).DoesNotContain("\"note\"");

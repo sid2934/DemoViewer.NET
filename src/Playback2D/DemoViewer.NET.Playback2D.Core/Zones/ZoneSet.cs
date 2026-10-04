@@ -97,7 +97,7 @@ public sealed class ZoneSet
 
     /// <summary>
     ///     Every volume, in cascade order: user volumes first, then the baked ones in entity-lump order
-    ///     (decision D4's tie rule is "first wins").
+    ///     (the tie rule is "first wins").
     /// </summary>
     public IReadOnlyList<ZoneVolume> Volumes { get; }
 

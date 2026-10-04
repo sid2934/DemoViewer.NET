@@ -11,8 +11,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 
 /// <summary>
 ///     A strat as a frame source: tokens sampled off their tracks, each throw's flight and effect from the utility
-///     landings, and a round clock, all on the strat frame clock at <see cref="StepSchedule.TicksPerSecond" />
-///     (step-authoring.md §3.6). The export session, the goldens and a later <c>dv2d strat</c> drive it
+///     landings, and a round clock, all on the strat frame clock at <see cref="StepSchedule.TicksPerSecond" />.
+///     The export session, the goldens and a later <c>dv2d strat</c> drive it
 ///     exactly as they drive a demo.
 ///     <para>
 ///         <b>Pure in the tick.</b> <see cref="FrameAt" /> samples afresh on every call and keeps no

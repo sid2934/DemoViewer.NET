@@ -33,7 +33,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     </para>
 ///     <para>
 ///         <b>Every kind draws through <see cref="DrawElement" /></b>, so the dry recording, the per-frame
-///         path and the wet preview share one geometry per kind (step-authoring.md §3.2): a shape is cached
+///         path and the wet preview share one geometry per kind: a shape is cached
 ///         when Static and animated when anchored with no second code path. Freehand keeps its outline;
 ///         Line, Arrow, Rect and Ellipse are stroked from their first and last point; Text is a shaped
 ///         blob at its first point, sized by <see cref="AnnotationText" />.

@@ -36,7 +36,7 @@ public enum StatusChipDotState
 ///     The reusable view-model behind a <c>Controls/StatusChip</c>: a persistent, stateful
 ///     background-activity indicator (a dot + neutral label) that opens a <c>card-flyout</c> for detail and
 ///     actions (docs/ui/design-system.md "StatusChip"). Two consumers justify the shared control: Live Sync
-///     (F1, this WI) and the future Reel job (F3b).
+///     and the future Reel job.
 ///     <para>
 ///         Colour rule (theme mandate): this VM holds <b>no brushes</b>. It exposes the dot's semantic state
 ///         (<see cref="DotState" />) plus <see cref="IsPulsing" /> / <see cref="IsHollow" /> as

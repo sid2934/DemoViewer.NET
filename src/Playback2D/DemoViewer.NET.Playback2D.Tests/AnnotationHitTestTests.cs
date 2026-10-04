@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The eraser's hit test. Erase is stroke-level by design (§5.4 defers pixel erase explicitly), so
+///     The eraser's hit test. Erase is stroke-level by design (pixel erase is deliberately deferred), so
 ///     the only question is whether the eraser disc touches an element.
 /// </summary>
 public class AnnotationHitTestTests

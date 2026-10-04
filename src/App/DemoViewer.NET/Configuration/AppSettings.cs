@@ -72,7 +72,7 @@ public sealed class AppSettings
     /// <summary>The grenade walk's settings: the library sweep and the trajectory stride.</summary>
     public GrenadesSettings Grenades { get; set; } = new();
 
-    /// <summary>The extension updater's settings: the feed URL and when Settings last checked (strat-book-plugin.md §7.10).</summary>
+    /// <summary>The extension updater's settings: the feed URL and when Settings last checked.</summary>
     public ExtensionsSettings Extensions { get; set; } = new();
 
     /// <summary>
@@ -126,7 +126,7 @@ public sealed class IdleSettings
 ///     <c>ILogger</c> stream (coarse load/analysis lifecycle + warnings/errors) that shares the
 ///     Diagnostics tab's log surface with the CSVG host logs, plus the optional rolling file sink.
 ///     <para>
-///         Both the in-app window and the file are <b>bounded</b> by the caps here: the design
+///         Both the in-app window and the file are <b>bounded</b> by the caps here: the
 ///         invariant is that no diagnostics buffer is ever unbounded (a past leak). The coarse
 ///         internal logs are low-rate, so the pillar defaults ON at
 ///         <see cref="LiveSyncLogLevel.Information" />: the standing cost is negligible and the
@@ -200,7 +200,7 @@ public sealed class ProcessingQueueSettings
     ///         preference.
     ///     </b>
     ///     Two concurrent multi-GB parses exhaust RAM; &gt; 1 is advanced/opt-in and
-    ///     clamped to <see cref="Services.HeavyJobGate.HardCapConcurrency" />. See the design notes in git history.
+    ///     clamped to <see cref="Services.HeavyJobGate.HardCapConcurrency" />.
     /// </summary>
     public int MaxConcurrency { get; set; } = 1;
 }
@@ -375,19 +375,19 @@ public sealed class SituationsSettings
 }
 
 /// <summary>
-///     The grenade walk's settings (grenade-walk.md §3.1). Desktop only, like the highlights scan opt-in
+///     The grenade walk's settings. Desktop only, like the highlights scan opt-in
 ///     beside it in Settings: the browser has no processing queue to sweep with.
 /// </summary>
 public sealed class GrenadesSettings
 {
     /// <summary>
-    ///     Background library walk, default OFF (D4): about two and a half seconds per demo is half an hour
+    ///     Background library walk, default OFF: about two and a half seconds per demo is half an hour
     ///     over a 700-demo library. Off, the open demo is still walked on its own parse, and Match Overview
     ///     walks any demo on request.
     /// </summary>
     public bool BackgroundIndex { get; set; }
 
-    /// <summary>Keep every n-th moved sample of a flight (D1); bounce vertices are always kept. Read at walk time.</summary>
+    /// <summary>Keep every n-th moved sample of a flight; bounce vertices are always kept. Read at walk time.</summary>
     public int TrajectoryStride { get; set; } = 4;
 
     /// <summary>
@@ -405,7 +405,7 @@ public sealed class GrenadesSettings
 }
 
 /// <summary>
-///     The extension updater's settings (strat-book-plugin.md §7.10). Desktop only: the browser head has no
+///     The extension updater's settings. Desktop only: the browser head has no
 ///     filesystem to stage into, so it never reads these.
 /// </summary>
 public sealed class ExtensionsSettings
@@ -460,9 +460,8 @@ public enum UserCategory
 ///     Configuration for the 2D Playback module. Binder-safe.
 ///     <para>
 ///         <b>One section for the whole module</b>: a new feature ADDS properties here rather than
-///         creating a sibling section. The canonical property list is
-///         <c>docs/playback2d-v2/plans/00-overview.md</c> §3.10. Every property must also be flattened
-///         into <c>SettingsService.WriteInMemory</c>, or writes vanish silently on WASM (design §5.4, §8):
+///         creating a sibling section. The canonical property list is the registry. Every property must
+///         also be flattened into <c>SettingsService.WriteInMemory</c>, or writes vanish silently on WASM:
 ///         there is no file there, only the in-memory provider that method populates.
 ///     </para>
 ///     <para>
@@ -472,7 +471,7 @@ public enum UserCategory
 ///         <c>SceneExportSession</c> refuses any provider whose backend is not <c>CpuRaster</c> because its
 ///         render loop crosses threads between frames while the GPU provider is thread-affine. The property
 ///         would therefore behave identically for every value except <c>gpu</c>, which would fail export
-///         validation. Add it in the commit that gives it a consumer, design §0 <b>O2</b>, C2 Stage 1.
+///         validation. Add it in the commit that gives it a consumer.
 ///     </para>
 /// </summary>
 public sealed class Playback2DSettings
@@ -481,14 +480,14 @@ public sealed class Playback2DSettings
     ///     Mounts the pre-v2 <c>Playback2DViewport</c> instead of the v2 compositor host.
     ///     <para>
     ///         An internal parity escape hatch for one release, then deleted together with the old
-    ///         control in B5. Deliberately NOT a <c>FeatureCatalog</c> id: catalog ids are permanent
-    ///         persisted keys and this is temporary by design (plan decision D-9). The
+    ///         control. Deliberately NOT a <c>FeatureCatalog</c> id: catalog ids are permanent
+    ///         persisted keys and this is temporary by design. The
     ///         <c>DV_PLAYBACK2D_RENDERER</c> environment variable overrides it, for CI and bisecting.
     ///     </para>
     /// </summary>
     public bool LegacyViewport { get; set; }
 
-    // ── Annotations (B2). Property names are the registry's (§3.10); every one of them has a
+    // ── Annotations. Property names are the registry's; every one of them has a
     //    SettingsService.WriteInMemory row, because annotations are WASM-reachable, in-session drawing
     //    works in the browser, and an unflattened key there is a setting that silently forgets itself.
 
@@ -517,14 +516,14 @@ public sealed class Playback2DSettings
     ///     Envelope authoring mode for new elements: an <c>EnvelopeMode</c> NAME: <c>Always</c>,
     ///     <c>Fade</c>, <c>Custom</c> or <c>RealTime</c>. A string rather than the enum so a member a
     ///     newer build knows about degrades to <c>Always</c> instead of failing the bind, which is what
-    ///     made D7's fourth mode additive: no migration, no new key.
+    ///     made the fourth mode additive: no migration, no new key.
     /// </summary>
     public string AnnotationDefaultVisibility { get; set; } = "Always";
 
     // The three ramps below serve BOTH relative modes. A RealTime element runs this very trapezoid once
-    // per drawn section, shifted by the offset that section was authored at (plan D7 §3), so there is
+    // per drawn section, shifted by the offset that section was authored at, so there is
     // deliberately no second "real-time in/out/hold" trio: it would be the same three numbers under
-    // names that could drift apart, which is the unreachable-key defect D6 audited.
+    // names that could drift apart, which is the unreachable-key defect found by audit.
 
     /// <summary>Lead-in length in DV frame-clock ticks for <c>Fade</c> and <c>RealTime</c> elements.</summary>
     public int AnnotationFadeInTicks { get; set; } = 8;
@@ -547,7 +546,7 @@ public sealed class Playback2DSettings
     /// <summary>Recently used ink colours, newest first, as <c>#AARRGGBB</c>. Flattened as indexed keys.</summary>
     public string[] AnnotationRecentColors { get; set; } = [];
 
-    // ── Keybindings (D1). Indexed keys like AnnotationRecentColors above, the one array shape
+    // ── Keybindings. Indexed keys like AnnotationRecentColors above, the one array shape
     //    SettingsService.WriteInMemory already flattens.
 
     /// <summary>
@@ -562,7 +561,7 @@ public sealed class Playback2DSettings
     /// </summary>
     public string[] KeybindOverrides { get; set; } = [];
 
-    // ── Per-button ink and the Custom envelope (D2). Same rules as the block above: persisted names,
+    // ── Per-button ink and the Custom envelope. Same rules as the block above: persisted names,
     //    one WriteInMemory row each.
 
     /// <summary>
@@ -590,7 +589,7 @@ public sealed class Playback2DSettings
     /// </summary>
     public int AnnotationCustomUntilTick { get; set; } = 320;
 
-    // ── Levels (B3). Registry §3.10 names: LevelDisplayMode, AutoLevelFollow.
+    // ── Levels. Registry names: LevelDisplayMode, AutoLevelFollow.
 
     /// <summary>
     ///     How the map's floors are laid out: <c>Stacked</c> (every floor as a band, the pre-v2 view) or
@@ -606,10 +605,10 @@ public sealed class Playback2DSettings
     /// </summary>
     public bool AutoLevelFollow { get; set; } = true;
 
-    // ── Timeline track visibility (A1's footer check-boxes; persisted by B5) ────────────────────────
-    // Registry §3.10 lists these three keys. A1 shipped the toggles as SESSION state, so a user who
-    // turned kill markers off got them back on the next launch: the B5 settings audit is the phase
-    // that notices. They are per-TRACK and not per-feature: playback2d.timeline decides whether the
+    // ── Timeline track visibility (the footer check-boxes) ───────────────────────────────────────────
+    // The registry lists these three keys. The toggles originally shipped as SESSION state, so a user
+    // who turned kill markers off got them back on the next launch: a later settings audit is what
+    // notices. They are per-TRACK and not per-feature: playback2d.timeline decides whether the
     // control exists at all, these decide which bands and glyphs it draws. The annotation track has
     // its own row because a coach who never draws still wants kills.
 
@@ -622,7 +621,7 @@ public sealed class Playback2DSettings
     /// <summary>Whether the timeline draws the annotation track's markers.</summary>
     public bool TimelineShowAnnotations { get; set; } = true;
 
-    // ── Viewport chrome (D4) ────────────────────────────────────────────────────────────────────────
+    // ── Viewport chrome ─────────────────────────────────────────────────────────────────────────────
     // The docked viewport toolbar's two collapse bits. Both are WASM-reachable (the 2D tab runs in the
     // browser), so both carry a SettingsService.WriteInMemory row.
 
@@ -641,15 +640,15 @@ public sealed class Playback2DSettings
     /// <summary>
     ///     Whether the six overlay check boxes are revealed under the toolbar's header.
     ///     <para>
-    ///         <b>Closed by default</b>, which is the whole of D4 item 4.1: they are read rarely and changed
+    ///         <b>Closed by default</b>, which is deliberate: they are read rarely and changed
     ///         rarely, and as six always-visible check boxes they were the widest thing in the viewport
     ///         column. The <c>Overlays ▾</c> toggle that reveals them is always present.
     ///     </para>
     /// </summary>
     public bool ViewportOverlayBarOpen { get; set; }
 
-    // ---------------- Video export (B4) ----------------
-    // Flat, not a nested Playback2DExportSettings: registry §3.10 / B5 D3 fixed ONE flat class for the
+    // ---------------- Video export ----------------
+    // Flat, not a nested Playback2DExportSettings: the registry fixes ONE flat class for the
     // whole module, and every key below is flattened into SettingsService.WriteInMemory alongside the
     // rest. The keys are persisted names; renaming one silently forgets a user's default.
 
@@ -662,7 +661,7 @@ public sealed class Playback2DSettings
     /// <summary>
     ///     Default export width in pixels. Even, for the yuv420p formats.
     ///     <para>
-    ///         <b>720p, not 1080p</b>: B4 risk R3's third lever, taken on measurement. On
+    ///         <b>720p, not 1080p</b>: taken on measurement. On
     ///         <c>assets/tour/sample-de_nuke.dem</c> with the shipped layer set and WebM/VP9, a CPU export
     ///         runs at 109.8 fps at 1280×720 (1.83× realtime at 60 fps) and 58.4 fps at 1920×1080
     ///         (0.97×). 1080p is still one click away and still perfectly usable; it is simply not a
@@ -680,7 +679,7 @@ public sealed class Playback2DSettings
     /// <summary>
     ///     The master switch for every HUD layer. Off means no HUD whatever the three below say.
     ///     <para>
-    ///         D3b split the HUD into three layers and gave each its own key; this one keeps its original
+    ///         A later split broke the HUD into three layers and gave each its own key; this one keeps its original
     ///         name and meaning so a saved "no HUD" survives the split. It used to be spelled "the clock and
     ///         kill-feed layers", which is why the three are defaulted ON: a user whose file says
     ///         <c>true</c> asked for the HUD, and the HUD now includes the roster.
@@ -697,22 +696,22 @@ public sealed class Playback2DSettings
     /// <summary>Whether <c>hud.roster</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
     public bool ExportIncludeHudRoster { get; set; } = true;
 
-    /// <summary>Whether B2's annotation layer is burned into the video.</summary>
+    /// <summary>Whether the annotation layer is burned into the video.</summary>
     public bool ExportIncludeAnnotations { get; set; } = true;
 
     /// <summary>
     ///     Whether <c>playback2d.vision</c>, the line-of-sight cones, is burned in.
     ///     <para>
     ///         <b>The one export toggle that defaults off</b>, and the last one to get a key: the solve is
-    ///         the frame's biggest per-frame cost and R3's first lever for holding the ≥ realtime budget.
+    ///         the frame's biggest per-frame cost and the first lever for holding the ≥ realtime budget.
     ///         It shipped as the only box in the pane whose answer was forgotten the moment the dialog
     ///         closed, so a user who wants cones re-ticked it for every single export.
     ///     </para>
     /// </summary>
     public bool ExportIncludeVision { get; set; }
 
-    // ---------------- Encoder selection (P2) ----------------
-    // Registry §3.10's last two export rows. Both are flattened into SettingsService.WriteInMemory with
+    // ---------------- Encoder selection ----------------
+    // The registry's last two export rows. Both are flattened into SettingsService.WriteInMemory with
     // the rest of the section; both are persisted keys.
 
     /// <summary>
@@ -722,7 +721,7 @@ public sealed class Playback2DSettings
     ///         <b><c>auto</c> is the only value that cannot fail for an environment reason.</b> It walks
     ///         the format's ladder and takes the best rung this machine verifies, which on a box with no
     ///         working hardware encoder is tuned software, a completely normal export. A named rung is
-    ///         taken literally and refused if it does not verify (plan P2 D4), so it is stored here only
+    ///         taken literally and refused if it does not verify, so it is stored here only
     ///         because a user who has one good card and knows it should not have to re-pick every time.
     ///     </para>
     /// </summary>
@@ -735,8 +734,8 @@ public sealed class Playback2DSettings
     /// </summary>
     public string ExportQuality { get; set; } = "standard";
 
-    // ---------------- Tag Palette (tag-store.md §3.11) ----------------
-    // The one settings row the design gives the Round Tagger. WASM-reachable (the palette docks in the 2D
+    // ---------------- Tag Palette ----------------
+    // The one settings row the Round Tagger needs. WASM-reachable (the palette docks in the 2D
     // tab on the browser too), so it has a SettingsService.WriteInMemory row.
 
     /// <summary>
@@ -754,7 +753,7 @@ public sealed class Playback2DSettings
 
     /// <summary>
     ///     Whether Suggested Tags sweeps the whole library in the background. Off by default, the Highlights
-    ///     scan's rule and the integrator's recommendation for this evaluator (overview correction 20): the
+    ///     scan's rule and the integrator's recommendation for this evaluator: the
     ///     open demo is always evaluated on the parse its open paid for, and the queue's Detect button runs
     ///     any demo on request.
     /// </summary>

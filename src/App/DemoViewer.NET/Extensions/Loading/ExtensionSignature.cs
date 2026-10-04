@@ -11,7 +11,7 @@ using System.Text.Json.Serialization;
 namespace DemoViewer.NET.Extensions.Loading;
 
 /// <summary>
-///     The detached signature over a staged extension directory (strat-book-plugin.md §7.9): a canonical
+///     The detached signature over a staged extension directory: a canonical
 ///     digest of every file in the tree except <see cref="FileName" /> itself, and the structured form
 ///     <see cref="FileName" /> carries so verification can tell "not ours" apart from "changed after
 ///     signing". No project dependency on this file or <see cref="PublisherKeys" />: both are linked, not

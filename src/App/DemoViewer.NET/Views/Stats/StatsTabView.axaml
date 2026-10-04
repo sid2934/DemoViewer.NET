@@ -72,7 +72,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <!-- Stats tab (release plan P1-3.1/4.1): the USER-facing scoreboard over the same MetricTables
+    <!-- Stats tab: the USER-facing scoreboard over the same MetricTables
          the export writes. Hand-rolled columnar list per the house pattern (EntityListView) — the
          column set is dynamic (follows the loaded rules), so header and cells are ItemsControls
          sharing one fixed column width instead of a fixed-AXAML Grid. -->
@@ -224,7 +224,7 @@
                 </Border>
             </StackPanel>
 
-            <!-- ── Extra table (F2/F3): generic renderer for any picked outputs:/keyed table —
+            <!-- ── Extra table: generic renderer for any picked outputs:/keyed table ,
                      dimension columns then value columns, cells preformatted by the VM ── -->
             <ScrollViewer Grid.Row="3"
                           IsVisible="{Binding IsExtraTableView}"
@@ -306,7 +306,7 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <!-- ══ 3D visibility view (F4): per-player LOS table; the directed pairs
+            <!-- ══ 3D visibility view: per-player LOS table; the directed pairs
                      table ships in the export alongside it ══ -->
             <Grid Grid.Row="3"
                   RowDefinitions="Auto,*"
@@ -359,7 +359,7 @@
                     </ItemsControl>
                 </ScrollViewer>
             </Grid>
-            <!-- ══ end 3D visibility view (F4) ══ -->
+            <!-- ══ end 3D visibility view ══ -->
 
             <!-- ── Scoreboard / Rounds: one horizontal scroll owns header + rows (alignment);
                      Scoreboard renders CT/T team sections with totals, Rounds a flat round view ── -->

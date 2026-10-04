@@ -10,8 +10,8 @@ namespace DemoViewer.NET.Extensions.Loading;
 
 /// <summary>
 ///     Chooses, per first-party pack, between the copy shipped beside the app and a newer copy staged under
-///     <c>&lt;config root&gt;/extensions/&lt;id&gt;/&lt;version&gt;/</c>, and loads the staged one when it wins
-///     (strat-book-plugin.md §7.8). Reads only; item 36 stages and cleans up. Nothing here throws for a bad
+///     <c>&lt;config root&gt;/extensions/&lt;id&gt;/&lt;version&gt;/</c>, and loads the staged one when it wins.
+///     Reads only; the updater stages and cleans up. Nothing here throws for a bad
 ///     directory: every refusal is a <see cref="LoadOutcome" /> on the pack's <see cref="PackStatus" />,
 ///     and <see cref="Resolve" /> falls back to the shipped copy if the loader itself fails.
 /// </summary>
@@ -43,7 +43,7 @@ public static class ExtensionLoader
         string root = Path.GetFullPath(extensionsDirectory);
         foreach (string idDir in Directory.EnumerateDirectories(root))
         {
-            // A dot folder is not an extension: .staging holds item 36's downloads in progress.
+            // A dot folder is not an extension: .staging holds the updater's downloads in progress.
             if (Path.GetFileName(idDir).StartsWith('.'))
             {
                 continue;
@@ -276,7 +276,7 @@ public static class ExtensionLoader
     }
 
     /// <summary>
-    ///     The version-skew check (strat-book-plugin.md §7.8): every assembly <paramref name="staged" />
+    ///     The version-skew check: every assembly <paramref name="staged" />
     ///     references that the app ships must be referenced at the version the app runs
     ///     (<paramref name="runningVersion" />, null for one the app does not ship). The first mismatch is a
     ///     <see cref="LoadFailure.ReferenceMismatch" /> outcome; null when all agree. Framework assemblies
@@ -346,7 +346,7 @@ public static class ExtensionLoader
     }
 
     /// <summary>
-    ///     The load-time probe (§7.8): reads <paramref name="pack" />'s contract members (<c>Id</c>,
+    ///     The load-time probe: reads <paramref name="pack" />'s contract members (<c>Id</c>,
     ///     <c>Manifest</c>, <c>Features</c>, <c>Commands</c>, <c>JobKinds</c>) and runs its <c>Register</c>
     ///     on a scratch container, so a member compiled against a missing or changed type fails here, as a
     ///     <see cref="LoadFailure.ProbeFailed" /> outcome, rather than later inside the composition root. Null

@@ -13,8 +13,8 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Create Strat From Round on the two build-10896 replays step-authoring.md §3.9 measured, read in place from the
-///     <c>DEMO_PATH</c> folder; the tour sample is never used. The plan's criterion is that a strat made this way
+///     Create Strat From Round on the two build-10896 replays this suite measured, read in place from the
+///     <c>DEMO_PATH</c> folder; the tour sample is never used. The criterion is that a strat made this way
 ///     needs no manual re-entry to be playable: it validates, saves, projects to ten token tracks and utility, and
 ///     every step's time maps back to the tick it was captured at. A third variant checks that the buy type and
 ///     round length come from the engine's Round Facts row instead of the walk.
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 [Category("RealDemo")]
 public class CreateStratFromRoundRealDemoTests
 {
-    /// <summary>The design's two rounds and the detonations it counted in each (§3.9's table).</summary>
+    /// <summary>The two rounds measured and the detonations counted in each.</summary>
     internal static readonly (string Map, string Demo, int Round, int Detonations)[] Measured =
     [
         ("de_mirage", "match730_003842233788306292960_0260929275_408.dem", 7, 16),
@@ -94,7 +94,7 @@ public class CreateStratFromRoundRealDemoTests
         CaptureMoment freeze = capture.FreezeEnd;
         using (Assert.Multiple())
         {
-            await Assert.That(utility.Count).IsEqualTo(detonations).Because("§3.9 counted this many detonations in the round");
+            await Assert.That(utility.Count).IsEqualTo(detonations).Because("this many detonations were counted in the round");
             await Assert.That(freeze.Pawns.Count).IsEqualTo(10);
             await Assert.That(freeze.Pawns.Select(p => p.PlayerSlot).Distinct().Count()).IsEqualTo(10);
             await Assert.That(freeze.Pawns.Count(p => p.Team == 2)).IsEqualTo(5);
@@ -184,6 +184,6 @@ public class CreateStratFromRoundRealDemoTests
             }
         }
 
-        throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} does not name the replays folder the design measured");
+        throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} does not name the replays folder these tests were written against");
     }
 }

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Strat Book extension plan, item M0 and item 9 (docs/architecture/strat-book-plugin.md §12): resident
-# memory and per-demo indexing time, on a COPY of a real config dir, never the live one. Runs the
+# Strat Book pack resident-memory and per-demo indexing-time baseline (docs/architecture/strat-book-plugin.md),
+# on a COPY of a real config dir, never the live one. Runs the
 # StratBookPackBaselineTests probes in DemoViewer.NET.App.Tests (each [Category("Environmental")], so the
-# standard tier never runs them) and prints medians. --state selects which of M0's or item 9's probes run;
-# item 9 is the same harness, a later head, and a config copy whose settings.json gates the pack.
+# standard tier never runs them) and prints medians. --state selects which probes run: the pack-on probes
+# or the pack-off counterparts, against a config copy whose settings.json gates the pack.
 #
 # Usage:
 #   tools/strat-book-baseline/run.sh --config <config-copy-dir> [--demos <demo-list-file>]
@@ -21,13 +21,13 @@
 #            read in place, NEVER copied or moved. Default: picked from <config>/library.json below, the
 #            8 demos nearest the library's size median (by file size), skipping anything under assets/tour
 #            (the sample demo is incomplete and is never evidence) and anything not present on disk.
-# --state    "on" (default): M0's three probes, pack on, against a config copy with no override (or an
-#            explicit Features.Overrides.pack.stratbook = true). "off": item 9's pack-off counterparts;
+# --state    "on" (default): the pack-on probes, three of them, against a config copy with no override
+#            (or an explicit Features.Overrides.pack.stratbook = true). "off": the pack-off counterparts;
 #            the config copy's settings.json MUST carry Features.Overrides.pack.stratbook = false, or the
-#            probe throws rather than silently measuring the wrong state. "toggle": item 9's in-session
+#            probe throws rather than silently measuring the wrong state. "toggle": the in-session
 #            on-then-off-then-on probe, on a config copy with the pack on at boot (no override).
 # --trials   Number of process-per-trial repeats for the resident-set and toggle probes. Default 3; the
-#            doc's §12 table wants 5 for "on" and "off", 3 for "toggle".
+#            baseline table wants 5 for "on" and "off", 3 for "toggle".
 #
 # Never writes to --config beyond what the app itself writes there (cache sidecars from the indexing-time
 # probe's Evaluate/EvaluateForward calls); never touches the live config dir; never copies, moves or
@@ -179,4 +179,4 @@ else # toggle
   echo "[strat-book-baseline] toggle gcMb medians (n=$TRIALS): on-before=$(printf '%s\n' "${ON_B[@]}" | median) off=$(printf '%s\n' "${OFF_W[@]}" | median) off-late=$(printf '%s\n' "${OFF_L[@]}" | median) on-again=$(printf '%s\n' "${ON_A[@]}" | median)"
 fi
 
-echo "[strat-book-baseline] done. Copy the numbers above into §12 of docs/architecture/strat-book-plugin.md."
+echo "[strat-book-baseline] done."

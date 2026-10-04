@@ -13,7 +13,7 @@ using DemoViewer.NET.ViewModels;
 namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 
 /// <summary>
-///     One detector's line in the Settings tuning table (suggested-tags.md §3.7): the verdict history
+///     One detector's line in the Settings tuning table: the verdict history
 ///     plus recall/precision at whatever profile was last previewed or saved. Display-only, rebuilt
 ///     wholesale from a fresh <see cref="TuningReport" /> rather than patched field by field.
 /// </summary>
@@ -74,7 +74,7 @@ public sealed partial class TuningParameterRow : ObservableObject
     /// <summary>The parameter's key in the profile's detector section.</summary>
     public string Name { get; }
 
-    /// <summary>What moving it does, straight from the detector (§3.7 shows this on the tuning view).</summary>
+    /// <summary>What moving it does, straight from the detector.</summary>
     public string Meaning { get; }
 
     /// <summary>The shipped value, for the "reset to shipped" affordance.</summary>
@@ -91,14 +91,14 @@ public sealed partial class TuningParameterRow : ObservableObject
 }
 
 /// <summary>
-///     Backs the Settings tuning section (suggested-tags.md §3.7, step 6): the stored verdict table,
+///     Backs the Settings tuning section: the stored verdict table,
 ///     every detector's tunable numbers, and the "preview then save" flow: a parameter edit only takes
 ///     effect in the table after <see cref="PreviewCommand" /> re-runs detection in memory, and only
 ///     reaches <c>profile.json</c> after <see cref="SaveCommand" />.
 ///     <para>
 ///         Null <see cref="SuggestedTagsTuningService" />/<see cref="ProfileStore" /> (the browser host,
 ///         or a test that does not wire them) makes <see cref="CanManageTuning" /> false and the section
-///         hides, per §3.8: "no tuning view" there.
+///         hides: "no tuning view" there.
 ///     </para>
 /// </summary>
 public sealed partial class SuggestedTagsTuningViewModel : ViewModelBase
@@ -196,7 +196,7 @@ public sealed partial class SuggestedTagsTuningViewModel : ViewModelBase
     }
 
     /// <summary>
-    ///     Persists the edited parameters as the profile in force (suggested-tags.md §3.7): this is what
+    ///     Persists the edited parameters as the profile in force: this is what
     ///     changes the detector-set fingerprint and marks every demo's proposals stale for the evaluator
     ///     to rebuild in the background. The verdict history and any prior preview's recall/precision are
     ///     unaffected until the next <see cref="Refresh" /> or <see cref="Preview" />.

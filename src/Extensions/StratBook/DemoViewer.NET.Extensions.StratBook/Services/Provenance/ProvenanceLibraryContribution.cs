@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.Services.Provenance;
 
 /// <summary>
-///     The Library card's provenance chip (item 22): badge-only, no filter. <see cref="ResolveProvenance" />
+///     The Library card's provenance chip: badge-only, no filter. <see cref="ResolveProvenance" />
 ///     and <see cref="ResolveTeams" /> are the lazy points: the Library only reaches <see cref="BadgeFor" />
 ///     or <see cref="SetLabel" /> while this contribution's gate resolves on, so neither service is touched
 ///     while off.

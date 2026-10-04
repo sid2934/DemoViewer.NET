@@ -27,10 +27,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     The pack lifecycle (item 3): what <see cref="App.StartPacks" /> runs with the extension on and
+///     The pack lifecycle: what <see cref="App.StartPacks" /> runs with the extension on and
 ///     off, in the real container; what the gated <c>Contribute</c> resolve does to the Situations and
 ///     Review badges and their startup reads; and what <see cref="StratBookLifecycle.OnShutdown" />
-///     touches, called unconditionally (review fix: no "ran at startup" gate).
+///     touches, called unconditionally, with no "ran at startup" gate.
 ///     <see cref="NotInParallelAttribute" /> because the container cases pin the process-global config
 ///     dir, as <see cref="DemoViewer.NET.AppTests.Extensions.StratBook.StratBookPackTests" /> does.
 /// </summary>
@@ -110,8 +110,8 @@ public class StratBookLifecycleTests
     public async Task ModuleRegistry_WithThePackOn_BuildsWatchedSituations_AndQueuesTheReviewLoad()
     {
         // Contribute runs regardless of the gate (every module is always registered), so this is the
-        // regression guard for the review fix: resolving the registry WITH the pack on must build the
-        // badge services again (restoring the pre-item-3, item-1-shaped behaviour), not leave them lazy.
+        // regression guard: resolving the registry WITH the pack on must build the
+        // badge services again, not leave them lazy.
         await WithContainer(PackOnSeed, async (provider, recorder) =>
         {
             int before = recorder.Titles.Count;
@@ -124,7 +124,7 @@ public class StratBookLifecycleTests
             using (Assert.Multiple())
             {
                 await Assert.That(instances.Watched).IsNotNull()
-                    .Because("the section's own id is on, so Contribute resolved it eagerly, same as item 1's Suggested section");
+                    .Because("the section's own id is on, so Contribute resolved it eagerly, same as the Suggested section");
                 await Assert.That(recorder.Titles.Skip(before)).Contains("Load: review queue")
                     .Because("ReviewQueue is core and resolving it eagerly queues its own startup read");
                 await Assert.That(situations.CreateTabs(null!).Single().Badge).IsNull()

@@ -27,9 +27,9 @@ using static DemoViewer.NET.AppTests.StratCanvasTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Strat Export (step-authoring.md §3.6, §7): the Strat Book's export pane opens on GIF, 20 fps, 640 square,
-///     first step to last plus 2 s; the job renders the strat through <c>SceneExportSession</c> with no demo; and the
-///     plan's criterion, a GIF of a five-step strat, is produced with its frame count and one frame pinned.
+///     Strat Export: the Strat Book's export pane opens on GIF, 20 fps, 640 square,
+///     first step to last plus 2 s; the job renders the strat through <c>SceneExportSession</c> with no demo; and
+///     a GIF of a five-step strat is produced with its frame count and one frame pinned.
 /// </summary>
 [NotInParallel]
 public class StratExportTests
@@ -81,7 +81,7 @@ public class StratExportTests
     }
 
     /// <summary>
-    ///     The plan's "done": a GIF of a five-step strat, through the tab's dialog defaults and the job the tab builds,
+    ///     A GIF of a five-step strat, through the tab's dialog defaults and the job the tab builds,
     ///     on the managed GIF floor so the bytes do not depend on which ffmpeg this machine has. Its frame count is
     ///     pinned, and the frame at step 3 is held to a committed golden (<c>STRAT_GOLDEN_UPDATE=1</c> rewrites it).
     /// </summary>
@@ -173,7 +173,7 @@ public class StratExportTests
     }
 
     /// <summary>
-    ///     §7's validation rows: 1:55 to 0:55 at 20 fps (1,201 frames) fits the GIF cap, a whole 115 s round (2,301)
+    ///     Validation: 1:55 to 0:55 at 20 fps (1,201 frames) fits the GIF cap, a whole 115 s round (2,301)
     ///     is refused with the cap message and the dialog names 10 fps (1,151 frames), and WebM has no cap.
     /// </summary>
     [Test]

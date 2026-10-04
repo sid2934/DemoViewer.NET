@@ -1,6 +1,5 @@
 #!/bin/bash
-# Publishes a per-platform SELF-CONTAINED Desktop bundle (the shipping tier per
-# docs/distribution/build-and-packaging-plan.md §3/§4).
+# Publishes a per-platform SELF-CONTAINED Desktop bundle (the shipping tier).
 #
 #   ./scripts/publish.sh [RID] [--framework-dependent]
 #
@@ -29,7 +28,7 @@
 #      package in the global-packages cache, and checks every native it carries for this RID
 #      appears in the output — WARNING if any are missing. Self-maintaining as the pack gains a
 #      platform's natives. To ship a platform whose natives aren't built yet, build them FIRST in
-#      the Cs2VideoGenerator repo and republish Core (docs/distribution §2). Set
+#      the Cs2VideoGenerator repo and republish Core. Set
 #      DV_PUBLISH_STRICT_NATIVES=1 to turn a genuine missing-native into a hard failure.
 
 set -euo pipefail

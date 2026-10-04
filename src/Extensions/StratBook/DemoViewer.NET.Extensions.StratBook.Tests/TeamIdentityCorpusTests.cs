@@ -11,7 +11,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The regression pin for the clustering constants (design §3.3, §7): the anonymised side keys of
+///     The regression pin for the clustering constants: the anonymised side keys of
 ///     a real library, 277 matchmaking replays and 8 HLTV demos, replayed through the clusterer and
 ///     held to the chosen row of the measurement table. SteamIDs in the fixture are stable fakes.
 /// </summary>

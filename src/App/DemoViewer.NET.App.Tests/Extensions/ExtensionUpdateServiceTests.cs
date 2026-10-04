@@ -14,7 +14,7 @@ using static DemoViewer.NET.AppTests.Extensions.UpdateFixtures;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     <see cref="ExtensionUpdateService" /> (strat-book-plugin.md §7.10) over a fake feed client and a temp
+///     <see cref="ExtensionUpdateService" /> over a fake feed client and a temp
 ///     config root: every check outcome is a state, a download is verified before it is opened, unpacked
 ///     where nothing reads it, judged, and renamed into place only when every check passed; a refusal leaves
 ///     nothing behind; and every step runs as a user-priority queue item.
@@ -107,7 +107,7 @@ public class ExtensionUpdateServiceTests
         }
     }
 
-    // Decision 6 (§10) is one predicate: the default is the §7.7 check; either option replaces it here.
+    // This is one predicate: the default is the compatibility check; either option replaces it here.
     [Test]
     public async Task Check_TheDecisionSixPredicate_IsTheOnlyGateOnWhatIsOffered()
     {
@@ -373,7 +373,7 @@ public class ExtensionUpdateServiceTests
                 await Assert.That(Directory.Exists(installed)).IsTrue();
                 await Assert.That(File.Exists(Path.Combine(installed, ExtensionManifest.FileName))).IsTrue();
                 await Assert.That(File.Exists(Path.Combine(installed, "Fake.dll"))).IsTrue();
-                await Assert.That(File.Exists(Path.Combine(installed, "extension.sig"))).IsTrue().Because("the signature item 35 verifies travels intact");
+                await Assert.That(File.Exists(Path.Combine(installed, "extension.sig"))).IsTrue().Because("the verified signature travels intact");
                 await Assert.That(File.Exists(Path.Combine(installed, "Fake.xml"))).IsTrue();
                 await Assert.That(File.ReadAllText(Path.Combine(installed, "de", "Fake.resources.dll"))).IsEqualTo("res");
                 await Assert.That(Directory.Exists(Path.Combine(root, "extensions", ".staging", Id))).IsFalse().Because("the staging folder is gone after the rename");
@@ -411,7 +411,7 @@ public class ExtensionUpdateServiceTests
         }
     }
 
-    // End to end over item 35: the extension this test process runs, zipped the way item 37 will and signed
+    // End to end: the extension this test process runs, zipped the way the release workflow will and signed
     // with an ephemeral key, installs through SignedTrustPolicy; the same zip with one byte of the DLL
     // changed after signing is refused with the signature check's own reason.
     [Test]

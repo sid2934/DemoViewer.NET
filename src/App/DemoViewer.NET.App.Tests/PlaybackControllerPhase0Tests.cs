@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Shell;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Phase 0 regression gate (modular-UI framework): the <c>PlaybackController</c> becomes the
+///     Regression gate for the modular-UI framework: the <c>PlaybackController</c> becomes the
 ///     single position-move code path, but discrete navigation must behave identically. These tests
 ///     drive a real demo through the headless shell and assert the controller's observable position
 ///     tracks the selected frame, and that a single seek does not double-fire the entity seek.

@@ -24,12 +24,12 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     process-global mutable state, and a CLI export and an in-app export must be able to disagree.
 /// </param>
 /// <param name="Encoder">
-///     Which rung of the <see cref="Ffmpeg.EncoderLadder" /> encodes, and at what quality (plan
-///     <c>P2-export-throughput</c>). Null means the format's software rung at
+///     Which rung of the <see cref="Ffmpeg.EncoderLadder" /> encodes, and at what quality. Null
+///     means the format's software rung at
 ///     <see cref="ExportQuality.Standard" />, so a sink is constructible without a probe ever running.
 ///     <para>
 ///         It is a <b>value carried per sink</b>, never a process-global: two exports in one process may
-///         be encoding on two different rungs at once (plan D5). This is the same argument that already
+///         be encoding on two different rungs at once. This is the same argument that already
 ///         keeps <c>BinaryFolder</c> off <c>GlobalFFOptions</c>.
 ///     </para>
 /// </param>
@@ -319,7 +319,7 @@ public sealed class FfmpegFrameSink : IFrameSink
     {
         if (string.Equals(options.FormatId, ExportFormats.Gif, StringComparison.Ordinal))
         {
-            // Plan B4 D6: the standard SINGLE-input equivalent of the two-pass palettegen/paletteuse
+            // The standard SINGLE-input equivalent of the two-pass palettegen/paletteuse
             // recipe. A literal two-pass would need the input twice, and over a pipe that means
             // spilling a multi-gigabyte rawvideo temp file. There is no -c:v here and no ladder rung
             // to choose: the filter chain IS the encoder.
@@ -331,7 +331,7 @@ public sealed class FfmpegFrameSink : IFrameSink
         }
 
         // Everything else is one rung of the ladder plus the arguments its quality maps to. The codec,
-        // the rate control and the speed control all come from ONE place (P2 D2/D3), so a sink cannot
+        // the rate control and the speed control all come from ONE place, so a sink cannot
         // disagree with what `export --json` says it used.
         EncoderSelection selection = options.ResolvedEncoder;
 

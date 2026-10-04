@@ -11,7 +11,7 @@ using SysAssembly = System.Reflection.Assembly;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The layering rules that make Core a runtime instead of a UI helper (design §4, §11). These are
+///     The layering rules that make Core a runtime instead of a UI helper. These are
 ///     asserted against assembly metadata rather than csproj text, because a transitive edge added three
 ///     projects away is exactly the kind of regression a reference-graph reading of the csproj misses.
 /// </summary>
@@ -48,7 +48,7 @@ public class ArchitectureTests
         await AssertNoAvaloniaIn(typeof(SceneFrameBuilder).Assembly);
 
     /// <summary>
-    ///     Decision D1's guard. Pipeline consumes <c>IPlaybackSnapshot</c> / <c>IPlayerState</c> /
+    ///     Pipeline consumes <c>IPlaybackSnapshot</c> / <c>IPlayerState</c> /
     ///     <c>IReadOnlyEntityView</c> from this assembly, so an Avalonia reference creeping back into it
     ///     would drag Avalonia into every headless consumer: export, the CLI, and CI.
     /// </summary>

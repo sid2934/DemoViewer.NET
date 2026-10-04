@@ -131,7 +131,7 @@ public sealed partial class StratPlacedChip
     }
 
     /// <summary>
-    ///     A step's position entries as chips (drag-semantics.md §6): one per entry that overrides or replaces a field
+    ///     A step's position entries as chips: one per entry that overrides or replaces a field
     ///     the row shows, the rest grouped by kind; a group of one reads as its entry. Carried entries are bookkeeping
     ///     and never show.
     /// </summary>

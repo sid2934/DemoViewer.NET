@@ -17,7 +17,7 @@ using DemoViewer.NET.TestSupport;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Find Rounds Like This round-trip over a real Valve matchmaking demo (round-index design §7):
+///     The Find Rounds Like This round-trip over a real Valve matchmaking demo:
 ///     the 2D scene's alive players at a sampled tick encode to the token the index stored for that
 ///     (round, step). The index joins alive and side against the production Round Facts rows.
 /// </summary>

@@ -159,11 +159,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <summary>The zone outline layer, once the toggle is on and the map has zones. Test hook.</summary>
     internal ZoneOutlineLayer? ZoneLayerForTest => _zoneLayer;
 
-    /// <summary>The layer stack. B2 and B4 register their layers on it.</summary>
+    /// <summary>The layer stack other scene layers register themselves on.</summary>
     public SceneCompositor Compositor => _compositor;
 
     /// <summary>
-    ///     Registers a pointer tool on this host only (item 26): the strat canvas's token tool, never the
+    ///     Registers a pointer tool on this host only: the strat canvas's token tool, never the
     ///     2D Playback tab's, since nothing calls this for it. A host re-bound away from the registering
     ///     view model leaves the tool in place but inert, exactly as an unregistered tool would be.
     /// </summary>
@@ -202,7 +202,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         }
     }
 
-    /// <summary>The layout policy. B3 swaps in <c>SingleLayout</c> here.</summary>
+    /// <summary>The layout policy. <c>SingleLayout</c> can replace it here.</summary>
     public ILevelLayoutPolicy LayoutPolicy
     {
         get => _panes.Policy;
@@ -210,8 +210,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     }
 
     /// <summary>
-    ///     Follow-camera deadzone half-extent in world units. B1's one deliberate behaviour change;
-    ///     0 reproduces the pre-v2 feel exactly.
+    ///     Follow-camera deadzone half-extent in world units, the one deliberate behaviour change from
+    ///     pre-v2; 0 reproduces the pre-v2 feel exactly.
     /// </summary>
     public double FollowDeadzoneHalfWorld { get; set; } = 180;
 
@@ -950,7 +950,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             _panes.RetainUnarranged(_levels.Space.LastChange);
         }
 
-        // The followed player's level wins: A1's follow funnel sets _followSlot, and AutoFollow shows
+        // The followed player's level wins: the follow funnel sets _followSlot, and AutoFollow shows
         // whichever floor that player is on. Nothing followed leaves the choice where the user put it.
         _levelSelection.FollowedSlot =
             _mode == CameraMode.FollowPlayer && _followSlot >= 0 ? _followSlot : null;
@@ -1130,7 +1130,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     }
 
     // Pulls the per-push view-model state the scene cannot derive from the frame: the overlay toggles
-    // (compositor state, decision D5) and the map bundle. Both are cheap comparisons in the steady
+    // (compositor state) and the map bundle. Both are cheap comparisons in the steady
     // state; the bundle is pulled every push so a late-arriving map takes effect without a
     // re-activation, exactly as the pre-v2 AuthoritativeFloors pull did.
     private void SyncFromViewModel()

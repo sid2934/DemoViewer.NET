@@ -1,7 +1,7 @@
-# Build verification (docs/distribution/build-and-packaging-plan.md §8 — "CI is DIY").
+# Build verification.
 #
-# Every lane here runs the `full` tier. The tiers (docs/playback2d-v2/plans/P3-test-tiers.md) are
-# exclusion filters over [Category] built for IN-FLIGHT development; CI is not in-flight.
+# Every lane here runs the `full` tier. The tiers are exclusion filters over [Category] built for
+# IN-FLIGHT development; CI is not in-flight.
 #
 # The one split that is load-bearing: the correctness lanes select `Category!=Budget` and the budget
 # lane selects `Category=Budget`. Complementary, so their union is the whole suite, but only PER
@@ -55,7 +55,7 @@ jobs:
       - name: Build the solution (Release)
         run: dotnet build DemoViewer.NET.slnx -c Release -p:WasmBuildNative=false
 
-      # Packaging drift check (docs/architecture/strat-book-plugin.md §7.11): no signing key, so this
+      # Packaging drift check: no signing key, so this
       # only proves staging and zipping still match what the release workflow expects. The script reads
       # the extension's version from nbgv, hence the tool restore.
       - name: Restore CLI tools (nbgv)
@@ -64,7 +64,7 @@ jobs:
       - name: Extension packaging dry run (Strat Book)
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 
-  # The WASM regression net (docs/playback2d-v2/wasm-matrix.md). It PUBLISHES rather than builds:
+  # The WASM regression net. It PUBLISHES rather than builds:
   # `dotnet build` of this head succeeds even when the app cannot boot, and the two ways it has
   # actually broken (a missing native relink, giving a runtime DllNotFoundException for libSkiaSharp,
   # and the ILLink pass) are both publish-only.
@@ -82,7 +82,7 @@ jobs:
 
       # PINNED to the SDK's own runtime-pack band. Installing the newest manifest relinks against a
       # System.Private.CoreLib the runtime then rejects ("Your mono runtime and class libraries are
-      # out of sync"). B0 D11 finding 2, observed at manifest 10.0.111 against runtime 10.0.103.
+      # out of sync"). Observed at manifest 10.0.111 against runtime 10.0.103.
       # Bump this in the same commit as the SDK, never on its own.
       - name: Install wasm-tools
         run: dotnet workload install wasm-tools --version 10.0.103
@@ -93,7 +93,7 @@ jobs:
       # Boot-critical means STRICTLY: App.Initialize throws if it is missing and the head boots black.
       # That includes every assembly App.axaml <StyleInclude>s by `avares://<assembly>/…`, because the
       # XAML loader resolves those URIs at Initialize time. Add a line here in the same commit that
-      # adds such an include (D6 §4b). Payload names are fingerprinted, so these are patterns.
+      # adds such an include. Payload names are fingerprinted, so these are patterns.
       - name: Verify the published payload
         run: |
           set -e
@@ -194,9 +194,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # A hosted runner is not the design §6 baseline laptop. Gate at 2x so the lane catches real
+      # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
       # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
-      # noise; a gate that cries wolf gets disabled within a week. The strict §6 numbers are what a
+      # noise; a gate that cries wolf gets disabled within a week. The strict numbers are what a
       # local run reports against, and are printed here either way.
       #
       # The ZERO-ALLOCATION assertion is deliberately NOT scaled by this. Zero is zero on every
@@ -230,7 +230,7 @@ jobs:
           path: bench-reports/dv2d-*.json
           if-no-files-found: ignore
 
-  # `App.Tests` holds every mechanical guard for this project's two named defect classes: the D6 §4
+  # `App.Tests` holds every mechanical guard for this project's two named defect classes: the
   # architecture guards, the feature/HUD/key-routing wiring guards, the settings round-trip guards. A
   # guard in a project CI never runs is a guard that does not exist.
   #
@@ -261,7 +261,7 @@ jobs:
       - name: App suite, full tier (batched)
         run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
 
-  # The pack's own tests (item 28). Its own job rather than a step in app-tests: a different memory
+  # The pack's own tests. Its own job rather than a step in app-tests: a different memory
   # posture deserves a different timeout, not app-tests' budget shared by subtraction. Single process
   # for now, unbatched: that follows a measured peak (as app-tests' batching did), not the test count,
   # and nothing has measured this suite peaking anywhere near app-tests' 4-5 GB.
@@ -308,7 +308,7 @@ jobs:
       - name: Visualization suite (full tier)
         run: bash scripts/test.sh -t full -p visualization
 
-      # The round-trip gate on the node editor (docs/rule-graph/design.md §9 decision 4). It reads
+      # The round-trip gate on the node editor. It reads
       # the real rules/ directory rather than a copied fixture, so a shipped ruleset that starts
       # using a construct the writer cannot splice turns this lane red rather than going unnoticed.
       #
@@ -327,7 +327,7 @@ jobs:
       - name: GameIcons suite (full tier)
         run: bash scripts/test.sh -t full -p gameicons
 
-  # Render-backend correctness (docs/playback2d-v2/plans/C2-gpu-provider.md §8.4).
+  # Render-backend correctness.
   #
   # Hosted runners have no GPU, but they DO exercise the real GPU code paths: Windows runs ANGLE over
   # D3D11 WARP, Linux runs EGL over llvmpipe. These lanes gate CORRECTNESS AND PERCEPTUAL PARITY ONLY.
@@ -335,8 +335,8 @@ jobs:
   # a software rasteriser's frames-per-second means nothing.
   #
   # A lane that finds no GPU backend SKIPS its GPU cases (SkipTestException) and stays green. That is
-  # the design's rule, not a gap: "CPU provider is the contract baseline; GPU is opportunistic"
-  # (design §10 risk 7). The second pass forces the CPU path back on, which proves the fallback is a
+  # the rule, not a gap: "CPU provider is the contract baseline; GPU is opportunistic".
+  # The second pass forces the CPU path back on, which proves the fallback is a
   # real, exercised path rather than a branch that only compiles.
   render-backends:
     strategy:

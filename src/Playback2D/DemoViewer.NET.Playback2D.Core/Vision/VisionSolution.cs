@@ -33,7 +33,7 @@ public sealed record VisionOptions(
 ///         Pooled and reused by <see cref="VisionSolution" />; valid only until the next
 ///         <see cref="VisionSolution.Clear" />. The ray ends live in a flat float array (x, y per ray)
 ///         rather than a list of points, because this is rebuilt ten times per frame and a point list
-///         would put the §6 zero-allocation budget out of reach on its own.
+///         would put the zero-allocation budget out of reach on its own.
 ///     </para>
 /// </summary>
 public sealed class ConePolygon
@@ -212,7 +212,7 @@ public sealed class VisionSolution
 ///     <c>VisibilityEngineSolver</c> implements it, because the visibility engine is a CS2DemoKit type
 ///     and Core references SkiaSharp only.
 ///     <para>
-///         This is also the escape hatch for §6's budget risk: if the solve is too slow on baseline
+///         This is also the escape hatch for the budget risk: if the solve is too slow on baseline
 ///         hardware, a <c>DeferredVisionSolver</c> wraps this interface to compute into the next frame's
 ///         solution off the UI thread. Nothing implements that today, deliberately: the seam is the
 ///         deliverable.

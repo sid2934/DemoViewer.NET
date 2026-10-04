@@ -22,7 +22,7 @@ public class CompatibilityMatrixTests
     // ── 1: the shipped manifest against this build's host, every axis ─────────────────────────────
 
     // The repo copy is a template: its version is the literal "{nbgv}" and the build stamps the value
-    // Nerdbank.GitVersioning computes from src/Extensions/StratBook/version.json (§7.11). The placeholder
+    // Nerdbank.GitVersioning computes from src/Extensions/StratBook/version.json. The placeholder
     // must not parse as a version, so an unstamped copy can never load.
     private const string VersionPlaceholder = "\"{nbgv}\"";
 
@@ -144,7 +144,7 @@ public class CompatibilityMatrixTests
 
     // GetReferencedAssemblies() records only the AssemblyVersion attribute: 0.13.0.0 for every
     // CS2DemoKit.* package regardless of prerelease label, so a beta0001-to-beta0002 drift cannot be
-    // caught here. RequiresCs2DemoKit_EqualsTheDirectoryPackagesPropsPin_Exactly (item 3) covers that axis.
+    // caught here. RequiresCs2DemoKit_EqualsTheDirectoryPackagesPropsPin_Exactly covers that axis.
     [Test]
     public async Task ExtensionReferences_ToAssembliesTheAppShips_MatchTheVersionLoadedInThisProcess()
     {
@@ -259,7 +259,7 @@ public class CompatibilityMatrixTests
     }
 
     // ── 4: the matrix, over PackCompatibility.Check ────────────────────────────────────────────────
-    // One fixed host per row-family, the manifest varied: item 36's situation (one installed app,
+    // One fixed host per row-family, the manifest varied: the updater's situation (one installed app,
     // many feed entries). hostKit 0.13.0-beta0001 is the real pin; two extra rows hold the manifest's
     // pin fixed and vary the host instead, covering the mismatch from the other side.
 

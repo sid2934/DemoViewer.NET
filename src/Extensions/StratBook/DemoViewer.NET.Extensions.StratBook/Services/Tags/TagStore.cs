@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Services.Tags;
 
 /// <summary>
 ///     The Round Tagger's persisted store: <c>&lt;config&gt;/tags/index.json</c> plus one
-///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per demo (tag-store.md §3.1, §3.5).
+///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per demo.
 ///     <para>
 ///         <b>User truth, not a cache.</b> The storage shape is <c>DemoCacheStore</c>'s, the semantics are
 ///         the opposite: a sidecar is never discarded on identity drift, and a failed write is reported
@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Services.Tags;
 ///         document is the one mistake this store cannot take back.
 ///     </para>
 ///     <para>
-///         <b>Keyed by content hash, always, under the config root</b> (D1). Never beside the demo: the
+///         <b>Keyed by content hash, always, under the config root</b>. Never beside the demo: the
 ///         Matrix needs every document from one directory, and most demos sit in the read-only replays
 ///         folder anyway. The store never hashes a file; callers bring the identity.
 ///     </para>
@@ -46,7 +46,7 @@ public sealed class TagStore
     /// <summary>The sidecar extension, after the hash.</summary>
     public const string SidecarExtension = ".dvtag.json";
 
-    /// <summary>The reserved human label group that links an instance to a strat (overview correction 23).</summary>
+    /// <summary>The reserved human label group that links an instance to a strat.</summary>
     public const string StratGroup = "strat";
 
     /// <summary>The Suggested Tags verdicts file schema this build writes.</summary>

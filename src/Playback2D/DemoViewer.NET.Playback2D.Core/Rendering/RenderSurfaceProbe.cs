@@ -7,13 +7,13 @@ using System.Globalization;
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     The once-per-process backend decision, <b>as data</b> (plans/C2-gpu-provider.md §6.2). A probe
+///     The once-per-process backend decision, <b>as data</b>. A probe
 ///     never throws and never fails a render: "there is no GPU here" is an ordinary answer, carried in
 ///     <see cref="Reason" /> so a log line or a bug report can say <i>why</i>.
 ///     <para>
 ///         <see cref="Renderer" /> is the field that catches the nastiest failure mode: ANGLE loading
 ///         successfully but rendering through WARP on a machine that has a real GPU, which looks like a
-///         win in the log and is a 20× loss in the numbers (plan §10 R2).
+///         win in the log and is a 20× loss in the numbers.
 ///     </para>
 /// </summary>
 /// <param name="Backend">The backend that will actually be used.</param>
@@ -46,7 +46,7 @@ public readonly record struct RenderSurfaceProbe(
     /// <summary>
     ///     Whether <see cref="Renderer" /> names a known software rasterizer. Correctness suites still
     ///     run against these, a WARP or llvmpipe lane is a real exercise of the GPU code path, but a
-    ///     throughput assertion against one measures nothing, so it skips instead (plan §7.2).
+    ///     throughput assertion against one measures nothing, so it skips instead.
     /// </summary>
     public bool IsSoftwareRenderer =>
         Renderer is { Length: > 0 } name &&

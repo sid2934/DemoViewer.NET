@@ -14,11 +14,10 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///     A loaded map-asset bundle: the parsed <see cref="MapAssetBundle" /> plus its radar layers
 ///     decoded to <see cref="SKImage" />.
 ///     <para>
-///         Moved out of the App in B1 and re-typed from Avalonia's <c>Bitmap</c> to <c>SKImage</c>, so
+///         Moved out of the App and re-typed from Avalonia's <c>Bitmap</c> to <c>SKImage</c>, so
 ///         the radar draw is renderer-agnostic and export, the CLI and CI can all load a map without a
 ///         windowing system. The App keeps exactly one bitmap job: the library card thumbnail, which
-///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue
-///         (plan decision D-16).
+///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue.
 ///     </para>
 /// </summary>
 public sealed class LoadedMapAsset : IDisposable
@@ -43,7 +42,7 @@ public sealed class LoadedMapAsset : IDisposable
     ///     <para>
     ///         <b>Cached.</b> The pre-v2 property projected and materialised a fresh <c>List</c> on every
     ///         read, and the viewport read it once per push: a per-frame allocation for data that is
-    ///         constant for the whole map (plan §4 T15 item 7).
+    ///         constant for the whole map.
     ///     </para>
     /// </summary>
     public IReadOnlyList<FloorSlice> Floors =>

@@ -26,14 +26,14 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Golden images for the Strat Book canvas (step-authoring.md §7): the App-suite capture that projects a
+///     Golden images for the Strat Book canvas: the App-suite capture that projects a
 ///     strat through <see cref="StratSceneProjection" /> and plays it through <see cref="StratFrameSource" />,
 ///     the same pieces <see cref="StratExportJob" /> renders a GIF with. Gated by
 ///     <c>PB2D_GOLDEN_UPDATE=1</c> exactly like <c>Playback2DGoldenCaptureTests</c>: a missing golden
 ///     otherwise fails the test rather than silently writing one.
 ///     <para>
 ///         <b>The strat reader lives in the App, so `dv2d` cannot open a `.dvstrat.json`; it does not need
-///         to</b> (design §7). Each entry is still registered in <c>tests/fixtures/playback2d/manifest.json</c>
+///         to</b>. Each entry is still registered in <c>tests/fixtures/playback2d/manifest.json</c>
 ///         so <c>dv2d fixture list</c> and a reviewer scanning the corpus see it, but <c>pending: true</c>,
 ///         for the same reason <c>nuke-multilevel</c> is: every entry here names <c>hud.clock</c> in its
 ///         layer set, and `render`/`golden`/`bench` refuse every <c>hud.*</c> id outright (dv2d.md, "Current
@@ -56,7 +56,7 @@ public class StratGoldenCaptureTests
     // (its fade-out only begins after its window closes at Molly's neighbour, tick Peek-1) and the peek
     // step's text has not started fading in (that starts 8 ticks before Peek). The literal arithmetic
     // midpoint of Molly and Peek, 2848, was not used: when the smoke went off at its step's tick it was
-    // gone by then, and the pinned frame stays where it was. Fades sit OUTSIDE a step's window (design §3.5), so nothing is ever seen mid-fade at a boundary
+    // gone by then, and the pinned frame stays where it was. Fades sit OUTSIDE a step's window, so nothing is ever seen mid-fade at a boundary
     // between two adjacent, non-overlapping windows.
     private const int Mid = 2750;
 
@@ -80,7 +80,7 @@ public class StratGoldenCaptureTests
             "molotov's arrow not yet visible (it starts at Molly), the smoke just released from its thrower " +
             "and not yet drawn (a flight is one point at its release tick), the smoke step's own arrow at full " +
             "opacity (right at its window's FromTick, so no fade-in remains), hud.clock at 1:30. " +
-            "step-authoring.md §7 describes this tick as reading 1:55; that number predates the schema " +
+            "An earlier draft described this tick as reading 1:55; that number predates the schema " +
             "sample's atSeconds values, and the sample (schema-v1.sample.dvstrat.json) is what this entry " +
             "actually projects, so the code's 1:30 is what is pinned here.");
     }
@@ -110,7 +110,7 @@ public class StratGoldenCaptureTests
             "PENDING for dv2d: same reason as strat-mirage-exec-mid (hud.clock). The same tick as " +
             "strat-mirage-exec-mid, at the 720p export preset (Playback2DExportDialogViewModel." +
             "SizePresets) rather than the default GIF square, so a preset size is pinned somewhere in the " +
-            "corpus. Named without the '@1280x720' step-authoring.md §7 uses: GoldenCorpusEntry.GoldenPath " +
+            "corpus. Named without an '@1280x720' suffix: GoldenCorpusEntry.GoldenPath " +
             "already appends '@{width}x{height}' to the entry name, so that literal name would have written " +
             "'strat-mirage-exec-mid@1280x720@1280x720.png'.");
     }
@@ -136,8 +136,8 @@ public class StratGoldenCaptureTests
 
     /// <summary>
     ///     The schema sample (StratTestData.SchemaSample, the checked-in schema-v1.sample.dvstrat.json), with
-    ///     a second arrow added to the molotov step: step-authoring.md §7 asks for "two arrows, one text, one
-    ///     smoke landing, one opponent token" projected into the corpus, and the sample as committed carries
+    ///     a second arrow added to the molotov step, so "two arrows, one text, one
+    ///     smoke landing, one opponent token" projects into the corpus; the sample as committed carries
     ///     only one arrow (on the smoke step) alongside its one text (on the peek step), its one smoke
     ///     landing and its one opponent token (O1). A fresh instance every call, so this never touches the
     ///     shared fixture other suites pin byte-for-byte.
@@ -224,7 +224,7 @@ public class StratGoldenCaptureTests
                 Size = size,
                 MapName = document.Map,
                 MapVersion = asset.Bundle.MapVersion,
-                SourceDemoId = "schema-v1.sample.dvstrat.json, extended (step-authoring.md §7)",
+                SourceDemoId = "schema-v1.sample.dvstrat.json, extended",
                 Notes = notes
             }.Save(scenePath);
 

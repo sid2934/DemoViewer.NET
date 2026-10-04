@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.Modules.RoundTagger.Timeline;
 
 /// <summary>
-///     The Tag Store's instances on the 2D timeline (tag-store.md §3.11): one lane of bands plus one
+///     The Tag Store's instances on the 2D timeline: one lane of bands plus one
 ///     marker per instance.
 ///     <para>
 ///         <b>One lane, merged.</b> <see cref="ITimelineTrack.BuildBands" /> must return non-overlapping
@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Modules.RoundTagger.Timeline;
 ///         is labelled with its code and coloured by it; a run of several is labelled with the count and
 ///         left to the host's neutral colour. The per-instance marker at each start is what keeps a merged
 ///         instance findable. Per-code lanes would need a lane on <see cref="TimelineBand" />, a Core
-///         change this track does not make (§4.6).
+///         change this track does not make.
 ///     </para>
 ///     <para>
 ///         <b>Ticks convert once.</b> Instances carry frame-clock ticks; each is resolved through
@@ -75,7 +75,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
     /// </summary>
     public Func<string, uint?>? CodeColour { get; set; }
 
-    /// <summary>The session the bands are read from. The review panels edit through it while the tab registers this track (item 18).</summary>
+    /// <summary>The session the bands are read from. The review panels edit through it while the tab registers this track.</summary>
     public TagSession Session => _session;
 
     /// <inheritdoc />

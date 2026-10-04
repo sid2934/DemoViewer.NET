@@ -27,7 +27,7 @@ using DemoViewer.NET.Views.SuggestedTags;
 namespace DemoViewer.NET.Modules.RoundTagger.Review;
 
 /// <summary>
-///     Review mode in 2D Playback as one playback contribution (items 17 and 18): the mode toggle, the tag
+///     Review mode in 2D Playback as one playback contribution: the mode toggle, the tag
 ///     and suggestion lanes with their behaviour, and the right-column panels (the Tag Palette, the review
 ///     panel with the Suggested / Labels toggle and the shared editor, and the Suggestion Queue), each under
 ///     its own gate. The contribution owns the open demo's <see cref="TagSession" /> (one per tab: the store's
@@ -503,7 +503,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     }
 
     // The pack's keymap actions. Undo and redo reach here first while the palette has the keyboard, so one
-    // history per document kind, resolved by focus (tag-store.md §3.9). ToggleReviewMode is the mode
+    // history per document kind, resolved by focus. ToggleReviewMode is the mode
     // toggle's, through the surface.
     private bool OnAction(Playback2DAction action)
     {

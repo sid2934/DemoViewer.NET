@@ -8,7 +8,7 @@ using DemoViewer.NET.Services.Strats.Mining;
 
 namespace DemoViewer.NET.AppTests;
 
-/// <summary>The shared state of machine-generated items (docs/strat-book/generated-content.md).</summary>
+/// <summary>The shared state of machine-generated items.</summary>
 public class GeneratedStateTests
 {
     [Test]

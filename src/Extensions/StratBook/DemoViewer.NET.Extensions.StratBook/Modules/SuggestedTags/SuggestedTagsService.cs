@@ -21,7 +21,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     What the tagger changed before accepting (suggested-tags.md §3.6, the editor). A null field keeps
+///     What the tagger changed before accepting, in the editor. A null field keeps
 ///     the proposal's value. Any edit, even one that changes nothing, accepts with <c>edited: true</c>:
 ///     the tagger opened the editor, which is the signal the tuning view reads.
 /// </summary>
@@ -40,32 +40,32 @@ public sealed record TagInstanceEdit(
     IReadOnlyList<TagPosition>? Positions = null);
 
 /// <summary>
-///     The Suggested Tags engine as a background evaluator (suggested-tags.md §3.5, steps 4 and 5): one
+///     The Suggested Tags engine as a background evaluator: one
 ///     parse, many evaluators, registered after the Round Index so the index written in the same pass is
-///     the occupancy source and the walk is the exception (overview correction 19).
+///     the occupancy source and the walk is the exception.
 ///     <para>
 ///         Per demo: occupancy from a current <c>.dvri.json</c>, else the walk over the held parse; the
-///         detonations placed by zones, then the index's place snap, then the walk's sparse cloud
-///         (correction 16); the five detectors in the profile's order; the proposals file written; and the
+///         detonations placed by zones, then the index's place snap, then the walk's sparse cloud;
+///         the five detectors in the profile's order; the proposals file written; and the
 ///         record stamped with the detector-set fingerprint and the pending count, stamp last so a crash
-///         leaves "not built". Everything needs Round Facts rows (correction 11); a demo without them is
+///         leaves "not built". Everything needs Round Facts rows; a demo without them is
 ///         not wanted.
 ///     </para>
 ///     <para>
-///         <b>Verdicts are user truth</b> and go through the Tag Store (correction 2): an accept writes the
+///         <b>Verdicts are user truth</b> and go through the Tag Store: an accept writes the
 ///         instance, with <c>source: "suggested"</c> and the provenance object, and then the verdict; a
 ///         reject writes only the verdict. Neither ever touches the proposals file, which a tuning pass
 ///         may rebuild at any time.
 ///     </para>
 ///     <para>
-///         <b>Background policy</b> (correction 20): the sweep over the library is its own opt-in and off
+///         <b>Background policy</b>: the sweep over the library is its own opt-in and off
 ///         by default; the open demo is always evaluated on the parse the open already paid for, and a
 ///         forced request (the queue's "Detect" button) always runs.
 ///     </para>
 /// </summary>
 public sealed class SuggestedTagsService : IDemoEvaluator
 {
-    /// <summary>The queue owner tag and the coordinator's id (overview correction 19 spells it this way).</summary>
+    /// <summary>The queue owner tag and the coordinator's id.</summary>
     public const string EvaluatorId = "suggestedtags";
 
     /// <summary>
@@ -74,7 +74,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// </summary>
     public const string FeatureId = "playback2d.suggestedtags";
 
-    /// <summary>The <c>provenance.source</c> an accepted instance carries (suggested-tags.md §3.4).</summary>
+    /// <summary>The <c>provenance.source</c> an accepted instance carries.</summary>
     public const string ProvenanceSource = "suggested-tags";
 
     private static ILogger? _diagLog;
@@ -233,7 +233,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     The open demo is built on the parse its open paid for whatever the opt-in says (correction 20);
+    ///     The open demo is built on the parse its open paid for whatever the opt-in says;
     ///     any other demo only when it would have been wanted, so the Library's tier-2 fan-out does not
     ///     turn a sweep the user left off back on.
     /// </remarks>
@@ -417,9 +417,9 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     }
 
     /// <summary>
-    ///     The instance an accept writes (suggested-tags.md §3.4): the proposal's code, window and round,
-    ///     <c>source: "suggested"</c>, its labels in the human namespace with the side it is about
-    ///     (overview correction 10), and the free-form provenance object.
+    ///     The instance an accept writes: the proposal's code, window and round,
+    ///     <c>source: "suggested"</c>, its labels in the human namespace with the side it is about,
+    ///     and the free-form provenance object.
     /// </summary>
     /// <param name="proposal">The proposal.</param>
     /// <param name="edit">What the tagger changed, or null.</param>
@@ -692,7 +692,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     }
 
     /// <summary>
-    ///     The profile-independent half of a build (suggested-tags.md §3.2): the tick rate, the rounds'
+    ///     The profile-independent half of a build: the tick rate, the rounds'
     ///     occupancy and the placed events. Split out from the profile-dependent half (site regions,
     ///     then <see cref="ProposalDetection.Detect" />) so the tuning view's in-memory re-run can hold
     ///     one parse's occupancy and events and try many candidate profiles against them without
@@ -707,7 +707,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
     /// <summary>
     ///     Builds a demo's occupancy and placed events: the index when it is current for the map, else
-    ///     the walk (correction 11, both give the same rows); only the walk leaves a cloud behind for
+    ///     the walk (both give the same rows); only the walk leaves a cloud behind for
     ///     detonation placement. Internal so the tuning view's re-run harness can reuse it.
     /// </summary>
     /// <param name="path">The demo's path (the index sidecar and the zone/place lookups key by it).</param>

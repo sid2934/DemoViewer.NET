@@ -8,7 +8,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The §7.2 snapshot (suggested-tags.md): every committed real-round fixture under
+///     The golden snapshot: every committed real-round fixture under
 ///     <c>tests/fixtures/suggested-tags/</c> run through the shipped profile must propose exactly what
 ///     the file pins. No demo needed; the fold in the file is the input. A detector change that moves a
 ///     proposal fails here, and recapturing is a deliberate act with a diff
@@ -39,7 +39,7 @@ public class SuggestedTagsGoldenTests
         }
     }
 
-    // Known failure, tracked by category rather than by eye: strat-book-plugin.md §11.1 "Done means".
+    // Known failure, tracked by category rather than by eye.
     [Test]
     [Category("KnownFailure")]
     public async Task ThePinnedRounds_ExerciseEveryDetector()

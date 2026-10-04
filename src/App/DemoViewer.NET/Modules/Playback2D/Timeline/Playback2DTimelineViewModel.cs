@@ -889,7 +889,7 @@ public enum TimelineBandRow
 
     /// <summary>
     ///     The lane under the rounds, hidden while empty. The Tag Store's instances draw here, one lane for
-    ///     every code (tag-store.md §4.6).
+    ///     every code.
     /// </summary>
     Lane
 }

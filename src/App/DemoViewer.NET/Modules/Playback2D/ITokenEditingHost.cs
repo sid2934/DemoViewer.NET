@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
 ///     An <see cref="ISceneFrameHost" /> with tokens to drag. Split out of the frame host contract
-///     (strat-book-plugin.md §3.3) so a host with no tokens (the 2D Playback tab, the query canvas)
+///     so a host with no tokens (the 2D Playback tab, the query canvas)
 ///     implements nothing extra for them.
 /// </summary>
 internal interface ITokenEditingHost

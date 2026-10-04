@@ -9,7 +9,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The live strat (strat-model.md §3.12, overview correction 18): one op per undo entry with <c>from</c> read
+///     The live strat: one op per undo entry with <c>from</c> read
 ///     from the document, a merged drag as one history op, the commit rule (explicit, close, idle), the 200-entry
 ///     cap, the pending working copy written between commits and re-opened by the next session, the single-writer
 ///     checkout with the store's status routing, and the status line on each host.

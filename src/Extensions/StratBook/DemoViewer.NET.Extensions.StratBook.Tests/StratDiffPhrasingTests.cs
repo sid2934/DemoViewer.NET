@@ -13,7 +13,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The history's words and the history pane's data (strat-model.md §3.8, §9 step 5): each op phrased against
+///     The history's words and the history pane's data: each op phrased against
 ///     the document as it stood before it, place names through the owner's callouts, the committed sample log
 ///     phrased entry by entry, a commit without a summary given one by the store, and the pane's split either
 ///     side of an entry.

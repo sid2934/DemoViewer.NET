@@ -9,7 +9,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The strat store (strat-model.md §3.2, §3.8, §3.11): the owner and map folder layout, the derived index
+///     The strat store: the owner and map folder layout, the derived index
 ///     rebuilt and reconciled from the folders, corruption that reads as absent and is never overwritten, atomic
 ///     writes, a failed write reported rather than thrown, the in-memory browser mode, the append-only log with
 ///     the crash between its two writes reconciled on load, and delete to <c>.trash/</c>.

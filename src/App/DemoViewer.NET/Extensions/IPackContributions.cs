@@ -130,7 +130,7 @@ public sealed record StatusChipContribution(
     string? FeatureId = null);
 
 /// <summary>
-///     What a pack's Settings "N demos will be re-indexed" notice (architecture doc §8) counts against.
+///     What a pack's Settings "N demos will be re-indexed" notice counts against.
 ///     <see cref="PackFeatureId" /> ties the estimate to the one pack toggle Settings watches for the
 ///     notice, without <c>SettingsViewModel</c> naming the pack's type.
 /// </summary>
@@ -167,7 +167,7 @@ public sealed record LibraryFilter(
 public sealed record LibraryBadge(string Label, string? Tooltip, bool IsPinned);
 
 /// <summary>
-///     A filter and/or a card badge the Library hosts generically (architecture doc §7.4, item 22). A
+///     A filter and/or a card badge the Library hosts generically. A
 ///     contribution may supply either half, both, or neither (<see cref="Filter" /> null and
 ///     <see cref="HasBadge" /> false). The Library calls into a contribution only while its
 ///     <see cref="FeatureId" /> resolves on, so <see cref="Filter" />/<see cref="BadgeFor" /> are the lazy
@@ -241,7 +241,7 @@ public enum StoreRoot
 }
 
 /// <summary>
-///     One pack store or cache path, for "delete extension data" (architecture doc §7.4, §8). A path in
+///     One pack store or cache path, for "delete extension data". A path in
 ///     <paramref name="Paths" /> is either a literal file or directory relative to <paramref name="Root" />,
 ///     or a demo-sidecar pattern of the form <c>"demos/*&lt;suffix&gt;"</c>: everything in <c>demos/</c>
 ///     under the root whose file name ends with <c>&lt;suffix&gt;</c>, matched by ordinal string comparison,
@@ -294,7 +294,7 @@ public sealed record PackDataRemovalResult(bool Ran, PackDataInventory Removed, 
 }
 
 /// <summary>
-///     What a pack hands Settings for "delete extension data" (architecture doc §8, item 24): available
+///     What a pack hands Settings for "delete extension data": available
 ///     whether the pack is on or off, so the Settings VM never has to resolve the pack's own stores or
 ///     gate state itself.
 /// </summary>

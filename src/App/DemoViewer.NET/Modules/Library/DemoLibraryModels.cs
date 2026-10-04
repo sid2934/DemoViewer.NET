@@ -64,7 +64,7 @@ public partial class DemoEntry : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<string> _players = [];
 
-    // ── Badge (a pack's card-badge contribution, item 22) ──
+    // ── Badge (a pack's card-badge contribution) ──
     // The active contribution's LibraryBadge for this entry, or all null/false when no contribution is on.
     // Filled by the Library VM on refresh; the entry never computes a badge itself.
     [ObservableProperty]

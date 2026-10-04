@@ -11,13 +11,13 @@ using SkiaSharp;
 
 namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 
-/// <summary>The measured budget one corpus entry is gated against (design §6).</summary>
+/// <summary>The measured budget one corpus entry is gated against.</summary>
 /// <param name="RenderP99Ms">99th-percentile render time, in milliseconds.</param>
 /// <param name="AdvanceP99Ms">99th-percentile advance time, in milliseconds.</param>
 /// <param name="BytesPerFrame">Steady-state allocation per frame. Zero, and never scaled.</param>
 public readonly record struct GoldenBudget(double RenderP99Ms, double AdvanceP99Ms, long BytesPerFrame)
 {
-    /// <summary>Design §6's numbers, used when the manifest states no per-entry budget.</summary>
+    /// <summary>The default budget numbers, used when the manifest states no per-entry budget.</summary>
     public static readonly GoldenBudget Default = new(8.0, 2.0, 0);
 
     /// <summary>
@@ -38,9 +38,9 @@ public readonly record struct GoldenBudget(double RenderP99Ms, double AdvanceP99
 /// <param name="Layers">The layer ids to register, or null for every known layer.</param>
 /// <param name="Budget">The frame budget for <c>dv2d bench --gate</c>.</param>
 /// <param name="Pending">
-///     True when this entry's inputs have not all landed yet (a B2 annotation document, a B3 level
+///     True when this entry's inputs have not all landed yet (an annotation document, a level
 ///     pick). A pending entry is <b>skipped</b> by <c>golden verify</c> and <c>fixture verify</c>, never
-///     failed, which is what lets a later phase register its fixture before it can render it.
+///     failed, which is what lets an entry register its fixture before it can render it.
 /// </param>
 public sealed record GoldenCorpusEntry(
     string Name,

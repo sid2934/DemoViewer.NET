@@ -89,8 +89,8 @@ public static class OccupancyRoster
 }
 
 /// <summary>
-///     Builds <see cref="RoundOccupancy" /> for every live round of a demo, from either source the
-///     design names (suggested-tags.md §3.2): the Round Index document already written for the demo,
+///     Builds <see cref="RoundOccupancy" /> for every live round of a demo, from either source: the
+///     Round Index document already written for the demo,
 ///     decoded from its alive-only per-side tokens, or a position walk of the held parse when there is
 ///     no index (the browser, or a demo the index has not reached). Both read their round windows from
 ///     the same Round Facts rows and their alive and side from the sample's own fields (CS2DemoKit

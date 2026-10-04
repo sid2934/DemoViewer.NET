@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     Turns the <c>round_facts</c> table into the record: pairs the two rows of each round by side,
 ///     builds the kill timeline from the list columns, maps known columns onto typed fields and
 ///     everything else into <see cref="RoundFacts.Extra" />, and says per column whether the engine
-///     provided it. Round numbers are <c>ClipRound.Number</c> (overview correction 12) and the freeze
+///     provided it. Round numbers are <c>ClipRound.Number</c> and the freeze
 ///     end is the deriver's tick; a row that disagrees is kept and says so in its warnings.
 /// </summary>
 public static class RoundFactsProjection

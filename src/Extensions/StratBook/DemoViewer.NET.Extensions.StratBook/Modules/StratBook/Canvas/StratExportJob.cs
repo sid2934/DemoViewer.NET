@@ -46,7 +46,7 @@ public sealed record StratExportCapture(
     WorldBounds FallbackBounds);
 
 /// <summary>
-///     Strat Export (step-authoring.md §3.6): the strat rendered to GIF or video through
+///     Strat Export: the strat rendered to GIF or video through
 ///     <see cref="SceneExportSession" /> with a <see cref="StratFrameSource" /> and no demo behind it.
 ///     <para>
 ///         <b>The 2D export's job with a different source.</b> This is the <see cref="IExportRunner" /> an
@@ -66,10 +66,10 @@ public sealed record StratExportCapture(
 /// </summary>
 public sealed class StratExportJob : IExportRunner
 {
-    /// <summary>Default frame rate (overview O-29): the GIF rate that divides 100 and keeps a round under the cap.</summary>
+    /// <summary>Default frame rate: the GIF rate that divides 100 and keeps a round under the cap.</summary>
     public const int DefaultFps = 20;
 
-    /// <summary>Default width (O-29). Square, so a radar fills it and the text arithmetic in §6 holds.</summary>
+    /// <summary>Default width. Square, so a radar fills it and the text arithmetic holds.</summary>
     public const int DefaultWidth = 640;
 
     /// <summary>Default height: the square's other side.</summary>
@@ -114,7 +114,7 @@ public sealed class StratExportJob : IExportRunner
 
     /// <summary>
     ///     The layers a strat export draws: the seven scene layers, then the ink and the round clock when asked
-    ///     for. Named explicitly (§3.6) rather than left to the null-include default, which draws no opt-in layer.
+    ///     for. Named explicitly rather than left to the null-include default, which draws no opt-in layer.
     /// </summary>
     /// <param name="ink">Whether the strat's strokes are burned in.</param>
     /// <param name="clock">Whether <c>hud.clock</c> counts the round down.</param>
@@ -146,7 +146,7 @@ public sealed class StratExportJob : IExportRunner
 
     /// <summary>
     ///     The ranges the dialog offers, in strat ticks, the default first: the first step to the last plus
-    ///     <see cref="TailTicks" /> (O-29), then the round from its start when the first step is later than that.
+    ///     <see cref="TailTicks" />, then the round from its start when the first step is later than that.
     /// </summary>
     /// <param name="projection">The path being exported.</param>
     public static IReadOnlyList<ExportRangeOption> Ranges(StratSceneProjection projection)

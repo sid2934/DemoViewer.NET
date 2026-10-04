@@ -41,12 +41,12 @@ using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     The Strat Book tab (strat-model.md §3.11): the book selector over Team Identity's teams plus <c>me</c>, the
+///     The Strat Book tab: the book selector over Team Identity's teams plus <c>me</c>, the
 ///     map and side filters, the strat list from the store's index, and the editor over the one open
 ///     <see cref="StratSession" />.
 ///     <para>
 ///         <b>Commits follow the tab.</b> Leaving the tab, a demo swap, opening another strat, another book and
-///         shutdown each commit the open strat's pending edits (§3.8's triggers); the session's own timers cover the
+///         shutdown each commit the open strat's pending edits; the session's own timers cover the
 ///         30 s idle rule and the working copy between.
 ///     </para>
 ///     <para>
@@ -145,7 +145,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="grenades">
     ///     The Utility Book's Grenade Index (Lineup On A Strat Step): fills a step's lineup choices in the
     ///     editor and resolves a lineup reference to its title in Role View and LAN Print; null offers only
-    ///     "none" and prints a raw id, the pre-item behaviour.
+    ///     "none" and prints a raw id, the previous behaviour.
     /// </param>
     /// <param name="mining">Strat Mining, for the Detected inbox; null says the host has no demo cache.</param>
     /// <param name="playback">Opens a detected pattern's round in 2D Playback, resolved at click time.</param>
@@ -204,7 +204,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
 
         Callouts = new CalloutsEditorViewModel(store, _calloutResolvers);
 
-        // Strat Record Panel (strat-model.md §3.6): run / won / aborted, split by Demo
+        // Strat Record Panel: run / won / aborted, split by Demo
         // Provenance Labels, the failure breakdown, every number a clip. A session-only Tag Store when
         // the host wired none, so the tab still renders (empty) rather than needing a fourth optional
         // to become required.
@@ -212,12 +212,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         StratEvidenceService recordEvidence = evidence ?? new StratEvidenceService(recordTags);
         RecordPanel = new StratRecordPanelViewModel(recordEvidence, recordTags, review, indexBySha, selectTab, _post);
 
-        // Strat Version History (strat-model.md §3.8): the append-only diff log as a pane,
+        // Strat Version History: the append-only diff log as a pane,
         // the record split either side of each entry. Reads the same evidence and Tag Store as the
         // Record Panel above, so the two never disagree about what "run" or "won" means.
         HistoryPanel = new StratHistoryPanelViewModel(store, recordEvidence, recordTags, _calloutResolvers, _post);
 
-        // Role View And LAN Print (strat-model.md §3.14): one slot's parts on screen and the
+        // Role View And LAN Print: one slot's parts on screen and the
         // button that prints all five as one HTML page. Print has nothing to write to on the browser head.
         RoleView = new StratRoleViewPanelViewModel(IsBrowser);
 
@@ -255,12 +255,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         RefreshOwners();
     }
 
-    /// <summary>The Strat Export feature id (step-authoring.md §3.10). A persisted key; desktop only.</summary>
+    /// <summary>The Strat Export feature id. A persisted key; desktop only.</summary>
     public const string ExportFeatureId = "stratbook.export";
 
     /// <summary>
-    ///     The sizes the strat export offers: the 640 square first (O-29), then the 2D tab's presets. Square
-    ///     because a radar is, so the map fills the frame and §6's text arithmetic at 640 px holds.
+    ///     The sizes the strat export offers: the 640 square first, then the 2D tab's presets. Square
+    ///     because a radar is, so the map fills the frame and the text arithmetic at 640 px holds.
     /// </summary>
     public static IReadOnlyList<ExportSizeOption> ExportSizes { get; } =
     [
@@ -276,7 +276,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>True on the WASM head.</summary>
     public bool IsBrowser { get; }
 
-    /// <summary>The one live strat. Step Authoring's canvas edits through it too (overview correction 18).</summary>
+    /// <summary>The one live strat. Step Authoring's canvas edits through it too.</summary>
     public StratSession Session { get; }
 
     public StratEditorViewModel Editor { get; }
@@ -287,10 +287,10 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>What the collapsed list's strip reads: the pane it hides.</summary>
     public string CollapsedListLabel => IsDetectedView ? "DETECTED" : "STRATS";
 
-    /// <summary>The alias table editor for the selected book and map (Callout Aliases, strat-model.md §3.7).</summary>
+    /// <summary>The alias table editor for the selected book and map (Callout Aliases).</summary>
     public CalloutsEditorViewModel Callouts { get; }
 
-    /// <summary>The Step Authoring canvas over the open strat (step-authoring.md §3.10).</summary>
+    /// <summary>The Step Authoring canvas over the open strat.</summary>
     public StratCanvasViewModel Canvas { get; }
 
     /// <summary>The step the rows highlight and the canvas edits.</summary>
@@ -305,13 +305,13 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <summary>The list toggle's second label, with how many new patterns the filters show.</summary>
     public string DetectedHeader => Detected.NewCount > 0 ? $"Detected ({Detected.NewCount})" : "Detected";
 
-    /// <summary>The Strat Record Panel over the open strat (strat-model.md §3.6).</summary>
+    /// <summary>The Strat Record Panel over the open strat.</summary>
     public StratRecordPanelViewModel RecordPanel { get; }
 
-    /// <summary>Strat Version History over the open strat (strat-model.md §3.8).</summary>
+    /// <summary>Strat Version History over the open strat.</summary>
     public StratHistoryPanelViewModel HistoryPanel { get; }
 
-    /// <summary>Role View And LAN Print over the open strat (strat-model.md §3.14).</summary>
+    /// <summary>Role View And LAN Print over the open strat.</summary>
     public StratRoleViewPanelViewModel RoleView { get; }
 
     /// <summary>Every book: <c>me</c>, then each visible team.</summary>
@@ -552,7 +552,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private void CancelLineupPicker() => LineupPicker?.CancelCommand.Execute(null);
 
     /// <summary>
-    ///     Opens the export pane over the open strat (step-authoring.md §3.6): GIF at 20 fps, 640 square, the first
+    ///     Opens the export pane over the open strat: GIF at 20 fps, 640 square, the first
     ///     step to the last plus 2 s. The job is the 2D export's service over a <see cref="StratExportJob" />, so
     ///     the gate, the interlocks, the chip and cancel are the same ones.
     /// </summary>
@@ -581,7 +581,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             host.MountStatusChip?.Invoke(ExportStatus);
         }
 
-        // The strat's own defaults, not the 2D tab's saved ones: a strat is shared as a short GIF (O-29), and
+        // The strat's own defaults, not the 2D tab's saved ones: a strat is shared as a short GIF, and
         // choosing here must not rewrite what the 2D tab opens with. Only the folder is shared.
         Playback2DSettings saved = host.Settings().Playback2D;
         Playback2DSettings seed = new()
@@ -606,7 +606,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
             _exportJob,
 
             // An empty fixed script: the session's first-frame fit frames the map's bounds, which is the
-            // strat's camera (§3.6). There is no live pan to mirror.
+            // strat's camera. There is no live pan to mirror.
             captureLiveCamera: null,
             outputFrameCount: StratFrameSource.OutputFrameCount,
             ffmpegLocator: static () => FfmpegLocator.Locate(FfmpegDependency.ManagedDirectory),
@@ -837,7 +837,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         SelectedStrat = Strats.FirstOrDefault(r => r.Id == id);
     }
 
-    /// <summary>Moves the selected strat to its folder's <c>.trash/</c> (decision 10), committing its edits first.</summary>
+    /// <summary>Moves the selected strat to its folder's <c>.trash/</c>, committing its edits first.</summary>
     [RelayCommand]
     private void DeleteStrat()
     {
@@ -1206,7 +1206,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         Canvas.SetCallouts(places);
     }
 
-    // Role View's roster, strat-pin level only (§3.5): a slot the editor shows pinned to a real person,
+    // Role View's roster, strat-pin level only: a slot the editor shows pinned to a real person,
     // not "book default" (that resolves no further here, so the sheet prints the blank line to write on,
     // same as an unpinned slot).
     private Dictionary<string, string?> RosterFromEditor() =>

@@ -47,7 +47,7 @@ public partial class LibraryTabView : UserControl
         }
     }
 
-    // The badge chip's menu (item 22): the item's Tag is its LibraryBadgeMenuEntry, and the card's entry
+    // The badge chip's menu: the item's Tag is its LibraryBadgeMenuEntry, and the card's entry
     // is reached by walking up from the item through the flyout's popup to the chip that opened it, whose
     // DataContext is the DemoEntry. A presenter in between inherits DataContext by default, but a click
     // never lands on nothing if one does not. IsReset means "go back to automatic".

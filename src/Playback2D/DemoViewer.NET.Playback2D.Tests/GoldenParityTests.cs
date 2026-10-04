@@ -12,7 +12,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     <b>B1's exit criterion.</b> Re-renders each captured <c>SceneFixture</c> through the v2
+///     <b>The port's exit criterion.</b> Re-renders each captured <c>SceneFixture</c> through the v2
 ///     compositor and compares it to the PNG the pre-v2 <c>Playback2DViewport</c> produced from the very
 ///     same push.
 ///     <para>
@@ -26,10 +26,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         sits within a delta anyone could see.
 ///     </para>
 ///     <para>
-///         The measured curve, the identified outliers and the sign-off are in
-///         <c>docs/playback2d-v2/plans/B1-text-metrics-review.md</c>: the "reviewed, not auto-failed"
-///         treatment design risk 1 and plan decision D-17 ask for, applied to the whole image rather
-///         than to text alone.
+///         This extends the "reviewed, not auto-failed" treatment used for text metrics to the whole
+///         image rather than to text alone.
 ///     </para>
 ///     <para>
 ///         The byte-exact half of the criterion is <c>SceneDeterminismTests</c>, which pins the v2

@@ -27,7 +27,7 @@ public static class TagSources
     /// <summary>An accepted Suggested Tags proposal. Kept distinct so the Matrix can stratify by it.</summary>
     public const string Suggested = "suggested";
 
-    /// <summary>Reserved for a future importer (tag-store.md §3.8). Nothing writes it today.</summary>
+    /// <summary>Reserved for a future importer. Nothing writes it today.</summary>
     public const string Import = "import";
 }
 
@@ -159,9 +159,9 @@ public sealed class TagInstance
     public string Source { get; set; } = TagSources.Human;
 
     /// <summary>
-    ///     Free-form provenance for an accepted proposal (Suggested Tags §3.4: detector, proposal id,
-    ///     confidence and so on). Opaque to this store and preserved as written; absent on a hand-made
-    ///     instance. It replaces the withdrawn per-instance <c>suggestion</c> block (overview correction 2).
+    ///     Free-form provenance for an accepted proposal from Suggested Tags: detector, proposal id,
+    ///     confidence and so on. Opaque to this store and preserved as written; absent on a hand-made
+    ///     instance. It replaces the withdrawn per-instance <c>suggestion</c> block.
     /// </summary>
     public JsonObject? Provenance { get; set; }
 
@@ -250,8 +250,8 @@ public sealed class TagPosition
     public string? Place { get; set; }
 
     /// <summary>
-    ///     How <see cref="Place" /> was resolved: <c>zones:&lt;zonesVersion&gt;</c> (overview correction 13, not
-    ///     the design's <c>zone-bake:&lt;n&gt;</c>), <c>pawn</c>, or null for unresolved.
+    ///     How <see cref="Place" /> was resolved: <c>zones:&lt;zonesVersion&gt;</c> (not
+    ///     the older <c>zone-bake:&lt;n&gt;</c>), <c>pawn</c>, or null for unresolved.
     /// </summary>
     public string? PlaceSource { get; set; }
 
@@ -285,7 +285,7 @@ public sealed class TagIndexEntry
     /// <summary>Distinct codes, ordinal order.</summary>
     public List<string> Codes { get; set; } = [];
 
-    /// <summary>Distinct values of the reserved human group <c>strat</c> (overview correction 23).</summary>
+    /// <summary>Distinct values of the reserved human group <c>strat</c>.</summary>
     public List<string> StratIds { get; set; } = [];
 
     public DateTime ModifiedUtc { get; set; }
@@ -350,8 +350,8 @@ public static class SuggestionVerdicts
 }
 
 /// <summary>
-///     One demo's Suggested Tags verdicts, <c>&lt;config&gt;/tags/verdicts/&lt;sha256&gt;.verdicts.json</c>
-///     (suggested-tags.md §3.4, moved under the tags root by overview correction 2). User truth: append
+///     One demo's Suggested Tags verdicts, <c>&lt;config&gt;/tags/verdicts/&lt;sha256&gt;.verdicts.json</c>.
+///     User truth: append
 ///     only and never rebuilt, so a tuning pass that rebuilds every proposal cannot lose a rejection.
 /// </summary>
 public sealed class SuggestionVerdictDocument
@@ -370,7 +370,7 @@ public sealed class SuggestionVerdictDocument
 }
 
 /// <summary>
-///     What the tagger said about one proposal: the design's three fields, plus what the identity re-match
+///     What the tagger said about one proposal: three fields, plus what the identity re-match
 ///     needs when a re-parse renumbers rounds (the detector, the side, the trigger tick, and the frame
 ///     count of the parse the proposal was made on).
 /// </summary>

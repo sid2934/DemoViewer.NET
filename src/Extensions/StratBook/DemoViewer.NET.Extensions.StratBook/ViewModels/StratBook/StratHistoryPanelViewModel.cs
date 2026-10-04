@@ -11,12 +11,12 @@ using DemoViewer.NET.Services.Tags;
 namespace DemoViewer.NET.ViewModels.StratBook;
 
 /// <summary>
-///     Strat Version History (strat-model.md §3.8): the append-only diff log as a pane, newest entry
+///     Strat Version History: the append-only diff log as a pane, newest entry
 ///     first, each entry phrased against the document as it stood just before it, with the record
 ///     (<see cref="StratEvidenceService" />) split either side of the entry's revision. The data is
 ///     <see cref="StratHistoryPane" />; this view model reads the store's log, computes the record the same way
 ///     the Strat Record Panel does, and wires the live rebuild, so "every save is a diff and the record
-///     splits" (the item's own done line) needs nothing further from the store or the session.
+///     splits" needs nothing further from the store or the session.
 ///     <para>
 ///         <b>Live from the store and the Tag Store.</b> A commit appends to the log the moment it lands, so
 ///         <see cref="Configure" /> is called by the tab on every session change and rebuilds when the open
@@ -27,7 +27,7 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///     <para>
 ///         <b>No <c>stratIds</c> index column yet.</b> The record read is the Record Panel's own
 ///         <see cref="StratEvidenceService" />, so it carries the same rescan-every-change cost until that
-///         column exists (strat-model.md §3.6); this panel adds no cost of its own beyond one more scan.
+///         column exists; this panel adds no cost of its own beyond one more scan.
 ///     </para>
 /// </summary>
 public sealed partial class StratHistoryPanelViewModel : ViewModelBase, IDisposable
@@ -121,7 +121,7 @@ public sealed partial class StratHistoryPanelViewModel : ViewModelBase, IDisposa
         _cts?.Dispose();
     }
 
-    // Retagging an old demo can move it either side of a past entry's split (§3.8), so any Tag Store
+    // Retagging an old demo can move it either side of a past entry's split, so any Tag Store
     // change rebuilds the whole pane for whichever strat is open, the Record Panel's own rule.
     private void OnTagsChanged(string? sha256)
     {

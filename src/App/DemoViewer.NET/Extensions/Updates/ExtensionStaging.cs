@@ -9,7 +9,7 @@ using DemoViewer.NET.Extensions.Manifest;
 namespace DemoViewer.NET.Extensions.Updates;
 
 /// <summary>
-///     The filesystem half of <see cref="ExtensionUpdateService" /> (strat-book-plugin.md §7.10): the paths
+///     The filesystem half of <see cref="ExtensionUpdateService" />: the paths
 ///     under <c>&lt;config root&gt;/extensions/</c>, the zip checks, the bounded extraction and the deletes.
 ///     Everything it writes sits under <c>extensions/.staging/</c> until the final rename; everything it
 ///     deletes sits under <c>extensions/</c>, and a reparse point is never followed, the rule

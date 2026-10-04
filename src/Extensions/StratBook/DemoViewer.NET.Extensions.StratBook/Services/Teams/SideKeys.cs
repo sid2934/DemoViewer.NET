@@ -72,7 +72,7 @@ public sealed class DemoSideInput
         && string.Equals(Ct.Clan, other.Ct.Clan, StringComparison.Ordinal);
 }
 
-/// <summary>The side-key projection of a cache record (design §3.1).</summary>
+/// <summary>The side-key projection of a cache record.</summary>
 public static class SideKeys
 {
     /// <summary>Is this entry a member of a side key? Bots, coaches and empty or zero ids are not.</summary>

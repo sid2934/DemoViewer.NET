@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core.Annotations;
 ///     the layer that draws it and the eraser that hits it cannot disagree about either.
 ///     <para>
 ///         The em size is <see cref="SizePerWidth" /> × <see cref="AnnotationStyle.WidthWorld" /> world
-///         units (step-authoring.md §3.2, owner decision 9): text follows the pen and zooms with the map
+///         units: text follows the pen and zooms with the map
 ///         like ink. It is shaped once at <see cref="ReferenceSizePx" /> and scaled, so a width slider
 ///         dragged through a hundred fractional values shapes each string once rather than once per
 ///         width, and the blob cache keeps one sized font.

@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The keyframe track's sampling table (step-authoring.md §3.3), row by row, plus the two approved
+///     The keyframe track's sampling table, row by row, plus the two approved
 ///     decisions it carries: the stationary rule for absent entries and the midpoint level snap.
 /// </summary>
 public class TokenTrackTests
@@ -155,9 +155,9 @@ public class TokenTrackTests
     }
 
     /// <summary>
-    ///     Decision 1, the stationary rule: B placed at steps 1 and 4 of a four-step strat sits still
+    ///     The stationary rule: B placed at steps 1 and 4 of a four-step strat sits still
     ///     through step 2 and moves only in step 3's window, the segment that ends at its next explicit
-    ///     entry. Interpolating across the gap is the alternative §4 rejects.
+    ///     entry. Interpolating across the gap is the rejected alternative.
     /// </summary>
     [Test]
     public async Task Builder_AbsentEntries_AreStationary_AndMoveOnlyInTheLastSegment()
@@ -174,7 +174,7 @@ public class TokenTrackTests
     }
 
     /// <summary>
-    ///     The design's own example: adding a position for B at step 4 changes B's motion between steps 3
+    ///     Adding a position for B at step 4 changes B's motion between steps 3
     ///     and 4 and nothing else, so every tick up to step 3 samples exactly as the author already saw it.
     /// </summary>
     [Test]
@@ -224,7 +224,7 @@ public class TokenTrackTests
         Assert.Throws<ArgumentException>(() => TokenTrackBuilder.Build("A", [Step(0)], []));
     }
 
-    /// <summary>Decision 8 end to end: a cross-floor move built from two entries snaps at its midpoint.</summary>
+    /// <summary>End to end: a cross-floor move built from two entries snaps at its midpoint.</summary>
     [Test]
     public async Task Builder_CrossFloorMove_SnapsLevelAtTheMidpoint()
     {
@@ -247,7 +247,7 @@ public class TokenTrackTests
         Assert.Throws<ArgumentException>(() => _ = new TokenTrack("A", [Key(0, 0, 0)], segments: []));
     }
 
-    /// <summary>Decision 2: ten tokens, <c>O1..O5</c> additive, sampled after the own side.</summary>
+    /// <summary>Ten tokens, <c>O1..O5</c> additive, sampled after the own side.</summary>
     [Test]
     public async Task TrackSet_SamplesTenTokens_OwnSideFirst_AndCanHideOpponents()
     {

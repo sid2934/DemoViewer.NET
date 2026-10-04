@@ -15,8 +15,8 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Matrix (plan §3, tag-store.md §3.7): the dense table over a pivot, the round text, and the tab
-///     over a tagged fixture corpus that reproduces the design's screen mock ("Matrix: Falcons, last 6
+///     The Matrix: the dense table over a pivot, the round text, and the tab
+///     over a tagged fixture corpus that reproduces the screen mock ("Matrix: Falcons, last 6
 ///     demos, de_nuke, T side") exactly, with every kind of noise the scope must drop. Round Facts rows
 ///     are synthetic here for speed and isolation; the side join reads rows built by hand rather than the
 ///     engine's. <see cref="TagMatrixRealDemoTests" /> runs the same pivot against the shipped ruleset.

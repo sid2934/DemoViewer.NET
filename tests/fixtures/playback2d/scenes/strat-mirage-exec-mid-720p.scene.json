@@ -154,6 +154,6 @@
     },
     "followSlot": -1
   },
-  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended (step-authoring.md \u00A77)",
-  "notes": "PENDING for dv2d: same reason as strat-mirage-exec-mid (hud.clock). The same tick as strat-mirage-exec-mid, at the 720p export preset (Playback2DExportDialogViewModel.SizePresets) rather than the default GIF square, so a preset size is pinned somewhere in the corpus. Named without the \u0027@1280x720\u0027 step-authoring.md \u00A77 uses: GoldenCorpusEntry.GoldenPath already appends \u0027@{width}x{height}\u0027 to the entry name, so that literal name would have written \u0027strat-mirage-exec-mid@1280x720@1280x720.png\u0027."
+  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended",
+  "notes": "PENDING for dv2d: same reason as strat-mirage-exec-mid (hud.clock). The same tick as strat-mirage-exec-mid, at the 720p export preset (Playback2DExportDialogViewModel.SizePresets) rather than the default GIF square, so a preset size is pinned somewhere in the corpus. Named without an \u0027@1280x720\u0027 suffix: GoldenCorpusEntry.GoldenPath already appends \u0027@{width}x{height}\u0027 to the entry name, so that literal name would have written \u0027strat-mirage-exec-mid@1280x720@1280x720.png\u0027."
 }

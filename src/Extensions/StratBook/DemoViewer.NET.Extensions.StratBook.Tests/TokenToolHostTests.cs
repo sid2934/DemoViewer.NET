@@ -21,12 +21,12 @@ using SkiaSharp;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="TokenTool" /> over a real <see cref="Scene2DHost" />, through <see cref="Scene2DHost.AddTool" />
-///     (item 26): split out of <c>Scene2DHostFrameHostTests</c>, which stayed in App.Tests and carries no
+///     <see cref="TokenTool" /> over a real <see cref="Scene2DHost" />, through <see cref="Scene2DHost.AddTool" />:
+///     split out of <c>Scene2DHostFrameHostTests</c>, which stayed in App.Tests and carries no
 ///     extension import, because these two are the only cases there that construct the extension's
 ///     <see cref="TokenTool" /> directly. The fakes here are this class's own, not shared with
-///     <c>Scene2DHostFrameHostTests</c>: the two test projects do not reference each other (strat-book-plugin.md
-///     §13), each project's own test infrastructure is compile-linked rather than referenced, for the same
+///     <c>Scene2DHostFrameHostTests</c>: the two test projects do not reference each other,
+///     each project's own test infrastructure is compile-linked rather than referenced, for the same
 ///     reason.
 /// </summary>
 [NotInParallel]

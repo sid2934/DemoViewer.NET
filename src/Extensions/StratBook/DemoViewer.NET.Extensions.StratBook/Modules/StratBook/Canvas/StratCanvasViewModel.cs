@@ -33,11 +33,11 @@ using SkiaSharp;
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
 /// <summary>
-///     The Step Authoring canvas in the Strat Book tab (step-authoring.md §3.10): the open strat projected
+///     The Step Authoring canvas in the Strat Book tab: the open strat projected
 ///     onto the 2D scene with no demo behind it. It is the frame host <see cref="Scene2DHost" /> binds, the
 ///     token editor <see cref="TokenTool" /> drags through, and the keymap executor the tab's keys reach.
 ///     <para>
-///         <b>One history, the session's</b> (overview correction 18). Nothing here keeps an undo stack. A
+///         <b>One history, the session's.</b> Nothing here keeps an undo stack. A
 ///         closed gesture (a stroke, an erase, a token drag, a step key) becomes <see cref="PatchOp" />s through
 ///         <see cref="StepAuthoringPatches" /> and one <see cref="StratSession.Apply(IReadOnlyList{PatchOp})" />;
 ///         the session's change then rebuilds the projection, and the ink reaches the annotation document as
@@ -682,7 +682,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     // ── Keymap executor ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    ///     Runs a resolved key (step-authoring.md §3.7). True when it acted. Round, kill, follow, tag and
+    ///     Runs a resolved key. True when it acted. Round, kill, follow, tag and
     ///     suggestion actions mean nothing on a strat and are left unhandled, as are hold-pan and cancel,
     ///     which belong to the surface.
     /// </summary>
@@ -805,7 +805,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     internal Func<string?, LoadedMapAsset?> MapLoader => _mapLoader;
 
     /// <summary>
-    ///     The open strat on the selected path as it stands now, for an export (step-authoring.md §3.6), or null
+    ///     The open strat on the selected path as it stands now, for an export, or null
     ///     with no strat open. On the UI thread only, at Start: the track set is copied and the ink is a
     ///     <c>Reset</c> copy in a session of its own, so the canvas can keep editing while the file renders
     ///     (the catalog's "never the live document" rule, <c>SceneLayerCatalog.CreateSceneStack</c>).
@@ -1826,7 +1826,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
     }
 
-    // The step a new stroke belongs to: the one whose window opens at its FromTick (§3.5), the active step
+    // The step a new stroke belongs to: the one whose window opens at its FromTick, the active step
     // first when two share the tick.
     private int StepFor(AnnotationElement element)
     {
@@ -2011,7 +2011,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     // The active step is the one whose window holds the playhead; before the first step, the first. New
-    // strokes are stamped with its window, so the tools need no knowledge of steps (§3.5).
+    // strokes are stamped with its window, so the tools need no knowledge of steps.
     private void UpdateActiveStep()
     {
         if (_startSelected && Transport.Tick != 0)

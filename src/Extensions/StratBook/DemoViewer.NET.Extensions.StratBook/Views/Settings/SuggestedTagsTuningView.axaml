@@ -4,8 +4,6 @@
              x:Class="DemoViewer.NET.Extensions.StratBook.Views.Settings.SuggestedTagsTuningView"
              x:DataType="settings:SuggestedTagsTuningViewModel">
 
-    <!-- Suggested Tags tuning (suggested-tags.md §3.7, step 6). Content unchanged by the move to a
-         settings-page contribution (item 14). -->
     <StackPanel Spacing="12">
         <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
                    Text="Made, accepted, edited and rejected are what your verdicts already say. Recall and precision score fired proposals against your own hand tags of the same code and site in the same round, and move only after Preview re-runs the detectors; nothing here writes to profile.json until Save." />

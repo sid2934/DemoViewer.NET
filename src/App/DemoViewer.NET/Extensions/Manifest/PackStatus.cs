@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Extensions.Manifest;
 /// <param name="Source">Where the pack's assembly came from; the shipped copy unless the loader chose a staged one.</param>
 /// <param name="Rejected">
 ///     The staged candidates for this pack the loader looked at and did not load, newest first, each with
-///     its reason (strat-book-plugin.md §7.8). Empty when nothing was staged or the staged copy is the one
+///     its reason. Empty when nothing was staged or the staged copy is the one
 ///     running. Settings shows them under the row so a user can see why an update did not take.
 /// </param>
 public sealed record PackStatus(

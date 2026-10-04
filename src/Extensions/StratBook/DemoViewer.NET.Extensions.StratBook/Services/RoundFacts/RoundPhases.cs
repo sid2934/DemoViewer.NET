@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
 ///     Phase boundaries, derived from a round's stored ticks rather than stored themselves. Every
-///     other Strat Room design takes round bounds and alive state from here (overview correction 11).
+///     other Strat Room feature takes round bounds and alive state from here.
 ///     Intervals are half-open on the frame clock:
 ///     <list type="bullet">
 ///         <item><c>Freeze</c>: before <c>FreezeEndTick</c> (the buy time).</item>

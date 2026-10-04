@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>One tunable number of a detector, with the value the shipped profile gives it.</summary>
-/// <param name="Name">The key in the profile's detector section, as §3.7 spells it.</param>
+/// <param name="Name">The key in the profile's detector section.</param>
 /// <param name="Default">The shipped value.</param>
 /// <param name="Meaning">What moving it does, for the tuning view.</param>
 public sealed record DetectorParameter(string Name, double Default, string Meaning);
@@ -13,7 +13,7 @@ public sealed record DetectorParameter(string Name, double Default, string Meani
 public sealed record ProposalEvidence(string Kind, int Tick, string Text);
 
 /// <summary>
-///     A candidate tag instance (suggested-tags.md §3.1, §3.5). Never a tag until accepted. Ticks are
+///     A candidate tag instance. Never a tag until accepted. Ticks are
 ///     frame clock; <see cref="Confidence" /> is the product of <see cref="Factors" /> (or their sum for
 ///     the additive detectors) clamped to <c>[0.05, 0.99]</c>, so the queue can show why.
 /// </summary>
@@ -84,8 +84,8 @@ public interface IProposalDetector
 }
 
 /// <summary>
-///     The identity key: <c>detector | round | side | site-or-region | trigger second quantised to 5 s</c>
-///     (suggested-tags.md §3.4). Stable across a re-detection with changed parameters as long as the
+///     The identity key: <c>detector | round | side | site-or-region | trigger second quantised to 5 s</c>.
+///     Stable across a re-detection with changed parameters as long as the
 ///     same event is found, which is what lets a rejection survive a tuning pass.
 /// </summary>
 public static class ProposalIds

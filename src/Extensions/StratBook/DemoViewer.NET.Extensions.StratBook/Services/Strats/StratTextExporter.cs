@@ -9,7 +9,7 @@ using DemoViewer.NET.Controls;
 namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
-///     The text export shapes of §3.13: the call sheet (Markdown, for Discord and a text diff) and the
+///     The text export shapes: the call sheet (Markdown, for Discord and a text diff) and the
 ///     role sheets (self-contained HTML, for LAN Print). Both are pure string builders over the model,
 ///     reading places through <see cref="StratStepPhrasing" /> so the two surfaces phrase a step the same
 ///     way; only <see cref="LanPrint" /> below touches disk.
@@ -17,8 +17,8 @@ namespace DemoViewer.NET.Services.Strats;
 public static class StratTextExporter
 {
     /// <summary>
-    ///     One strat as text (§3.13): a title, the metadata line, one bullet per step in the shape
-    ///     §3.13 gives verbatim (<c>**1:30** B throws smoke A ramp → A site (Stairs)</c>), a branch as an
+    ///     One strat as text: a title, the metadata line, one bullet per step in this shape
+    ///     verbatim (<c>**1:30** B throws smoke A ramp → A site (Stairs)</c>), a branch as an
     ///     indented <c>if … → …</c> under the step it follows, and the strat's notes at the end.
     /// </summary>
     /// <param name="doc">The strat.</param>
@@ -101,7 +101,7 @@ public static class StratTextExporter
 }
 
 /// <summary>
-///     The Role View And LAN Print export (§3.14, decision 8): one self-contained HTML page with a
+///     The Role View And LAN Print export: one self-contained HTML page with a
 ///     print stylesheet, one page per slot. Avalonia has no printing API, so this is the route: the file
 ///     opens in the system browser, which prints it, and it is also what a coach emails.
 /// </summary>
@@ -276,7 +276,7 @@ public static class RoleSheetHtmlWriter
 }
 
 /// <summary>
-///     Writing the role sheets' HTML to disk and handing it to the system browser (§3.14). The write is
+///     Writing the role sheets' HTML to disk and handing it to the system browser. The write is
 ///     the testable half; the launch is a thin call onto <see cref="OpenExternal" />, deliberately not its
 ///     <c>OpenLocalFile</c> (which tries VS Code first): an exported page is content for a coach to read
 ///     and print, never source to edit.

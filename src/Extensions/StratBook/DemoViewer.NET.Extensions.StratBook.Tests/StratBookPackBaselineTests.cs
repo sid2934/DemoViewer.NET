@@ -26,9 +26,8 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Strat Book extension plan, item M0 (and item 9, which reruns the same probes against a later head,
-///     plus the pack-off and in-session toggle states): docs/architecture/strat-book-plugin.md §12.
-///     Env-var-gated probes, skipped (not failed) when their env var is unset, so the standard tier never
+///     Env-var-gated memory baselines for the real composition root, covering pack-on startup, pack-off
+///     startup and the in-session toggle, skipped (not failed) when their env var is unset, so the standard tier never
 ///     runs them. Driven by <c>tools/strat-book-baseline/run.sh</c> against a COPY of a real config dir,
 ///     never the live one.
 ///     <para>
@@ -61,7 +60,7 @@ public class StratBookPackBaselineTests
     ///     Boots the REAL composition root (<see cref="App.BuildServices(IWindowService)" />) against
     ///     <see cref="ConfigEnvVar" />, waits for the startup loads <c>App.axaml.cs</c> runs unconditionally
     ///     (situations index, grenade index, Team Identity) to settle, then reports the process's resident
-    ///     footprint. This IS the "Pack on" row in §12: everything the app does at launch today, nothing
+    ///     footprint. This IS the "Pack on" case: everything the app does at launch today, nothing
     ///     skipped, nothing stubbed. The 30s-delayed sidecar migrations never run in this configuration
     ///     (see <see cref="SettleStartupLoads" />), which is fine: the copy already carries their "done"
     ///     markers, so production would find them a no-op too.
@@ -124,7 +123,7 @@ public class StratBookPackBaselineTests
         }
     }
 
-    // tagPrefix defaults to the M0 tag so the existing probe and run.sh grep are untouched; item 9's new
+    // tagPrefix defaults to the M0 tag so the existing probe and run.sh grep are untouched; the newer
     // probes pass their own prefix so the two never collide in one run.sh invocation's output.
     private static void Snapshot(ServiceProvider provider, string label, string tagPrefix = "@M0_RESIDENT")
     {
@@ -212,7 +211,7 @@ public class StratBookPackBaselineTests
         if (settings.NeedsFirstRun)
         {
             throw new InvalidOperationException(
-                "the config copy has not completed first run; the wizard would hold the pack, which is not the off state item 9 measures");
+                "the config copy has not completed first run; the wizard would hold the pack, which is not the pack-off state this baseline measures");
         }
 
         PackSwitch packs = provider.GetRequiredService<PackSwitch>();
@@ -244,11 +243,12 @@ public class StratBookPackBaselineTests
     }
 
     /// <summary>
-    ///     Item 9's "pack off at startup" row: the same boot and the same early/late snapshot shape as
+    ///     "Pack off at startup": the same boot and the same early/late snapshot shape as
     ///     <see cref="ResidentSetAfterStartup" />, over a config copy whose settings.json carries
     ///     <c>Features.Overrides["pack.stratbook"] = false</c>, so <c>StartPacks</c> never resolves the
     ///     pack's lifecycle and none of its startup loads run. Reuses the same 90s-idle-then-resnapshot
-    ///     window as the pack-on probe so §12.3 can say whether the drift M0 saw recurs with the pack off.
+    ///     window as the pack-on probe, so any drift between early and late there is directly comparable
+    ///     with the pack off.
     /// </summary>
     [Test]
     [Category("Environmental")]
@@ -302,15 +302,15 @@ public class StratBookPackBaselineTests
 
     /// <summary>
     ///     <see cref="App.BuildServices(IWindowService)" /> runs the pack's startup loads unconditionally (no gate exists
-    ///     yet; that is item 1/3/8's job), so there is no seam to boot "with the loads skipped" without
-    ///     editing <c>App.axaml.cs</c>, a file item 0 owns this wave. This probe is the narrower,
+    ///     yet), so there is no seam to boot "with the loads skipped" without
+    ///     editing <c>App.axaml.cs</c>. This probe is the narrower,
     ///     exact substitute: it constructs <see cref="SituationIndex" />, <see cref="GrenadeIndex" /> and
     ///     <see cref="TeamIdentityService" /> directly over a fresh <see cref="DemoCacheStore" /> on the
     ///     copy (the same construction <c>StratMiningCalibration</c> uses), outside any DI container, and
     ///     takes a <see cref="GC.GetTotalMemory" /> delta around each one's load. It excludes Team
     ///     Identity's three sibling stores (Strats, Dossier, Veto History, wired by the DI factory, not the
     ///     service itself) and Tag Facts and the Lineup Clip service (event-driven / render work, not a
-    ///     bulk load; see §3.2), so it is a lower bound on the pack's resident cost, not the whole of it.
+    ///     bulk load), so it is a lower bound on the pack's resident cost, not the whole of it.
     /// </summary>
     [Test]
     [Category("Environmental")]
@@ -598,16 +598,16 @@ public class StratBookPackBaselineTests
         return Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
     }
 
-    // ── Probe 4 (item 9): per-demo indexing time with the pack off ──────────────────────────────────────
+    // ── Probe 4: per-demo indexing time with the pack off ───────────────────────────────────────────────
 
     /// <summary>
-    ///     Item 9's "library + highlights only" indexing-time row. Unlike <see cref="IndexingTimePerDemo" />,
+    ///     The "library + highlights only" indexing-time case. Unlike <see cref="IndexingTimePerDemo" />,
     ///     which calls every evaluator's <see cref="IDemoEvaluator.Evaluate" /> directly and so bypasses
     ///     <see cref="IDemoEvaluator.Wants" />, this times every demo with <see cref="TimeReduced" /> only:
     ///     with the pack off, Round Facts, Round Index, Suggested Tags and Grenades all answer
     ///     <c>Wants() == false</c>, so the real coordinator never submits a demo to them and the forward
     ///     pass library and highlights alone run is the whole of what "library index time" means now. Also
-    ///     confirms <c>round_facts</c> actually left the merged ruleset (item 2), not just the evaluator's
+    ///     confirms <c>round_facts</c> actually left the merged ruleset, not just the evaluator's
     ///     own write.
     /// </summary>
     [Test]
@@ -688,10 +688,10 @@ public class StratBookPackBaselineTests
         }
     }
 
-    // ── Probe 5 (item 9): the real in-session toggle, on the real queue ────────────────────────────────
+    // ── Probe 5: the real in-session toggle, on the real queue ─────────────────────────────────────────
 
     /// <summary>
-    ///     Item 9's "on, then off in session" row. Boots the real composition root with the pack on (the
+    ///     The "on, then off in session" case. Boots the real composition root with the pack on (the
     ///     config copy's settings.json carries no override, so the default resolves it on), settles the
     ///     same way <see cref="ResidentSetAfterStartup" /> does, then flips
     ///     <c>Features.Overrides["pack.stratbook"]</c> off through <see cref="SettingsService.Write" />,

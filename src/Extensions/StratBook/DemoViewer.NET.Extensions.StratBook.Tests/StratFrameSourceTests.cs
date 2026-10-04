@@ -19,7 +19,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The strat as a frame source (step-authoring.md §3.6, §7): the frame count is the tracker's
+///     The strat as a frame source: the frame count is the tracker's
 ///     arithmetic at 64, only frame 0 is a discontinuity, markers are the sampled tracks, a smoke lasts
 ///     18 s, and the whole thing is a pure function of the tick, so two runs hash alike and two frame
 ///     rates agree wherever their ticks meet.
@@ -54,7 +54,7 @@ public class StratFrameSourceTests
     [Test]
     public async Task FrameCount_MatchesTheDesignsWorkedExamples()
     {
-        // 1:55 to 0:55 at 20 fps fits the GIF cap; a whole 115 s round needs 10 fps (§3.6).
+        // 1:55 to 0:55 at 20 fps fits the GIF cap; a whole 115 s round needs 10 fps.
         await Assert.That(StratFrameSource.OutputFrameCount(0, 60 * 64, 20, 1.0)).IsEqualTo(1201);
         await Assert.That(StratFrameSource.OutputFrameCount(0, 115 * 64, 10, 1.0)).IsEqualTo(1151);
         await Assert.That(StratFrameSource.OutputFrameCount(10, 9, 20, 1.0)).IsEqualTo(0);
@@ -314,7 +314,7 @@ public class StratFrameSourceTests
             await Assert.That(second[i]).IsEqualTo(first[i]);
         }
 
-        // The design default: GIF at 20 fps. Moving tokens and a smoke: the frames are not all one picture, so equal hashes mean something.
+        // The default: GIF at 20 fps. Moving tokens and a smoke: the frames are not all one picture, so equal hashes mean something.
         await Assert.That(first.Distinct(StringComparer.Ordinal).Count()).IsGreaterThan(1);
     }
 

@@ -74,8 +74,8 @@ internal static class StratTestData
     private static JsonElement Element(string json) => JsonDocument.Parse(json).RootElement.Clone();
 
     /// <summary>
-    ///     Every field of schema v1 at least once, correction 17's four additions (opponent position slots, the
-    ///     landing point, the canvas block, positions and strokes on three steps), and an unknown field at root,
+    ///     Every field of schema v1 at least once, including opponent position slots, the
+    ///     landing point, the canvas block, positions and strokes on three steps, and an unknown field at root,
     ///     step, branch and position level so the golden pins that they survive.
     /// </summary>
     public static StratDocument SchemaSample()

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     Splits a grenade's flight path into the contiguous point runs that belong on one level.
 ///     Port of <c>Playback2DViewport.FloorSegmentRuns</c> (lines 1298-1333), verbatim.
 ///     <para>
-///         <b>A segment belongs to a level if EITHER endpoint maps to it</b> (parity invariant 4). That
+///         <b>A segment belongs to a level if EITHER endpoint maps to it.</b> That
 ///         is deliberate over-draw: the one segment that crosses between floors is drawn on both bands,
 ///         so a Nuke upper→lower throw reads as a continuous arc rather than two lines that stop short
 ///         of each other.
@@ -21,7 +21,7 @@ public static class TrailGeometry
     /// <summary>
     ///     Fills <paramref name="into" /> with the runs belonging to this pane. <b>Allocation-free</b>
     ///     once the list has grown: the pre-v2 version allocated a <c>List</c> per trail per pane per
-    ///     frame plus a closure for the floor lookup (plan §4 T15 items 4 and 5).
+    ///     frame plus a closure for the floor lookup.
     /// </summary>
     /// <param name="points">The flight path, oldest first.</param>
     /// <param name="ctx">The pane being drawn; supplies the level test.</param>

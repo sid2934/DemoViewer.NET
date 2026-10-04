@@ -12,18 +12,18 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The evaluator that walks a demo's grenades (grenade-walk.md §3.8): an <see cref="IDemoEvaluator" />
+///     The evaluator that walks a demo's grenades: an <see cref="IDemoEvaluator" />
 ///     on the same one-parse fan-out as the others, registered last because it reads nothing they write.
 ///     Per demo the work is one <see cref="GrenadeWalker.Walk" /> on the parse the queue already paid for,
 ///     the rows sibling, then one record stamp, the stamp last so a crash between them leaves "not walked"
 ///     and never a stamp without its file.
 ///     <para>
-///         <b>Background indexing is off by default</b> (D4, the <c>HighlightsSettings.BackgroundScan</c>
+///         <b>Background indexing is off by default</b> (the <c>HighlightsSettings.BackgroundScan</c>
 ///         precedent: two to three seconds per demo is half an hour over a large library). Off, the demo
 ///         the user has open is still walked on the parse its open paid for, and any demo can be forced
 ///         from Match Overview at user priority. A Library tier-2 pass does not walk a demo on its own
 ///         parse while the opt-in is off: that would turn the sweep the user left off back on, the
-///         Suggested Tags rule (correction 20).
+///         Suggested Tags rule.
 ///     </para>
 ///     <para>
 ///         A throw stamps <see cref="DemoAnalysisState.Failed" />, which the backlog excludes until the
@@ -53,7 +53,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// <param name="demoCache">The unified demo cache: the stamp and the siblings live there.</param>
     /// <param name="backgroundIndex">The live <c>GrenadesSettings.BackgroundIndex</c>; forced paths and the open demo ignore it.</param>
     /// <param name="openDemo">The open demo's path, resolved at call time; null when none.</param>
-    /// <param name="stride">The live <c>GrenadesSettings.TrajectoryStride</c>; null is the design's 4.</param>
+    /// <param name="stride">The live <c>GrenadesSettings.TrajectoryStride</c>; null defaults to 4.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>
@@ -132,7 +132,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     The open demo is walked on the parse its open paid for whatever the opt-in says (D4); any other
+    ///     The open demo is walked on the parse its open paid for whatever the opt-in says; any other
     ///     demo only when it would have been wanted. Neither runs while the owning pack's gate is off.
     /// </remarks>
     public void OnParsedOpportunistically(string path, ParsedDemo parsed)

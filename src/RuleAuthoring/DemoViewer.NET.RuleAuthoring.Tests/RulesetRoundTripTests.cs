@@ -7,7 +7,7 @@ using DemoViewer.NET.RuleAuthoring;
 namespace DemoViewer.NET.RuleAuthoring.Tests;
 
 /// <summary>
-///     The gate on the whole node editor (design.md §9 decision 4, §6.1). A ruleset is hand-authored
+///     The gate on the whole node editor. A ruleset is hand-authored
 ///     and its comments carry the reasoning, so the editor may only be built on a writer that keeps
 ///     them. These tests are what "keeps them" means, stated so it can fail.
 /// </summary>

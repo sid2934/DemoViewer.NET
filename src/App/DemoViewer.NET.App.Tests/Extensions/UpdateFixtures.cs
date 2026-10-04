@@ -51,7 +51,7 @@ internal static class UpdateFixtures
         return stream.ToArray();
     }
 
-    /// <summary>The flat layout item 37 produces for <paramref name="version" />: manifest, assembly, signature, plus extras.</summary>
+    /// <summary>The flat layout the release workflow produces for <paramref name="version" />: manifest, assembly, signature, plus extras.</summary>
     public static byte[] ExtensionZip(string id, string version, params (string Name, string? Content)[] extras) =>
         Zip(
         [

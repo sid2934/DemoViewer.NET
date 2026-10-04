@@ -154,6 +154,6 @@
     },
     "followSlot": -1
   },
-  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended (step-authoring.md \u00A77)",
+  "sourceDemoId": "schema-v1.sample.dvstrat.json, extended",
   "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, \u0027Current limitations\u0027), so only StratGoldenCaptureTests can verify it. Between the molotov and peek steps: A linearly interpolating toward its peek keyframe (past the molotov step\u0027s 2.5 s hold, about a fifth of the way to the peek position), B, C and O1 each held at their one keyframe, the smoke step\u0027s area effect still up (18 s after it goes off, at the end of its flight), the molotov step\u0027s added arrow at full opacity and the peek step\u0027s text not yet fading in. Not the literal midpoint of the two steps\u0027 ticks (2848): see the class remarks for why the entry stays at 2750."
 }

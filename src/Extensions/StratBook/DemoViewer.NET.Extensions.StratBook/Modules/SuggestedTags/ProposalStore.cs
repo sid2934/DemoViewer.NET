@@ -10,9 +10,9 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     One demo's proposals, <c>&lt;cache&gt;/suggestions/&lt;StableKey&gt;.json</c> (suggested-tags.md §3.4,
-///     schema 1). Derived and rebuilt wholesale when the detector-set fingerprint changes; the verdicts
-///     that survive a rebuild live in the Tag Store (overview correction 2), not here.
+///     One demo's proposals, <c>&lt;cache&gt;/suggestions/&lt;StableKey&gt;.json</c> (schema 1). Derived and
+///     rebuilt wholesale when the detector-set fingerprint changes; the verdicts
+///     that survive a rebuild live in the Tag Store, not here.
 /// </summary>
 public sealed class ProposalDocument
 {
@@ -166,7 +166,7 @@ public sealed class StoredEvidence
 
 /// <summary>
 ///     Source-generated for the browser head's trimmer, the Tag Store's reason. Property order is
-///     declaration order, which is the §3.4 example's order.
+///     declaration order.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -178,8 +178,7 @@ public sealed partial class SuggestedTagsJsonContext : JsonSerializerContext;
 
 /// <summary>
 ///     The proposals files: one per demo under <c>&lt;config&gt;/cache/suggestions/</c>, beside
-///     <c>demos/</c>, named by <see cref="DemoCacheStore.StableKey" /> (suggested-tags.md §3.4, the
-///     store-location decision). The stamp that says whether a file is current lives on the cache
+///     <c>demos/</c>, named by <see cref="DemoCacheStore.StableKey" />. The stamp that says whether a file is current lives on the cache
 ///     record (<see cref="Extensions.StratBook.StratBookCache.SetSuggestions" />); this store only holds the payloads.
 ///     <para>
 ///         The Round Index's sibling-directory rules, for the same reasons: atomic writes, in memory when

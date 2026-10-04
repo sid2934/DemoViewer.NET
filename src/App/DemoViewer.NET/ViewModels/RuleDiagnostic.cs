@@ -74,8 +74,7 @@ public sealed record RuleDiagnostic(
     /// <summary>
     ///     Projects a loader error into an "error"-severity diagnostic row, preserving
     ///     file/chain/rule/line/column attribution. The single mapping both the tolerant
-    ///     (user-tier) and hard-fail (shipped-tier) paths use: work item 0.3 restored the
-    ///     position fields this mapping previously dropped.
+    ///     (user-tier) and hard-fail (shipped-tier) paths use.
     /// </summary>
     public static RuleDiagnostic FromError(RuleConfigError error) =>
         new("error", error.Message, error.FilePath, error.ChainId, error.RuleId, error.Line, error.Column);

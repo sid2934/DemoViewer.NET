@@ -1,12 +1,11 @@
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     A finite sequence of frames to render: design §5.7, verbatim.
+///     A finite sequence of frames to render.
 ///     <para>
-///         B4 owns the export pipeline and every other type in §5.7; this interface lands early because
-///         B1's benchmark harness consumes it and the harness is the CI budget gate. Declared once here
-///         so B4 adds <c>IFrameSink</c>, <c>ExportRequest</c> and <c>SceneExportSession</c> alongside it
-///         rather than re-declaring this one.
+///         This interface lands early because the benchmark harness consumes it, and the harness is the
+///         CI budget gate. Declared once here so <c>IFrameSink</c>, <c>ExportRequest</c> and
+///         <c>SceneExportSession</c> land alongside it rather than re-declaring this one.
 ///     </para>
 ///     <para>
 ///         A returned <see cref="Scene2DFrame" /> follows the usual lifetime contract: it is valid until
@@ -29,7 +28,7 @@ public interface ISceneFrameSource
 
 /// <summary>
 ///     An <see cref="ISceneFrameSource" /> with a one-time, expensive warm-up: a demo-backed source
-///     replaying a tracker from frame zero to reach the export's first frame (B4 D2).
+///     replaying a tracker from frame zero to reach the export's first frame.
 ///     <para>
 ///         Optional by design: a fixture source has nothing to prepare, and <c>SceneExportSession</c>
 ///         reports an <c>ExportPhase.Seeking</c> only for sources that say they need one. Implementations

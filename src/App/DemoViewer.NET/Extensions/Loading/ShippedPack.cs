@@ -14,7 +14,7 @@ public sealed record ShippedPack(string Id, Func<IFeaturePack> Create, string Ma
 {
     /// <summary>
     ///     The shipped pack whose manifest the build copied beside the app
-    ///     (<c>&lt;AppContext.BaseDirectory&gt;/extension.json</c>, strat-book-plugin.md §7.7).
+    ///     (<c>&lt;AppContext.BaseDirectory&gt;/extension.json</c>).
     /// </summary>
     public static ShippedPack BesideApp(string id, Func<IFeaturePack> create) =>
         new(id, create, Path.Combine(AppContext.BaseDirectory, Manifest.ExtensionManifest.FileName));

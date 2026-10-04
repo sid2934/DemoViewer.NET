@@ -32,7 +32,7 @@ public enum ExtensionUpdateStatus
 }
 
 /// <summary>
-///     One extension's update state after a check (strat-book-plugin.md §7.10). Settings reads it for the
+///     One extension's update state after a check. Settings reads it for the
 ///     update line under the extension's row.
 /// </summary>
 /// <param name="PackId">The extension id.</param>
@@ -40,7 +40,7 @@ public enum ExtensionUpdateStatus
 /// <param name="Installed">The running copy's version, or null when its manifest did not read.</param>
 /// <param name="Source">Where the running copy came from.</param>
 /// <param name="Status">The outcome.</param>
-/// <param name="Offered">The highest newer version the decision-6 predicate accepts; set for <see cref="ExtensionUpdateStatus.UpdateAvailable" />.</param>
+/// <param name="Offered">The highest newer version <see cref="ExtensionUpdateService.IsOffered" /> accepts; set for <see cref="ExtensionUpdateStatus.UpdateAvailable" />.</param>
 /// <param name="Latest">The highest version the feed publishes, whether or not it is offered; null when the feed was not read or is empty.</param>
 /// <param name="LatestCompatibility">Why <see cref="Latest" /> is not offered, when it is newer and not; null otherwise.</param>
 /// <param name="Pending">A newer compatible version already staged on disk, which the next start loads; null when none.</param>

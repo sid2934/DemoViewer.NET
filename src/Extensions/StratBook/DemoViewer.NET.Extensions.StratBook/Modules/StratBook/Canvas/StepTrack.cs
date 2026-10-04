@@ -11,7 +11,7 @@ using DemoViewer.NET.Services.Strats;
 namespace DemoViewer.NET.Modules.StratBook.Canvas;
 
 /// <summary>
-///     The strat canvas's step row (step-authoring.md §3.10): a marker per step on the path, its glyph the
+///     The strat canvas's step row: a marker per step on the path, its glyph the
 ///     step's number with a fork where a branch hangs from it, its tooltip the call sheet's line for the
 ///     step; and a band per step window. Content comes from the projection the canvas hands it, so the
 ///     timeline data it is queried with is only the axis.

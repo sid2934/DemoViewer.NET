@@ -17,7 +17,7 @@ namespace DemoViewer.NET.UiCapture;
 
 /// <summary>
 ///     The 2D Playback tab in Review mode with the Strat Book's contributions attached as the pack attaches
-///     them (items 17, 18 and 20): the Review toggle and the "Rounds like this" toolbar item, the tag lane
+///     them: the Review toggle and the "Rounds like this" toolbar item, the tag lane
 ///     on the timeline, the Tag Palette, the review panel on its Labels tab with an editor open, and the
 ///     Suggestion Queue under it, over two tags on a session-only document. The pack-off twin attaches the
 ///     same contributions behind an off gate, so the toolbar, the timeline and the column show the core

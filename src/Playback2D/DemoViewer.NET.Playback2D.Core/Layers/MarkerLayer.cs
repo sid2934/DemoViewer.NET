@@ -81,7 +81,7 @@ public sealed class MarkerLayer : ISceneLayer
 
     /// <summary>
     ///     Whether to draw the initials labels. Off is what the byte-exact golden tier renders with:
-    ///     text metrics are a review gate, not an assert (plan decision D-17), so Tier A takes text out
+    ///     text metrics are a review gate, not an assert, so Tier A takes text out
     ///     of the comparison entirely rather than loosening the tolerance for everything else.
     /// </summary>
     public bool DrawLabels { get; set; } = true;

@@ -26,7 +26,7 @@
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
         <!-- The first-party extensions. The app never references them; each head composes both and names
-             the packs in FeaturePacks.Configure (strat-book-plugin.md §13). -->
+             the packs in FeaturePacks.Configure. -->
         <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
         <!-- Desktop-only live CS2 sync engine (CSVG + ASP.NET Core). Only this head may
              reference it — Browser/App must stay free of it. -->
@@ -35,7 +35,7 @@
 
     <ItemGroup>
         <!-- Shipped analysis rules (+ editor schema): packaged next to the binary so installed
-             builds resolve them via RuleSetLocator without a repo checkout (release plan P0-1.1). -->
+             builds resolve them via RuleSetLocator without a repo checkout. -->
         <Content Include="..\..\..\rules\**"
                  LinkBase="rules"
                  CopyToOutputDirectory="PreserveNewest"

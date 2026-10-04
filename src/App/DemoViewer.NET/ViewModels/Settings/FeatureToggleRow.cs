@@ -61,7 +61,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     private bool _isOverridden;
 
     /// <summary>
-    ///     True while this row's own pack is running "delete extension data" (item 24). Set by
+    ///     True while this row's own pack is running "delete extension data". Set by
     ///     <see cref="SettingsViewModel" /> from the matching <c>ExtensionDataActionViewModel.IsBusy</c>,
     ///     the one case where a pack's MASTER row needs to lock on something other than
     ///     <see cref="IsPackEnabled" /> (a pack does not own itself, so that is always true for its own row):
@@ -89,7 +89,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     ///     Why a staged update of this extension was not loaded (<c>PackStatus.Rejected</c>, one line per
     ///     candidate), or null. Informational: the row stays interactive, since the bundled copy is running.
     /// </param>
-    /// <param name="update">The extension's update line (item 36); a pack master row only, else null.</param>
+    /// <param name="update">The extension's update line; a pack master row only, else null.</param>
     internal FeatureToggleRow(
         SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
         bool platformUnavailable = false, string? version = null, string? incompatibility = null,
@@ -180,7 +180,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
 
     /// <summary>
     ///     Why this extension cannot load on this app, in user terms, or null when it can. Set only on the
-    ///     master row of a pack that failed the compatibility check (item 33), which Settings synthesizes
+    ///     master row of a pack that failed the compatibility check, which Settings synthesizes
     ///     since such a pack has no catalog row.
     /// </summary>
     public string? Incompatibility { get; }
@@ -198,7 +198,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public bool HasSource => Source is not null;
 
     /// <summary>
-    ///     Why a staged update of this extension did not load (item 34), one line per rejected candidate, or
+    ///     Why a staged update of this extension did not load, one line per rejected candidate, or
     ///     null. Shown under the description; unlike <see cref="Incompatibility" /> it locks nothing, since the
     ///     copy that is running works.
     /// </summary>
@@ -208,7 +208,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public bool HasLoadNote => LoadNote is not null;
 
     /// <summary>
-    ///     The extension's update line (item 36): installed against the feed, with Check and Update. Set on a
+    ///     The extension's update line: installed against the feed, with Check and Update. Set on a
     ///     pack master row only; null on every other row.
     /// </summary>
     public ExtensionUpdateRow? Update { get; }

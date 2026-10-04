@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.RoundFacts;
 
 namespace DemoViewer.NET.Services.Strats;
 
-// The on-disk shapes of the Strat Book (strat-model.md §3.2 to §3.8): a strat, its history line, the
+// The on-disk shapes of the Strat Book: a strat, its history line, the
 // owner-level book, the per-map callouts table and the index. Mutable classes serialized directly, the
 // TagDocument idiom, so the session and the patch applier share one shape with the file.
 //
@@ -31,21 +31,21 @@ public static class StratVocabulary
     /// <summary>The five strat slots, in the only order <c>slots[]</c> may take.</summary>
     public static readonly IReadOnlyList<string> Slots = ["A", "B", "C", "D", "E"];
 
-    /// <summary>Opponent token slots, admitted in <c>positions[].slot</c> only (overview correction 17).</summary>
+    /// <summary>Opponent token slots, admitted in <c>positions[].slot</c> only.</summary>
     public static readonly IReadOnlyList<string> OpponentSlots = ["O1", "O2", "O3", "O4", "O5"];
 
-    /// <summary>The pro tactics-directory types (§3.3.1). Outside this list is a warning.</summary>
+    /// <summary>The pro tactics-directory types. Outside this list is a warning.</summary>
     public static readonly IReadOnlyList<string> Types =
         ["execute", "rush", "explode", "split", "wrap", "fake", "default", "setup", "retake", "anti-eco", "save"];
 
-    /// <summary>The closed verb list (§3.3.2). Outside it is a refusal, because Role View phrases by verb.</summary>
+    /// <summary>The closed verb list. Outside it is a refusal, because Role View phrases by verb.</summary>
     public static readonly IReadOnlyList<string> Verbs =
         ["move", "push", "rotate", "hold", "peek", "lurk", "throw", "fake", "plant", "defuse", "wait", "call", "other"];
 
     /// <summary>The rotate conditions a lurk's row suggests. The file stores free text; these are not a vocabulary.</summary>
     public static readonly IReadOnlyList<string> RotateConditions = ["on the call", "on contact", "bomb planted", "after first kill"];
 
-    /// <summary>Grenade kinds a step's utility may name (§3.3.3).</summary>
+    /// <summary>Grenade kinds a step's utility may name.</summary>
     public static readonly IReadOnlyList<string> UtilityKinds = ["smoke", "molotov", "he", "flash", "decoy"];
 
     /// <summary>
@@ -61,8 +61,8 @@ public static class StratVocabulary
     ];
 
     /// <summary>
-    ///     Round Facts' buy types lower-cased, plus <c>any</c> (overview correction 10, which replaced the design's
-    ///     four-value list). Read off the enum so a buy type Round Facts adds is admitted here the same day.
+    ///     Round Facts' buy types lower-cased, plus <c>any</c> (replacing an earlier four-value list). Read
+    ///     off the enum so a buy type Round Facts adds is admitted here the same day.
     /// </summary>
     public static readonly IReadOnlyList<string> Economies =
         [.. Enum.GetNames<BuyType>().Select(n => n.ToLowerInvariant()), "any"];
@@ -71,7 +71,7 @@ public static class StratVocabulary
 
     public static readonly IReadOnlyList<string> TriggerKinds = ["time", "contact", "utility", "call"];
 
-    /// <summary>The motion kinds Step Authoring defines (correction 17). <c>path</c> is reserved and warns.</summary>
+    /// <summary>The motion kinds Step Authoring defines. <c>path</c> is reserved and warns.</summary>
     public static readonly IReadOnlyList<string> Interpolations = ["linear", "hold"];
 
     public const string InterpolationPathReserved = "path";
@@ -79,7 +79,7 @@ public static class StratVocabulary
     public static readonly IReadOnlyList<string> TargetSites = ["A", "B"];
 }
 
-/// <summary>The four lifecycle states (§3.3). The file spells them as the enum names.</summary>
+/// <summary>The four lifecycle states. The file spells them as the enum names.</summary>
 public enum StratStatus
 {
     Theory,
@@ -148,7 +148,7 @@ public sealed class StratOwner : IEquatable<StratOwner>
 }
 
 /// <summary>
-///     One strat (<c>&lt;id&gt;.dvstrat.json</c>, schema v1, §3.3). It is on the round clock and never stores a
+///     One strat (<c>&lt;id&gt;.dvstrat.json</c>, schema v1). It is on the round clock and never stores a
 ///     player name, a demo path or a frame-clock tick; everything that touches a demo goes through a Tag Store
 ///     instance or <see cref="StratClock" />.
 /// </summary>
@@ -200,10 +200,10 @@ public sealed class StratDocument
 
     public string? Notes { get; set; }
 
-    /// <summary>The strat clock (§3.4), declared per plan F15. Not a demo clock.</summary>
+    /// <summary>The strat clock. Not a demo clock.</summary>
     public StratClockInfo Clock { get; set; } = new();
 
-    /// <summary>Step Authoring's canvas defaults (overview correction 17); null until it writes them.</summary>
+    /// <summary>Step Authoring's canvas defaults; null until it writes them.</summary>
     public StratCanvas? Canvas { get; set; }
 
     /// <summary>Exactly five, <c>A</c> to <c>E</c>, in order.</summary>
@@ -325,7 +325,7 @@ public sealed class StratOrigin
 {
     public string DemoSha256 { get; set; } = "";
 
-    /// <summary><c>ClipRound.Number</c> (overview correction 12).</summary>
+    /// <summary><c>ClipRound.Number</c>.</summary>
     public int Round { get; set; }
 
     public string? FileName { get; set; }
@@ -335,8 +335,8 @@ public sealed class StratOrigin
 }
 
 /// <summary>
-///     The strat clock block (§3.4). <c>round</c> counts down from <see cref="RoundSeconds" />; <c>trigger</c> counts up
-///     from 0 at the strat's trigger; <c>plant</c> is reserved for post-plant strats and is not defined (decision 9).
+///     The strat clock block. <c>round</c> counts down from <see cref="RoundSeconds" />; <c>trigger</c> counts up
+///     from 0 at the strat's trigger; <c>plant</c> is reserved for post-plant strats and is not defined.
 /// </summary>
 public sealed class StratClockInfo
 {
@@ -348,7 +348,7 @@ public sealed class StratClockInfo
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
-/// <summary>Step Authoring's canvas block (overview correction 17), stored here so strats carry it from schema 1.</summary>
+/// <summary>Step Authoring's canvas block, stored here so strats carry it from schema 1.</summary>
 public sealed class StratCanvas
 {
     public int FadeInTicks { get; set; } = 8;
@@ -363,7 +363,7 @@ public sealed class StratCanvas
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
-/// <summary>A role in the strat, never a person. <see cref="SteamId" /> pins one player to it (§3.5).</summary>
+/// <summary>A role in the strat, never a person. <see cref="SteamId" /> pins one player to it.</summary>
 public sealed class StratSlot
 {
     public string Slot { get; set; } = "";
@@ -378,8 +378,8 @@ public sealed class StratSlot
 }
 
 /// <summary>
-///     One instruction on the round clock (§3.3). <see cref="Positions" />, <see cref="Strokes" />,
-///     <see cref="HoldSeconds" /> and <see cref="Interpolation" /> are Step Authoring's (§3.9); this build stores
+///     One instruction on the round clock. <see cref="Positions" />, <see cref="Strokes" />,
+///     <see cref="HoldSeconds" /> and <see cref="Interpolation" /> are Step Authoring's; this build stores
 ///     them and does not interpret them.
 /// </summary>
 public sealed class StratStep
@@ -541,8 +541,8 @@ public sealed class PlaceRef
 }
 
 /// <summary>
-///     A token's position at a step (§3.9). <see cref="Slot" /> is a strat slot or an opponent slot
-///     <c>O1..O5</c> (correction 17); <see cref="LevelMinZ" /> is the level's quantized lower Z, never a floor index.
+///     A token's position at a step. <see cref="Slot" /> is a strat slot or an opponent slot
+///     <c>O1..O5</c>; <see cref="LevelMinZ" /> is the level's quantized lower Z, never a floor index.
 /// </summary>
 public sealed class StepPosition
 {
@@ -573,11 +573,11 @@ public sealed class StepPosition
 }
 
 /// <summary>
-///     A grenade a step throws (§3.3.3). <see cref="LineupId" /> is opaque here by design: this model does
+///     A grenade a step throws. <see cref="LineupId" /> is opaque here by design: this model does
 ///     not dereference it, only stores and round-trips it. Lineup On A Strat Step fills it from the Utility
 ///     Book's <c>GrenadeLineup.Id</c>, a deterministic key over the map, kind, landing cell and rounded
-///     origin (not a persisted row: correction noted in docs/strat-format.md, since the design that reserved
-///     this field assumed a minted <c>Lineup.Id</c>), and resolves it back through
+///     origin (not a persisted row, as docs/strat-format.md notes, since this field was originally expected
+///     to carry a minted <c>Lineup.Id</c>), and resolves it back through
 ///     <c>GrenadeIndex.DescribeLineup</c> for display on the step and in LAN Print.
 /// </summary>
 public sealed class UtilityRef
@@ -598,7 +598,7 @@ public sealed class UtilityRef
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
-/// <summary>Where the grenade should land: a place, and the world point Step Authoring adds (correction 17).</summary>
+/// <summary>Where the grenade should land: a place, and the world point Step Authoring adds.</summary>
 public sealed class UtilityLanding
 {
     public string? Place { get; set; }
@@ -614,7 +614,7 @@ public sealed class UtilityLanding
 }
 
 /// <summary>
-///     After a step, if a condition holds, continue elsewhere (§3.3.4). A target in this strat
+///     After a step, if a condition holds, continue elsewhere. A target in this strat
 ///     (<c>stratId == id</c>) is how a step chain is written without a second object kind.
 /// </summary>
 public sealed class StratBranch
@@ -655,7 +655,7 @@ public sealed class BranchTarget
 }
 
 /// <summary>
-///     <c>&lt;owner&gt;/book.json</c> (§3.5): the owner's default slot map per Team Identity epoch. Names are
+///     <c>&lt;owner&gt;/book.json</c>: the owner's default slot map per Team Identity epoch. Names are
 ///     never stored; <c>me</c> uses the single key <c>"me"</c>.
 /// </summary>
 public sealed class StratBook
@@ -673,7 +673,7 @@ public sealed class StratBook
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
-/// <summary><c>&lt;owner&gt;/&lt;map&gt;/callouts.json</c> (§3.7): the owner's words for the map's places.</summary>
+/// <summary><c>&lt;owner&gt;/&lt;map&gt;/callouts.json</c>: the owner's words for the map's places.</summary>
 public sealed class CalloutTable
 {
     public int SchemaVersion { get; set; } = StratStore.SchemaVersion;
@@ -715,7 +715,7 @@ public sealed class CalloutAlias
 }
 
 /// <summary>
-///     One line of <c>&lt;id&gt;.history.jsonl</c> (§3.8): the ops of one commit. Revision 1 is a single
+///     One line of <c>&lt;id&gt;.history.jsonl</c>: the ops of one commit. Revision 1 is a single
 ///     <c>add</c> at <c>""</c> carrying the whole document.
 /// </summary>
 public sealed class HistoryEntry

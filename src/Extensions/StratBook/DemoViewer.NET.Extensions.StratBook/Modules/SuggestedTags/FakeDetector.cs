@@ -7,13 +7,13 @@ using System.Globalization;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     Fake then rotate (suggested-tags.md §3.3): an execute at <c>Y</c> preceded, between
+///     Fake then rotate: an execute at <c>Y</c> preceded, between
 ///     <c>fakeWindow</c> and 3 seconds before it, by at least <c>fakePresence</c> alive T players in the
 ///     other site's region or at least <c>fakeUtility</c> T detonations placed there. The execute keeps
 ///     its own band; the fake's band spans both.
 ///     <para>
 ///         The other region is counted without the places it shares with <c>Y</c>'s: a learned region can
-///         reach into mid on both sites (de_inferno and de_ancient, §3.2), and a player in a shared place
+///         reach into mid on both sites (de_inferno and de_ancient), and a player in a shared place
 ///         is on the way to the real site as much as the fake one.
 ///     </para>
 /// </summary>

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Services.Strats;
 
 /// <summary>
 ///     Builds a <see cref="CalloutResolver" /> for one owner on one map: the store's alias table over the map's
-///     zones (overview correction 15), so every caller agrees on the same vocabulary and the same team words.
+///     zones, so every caller agrees on the same vocabulary and the same team words.
 ///     <para>
 ///         This is the one seam that turns a bundle directory and an overlay directory into a
 ///         <see cref="CalloutResolver" />; the Strat Book, the Query Canvas and a future TagQuery place filter

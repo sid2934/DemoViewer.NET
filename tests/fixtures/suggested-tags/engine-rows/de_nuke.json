@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "suggested-tags.md §7.2: the same round as ../<map>.json, folded over the engine's own Round Facts rows (the shipped round_facts ruleset), which end the round at round_decided rather than round_officially_ended. Recapture with ST_GOLDEN_UPDATE=1.",
+  "note": "The same round as ../<map>.json, folded over the engine's own Round Facts rows (the shipped round_facts ruleset), which end the round at round_decided rather than round_officially_ended. Recapture with ST_GOLDEN_UPDATE=1.",
   "demo": "match730_003731893271710924851_1024675027_129.dem",
   "map": "de_nuke",
   "tickRate": 64,

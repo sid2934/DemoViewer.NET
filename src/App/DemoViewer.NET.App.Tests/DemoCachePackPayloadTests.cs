@@ -21,7 +21,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The demo cache record's pack seam (strat-book-plugin.md §6 item 21): a pack's payload rides the
+///     The demo cache record's pack seam: a pack's payload rides the
 ///     record as an opaque JSON object under its id, its stamps are what core and the index compare, a
 ///     record or index row written in the old flat shape folds on read and reports no new work, and the
 ///     index row does not grow for it.
@@ -155,7 +155,7 @@ public class DemoCachePackPayloadTests
                 () => DetectorProfile.Default, () => true, () => true);
             string suggestionsFingerprint = probeService.FingerprintFor("de_nuke");
 
-            // The record and the index row exactly as the store wrote them before item 21.
+            // The record and the index row exactly as the store wrote them in the old flat shape.
             RoundFactsRows rows = Facts(Round(1, 1000, 2000), Round(2, 3000, 4000));
             string key = DemoCacheStore.StableKey(Demo);
             Directory.CreateDirectory(Path.Combine(root, "demos"));

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.ViewModels.Settings;
 /// <summary>
 ///     A <see cref="SettingsPageContribution" /> the shell tracks. <see cref="ViewModel" /> and
 ///     <see cref="Content" /> stay null until <see cref="FeatureId" /> first resolves on: a pack's page
-///     must not build while the pack is off (plan doc §8), so the factories run at most once, on the
+///     must not build while the pack is off, so the factories run at most once, on the
 ///     first <see cref="EnsureBuilt" /> call that sees the gate on.
 /// </summary>
 public sealed partial class MountedSettingsPage : ObservableObject

@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 namespace DemoViewer.NET.Playback2D.Core.Input;
 
 /// <summary>
-///     The text label tool (step-authoring.md §3.2). Press places the anchor: it commits a
+///     The text label tool. Press places the anchor: it commits a
 ///     <see cref="AnnotationKind.Text" /> element with one point and an empty string, then asks the host
 ///     for an editor through <see cref="IToolServices.RequestTextEdit" />. The host hands the typed string
 ///     back through <see cref="CompleteEdit" />.

@@ -18,9 +18,9 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Tag Palette (plan §3, tag-store.md §3.4): lead and lag in the document's ticks, the round clamp,
+///     The Tag Palette: lead and lag in the document's ticks, the round clamp,
 ///     the panel flow revealing only the panel that follows, one undo entry per gesture, sticky session
-///     labels, the note, and the Done criterion: a demo tagged without touching the mouse, pinned twice,
+///     labels, the note, and the end-to-end case: a demo tagged without touching the mouse, pinned twice,
 ///     through the tab VM's key funnel and through real key events on the view.
 /// </summary>
 [NotInParallel]
@@ -324,7 +324,7 @@ public class TagPaletteTests
         ReviewPanelsHarness.Press(vm, key, modifiers);
 
     /// <summary>
-    ///     The Done criterion, through the tab: focus, three tags with their panels, a note, an undo and a
+    ///     End to end, through the tab: focus, three tags with their panels, a note, an undo and a
     ///     redo, and out again, every step a key. Transport keys keep working while the palette has focus.
     /// </summary>
     [Test]

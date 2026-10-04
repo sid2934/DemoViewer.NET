@@ -7,7 +7,7 @@ using System.Globalization;
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
 /// <summary>
-///     Retake grouping (suggested-tags.md §3.3): after the plant, CT players alive at the plant each
+///     Retake grouping: after the plant, CT players alive at the plant each
 ///     first enter the site's region within <c>retakeGap</c> seconds of the previous entrant; the group
 ///     is every entrant of the first run of at least <c>minGroup</c>. Rounds with one alive CT or none
 ///     produce nothing, correctly.

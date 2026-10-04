@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.Tags;
 
 namespace DemoViewer.NET.Services.Strats;
 
-/// <summary>How one run of a strat ended, for the record (strat-model.md §3.6).</summary>
+/// <summary>How one run of a strat ended, for the record.</summary>
 public enum RunOutcome
 {
     Won,
@@ -76,7 +76,7 @@ public sealed record StratRun(
     IReadOnlyList<string> Failures);
 
 /// <summary>
-///     The record of one strat, computed on demand and never stored (strat-model.md §3.6). Every count is
+///     The record of one strat, computed on demand and never stored. Every count is
 ///     backed by the runs that produced it, so a number opens its clips.
 /// </summary>
 /// <param name="StratId">The strat.</param>
@@ -86,7 +86,7 @@ public sealed record StratRun(
 /// <param name="ByProvenance">Keyed by the demo's provenance label; <see cref="StratEvidence.Unlabeled" /> for none.</param>
 /// <param name="ByRevision">Keyed by <c>strat.rev</c>; 0 for runs tagged without one.</param>
 /// <param name="FailureBreakdown">Keyed by <c>strat.failure</c> value: runs that name it, each counted once.</param>
-/// <param name="SmallSample">Fewer than <see cref="StratEvidence.SmallSampleBelow" /> runs: the plan's "caution under eight".</param>
+/// <param name="SmallSample">Fewer than <see cref="StratEvidence.SmallSampleBelow" /> runs: "caution under eight".</param>
 public sealed record StratRecord(
     Guid StratId,
     int Revision,
@@ -98,7 +98,7 @@ public sealed record StratRecord(
     bool SmallSample)
 {
     /// <summary>
-    ///     Runs either side of history entry <paramref name="revision" /> (§3.8): tagged at a revision below it, and
+    ///     Runs either side of history entry <paramref name="revision" />: tagged at a revision below it, and
     ///     at it or later. Runs tagged without a revision sit on neither side.
     /// </summary>
     /// <param name="revision">The history entry's revision.</param>
@@ -108,12 +108,12 @@ public sealed record StratRecord(
 }
 
 /// <summary>
-///     The evidence rule (strat-model.md §3.6, decisions 3, 4 and 7): which tag instances are runs of a strat and
+///     The evidence rule: which tag instances are runs of a strat and
 ///     how each one ended. Pure over documents the caller loaded; <see cref="StratEvidenceService" /> does the
 ///     loading.
 ///     <para>
 ///         <b>Won and lost.</b> The strat's own side against the round's <c>winner</c> fact, which the facts
-///         refresh writes from Round Facts (overview correction 10: no side fact on the instance is needed). When
+///         refresh writes from Round Facts (no side fact on the instance is needed). When
 ///         the fact is absent, or <c>none</c>, the human <c>outcome</c> label of the shipped palette decides; when
 ///         both are absent the run is <see cref="RunOutcome.Unknown" />. <c>strat.result: aborted</c> beats both:
 ///         a strat abandoned in a round that was won anyway is not a win for the strat.
@@ -121,7 +121,7 @@ public sealed record StratRecord(
 /// </summary>
 public static class StratEvidence
 {
-    /// <summary>The run's revision when it was tagged (reserved, overview correction 23).</summary>
+    /// <summary>The run's revision when it was tagged (reserved).</summary>
     public const string RevisionGroup = "strat.rev";
 
     /// <summary><c>completed</c> or <c>aborted</c>; absent means completed.</summary>
@@ -148,7 +148,7 @@ public static class StratEvidence
     /// <summary>A record with fewer runs than this carries <see cref="StratRecord.SmallSample" />.</summary>
     public const int SmallSampleBelow = 8;
 
-    /// <summary>The shipped failure vocabulary (decision 7), in the order the panel lists it. A palette may add values.</summary>
+    /// <summary>The shipped failure vocabulary, in the order the panel lists it. A palette may add values.</summary>
     public static readonly IReadOnlyList<string> Failures =
         ["utility-late", "entry-lost", "early-contact", "rotation-early", "info-lost", "economy", "other"];
 
@@ -311,8 +311,8 @@ public static class StratEvidence
 }
 
 /// <summary>
-///     Computes a strat's record from the Tag Store (strat-model.md §3.6). Loads only the documents whose index
-///     row lists the strat (<see cref="TagIndexEntry.StratIds" />, overview correction 23), then applies
+///     Computes a strat's record from the Tag Store. Loads only the documents whose index
+///     row lists the strat (<see cref="TagIndexEntry.StratIds" />), then applies
 ///     <see cref="StratEvidence.Build" />. Not for the UI thread: the scan is the Tag Store's
 ///     <see cref="TagStore.LoadDocuments" />, measured at 222 ms warm over 1000 documents.
 /// </summary>

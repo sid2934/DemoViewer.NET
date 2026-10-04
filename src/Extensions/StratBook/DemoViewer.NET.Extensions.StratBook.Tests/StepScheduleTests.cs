@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Keyframes;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The strat frame clock and its step windows (step-authoring.md §3.3, correction 7): 64 ticks per
+///     The strat frame clock and its step windows: 64 ticks per
 ///     second from freeze-end, one window per step in authoring order, shared ticks resolved to the later
 ///     step, the last window open-ended.
 /// </summary>

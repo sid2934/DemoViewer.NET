@@ -13,9 +13,9 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Strat Version History (strat-model.md §3.8): the log as a pane, newest entry first, each
+///     Strat Version History: the log as a pane, newest entry first, each
 ///     phrased against the document as it stood just before it, with the record split either side of the
-///     entry's revision. The item's own done line: "every save is a diff and the record splits".
+///     entry's revision: "every save is a diff and the record splits".
 /// </summary>
 public class StratHistoryPanelTests
 {

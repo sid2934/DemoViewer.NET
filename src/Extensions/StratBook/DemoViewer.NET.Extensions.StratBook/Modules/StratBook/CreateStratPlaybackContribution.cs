@@ -17,7 +17,7 @@ using DemoViewer.NET.ViewModels.StratBook;
 namespace DemoViewer.NET.Modules.StratBook;
 
 /// <summary>
-///     Create Strat From Round in 2D Playback (step-authoring.md §3.9) as one playback contribution: the
+///     Create Strat From Round in 2D Playback as one playback contribution: the
 ///     round band's "Create strat from this round" entry, and the review pane its action opens. The entry
 ///     shows only while <see cref="IStratCapture" /> resolves with a parsed demo, which is how the pack's gate
 ///     reaches it: off, the service resolves null and the band offers nothing.

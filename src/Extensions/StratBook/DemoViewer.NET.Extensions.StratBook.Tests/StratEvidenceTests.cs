@@ -13,7 +13,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The evidence rule and the record pane's data (strat-model.md §3.6, decisions 3, 4 and 7) over a fixture of
+///     The evidence rule and the record pane's data over a fixture of
 ///     three tag documents: run, won, lost, aborted and unknown counts; the <c>winner</c> fact beating the human
 ///     <c>outcome</c> label; the provenance and revision splits; the failure breakdown counting a repeated value
 ///     once; and the caution flag at seven runs and not at eight. The <c>winner</c> fact comes from Round Facts

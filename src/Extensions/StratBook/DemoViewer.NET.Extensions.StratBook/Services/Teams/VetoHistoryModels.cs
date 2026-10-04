@@ -15,9 +15,9 @@ public enum VetoAction
 }
 
 /// <summary>
-///     One veto step the user entered by hand against an opponent (decision D5: manual entry only, in
-///     Phase 5; no scraping: the artifact's veto model needs match-series metadata no demo carries,
-///     F12). <see cref="Order" /> is the pick order the user typed the step in, one-based.
+///     One veto step the user entered by hand against an opponent (manual entry only,
+///     no scraping: the veto model needs match-series metadata no demo carries).
+///     <see cref="Order" /> is the pick order the user typed the step in, one-based.
 /// </summary>
 public sealed class VetoEntry
 {
@@ -38,7 +38,7 @@ public sealed class VetoEntry
 }
 
 /// <summary>
-///     <c>&lt;config&gt;/veto-history.json</c>, beside <c>teams.json</c> (F12, D5): the user's own manual
+///     <c>&lt;config&gt;/veto-history.json</c>, beside <c>teams.json</c>: the user's own manual
 ///     record of veto steps, the model's only substitute for match-series metadata no demo carries.
 ///     Refused rather than overwritten when it cannot be read, the same rule <c>teams.json</c> follows.
 /// </summary>

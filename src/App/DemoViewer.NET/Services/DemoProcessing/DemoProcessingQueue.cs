@@ -109,7 +109,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     retained parse.
     /// </param>
     /// <param name="jobKinds">
-    ///     Resolves a kind's scheduling rank and light-slot flag (item 13). Defaults to
+    ///     Resolves a kind's scheduling rank and light-slot flag. Defaults to
     ///     <see cref="JobKindRegistry.Default" />, the core table plus the one compiled-in pack's kinds,
     ///     so a test or a bare construction sees the same scheduling every kind had before the registry.
     /// </param>

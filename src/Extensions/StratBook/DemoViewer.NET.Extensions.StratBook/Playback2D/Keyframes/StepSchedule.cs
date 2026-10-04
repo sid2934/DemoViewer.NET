@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Playback2D.Core.Keyframes;
 
 /// <summary>
 ///     One step's span of the strat frame clock: its strokes are visible over it and its token edits land
-///     on it (step-authoring.md §3.3, §3.5).
+///     on it.
 /// </summary>
 /// <param name="StepId">The step.</param>
 /// <param name="FromTick">The step's own tick.</param>
@@ -24,8 +24,8 @@ public readonly record struct StepWindow(Guid StepId, int FromTick, int? UntilTi
 /// <summary>
 ///     A strat's steps on the <b>strat frame clock</b>: tick 0 is the round start (freeze-end) and the rate
 ///     is a constant <see cref="TicksPerSecond" />. This clock never meets a demo clock; the App's
-///     <c>StratClock</c> is the only bridge and it works in seconds (correction 7 puts the constant here,
-///     in Core, so the App reads it rather than the other way round).
+///     <c>StratClock</c> is the only bridge and it works in seconds. The constant lives here,
+///     in Core, so the App reads it rather than the other way round.
 ///     <para>
 ///         A step at <c>atSeconds</c> sits at <c>round((roundSeconds - atSeconds) × 64)</c>, rounded half
 ///         away from zero as <c>StratClock.TickFor</c> rounds. A negative <c>atSeconds</c> (after the timer

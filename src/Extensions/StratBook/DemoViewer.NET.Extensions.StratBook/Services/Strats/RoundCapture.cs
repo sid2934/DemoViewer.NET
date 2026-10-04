@@ -12,7 +12,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 namespace DemoViewer.NET.Services.Strats;
 
-/// <summary>What made Create Strat From Round stop at a tick (step-authoring.md §3.9).</summary>
+/// <summary>What made Create Strat From Round stop at a tick.</summary>
 public enum CaptureTrigger
 {
     /// <summary>The round's freeze-end: every live pawn on both sides.</summary>
@@ -31,7 +31,7 @@ public enum CaptureTrigger
 /// <summary>
 ///     One live pawn at a captured tick: the values a keyframe needs, copied out of the tracker so nothing
 ///     pooled is retained. Dead pawns are never captured, and neither are orphans: the walk reads through the
-///     controller's live pawn, never by enumerating the pawn class (§3.9's finding).
+///     controller's live pawn, never by enumerating the pawn class.
 /// </summary>
 /// <param name="PlayerSlot">The controller slot.</param>
 /// <param name="Team">2 for T, 3 for CT.</param>
@@ -119,9 +119,9 @@ public sealed record RoundCapture(int Round, int FreezeEndTick, int LiveEndTick,
 }
 
 /// <summary>
-///     The tracker walk behind Create Strat From Round (step-authoring.md §3.9): a private
+///     The tracker walk behind Create Strat From Round: a private
 ///     <see cref="EntityTracker" /> seeded at the round's freeze-end and stepped once to the round's last stop,
-///     off the UI thread. It never touches the shared playback clock, the rule every export keeps (design §5.7).
+///     off the UI thread. It never touches the shared playback clock, the rule every export keeps.
 ///     <para>
 ///         The stops are known before the walk except the round's end: a Valve matchmaking demo carries no
 ///         <c>round_end</c>, so the end is the game rules' <c>m_iRoundWinStatus</c> turning non-zero, else
@@ -136,7 +136,7 @@ public sealed record RoundCapture(int Round, int FreezeEndTick, int LiveEndTick,
 /// </summary>
 public static class RoundCaptureWalker
 {
-    /// <summary>The move sweep's period (O-25).</summary>
+    /// <summary>The move sweep's period.</summary>
     public const int SweepSeconds = 10;
 
     /// <summary>A sweep is skipped when another stop is this close.</summary>
@@ -431,7 +431,7 @@ public static class RoundCaptureWalker
         foreach (IPlayerState player in snapshot.Players)
         {
             // Through the controller's live pawn only: SceneFrameBuilder.BuildMarkers' join, which is what keeps
-            // the orphaned pawns the design measured out of every keyframe. Alive is the engine's own rule,
+            // the orphaned pawns excluded from every keyframe. Alive is the engine's own rule,
             // re-read off the tracker rather than kept as a local copy (#58).
             if (!player.HasLivePawn || player.Pawn is not { } pawn || player.WorldPosition is not { } world
                 || player.Team is not (2 or 3)

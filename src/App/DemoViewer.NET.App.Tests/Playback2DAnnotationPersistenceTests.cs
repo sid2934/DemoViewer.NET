@@ -218,7 +218,7 @@ public class Playback2DAnnotationPersistenceTests
     /// <summary>
     ///     On the browser head the status line must NOT name a sidecar path. System.IO writes there land
     ///     in the WASM runtime's in-memory virtual FS, so the store finds a "writable" location, reports
-    ///     it, and the user reads a filename as a promise the next reload breaks. Design §8: annotations
+    ///     it, and the user reads a filename as a promise the next reload breaks. Annotations
     ///     work in session, a reload loses them, and the UI says so.
     ///     <para>
     ///         Found by a WASM verification pass on the published head: with a demo attached, the

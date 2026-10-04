@@ -10,7 +10,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Radar binding, by Z-band <b>overlap</b> (B3 T5). The pre-v2 <c>ResolveRadarImage</c> (viewport
+///     Radar binding, by Z-band <b>overlap</b>. The pre-v2 <c>ResolveRadarImage</c> (viewport
 ///     lines 1096-1115) index-matched sorted layers to sorted bands only when the counts happened to be
 ///     equal and otherwise handed every band the highest-altitude picture; these cases pin the
 ///     replacement, including the two shapes the old rule got wrong.
@@ -107,7 +107,7 @@ public class MapRadarBindingTests
 
     /// <summary>
     ///     de_nuke's real bundle: two half-space nav floors and two radar layers meeting at Z -495. The
-    ///     binding must be lower→lower, upper→upper, or B1's <c>nuke-multilevel</c> golden changes.
+    ///     binding must be lower→lower, upper→upper, or the <c>nuke-multilevel</c> golden changes.
     /// </summary>
     [Test]
     public async Task NukeBundleShape_BindsLowerToLowerAndUpperToUpper()
@@ -142,7 +142,7 @@ public class MapRadarBindingTests
     /// <summary>
     ///     The reason the binder exists: the pre-v2 version ran <c>OrderBy</c> + <c>ToList</c> +
     ///     <c>First</c> per band per frame. Binding must be cheap enough to leave no trace, because
-    ///     B3's level hysteresis will call it more often than B1 does.
+    ///     level hysteresis calls it more often.
     /// </summary>
     [Test]
     [Category("Budget")]
@@ -173,7 +173,7 @@ public class MapRadarBindingTests
 
     /// <summary>
     ///     The pre-v2 <c>LoadedMapAsset.Floors</c> projected and materialised a fresh list on every
-    ///     property read, and the viewport read it once per push (plan §4 T15 item 7).
+    ///     property read, and the viewport read it once per push.
     /// </summary>
     [Test]
     [Category("Budget")]

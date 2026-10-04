@@ -8,13 +8,13 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.Services.Tags;
 
 /// <summary>
-///     Keeps every tag instance's <see cref="TagInstance.Facts" /> in step with its round's Round Facts
-///     (tag-store.md §3.3): the parser namespace, rewritten wholesale, never reading or writing
+///     Keeps every tag instance's <see cref="TagInstance.Facts" /> in step with its round's Round Facts:
+///     the parser namespace, rewritten wholesale, never reading or writing
 ///     <see cref="TagInstance.Labels" />.
 ///     <para>
 ///         <b>When.</b> On <see cref="IRoundFactsSource.Updated" />, which the evaluator raises after it
 ///         (re)writes a demo's rows, so a re-parse or a Round Facts schema bump reaches every document of
-///         that demo. The design names <c>DemoCacheStore.Changed</c> and a comparison against
+///         that demo. This fires on <c>DemoCacheStore.Changed</c> and a comparison against
 ///         <c>factsStamp.computedUtc</c>; the rows carry no write time, and <c>Updated</c> fires for
 ///         exactly the writes that matter, so that is the trigger. A fresh instance does not wait for a
 ///         re-parse: <see cref="TagSession" /> stamps it through <see cref="RefreshInstance" /> as it is made.
@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Services.Tags;
 ///     </para>
 ///     <para>
 ///         <b>What.</b> Every label <see cref="IRoundFactsSource.FactsFor" /> reports for the round holding
-///         the instance's <c>fromTick</c>, at that tick, under its plain name (overview correction 10: the
+///         the instance's <c>fromTick</c>, at that tick, under its plain name (the
 ///         array is the namespace, so no <c>parser.</c> prefix). Values are absolute per side; no
 ///         <c>side</c>, <c>buy.us</c> or <c>buy.them</c> is written, because an instance has no side unless a
 ///         person or Team Identity says so.

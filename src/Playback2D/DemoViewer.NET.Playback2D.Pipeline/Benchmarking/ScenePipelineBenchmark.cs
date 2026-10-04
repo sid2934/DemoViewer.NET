@@ -13,7 +13,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Headless;
 namespace DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 
 /// <summary>
-///     Times the scene pipeline against the design §6 budget: advance, render, and steady-state
+///     Times the scene pipeline against the frame budget: advance, render, and steady-state
 ///     allocation, over a frame source.
 ///     <para>
 ///         <b>It lives in Pipeline, not Core, deliberately.</b> The report stamps
@@ -71,14 +71,14 @@ public sealed class ScenePipelineBenchmark
     public ViewportTransform? Camera { get; set; }
 
     /// <summary>
-    ///     Optional per-layer / per-stage capture (plan <c>P1-perf-instrumentation</c>). Null (the
+    ///     Optional per-layer / per-stage capture. Null (the
     ///     default) leaves the compositor's profiler seam unattached and the run byte-for-byte the same
     ///     as before this existed.
     ///     <para>
     ///         When set, the recorder is attached <b>before</b> the warmup and
     ///         <see cref="ScenePerfRecorder.Reset" /> afterwards, so its rings are allocated by warmup
     ///         frames and the measured window (the one <c>AllocatedBytesPerFrame</c> reads) writes only
-    ///         into arrays that already exist. The §6 zero stays zero with capture on.
+    ///         into arrays that already exist. Zero stays zero with capture on.
     ///     </para>
     /// </summary>
     public ScenePerfRecorder? Perf { get; set; }

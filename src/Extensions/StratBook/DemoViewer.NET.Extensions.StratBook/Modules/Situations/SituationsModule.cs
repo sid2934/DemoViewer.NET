@@ -31,8 +31,8 @@ namespace DemoViewer.NET.Modules.Situations;
 ///         VM is built on first activation, and the badge has to show before the tab is ever opened.
 ///         <see cref="StratBookPack.Contribute" /> resolves the service only while <see cref="TabFeatureId" />
 ///         is on, so a pack-off launch never builds it; a live toggle (the gate's own <c>Changed</c>)
-///         clears a stale count going off and recomputes going on, the same shape item 1 gave
-///         <c>SuggestedInboxModule</c>.
+///         clears a stale count going off and recomputes going on, the same shape
+///         <c>SuggestedInboxModule</c> uses.
 ///     </para>
 /// </summary>
 public sealed class SituationsModule : IWorkspaceModule

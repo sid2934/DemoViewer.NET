@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Extensions;
 /// <summary>
 ///     The packs compiled into this build, in composition order, each judged against
 ///     <see cref="ExtensionHost.Current" /> when the head declares the list. The app assembly references
-///     no pack (strat-book-plugin.md §13), so the head that does (Desktop, Browser, the test and capture
+///     no pack, so the head that does (Desktop, Browser, the test and capture
 ///     hosts) declares the list through <see cref="Configure(IReadOnlyList{IFeaturePack})" /> before Avalonia starts. The composition
 ///     root, <see cref="Features.FeatureCatalog" />, <see cref="JobKindRegistry" />,
 ///     <see cref="CommandRegistry" /> and the <c>ViewLocator</c> all read <see cref="Compatible" />, so a

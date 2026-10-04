@@ -13,9 +13,8 @@ namespace DemoViewer.NET.Services.Teams;
 ///     section reads. Stateless and synchronous, like <see cref="MapPoolRecordService" />: nothing here
 ///     opens a demo Team Identity or the Map Pool Record has not already loaded for the same team.
 ///     <para>
-///         <b>Rosters are the diff's own signal</b> (team-identity.md §3: "Period Diff reads rosters,
-///         'roster to roster'"). A roster does not change on ordinary attrition: one or two members
-///         still match the same anchor and stay stamped a stand-in (design §3.3), so
+///         <b>Rosters are the diff's own signal</b>. A roster does not change on ordinary attrition: one or two members
+///         still match the same anchor and stay stamped a stand-in, so
 ///         <see cref="PeriodDiffSet.RosterChanged" /> firing means a real boundary: the user started a
 ///         new roster, or the team's demos this far back belong to a different, earlier-founded one.
 ///     </para>

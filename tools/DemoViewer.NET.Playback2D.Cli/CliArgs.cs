@@ -31,7 +31,7 @@ internal sealed class CliUsageException : Exception
 }
 
 /// <summary>
-///     The hand-rolled argument parser (C1 decision 2: no new dependency). It understands both repo
+///     The hand-rolled argument parser (no new dependency). It understands both repo
 ///     styles, <c>--name value</c> (DemoTrimmer) and <c>--name=value</c> (AnalysisBench), plus bare
 ///     flags, leading positional verbs and a <c>--</c> terminator.
 ///     <para>

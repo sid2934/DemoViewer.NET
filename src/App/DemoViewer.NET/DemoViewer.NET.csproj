@@ -10,7 +10,7 @@
         <AvaloniaResource Include="Assets\**"/>
     </ItemGroup>
 
-    <!-- Built-in theme definitions (central theme system, docs/ui/theme-system-plan.md, T4). Embedded so the
+    <!-- Built-in theme definitions (central theme system). Embedded so the
          ThemeRegistry loads them from the assembly at startup, via the same JSON parser as user drop-ins — the
          proof that a theme is pure data with no per-file changes. -->
     <ItemGroup>

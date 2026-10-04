@@ -27,7 +27,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     The live toggle (item 8) in the real container: off to on runs the startup loads once and queues the
+///     The live toggle in the real container: off to on runs the startup loads once and queues the
 ///     re-poll, on to off cancels the pack's items by owner and releases what on built, on-off-on reloads, a
 ///     flip mid-load cancels through the enable's token, the first-run wizard's answer drives the switch,
 ///     and shutdown after a release touches nothing. The queue is a double that runs each job inline (or holds
@@ -354,7 +354,7 @@ public class StratBookLiveToggleTests
     }
 
     /// <summary>
-    ///     Item 24's blocker: a re-enable landing right after <c>PackSwitch.Pending</c> resolves, but before
+    ///     The blocker: a re-enable landing right after <c>PackSwitch.Pending</c> resolves, but before
     ///     <c>StratBookDataRemoval</c> calls the remover, used to run the delete against a fully live pack
     ///     and report success. <c>afterReleaseForTests</c> lands the re-enable at exactly that point (the
     ///     release and the re-enable's own attach both run inline on this container's queue double, so there
@@ -472,7 +472,7 @@ public class StratBookLiveToggleTests
     }
 
     /// <summary>
-    ///     Decision 3 measured: the heap after the release is back where it was before the enable, within a
+    ///     Measured: the heap after the release is back where it was before the enable, within a
     ///     small margin, on a fixture large enough that the enable itself is unmistakable. Two cycles: the
     ///     first pays whatever the process pays once between the marks whether or not the pack exists (the
     ///     Reels fingerprint reading the rule docs, loggers, JIT); the second is the claim, and the residual

@@ -44,13 +44,13 @@ public sealed record StratCaptureRequest(
     Func<double, double> LevelMinZFor);
 
 /// <summary>
-///     Create Strat From Round's review (step-authoring.md §3.9): walks the round off the UI thread, then shows the
+///     Create Strat From Round's review: walks the round off the UI thread, then shows the
 ///     side, the slot map and the step list before anything is saved. Changing the side or a slot rebuilds the step
 ///     list from the same capture; nothing walks the demo twice.
 ///     <para>
 ///         <b>Side.</b> Team Identity's key decides it when one side at the freeze-end holds most of it; otherwise the
 ///         picker starts empty and says so (a side picker suffices where Team Identity has no team). <b>Slots.</b>
-///         Strat pin, then the book default for the demo's epoch, then controller-slot order (strat-model.md §3.5);
+///         Strat pin, then the book default for the demo's epoch, then controller-slot order;
 ///         the first mapping of an epoch seeds the book's default.
 ///     </para>
 /// </summary>
@@ -96,7 +96,7 @@ public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposa
         _name = DefaultName(request);
         _statusLine = string.Create(CultureInfo.InvariantCulture, $"reading round {request.Round}…");
 
-        // Off the UI thread: the walk is O(frames before the round) and a late round takes seconds (§3.9).
+        // Off the UI thread: the walk is O(frames before the round) and a late round takes seconds.
         CancellationToken ct = _cancel.Token;
         Progress = new WalkProgress(this);
         // A queue item at the front: the user asked for it.
@@ -285,7 +285,7 @@ public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(CanCreate));
     }
 
-    // One row per slot, each offering our side's players at the freeze-end, seeded by the §3.5 precedence.
+    // One row per slot, each offering our side's players at the freeze-end, seeded by that same precedence.
     private void RebuildSlots()
     {
         _rebuilding = true;

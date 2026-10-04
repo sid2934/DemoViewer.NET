@@ -23,8 +23,8 @@ using DemoViewer.NET.Views.Analysis;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Work item 0.2 (rule-authoring plan): fire-count badges + the never-fired lint,
-///     surfacing 0.1's always-on counters in the rule-diagnostics panel. A deliberately dead
+///     Fire-count badges + the never-fired lint,
+///     surfacing always-on counters in the rule-diagnostics panel. A deliberately dead
 ///     user rule (its trigger event occurs, its condition never matches) must produce the
 ///     "fired 0 times" warning and a 0× badge, while shipped rules show nonzero badges.
 ///     The contract is pinned on the engine thread via the pure

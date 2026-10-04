@@ -11,7 +11,7 @@ using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Suggested Tags steps 4 and 5 below the UI (suggested-tags.md §3.4, §3.5, §7.4, §7.5): the evaluator
+///     Suggested Tags below the UI: the evaluator
 ///     writing proposals and stamping the record, <c>Wants</c> following the fingerprint, the gate and the
 ///     opt-in, accept, edit and reject writing the Tag Store with provenance and the verdicts file, a tuning
 ///     pass that cannot bring a rejection back, the re-match after a re-parse, and the in-memory mode.

@@ -4,8 +4,6 @@
              x:Class="DemoViewer.NET.Extensions.StratBook.Views.Settings.GrenadeIndexSettingsView"
              x:DataType="settings:GrenadeIndexSettingsViewModel">
 
-    <!-- Relocated here from HIGHLIGHTS (settings-extensions item 14), where it rode on that section's
-         desktop-only gate incidentally. Content unchanged by the move. -->
     <StackPanel Spacing="12">
 
         <!-- Background grenade walk opt-in, the same shape and the same default -->

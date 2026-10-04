@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The pack-reaching half of the composition-root smoke test (item 28 review), split out of
+///     The pack-reaching half of the composition-root smoke test, split out of
 ///     <c>AppCompositionRootTests</c> in App.Tests: the hub layout, the evaluator fan-out order (on and
 ///     off), the Situation/Grenade index coordinator wiring, and the pack-off evaluator/badge case. Each
 ///     case builds the REAL container the same way the core file does; see that class for why
@@ -24,7 +24,7 @@ public class StratBookCompositionRootTests
     // Builds a real container against a throwaway config dir, runs the assertion body on the UI thread, and
     // disposes the provider (and thus MainViewModel: detaches the static parser event, stops its timer).
     // Duplicated from AppCompositionRootTests rather than shared: the two classes live in different
-    // assemblies and neither references the other's test project (strat-book-plugin.md §13).
+    // assemblies and neither references the other's test project.
     private static async Task WithProvider(IWindowService windowService, Func<ServiceProvider, Task> body,
         string? seedSettingsJson = null)
     {
@@ -80,7 +80,7 @@ public class StratBookCompositionRootTests
         });
     }
 
-    // The fan-out order is a contract (overview correction 19): an evaluator may read what the one before
+    // The fan-out order is a contract: an evaluator may read what the one before
     // it wrote in the same pass, so the round index, when it lands, goes after round facts and reads them.
     [Test]
     public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenades()

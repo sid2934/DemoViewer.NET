@@ -15,7 +15,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.ViewModels.Teams;
 
 /// <summary>
-///     The Teams tab (design §3.9): the team list, the rosters and members of the selected team, its
+///     The Teams tab: the team list, the rosters and members of the selected team, its
 ///     demos, and every action of the service's write API. The me account list and its suggestion live
 ///     at the top of this panel, not in Settings, so team truth has one home.
 ///     <para>

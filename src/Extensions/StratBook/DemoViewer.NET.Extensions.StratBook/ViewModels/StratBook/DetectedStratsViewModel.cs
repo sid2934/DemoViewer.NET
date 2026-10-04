@@ -46,7 +46,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     private DetectedRowViewModel? _selectedRow;
 
-    // Dismissed and in-book patterns: hidden unless on (generated-content.md).
+    // Dismissed and in-book patterns: hidden unless on.
     [ObservableProperty]
     private bool _showSettled;
 

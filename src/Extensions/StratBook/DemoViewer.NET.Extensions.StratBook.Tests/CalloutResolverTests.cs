@@ -11,8 +11,8 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Callout resolution (strat-model.md §3.7) and the embedded canonical lists, with overview correction 15's
-///     precedence: a map's zones supply the canonical names when they load, else the embedded list.
+///     Callout resolution and the embedded canonical lists, with this precedence:
+///     a map's zones supply the canonical names when they load, else the embedded list.
 /// </summary>
 public class CalloutResolverTests
 {

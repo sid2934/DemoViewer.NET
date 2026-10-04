@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.Modules.StratBook;
 
 /// <summary>
-///     What 2D Playback needs for Create Strat From Round (step-authoring.md §3.9) and cannot see through
+///     What 2D Playback needs for Create Strat From Round and cannot see through
 ///     <c>IModuleContext</c>: the parsed demo, the strat store the new strat is committed to, Team Identity for our
 ///     side and the book, and the way into the Strat Book tab once the strat exists.
 ///     <para>

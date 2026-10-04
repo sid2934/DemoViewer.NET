@@ -77,7 +77,7 @@ public sealed record GrenadeQuery(
 ///     <see cref="GrenadeIndex.LineupId" /> over the map, kind, landing cell and rounded origin rather than
 ///     any one member: the representative throw (oldest demo first) can change as an older demo is indexed
 ///     later, but the position it names does not. This is the value Strat Model's <c>utility.lineupId</c>
-///     stores (strat-model.md §3.3.3): that design assumed the Utility Book would mint a persisted
+///     stores: the Utility Book was expected to mint a persisted
 ///     <c>Lineup.Id</c> row; there is none, so the deterministic key stands in for it (docs/strat-format.md).
 /// </param>
 public sealed record GrenadeLineup(WorldPoint Origin, bool JumpThrow, IReadOnlyList<IndexedGrenade> Throws, Guid Id)
@@ -147,9 +147,9 @@ public sealed record GrenadeCluster(
 ///     </para>
 ///     <para>
 ///         <b>Landing place.</b> Resolved at merge time through <see cref="IZonePlaceResolverSource" /> and
-///         stored with its <c>zones:&lt;zonesVersion&gt;</c> stamp (correction 13); a query re-resolves a
+///         stored with its <c>zones:&lt;zonesVersion&gt;</c> stamp; a query re-resolves a
 ///         map whose zones version moved since. A map without zones, and every map on the browser host,
-///         leaves the place empty (zone-baking.md §3.5): the grid still clusters, a place filter finds nothing.
+///         leaves the place empty: the grid still clusters, a place filter finds nothing.
 ///     </para>
 /// </summary>
 public sealed class GrenadeIndex : IPackResident, IDisposable

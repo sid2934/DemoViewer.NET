@@ -16,7 +16,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     Regressions found by the C1 independent review. Each case failed before the fix it guards.
+///     Regressions found by independent review. Each case failed before the fix it guards.
 /// </summary>
 [NotInParallel]
 public class ReviewRegressionTests
@@ -44,7 +44,7 @@ public class ReviewRegressionTests
     ///         <b>not</b> the same on the demo path. <see cref="TrackerFrameSource.TimeAt" /> derives
     ///         <c>DeltaSeconds</c> from fps/speed and authors <c>IsDiscontinuity</c>, while the frame's
     ///         own <c>Time</c> comes from <c>SceneFrameBuilder</c>. Dropping the injected clock is the
-    ///         §5.1 determinism failure this phase exists to prevent, and it would have surfaced as
+    ///         determinism failure this suite exists to prevent, and it would have surfaced as
     ///         "bench and golden disagree" the moment a layer read <c>ctx.Time</c>.
     ///     </para>
     /// </summary>
@@ -107,8 +107,8 @@ public class ReviewRegressionTests
     ///         (and with it the provider) at the end of every loop iteration, and then reads
     ///         <c>backend.Backend</c> when it builds the summary payload. That is a use-after-dispose.
     ///         It is inert with <see cref="CpuSurfaceProvider" /> (a constant property and a no-op
-    ///         <c>Dispose</c>), but C2's <c>GpuSurfaceProvider</c> owns an EGL context, and the registry
-    ///         (§3.7) has <c>BackendResolver</c>'s single construction site handing that provider over
+    ///         <c>Dispose</c>), but <c>GpuSurfaceProvider</c> owns an EGL context, and the registry
+    ///         has <c>BackendResolver</c>'s single construction site handing that provider over
     ///         unchanged.
     ///     </para>
     /// </summary>
@@ -127,15 +127,15 @@ public class ReviewRegressionTests
 
     /// <summary>
     ///     The tracker → <c>SceneFrameInput</c> adapter runs once per exported frame, so every byte it
-    ///     allocates is on the §6 budget. The lambda handed to <c>PawnLookup.ForEachLivePawn</c> captures
+    ///     allocates is on the budget. The lambda handed to <c>PawnLookup.ForEachLivePawn</c> captures
     ///     <c>this</c>, and Roslyn caches only a <b>fully non-capturing</b> lambda, so it allocated a
     ///     fresh delegate on every single frame.
     ///     <para>
     ///         <b>Measured on the committed <c>assets/tour</c> demo:</b> 424 bytes/frame before the fix,
     ///         360 after; the delegate was exactly 64 of them. The 360-byte residue is
     ///         <b>
-    ///             not this
-    ///             phase's
+    ///             out of scope
+    ///             here
     ///         </b>
     ///         . Bisected, it is 72 bytes inside <c>PawnLookup.ForEachLivePawn</c> and ~24
     ///         bytes per boxed <c>EntityState</c> field read, both in the pinned CS2DemoKit 0.10.0
@@ -145,7 +145,7 @@ public class ReviewRegressionTests
     ///     </para>
     ///     <para>
     ///         The bound sits between the two measurements. <c>[Category("Budget")]</c> for the same
-    ///         reason <c>BenchAllocationTests</c> is (plan risk R6): an allocation figure must never be
+    ///         reason <c>BenchAllocationTests</c> is: an allocation figure must never be
     ///         able to flap a required CI check.
     ///     </para>
     /// </summary>

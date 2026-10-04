@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///         <b>Almost nothing should use this.</b> Dynamic layers transform their own points
 ///         (<c>transform.WorldToScreen</c> per point) exactly as the pre-v2 control did, because setting
 ///         a world→screen matrix on the canvas would also scale stroke widths and marker radii and
-///         break pixel parity outright (plan decision D-8). The matrix exists for the two cases that
+///         break pixel parity outright. The matrix exists for the two cases that
 ///         genuinely want it: replaying a world-space <c>Static</c> picture under the current camera,
 ///         and any future world-space clip.
 ///     </para>

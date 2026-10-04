@@ -7,9 +7,9 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The Kinovea-style visibility trapezoid. The shape is plan decision D5: the ramps sit OUTSIDE the
-///     window, which is the only arrangement in which <c>default</c> is a constant 1.0, and design §5.4
-///     requires <c>TimeEnvelope.Static == default</c>.
+///     The Kinovea-style visibility trapezoid: the ramps sit OUTSIDE the
+///     window, which is the only arrangement in which <c>default</c> is a constant 1.0, which
+///     <c>TimeEnvelope.Static == default</c> requires.
 /// </summary>
 public class TimeEnvelopeTests
 {
@@ -30,7 +30,7 @@ public class TimeEnvelopeTests
     }
 
     /// <summary>
-    ///     The whole of D5 in one case: full opacity across the window, a lead-in BEFORE it and a
+    ///     The whole trapezoid in one case: full opacity across the window, a lead-in BEFORE it and a
     ///     lead-out AFTER it, zero outside both. An inside-the-window fade would make "pin to now" open
     ///     transparent, which is the opposite of what the gesture means.
     /// </summary>

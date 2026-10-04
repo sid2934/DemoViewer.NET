@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 ///         content changed; and <c>CameraEpoch</c> because a <c>PerCamera</c> recording is in pane-local
 ///         screen space and is wrong the moment the camera moves. A <c>Static</c> recording is in world
 ///         space and replays under the camera matrix, so its key pins <c>CameraEpoch</c> to 0: that
-///         difference is the entire reason both hints exist (plan decision D-6).
+///         difference is the entire reason both hints exist.
 ///     </para>
 ///     <para>
 ///         Eviction is least-recently-used with a hard cap, and an evicted picture is disposed

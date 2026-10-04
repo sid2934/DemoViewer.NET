@@ -16,7 +16,7 @@ using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The one inbox rule (generated-content.md) in each place generated items appear: only new items show and
+///     The one inbox rule in each place generated items appear: only new items show and
 ///     count, Dismiss and Restore, and one "Show settled (n)" toggle for the rest.
 /// </summary>
 [NotInParallel]

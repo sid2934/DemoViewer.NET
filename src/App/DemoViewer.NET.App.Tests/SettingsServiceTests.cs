@@ -282,8 +282,8 @@ public class SettingsServiceTests
     ///         On WASM there is no settings file, only the in-memory provider that
     ///         <c>SettingsService.WriteInMemory</c> populates by hand, key by key. A property that is
     ///         modelled on <c>AppSettings</c> but missing from that method binds fine, writes fine, and
-    ///         forgets itself on the next reload, with nothing to see anywhere. B2, B3, B4 and C2 each
-    ///         add properties to this one section (registry §3.10), so the trap is set for all of them.
+    ///         forgets itself on the next reload, with nothing to see anywhere. Every later feature that
+    ///         adds properties to this one section hits the same trap.
     ///     </para>
     /// </summary>
     [Test]

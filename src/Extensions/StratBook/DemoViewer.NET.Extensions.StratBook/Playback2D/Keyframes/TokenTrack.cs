@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Playback2D.Core.Keyframes;
 
 /// <summary>
 ///     One slot's position over the strat clock: keyframes sorted by tick, a hold and an interpolation per
-///     keyframe (step-authoring.md §3.3). Immutable; an edit builds a new track and hands it to
+///     keyframe. Immutable; an edit builds a new track and hands it to
 ///     <see cref="TokenTrackSet.Replace" />.
 ///     <para>
 ///         <b>Sampling is pure in the tick.</b> Scrubbing backwards equals scrubbing forwards and an export
@@ -21,13 +21,13 @@ namespace DemoViewer.NET.Playback2D.Core.Keyframes;
 ///         <item>a hold of <c>b - a</c> or more degenerates to a jump at <c>b</c>.</item>
 ///     </list>
 ///     <para>
-///         <b>The level snaps at the segment midpoint</b> (decision 8) rather than following the lerp: a
+///         <b>The level snaps at the segment midpoint</b> rather than following the lerp: a
 ///         lerped Z would spend half the move on a floor pane whose radar the token is not on. The snap
 ///         is what <c>MarkerSmoother</c>'s level-crossing snap expects, so no dot streaks across the wrong
 ///         floor. An author who wants the stairs adds a step at the stairs.
 ///     </para>
 ///     <para>
-///         <b>A slot with no entry at a step is stationary through it</b> (decision 1). That is
+///         <b>A slot with no entry at a step is stationary through it</b>. That is
 ///         <see cref="TokenTrackBuilder" />'s rule, not this type's: this type interpolates between
 ///         whatever keyframes it is given, and the builder gives it ones that hold still across a gap.
 ///     </para>

@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// <summary>
 ///     What <see cref="Scene2DHost" /> reads from whatever it is bound to: the frame to show, the push
 ///     signal, and the per-push state the scene cannot derive from the frame. The 2D Playback tab is one
-///     implementation; the strat canvas is the other, with no demo behind it (step-authoring.md §3.10).
+///     implementation; the strat canvas is the other, with no demo behind it.
 ///     <para>
 ///         Exactly the members the host touches and nothing more. Read-only on purpose: the host never
 ///         writes back, so a second implementation cannot be surprised by state the host pushes into it.

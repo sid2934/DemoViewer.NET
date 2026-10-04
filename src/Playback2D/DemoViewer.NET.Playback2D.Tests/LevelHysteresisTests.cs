@@ -10,8 +10,8 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     The hysteresis formula and its dwell, driven entirely by injected <c>dt</c>: no demo, no clock,
 ///     no window. Every constant here is justified against CS2 physics or <c>FloorSplitter</c>'s own
-///     arithmetic in the B3 plan's "Hysteresis sizing" section; these are the assertions that stop a
-///     retune from silently reintroducing stair dither.
+///     arithmetic; these are the assertions that stop a retune from silently reintroducing stair
+///     dither.
 /// </summary>
 public class LevelHysteresisTests
 {
@@ -122,7 +122,7 @@ public class LevelHysteresisTests
 
     /// <summary>
     ///     The dwell is scene time, not frames: a 30 fps export and a 144 fps interactive session must
-    ///     switch at the same moment of the demo (design §5.1).
+    ///     switch at the same moment of the demo.
     /// </summary>
     [Test]
     public async Task Dwell_IsFrameRateIndependent()
@@ -161,7 +161,7 @@ public class LevelHysteresisTests
     }
 
     /// <summary>
-    ///     Plan risk R4's mitigation is "all four constants live in <c>LevelHysteresisOptions</c>, so
+    ///     The mitigation is "all four constants live in <c>LevelHysteresisOptions</c>, so
     ///     retuning is a one-line change with no API break". <c>Default</c> is a get-only static, so the
     ///     only way to retune is to <i>pass</i> an options instance, which therefore has to reach the
     ///     spatial band, not just the dwell.

@@ -19,7 +19,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="PackDataRemover" /> (strat-book-plugin.md §7.4, §8, item 24): path resolution refuses
+///     <see cref="PackDataRemover" />: path resolution refuses
 ///     anything outside the root, deletion never follows a reparse point or touches a <c>.dem</c> file,
 ///     and stripping a record touches only the pack's own facets.
 /// </summary>
@@ -389,7 +389,7 @@ public class PackDataRemoverTests
     }
 
     /// <summary>
-    ///     The second of the blocker's two checks (strat-book-plugin.md §7.4): a re-enable landing after the
+    ///     The second of the blocker's two checks: a re-enable landing after the
     ///     delete job was already submitted, while it still sits behind another item on the same serial,
     ///     must still abort before touching a file. <c>stillOff</c> is flipped false while the job is held
     ///     behind a blocker, proving the predicate is read at job-start time, not capture time.
@@ -495,7 +495,7 @@ public class PackDataRemoverTests
 
     /// <summary>
     ///     A legacy-shape record (flat pack fields, folded into <see cref="DemoCacheRecord.Packs" /> and
-    ///     <see cref="DemoCacheRecord.PackStamps" /> on read, item 21) must strip clean in the very read
+    ///     <see cref="DemoCacheRecord.PackStamps" /> on read) must strip clean in the very read
     ///     that folds it: no stamp, no payload, and the fold must not resurrect the flat fields on the next
     ///     load (there is no sidecar write between the fold and the strip to re-derive from if it did).
     /// </summary>

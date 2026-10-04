@@ -13,7 +13,7 @@ using DemoViewer.NET.Services.Tags;
 
 namespace DemoViewer.NET.Modules.SuggestedTags;
 
-/// <summary>One pending proposal as the queue lists it (suggested-tags.md §3.6).</summary>
+/// <summary>One pending proposal as the queue lists it.</summary>
 public sealed partial class SuggestionRowViewModel : ObservableObject
 {
     [ObservableProperty]
@@ -90,14 +90,14 @@ public sealed partial class SuggestionRowViewModel : ObservableObject
 }
 
 /// <summary>
-///     The Proposal Queue (suggested-tags.md §3.6): the open demo's pending proposals in round order,
+///     The Proposal Queue: the open demo's pending proposals in round order,
 ///     docked with the Tag Palette in the 2D Playback tab, filtered by detector and minimum confidence,
 ///     with the keyboard flow the keymap routes here through <see cref="Execute" />.
 ///     <para>
 ///         <b>Selection is the mode.</b> Nothing is selected until a row, a band on the Suggested track or the
 ///         Review button picks one. Only then do J / K walk the queue instead of the Situations result set
 ///         (the keymap's <see cref="Playback2DBindingScope.WhenSuggestionSelected" /> scope), and only then
-///         do Y, N, Enter and Ctrl+Y act; with no selection they are inert, as the design asks. A verdict
+///         do Y, N, Enter and Ctrl+Y act; with no selection they are inert. A verdict
 ///         advances to the next pending proposal; the last one leaves the queue empty and the selection
 ///         with it.
 ///     </para>
@@ -141,7 +141,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     [ObservableProperty]
     private double _minConfidence;
 
-    // Accepted and dismissed proposals: hidden unless on (generated-content.md).
+    // Accepted and dismissed proposals: hidden unless on.
     [ObservableProperty]
     private bool _showSettled;
 

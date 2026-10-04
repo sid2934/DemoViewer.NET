@@ -13,7 +13,7 @@ using CS2DemoKit.Parser.EntityTracking;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>What one walk is asked for.</summary>
-/// <param name="TrajectoryStride">Keep every n-th moved sample of each flight; bounce vertices are always kept (D1).</param>
+/// <param name="TrajectoryStride">Keep every n-th moved sample of each flight; bounce vertices are always kept.</param>
 /// <param name="MaxFrames">Stop after this many frames; a projectile still alive ends as <see cref="GrenadeEndKind.DemoEnded" />.</param>
 /// <param name="Inputs">The thrower inputs; null rebuilds the demo's own commands through <see cref="UserCmdReconstructor" />.</param>
 /// <param name="Rounds">The round starts; null derives them with <see cref="ClipRounds.Derive(ParsedDemo)" />.</param>
@@ -77,15 +77,15 @@ public sealed class GrenadeReads
 }
 
 /// <summary>
-///     Turns every grenade in a demo into one <see cref="GrenadeRow" /> (grenade-walk.md §3.2 to §3.5),
-///     rebased on CS2DemoKit 0.13's <see cref="ProjectileSampler" /> (#59): the engine walks the projectile
+///     Turns every grenade in a demo into one <see cref="GrenadeRow" />, rebased on CS2DemoKit 0.13's
+///     <see cref="ProjectileSampler" /> (#59): the engine walks the projectile
 ///     slots, resolves the thrower chain and rejects zero-cell positions, and this is the thin app-side layer
 ///     the sampler's own contract leaves to the consumer, the release, detonation and jump-throw joins.
 ///     <para>
 ///         <b>Two passes over one held parse.</b> The sampler walks the projectiles; its tracks and the
 ///         events decide which frames need the thrower's pawn; one tracker pass then reads only those frames
 ///         (release, eight ticks before it, spawn) and the last frame of each projectile, and rebuilds the
-///         commands inside each jump window through <see cref="UserCmdReconstructor" />. The design's single
+///         commands inside each jump window through <see cref="UserCmdReconstructor" />. A single
 ///         walk with a pawn ring is not possible over the sampler, which exposes no tracker; the second
 ///         decode is the price, about the same as the sampler's own.
 ///     </para>
@@ -140,7 +140,7 @@ public static class GrenadeWalker
     }
 
     /// <summary>
-    ///     Decides each projectile's thrower and release from the events (§3.3 step 4): the sampler's
+    ///     Decides each projectile's thrower and release from the events: the sampler's
     ///     resolved slot, else the thrower join; then the latest matching <c>weapon_fire</c> within
     ///     <see cref="GrenadeRules.ReleaseLookbackTicks" /> before the spawn, else <c>grenade_thrown</c>, else
     ///     the spawn minus the measured gap. Resolved throwers claim their releases first, so a join never
@@ -219,7 +219,7 @@ public static class GrenadeWalker
     }
 
     /// <summary>
-    ///     Builds the rows from the plans and what the read pass found (§3.3 step 5, §3.4, §3.5). Pure.
+    ///     Builds the rows from the plans and what the read pass found. Pure.
     /// </summary>
     /// <param name="plans">From <see cref="Plan" />.</param>
     /// <param name="reads">The pawn and projectile reads.</param>
@@ -330,7 +330,7 @@ public static class GrenadeWalker
     }
 
     /// <summary>
-    ///     A projectile's detonation per the §2.4 table: the kind's event by entity index (a fire by tick,
+    ///     A projectile's detonation: the kind's event by entity index (a fire by tick,
     ///     since <c>inferno_startburn</c> names the inferno), else the entity's effect-tick field, else for
     ///     an HE or a flash the last position seen. Pure.
     /// </summary>

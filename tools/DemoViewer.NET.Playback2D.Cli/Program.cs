@@ -8,9 +8,9 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d</c>: headless Playback2D render / export / bench (docs/playback2d-v2/design.md §4, §5.8,
-///     §6, §11). No window is ever created, no Avalonia assembly is ever loaded, and no feature gate or
-///     <c>AppSettings</c> value is ever read: a headless tool takes explicit flags (§7.7).
+///     <c>dv2d</c>: headless Playback2D render / export / bench. No window is ever created, no
+///     Avalonia assembly is ever loaded, and no feature gate or
+///     <c>AppSettings</c> value is ever read: a headless tool takes explicit flags.
 /// </summary>
 internal static class Program
 {
@@ -80,7 +80,7 @@ internal static class Program
                                             (the scene, drawn by default) and zones, annotations,
                                             hud.roster, hud.clock, hud.killfeed, query, overlay (opt-in,
                                             named or absent). render, golden and bench draw the SAME stack
-                                            export does; up to D6 they drew a debug grid instead, and every
+                                            export does; earlier builds drew a debug grid instead, and every
                                             committed golden was a picture of it. The seven opt-in ids need
                                             a source: --ink feeds the annotation layer, zones needs a map
                                             bundle with a zones.json under --assets, --query feeds the
@@ -130,10 +130,10 @@ internal static class Program
                                             verify the export is refused (exit 6) rather than substituted.
                                             The chosen rung, why, and every rejected one are in --json.
 
-                                backend selection (design §5.8): --cpu | --gpu | --backend <name>, then
+                                backend selection: --cpu | --gpu | --backend <name>, then
                                             DV2D_RENDER_BACKEND, then an auto-probe. --strict-backend turns a
                                             GPU request into force-gpu, so a lane fails rather than silently
-                                            measuring software rendering. dv2d reads no AppSettings (§7.7).
+                                            measuring software rendering. dv2d reads no AppSettings.
 
                                 pack        Headless Packs: the Review Queue's plan-then-stitch
                                             policy run over a review-queue.json file instead of the app's

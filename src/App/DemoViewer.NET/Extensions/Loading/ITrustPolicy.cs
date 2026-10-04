@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Extensions.Loading;
 /// <summary>
 ///     Whether a staged extension directory may be loaded. The loader asks once per candidate, after the
 ///     manifest parsed and the compatibility check passed and before the assembly is touched.
-///     <see cref="TrustPolicy.Default" /> (item 35) checks <see cref="SignedTrustPolicy" /> first and the
+///     <see cref="TrustPolicy.Default" /> checks <see cref="SignedTrustPolicy" /> first and the
 ///     developer opt-in second.
 /// </summary>
 public interface ITrustPolicy
@@ -24,8 +24,8 @@ public interface ITrustPolicy
 
     /// <summary>
     ///     Like <see cref="IsTrusted" /> but with a reason when the answer is false. Default-implemented
-    ///     (an additive member, section 7.7's "minor") so a policy that predates this still compiles and
-    ///     reports the one generic reason every policy gave before item 35; <see cref="SignedTrustPolicy" />
+    ///     (an additive, minor member) so a policy that predates this still compiles and
+    ///     reports the one generic reason every policy gave before this; <see cref="SignedTrustPolicy" />
     ///     overrides it with a specific one. The loader calls this, not <see cref="IsTrusted" /> directly.
     /// </summary>
     TrustVerdict Judge(string directory, ExtensionManifest manifest) =>

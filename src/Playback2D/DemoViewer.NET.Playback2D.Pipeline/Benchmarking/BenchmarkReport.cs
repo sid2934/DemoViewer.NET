@@ -168,7 +168,7 @@ public sealed record BenchmarkReport(
 }
 
 /// <summary>
-///     The frame budget from design §6: a 64 fps floor at 1× means 15.6 ms per frame, split ≤2 ms of
+///     The frame budget: a 64 fps floor at 1× means 15.6 ms per frame, split ≤2 ms of
 ///     advance and ≤8 ms of draw at 1080p, with zero steady-state allocation.
 /// </summary>
 /// <param name="AdvanceP99Ms">Advance p99 ceiling.</param>
@@ -179,12 +179,12 @@ public sealed record BudgetPolicy(double AdvanceP99Ms, double RenderP99Ms, long 
     /// <summary>Environment variable scaling the time budgets. Default 2.0 in CI.</summary>
     public const string ScaleEnvironmentVariable = "DV2D_BUDGET_SCALE";
 
-    /// <summary>The design §6 numbers, which a local run reports against.</summary>
+    /// <summary>The baseline budget numbers, which a local run reports against.</summary>
     public static readonly BudgetPolicy Baseline = new(2.0, 8.0, 0);
 
     /// <summary>
     ///     Baseline with the time budgets scaled by <see cref="ScaleEnvironmentVariable" /> (default
-    ///     2.0). A GitHub hosted runner is not the design's mid-tier laptop, and a gate that fires on
+    ///     2.0). A GitHub hosted runner is not a mid-tier laptop, and a gate that fires on
     ///     runner noise gets disabled within a week; it is deliberately loose enough to catch only
     ///     real regressions (an O(n) blow-up, a re-introduced per-frame allocation).
     ///     <para>

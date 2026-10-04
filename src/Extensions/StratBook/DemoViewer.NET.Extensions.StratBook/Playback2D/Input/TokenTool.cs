@@ -9,7 +9,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 
 /// <summary>
-///     Drags the strat canvas's tokens (step-authoring.md §3.7). Press hits a token through
+///     Drags the strat canvas's tokens. Press hits a token through
 ///     <see cref="IToolServices.Tokens" />, moves write it, release closes the drag as one edit, and Esc
 ///     rolls it back. The tool never sees a strat; <see cref="ITokenEditor" /> is the whole contract.
 ///     <para>

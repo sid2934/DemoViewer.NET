@@ -3,7 +3,7 @@ namespace DemoViewer.NET.Services.Teams;
 /// <summary>
 ///     One team's Situational Behaviour: one block per map and side the team
 ///     played, the map with the most rounds first, T before CT. Built by
-///     <see cref="SituationalBehaviourService.Build" />. Unlike the other Phase 5 sections this one reads
+///     <see cref="SituationalBehaviourService.Build" />. Unlike the other Dossier sections, this one reads
 ///     Round Facts alone: pistol rounds, buy types and the alive counts after each kill are all there
 ///     already, so no positions file and no Grenade Index row is needed.
 /// </summary>

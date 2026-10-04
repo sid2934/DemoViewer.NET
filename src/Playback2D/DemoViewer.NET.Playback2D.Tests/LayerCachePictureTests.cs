@@ -15,10 +15,10 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     because a cache that never re-records is a frozen frame and a cache that always re-records is no
 ///     cache at all, and both look fine in a screenshot.
 ///     <para>
-///         <c>Static</c> has no B1 consumer (plan decision D-5): the radar's single <c>DrawImage</c>
+///         <c>Static</c> has no current consumer: the radar's single <c>DrawImage</c>
 ///         shares the grid's <c>PerCamera</c> picture. It is built and tested here against a synthetic
-///         layer anyway, because B2's dry annotation ink is its real customer and discovering the
-///         mechanism is broken a phase later is expensive.
+///         layer instead, so a future consumer finds this mechanism already proven rather than
+///         broken.
 ///     </para>
 /// </summary>
 public class LayerCachePictureTests

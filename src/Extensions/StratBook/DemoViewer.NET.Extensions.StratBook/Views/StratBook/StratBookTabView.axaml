@@ -24,7 +24,7 @@
     </UserControl.KeyBindings>
 
     <UserControl.Styles>
-        <!-- Role View's context lines (strat-model.md §3.14): another slot's step kept for context,
+        <!-- Role View's context lines: another slot's step kept for context,
              greyed the way the printed page's ".context" class is. -->
         <Style Selector="TextBlock.roleLine">
             <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
@@ -149,7 +149,7 @@
     </UserControl.Styles>
 
     <UserControl.Resources>
-        <!-- One row of the Strat Record Panel (strat-model.md §3.6): a scope's run/won/lost/aborted/unknown
+        <!-- One row of the Strat Record Panel: a scope's run/won/lost/aborted/unknown
              counts, each a button when its clips are nonempty, and the win rate. Shared by the total row
              and the provenance rows so both read the same. -->
         <DataTemplate x:Key="RecordSplitRowTemplate" x:DataType="vm:StratRecordSplitRow">
@@ -367,7 +367,7 @@
                     </DockPanel>
                 </Border>
 
-                <!-- Callout Aliases (strat-model.md §3.7): the book's words over this map's places. -->
+                <!-- Callout Aliases: the book's words over this map's places. -->
                 <Border Grid.Row="2"
                         Background="{DynamicResource CardBg}"
                         BorderBrush="{DynamicResource BorderSubtle}"
@@ -1300,7 +1300,7 @@
                                 </ItemsControl>
                             </StackPanel>
 
-                            <!-- The Strat Record Panel (strat-model.md §3.6): run/won/lost/aborted, split by Demo
+                            <!-- The Strat Record Panel: run/won/lost/aborted, split by Demo
                                  Provenance Labels, the small-sample caution, the failure breakdown; every number
                                  sends its runs to the Review Queue. Reads the tab's RecordPanel, not the editor. -->
                             <StackPanel Spacing="6"
@@ -1340,7 +1340,7 @@
                                            IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
 
-                            <!-- Role View And LAN Print (strat-model.md §3.14): one slot's parts on
+                            <!-- Role View And LAN Print: one slot's parts on
                                  screen, picked here, and a button that prints all five as one HTML page
                                  opened in the system browser. Reads the tab's RoleView, not the editor. -->
                             <StackPanel Spacing="6"
@@ -1388,7 +1388,7 @@
                                            IsVisible="{Binding StatusLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
 
-                            <!-- Strat Version History (strat-model.md §3.8): the append-only diff log,
+                            <!-- Strat Version History: the append-only diff log,
                                  newest entry first, each phrased against the document as it stood just
                                  before it, with the record split either side of the entry's revision.
                                  Reads the tab's HistoryPanel, not the editor. -->
@@ -1452,7 +1452,7 @@
 
             <GridSplitter Grid.Column="3" Background="Transparent" Width="6" />
 
-            <!-- The Step Authoring canvas (step-authoring.md §3.10), beside the step table it plays. -->
+            <!-- The Step Authoring canvas, beside the step table it plays. -->
             <Border Grid.Column="4"
                     Background="{DynamicResource CardBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
@@ -1472,7 +1472,7 @@
                         </Panel>
                     </DockPanel>
                     <DockPanel IsVisible="{Binding !Detected.IsPreviewing}">
-                        <!-- Strat Export (step-authoring.md §3.6). The button when this build can export; on the
+                        <!-- Strat Export. The button when this build can export; on the
                              browser the same slot says why it cannot, the 2D tab's wording. -->
                         <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0 0 0 6">
                             <Button x:Name="StratExportButton" DockPanel.Dock="Right" Content="Export strat…"

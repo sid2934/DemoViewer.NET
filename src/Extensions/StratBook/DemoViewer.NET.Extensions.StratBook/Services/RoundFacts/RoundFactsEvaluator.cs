@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     projects it onto the record and stores the rows in the pack's payload, stamped under the
 ///     <see cref="RoundFactsFingerprint" /> (<see cref="StratBookCache.SetRoundFacts" />).
 ///     <para>
-///         Registered after the highlight scanner and before the round index (overview correction 19):
+///         Registered after the highlight scanner and before the round index:
 ///         the index reads these rows in the same pass.
 ///     </para>
 ///     <para>

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///     <para>
 ///         <c>capture</c> is the one command that needs a demo. It replays a private tracker to the
 ///         requested tick, serializes the built scene, and registers it in <c>manifest.json</c>. After
-///         that the fixture is demo-free, so the whole corpus runs in CI (decision 10).
+///         that the fixture is demo-free, so the whole corpus runs in CI.
 ///     </para>
 /// </summary>
 internal static class FixtureCommand

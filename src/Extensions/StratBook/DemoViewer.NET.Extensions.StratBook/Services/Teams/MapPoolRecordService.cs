@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
 ///     Builds a <see cref="MapPoolRecord" /> for one team over <see cref="TeamIdentityService.SidesOf" />
-///    : the demo-derivable substitute for the veto model (F12).
+///    : the demo-derivable substitute for the veto model.
 ///     Stateless: the Dossier tab calls <see cref="Build" /> on selection and on every
 ///     <see cref="TeamIdentityService.Changed" />, the way the Teams tab re-projects its own selection.
 /// </summary>
@@ -42,7 +42,7 @@ public static class MapPoolRecordService
                 won = teamScore > opponentScore;
             }
 
-            // The side-round totals live only on the full record (F9's fat sidecar), not on the index
+            // The side-round totals live only on the full record (a fat sidecar), not on the index
             // row; a team's demo count is small enough that loading each one here is the documented cost
             // the Strat Record Panel and the Matrix already pay for their own evidence passes.
             int ctRounds = 0;
@@ -84,7 +84,7 @@ public static class MapPoolRecordService
         };
     }
 
-    // A decider is inferable only from a recognizable series length (decision D5: manual veto entry
+    // A decider is inferable only from a recognizable series length (manual veto entry
     // only, no scraping, so nothing here reads a series id): three demos (best of three) or five (best
     // of five) against the same opponent, played the same calendar day by file time (Team Identity's own
     // OrderTicks proxy for a match date, SideKeys.From / TeamClusterer.DateOf). The last demo in such a

@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The grenade evaluator and its storage over an in-memory (and, where deletion is the point, an
-///     on-disk) cache (grenade-walk.md §7, evaluator): wanted from the index row alone and only with the
+///     on-disk) cache: wanted from the index row alone and only with the
 ///     opt-in or a forced request, the two siblings written before the stamp and the index mirroring it,
 ///     the open demo walked without the opt-in and no other, a throw stamping Failed until retried, the
 ///     siblings deleted with the demo, and the reader's hash rule.

@@ -16,7 +16,7 @@ using DemoViewer.NET.Services.Teams;
 namespace DemoViewer.NET.Modules.Situations;
 
 /// <summary>
-///     Watched Situations (plan §3, round-index.md §3.12): the saved queries, their persistence and
+///     Watched Situations: the saved queries, their persistence and
 ///     the "N new" badge. A DI singleton like <see cref="TeamIdentityService" />, delegate-injected
 ///     into the Situations module.
 ///     <para>
@@ -196,7 +196,7 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
 
     /// <summary>
     ///     Drops the saved watches, which <see cref="Release" /> keeps, and re-reads the file: the recovery
-    ///     after it is deleted out from under the store (item 24's "delete extension data"), so a later
+    ///     after it is deleted out from under the store (a "delete extension data" action), so a later
     ///     mutation does not resave what the delete just removed.
     /// </summary>
     public void Reload()

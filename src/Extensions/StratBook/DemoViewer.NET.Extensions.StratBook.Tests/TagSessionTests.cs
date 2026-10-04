@@ -9,7 +9,7 @@ using static DemoViewer.NET.AppTests.TagTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The live session (tag-store.md §3.9): one undo entry per gesture, refreshes outside the history
+///     The live session: one undo entry per gesture, refreshes outside the history
 ///     that undo does not roll back, the 200-entry cap, derived rounds, debounced autosave that leaves no
 ///     file for an untouched demo, and the status line on each host.
 /// </summary>

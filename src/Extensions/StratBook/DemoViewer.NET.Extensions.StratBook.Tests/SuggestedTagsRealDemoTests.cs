@@ -16,8 +16,8 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Suggested Tags against the four Valve matchmaking replays the design measured (suggested-tags.md
-///     §7.2, §10), read in place from the <c>DEMO_PATH</c> folder; the tour sample is never used. The
+///     Suggested Tags against the four Valve matchmaking replays, read in place from the
+///     <c>DEMO_PATH</c> folder; the tour sample is never used. The
 ///     pinned-round recapture, the walk-versus-index agreement and the every-round survey run against
 ///     <see cref="SuggestedTagsRealDemoRows" />'s synthesised rows; two more tests run the same fold
 ///     and index paths over the engine's own Round Facts rows.
@@ -27,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 public class SuggestedTagsRealDemoTests
 {
     /// <summary>
-    ///     The measured demos and the round pinned from each (one per map, §10), chosen so the four
+    ///     The measured demos and the round pinned from each (one per map), chosen so the four
     ///     together fire all five detectors: de_inferno 11 is an execute at B after a two-player fake at A
     ///     with a default before it and a retake after, de_ancient 24 adds a T opener, de_nuke 15 and
     ///     de_dust2 20 are rush and mid executes.
@@ -60,7 +60,7 @@ public class SuggestedTagsRealDemoTests
             }
         }
 
-        throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} does not name the replays folder the design measured");
+        throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} does not name the replays folder the detectors were tuned on");
     }
 
     private static Walked Walk(string demo)
@@ -178,7 +178,7 @@ public class SuggestedTagsRealDemoTests
     }
 
     /// <summary>
-    ///     The shipped profile over every round of the four demos, printed the way §3.3 tabulates it,
+    ///     The shipped profile over every round of the four demos, printed per round,
     ///     and held to the property the spawn filter exists for: executes do not fire in most rounds
     ///     without a plant (12 of 14 on de_nuke without it; 0 to 3 of 2 to 14 measured with it).
     /// </summary>
@@ -227,8 +227,8 @@ public class SuggestedTagsRealDemoTests
     }
 
     /// <summary>
-    ///     The engine's rows replace the demo's own synthesised ones for the round pinned from de_nuke
-    ///     (§10). The fold cannot equal the synthesised fixture byte for byte: the engine ends a round
+    ///     The engine's rows replace the demo's own synthesised ones for the round pinned from de_nuke.
+    ///     The fold cannot equal the synthesised fixture byte for byte: the engine ends a round
     ///     at <c>round_decided</c>, 448 ticks (seven seconds) before the <c>round_officially_ended</c>
     ///     the synthesised rows close on, and it keeps the 23rd round they drop, so the learned cloud
     ///     places two detonations differently. The engine fold is pinned in its own fixture, and what
@@ -280,7 +280,7 @@ public class SuggestedTagsRealDemoTests
 
     /// <summary>
     ///     With the engine's rows behind the index evaluator too, the index source must feed the per-side
-    ///     detectors the same executes, defaults and fakes as the walk does, on the de_inferno replay §10
+    ///     detectors the same executes, defaults and fakes as the walk does, on the de_inferno replay this
     ///     pins. Retakes are left out: they turn on which CT is alive at the plant and when each first
     ///     enters the site, which the walk (first frame of every eighth) and the index (its due tick)
     ///     read at different frames inside a second, and they differ between the two sources over the

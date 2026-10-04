@@ -12,7 +12,7 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.Services.Teams;
 
 /// <summary>
-///     Teams as data (design §3): who played in which demo, which team is us, and who the opponent was.
+///     Teams as data: who played in which demo, which team is us, and who the opponent was.
 ///     <para>
 ///         <b>Two files, one rule.</b> What the user authored is truth and lives in
 ///         <c>&lt;config&gt;/teams.json</c> beside <c>settings.json</c>: names, the us mark, rosters with
@@ -166,7 +166,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
     /// <summary>The index was missing, corrupt or behind at load: <see cref="StartAsync" /> rebuilds from the sidecars.</summary>
     public bool NeedsRebuild { get; private set; }
 
-    /// <summary>The account the share heuristic proposes as me, or null (design §3.5). Written only by confirmation.</summary>
+    /// <summary>The account the share heuristic proposes as me, or null. Written only by confirmation.</summary>
     public MeSuggestion? MeSuggestion { get; private set; }
 
     /// <summary>The "is this you?" suggestion the user dismissed, while it still holds; null otherwise.</summary>
@@ -587,7 +587,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
     });
 
     /// <summary>
-    ///     The id-preserving rebuild (design §3.6): one <see cref="DemoCacheStore.LoadRecords" /> pass to
+    ///     The id-preserving rebuild: one <see cref="DemoCacheStore.LoadRecords" /> pass to
     ///     collect every side key, then the seeded replay. Off the UI thread; the documented cold cost.
     /// </summary>
     public Task RebuildAsync(CancellationToken ct = default) => Schedule(() => RebuildCore(ct));
@@ -839,7 +839,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
     }
 
     /// <summary>
-    ///     The side a team played in round N (overview correction 9): the Round Facts slots of that round
+    ///     The side a team played in round N: the Round Facts slots of that round
     ///     joined against the record's slot-to-SteamID map and the team's side key, at the same three-of-
     ///     five continuity. Null without rows, without the round, or when neither side holds the key.
     /// </summary>
@@ -1267,7 +1267,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
 
     // ── The provenance override store ────────────────────────────────────────────────────────────
     // Demo Provenance Labels owns the vocabulary and the heuristic; this service owns the file the
-    // overrides live in (overview correction 24), so the writes come through here and share one
+    // overrides live in, so the writes come through here and share one
     // atomic write, one refusal rule and one Changed with the rest of teams.json.
 
     /// <summary>A snapshot of every provenance override in the file.</summary>
@@ -1440,7 +1440,7 @@ public sealed class TeamIdentityService : IPackResident, IDisposable
         });
     }
 
-    // The order of §3.5: an override naming us, a roster of the us team, a me account on a side. A
+    // The order of precedence: an override naming us, a roster of the us team, a me account on a side. A
     // pure pass over the index; the opponent is whatever team sits on the other side.
     private void ResolveOurSides()
     {

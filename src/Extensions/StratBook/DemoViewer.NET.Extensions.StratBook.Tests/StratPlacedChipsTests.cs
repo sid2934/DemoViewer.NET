@@ -10,7 +10,7 @@ using static DemoViewer.NET.AppTests.StratTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A step's position entries as <c>placed</c> chips (drag-semantics.md §6): one per entry that beats or stands in for
+///     A step's position entries as <c>placed</c> chips: one per entry that beats or stands in for
 ///     a field, the rest grouped as spots, seen and opponents; each chip's ✕ and "make it the …" are one undo entry; and
 ///     the checks warn on a departure that forces a leg faster than a run.
 /// </summary>

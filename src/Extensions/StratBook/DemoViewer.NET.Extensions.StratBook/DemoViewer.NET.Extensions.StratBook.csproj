@@ -11,7 +11,7 @@
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     </PropertyGroup>
 
-    <!-- The built-in tag palette (tag-store.md §3.4), embedded so TagPaletteStore reads it through the same
+    <!-- The built-in tag palette, embedded so TagPaletteStore reads it through the same
          parser and validator user drop-ins go through. The LogicalName is the manifest name readers and
          TagPaletteStoreTests have always seen; it does not follow the directory. -->
     <ItemGroup>
@@ -19,14 +19,14 @@
                           LogicalName="DemoViewer.NET.Services.Tags.Palettes.%(Filename)%(Extension)"/>
     </ItemGroup>
 
-    <!-- The canonical place names per shipped map (strat-model.md §3.7); CanonicalPlaces reads them by manifest
+    <!-- The canonical place names per shipped map; CanonicalPlaces reads them by manifest
          name suffix. Same LogicalName rule as the palette. -->
     <ItemGroup>
         <EmbeddedResource Include="Assets\Callouts\*.places.json"
                           LogicalName="DemoViewer.NET.Services.Strats.Callouts.%(Filename)%(Extension)"/>
     </ItemGroup>
 
-    <!-- The manifest (strat-book-plugin.md §7.7): ..\extension.json is a template whose version is stamped from
+    <!-- The manifest: ..\extension.json is a template whose version is stamped from
          ..\version.json at build. The stamped copy is embedded (StratBookPack.Manifest) and copied beside the
          DLL for the loader. -->
     <Import Project="..\..\ExtensionManifest.targets"/>
@@ -42,7 +42,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- The extension references the app; the app never references the extension (strat-book-plugin.md §13).
+        <!-- The extension references the app; the app never references the extension.
              The heads reference both and hand the pack list to FeaturePacks. -->
         <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
     </ItemGroup>

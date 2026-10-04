@@ -9,7 +9,7 @@ using DemoViewer.NET.Views.RoundTagger;
 namespace DemoViewer.NET.Modules.RoundTagger;
 
 /// <summary>
-///     The Round Tagger module (tag-store.md §3.11): the home of the Tag Palette hosted by the 2D Playback
+///     The Round Tagger module: the home of the Tag Palette hosted by the 2D Playback
 ///     tab and of The Matrix, the Tags section of the Strat Book tab's rail (<see cref="MatrixTabId" />,
 ///     after Situations).
 ///     <para>

@@ -113,7 +113,7 @@ public class ReviewQueueTests
             using (JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(path)))
             {
                 await Assert.That(json.RootElement.GetProperty("clock").GetProperty("kind").GetString())
-                    .IsEqualTo(ClockIdentity.DvFrameClock).Because("every tick in the file is on the frame clock (F15)");
+                    .IsEqualTo(ClockIdentity.DvFrameClock).Because("every tick in the file is on the frame clock");
                 await Assert.That(json.RootElement.GetProperty("entries")[1].GetProperty("kind").GetString()).IsEqualTo("clip");
             }
 

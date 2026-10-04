@@ -8,8 +8,8 @@ using DemoViewer.NET.Playback2D.Core.Hud;
 namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Hud;
 
 /// <summary>
-///     The HUD for a strat: the round clock counting down from the strat's round length, and nothing else
-///     (step-authoring.md §3.6). No round number, no score, no kills, no roster; a strat has none of them,
+///     The HUD for a strat: the round clock counting down from the strat's round length, and nothing else.
+///     No round number, no score, no kills, no roster; a strat has none of them,
 ///     so <c>hud.clock</c> burns in the countdown and the other HUD layers draw their empty state.
 ///     <para>
 ///         The clock is <see cref="StratFrameSource.RoundSecondsAt" />, the same function the frame's

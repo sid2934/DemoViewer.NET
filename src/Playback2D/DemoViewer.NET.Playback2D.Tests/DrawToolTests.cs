@@ -127,7 +127,7 @@ public class DrawToolTests
     }
 
     /// <summary>
-    ///     Plan correction 10: a world anchor stamps the QUANTIZED level ZMin, never the raw band edge.
+    ///     A world anchor stamps the QUANTIZED level ZMin, never the raw band edge.
     ///     Otherwise an anchor written before a floor-split rebuild can miss its own level.
     /// </summary>
     [Test]

@@ -10,9 +10,9 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The pack has boundaries. Since item 25 the compiler enforces the hard one: the app project does not
+///     The pack has boundaries. The compiler enforces the hard one: the app project does not
 ///     reference the extension project, so a core type cannot name a pack type. Two scans stay beside it: the
-///     csproj check that keeps the reference out (item 30's test half), and the text scan over core sources
+///     csproj check that keeps the reference out, and the text scan over core sources
 ///     for pack-owned namespaces, which also catches what the compiler does not (doc comments, XAML
 ///     namespaces) and documents the edges that remain with the item that removes each.
 /// </summary>
@@ -41,11 +41,11 @@ public class PackBoundaryTests
             .ToList();
 
         await Assert.That(extensionReferences).IsEmpty()
-            .Because("the app assembly must not reference an extension; the heads compose both (strat-book-plugin.md §13)");
+            .Because("the app assembly must not reference an extension; the heads compose both");
     }
 
     /// <summary>
-    ///     Item 26's half of the boundary: the strat-only types item 26 moved out of Playback2D.Core and
+    ///     Half of the boundary: the strat-only types moved out of Playback2D.Core and
     ///     Pipeline (the keyframe track, the strat frame source, the token tool, the guides layer) must not
     ///     pull the extension back in as a dependency of the two assemblies they left.
     /// </summary>
@@ -64,7 +64,7 @@ public class PackBoundaryTests
             .ToList();
 
         await Assert.That(extensionReferences).IsEmpty()
-            .Because($"{csprojName} must not reference an extension; the extension references it, not the other way round (strat-book-plugin.md §13)");
+            .Because($"{csprojName} must not reference an extension; the extension references it, not the other way round");
     }
 
     [Test]
@@ -74,7 +74,7 @@ public class PackBoundaryTests
             ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
 
         // Pack-owned namespaces: declared in the extension project and never in the app project. A namespace
-        // both declare (Services.Zones, Services.RoundFacts, Services.RoundIndex after item 25) is shared and
+        // both declare (Services.Zones, Services.RoundFacts, Services.RoundIndex) is shared and
         // left to the compiler.
         HashSet<string> packOwnedNamespaces = FindPackOwnedNamespaces(repoRoot);
 

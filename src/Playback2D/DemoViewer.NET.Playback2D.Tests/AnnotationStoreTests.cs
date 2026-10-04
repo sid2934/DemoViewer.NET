@@ -389,9 +389,9 @@ public class AnnotationStoreTests
     }
 
     /// <summary>
-    ///     <b>Every declared kind loads as itself, and the eraser survives each one.</b> Shape Tools
-    ///     (step-authoring.md §3.2) made all six kinds drawable and erasable, so the old fence that forced
-    ///     them to Freehand is gone; the one that stays is <c>Enum.IsDefined</c>, because
+    ///     <b>Every declared kind loads as itself, and the eraser survives each one.</b> All six kinds
+    ///     are drawable and erasable, so the old fence that forced them to Freehand is gone; the one
+    ///     that stays is <c>Enum.IsDefined</c>, because
     ///     <c>Enum.TryParse</c> also accepts any number, and a kind no branch knows would reach the layer
     ///     and the eraser as a value neither handles. A number that IS declared loads as its kind.
     ///     <para>

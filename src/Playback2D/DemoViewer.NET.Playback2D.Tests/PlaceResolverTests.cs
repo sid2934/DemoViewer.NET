@@ -162,7 +162,7 @@ public class PlaceResolverTests
     }
 
     /// <summary>
-    ///     Decision D4: two overlapping baked volumes resolve to the first in lump order by default, and
+    ///     Two overlapping baked volumes resolve to the first in lump order by default, and
     ///     to the smaller one on a map the override table names (mirage, where the validation run showed
     ///     the more specific volume winning on every demo measured).
     /// </summary>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Packages one first-party extension for release (docs/architecture/strat-book-plugin.md §7.11):
+# Packages one first-party extension for release:
 # builds it, stages exactly what the extension project itself produces, prints a compatibility report,
 # signs and verifies the staged directory, zips it deterministically, and emits the feed entry fragment
 # the release workflow merges into the rolling extensions.json.
@@ -135,7 +135,7 @@ case "$TAG_REF" in
         fi
         echo "[pack-extension] tag/version agreement: extensions/$ID/v$TAG_VER == $MANIFEST_VERSION"
         # The tag itself is a public-release ref, so nbgv reads clean from any commit it is put on. A
-        # release is cut from main only (strat-book-plugin.md §7.11); a real run refuses a tag whose
+        # release is cut from main only; a real run refuses a tag whose
         # commit is not on origin/main. A dry run against a tag only reports it.
         if ! git rev-parse --verify -q origin/main >/dev/null; then
             echo "error: origin/main is not available, so the tagged commit cannot be checked against it." >&2
@@ -299,7 +299,7 @@ if [ -z "$KEY_PATH" ]; then
     else
         echo "error: no signing key available. Pass --key <private.pem>, or set DV_EXTENSION_SIGNING_KEY" >&2
         echo "       (store the private key's PEM as that GitHub repo secret; see" >&2
-        echo "       docs/architecture/strat-book-plugin.md §7.9)." >&2
+        echo "       docs/architecture/strat-book-plugin.md)." >&2
         exit 1
     fi
 else
@@ -350,7 +350,7 @@ printf '%s  %s\n' "$SHA256" "$ZIP_NAME" > "$ZIP_PATH.sha256"
 
 echo "[pack-extension] zip: $ZIP_PATH ($SIZE bytes, sha256 $SHA256)"
 
-# ── Feed entry fragment (strat-book-plugin.md §7.10) ───────────────────────────────────────────────────
+# ── Feed entry fragment ───────────────────────────────────────────────────
 REPO_URL="${DV_REPO_URL:-https://github.com/sid2934/DemoViewer.NET}"
 RELEASE_TAG="${ID}-v${MANIFEST_VERSION}"
 ASSET_URL="${REPO_URL}/releases/download/${RELEASE_TAG}/${ZIP_NAME}"

@@ -145,7 +145,7 @@ public class StratBookCommandsTests
     /// <summary>
     ///     <c>Playback2DKeymapProfile</c>, the profile a running 2D Playback tab and Strat canvas actually
     ///     route keys through, still resolves every moved action to the same chord and scope as before the
-    ///     move: item 19's "pack on behaviour is identical" is a property of this type, not just the
+    ///     move: "pack on behaviour is identical" is a property of this type, not just the
     ///     registry's own data.
     /// </summary>
     [Test]

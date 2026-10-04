@@ -8,8 +8,8 @@ using DemoViewer.NET.Extensions.Loading;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     <see cref="SignedTrustPolicy" /> and <see cref="TrustPolicy.SignedOrOptIn" /> (strat-book-plugin.md
-///     §7.9): a missing signature is untrusted with a reason, a valid one is trusted, and the combined
+///     <see cref="SignedTrustPolicy" /> and <see cref="TrustPolicy.SignedOrOptIn" />: a missing signature is
+///     untrusted with a reason, a valid one is trusted, and the combined
 ///     policy falls back to the developer opt-in only when signing does not verify.
 /// </summary>
 public class SignedTrustPolicyTests

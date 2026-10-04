@@ -7,7 +7,7 @@ using CS2DemoKit.Parser;
 namespace AnalysisBench;
 
 /// <summary>
-///     Narrower parses for the S1 measurements in docs/perf/memory-and-storage-v1.md. Each name maps to a
+///     Narrower parses for the background-work memory measurements. Each name maps to a
 ///     <see cref="DecodePlan" /> passed through <see cref="ParseOptions.Plan" />; nothing here changes the parser.
 /// </summary>
 internal static class BackgroundPlans
