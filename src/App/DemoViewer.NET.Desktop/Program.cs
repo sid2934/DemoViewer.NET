@@ -67,7 +67,7 @@ internal sealed class Program
         // declared before anything Avalonia-side runs. The shipped pack sits behind a factory: a method that
         // mentions StratBookPack loads the shipped assembly when it is compiled, and the loader must decide
         // before that happens, so nothing else in Main may name the type.
-        FeaturePacks.Configure(ExtensionLoader.Resolve(
+        FeaturePacks.ConfigureResolved(ExtensionLoader.Resolve(
             AppPaths.ConfigRoot,
             [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack())],
             ExtensionHost.Current,
