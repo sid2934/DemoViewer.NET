@@ -7,7 +7,7 @@ using TUnit.Core.Exceptions;
 
 #endregion
 
-namespace DemoViewer.NET.AppTests.Extensions.StratBook;
+namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     The pack has boundaries. Since item 25 the compiler enforces the hard one: the app project does not
@@ -151,6 +151,12 @@ public class PackBoundaryTests
     /// </summary>
     private static bool ContainsPackReference(string content, string ns)
     {
+        // 0. InternalsVisibleTo carries an ASSEMBLY NAME string, not C# syntax: "DemoViewer.NET.Extensions.
+        // StratBook.Tests" is a different, longer assembly name, but textually it is the pack namespace plus
+        // ".Tests", which check 3 below would otherwise read as a qualified type reference. Stripped first so
+        // an IVT grant to a sibling of the pack can never register as a core-to-pack code edge.
+        content = Regex.Replace(content, @"InternalsVisibleTo\(""[^""]*""\)", "", RegexOptions.Multiline);
+
         // 1. Using statement: exactly "using Namespace;". A using of a child namespace is the child's edge,
         // not this one's, so each allow-list row names the namespace a file really imports.
         if (Regex.IsMatch(content, @"\busing\s+" + Regex.Escape(ns) + @"\s*;", RegexOptions.Multiline))

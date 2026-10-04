@@ -39,7 +39,9 @@ public class SuggestedTagsGoldenTests
         }
     }
 
+    // Known failure, tracked by category rather than by eye: strat-book-plugin.md §11.1 "Done means".
     [Test]
+    [Category("KnownFailure")]
     public async Task ThePinnedRounds_ExerciseEveryDetector()
     {
         string? repo = DemoTestHelper.FindRepoRoot();

@@ -252,6 +252,29 @@ jobs:
       - name: App suite, full tier (batched)
         run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
 
+  # The pack's own tests (item 28). Its own job rather than a step in app-tests: a different memory
+  # posture deserves a different timeout, not app-tests' budget shared by subtraction. Single process
+  # for now, unbatched: that follows a measured peak (as app-tests' batching did), not the test count,
+  # and nothing has measured this suite peaking anywhere near app-tests' 4-5 GB.
+  ext-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Same native as app-tests: this suite also renders through Avalonia.Headless + Avalonia.Skia.
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+
+      - name: Extension (Strat Book) suite, full tier
+        run: bash scripts/test.sh -t full -p ext -c Release
+
   # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
   # `standard` tiers exist to let a developer skip. CI pays the other half of that bargain, so these
   # run at `full`.

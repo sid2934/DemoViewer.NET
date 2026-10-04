@@ -29,9 +29,28 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
-        <!-- The pack's tests live here until item 28 gives them their own project. -->
+        <!-- A handful of composition-root and core-mechanism tests (AppCompositionRootTests' siblings,
+             DemoCachePackPayloadTests, PackDataRemoverTests, ...) build the real pack as their fixture;
+             item 28 moved the pack's OWN tests out, not this project's need for the pack assembly. -->
         <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
         <ProjectReference Include="..\..\Testing\DemoViewer.NET.TestSupport\DemoViewer.NET.TestSupport.csproj"/>
+    </ItemGroup>
+
+    <!-- Item 28 moved these four files to the extension test project along with the rest of
+         Extensions/StratBook; linked back here, each into its own listed core-mechanism tests, because
+         those tests stayed in this project and still need them as fixtures. Each file compiles into
+         both assemblies (strat-book-plugin.md §13). -->
+    <ItemGroup>
+        <!-- DemoCachePackPayloadTests, DemoCacheRoundIndexStampTests, PackDataRemoverTests,
+             ReviewQueueTests, SidecarFormatTests, BackgroundPlanRealDemoTests, ForwardPassRealDemoTests,
+             ForwardQueueTests. -->
+        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\RoundIndexTestData.cs" Link="RoundIndexTestData.cs"/>
+        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\CacheRecordTestExtensions.cs" Link="CacheRecordTestExtensions.cs"/>
+        <!-- UiThreadAuditTests walks the StratBook hub like every other section's. -->
+        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\StratBookHubAccess.cs" Link="StratBookHubAccess.cs"/>
+        <!-- ZonePlaceResolverSourceTests (core: Services/Zones) checks the adjacency-seam naming through
+             the Query Canvas, the same fixture ToleranceSliderTests builds. -->
+        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\ToleranceSliderHarness.cs" Link="ToleranceSliderHarness.cs"/>
     </ItemGroup>
 
 </Project>

@@ -253,7 +253,7 @@ public class StratGoldenCaptureTests
         {
             throw new InvalidOperationException(
                 $"no golden at {goldenPath}. Regenerate deliberately with " +
-                $"{UpdateEnvVar}=1 dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release " +
+                $"{UpdateEnvVar}=1 dotnet run --project src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests -c Release " +
                 "-- --treenode-filter \"/*/*/StratGoldenCaptureTests/*\".");
         }
 

@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 ///     pre-<c>Packs</c> file's top-level <c>StratBook</c> member folds once, a new file's <c>Packs</c>
 ///     dictionary round-trips byte for byte including ids this build does not own, and a per-pack blob
 ///     this build cannot make sense of never throws. The pack-off carry-through and the hub's own
-///     tolerant restore are shell-level (<see cref="AppTests.StratBookShellTests" />): the store itself
+///     tolerant restore are shell-level (<c>AppTests.StratBookShellTests</c>): the store itself
 ///     has no notion of a pack being on or off.
 /// </summary>
 public class SessionPackStateTests
