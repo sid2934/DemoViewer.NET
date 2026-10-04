@@ -52,11 +52,12 @@ public static class FeaturePacks
     /// <summary>
     ///     <see cref="Configure(IReadOnlyList{IFeaturePack})" /> with the verdicts already made: what the
     ///     Desktop head passes from <see cref="Loading.ExtensionLoader.Resolve" />, whose statuses carry
-    ///     each pack's source and the staged candidates it rejected.
+    ///     each pack's source and the staged candidates it rejected. Its own name rather than an overload
+    ///     so <c>Configure([])</c> stays unambiguous.
     /// </summary>
     /// <param name="statuses">One per pack, in composition order, judged against <see cref="ExtensionHost.Current" />.</param>
     /// <exception cref="InvalidOperationException">Already configured, or the list was already read.</exception>
-    public static void Configure(IReadOnlyList<PackStatus> statuses) => List.Set(statuses);
+    public static void ConfigureResolved(IReadOnlyList<PackStatus> statuses) => List.Set(statuses);
 
     /// <summary>
     ///     <see cref="Configure(IReadOnlyList{IFeaturePack})" /> for a path that cannot know whether Main
