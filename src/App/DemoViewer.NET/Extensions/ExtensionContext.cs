@@ -190,18 +190,13 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         options ??= new JobOptions();
         (QueueJobKind kind, string? extensionKind) = Resolve(options.Kind);
 
-        if (queue() is not { } q)
-        {
-            return Task.Run(() => work(PoolContext.Instance));
-        }
-
         DemoJobPriority priority = options.Priority == JobPriority.UserRequested
             ? DemoJobPriority.UserRequested
             : DemoJobPriority.Background;
-        IDemoQueueHandle handle = q.SubmitJob(new QueueJobRequest(kind, title, extensionId, priority,
-            ctx => work(new Context(ctx)), options.Key, ReplacePending: options.Key is not null,
-            Preemptible: options.Preemptible, Serial: options.Serial, ExtensionKind: extensionKind));
-        return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(PoolContext.Instance)) : handle.Completion;
+        QueueJobRequest request = new(kind, title, extensionId, priority, ctx => work(new Context(ctx)), options.Key,
+            ReplacePending: options.Key is not null, Preemptible: options.Preemptible, Serial: options.Serial,
+            ExtensionKind: extensionKind);
+        return QueueWork.Submit(queue(), request);
     }
 
     public void CancelAll() => queue()?.CancelOwned(extensionId);
@@ -227,16 +222,5 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         public CancellationToken CancellationToken => inner.CancellationToken;
 
         public void Report(int done, int total, string? detail = null) => inner.Report(done, total, detail);
-    }
-
-    private sealed class PoolContext : IJobContext
-    {
-        public static PoolContext Instance { get; } = new();
-
-        public CancellationToken CancellationToken => CancellationToken.None;
-
-        public void Report(int done, int total, string? detail = null)
-        {
-        }
     }
 }

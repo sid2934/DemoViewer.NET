@@ -227,14 +227,14 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            IExtensionFeatures features = Host(sp).Features;
             RoundIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => monitor?.CurrentValue.Situations.BackgroundIndex ?? true,
-                action => Dispatcher.UIThread.Post(action),
-                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+                Host(sp).Post,
+                enabled: () => features.IsEnabled(PackFeatureId));
             // Set here, not by the evaluator registry's lazy wrapper: SituationIndex resolves this
             // directly at StartPacks time, before anything has polled the coordinator, so a wrapper-only
             // assignment would leave Coordinator null and Request/RebuildAll silently no-op until then.
@@ -248,32 +248,23 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<IRoundFactsSource>(),
             sp.GetRequiredService<IZonePlaceResolverSource>(),
             sp.GetRequiredService<RoundIndexEvaluator>(),
-            action => Dispatcher.UIThread.Post(action)));
+            Host(sp).Post));
         services.AddSingleton<ISituationIndex>(sp => sp.GetRequiredService<SituationIndex>());
         // Result Cards seek playback through the shell's own funnels: the shared load core when the
         // card's demo is not the loaded one, the controller's SeekToTick, and the tab switch by id.
         // Every delegate reaches the shell at call time, never at construction.
-        services.AddSingleton<ISituationPlayback>(_ => new SituationPlaybackSeek(
-            () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-            async path =>
-            {
-                if (App.Services?.GetService<MainViewModel>() is not { } shell)
-                {
-                    return false;
-                }
-
-                await shell.LoadDemoFromPathAsync(path);
-                return shell.HasFile;
-            },
-            tick => App.Services?.GetService<MainViewModel>()?.Playback.SeekToTick(tick),
-            tabId => App.Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
+        services.AddSingleton<ISituationPlayback>(sp => new SituationPlaybackSeek(
+            () => Host(sp).Shell.CurrentDemoPath,
+            path => Host(sp).Shell.OpenDemoAsync(path),
+            tick => Host(sp).Shell.SeekToTick(tick),
+            tabId => Host(sp).Shell.SelectTab(tabId)));
 
         // The Round Tagger's store: per-demo tag documents keyed by content hash under <config>/tags. One
         // per process, because CheckOut's single-writer guarantee is only as wide as the instance that
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(sp =>
         {
-            TagStore tags = new(AppPaths.TagsDir, action => Dispatcher.UIThread.Post(action));
+            TagStore tags = new(AppPaths.TagsDir, Host(sp).Post);
             // Shutdown flushes the index only when a factory built the store (StratBookLifecycle.OnShutdown).
             sp.GetRequiredService<StratBookPackInstances>().Tags = tags;
             return tags;
@@ -288,8 +279,7 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
                 path => cache.TryGetIndex(path)?.Sha256,
-                background: work => _ = QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreSave,
-                    "Tags: round facts", "tags", _ => work()));
+                background: work => _ = Job(sp, "Tags: round facts", work, new JobOptions(BuiltInJobKinds.Save)));
         });
 
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
@@ -315,11 +305,10 @@ public sealed class StratBookPack : IExtension
                 AppPaths.ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
-                action => Dispatcher.UIThread.Post(action),
-                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.Extension,
-                    "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial,
-                    extensionKind: StratBookJobKinds.Teams),
-                scheduleLoad: StartupLoad(sp, "Load: teams", "teams"),
+                Host(sp).Post,
+                run: work => Job(sp, "Teams: update", work,
+                    new JobOptions(StratBookJobKinds.Teams, Serial: TeamIdentityService.QueueSerial)),
+                scheduleLoad: StartupLoad(sp, "Load: teams"),
                 loadAtStart: false);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
@@ -339,24 +328,17 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp => new DemoProvenanceSource(
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<TeamIdentityService>(),
-            action => Dispatcher.UIThread.Post(action)));
+            Host(sp).Post));
         services.AddSingleton<IDemoProvenanceSource>(sp => sp.GetRequiredService<DemoProvenanceSource>());
         // The Teams tab VM: a container singleton resolved lazily on first activation. Opening a demo
         // reaches the shell at call time, never at construction.
         services.AddSingleton(sp => new TeamsTabViewModel(
             sp.GetRequiredService<TeamIdentityService>(),
             sp.GetRequiredService<DemoCacheStore>(),
-            async path =>
-            {
-                if (App.Services?.GetService<MainViewModel>() is { } shell)
-                {
-                    await shell.LoadDemoFromPathAsync(path);
-                }
-            },
-            command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.Extension,
-                "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested,
-                serial: TeamIdentityService.QueueSerial, extensionKind: StratBookJobKinds.Teams),
-            post: action => Dispatcher.UIThread.Post(action)));
+            async path => await Host(sp).Shell.OpenDemoAsync(path),
+            command: (what, change) => Job(sp, "Teams: " + what.TrimEnd('…'), change,
+                new JobOptions(StratBookJobKinds.Teams, JobPriority.UserRequested, Serial: TeamIdentityService.QueueSerial)),
+            post: Host(sp).Post));
 
         // SituationIndex, TeamIdentityService and TagFactsRefresher were registered by the composition root,
         // so their factories are wrapped rather than rewritten. The wrap changes nothing
@@ -382,13 +364,13 @@ public sealed class StratBookPack : IExtension
             new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
         services.AddSingleton(sp =>
         {
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            IExtensionFeatures features = Host(sp).Features;
             RoundFactsEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsRowSource>(),
                 sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
-                action => Dispatcher.UIThread.Post(action),
-                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+                Host(sp).Post,
+                enabled: () => features.IsEnabled(PackFeatureId));
             sp.GetRequiredService<StratBookPackInstances>().RoundFacts = built;
             return built;
         });
@@ -396,11 +378,11 @@ public sealed class StratBookPack : IExtension
         // comes back. They stay on disk.
         services.AddSingleton<IRoundFactsSource>(sp =>
         {
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            IExtensionFeatures features = Host(sp).Features;
             return new RoundFactsSource(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundFactsEvaluator>(),
-                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+                enabled: () => features.IsEnabled(PackFeatureId));
         });
 
         services.AddSingleton(sp =>
@@ -424,9 +406,8 @@ public sealed class StratBookPack : IExtension
                 // the stored canonical place names; no team marked falls back to the me book, same as the
                 // Strat Book's own default.
                 callouts: sp.GetRequiredService<CalloutResolverSource>(),
-                run: part => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
-                    QueueJobKind.SectionCompute, "Situations: " + part, "situations", _ => work(), key: "section:situations:" + part,
-                    preemptible: true));
+                run: part => work => Job(sp, "Situations: " + part, work,
+                    new JobOptions(Key: "section:situations:" + part, Preemptible: true)));
         });
 
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
@@ -475,9 +456,8 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<SuggestedTagsService>(),
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<IDemoProcessingQueue>(),
-            run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
-                "Suggested: read a demo", "suggested", _ => work()),
-            post: action => Dispatcher.UIThread.Post(action)));
+            run: work => Job(sp, "Suggested: read a demo", work, new JobOptions()),
+            post: Host(sp).Post));
         services.AddSingleton(sp => new SuggestedInboxViewModel(
             sp.GetService<SuggestedInboxService>(),
             () => sp.GetService<ISituationPlayback>()));
@@ -494,7 +474,7 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),
                 sp.GetRequiredService<IDemoProvenanceSource>(),
-                action => Dispatcher.UIThread.Post(action));
+                Host(sp).Post);
             sp.GetRequiredService<StratBookPackInstances>().Record(watched);
             return watched;
         });
@@ -510,10 +490,9 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<ReviewQueue>(),
                 cache.TryGetIndexBySha256,
                 sp.GetRequiredService<TeamIdentityService>(),
-                tabId => App.Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
-                action => Dispatcher.UIThread.Post(action),
-                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.SectionCompute,
-                    "Tags: matrix", "tags", _ => work(), key: "section:tag-matrix", preemptible: true));
+                tabId => Host(sp).Shell.SelectTab(tabId),
+                Host(sp).Post,
+                run: work => Job(sp, "Tags: matrix", work, new JobOptions(Key: "section:tag-matrix", Preemptible: true)));
         });
 
         // Suggested Tags: the detectors as an evaluator one place after the Round Index, reading the index
@@ -531,21 +510,21 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            IExtensionFeatures features = Host(sp).Features;
             SuggestedTagsService built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<ProposalStore>(),
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<SiteRegionStore>(),
                 () => sp.GetRequiredService<ProfileStore>().Current,
-                () => features?.IsEnabled(SuggestedTagsService.FeatureId) ?? true,
+                () => features.IsEnabled(SuggestedTagsService.FeatureId),
                 () => monitor?.CurrentValue.Playback2D.SuggestedTagsBackground ?? false,
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 map => sp.GetRequiredService<ISituationIndex>().Places(map),
-                () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
-                action => Dispatcher.UIThread.Post(action));
+                () => Host(sp).Shell.CurrentDemoPath,
+                Host(sp).Post);
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
             // Set here, not by the evaluator registry's lazy wrapper, which only runs once something has
             // already polled the coordinator.
@@ -565,7 +544,7 @@ public sealed class StratBookPack : IExtension
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
-        services.AddSingleton(_ => new StratStore(AppPaths.StratsDir, action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp => new StratStore(AppPaths.StratsDir, Host(sp).Post));
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
@@ -580,7 +559,7 @@ public sealed class StratBookPack : IExtension
         // section's Detected inbox and written to a book only when the user adds one.
         services.AddSingleton(sp =>
         {
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            IExtensionFeatures features = Host(sp).Features;
             StratMiningService mining = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexStore>(),
@@ -591,9 +570,9 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<TagStore>(),
                 AppPaths.DemoCacheDir,
                 AppPaths.ConfigRoot,
-                action => Dispatcher.UIThread.Post(action),
+                Host(sp).Post,
                 queue: sp.GetRequiredService<IDemoProcessingQueue>(),
-                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+                enabled: () => features.IsEnabled(PackFeatureId));
             sp.GetRequiredService<StratBookPackInstances>().Record(mining);
             return mining;
         });
@@ -608,13 +587,13 @@ public sealed class StratBookPack : IExtension
             return new StratBookTabViewModel(
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),
-                action => Dispatcher.UIThread.Post(action),
+                Host(sp).Post,
                 calloutResolvers: sp.GetRequiredService<CalloutResolverSource>(),
                 tags: sp.GetRequiredService<TagStore>(),
                 evidence: sp.GetRequiredService<StratEvidenceService>(),
                 review: sp.GetRequiredService<ReviewQueue>(),
                 indexBySha: cache.TryGetIndexBySha256,
-                selectTab: tabId => App.Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
+                selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
                 playback: () => sp.GetService<ISituationPlayback>(),
@@ -628,8 +607,7 @@ public sealed class StratBookPack : IExtension
         // resolve. A Singleton would cache a null from a startup-time off state forever.
         services.AddTransient<IStratCapture>(sp =>
         {
-            IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            if (!(gate?.IsEnabled(PackFeatureId) ?? true))
+            if (!Host(sp).Features.IsEnabled(PackFeatureId))
             {
                 return null!;
             }
@@ -641,7 +619,7 @@ public sealed class StratBookPack : IExtension
                 id =>
                 {
                     // The tab first: activation refreshes its list, which the open strat is then selected in.
-                    sp.GetService<MainViewModel>()?.TrySelectTab(StratBookModule.BrowserTabId);
+                    Host(sp).Shell.SelectTab(StratBookModule.BrowserTabId);
                     sp.GetRequiredService<StratBookTabViewModel>().OpenStrat(id);
                 });
         });
@@ -649,8 +627,7 @@ public sealed class StratBookPack : IExtension
         // Strat Export. No export on the browser: no ffmpeg, no files.
         services.AddTransient<IStratExport>(sp =>
         {
-            IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            if (!(gate?.IsEnabled(PackFeatureId) ?? true) || OperatingSystem.IsBrowser())
+            if (!Host(sp).Features.IsEnabled(PackFeatureId) || OperatingSystem.IsBrowser())
             {
                 return null!;
             }
@@ -663,7 +640,7 @@ public sealed class StratBookPack : IExtension
                 () => settings.Current,
                 settings.Write,
                 sp.GetRequiredService<StratBookExportChipSlot>().Mount,
-                path => sp.GetService<MainViewModel>()?.OpenOutputFolder(path));
+                path => Host(sp).Shell.RevealInFileManager(path));
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
@@ -678,7 +655,7 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton<IFindRoundsLikeThis>(sp => new FindRoundsLikeThis(
             sp.GetRequiredService<SituationsTabViewModel>,
             sp.GetRequiredService<RoundIndexPlaceSources>(),
-            tabId => App.Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
+            tabId => Host(sp).Shell.SelectTab(tabId)));
 
         // The Grenade Walk: every throw in a demo as one row, written as two siblings of
         // the demo's cache record. An evaluator on the same fan-out, last because it reads nothing the others
@@ -688,13 +665,13 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            IExtensionFeatures features = Host(sp).Features;
             GrenadeIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
-                () => App.Services?.GetService<MainViewModel>()?.LoadedDemoPath,
+                () => Host(sp).Shell.CurrentDemoPath,
                 () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
-                enabled: () => features?.IsEnabled(PackFeatureId) ?? true);
+                enabled: () => features.IsEnabled(PackFeatureId));
             sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
             // Set here, not by the evaluator registry's lazy wrapper: GrenadeIndex resolves this directly
             // at StartPacks time, before anything has polled the coordinator, so a wrapper-only assignment
@@ -712,9 +689,9 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
-                action => Dispatcher.UIThread.Post(action),
-                scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: grenade lineups",
-                    "utility", "save:grenade-lineups"));
+                Host(sp).Post,
+                scheduleSave: drain => Job(sp, "Save: grenade lineups", drain,
+                    new JobOptions(BuiltInJobKinds.Save, Key: "save:grenade-lineups")));
             sp.GetRequiredService<StratBookPackInstances>().Record(index);
             return index;
         });
@@ -745,7 +722,7 @@ public sealed class StratBookPack : IExtension
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 review: sp.GetRequiredService<ReviewQueue>(),
-                selectTab: tabId => App.Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false,
+                selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 openings: new OpeningTendenciesService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     sp.GetRequiredService<DemoCacheStore>(),
@@ -762,9 +739,8 @@ public sealed class StratBookPack : IExtension
                     sp.GetRequiredService<DemoCacheStore>()),
                 notes: sp.GetRequiredService<DossierNotesStore>(),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
-                runSection: section => work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(),
-                    QueueJobKind.SectionCompute, "Dossier: " + section, "dossier", _ => work(), key: "section:dossier:" + section,
-                    preemptible: true));
+                runSection: section => work => Job(sp, "Dossier: " + section, work,
+                    new JobOptions(Key: "section:dossier:" + section, Preemptible: true)));
         });
 
         // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,
@@ -799,9 +775,19 @@ public sealed class StratBookPack : IExtension
     }
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
-    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
-        load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
-            DemoJobPriority.UserRequested);
+    private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title) =>
+        load => Job(sp, title, load, new JobOptions(BuiltInJobKinds.Load, JobPriority.UserRequested));
+
+    // The pack's host context: the SDK's way into the shell, the gate, the queue and the UI thread.
+    private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext(PackId);
+
+    // One processing-queue job through the context, owned by the pack's id.
+    private static Task Job(IServiceProvider sp, string title, Action work, JobOptions options) =>
+        Host(sp).Jobs.RunAsync(title, _ =>
+        {
+            work();
+            return Task.CompletedTask;
+        }, options);
 
     // Wraps an existing registration's factory so the built instance is also recorded on the tracker,
     // without adding, dropping or re-scoping the registration itself (StratBookPackTests pins the set).
@@ -926,8 +912,8 @@ public sealed class StratBookPack : IExtension
         // Create Strat From Round in 2D Playback: the round band's entry and the review pane, one
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
-        firstParty.FirstPartyPlayback(new CreateStratPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
-        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
+        contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post));
+        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post));
         firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
@@ -987,10 +973,9 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<ISituationPlayback>(),
             demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
             clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, App.LineupClipDirectoryName) : null,
-            background: lockedMap is null
-                ? QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Utility Book", "utility", "section:utility")
-                : QueueWork.Section(sp.GetRequiredService<IDemoProcessingQueue>(), "Lineup picker", "utility", "section:lineup-picker"),
-            post: work => Dispatcher.UIThread.Post(work),
+            background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
+                new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),
+            post: Host(sp).Post,
             lockedMap: lockedMap,
             loadMapAsset: lockedMap is null ? null : _ => sharedAsset,
             ownsMapAsset: lockedMap is null);

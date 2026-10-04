@@ -2,17 +2,14 @@
 
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.StratBook;
-using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
-using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 
 #endregion
 
@@ -62,9 +59,9 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
     }
 
     /// <summary>The entry for a round band when a capture with a demo is there; nothing otherwise.</summary>
-    internal IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band)
+    internal IEnumerable<MenuEntry> MenuFor(PlaybackBand band)
     {
-        if (!Playback2DTimelineViewModel.IsRoundBand(band) || Capture() is null)
+        if (!band.IsRound || Capture() is null)
         {
             return [];
         }
@@ -124,7 +121,7 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
             facts = null;
         }
 
-        StratCaptureRequest request = BuildRequest(host, context, round, windowEnd, facts, demo.MapName, surface.MapLevels);
+        StratCaptureRequest request = BuildRequest(host, context, round, windowEnd, facts, demo.MapName, Levels(surface));
         OpenWith(request,
             (progress, ct) => RoundCaptureWalker.Walk(demo, round.Number, round.StartTickFrameClock, windowEnd, facts?.EndTick,
                 progress, ct),
@@ -152,6 +149,12 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
         };
         pane.Open();
     }
+
+    // The SDK's floors as the capture's level keys read them.
+    private static List<MapLevel> Levels(IPlaybackSurface surface) =>
+    [
+        .. surface.Levels.Select(l => new MapLevel { Id = MapSpace.IdForZMin(l.ZMin), Name = l.Name, ZMin = l.ZMin, ZMax = l.ZMax })
+    ];
 
     private object BuildPane() =>
         _next?.Invoke() ?? throw new InvalidOperationException("The Create Strat pane opens from a round band's menu entry.");

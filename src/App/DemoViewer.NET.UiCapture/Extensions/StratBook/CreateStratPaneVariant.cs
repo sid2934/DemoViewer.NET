@@ -28,7 +28,7 @@ public static partial class Variants
         const int rate = 64;
         PaneContext ctx = new();
         CreateStratPlaybackContribution contribution = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [contribution])], null);
+        PlaybackContributionHost host = new([(new StratBookPack(), [new SdkPlaybackContribution(contribution)])], null);
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
 

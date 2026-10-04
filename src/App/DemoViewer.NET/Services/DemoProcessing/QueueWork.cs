@@ -99,6 +99,43 @@ public static class QueueWork
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(PoolContext.Instance)) : handle.Completion;
     }
 
+    /// <summary>
+    ///     Submits a prepared request with the same rules as <see cref="Run" />: a user action's priority, the
+    ///     item's token visible to <see cref="ThrowIfStopped" />, and the pool when there is no queue or it refused.
+    /// </summary>
+    internal static Task Submit(IDemoProcessingQueue? queue, QueueJobRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (queue is null || Bypass)
+        {
+            return Task.Run(() => request.RunAsync(PoolContext.Instance));
+        }
+
+        if (_userAction.Value && request.Priority < DemoJobPriority.UserRequested)
+        {
+            request = request with { Priority = DemoJobPriority.UserRequested };
+        }
+
+        Func<IQueueJobContext, Task> body = request.RunAsync;
+        IDemoQueueHandle handle = queue.SubmitJob(request with
+        {
+            RunAsync = async ctx =>
+            {
+                CancellationToken outer = _current.Value;
+                _current.Value = ctx.CancellationToken;
+                try
+                {
+                    await body(ctx).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _current.Value = outer;
+                }
+            }
+        });
+        return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => body(PoolContext.Instance)) : handle.Completion;
+    }
+
     private static readonly AsyncLocal<bool> _userAction = new();
     private static readonly AsyncLocal<CancellationToken> _current = new();
 

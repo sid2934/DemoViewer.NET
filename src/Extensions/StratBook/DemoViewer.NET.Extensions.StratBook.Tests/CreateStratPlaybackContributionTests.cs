@@ -32,7 +32,7 @@ public class CreateStratPlaybackContributionTests
     {
         Playback2DFakeContext ctx = new();
         CreateStratPlaybackContribution contribution = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [contribution])], gate);
+        PlaybackContributionHost host = new([(new StratBookPack(), [new SdkPlaybackContribution(contribution)])], gate);
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
         return (vm, ctx, contribution);
